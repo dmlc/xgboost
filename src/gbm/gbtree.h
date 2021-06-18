@@ -9,6 +9,7 @@
 
 #include <dmlc/omp.h>
 
+#include <algorithm>
 #include <vector>
 #include <map>
 #include <memory>
@@ -296,6 +297,58 @@ class GBTree : public GradientBooster {
                      << (tparam_.predictor == PredictorType::kCPUPredictor
                              ? "cpu_predictor"
                              : "gpu_predictor");
+    }
+  }
+
+  void FeatureScore(std::string const &importance_type,
+                    std::vector<bst_feature_t> *features,
+                    std::vector<float> *scores) const override {
+    // Because feature with no importance doesn't appear in the return value so
+    // we need to set up another pair of vectors to store the values during
+    // computation.
+    std::vector<size_t> split_counts(this->model_.learner_model_param->num_feature, 0);
+    std::vector<float> gain_map(this->model_.learner_model_param->num_feature, 0);
+    auto add_score = [&](auto fn) {
+      for (auto const &p_tree : model_.trees) {
+        p_tree->WalkTree([&](bst_node_t nidx) {
+          auto const &node = (*p_tree)[nidx];
+          if (!node.IsLeaf()) {
+            split_counts[node.SplitIndex()]++;
+            fn(p_tree, nidx, node.SplitIndex());
+          }
+          return true;
+        });
+      }
+    };
+
+    if (importance_type == "weight") {
+      add_score([&](auto const &p_tree, bst_node_t, bst_feature_t split) {
+        gain_map[split] = split_counts[split];
+      });
+    }
+    if (importance_type == "gain" || importance_type == "total_gain") {
+      add_score([&](auto const &p_tree, bst_node_t nidx, bst_feature_t split) {
+        gain_map[split] += p_tree->Stat(nidx).loss_chg;
+      });
+    }
+    if (importance_type == "cover" || importance_type == "total_cover") {
+      add_score([&](auto const &p_tree, bst_node_t nidx, bst_feature_t split) {
+        gain_map[split] += p_tree->Stat(nidx).sum_hess;
+      });
+    }
+    if (importance_type == "gain" || importance_type == "cover") {
+      for (size_t i = 0; i < gain_map.size(); ++i) {
+        gain_map[i] /= std::max(1.0f, static_cast<float>(split_counts[i]));
+      }
+    }
+
+    features->clear();
+    scores->clear();
+    for (size_t i = 0; i < split_counts.size(); ++i) {
+      if (split_counts[i] != 0) {
+        features->push_back(i);
+        scores->push_back(gain_map[i]);
+      }
     }
   }
 

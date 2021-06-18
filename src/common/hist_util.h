@@ -627,11 +627,11 @@ class GHistBuilder {
   GHistBuilder(size_t nthread, uint32_t nbins) : nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
+  template <bool any_missing>
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
-                 GHistRowT hist,
-                 bool isDense);
+                 GHistRowT hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRowT self,
                         GHistRowT sibling,

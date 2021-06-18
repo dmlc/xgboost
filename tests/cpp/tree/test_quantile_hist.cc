@@ -309,7 +309,7 @@ class QuantileHistMock : public QuantileHistMaker {
       RealImpl::InitData(gmat, fmat, tree, &gpair);
       this->hist_.AddHistRow(nid);
       this->hist_.AllocateAllData();
-      this->BuildHist(gpair, this->row_set_collection_[nid],
+      this->hist_builder_.template BuildHist<true>(gpair, this->row_set_collection_[nid],
                       gmat, this->hist_[nid]);
 
       // Check if number of histogram bins is correct
@@ -350,7 +350,7 @@ class QuantileHistMock : public QuantileHistMaker {
       RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
       this->hist_.AddHistRow(0);
       this->hist_.AllocateAllData();
-      this->BuildHist(row_gpairs, this->row_set_collection_[0],
+      this->hist_builder_.template BuildHist<false>(row_gpairs, this->row_set_collection_[0],
                       gmat, this->hist_[0]);
 
       RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
@@ -482,8 +482,13 @@ class QuantileHistMock : public QuantileHistMaker {
           });
           const size_t task_id = RealImpl::partition_builder_.GetTaskIdx(0, 0);
           RealImpl::partition_builder_.AllocateForTask(task_id);
-          this->template PartitionKernel<uint8_t>(0, 0, common::Range1d(0, kNRows),
-                                                  split, cm, tree);
+          if (cm.AnyMissing()) {
+            RealImpl::partition_builder_.template Partition<uint8_t, true>(0, 0, common::Range1d(0, kNRows),
+                                                    split, cm, tree, this->row_set_collection_[0].begin);
+          } else {
+            RealImpl::partition_builder_.template Partition<uint8_t, false>(0, 0, common::Range1d(0, kNRows),
+                                                    split, cm, tree, this->row_set_collection_[0].begin);
+          }
           RealImpl::partition_builder_.CalculateRowOffsets();
           ASSERT_EQ(RealImpl::partition_builder_.GetNLeftElems(0), left_cnt);
           ASSERT_EQ(RealImpl::partition_builder_.GetNRightElems(0), right_cnt);

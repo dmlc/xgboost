@@ -152,6 +152,13 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                               HostDeviceVector<bst_float> **out_preds,
                               uint32_t layer_begin, uint32_t layer_end) = 0;
 
+  /*!
+   * \brief Calculate feature score.  See doc in C API for outputs.
+   */
+  virtual void CalcFeatureScore(std::string const &importance_type,
+                                std::vector<bst_feature_t> *features,
+                                std::vector<float> *scores) = 0;
+
   /*
    * \brief Get number of boosted rounds from gradient booster.
    */

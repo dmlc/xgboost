@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015~2020 by Contributors
+ * Copyright (c) 2015~2021 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -1193,4 +1193,28 @@ XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
 XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
                                        bst_ulong *len,
                                        const char ***out_features);
+
+/*!
+ * \brief Calculate feature scores for tree models.
+ *
+ * \param handle        An instance of Booster
+ * \param json_config   Parameters for computing scores.  Accepted JSON keys are:
+ *   - importance_type: A JSON string with following possible values:
+ *       * 'weight': the number of times a feature is used to split the data across all trees.
+ *       * 'gain': the average gain across all splits the feature is used in.
+ *       * 'cover': the average coverage across all splits the feature is used in.
+ *       * 'total_gain': the total gain across all splits the feature is used in.
+ *       * 'total_cover': the total coverage across all splits the feature is used in.
+ *   - feature_map: An optional JSON string with URI or path to the feature map file.
+ *
+ * \param out_length    Length of output arrays.
+ * \param out_features  An array of string as feature names, ordered the same as output scores.
+ * \param out_scores    An array of floating point as feature scores.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
+                                  bst_ulong *out_length,
+                                  const char ***out_features,
+                                  float **out_scores);
 #endif  // XGBOOST_C_API_H_
