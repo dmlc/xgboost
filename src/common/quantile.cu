@@ -210,6 +210,7 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
                Span<bst_row_t const> const &x_ptr,
                Span<SketchEntry const> const &d_y,
                Span<bst_row_t const> const &y_ptr,
+               Span<FeatureType const> feature_types,
                Span<SketchEntry> out,
                Span<bst_row_t> out_ptr) {
   dh::safe_cuda(cudaSetDevice(device));
@@ -408,31 +409,6 @@ size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_col
   return n_uniques;
 }
 
-size_t SketchContainer::Unique() {
-  timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_));
-  this->columns_ptr_.SetDevice(device_);
-  Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
-  CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
-  Span<SketchEntry> entries = dh::ToSpan(this->Current());
-  HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-  scan_out.SetDevice(device_);
-  auto d_scan_out = scan_out.DeviceSpan();
-
-  d_column_scan = this->columns_ptr_.DeviceSpan();
-  size_t n_uniques = dh::SegmentedUnique(
-      d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-      entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(),
-      entries.data(),
-      detail::SketchUnique{});
-  this->columns_ptr_.Copy(scan_out);
-  CHECK(!this->columns_ptr_.HostCanRead());
-
-  this->Current().resize(n_uniques);
-  timer_.Stop(__func__);
-  return n_uniques;
-}
-
 void SketchContainer::Prune(size_t to) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
@@ -490,13 +466,20 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
   this->Other().resize(this->Current().size() + that.size());
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
-  MergeImpl(device_, this->Data(), this->ColumnsPtr(),
-            that, d_that_columns_ptr,
-            dh::ToSpan(this->Other()), columns_ptr_b_.DeviceSpan());
+  auto feature_types = this->FeatureTypes().ConstDeviceSpan();
+  MergeImpl(device_, this->Data(), this->ColumnsPtr(), that, d_that_columns_ptr,
+            feature_types, dh::ToSpan(this->Other()),
+            columns_ptr_b_.DeviceSpan());
   this->columns_ptr_.Copy(columns_ptr_b_);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
   this->Alternate();
 
+  if (this->HasCategorical()) {
+    auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
+    this->Unique([d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
+      return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
+    });
+  }
   timer_.Stop(__func__);
 }
 
