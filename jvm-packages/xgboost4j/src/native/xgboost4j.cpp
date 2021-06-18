@@ -587,14 +587,18 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
  * Signature: (JJIJ)[F
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
-  (JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint joption_mask, jint jntree_limit, jobjectArray jout) {
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jint joption_mask, jint jntree_limit,
+   jobjectArray jout, jintArray jgroup_indices, jint jnum_feat_group) {
+
   BoosterHandle handle = (BoosterHandle) jhandle;
   DMatrixHandle dmat = (DMatrixHandle) jdmat;
   bst_ulong len;
   float *result;
+  jint *group_indices = nullptr;
+  if (jgroup_indices != nullptr) group_indices = jenv->GetIntArrayElements(jgroup_indices, 0);
   int ret = XGBoosterPredict(handle, dmat, joption_mask, (unsigned int) jntree_limit,
                              /* training = */ 0,  // Currently this parameter is not supported by JVM
-                             &len, (const float **) &result);
+                             &len, (const float **) &result, (int *) group_indices, jnum_feat_group);
   JVM_CHECK_CALL(ret);
   if (len) {
     jsize jlen = (jsize) len;

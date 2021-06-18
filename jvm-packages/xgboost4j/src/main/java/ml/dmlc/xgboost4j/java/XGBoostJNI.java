@@ -99,7 +99,8 @@ class XGBoostJNI {
                                                       String[] evnames, String[] eval_info);
 
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
-                                                  int ntree_limit, float[][] predicts);
+                                                  int ntree_limit, float[][] predicts,
+                                                  int[] groupIndices, int numFeatureGroup);
 
   public final static native int XGBoosterLoadModel(long handle, String fname);
 

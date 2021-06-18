@@ -202,6 +202,8 @@ class Predictor {
    * \param           tree_end           The tree end index.
    * \param           tree_weights       (Optional) Weights to multiply each tree by.
    * \param           approximate        Use fast approximate algorithm.
+   * \param           group_indices      Group index of features for group of feature contributions 
+   * \param           num_feat_group     The number of feature groups provided in group_indices
    * \param           condition          Condition on the condition_feature (0=no, -1=cond off, 1=cond on).
    * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
    */
@@ -212,6 +214,8 @@ class Predictor {
                                    unsigned tree_end = 0,
                                    std::vector<bst_float>* tree_weights = nullptr,
                                    bool approximate = false,
+                                   int *group_indices = nullptr,
+                                   int num_feat_group = 0,
                                    int condition = 0,
                                    unsigned condition_feature = 0) const = 0;
 
@@ -220,7 +224,9 @@ class Predictor {
                                                const gbm::GBTreeModel& model,
                                                unsigned tree_end = 0,
                                                std::vector<bst_float>* tree_weights = nullptr,
-                                               bool approximate = false) const = 0;
+                                               bool approximate = false,
+                                               int *group_indices = nullptr,
+                                               int num_feat_group = 0) const = 0;
 
 
   /**

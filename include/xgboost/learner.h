@@ -121,6 +121,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
+   * \param group_indices group index of features for group of feature contributions 
+   * \param num_feat_group the number of feature groups provided in group_indices
    */
   virtual void Predict(std::shared_ptr<DMatrix> data,
                        bool output_margin,
@@ -131,7 +133,9 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                        bool pred_leaf = false,
                        bool pred_contribs = false,
                        bool approx_contribs = false,
-                       bool pred_interactions = false) = 0;
+                       bool pred_interactions = false,
+                       int *group_indices = nullptr,
+                       int num_feat_group = 0) = 0;
 
   /*!
    * \brief Inplace prediction.

@@ -158,18 +158,22 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param approximate use a faster (inconsistent) approximation of SHAP values
+   * \param group_indices group index of features for group of feature contributions 
+   * \param num_feat_group the number of feature groups provided in group_indices
    * \param condition condition on the condition_feature (0=no, -1=cond off, 1=cond on).
    * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
                                    HostDeviceVector<bst_float>* out_contribs,
                                    unsigned layer_begin, unsigned layer_end,
-                                   bool approximate = false, int condition = 0,
-                                   unsigned condition_feature = 0) = 0;
+                                   bool approximate = false,
+                                   int *group_indices = nullptr, int num_feat_group = 0,
+                                   int condition = 0, unsigned condition_feature = 0) = 0;
 
   virtual void PredictInteractionContributions(
       DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
-      unsigned layer_begin, unsigned layer_end, bool approximate) = 0;
+      unsigned layer_begin, unsigned layer_end, bool approximate,
+      int *group_indices = nullptr, int num_feat_group = 0) = 0;
 
   /*!
    * \brief dump the model in the requested format
