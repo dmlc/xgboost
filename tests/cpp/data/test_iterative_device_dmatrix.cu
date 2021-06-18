@@ -68,7 +68,16 @@ void TestEquivalent(float sparsity) {
     auto const& buffer_from_iter = page_concatenated->gidx_buffer;
     auto const& buffer_from_data = ellpack.Impl()->gidx_buffer;
     ASSERT_NE(buffer_from_data.Size(), 0);
-    ASSERT_EQ(buffer_from_data.ConstHostVector(), buffer_from_data.ConstHostVector());
+
+    common::CompressedIterator<uint32_t> data_buf{
+        buffer_from_data.ConstHostPointer(), from_data.NumSymbols()};
+    common::CompressedIterator<uint32_t> data_iter{
+        buffer_from_iter.ConstHostPointer(), from_iter.NumSymbols()};
+    CHECK_EQ(from_data.NumSymbols(), from_iter.NumSymbols());
+    CHECK_EQ(from_data.n_rows * from_data.row_stride, from_data.n_rows * from_iter.row_stride);
+    for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
+      CHECK_EQ(data_buf[i], data_iter[i]);
+    }
   }
 }
 

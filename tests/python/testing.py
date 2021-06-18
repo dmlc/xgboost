@@ -11,6 +11,7 @@ import pytest
 import tempfile
 import xgboost as xgb
 import numpy as np
+import platform
 
 hypothesis = pytest.importorskip('hypothesis')
 sklearn = pytest.importorskip('sklearn')
@@ -136,6 +137,12 @@ def no_multiple(*args):
     return {'condition': condition, 'reason': reason}
 
 
+def skip_s390x():
+    condition = platform.machine() == "s390x"
+    reason = "Known to fail on s390x"
+    return {"condition": condition, "reason": reason}
+
+
 # Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
     def __init__(self, name, get_dataset, objective, metric
@@ -232,6 +239,36 @@ def get_mq2008(dpath):
 
     return (x_train, y_train, qid_train, x_test, y_test, qid_test,
             x_valid, y_valid, qid_valid)
+
+
+@memory.cache
+def make_categorical(
+    n_samples: int, n_features: int, n_categories: int, onehot: bool
+):
+    import pandas as pd
+
+    rng = np.random.RandomState(1994)
+
+    pd_dict = {}
+    for i in range(n_features + 1):
+        c = rng.randint(low=0, high=n_categories, size=n_samples)
+        pd_dict[str(i)] = pd.Series(c, dtype=np.int64)
+
+    df = pd.DataFrame(pd_dict)
+    label = df.iloc[:, 0]
+    df = df.iloc[:, 1:]
+    for i in range(0, n_features):
+        label += df.iloc[:, i]
+    label += 1
+
+    df = df.astype("category")
+    categories = np.arange(0, n_categories)
+    for col in df.columns:
+        df[col] = df[col].cat.set_categories(categories)
+
+    if onehot:
+        return pd.get_dummies(df), label
+    return df, label
 
 
 _unweighted_datasets_strategy = strategies.sampled_from(

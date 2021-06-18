@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "../../../src/common/row_set.h"
+#include "../../../src/common/partition_builder.h"
 #include "../helpers.h"
 
 namespace xgboost {

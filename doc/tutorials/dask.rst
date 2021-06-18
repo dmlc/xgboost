@@ -40,37 +40,34 @@ on a dask cluster:
 
 .. code-block:: python
 
-  import xgboost as xgb
-  import dask.array as da
-  import dask.distributed
+    import xgboost as xgb
+    import dask.array as da
+    import dask.distributed
 
-  cluster = dask.distributed.LocalCluster(n_workers=4, threads_per_worker=1)
-  client = dask.distributed.Client(cluster)
+    if __name__ == "__main__":
+        cluster = dask.distributed.LocalCluster()
+        client = dask.distributed.Client(cluster)
 
-  # X and y must be Dask dataframes or arrays
-  num_obs = 1e5
-  num_features = 20
-  X = da.random.random(
-      size=(num_obs, num_features),
-      chunks=(1000, num_features)
-  )
-  y = da.random.random(
-      size=(num_obs, 1),
-      chunks=(1000, 1)
-  )
+        # X and y must be Dask dataframes or arrays
+        num_obs = 1e5
+        num_features = 20
+        X = da.random.random(size=(num_obs, num_features), chunks=(1000, num_features))
+        y = da.random.random(size=(num_obs, 1), chunks=(1000, 1))
 
-  dtrain = xgb.dask.DaskDMatrix(client, X, y)
+        dtrain = xgb.dask.DaskDMatrix(client, X, y)
 
-  output = xgb.dask.train(client,
-                          {'verbosity': 2,
-                           'tree_method': 'hist',
-                           'objective': 'reg:squarederror'
-                           },
-                          dtrain,
-                          num_boost_round=4, evals=[(dtrain, 'train')])
+        output = xgb.dask.train(
+            client,
+            {"verbosity": 2, "tree_method": "hist", "objective": "reg:squarederror"},
+            dtrain,
+            num_boost_round=4,
+            evals=[(dtrain, "train")],
+        )
 
 Here we first create a cluster in single-node mode with ``dask.distributed.LocalCluster``, then
-connect a ``dask.distributed.Client`` to this cluster, setting up an environment for later computation.
+connect a ``dask.distributed.Client`` to this cluster, setting up an environment for later
+computation.  Notice that the cluster construction is guared by ``__name__ == "__main__"``, which is
+necessary otherwise there might be obscure errors.
 
 We then create a ``DaskDMatrix`` object and pass it to ``train``, along with some other parameters,
 much like XGBoost's normal, non-dask interface. Unlike that interface, ``data`` and ``label`` must

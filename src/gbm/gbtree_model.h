@@ -18,6 +18,8 @@
 #include <string>
 #include <vector>
 
+#include "../common/threading_utils.h"
+
 namespace xgboost {
 
 class Json;
@@ -108,7 +110,7 @@ struct GBTreeModel : public Model {
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& p_out) override;
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+  std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
                                      std::string format) const {
     std::vector<std::string> dump;
     if (format == "mojo") {

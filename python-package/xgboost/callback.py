@@ -165,9 +165,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
     If there's more than one, will use the last.
     Returns the model from the last iteration (not the best one).
     If early stopping occurs, the model will have three additional fields:
-    ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.
-    (Use ``bst.best_ntree_limit`` to get the correct value if ``num_parallel_tree``
-    and/or ``num_class`` appears in the parameters)
+    ``bst.best_score``, ``bst.best_iteration``.
 
     Parameters
     ----------

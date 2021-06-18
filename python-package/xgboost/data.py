@@ -6,11 +6,12 @@ import json
 import sys
 import warnings
 import os
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 
-from .core import c_array, _LIB, _check_call, c_str, _array_interface
+from .core import c_array, _LIB, _check_call, c_str
+from .core import _cuda_array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance
 
@@ -39,6 +40,17 @@ def _is_scipy_csr(data):
         scipy = None
         return False
     return isinstance(data, scipy.sparse.csr_matrix)
+
+
+def _array_interface(data: np.ndarray) -> bytes:
+    assert (
+        data.dtype.hasobject is False
+    ), "Input data contains `object` dtype.  Expecting numeric data."
+    interface = data.__array_interface__
+    if "mask" in interface:
+        interface["mask"] = interface["mask"].__array_interface__
+    interface_str = bytes(json.dumps(interface), "utf-8")
+    return interface_str
 
 
 def _from_scipy_csr(data, missing, nthread, feature_names, feature_types):
@@ -106,7 +118,7 @@ def _is_numpy_array(data):
 
 
 def _ensure_np_dtype(data, dtype):
-    if data.dtype.hasobject:
+    if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
         data = data.astype(np.float32, copy=False)
         dtype = np.float32
     return data, dtype
@@ -117,11 +129,6 @@ def _maybe_np_slice(data, dtype):
     '''
     try:
         if not data.flags.c_contiguous:
-            warnings.warn(
-                "Use of np.ndarray subsets (sliced data) is not recommended " +
-                "because it will generate extra copies and increase " +
-                "memory consumption. Consider using np.ascontiguousarray to " +
-                "make the array contiguous.")
             data = np.array(data, copy=True, dtype=dtype)
         else:
             data = np.array(data, copy=False, dtype=dtype)
@@ -131,44 +138,28 @@ def _maybe_np_slice(data, dtype):
     return data
 
 
-def _transform_np_array(data: np.ndarray) -> np.ndarray:
-    if not isinstance(data, np.ndarray) and hasattr(data, '__array__'):
-        data = np.array(data, copy=False)
-    if len(data.shape) != 2:
-        raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
-                         data.shape)
-    # flatten the array by rows and ensure it is float32.  we try to avoid
-    # data copies if possible (reshape returns a view when possible and we
-    # explicitly tell np.array to try and avoid copying)
-    flatten = np.array(data.reshape(data.size), copy=False,
-                       dtype=np.float32)
-    flatten = _maybe_np_slice(flatten, np.float32)
-    _check_complex(data)
-    return flatten
-
-
 def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
     """Initialize data from a 2-D numpy matrix.
 
-    If ``mat`` does not have ``order='C'`` (aka row-major) or is
-    not contiguous, a temporary copy will be made.
-
-    If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will
-    be made.
-
-    So there could be as many as two temporary data copies; be mindful of
-    input layout and type if memory use is a concern.
-
     """
-    flatten: np.ndarray = _transform_np_array(data)
+    if len(data.shape) != 2:
+        raise ValueError(
+            "Expecting 2 dimensional numpy.ndarray, got: ", data.shape
+        )
+    data, _ = _ensure_np_dtype(data, data.dtype)
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromMat_omp(
-        flatten.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-        c_bst_ulong(data.shape[0]),
-        c_bst_ulong(data.shape[1]),
-        ctypes.c_float(missing),
-        ctypes.byref(handle),
-        ctypes.c_int(nthread)))
+    args = {
+        "missing": float(missing),
+        "nthread": int(nthread),
+    }
+    config = bytes(json.dumps(args), "utf-8")
+    _check_call(
+        _LIB.XGDMatrixCreateFromDense(
+            _array_interface(data),
+            config,
+            ctypes.byref(handle),
+        )
+    )
     return handle, feature_names, feature_types
 
 
@@ -200,7 +191,7 @@ _pandas_dtype_mapper = {
     'float16': 'float',
     'float32': 'float',
     'float64': 'float',
-    'bool': 'i'
+    'bool': 'i',
 }
 
 
@@ -374,54 +365,73 @@ def _is_cudf_df(data):
     return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
-def _cudf_array_interfaces(data):
-    '''Extract CuDF __cuda_array_interface__'''
+def _cudf_array_interfaces(data) -> Tuple[list, list]:
+    """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
+    data and a list of array interfaces.  The data is list of categorical codes that
+    caller can safely ignore, but have to keep their reference alive until usage of array
+    interface is finished.
+
+    """
+    from cudf.utils.dtypes import is_categorical_dtype
+    cat_codes = []
     interfaces = []
     if _is_cudf_ser(data):
         interfaces.append(data.__cuda_array_interface__)
     else:
         for col in data:
-            interface = data[col].__cuda_array_interface__
-            if 'mask' in interface:
-                interface['mask'] = interface['mask'].__cuda_array_interface__
+            if is_categorical_dtype(data[col].dtype):
+                codes = data[col].cat.codes
+                interface = codes.__cuda_array_interface__
+                cat_codes.append(codes)
+            else:
+                interface = data[col].__cuda_array_interface__
+            if "mask" in interface:
+                interface["mask"] = interface["mask"].__cuda_array_interface__
             interfaces.append(interface)
-    interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
-    return interfaces_str
+    interfaces_str = bytes(json.dumps(interfaces, indent=2), "utf-8")
+    return cat_codes, interfaces_str
 
 
-def _transform_cudf_df(data, feature_names, feature_types):
+def _transform_cudf_df(data, feature_names, feature_types, enable_categorical):
+    from cudf.utils.dtypes import is_categorical_dtype
+
     if feature_names is None:
         if _is_cudf_ser(data):
             feature_names = [data.name]
-        elif lazy_isinstance(
-                data.columns, 'cudf.core.multiindex', 'MultiIndex'):
-            feature_names = [
-                ' '.join([str(x) for x in i])
-                for i in data.columns
-            ]
+        elif lazy_isinstance(data.columns, "cudf.core.multiindex", "MultiIndex"):
+            feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
         else:
             feature_names = data.columns.format()
     if feature_types is None:
+        feature_types = []
         if _is_cudf_ser(data):
             dtypes = [data.dtype]
         else:
             dtypes = data.dtypes
-        feature_types = [_pandas_dtype_mapper[d.name]
-                         for d in dtypes]
+        for dtype in dtypes:
+            if is_categorical_dtype(dtype) and enable_categorical:
+                feature_types.append("categorical")
+            else:
+                feature_types.append(_pandas_dtype_mapper[dtype.name])
     return data, feature_names, feature_types
 
 
-def _from_cudf_df(data, missing, nthread, feature_names, feature_types):
+def _from_cudf_df(
+    data, missing, nthread, feature_names, feature_types, enable_categorical
+):
     data, feature_names, feature_types = _transform_cudf_df(
-        data, feature_names, feature_types)
-    interfaces_str = _cudf_array_interfaces(data)
+        data, feature_names, feature_types, enable_categorical
+    )
+    _, interfaces_str = _cudf_array_interfaces(data)
     handle = ctypes.c_void_p()
     _check_call(
         _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
             interfaces_str,
             ctypes.c_float(missing),
             ctypes.c_int(nthread),
-            ctypes.byref(handle)))
+            ctypes.byref(handle),
+        )
+    )
     return handle, feature_names, feature_types
 
 
@@ -450,21 +460,19 @@ def _is_cupy_array(data):
 
 
 def _transform_cupy_array(data):
+    import cupy  # pylint: disable=import-error
     if not hasattr(data, '__cuda_array_interface__') and hasattr(
             data, '__array__'):
-        import cupy             # pylint: disable=import-error
         data = cupy.array(data, copy=False)
+    if data.dtype.hasobject or data.dtype in [cupy.float16, cupy.bool_]:
+        data = data.astype(cupy.float32, copy=False)
     return data
 
 
 def _from_cupy_array(data, missing, nthread, feature_names, feature_types):
     """Initialize DMatrix from cupy ndarray."""
     data = _transform_cupy_array(data)
-    interface = data.__cuda_array_interface__
-    if 'mask' in interface:
-        interface['mask'] = interface['mask'].__cuda_array_interface__
-    interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
-
+    interface_str = _cuda_array_interface(data)
     handle = ctypes.c_void_p()
     _check_call(
         _LIB.XGDMatrixCreateFromArrayInterface(
@@ -597,12 +605,10 @@ def dispatch_data_backend(data, missing, threads,
     if _is_pandas_series(data):
         return _from_pandas_series(data, missing, threads, feature_names,
                                    feature_types)
-    if _is_cudf_df(data):
-        return _from_cudf_df(data, missing, threads, feature_names,
-                             feature_types)
-    if _is_cudf_ser(data):
-        return _from_cudf_df(data, missing, threads, feature_names,
-                             feature_types)
+    if _is_cudf_df(data) or _is_cudf_ser(data):
+        return _from_cudf_df(
+            data, missing, threads, feature_names, feature_types, enable_categorical
+        )
     if _is_cupy_array(data):
         return _from_cupy_array(data, missing, threads, feature_names,
                                 feature_types)
@@ -774,30 +780,8 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     area for meta info.
 
     '''
-    def __init__(
-        self, data,
-        label,
-        weight,
-        base_margin,
-        group,
-        qid,
-        label_lower_bound,
-        label_upper_bound,
-        feature_weights,
-        feature_names,
-        feature_types
-    ):
-        self.data = data
-        self.label = label
-        self.weight = weight
-        self.base_margin = base_margin
-        self.group = group
-        self.qid = qid
-        self.label_lower_bound = label_lower_bound
-        self.label_upper_bound = label_upper_bound
-        self.feature_weights = feature_weights
-        self.feature_names = feature_names
-        self.feature_types = feature_types
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
         self.it = 0             # pylint: disable=invalid-name
         super().__init__()
 
@@ -805,33 +789,24 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
         if self.it == 1:
             return 0
         self.it += 1
-        input_data(data=self.data, label=self.label,
-                   weight=self.weight, base_margin=self.base_margin,
-                   group=self.group,
-                   qid=self.qid,
-                   label_lower_bound=self.label_lower_bound,
-                   label_upper_bound=self.label_upper_bound,
-                   feature_weights=self.feature_weights,
-                   feature_names=self.feature_names,
-                   feature_types=self.feature_types)
+        input_data(**self.kwargs)
         return 1
 
     def reset(self):
         self.it = 0
 
 
-def _device_quantile_transform(data, feature_names, feature_types):
-    if _is_cudf_df(data):
-        return _transform_cudf_df(data, feature_names, feature_types)
-    if _is_cudf_ser(data):
-        return _transform_cudf_df(data, feature_names, feature_types)
+def _device_quantile_transform(data, feature_names, feature_types, enable_categorical):
+    if _is_cudf_df(data) or _is_cudf_ser(data):
+        return _transform_cudf_df(
+            data, feature_names, feature_types, enable_categorical
+        )
     if _is_cupy_array(data):
         data = _transform_cupy_array(data)
         return data, feature_names, feature_types
     if _is_dlpack(data):
         return _transform_dlpack(data), feature_names, feature_types
-    raise TypeError('Value type is not supported for data iterator:' +
-                    str(type(data)))
+    raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
 
 def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -> None:

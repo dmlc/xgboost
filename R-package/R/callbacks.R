@@ -263,10 +263,7 @@ cb.reset.parameters <- function(new_params) {
 #' \itemize{
 #' \item \code{best_score} the evaluation score at the best iteration
 #' \item \code{best_iteration} at which boosting iteration the best score has occurred (1-based index)
-#' \item \code{best_ntreelimit} to use with the \code{ntreelimit} parameter in \code{predict}.
-#'      It differs from \code{best_iteration} in multiclass or random forest settings.
 #' }
-#'
 #' The Same values are also stored as xgb-attributes:
 #' \itemize{
 #' \item \code{best_iteration} is stored as a 0-based iteration index (for interoperability of binary models)
@@ -498,13 +495,12 @@ cb.cv.predict <- function(save_models = FALSE) {
         rep(NA_real_, N)
       }
 
-    ntreelimit <- NVL(env$basket$best_ntreelimit,
-                      env$end_iteration * env$num_parallel_tree)
+    iterationrange <- c(1, NVL(env$basket$best_iteration, env$end_iteration) + 1)
     if (NVL(env$params[['booster']], '') == 'gblinear') {
-      ntreelimit <- 0 # must be 0 for gblinear
+      iterationrange <- c(1, 1)  # must be 0 for gblinear
     }
     for (fd in env$bst_folds) {
-      pr <- predict(fd$bst, fd$watchlist[[2]], ntreelimit = ntreelimit, reshape = TRUE)
+      pr <- predict(fd$bst, fd$watchlist[[2]], iterationrange = iterationrange, reshape = TRUE)
       if (is.matrix(pred)) {
         pred[fd$index, ] <- pr
       } else {

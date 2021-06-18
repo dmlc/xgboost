@@ -1,0 +1,21 @@
+name: win64_env
+channels:
+- conda-forge
+dependencies:
+- python
+- wheel
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- matplotlib
+- dask
+- distributed
+- python-graphviz
+- pytest
+- jsonschema
+- hypothesis
+- jsonschema
+- pip
+- pip:
+  - graphviz

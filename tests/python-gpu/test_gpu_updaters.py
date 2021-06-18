@@ -43,22 +43,8 @@ class TestGPUUpdaters:
         assert tm.non_increasing(result['train'][dataset.metric])
 
     def run_categorical_basic(self, rows, cols, rounds, cats):
-        import pandas as pd
-        rng = np.random.RandomState(1994)
-
-        pd_dict = {}
-        for i in range(cols):
-            c = rng.randint(low=0, high=cats+1, size=rows)
-            pd_dict[str(i)] = pd.Series(c, dtype=np.int64)
-
-        df = pd.DataFrame(pd_dict)
-        label = df.iloc[:, 0]
-        for i in range(0, cols-1):
-            label += df.iloc[:, i]
-        label += 1
-        df = df.astype('category')
-        onehot = pd.get_dummies(df)
-        cat = df
+        onehot, label = tm.make_categorical(rows, cols, cats, True)
+        cat, _ = tm.make_categorical(rows, cols, cats, False)
 
         by_etl_results = {}
         by_builtin_results = {}
@@ -85,7 +71,6 @@ class TestGPUUpdaters:
     @settings(deadline=None)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self, rows, cols, rounds, cats):
-        pytest.xfail(reason='TestGPUUpdaters::test_categorical is flaky')
         self.run_categorical_basic(rows, cols, rounds, cats)
 
     def test_categorical_32_cat(self):

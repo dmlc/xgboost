@@ -501,6 +501,7 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
   uint32_t tree_begin, tree_end;
   std::tie(tree_begin, tree_end) =
       detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+  CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
     predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
   }
@@ -802,7 +803,11 @@ class Dart : public GBTree {
         bool success = predictor->InplacePredict(x, nullptr, model_, missing,
                                                  &predts, i, i + 1);
         device = predts.predictions.DeviceIdx();
-        CHECK(success) << msg;
+        CHECK(success) << msg << std::endl
+                       << "Current Predictor: "
+                       << (tparam_.predictor == PredictorType::kCPUPredictor
+                               ? "cpu_predictor"
+                               : "gpu_predictor");
       }
 
       auto w = this->weight_drop_.at(i);

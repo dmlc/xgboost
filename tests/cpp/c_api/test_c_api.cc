@@ -278,5 +278,4 @@ TEST(CAPI, XGBGlobalConfig) {
     ASSERT_EQ(err.find("verbosity"), std::string::npos);
   }
 }
-
 }  // namespace xgboost

@@ -144,10 +144,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         If there's more than one metric in the **eval_metric** parameter given in
         **params**, the last metric will be used for early stopping.
         If early stopping occurs, the model will have three additional fields:
-        ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.  Use
-        ``bst.best_ntree_limit`` to get the correct value if ``num_parallel_tree`` and/or
-        ``num_class`` appears in the parameters.  ``best_ntree_limit`` is the result of
-        ``num_parallel_tree * best_iteration``.
+        ``bst.best_score``, ``bst.best_iteration``.
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
 

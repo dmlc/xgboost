@@ -164,6 +164,14 @@ __model_doc = f'''
     validate_parameters : Optional[bool]
         Give warnings for unknown parameter.
 
+    enable_categorical : bool
+
+        .. versionadded:: 1.5.0
+
+        Experimental support for categorical data.  Do not set to true unless you are
+        interested in development. Only valid when `gpu_hist` and pandas dataframe are
+        used.
+
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of
         parameters can be found here:
@@ -257,6 +265,7 @@ def _wrap_evaluation_matrices(
     eval_group: Optional[List[Any]],
     eval_qid: Optional[List[Any]],
     create_dmatrix: Callable,
+    enable_categorical: bool,
     label_transform: Callable = lambda x: x,
 ) -> Tuple[Any, Optional[List[Tuple[Any, str]]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
@@ -271,6 +280,7 @@ def _wrap_evaluation_matrices(
         base_margin=base_margin,
         feature_weights=feature_weights,
         missing=missing,
+        enable_categorical=enable_categorical,
     )
 
     n_validation = 0 if eval_set is None else len(eval_set)
@@ -317,6 +327,7 @@ def _wrap_evaluation_matrices(
                     qid=eval_qid[i],
                     base_margin=base_margin_eval_set[i],
                     missing=missing,
+                    enable_categorical=enable_categorical,
                 )
                 evals.append(m)
         nevals = len(evals)
@@ -374,6 +385,8 @@ class XGBModel(XGBModelBase):
         importance_type: str = "gain",
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
+        predictor: Optional[str] = None,
+        enable_categorical: bool = False,
         **kwargs: Any
     ) -> None:
         if not SKLEARN_INSTALLED:
@@ -409,6 +422,8 @@ class XGBModel(XGBModelBase):
         self.importance_type = importance_type
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
+        self.predictor = predictor
+        self.enable_categorical = enable_categorical
 
     def _more_tags(self) -> Dict[str, bool]:
         '''Tags used for scikit-learn data validation.'''
@@ -512,7 +527,9 @@ class XGBModel(XGBModelBase):
         params = self.get_params()
         # Parameters that should not go into native learner.
         wrapper_specific = {
-            'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder'}
+            'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder',
+            "enable_categorical"
+        }
         filtered = dict()
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
@@ -687,7 +704,7 @@ class XGBModel(XGBModelBase):
             used for early stopping.
 
             If early stopping occurs, the model will have three additional fields:
-            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+            ``clf.best_score``, ``clf.best_iteration``.
         verbose :
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
@@ -733,6 +750,7 @@ class XGBModel(XGBModelBase):
             eval_group=None,
             eval_qid=None,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+            enable_categorical=self.enable_categorical,
         )
         params = self.get_xgb_params()
 
@@ -1204,6 +1222,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             eval_group=None,
             eval_qid=None,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+            enable_categorical=self.enable_categorical,
             label_transform=label_transform,
         )
 
@@ -1642,6 +1661,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             eval_group=eval_group,
             eval_qid=eval_qid,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+            enable_categorical=self.enable_categorical,
         )
 
         evals_result: TrainingCallback.EvalsLog = {}

@@ -1,7 +1,10 @@
+import json
 import xgboost as xgb
 import pytest
+import tempfile
 import sys
 import numpy as np
+import os
 
 sys.path.append("tests/python")
 import testing as tm               # noqa
@@ -38,3 +41,35 @@ def test_boost_from_prediction_gpu_hist():
 
 def test_num_parallel_tree():
     twskl.run_boston_housing_rf_regression("gpu_hist")
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_categorical():
+    import pandas as pd
+    from sklearn.datasets import load_svmlight_file
+
+    data_dir = os.path.join(tm.PROJECT_ROOT, "demo", "data")
+    X, y = load_svmlight_file(os.path.join(data_dir, "agaricus.txt.train"))
+    clf = xgb.XGBClassifier(
+        tree_method="gpu_hist",
+        use_label_encoder=False,
+        enable_categorical=True,
+        n_estimators=10,
+    )
+    X = pd.DataFrame(X.todense()).astype("category")
+    clf.fit(X, y)
+
+    with tempfile.TemporaryDirectory() as tempdir:
+        model = os.path.join(tempdir, "categorial.json")
+        clf.save_model(model)
+
+        with open(model) as fd:
+            categorical = json.load(fd)
+            categories_sizes = np.array(
+                categorical["learner"]["gradient_booster"]["model"]["trees"][0][
+                    "categories_sizes"
+                ]
+            )
+            assert categories_sizes.shape[0] != 0
+            np.testing.assert_allclose(categories_sizes, 1)

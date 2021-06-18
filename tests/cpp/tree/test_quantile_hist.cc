@@ -24,22 +24,21 @@ class QuantileHistMock : public QuantileHistMaker {
   template <typename GradientSumT>
   struct BuilderMock : public QuantileHistMaker::Builder<GradientSumT> {
     using RealImpl = QuantileHistMaker::Builder<GradientSumT>;
-    using ExpandEntryT = typename RealImpl::ExpandEntry;
     using GHistRowT = typename RealImpl::GHistRowT;
 
     BuilderMock(const TrainParam& param,
                 std::unique_ptr<TreeUpdater> pruner,
                 FeatureInteractionConstraintHost int_constraint,
                 DMatrix const* fmat)
-        : RealImpl(param, std::move(pruner),
+        : RealImpl(1, param, std::move(pruner),
           std::move(int_constraint), fmat) {}
 
    public:
     void TestInitData(const GHistIndexMatrix& gmat,
-                      const std::vector<GradientPair>& gpair,
+                      std::vector<GradientPair>* gpair,
                       DMatrix* p_fmat,
                       const RegTree& tree) {
-      RealImpl::InitData(gmat, gpair, *p_fmat, tree);
+      RealImpl::InitData(gmat, *p_fmat, tree, gpair);
       ASSERT_EQ(this->data_layout_, RealImpl::DataLayout::kSparseData);
 
       /* The creation of HistCutMatrix and GHistIndexMatrix are not technically
@@ -101,29 +100,34 @@ class QuantileHistMock : public QuantileHistMaker {
     }
 
     void TestInitDataSampling(const GHistIndexMatrix& gmat,
-                      const std::vector<GradientPair>& gpair,
+                      std::vector<GradientPair>* gpair,
                       DMatrix* p_fmat,
                       const RegTree& tree) {
+      // check SimpleSkip
+      size_t initial_seed = 777;
+      std::linear_congruential_engine<std::uint_fast64_t, 16807, 0,
+                                      static_cast<uint64_t>(1) << 63 > eng_first(initial_seed);
+      for (size_t i = 0; i < 100; ++i) {
+        eng_first();
+      }
+      uint64_t initial_seed_th = RandomReplace::SimpleSkip(100, initial_seed, 16807, RandomReplace::kMod);
+      std::linear_congruential_engine<std::uint_fast64_t, RandomReplace::kBase, 0,
+                                      RandomReplace::kMod > eng_second(initial_seed_th);
+      ASSERT_EQ(eng_first(), eng_second());
+
       const size_t nthreads = omp_get_num_threads();
       // save state of global rng engine
       auto initial_rnd = common::GlobalRandom();
       std::vector<size_t> unused_rows_cpy = this->unused_rows_;
-      RealImpl::InitData(gmat, gpair, *p_fmat, tree);
+      RealImpl::InitData(gmat, *p_fmat, tree, gpair);
       std::vector<size_t> row_indices_initial = *(this->row_set_collection_.Data());
       std::vector<size_t> unused_row_indices_initial = this->unused_rows_;
+      ASSERT_EQ(row_indices_initial.size(), p_fmat->Info().num_row_);
       auto check_each_row_occurs_in_one_of_arrays = [](const std::vector<size_t>& first,
                                                        const std::vector<size_t>& second,
                                                        size_t nrows) {
-        std::vector<size_t> arr_union(nrows);
-        for (auto&& row_indice : first) {
-          ++arr_union[row_indice];
-        }
-        for (auto&& row_indice : second) {
-          ++arr_union[row_indice];
-        }
-        for (auto&& row_cnt : arr_union) {
-          ASSERT_EQ(row_cnt, 1ul);
-        }
+        ASSERT_EQ(first.size(), nrows);
+        ASSERT_EQ(second.size(), 0);
       };
       check_each_row_occurs_in_one_of_arrays(row_indices_initial, unused_row_indices_initial,
                                              p_fmat->Info().num_row_);
@@ -133,7 +137,7 @@ class QuantileHistMock : public QuantileHistMaker {
         // return initial state of global rng engine
         common::GlobalRandom() = initial_rnd;
         this->unused_rows_ = unused_rows_cpy;
-        RealImpl::InitData(gmat, gpair, *p_fmat, tree);
+        RealImpl::InitData(gmat, *p_fmat, tree, gpair);
         std::vector<size_t>& row_indices = *(this->row_set_collection_.Data());
         ASSERT_EQ(row_indices_initial.size(), row_indices.size());
         for (size_t i = 0; i < row_indices_initial.size(); ++i) {
@@ -151,10 +155,10 @@ class QuantileHistMock : public QuantileHistMaker {
     }
 
     void TestAddHistRows(const GHistIndexMatrix& gmat,
-                         const std::vector<GradientPair>& gpair,
+                         std::vector<GradientPair>* gpair,
                          DMatrix* p_fmat,
                          RegTree* tree) {
-      RealImpl::InitData(gmat, gpair, *p_fmat, *tree);
+      RealImpl::InitData(gmat, *p_fmat, *tree, gpair);
 
       int starting_index = std::numeric_limits<int>::max();
       int sync_count = 0;
@@ -164,37 +168,37 @@ class QuantileHistMock : public QuantileHistMaker {
       tree->ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-      this->nodes_for_explicit_hist_build_.emplace_back(3, 4, tree->GetDepth(3), 0.0f, 0);
-      this->nodes_for_explicit_hist_build_.emplace_back(4, 3, tree->GetDepth(4), 0.0f, 0);
-      this->nodes_for_subtraction_trick_.emplace_back(5, 6, tree->GetDepth(5), 0.0f, 0);
-      this->nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f, 0);
+      this->nodes_for_explicit_hist_build_.emplace_back(3, tree->GetDepth(3), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(4, tree->GetDepth(4), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(5, tree->GetDepth(5), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(6, tree->GetDepth(6), 0.0f);
 
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       ASSERT_EQ(sync_count, 2);
       ASSERT_EQ(starting_index, 3);
 
-      for (const ExpandEntryT& node : this->nodes_for_explicit_hist_build_) {
+      for (const CPUExpandEntry& node : this->nodes_for_explicit_hist_build_) {
         ASSERT_EQ(this->hist_.RowExists(node.nid), true);
       }
-      for (const ExpandEntryT& node : this->nodes_for_subtraction_trick_) {
+      for (const CPUExpandEntry& node : this->nodes_for_subtraction_trick_) {
         ASSERT_EQ(this->hist_.RowExists(node.nid), true);
       }
     }
 
 
     void TestSyncHistograms(const GHistIndexMatrix& gmat,
-                            const std::vector<GradientPair>& gpair,
+                            std::vector<GradientPair>* gpair,
                             DMatrix* p_fmat,
                             RegTree* tree) {
       // init
-      RealImpl::InitData(gmat, gpair, *p_fmat, *tree);
+      RealImpl::InitData(gmat, *p_fmat, *tree, gpair);
 
       int starting_index = std::numeric_limits<int>::max();
       int sync_count = 0;
       this->nodes_for_explicit_hist_build_.clear();
       this->nodes_for_subtraction_trick_.clear();
       // level 0
-      this->nodes_for_explicit_hist_build_.emplace_back(0, -1, tree->GetDepth(0), 0.0f, 0);
+      this->nodes_for_explicit_hist_build_.emplace_back(0, tree->GetDepth(0), 0.0f);
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       tree->ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
@@ -202,11 +206,9 @@ class QuantileHistMock : public QuantileHistMaker {
       this->nodes_for_subtraction_trick_.clear();
       // level 1
       this->nodes_for_explicit_hist_build_.emplace_back((*tree)[0].LeftChild(),
-                                                (*tree)[0].RightChild(),
-                                                tree->GetDepth(1), 0.0f, 0);
+                                                tree->GetDepth(1), 0.0f);
       this->nodes_for_subtraction_trick_.emplace_back((*tree)[0].RightChild(),
-                                              (*tree)[0].LeftChild(),
-                                              tree->GetDepth(2), 0.0f, 0);
+                                              tree->GetDepth(2), 0.0f);
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       tree->ExpandNode((*tree)[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -214,10 +216,10 @@ class QuantileHistMock : public QuantileHistMaker {
       this->nodes_for_explicit_hist_build_.clear();
       this->nodes_for_subtraction_trick_.clear();
       // level 2
-      this->nodes_for_explicit_hist_build_.emplace_back(3, 4, tree->GetDepth(3), 0.0f, 0);
-      this->nodes_for_subtraction_trick_.emplace_back(4, 3, tree->GetDepth(4), 0.0f, 0);
-      this->nodes_for_explicit_hist_build_.emplace_back(5, 6, tree->GetDepth(5), 0.0f, 0);
-      this->nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f, 0);
+      this->nodes_for_explicit_hist_build_.emplace_back(3, tree->GetDepth(3), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(4, tree->GetDepth(4), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(5, tree->GetDepth(5), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(6, tree->GetDepth(6), 0.0f);
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
 
       const size_t n_nodes = this->nodes_for_explicit_hist_build_.size();
@@ -273,21 +275,27 @@ class QuantileHistMock : public QuantileHistMaker {
           ASSERT_EQ(p_parent[i], p_left[i] + p_right[i]);
         }
       };
-      for (const ExpandEntryT& node : this->nodes_for_explicit_hist_build_) {
+      size_t node_id = 0;
+      for (const CPUExpandEntry& node : this->nodes_for_explicit_hist_build_) {
         auto this_hist = this->hist_[node.nid];
         const size_t parent_id = (*tree)[node.nid].Parent();
+        const size_t subtraction_node_id = this->nodes_for_subtraction_trick_[node_id].nid;
         auto parent_hist =  this->hist_[parent_id];
-        auto sibling_hist = this->hist_[node.sibling_nid];
+        auto sibling_hist = this->hist_[subtraction_node_id];
 
         check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
+        ++node_id;
       }
-      for (const ExpandEntryT& node : this->nodes_for_subtraction_trick_) {
+      node_id = 0;
+      for (const CPUExpandEntry& node : this->nodes_for_subtraction_trick_) {
         auto this_hist = this->hist_[node.nid];
         const size_t parent_id = (*tree)[node.nid].Parent();
+        const size_t subtraction_node_id = this->nodes_for_explicit_hist_build_[node_id].nid;
         auto parent_hist =  this->hist_[parent_id];
-        auto sibling_hist = this->hist_[node.sibling_nid];
+        auto sibling_hist = this->hist_[subtraction_node_id];
 
         check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
+        ++node_id;
       }
     }
 
@@ -295,15 +303,14 @@ class QuantileHistMock : public QuantileHistMaker {
                        const GHistIndexMatrix& gmat,
                        const DMatrix& fmat,
                        const RegTree& tree) {
-      const std::vector<GradientPair> gpair =
+      std::vector<GradientPair> gpair =
           { {0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {0.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {0.47f, 0.49f}, {0.57f, 0.59f} };
-      RealImpl::InitData(gmat, gpair, fmat, tree);
-      GHistIndexBlockMatrix dummy;
+      RealImpl::InitData(gmat, fmat, tree, &gpair);
       this->hist_.AddHistRow(nid);
       this->hist_.AllocateAllData();
-      this->BuildHist(gpair, this->row_set_collection_[nid],
-                gmat, dummy, this->hist_[nid]);
+      this->hist_builder_.template BuildHist<true>(gpair, this->row_set_collection_[nid],
+                      gmat, this->hist_[nid]);
 
       // Check if number of histogram bins is correct
       ASSERT_EQ(this->hist_[nid].size(), gmat.cut.Ptrs().back());
@@ -329,8 +336,7 @@ class QuantileHistMock : public QuantileHistMaker {
       }
     }
 
-    void TestEvaluateSplit(const GHistIndexBlockMatrix& quantile_index_block,
-                           const RegTree& tree) {
+    void TestEvaluateSplit(const RegTree& tree) {
       std::vector<GradientPair> row_gpairs =
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
@@ -341,11 +347,11 @@ class QuantileHistMock : public QuantileHistMaker {
       common::GHistIndexMatrix gmat;
       gmat.Init(dmat.get(), kMaxBins);
 
-      RealImpl::InitData(gmat, row_gpairs, *dmat, tree);
+      RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
       this->hist_.AddHistRow(0);
       this->hist_.AllocateAllData();
-      this->BuildHist(row_gpairs, this->row_set_collection_[0],
-                      gmat, quantile_index_block, this->hist_[0]);
+      this->hist_builder_.template BuildHist<false>(row_gpairs, this->row_set_collection_[0],
+                      gmat, this->hist_[0]);
 
       RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
 
@@ -403,24 +409,21 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       /* Now compare against result given by EvaluateSplit() */
-      typename RealImpl::ExpandEntry node(RealImpl::ExpandEntry::kRootNid,
-                                          RealImpl::ExpandEntry::kEmptyNid,
-                                          tree.GetDepth(0),
-                                          this->snode_[0].best.loss_chg, 0);
+      CPUExpandEntry node(CPUExpandEntry::kRootNid,
+                          tree.GetDepth(0),
+                          this->snode_[0].best.loss_chg);
       RealImpl::EvaluateSplits({node}, gmat, this->hist_, tree);
       ASSERT_EQ(this->snode_[0].best.SplitIndex(), best_split_feature);
       ASSERT_EQ(this->snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
     }
 
-    void TestEvaluateSplitParallel(const GHistIndexBlockMatrix &quantile_index_block,
-                                   const RegTree &tree) {
+    void TestEvaluateSplitParallel(const RegTree &tree) {
       omp_set_num_threads(2);
-      TestEvaluateSplit(quantile_index_block, tree);
+      TestEvaluateSplit(tree);
       omp_set_num_threads(1);
     }
 
-    void TestApplySplit(const GHistIndexBlockMatrix& quantile_index_block,
-                        const RegTree& tree) {
+    void TestApplySplit(const RegTree& tree) {
       std::vector<GradientPair> row_gpairs =
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
@@ -437,7 +440,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
         // treat everything as dense, as this is what we intend to test here
         cm.Init(gmat, 0.0);
-        RealImpl::InitData(gmat, row_gpairs, *dmat, tree);
+        RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
         this->hist_.AddHistRow(0);
         this->hist_.AllocateAllData();
         RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
@@ -479,8 +482,13 @@ class QuantileHistMock : public QuantileHistMaker {
           });
           const size_t task_id = RealImpl::partition_builder_.GetTaskIdx(0, 0);
           RealImpl::partition_builder_.AllocateForTask(task_id);
-          this->template PartitionKernel<uint8_t>(0, 0, common::Range1d(0, kNRows),
-                                                  split, cm, tree);
+          if (cm.AnyMissing()) {
+            RealImpl::partition_builder_.template Partition<uint8_t, true>(0, 0, common::Range1d(0, kNRows),
+                                                    split, cm, tree, this->row_set_collection_[0].begin);
+          } else {
+            RealImpl::partition_builder_.template Partition<uint8_t, false>(0, 0, common::Range1d(0, kNRows),
+                                                    split, cm, tree, this->row_set_collection_[0].begin);
+          }
           RealImpl::partition_builder_.CalculateRowOffsets();
           ASSERT_EQ(RealImpl::partition_builder_.GetNLeftElems(0), left_cnt);
           ASSERT_EQ(RealImpl::partition_builder_.GetNRightElems(0), right_cnt);
@@ -548,9 +556,9 @@ class QuantileHistMock : public QuantileHistMaker {
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
     if (double_builder_) {
-      double_builder_->TestInitData(gmat, gpair, dmat_.get(), tree);
+      double_builder_->TestInitData(gmat, &gpair, dmat_.get(), tree);
     } else {
-      float_builder_->TestInitData(gmat, gpair, dmat_.get(), tree);
+      float_builder_->TestInitData(gmat, &gpair, dmat_.get(), tree);
     }
   }
 
@@ -566,9 +574,9 @@ class QuantileHistMock : public QuantileHistMaker {
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
     if (double_builder_) {
-      double_builder_->TestInitDataSampling(gmat, gpair, dmat_.get(), tree);
+      double_builder_->TestInitDataSampling(gmat, &gpair, dmat_.get(), tree);
     } else {
-      float_builder_->TestInitDataSampling(gmat, gpair, dmat_.get(), tree);
+      float_builder_->TestInitDataSampling(gmat, &gpair, dmat_.get(), tree);
     }
   }
 
@@ -583,9 +591,9 @@ class QuantileHistMock : public QuantileHistMaker {
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
     if (double_builder_) {
-      double_builder_->TestAddHistRows(gmat, gpair, dmat_.get(), &tree);
+      double_builder_->TestAddHistRows(gmat, &gpair, dmat_.get(), &tree);
     } else {
-      float_builder_->TestAddHistRows(gmat, gpair, dmat_.get(), &tree);
+      float_builder_->TestAddHistRows(gmat, &gpair, dmat_.get(), &tree);
     }
   }
 
@@ -600,9 +608,9 @@ class QuantileHistMock : public QuantileHistMaker {
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
     if (double_builder_) {
-      double_builder_->TestSyncHistograms(gmat, gpair, dmat_.get(), &tree);
+      double_builder_->TestSyncHistograms(gmat, &gpair, dmat_.get(), &tree);
     } else {
-      float_builder_->TestSyncHistograms(gmat, gpair, dmat_.get(), &tree);
+      float_builder_->TestSyncHistograms(gmat, &gpair, dmat_.get(), &tree);
     }
   }
 
@@ -625,9 +633,9 @@ class QuantileHistMock : public QuantileHistMaker {
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
     if (double_builder_) {
-      double_builder_->TestEvaluateSplit(gmatb_, tree);
+      double_builder_->TestEvaluateSplit(tree);
     } else {
-      float_builder_->TestEvaluateSplit(gmatb_, tree);
+      float_builder_->TestEvaluateSplit(tree);
     }
   }
 
@@ -635,9 +643,9 @@ class QuantileHistMock : public QuantileHistMaker {
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
     if (double_builder_) {
-      double_builder_->TestApplySplit(gmatb_, tree);
+      double_builder_->TestApplySplit(tree);
     } else {
-      float_builder_->TestEvaluateSplit(gmatb_, tree);
+      float_builder_->TestEvaluateSplit(tree);
     }
   }
 };
@@ -707,8 +715,7 @@ TEST(QuantileHist, DistributedSyncHistograms) {
 TEST(QuantileHist, BuildHist) {
   // Don't enable feature grouping
   std::vector<std::pair<std::string, std::string>> cfg
-      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
-       {"enable_feature_grouping", std::to_string(0)}};
+      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
   QuantileHistMock maker(cfg);
   maker.TestBuildHist();
   const bool single_precision_histogram = true;

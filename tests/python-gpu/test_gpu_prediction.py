@@ -204,6 +204,7 @@ class TestGPUPredict:
         cpu_predt = reg.predict(X)
         np.testing.assert_allclose(gpu_predt, cpu_predt, atol=1e-6)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_cudf(self):
         import cupy as cp
@@ -332,6 +333,7 @@ class TestGPUPredict:
         rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
         np.testing.assert_almost_equal(rmse, eval_history['train']['rmse'][-1], decimal=5)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
     def test_predict_dart(self, n_classes):
         from sklearn.datasets import make_classification
@@ -378,3 +380,59 @@ class TestGPUPredict:
 
         copied = cp.array(copied)
         cp.testing.assert_allclose(inplace, copied, atol=1e-6)
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_dtypes(self):
+        import cupy as cp
+        rows = 1000
+        cols = 10
+        rng = cp.random.RandomState(1994)
+        orig = rng.randint(low=0, high=127, size=rows * cols).reshape(
+            rows, cols
+        )
+        y = rng.randint(low=0, high=127, size=rows)
+        dtrain = xgb.DMatrix(orig, label=y)
+        booster = xgb.train({"tree_method": "gpu_hist"}, dtrain)
+
+        predt_orig = booster.inplace_predict(orig)
+        # all primitive types in numpy
+        for dtype in [
+            cp.signedinteger,
+            cp.byte,
+            cp.short,
+            cp.intc,
+            cp.int_,
+            cp.longlong,
+            cp.unsignedinteger,
+            cp.ubyte,
+            cp.ushort,
+            cp.uintc,
+            cp.uint,
+            cp.ulonglong,
+            cp.floating,
+            cp.half,
+            cp.single,
+            cp.double,
+        ]:
+            X = cp.array(orig, dtype=dtype)
+            predt = booster.inplace_predict(X)
+            cp.testing.assert_allclose(predt, predt_orig)
+
+        # boolean
+        orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(
+            rows, cols
+        )
+        predt_orig = booster.inplace_predict(orig)
+        for dtype in [cp.bool8, cp.bool_]:
+            X = cp.array(orig, dtype=dtype)
+            predt = booster.inplace_predict(X)
+            cp.testing.assert_allclose(predt, predt_orig)
+
+        # unsupported types
+        for dtype in [
+            cp.complex64,
+            cp.complex128,
+        ]:
+            X = cp.array(orig, dtype=dtype)
+            with pytest.raises(ValueError):
+                booster.inplace_predict(X)

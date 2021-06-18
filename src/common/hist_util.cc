@@ -187,267 +187,6 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
   }
 }
 
-template <typename BinIdxType>
-static size_t GetConflictCount(const std::vector<bool>& mark,
-                               const Column<BinIdxType>& column_input,
-                               size_t max_cnt) {
-  size_t ret = 0;
-  if (column_input.GetType() == xgboost::common::kDenseColumn) {
-    const DenseColumn<BinIdxType>& column
-      = static_cast<const DenseColumn<BinIdxType>& >(column_input);
-    for (size_t i = 0; i < column.Size(); ++i) {
-      if ((!column.IsMissing(i)) && mark[i]) {
-        ++ret;
-        if (ret > max_cnt) {
-          return max_cnt + 1;
-        }
-      }
-    }
-  } else {
-    const SparseColumn<BinIdxType>& column
-      = static_cast<const SparseColumn<BinIdxType>& >(column_input);
-    for (size_t i = 0; i < column.Size(); ++i) {
-      if (mark[column.GetRowIdx(i)]) {
-        ++ret;
-        if (ret > max_cnt) {
-          return max_cnt + 1;
-        }
-      }
-    }
-  }
-  return ret;
-}
-
-template <typename BinIdxType>
-inline void
-MarkUsed(std::vector<bool>* p_mark, const Column<BinIdxType>& column_input) {
-  std::vector<bool>& mark = *p_mark;
-  if (column_input.GetType() == xgboost::common::kDenseColumn) {
-    const DenseColumn<BinIdxType>& column
-      = static_cast<const DenseColumn<BinIdxType>& >(column_input);
-    for (size_t i = 0; i < column.Size(); ++i) {
-      if (!column.IsMissing(i)) {
-        mark[i] = true;
-      }
-    }
-  } else {
-    const SparseColumn<BinIdxType>& column
-      = static_cast<const SparseColumn<BinIdxType>& >(column_input);
-    for (size_t i = 0; i < column.Size(); ++i) {
-      mark[column.GetRowIdx(i)] = true;
-    }
-  }
-}
-
-template <typename BinIdxType>
-inline void SetGroup(const unsigned fid, const Column<BinIdxType>& column,
-  const size_t max_conflict_cnt, const std::vector<size_t>& search_groups,
-  std::vector<size_t>* p_group_conflict_cnt,
-  std::vector<std::vector<bool>>* p_conflict_marks,
-  std::vector<std::vector<unsigned>>* p_groups,
-  std::vector<size_t>* p_group_nnz, const size_t cur_fid_nnz, const size_t nrow) {
-  bool need_new_group = true;
-  std::vector<size_t>& group_conflict_cnt = *p_group_conflict_cnt;
-  std::vector<std::vector<bool>>& conflict_marks = *p_conflict_marks;
-  std::vector<std::vector<unsigned>>& groups = *p_groups;
-  std::vector<size_t>& group_nnz = *p_group_nnz;
-
-  // examine each candidate group: is it okay to insert fid?
-  for (auto gid : search_groups) {
-    const size_t rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
-    const size_t cnt = GetConflictCount(conflict_marks[gid], column, rest_max_cnt);
-    if (cnt <= rest_max_cnt) {
-      need_new_group = false;
-      groups[gid].push_back(fid);
-      group_conflict_cnt[gid] += cnt;
-      group_nnz[gid] += cur_fid_nnz - cnt;
-      MarkUsed(&conflict_marks[gid], column);
-      break;
-    }
-  }
-  // create new group if necessary
-  if (need_new_group) {
-    groups.emplace_back();
-    groups.back().push_back(fid);
-    group_conflict_cnt.push_back(0);
-    conflict_marks.emplace_back(nrow, false);
-    MarkUsed(&conflict_marks.back(), column);
-    group_nnz.emplace_back(cur_fid_nnz);
-  }
-}
-
-inline std::vector<std::vector<unsigned>>
-FindGroups(const std::vector<unsigned>& feature_list,
-           const std::vector<size_t>& feature_nnz,
-           const ColumnMatrix& colmat,
-           size_t nrow,
-           const tree::TrainParam& param) {
-  /* Goal: Bundle features together that has little or no "overlap", i.e.
-           only a few data points should have nonzero values for
-           member features.
-           Note that one-hot encoded features will be grouped together. */
-
-  std::vector<std::vector<unsigned>> groups;
-  std::vector<std::vector<bool>> conflict_marks;
-  std::vector<size_t> group_nnz;
-  std::vector<size_t> group_conflict_cnt;
-  const auto max_conflict_cnt
-    = static_cast<size_t>(param.max_conflict_rate * nrow);
-
-  for (auto fid : feature_list) {
-    const size_t cur_fid_nnz = feature_nnz[fid];
-
-    // randomly choose some of existing groups as candidates
-    std::vector<size_t> search_groups;
-    for (size_t gid = 0; gid < groups.size(); ++gid) {
-      if (group_nnz[gid] + cur_fid_nnz <= nrow + max_conflict_cnt) {
-        search_groups.push_back(gid);
-      }
-    }
-    std::shuffle(search_groups.begin(), search_groups.end(), common::GlobalRandom());
-    if (param.max_search_group > 0 && search_groups.size() > param.max_search_group) {
-      search_groups.resize(param.max_search_group);
-    }
-
-    BinTypeSize bins_type_size = colmat.GetTypeSize();
-    if (bins_type_size == kUint8BinsTypeSize) {
-        const auto column = colmat.GetColumn<uint8_t>(fid);
-        SetGroup(fid, *(column.get()), max_conflict_cnt, search_groups,
-                 &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
-    } else if (bins_type_size == kUint16BinsTypeSize) {
-        const auto column = colmat.GetColumn<uint16_t>(fid);
-        SetGroup(fid, *(column.get()), max_conflict_cnt, search_groups,
-                 &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
-    } else {
-        CHECK_EQ(bins_type_size, kUint32BinsTypeSize);
-        const auto column = colmat.GetColumn<uint32_t>(fid);
-        SetGroup(fid, *(column.get()), max_conflict_cnt, search_groups,
-                 &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
-    }
-  }
-  return groups;
-}
-
-inline std::vector<std::vector<unsigned>>
-FastFeatureGrouping(const GHistIndexMatrix& gmat,
-                    const ColumnMatrix& colmat,
-                    const tree::TrainParam& param) {
-  const size_t nrow = gmat.row_ptr.size() - 1;
-  const size_t nfeature = gmat.cut.Ptrs().size() - 1;
-
-  std::vector<unsigned> feature_list(nfeature);
-  std::iota(feature_list.begin(), feature_list.end(), 0);
-
-  // sort features by nonzero counts, descending order
-  std::vector<size_t> feature_nnz(nfeature);
-  std::vector<unsigned> features_by_nnz(feature_list);
-  gmat.GetFeatureCounts(&feature_nnz[0]);
-  std::sort(features_by_nnz.begin(), features_by_nnz.end(),
-            [&feature_nnz](unsigned a, unsigned b) {
-    return feature_nnz[a] > feature_nnz[b];
-  });
-
-  auto groups_alt1 = FindGroups(feature_list, feature_nnz, colmat, nrow, param);
-  auto groups_alt2 = FindGroups(features_by_nnz, feature_nnz, colmat, nrow, param);
-  auto& groups = (groups_alt1.size() > groups_alt2.size()) ? groups_alt2 : groups_alt1;
-
-  // take apart small, sparse groups, as it won't help speed
-  {
-    std::vector<std::vector<unsigned>> ret;
-    for (const auto& group : groups) {
-      if (group.size() <= 1 || group.size() >= 5) {
-        ret.push_back(group);  // keep singleton groups and large (5+) groups
-      } else {
-        size_t nnz = 0;
-        for (auto fid : group) {
-          nnz += feature_nnz[fid];
-        }
-        double nnz_rate = static_cast<double>(nnz) / nrow;
-        // take apart small sparse group, due it will not gain on speed
-        if (nnz_rate <= param.sparse_threshold) {
-          for (auto fid : group) {
-            ret.emplace_back();
-            ret.back().push_back(fid);
-          }
-        } else {
-          ret.push_back(group);
-        }
-      }
-    }
-    groups = std::move(ret);
-  }
-
-  // shuffle groups
-  std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
-
-  return groups;
-}
-
-void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
-                                 const ColumnMatrix& colmat,
-                                 const tree::TrainParam& param) {
-  cut_ = &gmat.cut;
-
-  const size_t nrow = gmat.row_ptr.size() - 1;
-  const uint32_t nbins = gmat.cut.Ptrs().back();
-
-  /* step 1: form feature groups */
-  auto groups = FastFeatureGrouping(gmat, colmat, param);
-  const auto nblock = static_cast<uint32_t>(groups.size());
-
-  /* step 2: build a new CSR matrix for each feature group */
-  std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
-  for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
-    for (auto& fid : groups[group_id]) {
-      const uint32_t bin_begin = gmat.cut.Ptrs()[fid];
-      const uint32_t bin_end = gmat.cut.Ptrs()[fid + 1];
-      for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
-        bin2block[bin_id] = group_id;
-      }
-    }
-  }
-
-  std::vector<std::vector<uint32_t>> index_temp(nblock);
-  std::vector<std::vector<size_t>> row_ptr_temp(nblock);
-  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-    row_ptr_temp[block_id].push_back(0);
-  }
-  for (size_t rid = 0; rid < nrow; ++rid) {
-    const size_t ibegin = gmat.row_ptr[rid];
-    const size_t iend = gmat.row_ptr[rid + 1];
-    for (size_t j = ibegin; j < iend; ++j) {
-      const uint32_t bin_id = gmat.index[j];
-      const uint32_t block_id = bin2block[bin_id];
-      index_temp[block_id].push_back(bin_id);
-    }
-    for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-      row_ptr_temp[block_id].push_back(index_temp[block_id].size());
-    }
-  }
-
-  /* step 3: concatenate CSR matrices into one (index, row_ptr) pair */
-  std::vector<size_t> index_blk_ptr;
-  std::vector<size_t> row_ptr_blk_ptr;
-  index_blk_ptr.push_back(0);
-  row_ptr_blk_ptr.push_back(0);
-  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-    index_.insert(index_.end(), index_temp[block_id].begin(), index_temp[block_id].end());
-    row_ptr_.insert(row_ptr_.end(), row_ptr_temp[block_id].begin(), row_ptr_temp[block_id].end());
-    index_blk_ptr.push_back(index_.size());
-    row_ptr_blk_ptr.push_back(row_ptr_.size());
-  }
-
-  // save shortcut for each block
-  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-    Block blk;
-    blk.index_begin = &index_[index_blk_ptr[block_id]];
-    blk.row_ptr_begin = &row_ptr_[row_ptr_blk_ptr[block_id]];
-    blk.index_end = &index_[index_blk_ptr[block_id + 1]];
-    blk.row_ptr_end = &row_ptr_[row_ptr_blk_ptr[block_id + 1]];
-    blocks_.push_back(blk);
-  }
-}
-
 /*!
  * \brief fill a histogram by zeros in range [begin, end)
  */
@@ -548,57 +287,18 @@ struct Prefetch {
 constexpr size_t Prefetch::kNoPrefetchSize;
 
 
-template<typename FPType, bool do_prefetch, typename BinIdxType>
-void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
+template<typename FPType, bool do_prefetch, typename BinIdxType, bool any_missing = true>
+void BuildHistKernel(const std::vector<GradientPair>& gpair,
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
-                          const size_t n_features,
                           GHistRow<FPType> hist) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
-  const uint32_t* offsets = gmat.index.Offset();
-  FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
-  const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
-                           // 2 FP values: gradient and hessian.
-                           // So we need to multiply each row-index/bin-index by 2
-                           // to work with gradient pairs as a singe row FP array
-
-  for (size_t i = 0; i < size; ++i) {
-    const size_t icol_start = rid[i] * n_features;
-    const size_t idx_gh = two * rid[i];
-
-    if (do_prefetch) {
-      const size_t icol_start_prefetch = rid[i + Prefetch::kPrefetchOffset] * n_features;
-
-      PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
-      for (size_t j = icol_start_prefetch; j < icol_start_prefetch + n_features;
-           j += Prefetch::GetPrefetchStep<BinIdxType>()) {
-        PREFETCH_READ_T0(gradient_index + j);
-      }
-    }
-    const BinIdxType* gr_index_local = gradient_index + icol_start;
-    for (size_t j = 0; j < n_features; ++j) {
-      const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[j]) +
-                                      offsets[j]);
-
-      hist_data[idx_bin]   += pgh[idx_gh];
-      hist_data[idx_bin+1] += pgh[idx_gh+1];
-    }
-  }
-}
-
-template<typename FPType, bool do_prefetch>
-void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
-                           const RowSetCollection::Elem row_indices,
-                           const GHistIndexMatrix& gmat,
-                           GHistRow<FPType> hist) {
-  const size_t size = row_indices.Size();
-  const size_t* rid = row_indices.begin;
-  const float* pgh = reinterpret_cast<const float*>(gpair.data());
-  const uint32_t* gradient_index = gmat.index.data<uint32_t>();
   const size_t* row_ptr =  gmat.row_ptr.data();
+  const uint32_t* offsets = gmat.index.Offset();
+  const size_t n_features = row_ptr[row_indices.begin[0]+1] - row_ptr[row_indices.begin[0]];
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
@@ -606,13 +306,16 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
                            // to work with gradient pairs as a singe row FP array
 
   for (size_t i = 0; i < size; ++i) {
-    const size_t icol_start = row_ptr[rid[i]];
-    const size_t icol_end = row_ptr[rid[i]+1];
+    const size_t icol_start = any_missing ? row_ptr[rid[i]] : rid[i] * n_features;
+    const size_t icol_end =  any_missing ? row_ptr[rid[i]+1] : icol_start + n_features;
+    const size_t row_size = icol_end - icol_start;
     const size_t idx_gh = two * rid[i];
 
     if (do_prefetch) {
-      const size_t icol_start_prftch = row_ptr[rid[i+Prefetch::kPrefetchOffset]];
-      const size_t icol_end_prefect = row_ptr[rid[i+Prefetch::kPrefetchOffset]+1];
+      const size_t icol_start_prftch = any_missing ? row_ptr[rid[i+Prefetch::kPrefetchOffset]] :
+                                       rid[i + Prefetch::kPrefetchOffset] * n_features;
+      const size_t icol_end_prefect = any_missing ?  row_ptr[rid[i+Prefetch::kPrefetchOffset]+1] :
+                                      icol_start_prftch + n_features;
 
       PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prftch; j < icol_end_prefect;
@@ -620,47 +323,34 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
         PREFETCH_READ_T0(gradient_index + j);
       }
     }
-    for (size_t j = icol_start; j < icol_end; ++j) {
-      const uint32_t idx_bin = two * gradient_index[j];
+    const BinIdxType* gr_index_local = gradient_index + icol_start;
+
+    for (size_t j = 0; j < row_size; ++j) {
+      const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[j]) + (
+                                      any_missing ? 0 : offsets[j]));
+
       hist_data[idx_bin]   += pgh[idx_gh];
       hist_data[idx_bin+1] += pgh[idx_gh+1];
     }
   }
 }
 
-
-template<typename FPType, bool do_prefetch, typename BinIdxType>
-void BuildHistDispatchKernel(const std::vector<GradientPair>& gpair,
+template<typename FPType, bool do_prefetch, bool any_missing>
+void BuildHistDispatch(const std::vector<GradientPair>& gpair,
                      const RowSetCollection::Elem row_indices,
-                     const GHistIndexMatrix& gmat, GHistRow<FPType> hist, bool isDense) {
-  if (isDense) {
-    const size_t* row_ptr =  gmat.row_ptr.data();
-    const size_t n_features = row_ptr[row_indices.begin[0]+1] - row_ptr[row_indices.begin[0]];
-    BuildHistDenseKernel<FPType, do_prefetch, BinIdxType>(gpair, row_indices,
-                                                       gmat, n_features, hist);
-  } else {
-    BuildHistSparseKernel<FPType, do_prefetch>(gpair, row_indices,
-                                                        gmat, hist);
-  }
-}
-
-template<typename FPType, bool do_prefetch>
-void BuildHistKernel(const std::vector<GradientPair>& gpair,
-                     const RowSetCollection::Elem row_indices,
-                     const GHistIndexMatrix& gmat, const bool isDense, GHistRow<FPType> hist) {
-  const bool is_dense = row_indices.Size() && isDense;
+                     const GHistIndexMatrix& gmat, GHistRow<FPType> hist) {
   switch (gmat.index.GetBinTypeSize()) {
     case kUint8BinsTypeSize:
-      BuildHistDispatchKernel<FPType, do_prefetch, uint8_t>(gpair, row_indices,
-                                                            gmat, hist, is_dense);
+      BuildHistKernel<FPType, do_prefetch, uint8_t, any_missing>(gpair, row_indices,
+                                                                      gmat, hist);
       break;
     case kUint16BinsTypeSize:
-      BuildHistDispatchKernel<FPType, do_prefetch, uint16_t>(gpair, row_indices,
-                                                             gmat, hist, is_dense);
+      BuildHistKernel<FPType, do_prefetch, uint16_t, any_missing>(gpair, row_indices,
+                                                                       gmat, hist);
       break;
     case kUint32BinsTypeSize:
-      BuildHistDispatchKernel<FPType, do_prefetch, uint32_t>(gpair, row_indices,
-                                                             gmat, hist, is_dense);
+      BuildHistKernel<FPType, do_prefetch, uint32_t, any_missing>(gpair, row_indices,
+                                                                       gmat, hist);
       break;
     default:
       CHECK(false);  // no default behavior
@@ -668,10 +358,12 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
 }
 
 template <typename GradientSumT>
+template <bool any_missing>
 void GHistBuilder<GradientSumT>::BuildHist(
     const std::vector<GradientPair> &gpair,
-    const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-    GHistRowT hist, bool isDense) {
+    const RowSetCollection::Elem row_indices,
+    const GHistIndexMatrix &gmat,
+    GHistRowT hist) {
   const size_t nrows = row_indices.Size();
   const size_t no_prefetch_size = Prefetch::NoPrefetchSize(nrows);
 
@@ -680,93 +372,36 @@ void GHistBuilder<GradientSumT>::BuildHist(
 
   if (contiguousBlock) {
     // contiguous memory access, built-in HW prefetching is enough
-    BuildHistKernel<GradientSumT, false>(gpair, row_indices, gmat, isDense, hist);
+    BuildHistDispatch<GradientSumT, false, any_missing>(gpair, row_indices, gmat, hist);
   } else {
     const RowSetCollection::Elem span1(row_indices.begin, row_indices.end - no_prefetch_size);
     const RowSetCollection::Elem span2(row_indices.end - no_prefetch_size, row_indices.end);
 
-    BuildHistKernel<GradientSumT, true>(gpair, span1, gmat, isDense, hist);
+    BuildHistDispatch<GradientSumT, true, any_missing>(gpair, span1, gmat, hist);
     // no prefetching to avoid loading extra memory
-    BuildHistKernel<GradientSumT, false>(gpair, span2, gmat, isDense, hist);
+    BuildHistDispatch<GradientSumT, false, any_missing>(gpair, span2, gmat, hist);
   }
 }
 template
-void GHistBuilder<float>::BuildHist(const std::vector<GradientPair>& gpair,
+void GHistBuilder<float>::BuildHist<true>(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
-                             GHistRow<float> hist,
-                             bool isDense);
+                             GHistRow<float> hist);
 template
-void GHistBuilder<double>::BuildHist(const std::vector<GradientPair>& gpair,
+void GHistBuilder<float>::BuildHist<false>(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
-                             GHistRow<double> hist,
-                             bool isDense);
-
-template<typename GradientSumT>
-void GHistBuilder<GradientSumT>::BuildBlockHist(const std::vector<GradientPair>& gpair,
-                                  const RowSetCollection::Elem row_indices,
-                                  const GHistIndexBlockMatrix& gmatb,
-                                  GHistRowT hist) {
-  static constexpr int kUnroll = 8;  // loop unrolling factor
-  const size_t nblock = gmatb.GetNumBlock();
-  const size_t nrows = row_indices.end - row_indices.begin;
-  const size_t rest = nrows % kUnroll;
-#if defined(_OPENMP)
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);  // NOLINT
-#endif  // defined(_OPENMP)
-  xgboost::detail::GradientPairInternal<GradientSumT>* p_hist = hist.data();
-
-  dmlc::OMPException exc;
-#pragma omp parallel for num_threads(nthread) schedule(guided)
-  for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
-    exc.Run([&]() {
-      auto gmat = gmatb[bid];
-
-      for (size_t i = 0; i < nrows - rest; i += kUnroll) {
-        size_t rid[kUnroll];
-        size_t ibegin[kUnroll];
-        size_t iend[kUnroll];
-        GradientPair stat[kUnroll];
-
-        for (int k = 0; k < kUnroll; ++k) {
-          rid[k] = row_indices.begin[i + k];
-          ibegin[k] = gmat.row_ptr[rid[k]];
-          iend[k] = gmat.row_ptr[rid[k] + 1];
-          stat[k] = gpair[rid[k]];
-        }
-        for (int k = 0; k < kUnroll; ++k) {
-          for (size_t j = ibegin[k]; j < iend[k]; ++j) {
-            const uint32_t bin = gmat.index[j];
-            p_hist[bin].Add(stat[k].GetGrad(), stat[k].GetHess());
-          }
-        }
-      }
-      for (size_t i = nrows - rest; i < nrows; ++i) {
-        const size_t rid = row_indices.begin[i];
-        const size_t ibegin = gmat.row_ptr[rid];
-        const size_t iend = gmat.row_ptr[rid + 1];
-        const GradientPair stat = gpair[rid];
-        for (size_t j = ibegin; j < iend; ++j) {
-          const uint32_t bin = gmat.index[j];
-          p_hist[bin].Add(stat.GetGrad(), stat.GetHess());
-        }
-      }
-    });
-  }
-  exc.Rethrow();
-}
+                             GHistRow<float> hist);
 template
-void GHistBuilder<float>::BuildBlockHist(const std::vector<GradientPair>& gpair,
-                                  const RowSetCollection::Elem row_indices,
-                                  const GHistIndexBlockMatrix& gmatb,
-                                  GHistRow<float> hist);
+void GHistBuilder<double>::BuildHist<true>(const std::vector<GradientPair>& gpair,
+                             const RowSetCollection::Elem row_indices,
+                             const GHistIndexMatrix& gmat,
+                             GHistRow<double> hist);
 template
-void GHistBuilder<double>::BuildBlockHist(const std::vector<GradientPair>& gpair,
-                                  const RowSetCollection::Elem row_indices,
-                                  const GHistIndexBlockMatrix& gmatb,
-                                  GHistRow<double> hist);
-
+void GHistBuilder<double>::BuildHist<false>(const std::vector<GradientPair>& gpair,
+                             const RowSetCollection::Elem row_indices,
+                             const GHistIndexMatrix& gmat,
+                             GHistRow<double> hist);
 
 template<typename GradientSumT>
 void GHistBuilder<GradientSumT>::SubtractionTrick(GHistRowT self,

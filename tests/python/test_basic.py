@@ -154,6 +154,23 @@ class TestBasic:
         dump4j = json.loads(dump4[0])
         assert 'gain' in dump4j, "Expected 'gain' to be dumped in JSON."
 
+    def test_feature_score(self):
+        rng = np.random.RandomState(0)
+        data = rng.randn(100, 2)
+        target = np.array([0, 1] * 50)
+        features = ["F0"]
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data, label=target, feature_names=features)
+
+        params = {"objective": "binary:logistic"}
+        dm = xgb.DMatrix(data, label=target, feature_names=["F0", "F1"])
+        booster = xgb.train(params, dm, num_boost_round=1)
+        # no error since feature names might be assigned before the booster seeing data
+        # and booster doesn't known about the actual number of features.
+        booster.feature_names = ["F0"]
+        with pytest.raises(ValueError):
+            booster.get_fscore()
+
     def test_load_file_invalid(self):
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file='incorrect_path')
@@ -215,6 +232,7 @@ class TestBasic:
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
+    @pytest.mark.skipif(**tm.skip_s390x())
     def test_cv_explicit_fold_indices_labels(self):
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
                   'reg:squarederror'}

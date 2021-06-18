@@ -263,6 +263,20 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
   API_END();
 }
 
+XGB_DLL int XGDMatrixCreateFromDense(char const *data,
+                                     char const *c_json_config,
+                                     DMatrixHandle *out) {
+  API_BEGIN();
+  xgboost::data::ArrayAdapter adapter{
+      xgboost::data::ArrayAdapter(StringView{data})};
+  auto config = Json::Load(StringView{c_json_config});
+  float missing = GetMissing(config);
+  auto nthread = get<Integer const>(config["nthread"]);
+  *out =
+      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      const unsigned* indices,
                                      const bst_float* data,
@@ -650,9 +664,21 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   auto *learner = static_cast<Learner*>(handle);
   auto& entry = learner->GetThreadLocal().prediction_entry;
   auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
-  auto type = PredictionType(get<Integer const>(config["type"]));
-  auto iteration_begin = get<Integer const>(config["iteration_begin"]);
-  auto iteration_end = get<Integer const>(config["iteration_end"]);
+
+  auto const& j_config = get<Object const>(config);
+  auto type = PredictionType(get<Integer const>(j_config.at("type")));
+  auto iteration_begin = get<Integer const>(j_config.at("iteration_begin"));
+  auto iteration_end = get<Integer const>(j_config.at("iteration_end"));
+
+  auto ntree_limit_it = j_config.find("ntree_limit");
+  if (ntree_limit_it != j_config.cend() && !IsA<Null>(ntree_limit_it->second) &&
+      get<Integer const>(ntree_limit_it->second) != 0) {
+    CHECK(iteration_end == 0) <<
+        "Only one of the `ntree_limit` or `iteration_range` can be specified.";
+    LOG(WARNING) << "`ntree_limit` is deprecated, use `iteration_range` instead.";
+    iteration_end = GetIterationFromTreeLimit(get<Integer const>(ntree_limit_it->second), learner);
+  }
+
   bool approximate = type == PredictionType::kApproxContribution ||
                      type == PredictionType::kApproxInteraction;
   bool contribs = type == PredictionType::kContribution ||
@@ -1111,6 +1137,48 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
   return bst->GetConfigurationArguments();
 }
 
+
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle,
+                                  const char *json_config,
+                                  xgboost::bst_ulong* out_length,
+                                  const char ***out_features,
+                                  float **out_scores) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *learner = static_cast<Learner *>(handle);
+  auto config = Json::Load(StringView{json_config});
+  auto importance = get<String const>(config["importance_type"]);
+  std::string feature_map_uri;
+  if (!IsA<Null>(config["feature_map"])) {
+    feature_map_uri = get<String const>(config["feature_map"]);
+  }
+  FeatureMap feature_map = LoadFeatureMap(feature_map_uri);
+
+  auto& scores = learner->GetThreadLocal().ret_vec_float;
+  std::vector<bst_feature_t> features;
+  learner->CalcFeatureScore(importance, &features, &scores);
+
+  auto n_features = learner->GetNumFeature();
+  GenerateFeatureMap(learner, n_features, &feature_map);
+  CHECK_LE(features.size(), n_features);
+
+  auto& feature_names = learner->GetThreadLocal().ret_vec_str;
+  feature_names.resize(features.size());
+  auto& feature_names_c = learner->GetThreadLocal().ret_vec_charp;
+  feature_names_c.resize(features.size());
+
+  for (bst_feature_t i = 0; i < features.size(); ++i) {
+    feature_names[i] = feature_map.Name(features[i]);
+    feature_names_c[i] = feature_names[i].data();
+  }
+
+  CHECK_EQ(scores.size(), features.size());
+  CHECK_EQ(scores.size(), feature_names.size());
+  *out_length  = scores.size();
+  *out_scores = scores.data();
+  *out_features = dmlc::BeginPtr(feature_names_c);
+  API_END();
+}
 
 // force link rabit
 static DMLC_ATTRIBUTE_UNUSED int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();

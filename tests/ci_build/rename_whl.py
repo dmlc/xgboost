@@ -33,4 +33,6 @@ with cd(dirname):
                 'platform_tag': platform_tag}
     new_name = '{pkg_name}-{version}+{commit_id}-py3-none-{platform_tag}.whl'.format(**keywords)
     print('Renaming {} to {}...'.format(basename, new_name))
+    if os.path.isfile(new_name):
+        os.remove(new_name)
     os.rename(basename, new_name)

@@ -111,9 +111,8 @@ def _convert_ntree_limit(
             raise ValueError(
                 "Only one of `iteration_range` and `ntree_limit` can be non zero."
             )
-        num_parallel_tree, num_groups = _get_booster_layer_trees(booster)
+        num_parallel_tree, _ = _get_booster_layer_trees(booster)
         num_parallel_tree = max([num_parallel_tree, 1])
-        num_groups = max([num_groups, 1])
         iteration_range = (0, ntree_limit // num_parallel_tree)
     return iteration_range
 
@@ -232,14 +231,14 @@ def _numpy2ctypes_type(dtype):
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
-def _array_interface(data: np.ndarray) -> bytes:
+def _cuda_array_interface(data) -> bytes:
     assert (
         data.dtype.hasobject is False
     ), "Input data contains `object` dtype.  Expecting numeric data."
-    interface = data.__array_interface__
+    interface = data.__cuda_array_interface__
     if "mask" in interface:
-        interface["mask"] = interface["mask"].__array_interface__
-    interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+        interface["mask"] = interface["mask"].__cuda_array_interface__
+    interface_str = bytes(json.dumps(interface), "utf-8")
     return interface_str
 
 
@@ -322,6 +321,7 @@ class DataIter:
     def __init__(self):
         self._handle = _ProxyDMatrix()
         self.exception = None
+        self.enable_categorical = False
 
     @property
     def proxy(self):
@@ -343,11 +343,16 @@ class DataIter:
         if self.exception is not None:
             return 0
 
-        def data_handle(data, feature_names=None, feature_types=None, **kwargs):
+        def data_handle(
+            data,
+            feature_names=None,
+            feature_types=None,
+            **kwargs
+        ):
             from .data import dispatch_device_quantile_dmatrix_set_data
             from .data import _device_quantile_transform
             data, feature_names, feature_types = _device_quantile_transform(
-                data, feature_names, feature_types
+                data, feature_names, feature_types, self.enable_categorical,
             )
             dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
             self.proxy.set_info(
@@ -1016,7 +1021,7 @@ class _ProxyDMatrix(DMatrix):
     def _set_data_from_cuda_columnar(self, data):
         '''Set data from CUDA columnar format.1'''
         from .data import _cudf_array_interfaces
-        interfaces_str = _cudf_array_interfaces(data)
+        _, interfaces_str = _cudf_array_interfaces(data)
         _check_call(
             _LIB.XGDeviceQuantileDMatrixSetDataCudaColumnar(
                 self.handle,
@@ -1069,10 +1074,6 @@ class DeviceQuantileDMatrix(DMatrix):
             self.handle = data
             return
 
-        if enable_categorical:
-            raise NotImplementedError(
-                'categorical support is not enabled on DeviceQuantileDMatrix.'
-            )
         if qid is not None and group is not None:
             raise ValueError(
                 'Only one of the eval_qid or eval_group for each evaluation '
@@ -1091,9 +1092,10 @@ class DeviceQuantileDMatrix(DMatrix):
             feature_weights=feature_weights,
             feature_names=feature_names,
             feature_types=feature_types,
+            enable_categorical=enable_categorical,
         )
 
-    def _init(self, data, feature_names, feature_types, **meta):
+    def _init(self, data, enable_categorical, **meta):
         from .data import (
             _is_dlpack,
             _transform_dlpack,
@@ -1108,10 +1110,9 @@ class DeviceQuantileDMatrix(DMatrix):
         if _is_iter(data):
             it = data
         else:
-            it = SingleBatchInternalIter(
-                data, **meta, feature_names=feature_names, feature_types=feature_types
-            )
+            it = SingleBatchInternalIter(data=data, **meta)
 
+        it.enable_categorical = enable_categorical
         reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(it.reset_wrapper)
         next_callback = ctypes.CFUNCTYPE(
             ctypes.c_int,
@@ -1913,6 +1914,7 @@ class Booster(object):
                     f"got {data.shape[1]}"
                 )
 
+        from .data import _array_interface
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
             data, _ = _ensure_np_dtype(data, data.dtype)
@@ -1951,10 +1953,7 @@ class Booster(object):
             from .data import _transform_cupy_array
 
             data = _transform_cupy_array(data)
-            interface = data.__cuda_array_interface__
-            if "mask" in interface:
-                interface["mask"] = interface["mask"].__cuda_array_interface__
-            interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+            interface_str = _cuda_array_interface(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaArray(
                     self.handle,
@@ -1970,7 +1969,7 @@ class Booster(object):
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             from .data import _cudf_array_interfaces
 
-            interfaces_str = _cudf_array_interfaces(data)
+            _, interfaces_str = _cudf_array_interfaces(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
@@ -2190,7 +2189,9 @@ class Booster(object):
 
         return self.get_score(fmap, importance_type='weight')
 
-    def get_score(self, fmap='', importance_type='weight'):
+    def get_score(
+        self, fmap: os.PathLike = '', importance_type: str = 'weight'
+    ) -> Dict[str, float]:
         """Get feature importance of each feature.
         Importance type can be defined as:
 
@@ -2202,9 +2203,9 @@ class Booster(object):
 
         .. note:: Feature importance is defined only for tree boosters
 
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
+            Feature importance is only defined when the decision tree model is chosen as
+            base learner (`booster=gbtree` or `booster=dart`). It is not defined for other
+            base learner types, such as linear learners (`booster=gblinear`).
 
         Parameters
         ----------
@@ -2212,86 +2213,33 @@ class Booster(object):
            The name of feature map file.
         importance_type: str, default 'weight'
             One of the importance types defined above.
+
+        Returns
+        -------
+        A map between feature names and their scores.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
-        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
-            raise ValueError('Feature importance is not defined for Booster type {}'
-                             .format(self.booster))
-
-        allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
-        if importance_type not in allowed_importance_types:
-            msg = ("importance_type mismatch, got '{}', expected one of " +
-                   repr(allowed_importance_types))
-            raise ValueError(msg.format(importance_type))
-
-        # if it's weight, then omap stores the number of missing values
-        if importance_type == 'weight':
-            # do a simpler tree dump to save time
-            trees = self.get_dump(fmap, with_stats=False)
-            fmap = {}
-            for tree in trees:
-                for line in tree.split('\n'):
-                    # look for the opening square bracket
-                    arr = line.split('[')
-                    # if no opening bracket (leaf node), ignore this line
-                    if len(arr) == 1:
-                        continue
-
-                    # extract feature name from string between []
-                    fid = arr[1].split(']')[0].split('<')[0]
-
-                    if fid not in fmap:
-                        # if the feature hasn't been seen yet
-                        fmap[fid] = 1
-                    else:
-                        fmap[fid] += 1
-
-            return fmap
-
-        average_over_splits = True
-        if importance_type == 'total_gain':
-            importance_type = 'gain'
-            average_over_splits = False
-        elif importance_type == 'total_cover':
-            importance_type = 'cover'
-            average_over_splits = False
-
-        trees = self.get_dump(fmap, with_stats=True)
-
-        importance_type += '='
-        fmap = {}
-        gmap = {}
-        for tree in trees:
-            for line in tree.split('\n'):
-                # look for the opening square bracket
-                arr = line.split('[')
-                # if no opening bracket (leaf node), ignore this line
-                if len(arr) == 1:
-                    continue
-
-                # look for the closing bracket, extract only info within that bracket
-                fid = arr[1].split(']')
-
-                # extract gain or cover from string after closing bracket
-                g = float(fid[1].split(importance_type)[1].split(',')[0])
-
-                # extract feature name from string before closing bracket
-                fid = fid[0].split('<')[0]
-
-                if fid not in fmap:
-                    # if the feature hasn't been seen yet
-                    fmap[fid] = 1
-                    gmap[fid] = g
-                else:
-                    fmap[fid] += 1
-                    gmap[fid] += g
-
-        # calculate average value (gain/cover) for each feature
-        if average_over_splits:
-            for fid in gmap:
-                gmap[fid] = gmap[fid] / fmap[fid]
-
-        return gmap
+        args = from_pystr_to_cstr(
+            json.dumps({"importance_type": importance_type, "feature_map": fmap})
+        )
+        features = ctypes.POINTER(ctypes.c_char_p)()
+        scores = ctypes.POINTER(ctypes.c_float)()
+        length = c_bst_ulong()
+        _check_call(
+            _LIB.XGBoosterFeatureScore(
+                self.handle,
+                args,
+                ctypes.byref(length),
+                ctypes.byref(features),
+                ctypes.byref(scores)
+            )
+        )
+        features_arr = from_cstr_to_pystr(features, length)
+        scores_arr = ctypes2numpy(scores, length.value, np.float32)
+        results = {}
+        for feat, score in zip(features_arr, scores_arr):
+            results[feat] = score
+        return results
 
     def trees_to_dataframe(self, fmap=''):
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
