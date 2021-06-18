@@ -2235,7 +2235,7 @@ class Booster(object):
         scores_arr = ctypes2numpy(scores, length.value, np.float32)
         results = {}
         for feat, score in zip(features_arr, scores_arr):
-            results[feat] = score
+            results[feat] = float(score)
         return results
 
     def trees_to_dataframe(self, fmap=''):
