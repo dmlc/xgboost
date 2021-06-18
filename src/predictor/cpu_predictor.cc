@@ -52,11 +52,6 @@ bst_float PredValue(const SparsePage::Inst &inst,
     if (tree_info[i] == bst_group) {
       auto const &tree = *trees[i];
       bool has_categorical = tree.HasCategoricalSplit();
-
-      auto categories = common::Span<uint32_t const>{tree.GetSplitCategories()};
-      auto split_types = tree.GetSplitTypes();
-      auto categories_ptr =
-          common::Span<RegTree::Segment const>{tree.GetSplitCategoriesPtr()};
       auto cats = tree.GetCategoriesMatrix();
       bst_node_t nidx = -1;
       if (has_categorical) {

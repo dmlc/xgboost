@@ -3,6 +3,7 @@
 # coding: utf-8
 """Plotting Library."""
 from io import BytesIO
+import json
 import numpy as np
 from .core import Booster
 from .sklearn import XGBModel
@@ -203,7 +204,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
 
     if kwargs:
         parameters += ':'
-        parameters += str(kwargs)
+        parameters += json.dumps(kwargs)
     tree = booster.get_dump(
         fmap=fmap,
         dump_format=parameters)[num_trees]

@@ -55,7 +55,6 @@ def test_categorical():
         tree_method="gpu_hist",
         use_label_encoder=False,
         enable_categorical=True,
-        predictor="gpu_predictor",
         n_estimators=10,
     )
     X = pd.DataFrame(X.todense()).astype("category")
