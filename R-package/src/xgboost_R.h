@@ -275,4 +275,12 @@ XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
  */
 XGB_DLL SEXP XGBoosterGetAttrNames_R(SEXP handle);
 
+/*!
+ * \brief Get feature scores from the model.
+ * \param json_config See `XGBoosterFeatureScore` in xgboost c_api.h
+ * \return A vector with the first element as feature names, second element as shape of
+ *         feature scores and thrid element as feature scores.
+ */
+XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config);
+
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

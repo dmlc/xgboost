@@ -96,41 +96,44 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
   if (!(is.null(feature_names) || is.character(feature_names)))
     stop("feature_names: Has to be a character vector")
 
-  model_text_dump <- xgb.dump(model = model, with_stats = TRUE)
-
-  # linear model
-  if (model_text_dump[2] == "bias:"){
-    weight_index <- which(model_text_dump == "weight:") + 1
-    weights <- as.numeric(
-      model_text_dump[weight_index:length(model_text_dump)]
+  model <- xgb.Booster.complete(model)
+  config <- jsonlite::fromJSON(xgb.config(model))
+  if (config$learner$gradient_booster$name == "gblinear") {
+    args <- list(importance_type = "weight", feature_names = feature_names)
+    results <- .Call(
+      XGBoosterFeatureScore_R, model$handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
     )
-
-    num_class <- NVL(model$params$num_class, 1)
-    if (is.null(feature_names))
-      feature_names <- seq(to = length(weights) / num_class) - 1
-    if (length(feature_names) * num_class != length(weights))
-      stop("feature_names length does not match the number of features used in the model")
-
-    result <- if (num_class == 1) {
-      data.table(Feature = feature_names, Weight = weights)[order(-abs(Weight))]
+    names(results) <- c("features", "shape", "weight")
+    n_classes <-  if (length(results$shape) == 2) { results$shape[2] } else { 0 }
+    importance <- if (n_classes == 0) {
+      data.table(Feature = results$features, Weight = results$weight)[order(-abs(Weight))]
     } else {
-      data.table(Feature = rep(feature_names, each = num_class),
-                 Weight = weights,
-                 Class = seq_len(num_class) - 1)[order(Class, -abs(Weight))]
+      data.table(
+        Feature = rep(results$features, each = n_classes), Weight = results$weight, Class = seq_len(n_classes) - 1
+      )[order(Class, -abs(Weight))]
     }
-  } else { # tree model
-      result <- xgb.model.dt.tree(feature_names = feature_names,
-                                  text = model_text_dump,
-                                  trees = trees)[
-          Feature != "Leaf", .(Gain = sum(Quality),
-                               Cover = sum(Cover),
-                               Frequency = .N), by = Feature][
-        , `:=`(Gain = Gain / sum(Gain),
-               Cover = Cover / sum(Cover),
-               Frequency = Frequency / sum(Frequency))][
-          order(Gain, decreasing = TRUE)]
+  } else {
+    concatenated <- list()
+    output_names <- vector()
+    for (importance_type in c("weight", "gain", "cover")) {
+      args <- list(importance_type = importance_type, feature_names = feature_names)
+      results <- .Call(
+        XGBoosterFeatureScore_R, model$handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
+      )
+      names(results) <- c("features", "shape", importance_type)
+      concatenated[
+        switch(importance_type, "weight" = "Frequency", "gain" = "Gain", "cover" = "Cover")
+      ] <- results[importance_type]
+      output_names <- results$features
+    }
+    importance <- data.table(
+        Feature = output_names,
+        Gain = concatenated$Gain / sum(concatenated$Gain),
+        Cover = concatenated$Cover / sum(concatenated$Cover),
+        Frequency = concatenated$Frequency / sum(concatenated$Frequency)
+    )[order(Gain, decreasing = TRUE)]
   }
-  result
+  importance
 }
 
 # Avoid error messages during CRAN check.

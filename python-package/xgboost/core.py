@@ -2132,46 +2132,17 @@ class Booster(object):
         fmap = os.fspath(os.path.expanduser(fmap))
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
-        if self.feature_names is not None and fmap == '':
-            flen = len(self.feature_names)
-
-            fname = from_pystr_to_cstr(self.feature_names)
-
-            if self.feature_types is None:
-                # use quantitative as default
-                # {'q': quantitative, 'i': indicator}
-                ftype = from_pystr_to_cstr(['q'] * flen)
-            else:
-                ftype = from_pystr_to_cstr(self.feature_types)
-            _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
-                self.handle,
-                ctypes.c_int(flen),
-                fname,
-                ftype,
-                ctypes.c_int(with_stats),
-                c_str(dump_format),
-                ctypes.byref(length),
-                ctypes.byref(sarr)))
-        else:
-            if fmap != '' and not os.path.exists(fmap):
-                raise ValueError("No such file: {0}".format(fmap))
-            _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
-                                                  c_str(fmap),
-                                                  ctypes.c_int(with_stats),
-                                                  c_str(dump_format),
-                                                  ctypes.byref(length),
-                                                  ctypes.byref(sarr)))
+        _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
+                                              c_str(fmap),
+                                              ctypes.c_int(with_stats),
+                                              c_str(dump_format),
+                                              ctypes.byref(length),
+                                              ctypes.byref(sarr)))
         res = from_cstr_to_pystr(sarr, length)
         return res
 
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.
-
-        .. note:: Feature importance is defined only for tree boosters
-
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
 
         .. note:: Zero-importance features will not be included
 
@@ -2190,7 +2161,7 @@ class Booster(object):
         self, fmap: os.PathLike = '', importance_type: str = 'weight'
     ) -> Dict[str, float]:
         """Get feature importance of each feature.
-        Importance type can be defined as:
+        For tree model Importance type can be defined as:
 
         * 'weight': the number of times a feature is used to split the data across all trees.
         * 'gain': the average gain across all splits the feature is used in.
@@ -2198,11 +2169,15 @@ class Booster(object):
         * 'total_gain': the total gain across all splits the feature is used in.
         * 'total_cover': the total coverage across all splits the feature is used in.
 
-        .. note:: Feature importance is defined only for tree boosters
+        .. note::
 
-            Feature importance is only defined when the decision tree model is chosen as
-            base learner (`booster=gbtree` or `booster=dart`). It is not defined for other
-            base learner types, such as linear learners (`booster=gblinear`).
+           For linear model, only "weight" is defined and it's the normalized coefficients
+           without bias.
+
+        .. note:: Zero-importance features will not be included
+
+           Keep in mind that this function does not include zero-importance feature, i.e.
+           those features that have not been used in any split conditions.
 
         Parameters
         ----------
@@ -2213,7 +2188,9 @@ class Booster(object):
 
         Returns
         -------
-        A map between feature names and their scores.
+        A map between feature names and their scores.  When `gblinear` is used for
+        multi-class classification the scores for each feature is a list with length
+        `n_classes`, otherwise they're scalars.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
         args = from_pystr_to_cstr(
@@ -2221,21 +2198,31 @@ class Booster(object):
         )
         features = ctypes.POINTER(ctypes.c_char_p)()
         scores = ctypes.POINTER(ctypes.c_float)()
-        length = c_bst_ulong()
+        n_out_features = c_bst_ulong()
+        out_dim = c_bst_ulong()
+        shape = ctypes.POINTER(c_bst_ulong)()
+
         _check_call(
             _LIB.XGBoosterFeatureScore(
                 self.handle,
                 args,
-                ctypes.byref(length),
+                ctypes.byref(n_out_features),
                 ctypes.byref(features),
-                ctypes.byref(scores)
+                ctypes.byref(out_dim),
+                ctypes.byref(shape),
+                ctypes.byref(scores),
             )
         )
-        features_arr = from_cstr_to_pystr(features, length)
-        scores_arr = ctypes2numpy(scores, length.value, np.float32)
+        features_arr = from_cstr_to_pystr(features, n_out_features)
+        scores_arr = _prediction_output(shape, out_dim, scores, False)
+
         results = {}
-        for feat, score in zip(features_arr, scores_arr):
-            results[feat] = float(score)
+        if len(scores_arr.shape) > 1 and scores_arr.shape[1] > 1:
+            for feat, score in zip(features_arr, scores_arr):
+                results[feat] = [float(s) for s in score]
+        else:
+            for feat, score in zip(features_arr, scores_arr):
+                results[feat] = float(score)
         return results
 
     def trees_to_dataframe(self, fmap=''):
