@@ -213,10 +213,10 @@ void PredictBatchByBlockOfRowsKernel(
   });
 }
 
-float FillNodeMeanValues(RegTree const* tree, bst_node_t nidx, std::vector<float>* mean_values) {
+float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float> *mean_values) {
   bst_float result;
-  auto& node = (*tree)[nidx];
-  auto& node_mean_values= *mean_values;
+  auto &node = (*tree)[nidx];
+  auto &node_mean_values = *mean_values;
   if (node.IsLeaf()) {
     result = node.LeafValue();
   } else {
