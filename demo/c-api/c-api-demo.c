@@ -24,8 +24,14 @@ int main(int argc, char** argv) {
 
   // load the data
   DMatrixHandle dtrain, dtest;
-  safe_xgboost(XGDMatrixCreateFromFile("../data/agaricus.txt.train", silent, &dtrain));
-  safe_xgboost(XGDMatrixCreateFromFile("../data/agaricus.txt.test", silent, &dtest));
+  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.train", silent, &dtrain));
+  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.test", silent, &dtest));
+
+  uint64_t n_features;
+  safe_xgboost(XGDMatrixNumCol(dtrain, &n_features));
+  printf("Number of features in X: %lu\n", n_features);
+  safe_xgboost(XGDMatrixNumCol(dtest, &n_features));
+  printf("Number of features in X_valid: %lu\n", n_features);
 
   // create the booster
   BoosterHandle booster;
@@ -93,10 +99,11 @@ int main(int argc, char** argv) {
       1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
       0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
       1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      1, 0, 0, 0, 0, 1, 0, 0, 0, 0};
+      1, 0, 0, 0, 0, 1, 0, 0, 0};
+    static_assert(sizeof(values) == 126 * sizeof(float), "");
 
     DMatrixHandle dmat;
-    safe_xgboost(XGDMatrixCreateFromMat(values, 1, 127, 0.0, &dmat));
+    safe_xgboost(XGDMatrixCreateFromMat(values, 1, 126, 0.0, &dmat));
 
     bst_ulong out_len = 0;
     const float* out_result = NULL;
@@ -119,8 +126,8 @@ int main(int argc, char** argv) {
       1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
     DMatrixHandle dmat;
-    safe_xgboost(XGDMatrixCreateFromCSREx(indptr, indices, data, 2, 22, 127,
-      &dmat));
+    safe_xgboost(
+        XGDMatrixCreateFromCSREx(indptr, indices, data, 2, 22, 126, &dmat));
 
     bst_ulong out_len = 0;
     const float* out_result = NULL;
@@ -142,7 +149,7 @@ int main(int argc, char** argv) {
       11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 14, 14, 14,
       14, 14, 14, 14, 14, 14, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18,
       18, 18, 18, 18, 19, 19, 19, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-      20, 21, 21, 21, 21, 21, 22, 22, 22, 22, 22};
+      20, 21, 21, 21, 21, 21, 22, 22, 22, 22};
 
     const unsigned indices[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0};
@@ -151,7 +158,7 @@ int main(int argc, char** argv) {
       1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
     DMatrixHandle dmat;
-    safe_xgboost(XGDMatrixCreateFromCSCEx(col_ptr, indices, data, 128, 22, 1,
+    safe_xgboost(XGDMatrixCreateFromCSCEx(col_ptr, indices, data, 127, 22, 1,
       &dmat));
 
     bst_ulong out_len = 0;
