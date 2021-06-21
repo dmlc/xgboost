@@ -696,7 +696,7 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, unsigned tree_end,
-                           std::vector<bst_float>*,
+                           std::vector<bst_float> const*,
                            bool approximate, int,
                            unsigned) const override {
     if (approximate) {
@@ -746,7 +746,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model,
                                        unsigned tree_end,
-                                       std::vector<bst_float>*,
+                                       std::vector<bst_float> const*,
                                        bool approximate) const override {
     if (approximate) {
       LOG(FATAL) << "[Internal error]: " << __func__
