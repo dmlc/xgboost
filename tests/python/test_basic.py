@@ -171,6 +171,11 @@ class TestBasic:
         with pytest.raises(ValueError):
             booster.get_fscore()
 
+        booster.feature_names = None
+        # Use JSON to make sure the output has native Python type
+        scores = json.loads(json.dumps(booster.get_fscore()))
+        np.testing.assert_allclose(scores["f0"], 6.0)
+
     def test_load_file_invalid(self):
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file='incorrect_path')
