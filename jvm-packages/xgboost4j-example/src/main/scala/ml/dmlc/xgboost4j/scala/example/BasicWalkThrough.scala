@@ -23,7 +23,7 @@ import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.java.example.util.DataLoader
-import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
+import ml.dmlc.xgboost4j.scala.{DMatrix, Tensor, XGBoost}
 
 object BasicWalkThrough {
   def saveDumpModel(modelPath: String, modelInfos: Array[String]): Unit = {
@@ -53,7 +53,7 @@ object BasicWalkThrough {
     // train a model
     val booster = XGBoost.train(trainMax, params.toMap, round, watches.toMap)
     // predict
-    val predicts = booster.predict(testMax)
+    val predicts = booster.predictNormal(testMax, false, 0, 0, true)
     // save model to model path
     val file = new File("./model")
     if (!file.exists()) {
@@ -69,7 +69,7 @@ object BasicWalkThrough {
     // reload model and data
     val booster2 = XGBoost.loadModel(file.getAbsolutePath + "/xgb.model")
     val testMax2 = new DMatrix(file.getAbsolutePath + "/dtest.buffer")
-    val predicts2 = booster2.predict(testMax2)
+    val predicts2 = booster2.predictNormal(testMax2, false, 0, 0, true)
 
     // check predicts
     println(checkPredicts(predicts, predicts2))
@@ -86,18 +86,23 @@ object BasicWalkThrough {
     watches2 += "train" -> trainMax2
     watches2 += "test" -> testMax2
     val booster3 = XGBoost.train(trainMax2, params.toMap, round, watches2.toMap)
-    val predicts3 = booster3.predict(testMax2)
+    val predicts3 = booster3.predictNormal(testMax2, false, 0, 0, true)
     println(checkPredicts(predicts, predicts3))
   }
 
-  def checkPredicts(fPredicts: Array[Array[Float]], sPredicts: Array[Array[Float]]): Boolean = {
-    require(fPredicts.length == sPredicts.length, "the comparing predicts must be with the same " +
-      "length")
-    for (i <- fPredicts.indices) {
-      if (!java.util.Arrays.equals(fPredicts(i), sPredicts(i))) {
-        return false
-      }
+  def checkPredicts(fPredicts: Tensor, sPredicts: Tensor): Boolean = {
+
+    (fPredicts.getPredictResult, sPredicts.getPredictResult) match {
+      case (x: Array[Array[Float]], y: Array[Array[Float]]) =>
+        require(x.length == y.length, "the comparing predicts must be with the same " +
+          "length")
+        for (i <- x.indices) {
+          if (!java.util.Arrays.equals(x(i), y(i))) {
+            return false
+          }
+        }
+        true
+      case _ => throw new RuntimeException("Wrong dimension")
     }
-    true
   }
 }

@@ -99,7 +99,7 @@ class ScalaBoosterImplSuite extends FunSuite {
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
 
     val booster = trainBooster(trainMat, testMat)
-    val predicts = booster.predict(testMat, true)
+    val predicts = booster.predictOutputMargin(testMat)
     val eval = new EvalError
     assert(eval.eval(predicts, testMat) < 0.1)
   }
@@ -117,7 +117,7 @@ class ScalaBoosterImplSuite extends FunSuite {
 
     val bst2: Booster = XGBoost.loadModel(temp.getAbsolutePath)
     assert(java.util.Arrays.equals(bst2.toByteArray, booster.toByteArray))
-    val predicts2: Array[Array[Float]] = bst2.predict(testMat, true, 0)
+    val predicts2: Array[Array[Float]] = bst2.predictOutputMargin(testMat)
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f)
   }
 
@@ -133,7 +133,7 @@ class ScalaBoosterImplSuite extends FunSuite {
 
     val bst2: Booster = XGBoost.loadModel(new FileInputStream(temp.getAbsolutePath))
     assert(java.util.Arrays.equals(bst2.toByteArray, booster.toByteArray))
-    val predicts2: Array[Array[Float]] = bst2.predict(testMat, true, 0)
+    val predicts2: Array[Array[Float]] = bst2.predictOutputMargin(testMat)
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f)
   }
 

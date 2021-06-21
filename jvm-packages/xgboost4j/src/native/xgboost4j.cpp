@@ -581,6 +581,48 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
   return ret;
 }
 
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDMatrix
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jlong jdmat, jstring jconf, jobjectArray jout_shape,
+   jlongArray jout_dim, jobjectArray jout_result) {
+
+  BoosterHandle handle = (BoosterHandle) jhandle;
+  DMatrixHandle dmat = (DMatrixHandle) jdmat;
+
+  const char* str = jenv->GetStringUTFChars(jconf, 0);
+  std::string conf = str;
+  if (str != nullptr) jenv->ReleaseStringUTFChars(jconf, str);
+
+  const bst_ulong *out_shape;
+  bst_ulong out_dim;
+  const float *out_result;
+
+  int ret = XGBoosterPredictFromDMatrix(handle, dmat, conf.c_str(),
+    reinterpret_cast<const bst_ulong **>(&out_shape), &out_dim,
+    reinterpret_cast<const float **>(&out_result));
+
+  JVM_CHECK_CALL(ret);
+
+  bst_ulong total_elements = 1;
+  for (int i = 0; i < out_dim; i++) {
+    total_elements *= out_shape[i];
+  }
+
+  if (out_dim > 0 && total_elements > 0) {
+    jenv->SetLongArrayRegion(jout_dim, 0, 1, reinterpret_cast<const jlong *>(&out_dim));
+
+    jsize jdim = (jsize) out_dim;
+    jlongArray jshape = jenv->NewLongArray(jdim);
+    jenv->SetLongArrayRegion(jshape, 0, jdim, (jlong *) out_shape);
+    jenv->SetObjectArrayElement(jout_shape, 0, jshape);
+
+    jfloatArray jresult = jenv->NewFloatArray((jlong) total_elements);
+    jenv->SetFloatArrayRegion(jresult, 0, total_elements, (jfloat *) out_result);
+    jenv->SetObjectArrayElement(jout_result, 0, jresult);
+  }
+
+  return ret;
+}
+
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterPredict

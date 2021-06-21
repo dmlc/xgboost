@@ -234,7 +234,7 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
       "max_bin" -> 16)
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
-    val prediction1 = model1.predict(testDM)
+    val prediction1 = model1.predictNormal(testDM)
 
     val model2 = new XGBoostClassifier(paramMap ++ Array("num_round" -> round,
       "num_workers" -> numWorkers)).fit(trainingDF)
@@ -251,7 +251,7 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
       }
     }
 
-    val prediction3 = model1.predict(testDM, outPutMargin = true)
+    val prediction3 = model1.predictOutputMargin(testDM)
     val prediction4 = model2.transform(testDF).
       collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
 
@@ -269,7 +269,7 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
     val firstOfDF = testDF.filter(_.getAs[Int]("id") == 0)
       .head()
       .getAs[Vector]("features")
-    val prediction5 = math.round(model1.predict(firstOfDM)(0)(0))
+    val prediction5 = math.round(model1.predictNormal(firstOfDM)(0)(0))
     val prediction6 = model2.predict(firstOfDF)
     assert(prediction5 === prediction6)
   }

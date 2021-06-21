@@ -96,7 +96,8 @@ public class BoosterImplTest {
     Booster booster = trainBooster(trainMat, testMat);
 
     //predict raw output
-    float[][] predicts = booster.predict(testMat, true, 0);
+    Tensor tensor = booster.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts = (float[][]) tensor.getResultArray();
 
     //eval
     IEvaluation eval = new EvalError();
@@ -118,7 +119,10 @@ public class BoosterImplTest {
 
     Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
     assert (Arrays.equals(bst2.toByteArray(), booster.toByteArray()));
-    float[][] predicts2 = bst2.predict(testMat, true, 0);
+
+    Tensor tensor = booster.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts2 = (float[][]) tensor.getResultArray();
+
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
   }
 
@@ -133,10 +137,15 @@ public class BoosterImplTest {
     booster.saveModel(output);
     IEvaluation eval = new EvalError();
     Booster loadedBooster = XGBoost.loadModel(new ByteArrayInputStream(output.toByteArray()));
-    float originalPredictError = eval.eval(booster.predict(testMat, true), testMat);
+    Tensor tensor = booster.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts = (float[][]) tensor.getResultArray();
+    float originalPredictError = eval.eval(predicts, testMat);
     TestCase.assertTrue("originalPredictErr:" + originalPredictError,
             originalPredictError < 0.1f);
-    float loadedPredictError = eval.eval(loadedBooster.predict(testMat, true), testMat);
+
+    Tensor tensor1 = loadedBooster.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts1 = (float[][]) tensor.getResultArray();
+    float loadedPredictError = eval.eval(predicts1, testMat);
     TestCase.assertTrue("loadedPredictErr:" + loadedPredictError, loadedPredictError < 0.1f);
   }
 
@@ -598,12 +607,20 @@ public class BoosterImplTest {
     // Train without saving temp booster
     int round = 4;
     Booster booster1 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0);
-    float booster1error = eval.eval(booster1.predict(testMat, true, 0), testMat);
+
+    Tensor tensor1 = booster1.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts1 = (float[][]) tensor1.getResultArray();
+
+    float booster1error = eval.eval(predicts1, testMat);
 
     // Train with temp Booster
     round = 2;
     Booster tempBooster = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0);
-    float tempBoosterError = eval.eval(tempBooster.predict(testMat, true, 0), testMat);
+
+    Tensor tensor2 = tempBooster.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts2 = (float[][]) tensor2.getResultArray();
+
+    float tempBoosterError = eval.eval(predicts2, testMat);
 
     // Save tempBooster to bytestream and load back
     int prevVersion = tempBooster.getVersion();
@@ -615,7 +632,11 @@ public class BoosterImplTest {
     // Continue training using tempBooster
     round = 4;
     Booster booster2 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0, tempBooster);
-    float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
+
+    Tensor tensor3 = booster2.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] predicts3 = (float[][]) tensor3.getResultArray();
+
+    float booster2error = eval.eval(predicts3, testMat);
     TestCase.assertTrue(booster1error == booster2error);
     TestCase.assertTrue(tempBoosterError > booster2error);
   }

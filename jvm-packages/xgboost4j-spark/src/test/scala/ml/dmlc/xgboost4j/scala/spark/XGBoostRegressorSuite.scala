@@ -58,7 +58,7 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
       "tree_method" -> treeMethod)
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
-    val prediction1 = model1.predict(testDM)
+    val prediction1 = model1.predictNormal(testDM)
 
     val model2 = new XGBoostRegressor(paramMap ++ Array("num_round" -> round,
       "num_workers" -> numWorkers)).fit(trainingDF)
@@ -76,7 +76,7 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
     val firstOfDF = testDF.filter(_.getAs[Int]("id") == 0)
         .head()
         .getAs[Vector]("features")
-    val prediction3 = model1.predict(firstOfDM)(0)(0)
+    val prediction3 = model1.predictNormal(firstOfDM)(0)(0)
     val prediction4 = model2.predict(firstOfDF)
     assert(math.abs(prediction3 - prediction4) <= 0.01f)
   }

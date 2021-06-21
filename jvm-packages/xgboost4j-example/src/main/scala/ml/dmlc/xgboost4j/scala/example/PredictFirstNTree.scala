@@ -41,13 +41,17 @@ object PredictFirstNTree {
     val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
     // predict use 1 tree
-    val predicts1 = booster.predict(testMat, false, 1)
+    val predicts1 = booster.predictNormal(testMat, false, 0, 1, true)
     // by default all trees are used to do predict
-    val predicts2 = booster.predict(testMat)
+    val predicts2 = booster.predictNormal(testMat, false, 0, 0, true)
 
     val eval = new CustomEval
-    println("error of predicts1: " + eval.eval(predicts1, testMat))
-    println("error of predicts2: " + eval.eval(predicts2, testMat))
+    (predicts1.getPredictResult, predicts2.getPredictResult) match {
+      case (x: Array[Array[Float]], y: Array[Array[Float]]) =>
+        println("error of predicts1: " + eval.eval(x, testMat))
+        println("error of predicts2: " + eval.eval(y, testMat))
+      case _ => throw new RuntimeException("Wrong type")
+    }
   }
 
 }

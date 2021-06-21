@@ -19,6 +19,7 @@ import java.util.HashMap;
 
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.Tensor;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 import ml.dmlc.xgboost4j.java.example.util.CustomEval;
@@ -62,7 +63,8 @@ public class GeneralizedLinearModel {
     int round = 4;
     Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
-    float[][] predicts = booster.predict(testMat);
+    Tensor tensor = booster.predictNormal(testMat, false, 0, 0, true);
+    float[][] predicts = (float[][]) tensor.getResultArray();
 
     CustomEval eval = new CustomEval();
     System.out.println("error=" + eval.eval(predicts, testMat));

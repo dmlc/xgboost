@@ -101,6 +101,13 @@ class XGBoostJNI {
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
                                                   int ntree_limit, float[][] predicts);
 
+  public final static native int XGBoosterPredictFromDMatrix(long handle,
+                                                             long dmat,
+                                                             String conf,
+                                                             long[][] out_shape,
+                                                             long[] out_dim,
+                                                             float[][] out_result);
+
   public final static native int XGBoosterLoadModel(long handle, String fname);
 
   public final static native int XGBoosterSaveModel(long handle, String fname);

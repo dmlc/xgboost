@@ -103,7 +103,7 @@ class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite wit
 
     val prevModel = new XGBoostClassifier(finalParamMap ++ Seq("num_round" -> 5)).fit(training)
 
-    def error(model: Booster): Float = eval.eval(model.predict(testDM, outPutMargin = true), testDM)
+    def error(model: Booster): Float = eval.eval(model.predictOutputMargin(testDM), testDM)
 
     if (skipCleanCheckpoint) {
       // Check only one model is kept after training

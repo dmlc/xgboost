@@ -16,16 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import ml.dmlc.xgboost4j.java.XGBoostError
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
-import org.apache.spark.HashPartitioner
+import org.apache.spark.{HashPartitioner, SparkContext}
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
-import org.apache.spark.ml.param.Param
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Column, DataFrame, Row}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{FloatType, IntegerType}
+import org.apache.spark.sql.types.{ArrayType, FloatType, IntegerType, StructField, StructType}
 
 object DataUtils extends Serializable {
   private[spark] implicit class XGBLabeledPointFeatures(
@@ -140,4 +141,86 @@ object DataUtils extends Serializable {
     repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
   }
 
+  /** PredictionDimension holds the dimensions of pre-predicting */
+  private[spark] case class PredictionDimension(leafDim: Int, contribDim: Int)
+
+  /** Get the predict dimensions according to strictShape */
+  private[spark] def getPredictionDimension(
+      sparkContext: SparkContext,
+      bBooster: Broadcast[Booster],
+      strictShape: Boolean,
+      predictLeaf: Boolean,
+      predictContrib: Boolean): PredictionDimension = {
+
+    if (predictLeaf || predictContrib) {
+      val ret = sparkContext.parallelize(Seq(1), 1).mapPartitions { _ =>
+        val feature = bBooster.value.getNumFeature.toInt
+        // Fake a DMatrix with only 1 row
+        val dmatrx = new DMatrix((0 until feature).map(x => x.toFloat).toArray, 1, feature)
+
+        var leafDim = -1
+        if (predictLeaf) {
+          val tensor = bBooster.value.predictLeaf(dmatrx, false, 0, 1, strictShape)
+          leafDim = tensor.getDimension
+        }
+
+        var contribDim = -1
+        if (predictContrib) {
+          val tensor = bBooster.value.predictContrib(dmatrx, false, 0, 1, strictShape)
+          contribDim = tensor.getDimension
+        }
+
+        Iterator(PredictionDimension(leafDim, contribDim))
+      }.collect()
+      if (ret.length != 1) {
+        throw new XGBoostError("Error to get the prediction dimension")
+      }
+      ret(0)
+    } else {
+      PredictionDimension(-1, -1)
+    }
+  }
+
+  /** Return the actual ArrayType according to the dimension */
+  private[spark] def getArrayType(dim: Int): ArrayType = {
+    dim match {
+      case 1 => ArrayType(FloatType, containsNull = false)
+      case 2 => ArrayType(ArrayType(FloatType, containsNull = false), containsNull = false)
+      case 3 => ArrayType(ArrayType(ArrayType(FloatType, containsNull = false),
+        containsNull = false), containsNull = false)
+      case _ => throw new XGBoostError("Wrong dimension")
+    }
+  }
+
+  /** Generate the schema dynamically according to the predict dimensions  */
+  private[spark] def generateResultSchema(params: XGBoostCommonParams, fixedSchema: StructType,
+      dimension: PredictionDimension): StructType = {
+    var resultSchema = fixedSchema
+
+    if (params.isDefined(params.leafPredictionCol)) {
+      // leaf prediction dimension can be 1, 2, 4
+      if (dimension.leafDim < 1) {
+        throw new RuntimeException("Failed to build leafPredictionCol schema, " +
+          s"dim: ${dimension.leafDim}")
+      }
+      val dim = if (dimension.leafDim == 1) 1 else dimension.leafDim - 1
+      resultSchema = resultSchema.add(
+        StructField(name = params.get(params.leafPredictionCol).get,
+          // Calculate the dataType for 1 instance
+          dataType = getArrayType(dim), nullable = false))
+    }
+
+    if (params.isDefined(params.contribPredictionCol)) {
+      // contrib prediction dimension can be 2, 3
+      if (dimension.contribDim <= 1) {
+        throw new RuntimeException("Failed to build contribPredictionCol schema, " +
+          s"dim: ${dimension.contribDim}")
+      }
+      resultSchema = resultSchema.add(
+        StructField(name = params.get(params.contribPredictionCol).get,
+          // Calculate the dataType for 1 instance
+          dataType = getArrayType(dimension.contribDim - 1), nullable = false))
+    }
+    resultSchema
+  }
 }

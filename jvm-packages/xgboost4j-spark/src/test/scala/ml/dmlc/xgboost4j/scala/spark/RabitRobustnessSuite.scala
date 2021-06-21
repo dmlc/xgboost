@@ -37,7 +37,7 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
       "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala"))
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {

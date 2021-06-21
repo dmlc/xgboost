@@ -48,7 +48,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
 
     val model = new XGBoostClassifier(paramMap).fit(training)
     val eval = new EvalError()
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("Check for Spark encryption over-the-wire") {

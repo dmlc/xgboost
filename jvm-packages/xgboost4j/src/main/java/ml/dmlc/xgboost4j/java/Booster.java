@@ -16,9 +16,12 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -180,7 +183,8 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    Tensor tensor = this.predictOutputMargin(dtrain, false, 0, 0, true);
+    float[][] predicts = (float[][]) tensor.getResultArray();
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     boost(dtrain, gradients.get(0), gradients.get(1));
   }
@@ -267,12 +271,155 @@ public class Booster implements Serializable, KryoSerializable {
     for (int i = 0; i < evalNames.length; i++) {
       String evalName = evalNames[i];
       DMatrix evalMat = evalMatrixs[i];
-      float evalResult = eval.eval(predict(evalMat), evalMat);
+      Tensor tensor = predictNormal(evalMat, false, 0, 0, true);
+      float[][] predicats = (float[][]) tensor.getResultArray();
+      float evalResult = eval.eval(predicats, evalMat);
       String evalMetric = eval.getMetric();
       evalInfo += String.format("\t%s-%s:%f", evalName, evalMetric, evalResult);
       metricsOut[i] = evalResult;
     }
     return evalInfo;
+  }
+
+  /**
+   * Make prediction based on DMatrix.
+   *
+   * @param data           The DMatrix to be predicated
+   * @param predictType    Predict type
+   * @param training       Whether the prediction function is used as part of a training loop
+   * @param iterationBegin Beginning iteration of prediction
+   * @param iterationEnd   End iteration of prediction, Set to 0 this will become the size of
+   *                       tree model (all the trees)
+   * @param strictShape    Whether should we reshape the output with stricter rules
+   * @return A Tensor
+   * @throws XGBoostError
+   */
+  private synchronized Tensor predict(DMatrix data,
+                                    PredictType predictType,
+                                    boolean training,
+                                    int iterationBegin,
+                                    int iterationEnd,
+                                    boolean strictShape) throws XGBoostError {
+
+    String conf = new PredictConfigureBuilder()
+        .withType(predictType)
+        .withTraining(training)
+        .withIterationBegin(iterationBegin)
+        .withIterationEnd(iterationEnd)
+        .withStrictShape(strictShape)
+        .build();
+
+    long[][] outShape = new long[1][];
+    long[] outDim = new long[4];
+    float[][] outResult = new float[1][];
+
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredictFromDMatrix(handle, data.getHandle(), conf,
+        outShape, outDim, outResult));
+
+    long dim = outDim[0];
+    long[] shape = outShape[0];
+    float[] result = outResult[0];
+
+    // The tensor predicated can only be no more than 4D
+    if (dim <= 0 || dim > 4) {
+      throw new XGBoostError("The dimension of tensor predicated is " + dim);
+    }
+
+    return new Tensor(dim, shape, result);
+  }
+
+  /**
+   * Predict leaf indices given the data
+   *
+   * @param data           The DMatrix to be predicated
+   * @param training       Whether the prediction function is used as part of a training loop
+   * @param iterationBegin Beginning iteration of prediction
+   * @param iterationEnd   End iteration of prediction, Set to 0 this will become the size of
+   *                       tree model (all the trees)
+   * @param strictShape    Whether should we reshape the output with stricter rules
+   * @return A multi-dimension array
+   * @throws XGBoostError
+   */
+  public Tensor predictLeaf(DMatrix data, boolean training, int iterationBegin, int iterationEnd,
+                            boolean strictShape)  throws XGBoostError {
+    if (iterationBegin != 0) {
+      throw new XGBoostError("Predict leaf supports only iterationBegin=0, found iterationBegin=" +
+        iterationBegin);
+    }
+    return this.predict(data, PredictType.PREDICT_LEAF, training, iterationBegin, iterationEnd,
+      strictShape);
+  }
+
+  /**
+   * Output feature contributions toward predictions of given data
+   *
+   * @param data           The DMatrix to be predicated
+   * @param training       Whether the prediction function is used as part of a training loop
+   * @param iterationBegin Beginning iteration of prediction
+   * @param iterationEnd   End iteration of prediction, Set to 0 this will become the size of
+   *                       tree model (all the trees)
+   * @param strictShape    Whether should we reshape the output with stricter rules
+   * @return A Tensor
+   * @throws XGBoostError
+   */
+  public Tensor predictContrib(DMatrix data, boolean training, int iterationBegin, int iterationEnd,
+                               boolean strictShape)  throws XGBoostError {
+    return this.predict(data, PredictType.PREDICT_CONTRIBUTION, training, iterationBegin,
+      iterationEnd,  strictShape);
+  }
+
+  /**
+   * The prediction without transform
+   *
+   * @param data           The DMatrix to be predicated
+   * @param training       Whether the prediction function is used as part of a training loop
+   * @param iterationBegin Beginning iteration of prediction
+   * @param iterationEnd   End iteration of prediction, Set to 0 this will become the size of
+   *                       tree model (all the trees)
+   * @param strictShape    Whether should we reshape the output with stricter rules
+   * @return A Tensor
+   * @throws XGBoostError
+   */
+  public Tensor predictOutputMargin(DMatrix data, boolean training, int iterationBegin,
+                                    int iterationEnd, boolean strictShape)  throws XGBoostError {
+    return this.predict(data, PredictType.OUTPUT_MARGIN, training, iterationBegin,
+      iterationEnd,  strictShape);
+  }
+
+  /**
+   * Make normal prediction
+   *
+   * @param data           The DMatrix to be predicated
+   * @param training       Whether the prediction function is used as part of a training loop
+   * @param iterationBegin Beginning iteration of prediction
+   * @param iterationEnd   End iteration of prediction, Set to 0 this will become the size of
+   *                       tree model (all the trees)
+   * @param strictShape    Whether should we reshape the output with stricter rules
+   * @return A Tensor
+   * @throws XGBoostError
+   */
+  public Tensor predictNormal(DMatrix data, boolean training, int iterationBegin, int iterationEnd,
+                        boolean strictShape)  throws XGBoostError {
+    return this.predict(data, PredictType.NORMAL_PREDICTION, training, iterationBegin,
+      iterationEnd,  strictShape);
+  }
+
+  /**
+   * Make prediction on feature interactions
+   *
+   * @param data           The DMatrix to be predicated
+   * @param training       Whether the prediction function is used as part of a training loop
+   * @param iterationBegin Beginning iteration of prediction
+   * @param iterationEnd   End iteration of prediction, Set to 0 this will become the size of
+   *                       tree model (all the trees)
+   * @param strictShape    Whether should we reshape the output with stricter rules
+   * @return A Tensor
+   * @throws XGBoostError
+   */
+  public Tensor predictInteractions(DMatrix data, boolean training, int iterationBegin,
+                                    int iterationEnd, boolean strictShape)  throws XGBoostError {
+    return this.predict(data, PredictType.PREDICT_FEATURE_INTERACTION, training, iterationBegin,
+      iterationEnd,  strictShape);
   }
 
   /**
@@ -285,6 +432,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @param predContribs prediction feature contributions
    * @return predict results
    */
+  @Deprecated
   private synchronized float[][] predict(DMatrix data,
                                          boolean outputMargin,
                                          int treeLimit,
@@ -302,7 +450,7 @@ public class Booster implements Serializable, KryoSerializable {
     }
     float[][] rawPredicts = new float[1][];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredict(handle, data.getHandle(), optionMask,
-            treeLimit, rawPredicts));
+        treeLimit, rawPredicts));
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
     float[][] predicts = new float[row][col];
@@ -323,6 +471,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @return The leaf indices of the instance.
    * @throws XGBoostError
    */
+  @Deprecated
   public float[][] predictLeaf(DMatrix data, int treeLimit) throws XGBoostError {
     return this.predict(data, false, treeLimit, true, false);
   }
@@ -335,6 +484,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @return The feature contributions and bias.
    * @throws XGBoostError
    */
+  @Deprecated
   public float[][] predictContrib(DMatrix data, int treeLimit) throws XGBoostError {
     return this.predict(data, false, treeLimit, true, true);
   }
@@ -346,6 +496,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @return predict result
    * @throws XGBoostError native error
    */
+  @Deprecated
   public float[][] predict(DMatrix data) throws XGBoostError {
     return this.predict(data, false, 0, false, false);
   }
@@ -357,6 +508,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @param outputMargin output margin
    * @return predict results
    */
+  @Deprecated
   public float[][] predict(DMatrix data, boolean outputMargin) throws XGBoostError {
     return this.predict(data, outputMargin, 0, false, false);
   }
@@ -369,6 +521,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @param treeLimit    limit number of trees, 0 means all trees.
    * @return predict results
    */
+  @Deprecated
   public float[][] predict(DMatrix data, boolean outputMargin, int treeLimit) throws XGBoostError {
     return this.predict(data, outputMargin, treeLimit, false, false);
   }
@@ -771,6 +924,107 @@ public class Booster implements Serializable, KryoSerializable {
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
       logger.error(ex.getMessage(), ex);
+    }
+  }
+
+  public enum PredictType {
+    NORMAL_PREDICTION(0),
+    OUTPUT_MARGIN(1),
+    PREDICT_CONTRIBUTION(2),
+    PREDICT_APPROXIMATED_CONTRIBUTION(3),
+    PREDICT_FEATURE_INTERACTION(4),
+    PREDICT_APPROXIMATED_FEATURE_INTERACTION(5),
+    PREDICT_LEAF(6);
+
+    private final int value;
+
+    PredictType(int value) {
+      this.value = value;
+    }
+
+    public int getValue() {
+      return value;
+    }
+  }
+  /**
+   * A builder to build a json string which will be passed to xgboost
+   */
+  class PredictConfigureBuilder {
+    private PredictType type;
+    private boolean training;
+    private int iterationBegin;
+    private int iterationEnd;
+    private boolean strictShape;
+
+    PredictConfigureBuilder withType(PredictType type) {
+      this.type = type;
+      return PredictConfigureBuilder.this;
+    }
+
+    /**
+     * Whether the prediction function is used as part of a training loop.
+     * Not used for inplace prediction.
+     *
+     * Prediction can be run in 2 scenarios:
+     *   1. Given data matrix X, obtain prediction y_pred from the model.
+     *   2. Obtain the prediction for computing gradients. For example, DART booster performs
+     *      dropout during training, and the prediction result will be different from the one
+     *      obtained by normal inference step due to dropped trees.
+     * Set training=false for the first scenario. Set training=true for the second
+     * scenario.  The second scenario applies when you are defining a custom objective
+     * function.
+     * @param training see above
+     * @return PredictConfigureBuilder
+     */
+    PredictConfigureBuilder withTraining(boolean training) {
+      this.training = training;
+      return PredictConfigureBuilder.this;
+    }
+
+    /**
+     * @param iterationBegin Beginning iteration of prediction
+     * @return
+     */
+    PredictConfigureBuilder withIterationBegin(int iterationBegin) {
+      this.iterationBegin = iterationBegin;
+      return PredictConfigureBuilder.this;
+    }
+
+    /**
+     *
+     * @param iterationEnd End iteration of prediction.  Set to 0 this will become the size of
+     *                    tree model (all the trees)
+     * @return
+     */
+    PredictConfigureBuilder withIterationEnd(int iterationEnd) {
+      this.iterationEnd = iterationEnd;
+      return PredictConfigureBuilder.this;
+    }
+
+    /**
+     * Whether should we reshape the output with stricter rules.  If set to true,
+     * normal/margin/contrib/interaction predict will output consistent shape
+     * disregarding the use of multi-class model, and leaf prediction will output 4-dim
+     * array representing: (n_samples, n_iterations, n_classes, n_trees_in_forest)
+     * @param strictShape
+     * @return
+     */
+    PredictConfigureBuilder withStrictShape(boolean strictShape) {
+      this.strictShape = strictShape;
+      return PredictConfigureBuilder.this;
+    }
+
+    // a simple json format, no need to involve any json libraries.
+    String build() {
+      StringBuilder builder = new StringBuilder();
+      builder.append("{");
+      builder.append("\"type\":" + type.getValue());
+      builder.append(",\"training\":" + training);
+      builder.append(",\"iteration_begin\":" + iterationBegin);
+      builder.append(",\"iteration_end\":" + iterationEnd);
+      builder.append(",\"strict_shape\":" + strictShape);
+      builder.append("}");
+      return builder.toString();
     }
   }
 }

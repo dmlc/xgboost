@@ -259,9 +259,13 @@ private[spark] trait BoosterParams extends Params {
 
   final def getLambdaBias: Double = $(lambdaBias)
 
+  // Please use iterationBegin and iterationEnd
+  @Deprecated
   final val treeLimit = new IntParam(this, name = "treeLimit",
     doc = "number of trees used in the prediction; defaults to 0 (use all trees).")
 
+  // "Please use getIterationStart and getIterationEnd"
+  @Deprecated
   final def getTreeLimit: Int = $(treeLimit)
 
   final val monotoneConstraints = new Param[String](this, name = "monotoneConstraints",
@@ -280,13 +284,50 @@ private[spark] trait BoosterParams extends Params {
 
   final def getInteractionConstraints: String = $(interactionConstraints)
 
+  // Prediction
+
+  /**
+   *  Prediction can be run in 2 scenarios:
+   *  1. Given data matrix X, obtain prediction y_pred from the model.
+   *  2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
+   *     during training, and the prediction result will be different from the one obtained by
+   *     normal inference step due to dropped trees.
+   *  Set training=false for the first scenario. Set training=true for the second
+   *  scenario.  The second scenario applies when you are defining a custom objective
+   *  function.
+   */
+  final val training = new BooleanParam(this, name = "training",
+    doc = "Whether the prediction function is used as part of a training loop. defaults to false.")
+
+  final def getTraining: Boolean = $(training)
+
+  final val iterationBegin = new IntParam(this, name = "iterationBegin",
+    doc = "Beginning iteration of prediction. defaults to 0 (all the trees).")
+
+  final def getIterationBegin: Int = $(iterationBegin)
+
+  final val iterationEnd = new IntParam(this, name = "iterationEnd",
+    doc = "End iteration of prediction. defaults to 0 ().")
+
+  final def getIterationEnd: Int = $(iterationEnd)
+
+  final val strictShape = new BooleanParam(this, "strictShape",
+    "Whether should we reshape the output with stricter rules, If set to true," +
+      "normal/margin/contrib/interaction predict will output consistent shape" +
+      "disregarding the use of multi-class model, and leaf prediction will output 4-dim" +
+      "array representing: (n_samples, n_iterations, n_classes, n_trees_in_forest." +
+      "Default to false")
+
+  final def getStrictShape: Boolean = $(strictShape)
+
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
     growPolicy -> "depthwise", maxBins -> 256,
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
     scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
-    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0)
+    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0,
+    training -> false, iterationBegin -> 0, iterationEnd -> 0, strictShape -> false)
 }
 
 private[spark] object BoosterParams {

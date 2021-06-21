@@ -20,6 +20,7 @@ import java.util.HashMap;
 
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.Tensor;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
@@ -52,15 +53,11 @@ public class PredictLeafIndices {
     Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
     //predict using first 2 tree
-    float[][] leafindex = booster.predictLeaf(testMat, 2);
-    for (float[] leafs : leafindex) {
-      System.out.println(Arrays.toString(leafs));
-    }
+    Tensor tensor = booster.predictLeaf(testMat, false, 0, 2, true);
+    System.out.println(tensor.getResultList());
 
     //predict all trees
-    leafindex = booster.predictLeaf(testMat, 0);
-    for (float[] leafs : leafindex) {
-      System.out.println(Arrays.toString(leafs));
-    }
+    tensor = booster.predictLeaf(testMat, false, 0, 0, true);
+    System.out.println(tensor.getResultList());
   }
 }

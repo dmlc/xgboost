@@ -23,6 +23,7 @@ import java.util.HashMap;
 
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.Tensor;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 import ml.dmlc.xgboost4j.java.example.util.DataLoader;
@@ -71,7 +72,6 @@ public class BasicWalkThrough {
     params.put("silent", 1);
     params.put("objective", "binary:logistic");
 
-
     HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>();
     watches.put("train", trainMat);
     watches.put("test", testMat);
@@ -83,7 +83,8 @@ public class BasicWalkThrough {
     Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
     //predict
-    float[][] predicts = booster.predict(testMat);
+    Tensor tensor = booster.predictNormal(testMat, false, 0, 0, true);
+    float[][] predicts = (float[][]) tensor.getResultArray();
 
     //save model to modelPath
     File file = new File("./model");
@@ -104,7 +105,8 @@ public class BasicWalkThrough {
     //reload model and data
     Booster booster2 = XGBoost.loadModel("./model/xgb.model");
     DMatrix testMat2 = new DMatrix("./model/dtest.buffer");
-    float[][] predicts2 = booster2.predict(testMat2);
+    Tensor tensor1 = booster.predictNormal(testMat2, false, 0, 0, true);
+    float[][] predicts2 = (float[][]) tensor1.getResultArray();
 
 
     //check the two predicts
@@ -123,7 +125,9 @@ public class BasicWalkThrough {
     watches2.put("train", trainMat2);
     watches2.put("test", testMat2);
     Booster booster3 = XGBoost.train(trainMat2, params, round, watches2, null, null);
-    float[][] predicts3 = booster3.predict(testMat2);
+
+    Tensor tensor2 = booster.predictNormal(testMat2, false, 0, 0, true);
+    float[][] predicts3 = (float[][]) tensor2.getResultArray();
 
     //check predicts
     System.out.println(checkPredicts(predicts, predicts3));

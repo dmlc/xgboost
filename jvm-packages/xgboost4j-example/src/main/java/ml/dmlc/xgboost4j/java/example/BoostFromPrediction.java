@@ -19,6 +19,7 @@ import java.util.HashMap;
 
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.Tensor;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
@@ -50,8 +51,10 @@ public class BoostFromPrediction {
     //train xgboost for 1 round
     Booster booster = XGBoost.train(trainMat, params, 1, watches, null, null);
 
-    float[][] trainPred = booster.predict(trainMat, true);
-    float[][] testPred = booster.predict(testMat, true);
+    Tensor trainTensor = booster.predictOutputMargin(trainMat, false, 0, 0, true);
+    Tensor testTensor = booster.predictOutputMargin(testMat, false, 0, 0, true);
+    float[][] trainPred = (float[][]) trainTensor.getResultArray();
+    float[][] testPred = (float[][]) testTensor.getResultArray();
 
     trainMat.setBaseMargin(trainPred);
     testMat.setBaseMargin(testPred);

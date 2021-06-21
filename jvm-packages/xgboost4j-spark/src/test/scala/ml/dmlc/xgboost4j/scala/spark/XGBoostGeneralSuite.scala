@@ -48,7 +48,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
       "use_external_memory" -> true)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test with quantile hist with monotone_constraints (lossguide)") {
@@ -60,7 +60,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "lossguide",
       "num_round" -> 5, "num_workers" -> numWorkers, "monotone_constraints" -> "(1, 0)")
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test with quantile hist with interaction_constraints (lossguide)") {
@@ -72,7 +72,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "lossguide",
       "num_round" -> 5, "num_workers" -> numWorkers, "interaction_constraints" -> "[[1,2],[2,3,4]]")
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test with quantile hist with monotone_constraints (depthwise)") {
@@ -84,7 +84,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
       "num_round" -> 5, "num_workers" -> numWorkers, "monotone_constraints" -> "(1, 0)")
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test with quantile hist with interaction_constraints (depthwise)") {
@@ -96,7 +96,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
       "num_round" -> 5, "num_workers" -> numWorkers, "interaction_constraints" -> "[[1,2],[2,3,4]]")
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test with quantile hist depthwise") {
@@ -108,7 +108,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
       "num_round" -> 5, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+    assert(eval.eval(model._booster.predictOutputMargin(testDM), testDM) < 0.1)
   }
 
   test("test with quantile hist lossguide") {
@@ -120,7 +120,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "max_leaves" -> "8", "num_round" -> 5,
       "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val x = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(x < 0.1)
   }
 
@@ -133,7 +133,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
       "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val x = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(x < 0.1)
   }
 
@@ -146,7 +146,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "grow_policy" -> "depthwise", "max_depth" -> "2",
       "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val x = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(x < 0.1)
   }
 
@@ -159,7 +159,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
       "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val x = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(x < 0.1)
   }
 
@@ -171,7 +171,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
       "objective" -> "binary:logistic", "timeout_request_workers" -> 0L,
       "num_round" -> 5, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val x = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(x < 0.1)
   }
 

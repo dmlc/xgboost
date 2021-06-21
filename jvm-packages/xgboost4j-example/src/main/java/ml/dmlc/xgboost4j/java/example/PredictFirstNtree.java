@@ -19,6 +19,7 @@ import java.util.HashMap;
 
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.Tensor;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 import ml.dmlc.xgboost4j.java.example.util.CustomEval;
@@ -54,9 +55,11 @@ public class PredictFirstNtree {
     Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
     //predict use 1 tree
-    float[][] predicts1 = booster.predict(testMat, false, 1);
+    Tensor tensor = booster.predictNormal(testMat, false, 0, 1, true);
+    float[][] predicts1 = (float[][]) tensor.getResultArray();
     //by default all trees are used to do predict
-    float[][] predicts2 = booster.predict(testMat);
+    Tensor tensor2 = booster.predictNormal(testMat, false, 0, 0, true);
+    float[][] predicts2 = (float[][]) tensor2.getResultArray();
 
     //use a simple evaluation class to check error result
     CustomEval eval = new CustomEval();

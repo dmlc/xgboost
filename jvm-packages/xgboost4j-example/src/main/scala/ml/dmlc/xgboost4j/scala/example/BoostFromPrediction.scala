@@ -41,11 +41,15 @@ object BoostFromPrediction {
     // train a model
     val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
-    val trainPred = booster.predict(trainMat, true)
-    val testPred = booster.predict(testMat, true)
+    val trainPred = booster.predictOutputMargin(trainMat, false, 0, 0, true)
+    val testPred = booster.predictOutputMargin(testMat, false, 0, 0, true)
 
-    trainMat.setBaseMargin(trainPred)
-    testMat.setBaseMargin(testPred)
+    (trainPred.getPredictResult, testPred.getPredictResult) match {
+      case (x: Array[Array[Float]], y: Array[Array[Float]]) =>
+        trainMat.setBaseMargin(x)
+        testMat.setBaseMargin(y)
+      case _ => throw new RuntimeException("Wrong type")
+    }
 
     System.out.println("result of running from initial prediction")
     val booster2 = XGBoost.train(trainMat, params.toMap, 1, watches.toMap, null, null)

@@ -42,7 +42,7 @@ class XGBoostModel (booster: Booster) extends Serializable {
    * @return prediction result
    */
   def predict(testSet: DMatrix): Array[Array[Float]] = {
-    booster.predict(testSet, true, 0)
+    booster.predictOutputMargin(testSet)
   }
 
   /**
@@ -60,7 +60,7 @@ class XGBoostModel (booster: Booster) extends Serializable {
         }
         val dataIter = for (x <- it) yield mapper(x)
         val dmat = new DMatrix(dataIter, null)
-        this.booster.predict(dmat)
+        this.booster.predictNormal(dmat)
       }
     data.mapPartition(predictMap)
   }

@@ -53,8 +53,12 @@ object GeneralizedLinearModel {
 
     val round = 4
     val booster = XGBoost.train(trainMat, params.toMap, 1, watches.toMap)
-    val predicts = booster.predict(testMat)
+    val predicts = booster.predictNormal(testMat, false, 0, 0, true)
     val eval = new CustomEval
-    println(s"error=${eval.eval(predicts, testMat)}")
+    predicts.getPredictResult match {
+      case x: Array[Array[Float]] =>
+        println(s"error=${eval.eval(x, testMat)}")
+      case _ => throw new RuntimeException("Wrong type")
+    }
   }
 }

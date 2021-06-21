@@ -249,6 +249,8 @@ class XGBoostClassificationModel private[ml](
 
   def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
 
+  // This API will not be used anymore, Please use the iterationBegin and iterationEnd
+  @Deprecated
   def setTreeLimit(value: Int): this.type = set(treeLimit, value)
 
   def setMissing(value: Float): this.type = set(missing, value)
@@ -271,7 +273,7 @@ class XGBoostClassificationModel private[ml](
       $(missing),
       $(allowNonZeroForMissing)
     ))
-    val probability = _booster.predict(data = dm)(0).map(_.toDouble)
+    val probability = _booster.predictNormal(data = dm)(0).map(_.toDouble)
     if (numClasses == 2) {
       math.round(probability(0))
     } else {
@@ -292,14 +294,21 @@ class XGBoostClassificationModel private[ml](
   // Generate raw prediction and probability prediction.
   private def transformInternal(dataset: Dataset[_]): DataFrame = {
 
+    val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
+    val appName = dataset.sparkSession.sparkContext.appName
+
+    /** Get the dimension of predict result by predicting a faked DMatrix with 1 row */
+    val dims = DataUtils.getPredictionDimension(dataset.sparkSession.sparkContext, bBooster,
+      $(strictShape), isDefined(leafPredictionCol), isDefined(contribPredictionCol))
+
     val schema = StructType(dataset.schema.fields ++
       Seq(StructField(name = _rawPredictionCol, dataType =
         ArrayType(FloatType, containsNull = false), nullable = false)) ++
       Seq(StructField(name = _probabilityCol, dataType =
         ArrayType(FloatType, containsNull = false), nullable = false)))
 
-    val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
-    val appName = dataset.sparkSession.sparkContext.appName
+    // throws exception when building schema failed
+    val finalSchema = DataUtils.generateResultSchema(this, schema, dims)
 
     val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       new AbstractIterator[Row] {
@@ -332,10 +341,10 @@ class XGBoostClassificationModel private[ml](
             ),
             cacheInfo)
           try {
-            val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
+            val Array(predOutputMarginItr, predNormalItr, predLeafItr, predContribItr) =
               producePredictionItrs(bBooster, dm)
             produceResultIterator(batchRow.iterator,
-              rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
+              predOutputMarginItr, predNormalItr, predLeafItr, predContribItr)
           } finally {
             batchCnt += 1
             dm.delete()
@@ -355,7 +364,7 @@ class XGBoostClassificationModel private[ml](
     }
 
     bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
+    dataset.sparkSession.createDataFrame(resultRDD, finalSchema)
   }
 
   private def produceResultIterator(
@@ -393,44 +402,37 @@ class XGBoostClassificationModel private[ml](
     }
   }
 
-  private def generateResultSchema(fixedSchema: StructType): StructType = {
-    var resultSchema = fixedSchema
-    if (isDefined(leafPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
-    }
-    if (isDefined(contribPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
-    }
-    resultSchema
-  }
-
   private def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
       Array[Iterator[Row]] = {
-    val rawPredictionItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = true, $(treeLimit)).
-        map(Row(_)).iterator
+    val predOutputMarginItr = {
+      val tensor = broadcastBooster.value.predictOutputMargin(dm, $(training), $(iterationBegin),
+        $(iterationEnd), $(strictShape))
+      tensor.getPredictResult.map(Row(_)).iterator
     }
-    val probabilityItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).
-        map(Row(_)).iterator
+    val predNormalItr = {
+      val tensor = broadcastBooster.value.predictNormal(dm, $(training), $(iterationBegin),
+        $(iterationEnd), $(strictShape))
+      tensor.getPredictResult.map(Row(_)).iterator
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
+        val tensor = broadcastBooster.value.predictLeaf(dm, $(training), $(iterationBegin),
+          $(iterationEnd), $(strictShape))
+        tensor.getPredictResult.map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        broadcastBooster.value.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
+        val tensor = broadcastBooster.value.predictContrib(dm, $(training), $(iterationBegin),
+          $(iterationEnd), $(strictShape))
+        tensor.getPredictResult.map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
-    Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
+    Array(predOutputMarginItr, predNormalItr, predLeafItr, predContribItr)
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
@@ -487,6 +489,7 @@ class XGBoostClassificationModel private[ml](
       this.logWarning(s"$uid: ProbabilisticClassificationModel.transform() was called as NOOP" +
         " since no output columns were set.")
     }
+
     outputData
       .toDF
       .drop(col(_rawPredictionCol))

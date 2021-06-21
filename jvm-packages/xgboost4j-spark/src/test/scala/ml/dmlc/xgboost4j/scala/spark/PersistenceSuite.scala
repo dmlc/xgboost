@@ -46,7 +46,7 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     }
 
     val model = xgbc.fit(trainingDF)
-    val evalResults = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val evalResults = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(evalResults < 0.1)
     val xgbcModelPath = new File(tempDir.toFile, "xgbcModel").getPath
     model.write.overwrite.save(xgbcModelPath)
@@ -56,7 +56,7 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     assert(model.getEta === model2.getEta)
     assert(model.getNumRound === model2.getNumRound)
     assert(model.getRawPredictionCol === model2.getRawPredictionCol)
-    val evalResults2 = eval.eval(model2._booster.predict(testDM, outPutMargin = true), testDM)
+    val evalResults2 = eval.eval(model2._booster.predictOutputMargin(testDM), testDM)
     assert(evalResults === evalResults2)
   }
 
@@ -77,7 +77,7 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     }
 
     val model = xgbr.fit(trainingDF)
-    val evalResults = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    val evalResults = eval.eval(model._booster.predictOutputMargin(testDM), testDM)
     assert(evalResults < 0.1)
     val xgbrModelPath = new File(tempDir.toFile, "xgbrModel").getPath
     model.write.overwrite.save(xgbrModelPath)
@@ -87,7 +87,7 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     assert(model.getEta === model2.getEta)
     assert(model.getNumRound === model2.getNumRound)
     assert(model.getPredictionCol === model2.getPredictionCol)
-    val evalResults2 = eval.eval(model2._booster.predict(testDM, outPutMargin = true), testDM)
+    val evalResults2 = eval.eval(model2._booster.predictOutputMargin(testDM), testDM)
     assert(evalResults === evalResults2)
   }
 

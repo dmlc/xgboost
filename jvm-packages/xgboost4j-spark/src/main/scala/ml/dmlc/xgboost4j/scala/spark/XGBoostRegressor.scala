@@ -245,6 +245,8 @@ class XGBoostRegressionModel private[ml] (
 
   def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
 
+  // This API will not be used anymore, Please use the iterationBegin and iterationEnd
+  @Deprecated
   def setTreeLimit(value: Int): this.type = set(treeLimit, value)
 
   def setMissing(value: Float): this.type = set(missing, value)
@@ -267,17 +269,24 @@ class XGBoostRegressionModel private[ml] (
       $(missing),
       $(allowNonZeroForMissing)
     ))
-    _booster.predict(data = dm)(0)(0)
+    _booster.predictNormal(data = dm)(0)(0)
   }
 
   private def transformInternal(dataset: Dataset[_]): DataFrame = {
+
+    val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
+    val appName = dataset.sparkSession.sparkContext.appName
+
+    /** Get the dimension of predict result by predicting a faked DMatrix with 1 row */
+    val dims = DataUtils.getPredictionDimension(dataset.sparkSession.sparkContext, bBooster,
+      $(strictShape), isDefined(leafPredictionCol), isDefined(contribPredictionCol))
 
     val schema = StructType(dataset.schema.fields ++
       Seq(StructField(name = _originalPredictionCol, dataType =
         ArrayType(FloatType, containsNull = false), nullable = false)))
 
-    val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
-    val appName = dataset.sparkSession.sparkContext.appName
+    // throws exception when building schema failed
+    val finalSchema = DataUtils.generateResultSchema(this, schema, dims)
 
     val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       new AbstractIterator[Row] {
@@ -331,7 +340,7 @@ class XGBoostRegressionModel private[ml] (
       }
     }
     bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
+    dataset.sparkSession.createDataFrame(resultRDD, finalSchema)
   }
 
   private def produceResultIterator(
@@ -381,26 +390,32 @@ class XGBoostRegressionModel private[ml] (
 
   private def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
       Array[Iterator[Row]] = {
-    val originalPredictionItr = {
-      booster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
+    val predNormalItr = {
+      val tensor = booster.value.predictNormal(dm, $(training), $(iterationBegin),
+        $(iterationEnd), $(strictShape))
+      tensor.getPredictResult.map(Row(_)).iterator
     }
+
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        booster.value.predictLeaf(dm, $(treeLimit)).
-          map(Row(_)).iterator
+        val tensor = booster.value.predictLeaf(dm, $(training), $(iterationBegin),
+          $(iterationEnd), $(strictShape))
+        tensor.getPredictResult.map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        booster.value.predictContrib(dm, $(treeLimit)).
-          map(Row(_)).iterator
+        val tensor = booster.value.predictContrib(dm, $(training), $(iterationBegin),
+          $(iterationEnd), $(strictShape))
+        tensor.getPredictResult.map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
-    Array(originalPredictionItr, predLeafItr, predContribItr)
+
+    Array(predNormalItr, predLeafItr, predContribItr)
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {

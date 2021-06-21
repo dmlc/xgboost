@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import com.esotericsoftware.kryo.io.{Output, Input}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 import ml.dmlc.xgboost4j.java.XGBoostError
@@ -157,6 +157,20 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     booster.evalSet(evalMatrixs.map(_.jDMatrix), evalNames, eval)
   }
 
+  /**
+   * Deprecated, please use predictNormal or predictOutputMargin
+   *
+   * @param data         dmatrix storing the input
+   * @param outPutMargin Whether to output the raw untransformed margin value.
+   * @param treeLimit    Limit number of trees in the prediction; defaults to 0 (use all trees).
+   * @return predict result
+   */
+  @throws(classOf[XGBoostError])
+  @Deprecated
+  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0):
+      Array[Array[Float]] = {
+    booster.predict(data.jDMatrix, outPutMargin, treeLimit)
+  }
 
   /**
    * Predict with data
@@ -167,9 +181,29 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
    * @return predict result
    */
   @throws(classOf[XGBoostError])
-  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0):
-      Array[Array[Float]] = {
-    booster.predict(data.jDMatrix, outPutMargin, treeLimit)
+  def predictNormal(data: DMatrix): Array[Array[Float]] = {
+    val tensor = predictNormal(data, false, 0, 0, true)
+    tensor.getPredictResult match {
+      case ret: Array[Array[Float]] => ret
+      case _ => throw new XGBoostError("Wrong type")
+    }
+  }
+
+  /**
+   * Predict the output margin
+   *
+   * @param data         dmatrix storing the input
+   * @param outPutMargin Whether to output the raw untransformed margin value.
+   * @param treeLimit    Limit number of trees in the prediction; defaults to 0 (use all trees).
+   * @return predict result
+   */
+  @throws(classOf[XGBoostError])
+  def predictOutputMargin(data: DMatrix): Array[Array[Float]] = {
+    val tensor = predictOutputMargin(data, false, 0, 0, true)
+    tensor.getPredictResult match {
+      case ret: Array[Array[Float]] => ret
+      case _ => throw new XGBoostError("Wrong type")
+    }
   }
 
   /**
@@ -181,6 +215,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
    * @throws XGBoostError native error
    */
   @throws(classOf[XGBoostError])
+  @Deprecated
   def predictLeaf(data: DMatrix, treeLimit: Int = 0): Array[Array[Float]] = {
     booster.predictLeaf(data.jDMatrix, treeLimit)
   }
@@ -196,6 +231,105 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   @throws(classOf[XGBoostError])
   def predictContrib(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
     booster.predictContrib(data.jDMatrix, treeLimit)
+  }
+
+  /**
+   * Make normal prediction
+   *
+   * @param data             The DMatrix to be predicated
+   * @param iterationStart   Beginning iteration of prediction
+   * @param iterationEnd     End iteration of prediction, Set to 0 this will become the size of
+   *                         tree model (all the trees)
+   * @param strictShape      Whether should we reshape the output with stricter rules
+   * @param training         Whether the prediction function is used as part of a training loop
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   */
+  @throws(classOf[XGBoostError])
+  def predictNormal(data: DMatrix, training: Boolean, iterationStart: Int, iterationEnd: Int,
+      strictShape: Boolean): Tensor = {
+    val result = booster.predictNormal(data.jDMatrix, training, iterationStart, iterationEnd,
+      strictShape)
+    Tensor(result)
+  }
+
+  /**
+   * Predict the leaf indices
+   *
+   * @param data             The DMatrix to be predicated
+   * @param iterationStart   Beginning iteration of prediction
+   * @param iterationEnd     End iteration of prediction, Set to 0 this will become the size of
+   *                         tree model (all the trees)
+   * @param strictShape      Whether should we reshape the output with stricter rules
+   * @param training         Whether the prediction function is used as part of a training loop
+   * @return dimension and the predict result
+   * @throws XGBoostError native error
+   */
+  @throws(classOf[XGBoostError])
+  def predictLeaf(data: DMatrix, training: Boolean, iterationStart: Int, iterationEnd: Int,
+      strictShape: Boolean): Tensor = {
+    val result = booster.predictLeaf(data.jDMatrix, training, iterationStart, iterationEnd,
+      strictShape)
+    Tensor(result)
+  }
+
+  /**
+   * Predict the leaf indices
+   *
+   * @param data             The DMatrix to be predicated
+   * @param iterationStart   Beginning iteration of prediction
+   * @param iterationEnd     End iteration of prediction, Set to 0 this will become the size of
+   *                         tree model (all the trees)
+   * @param strictShape      Whether should we reshape the output with stricter rules
+   * @param training         Whether the prediction function is used as part of a training loop
+   * @return a Tensor result
+   * @throws XGBoostError native error
+   */
+  @throws(classOf[XGBoostError])
+  def predictContrib(data: DMatrix, training: Boolean, iterationStart: Int, iterationEnd: Int,
+    strictShape: Boolean): Tensor = {
+    val result = booster.predictContrib(data.jDMatrix, training, iterationStart, iterationEnd,
+      strictShape)
+    Tensor(result)
+  }
+
+  /**
+   * Make prediction on feature interactions
+   *
+   * @param data             The DMatrix to be predicated
+   * @param iterationStart   Beginning iteration of prediction
+   * @param iterationEnd     End iteration of prediction, Set to 0 this will become the size of
+   *                         tree model (all the trees)
+   * @param strictShape      Whether should we reshape the output with stricter rules
+   * @param training         Whether the prediction function is used as part of a training loop
+   * @return a Tensor result
+   * @throws XGBoostError native error
+   */
+  @throws(classOf[XGBoostError])
+  def predictInteractions(data: DMatrix, training: Boolean, iterationStart: Int, iterationEnd: Int,
+    strictShape: Boolean): Tensor = {
+    val result = booster.predictInteractions(data.jDMatrix, training, iterationStart, iterationEnd,
+      strictShape)
+    Tensor(result)
+  }
+
+  /**
+   * Predict the output margin
+   *
+   * @param data             The DMatrix to be predicated
+   * @param iterationStart   Beginning iteration of prediction
+   * @param iterationEnd     End iteration of prediction, Set to 0 this will become the size of
+   *                         tree model (all the trees)
+   * @param strictShape      Whether should we reshape the output with stricter rules
+   * @param training         Whether the prediction function is used as part of a training loop
+   * @return a Tensor result
+   * @throws XGBoostError native error
+   */
+  @throws(classOf[XGBoostError])
+  def predictOutputMargin(data: DMatrix, training: Boolean, iterationStart: Int, iterationEnd: Int,
+      strictShape: Boolean): Tensor = {
+    val result = booster.predictOutputMargin(data.jDMatrix, training, iterationStart, iterationEnd,
+      strictShape)
+    Tensor(result)
   }
 
   /**

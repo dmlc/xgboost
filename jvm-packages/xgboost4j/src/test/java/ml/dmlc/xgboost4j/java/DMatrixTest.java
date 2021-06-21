@@ -338,7 +338,8 @@ public class DMatrixTest {
       // (3,1) -> 2
       // (2,3) -> 3
       for (int i = 0; i < 3; i++) {
-        float[][] preds = booster.predict(new DMatrix(data[i], 1, 2));
+        Tensor tensor = booster.predictNormal(new DMatrix(data[i], 1, 2), false, 0, 0, true);
+        float[][] preds = (float[][]) tensor.getResultArray();
         assertEquals(1, preds.length);
         assertArrayEquals(new float[]{(float) (i + 1)}, preds[0], 1e-2f);
       }
