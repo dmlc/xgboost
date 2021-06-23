@@ -632,6 +632,12 @@ class XGBModel(XGBModelBase):
                 eval_metric = None
             else:
                 params.update({"eval_metric": eval_metric})
+        if self.enable_categorical and params.get("tree_method", None) != "gpu_hist":
+            raise ValueError(
+                "Experimental support for categorical data is not implemented for"
+                " current tree method yet."
+            )
+
         return model, feval, params
 
     def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
