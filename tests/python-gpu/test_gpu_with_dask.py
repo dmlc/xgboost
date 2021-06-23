@@ -211,7 +211,7 @@ def test_categorical(local_cuda_cluster: LocalCUDACluster) -> None:
         )
         assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
 
-        def check_model_output(model):
+        def check_model_output(model: dxgb.Booster) -> None:
             with tempfile.TemporaryDirectory() as tempdir:
                 path = os.path.join(tempdir, "model.json")
                 model.save_model(path)
