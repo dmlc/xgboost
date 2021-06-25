@@ -488,6 +488,7 @@ void ExtractPaths(
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> *paths,
     DeviceModel *model, dh::device_vector<uint32_t> *path_categories,
     int gpu_id) {
+  dh::safe_cuda(cudaSetDevice(gpu_id));
   auto& device_model = *model;
 
   dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
@@ -558,7 +559,7 @@ void ExtractPaths(
   auto d_model_categories = device_model.categories.DeviceSpan();
   common::Span<uint32_t> d_path_categories = dh::ToSpan(*path_categories);
 
-  dh::LaunchN(gpu_id, info.size(), [=] __device__(size_t idx) {
+  dh::LaunchN(info.size(), [=] __device__(size_t idx) {
     auto path_info = d_info[idx];
     size_t tree_offset = d_tree_segments[path_info.tree_idx];
     TreeView tree{0,                   path_info.tree_idx, d_nodes,
@@ -856,7 +857,6 @@ class GPUPredictor : public xgboost::Predictor {
     const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
     float base_score = model.learner_model_param->base_score;
     dh::LaunchN(
-        generic_param_->gpu_id,
         p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
         [=] __device__(size_t idx) {
           phis[(idx + 1) * contributions_columns - 1] +=
@@ -917,7 +917,6 @@ class GPUPredictor : public xgboost::Predictor {
     float base_score = model.learner_model_param->base_score;
     size_t n_features = model.learner_model_param->num_feature;
     dh::LaunchN(
-        generic_param_->gpu_id,
         p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
         [=] __device__(size_t idx) {
           size_t group = idx % ngroup;

@@ -94,8 +94,8 @@ class DeviceHistogram {
 
   void Reset() {
     auto d_data = data_.data().get();
-      dh::LaunchN(device_id_, data_.size(),
-                  [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
+    dh::LaunchN(data_.size(),
+                [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     nidx_map_.clear();
   }
   bool HistogramExists(int nidx) const {
@@ -130,7 +130,7 @@ class DeviceHistogram {
       }
       // Zero recycled memory
       auto d_data = data_.data().get() + nidx_map_[nidx];
-      dh::LaunchN(device_id_, n_bins_ * 2,
+      dh::LaunchN(n_bins_ * 2,
                   [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     } else {
       // Append new node histogram
@@ -367,7 +367,7 @@ struct GPUHistMakerDevice {
     dh::TemporaryArray<GPUExpandEntry> entries(2);
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     auto d_entries = entries.data().get();
-    dh::LaunchN(device_id, 2, [=] __device__(size_t idx) {
+    dh::LaunchN(2, [=] __device__(size_t idx) {
       auto split = d_splits_out[idx];
       auto nidx = idx == 0 ? left_nidx : right_nidx;
 
@@ -402,7 +402,7 @@ struct GPUHistMakerDevice {
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(device_id, page->Cuts().TotalBins(), [=] __device__(size_t idx) {
+    dh::LaunchN(page->Cuts().TotalBins(), [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
@@ -545,7 +545,7 @@ struct GPUHistMakerDevice {
     auto d_node_sum_gradients = device_node_sum_gradients.data().get();
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
 
-    dh::LaunchN(device_id, d_ridx.size(), [=] __device__(int local_idx) {
+    dh::LaunchN(d_ridx.size(), [=] __device__(int local_idx) {
       int pos = d_position[local_idx];
       bst_float weight = evaluator.CalcWeight(
           pos, param_d, GradStats{d_node_sum_gradients[pos]});
@@ -676,7 +676,7 @@ struct GPUHistMakerDevice {
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     GPUTrainingParam gpu_param(param);
     auto depth = p_tree->GetDepth(kRootNIdx);
-    dh::LaunchN(device_id, 1, [=] __device__(size_t idx) {
+    dh::LaunchN(1, [=] __device__(size_t idx) {
       float left_weight = evaluator.CalcWeight(kRootNIdx, gpu_param,
                                                GradStats{split.left_sum});
       float right_weight = evaluator.CalcWeight(

@@ -120,7 +120,7 @@ class RowPartitioner {
 
     int64_t* d_left_count = left_counts_.data().get() + nidx;
     // Launch 1 thread for each row
-    dh::LaunchN<1, 128>(device_idx_, segment.Size(), [=] __device__(size_t idx) {
+    dh::LaunchN<1, 128>(segment.Size(), [=] __device__(size_t idx) {
       // LaunchN starts from zero, so we restore the row index by adding segment.begin
       idx += segment.begin;
       RowIndexT ridx = d_ridx[idx];
@@ -160,7 +160,7 @@ class RowPartitioner {
   void FinalisePosition(FinalisePositionOpT op) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
-    dh::LaunchN(device_idx_, position_.Size(), [=] __device__(size_t idx) {
+    dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx, position);

@@ -279,7 +279,7 @@ class LaunchKernel {
 };
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
+inline void LaunchN(size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
@@ -291,13 +291,13 @@ inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
 
 // Default stream version
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, L lambda) {
-  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
+inline void LaunchN(size_t n, L lambda) {
+  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(n, nullptr, lambda);
 }
 
 template <typename Container>
-void Iota(Container array, int32_t device = CurrentDevice()) {
-  LaunchN(device, array.size(), [=] __device__(size_t i) { array[i] = i; });
+void Iota(Container array) {
+  LaunchN(array.size(), [=] __device__(size_t i) { array[i] = i; });
 }
 
 namespace detail {
@@ -539,7 +539,7 @@ class TemporaryArray {
     int device = 0;
     dh::safe_cuda(cudaGetDevice(&device));
     auto d_data = ptr_.get();
-    LaunchN(device, this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
+    LaunchN(this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
   }
   thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
   size_t size() { return size_; }  // NOLINT

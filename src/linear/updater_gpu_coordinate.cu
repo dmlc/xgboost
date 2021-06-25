@@ -193,7 +193,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   void UpdateBiasResidual(float dbias, int group_idx, int num_groups) {
     if (dbias == 0.0f) return;
     auto d_gpair = dh::ToSpan(gpair_);
-    dh::LaunchN(learner_param_->gpu_id, num_row_, [=] __device__(size_t idx) {
+    dh::LaunchN(num_row_, [=] __device__(size_t idx) {
       auto &g = d_gpair[idx * num_groups + group_idx];
       g += GradientPair(g.GetHess() * dbias, 0);
     });
@@ -222,7 +222,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     common::Span<GradientPair> d_gpair = dh::ToSpan(gpair_);
     common::Span<Entry> d_col = dh::ToSpan(data_).subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
-    dh::LaunchN(learner_param_->gpu_id, col_size, [=] __device__(size_t idx) {
+    dh::LaunchN(col_size, [=] __device__(size_t idx) {
       auto entry = d_col[idx];
       auto &g = d_gpair[entry.index * num_groups + group_idx];
       g += GradientPair(g.GetHess() * dw * entry.fvalue, 0);

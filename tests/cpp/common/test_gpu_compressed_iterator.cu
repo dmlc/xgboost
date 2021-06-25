@@ -53,14 +53,14 @@ TEST(CompressedIterator, TestGPU) {
       // write the data on device
       auto input_data_d = input_d.data().get();
       auto buffer_data_d = buffer_d.data().get();
-      dh::LaunchN(0, input_d.size(),
-                        WriteSymbolFunction(cbw, buffer_data_d, input_data_d));
+      dh::LaunchN(input_d.size(),
+                  WriteSymbolFunction(cbw, buffer_data_d, input_data_d));
 
       // read the data on device
       CompressedIterator<int> ci(buffer_d.data().get(), alphabet_size);
       thrust::device_vector<int> output_d(input.size());
       auto output_data_d = output_d.data().get();
-      dh::LaunchN(0, output_d.size(), ReadSymbolFunction(ci, output_data_d));
+      dh::LaunchN(output_d.size(), ReadSymbolFunction(ci, output_data_d));
 
       std::vector<int> output(output_d.size());
       thrust::copy(output_d.begin(), output_d.end(), output.begin());

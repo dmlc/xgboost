@@ -159,7 +159,7 @@ void RemoveDuplicatedCategories(
   auto d_new_cuts_size = dh::ToSpan(new_cuts_size);
   auto d_new_columns_ptr = dh::ToSpan(new_column_scan);
   CHECK_EQ(new_column_scan.size(), new_cuts_size.size());
-  dh::LaunchN(device, new_column_scan.size(), [=] __device__(size_t idx) {
+  dh::LaunchN(new_column_scan.size(), [=] __device__(size_t idx) {
     d_old_column_sizes_scan[idx] = d_new_columns_ptr[idx];
     if (idx == d_new_columns_ptr.size() - 1) {
       return;
@@ -248,14 +248,14 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
         << "Must have at least 1 group for ranking.";
     CHECK_EQ(weights.size(), d_group_ptr.size() - 1)
         << "Weight size should equal to number of groups.";
-    dh::LaunchN(device, temp_weights.size(), [=] __device__(size_t idx) {
+    dh::LaunchN(temp_weights.size(), [=] __device__(size_t idx) {
         size_t element_idx = idx + begin;
         size_t ridx = dh::SegmentId(row_ptrs, element_idx);
         bst_group_t group_idx = dh::SegmentId(d_group_ptr, ridx + base_rowid);
         d_temp_weights[idx] = weights[group_idx];
       });
   } else {
-    dh::LaunchN(device, temp_weights.size(), [=] __device__(size_t idx) {
+    dh::LaunchN(temp_weights.size(), [=] __device__(size_t idx) {
         size_t element_idx = idx + begin;
         size_t ridx = dh::SegmentId(row_ptrs, element_idx);
         d_temp_weights[idx] = weights[ridx + base_rowid];

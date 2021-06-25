@@ -216,7 +216,7 @@ size_t GetRowCounts(const AdapterBatchT batch, common::Span<size_t> offset,
                     int device_idx, float missing) {
   IsValidFunctor is_valid(missing);
   // Count elements per row
-  dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
+  dh::LaunchN(batch.Size(), [=] __device__(size_t idx) {
     auto element = batch.GetElement(idx);
     if (is_valid(element)) {
       atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
