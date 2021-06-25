@@ -30,6 +30,10 @@ class GHistIndexMatrix {
   common::HistogramCuts cut;
   DMatrix* p_fmat;
   size_t max_num_bins;
+
+  GHistIndexMatrix(DMatrix* x, int32_t max_bin) {
+    this->Init(x, max_bin);
+  }
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
@@ -43,7 +47,7 @@ class GHistIndexMatrix {
     const size_t batch_size = batch.Size();
     CHECK_LT(batch_size, offset_vec.size());
     BinIdxType* index_data = index_data_span.data();
-    ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
+    common::ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];

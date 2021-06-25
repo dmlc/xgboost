@@ -256,8 +256,7 @@ TEST(HistUtil, IndexBinBound) {
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-    GHistIndexMatrix hmat;
-    hmat.Init(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
@@ -280,8 +279,7 @@ TEST(HistUtil, IndexBinData) {
 
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    GHistIndexMatrix hmat;
-    hmat.Init(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
     uint32_t* offsets = hmat.index.Offset();
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {

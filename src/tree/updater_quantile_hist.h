@@ -430,6 +430,7 @@ class QuantileHistMaker: public TreeUpdater {
   void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
                          HostDeviceVector<GradientPair> *gpair,
                          DMatrix *dmat,
+                         GHistIndexMatrix const& gmat,
                          const std::vector<RegTree *> &trees);
 
  protected:

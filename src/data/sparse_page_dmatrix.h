@@ -47,7 +47,7 @@ class SparsePageDMatrix : public DMatrix {
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
-  BatchSet<GHistIndexMatrix> GetGradientIndex() override {
+  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam&) override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(nullptr));
   }

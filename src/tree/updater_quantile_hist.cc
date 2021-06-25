@@ -69,18 +69,22 @@ template<typename GradientSumT>
 void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
                                           HostDeviceVector<GradientPair> *gpair,
                                           DMatrix *dmat,
+                                          GHistIndexMatrix const& gmat,
                                           const std::vector<RegTree *> &trees) {
   for (auto tree : trees) {
-    builder->Update(gmat_, column_matrix_, gpair, dmat, tree);
+    builder->Update(gmat, column_matrix_, gpair, dmat, tree);
   }
 }
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
+  auto const &gmat =
+      *(dmat->GetBatches<GHistIndexMatrix>(
+                BatchParam{GenericParameter::kCpuId, param_.max_bin})
+            .begin());
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("GmatInitialization");
-    gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
-    column_matrix_.Init(gmat_, param_.sparse_threshold);
+    column_matrix_.Init(gmat, param_.sparse_threshold);
     updater_monitor_.Stop("GmatInitialization");
     // A proper solution is puting cut matrix in DMatrix, see:
     // https://github.com/dmlc/xgboost/issues/5143
@@ -96,12 +100,12 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
     if (!float_builder_) {
       SetBuilder(n_trees, &float_builder_, dmat);
     }
-    CallBuilderUpdate(float_builder_, gpair, dmat, trees);
+    CallBuilderUpdate(float_builder_, gpair, dmat, gmat, trees);
   } else {
     if (!double_builder_) {
       SetBuilder(n_trees, &double_builder_, dmat);
     }
-    CallBuilderUpdate(double_builder_, gpair, dmat, trees);
+    CallBuilderUpdate(double_builder_, gpair, dmat, gmat, trees);
   }
 
   param_.learning_rate = lr;

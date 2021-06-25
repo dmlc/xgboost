@@ -555,7 +555,7 @@ class DMatrix {
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
   virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
-  virtual BatchSet<GHistIndexMatrix> GetGradientIndex() = 0;
+  virtual BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) = 0;
 
   virtual bool EllpackExists() const = 0;
   virtual bool SparsePageExists() const = 0;
@@ -593,7 +593,7 @@ inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
 
 template<>
 inline BatchSet<GHistIndexMatrix> DMatrix::GetBatches(const BatchParam& param) {
-  return GetGradientIndex();
+  return GetGradientIndex(param);
 }
 }  // namespace xgboost
 
