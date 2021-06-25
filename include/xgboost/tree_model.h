@@ -567,7 +567,7 @@ class RegTree : public Model {
    * \param condition_feature the index of the feature to fix
    * \param condition_fraction what fraction of the current weight matches our conditioning feature
    */
-  void TreeShap(const RegTree::FVec& feat, bst_float* phi, unsigned node_index,
+  void TreeShap(const RegTree::FVec& feat, bst_float* phi, bst_node_t node_index,
                 unsigned unique_depth, PathElement* parent_unique_path,
                 bst_float parent_zero_fraction, bst_float parent_one_fraction,
                 int parent_feature_index, int condition,

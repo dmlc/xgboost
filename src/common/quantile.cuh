@@ -8,6 +8,7 @@
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "timer.h"
+#include "categorical.h"
 
 namespace xgboost {
 namespace common {
@@ -17,11 +18,6 @@ using WQSketch = WQuantileSketch<bst_float, bst_float>;
 using SketchEntry = WQSketch::Entry;
 
 namespace detail {
-struct IsCatOp {
-  XGBOOST_DEVICE bool operator()(FeatureType ft) {
-    return ft == FeatureType::kCategorical;
-  }
-};
 struct SketchUnique {
   XGBOOST_DEVICE bool operator()(SketchEntry const& a, SketchEntry const& b) const {
     return a.value - b.value == 0;
@@ -122,7 +118,7 @@ class SketchContainer {
     has_categorical_ =
         !d_feature_types.empty() &&
         thrust::any_of(dh::tbegin(d_feature_types), dh::tend(d_feature_types),
-                       detail::IsCatOp{});
+                       common::IsCatOp{});
 
     timer_.Init(__func__);
   }
