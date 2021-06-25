@@ -1196,8 +1196,8 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
 
 /*!
  * \brief Calculate feature scores for tree models.  When used on linear model, only the
- * `weigth` importance type is defined, and output scores is a row major matrix with shape
- * [n_features, n_classes] for multi-lcass model.  For tree model, out_n_feature always
+ * `weight` importance type is defined, and output scores is a row major matrix with shape
+ * [n_features, n_classes] for multi-class model.  For tree model, out_n_feature is always
  * equal to out_n_scores and has multiple definitions of importance type.
  *
  * \param handle          An instance of Booster

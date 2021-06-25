@@ -246,9 +246,7 @@ def test_feature_importances_weight():
         xgb_model.set_params(importance_type="foo")
         xgb_model.feature_importances_
 
-    digits = load_digits(n_class=3)
-    y = digits["target"]
-    X = digits["data"]
+    X, y = load_digits(n_class=3, return_X_y=True)
 
     cls = xgb.XGBClassifier(booster="gblinear", n_estimators=4)
     cls.fit(X, y)

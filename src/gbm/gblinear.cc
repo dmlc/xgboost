@@ -229,6 +229,8 @@ class GBLinear : public GradientBooster {
         << "gblinear only has `weight` defined for feature importance.";
     out_features->resize(this->learner_model_param_->num_feature, 0);
     std::iota(out_features->begin(), out_features->end(), 0);
+    // Don't include the bias term in the feature importance scores
+    // The bias is the last weight
     out_scores->resize(model_.weight.size() - learner_model_param_->num_output_group, 0);
     auto n_groups = learner_model_param_->num_output_group;
     MatrixView<float> scores{out_scores, {learner_model_param_->num_feature, n_groups}};
