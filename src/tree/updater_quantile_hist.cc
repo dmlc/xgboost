@@ -678,7 +678,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
       // We should check that the partitioning was done correctly
       // and each row of the dataset fell into exactly one of the categories
     }
-    MemStackAllocator<bool, 128> buff(this->nthread_);
+    common::MemStackAllocator<bool, 128> buff(this->nthread_);
     bool* p_buff = buff.Get();
     std::fill(p_buff, p_buff + this->nthread_, false);
 

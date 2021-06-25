@@ -89,6 +89,10 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
   return BatchSet<EllpackPage>(begin_iter);
 }
 
+BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex() {
+
+}
+
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   std::vector<uint64_t> qids;

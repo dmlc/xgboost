@@ -43,6 +43,7 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
+  BatchSet<GHistIndexMatrix> GetGradientIndex() override;
 
   MetaInfo info_;
   SparsePage sparse_page_;  // Primary storage type

@@ -344,7 +344,7 @@ class QuantileHistMock : public QuantileHistMaker {
       auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
       // dense, no missing values
 
-      common::GHistIndexMatrix gmat;
+      GHistIndexMatrix gmat;
       gmat.Init(dmat.get(), kMaxBins);
 
       RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
@@ -434,7 +434,7 @@ class QuantileHistMock : public QuantileHistMaker {
         // kNRows samples with kNCols features
         auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
 
-        common::GHistIndexMatrix gmat;
+        GHistIndexMatrix gmat;
         gmat.Init(dmat.get(), kMaxBins);
         ColumnMatrix cm;
 
@@ -546,7 +546,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GHistIndexMatrix gmat;
     gmat.Init(dmat_.get(), kMaxBins);
 
     RegTree tree = RegTree();
@@ -564,7 +564,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitDataSampling() {
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GHistIndexMatrix gmat;
     gmat.Init(dmat_.get(), kMaxBins);
 
     RegTree tree = RegTree();
@@ -582,7 +582,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestAddHistRows() {
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GHistIndexMatrix gmat;
     gmat.Init(dmat_.get(), kMaxBins);
 
     RegTree tree = RegTree();
@@ -599,7 +599,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestSyncHistograms() {
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GHistIndexMatrix gmat;
     gmat.Init(dmat_.get(), kMaxBins);
 
     RegTree tree = RegTree();
@@ -620,7 +620,7 @@ class QuantileHistMock : public QuantileHistMaker {
     tree.param.UpdateAllowUnknown(cfg_);
 
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GHistIndexMatrix gmat;
     gmat.Init(dmat_.get(), kMaxBins);
     if (double_builder_) {
       double_builder_->TestBuildHist(0, gmat, *dmat_, tree);
