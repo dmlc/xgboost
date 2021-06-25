@@ -2381,9 +2381,31 @@ class Booster(object):
         nph = np.column_stack((nph[1][1:], nph[0]))
         nph = nph[nph[:, 1] > 0]
 
+        if nph.size == 0:
+            ft = self.feature_types
+            fn = self.feature_names
+            if fn is None:
+                # Let xgboost generate the feature names.
+                fn = self.get_fscore().keys()
+            index = -1
+            try:
+                index = fn.index(feature)
+                feature_t = ft[index]
+            except (ValueError, AttributeError, TypeError):
+                # None.index: attr err, None[0]: type err, fn.index(-1): value err
+                feature_t = None
+                pass
+            if feature_t == "categorical":
+                raise ValueError(
+                    "Split value historgam doesn't support categorical split."
+                )
+
         if as_pandas and PANDAS_INSTALLED:
             return DataFrame(nph, columns=['SplitValue', 'Count'])
         if as_pandas and not PANDAS_INSTALLED:
-            sys.stderr.write(
-                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
+            warnings.warn(
+                "Returning histogram as ndarray"
+                " (as_pandas == True, but pandas is not installed).",
+                UserWarning
+            )
         return nph

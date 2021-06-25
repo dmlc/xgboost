@@ -628,6 +628,13 @@ def test_split_value_histograms():
     assert gbdt.get_split_value_histogram("f28", bins=5).shape[0] == 2
     assert gbdt.get_split_value_histogram("f28", bins=None).shape[0] == 2
 
+    X, y = tm.make_categorical(1000, 10, 13, False)
+    reg = xgb.XGBRegressor(tree_method="gpu_hist", enable_categorical=True)
+    reg.fit(X, y)
+
+    with pytest.raises(ValueError, match="doesn't"):
+        reg.get_booster().get_split_value_histogram("3", bins=5)
+
 
 def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
