@@ -2251,6 +2251,7 @@ class Booster(object):
         node_ids = []
         fids = []
         splits = []
+        categories = []
         y_directs = []
         n_directs = []
         missings = []
@@ -2275,6 +2276,7 @@ class Booster(object):
                     node_ids.append(int(re.findall(r'\b\d+\b', parse[0])[0]))
                     fids.append('Leaf')
                     splits.append(float('NAN'))
+                    categories.append(float('NAN'))
                     y_directs.append(float('NAN'))
                     n_directs.append(float('NAN'))
                     missings.append(float('NAN'))
@@ -2284,14 +2286,26 @@ class Booster(object):
                 else:
                     # parse string
                     fid = arr[1].split(']')
-                    parse = fid[0].split('<')
+                    if fid[0].find("<") != -1:
+                        # numerical
+                        parse = fid[0].split('<')
+                        splits.append(float(parse[1]))
+                        categories.append(None)
+                    elif fid[0].find(":{") != -1:
+                        # categorical
+                        parse = fid[0].split(":")
+                        cats = parse[1][1:-1]  # strip the {}
+                        cats = cats.split(",")
+                        splits.append(float("NAN"))
+                        categories.append(cats if cats else None)
+                    else:
+                        raise ValueError("Failed to parse model text dump.")
                     stats = re.split('=|,', fid[1])
 
                     # append to lists
                     tree_ids.append(i)
                     node_ids.append(int(re.findall(r'\b\d+\b', arr[0])[0]))
                     fids.append(parse[0])
-                    splits.append(float(parse[1]))
                     str_i = str(i)
                     y_directs.append(str_i + '-' + stats[1])
                     n_directs.append(str_i + '-' + stats[3])
@@ -2303,7 +2317,7 @@ class Booster(object):
         df = DataFrame({'Tree': tree_ids, 'Node': node_ids, 'ID': ids,
                         'Feature': fids, 'Split': splits, 'Yes': y_directs,
                         'No': n_directs, 'Missing': missings, 'Gain': gains,
-                        'Cover': covers})
+                        'Cover': covers, "Categories": categories})
 
         if callable(getattr(df, 'sort_values', None)):
             # pylint: disable=no-member
