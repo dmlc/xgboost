@@ -2401,7 +2401,6 @@ class Booster(object):
             if fn is None:
                 # Let xgboost generate the feature names.
                 fn = self.get_fscore().keys()
-            index = -1
             try:
                 index = fn.index(feature)
                 feature_t = ft[index]
