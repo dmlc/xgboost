@@ -211,6 +211,7 @@ def test_feature_importances_weight():
     digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
+
     xgb_model = xgb.XGBClassifier(random_state=0,
                                   tree_method="exact",
                                   learning_rate=0.1,
@@ -240,6 +241,33 @@ def test_feature_importances_weight():
                                   learning_rate=0.1,
                                   importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    with pytest.raises(ValueError):
+        xgb_model.set_params(importance_type="foo")
+        xgb_model.feature_importances_
+
+    X, y = load_digits(n_class=3, return_X_y=True)
+
+    cls = xgb.XGBClassifier(booster="gblinear", n_estimators=4)
+    cls.fit(X, y)
+    assert cls.feature_importances_.shape[0] == X.shape[1]
+    assert cls.feature_importances_.shape[1] == 3
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "model.json")
+        cls.save_model(path)
+        with open(path, "r") as fd:
+            model = json.load(fd)
+    weights = np.array(
+        model["learner"]["gradient_booster"]["model"]["weights"]
+    ).reshape((cls.n_features_in_ + 1, 3))
+    weights = weights[:-1, ...]
+    np.testing.assert_allclose(
+        weights / weights.sum(), cls.feature_importances_, rtol=1e-6
+    )
+
+    with pytest.raises(ValueError):
+        cls.set_params(importance_type="cover")
+        cls.feature_importances_
 
 
 @pytest.mark.skipif(**tm.no_pandas())

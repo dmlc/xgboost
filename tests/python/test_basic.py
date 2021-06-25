@@ -154,6 +154,9 @@ class TestBasic:
         dump4j = json.loads(dump4[0])
         assert 'gain' in dump4j, "Expected 'gain' to be dumped in JSON."
 
+        with pytest.raises(ValueError):
+            bst.get_dump(fmap="foo")
+
     def test_feature_score(self):
         rng = np.random.RandomState(0)
         data = rng.randn(100, 2)

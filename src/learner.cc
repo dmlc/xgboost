@@ -1197,23 +1197,6 @@ class LearnerImpl : public LearnerIO {
                         std::vector<bst_feature_t> *features,
                         std::vector<float> *scores) override {
     this->Configure();
-    std::vector<std::string> allowed_importance_type = {
-        "weight", "total_gain", "total_cover", "gain", "cover"
-    };
-    if (std::find(allowed_importance_type.begin(),
-                  allowed_importance_type.end(),
-                  importance_type) == allowed_importance_type.end()) {
-      std::stringstream ss;
-      ss << "importance_type mismatch, got: " << importance_type
-         << "`, expected one of ";
-      for (size_t i = 0; i < allowed_importance_type.size(); ++i) {
-        ss << "`" << allowed_importance_type[i] << "`";
-        if (i != allowed_importance_type.size() - 1) {
-          ss << ", ";
-        }
-      }
-      LOG(FATAL) << ss.str();
-    }
     gbm_->FeatureScore(importance_type, features, scores);
   }
 
