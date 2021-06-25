@@ -87,9 +87,11 @@ struct BitFieldContainer {
   BitFieldContainer() = default;
   XGBOOST_DEVICE explicit BitFieldContainer(common::Span<value_type> bits) : bits_{bits} {}
   XGBOOST_DEVICE BitFieldContainer(BitFieldContainer const& other) : bits_{other.bits_} {}
+  BitFieldContainer &operator=(BitFieldContainer const &that) = default;
+  BitFieldContainer &operator=(BitFieldContainer &&that) = default;
 
-  common::Span<value_type>       Bits()       { return bits_; }
-  common::Span<value_type const> Bits() const { return bits_; }
+  XGBOOST_DEVICE common::Span<value_type>       Bits()       { return bits_; }
+  XGBOOST_DEVICE common::Span<value_type const> Bits() const { return bits_; }
 
   /*\brief Compute the size of needed memory allocation.  The returned value is in terms
    *       of number of elements with `BitFieldContainer::value_type'.
