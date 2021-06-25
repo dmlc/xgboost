@@ -1,3 +1,9 @@
+/*!
+ * Copyright 2017-2021 by Contributors
+ * \brief Data type for fast histogram aggregation.
+ */
+#include <algorithm>
+#include <limits>
 #include "gradient_index.h"
 #include "../common/hist_util.h"
 

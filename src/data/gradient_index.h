@@ -1,10 +1,9 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \brief Data type for fast histogram aggregation.
  */
-
-#ifndef XGBOOST_DATA_GRADIENTINDEX_H_
-#define XGBOOST_DATA_GRADIENTINDEX_H_
+#ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
+#define XGBOOST_DATA_GRADIENT_INDEX_H_
 #include <vector>
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -84,4 +83,4 @@ class GHistIndexMatrix {
   bool isDense_;
 };
 }      // namespace xgboost
-#endif  // XGBOOST_DATA_GRADIENTINDEX_H_
+#endif  // XGBOOST_DATA_GRADIENT_INDEX_H_
