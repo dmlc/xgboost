@@ -41,7 +41,6 @@ class TestTreesToDataFrame:
         # method being tested
         df = bst.trees_to_dataframe()
 
-        print(df)
         # test for equality of gains
         gain_from_df = df[df.Feature != 'Leaf'][['Gain']].sum()
         assert np.allclose(gain_from_dump, gain_from_df)

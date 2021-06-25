@@ -2225,7 +2225,7 @@ class Booster(object):
                 results[feat] = float(score)
         return results
 
-    def trees_to_dataframe(self, fmap=''):
+    def trees_to_dataframe(self, fmap=''):  # pylint: disable=too-many-statements
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -2408,7 +2408,6 @@ class Booster(object):
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-                pass
             if feature_t == "categorical":
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
