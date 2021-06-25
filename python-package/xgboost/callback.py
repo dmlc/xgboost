@@ -549,7 +549,7 @@ class EarlyStopping(TrainingCallback):
             # user to decide.
             maximize_metrics = ('auc', 'aucpr', 'map', 'ndcg', 'auc@',
                                 'aucpr@', 'map@', 'ndcg@')
-            if any(metric.startswith(x) for x in maximize_metrics):
+            if metric != 'mape' and any(metric.startswith(x) for x in maximize_metrics):
                 self.maximize = True
             else:
                 self.maximize = False
