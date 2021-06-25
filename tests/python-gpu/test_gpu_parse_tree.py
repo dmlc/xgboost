@@ -12,4 +12,4 @@ def test_tree_to_df_categorical():
     df = booster.trees_to_dataframe()
     for _, x in df.iterrows():
         if x["Feature"] != "Leaf":
-            assert len(x["Categories"]) == 1
+            assert len(x["Category"]) == 1
