@@ -2317,7 +2317,7 @@ class Booster(object):
         df = DataFrame({'Tree': tree_ids, 'Node': node_ids, 'ID': ids,
                         'Feature': fids, 'Split': splits, 'Yes': y_directs,
                         'No': n_directs, 'Missing': missings, 'Gain': gains,
-                        'Cover': covers, "Categories": categories})
+                        'Cover': covers, "Category": categories})
 
         if callable(getattr(df, 'sort_values', None)):
             # pylint: disable=no-member
