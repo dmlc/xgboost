@@ -50,7 +50,7 @@ class TestGPUUpdaters:
 
         parameters = {"tree_method": "gpu_hist", "predictor": "gpu_predictor"}
 
-        m = xgb.DMatrix(onehot, label, enable_categorical=True)
+        m = xgb.DMatrix(onehot, label, enable_categorical=False)
         xgb.train(
             parameters,
             m,
