@@ -2400,7 +2400,7 @@ class Booster(object):
             fn = self.feature_names
             if fn is None:
                 # Let xgboost generate the feature names.
-                fn = self.get_fscore().keys()
+                fn = ["f{0}".format(i) for i in range(self.num_features())]
             try:
                 index = fn.index(feature)
                 feature_t = ft[index]
