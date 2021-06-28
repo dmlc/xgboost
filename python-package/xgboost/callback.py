@@ -539,10 +539,10 @@ class EarlyStopping(TrainingCallback):
             return x[0] if isinstance(x, tuple) else x
 
         def maximize(new, best):
-            return numpy.greater(get_s(new) + self._tol, get_s(best))
+            return numpy.greater(get_s(new), get_s(best) + self._tol)
 
         def minimize(new, best):
-            return numpy.greater(get_s(best) + self._tol, get_s(new))
+            return numpy.greater(get_s(best), get_s(new) + self._tol)
 
         if self.maximize is None:
             # Just to be compatibility with old behavior before 1.3.  We should let
