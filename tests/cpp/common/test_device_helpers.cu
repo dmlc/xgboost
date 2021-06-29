@@ -18,8 +18,8 @@ void TestAtomicSizeT() {
   size_t constexpr kThreads = 235;
   dh::device_vector<size_t> out(1, 0);
   auto d_out = dh::ToSpan(out);
-  dh::LaunchN(0, kThreads, [=]__device__(size_t idx){
-      atomicAdd(&d_out[0], static_cast<size_t>(1));
+  dh::LaunchN(kThreads, [=] __device__(size_t idx) {
+    atomicAdd(&d_out[0], static_cast<size_t>(1));
   });
   ASSERT_EQ(out[0], kThreads);
 }
@@ -32,7 +32,7 @@ void TestSegmentID() {
   std::vector<size_t> segments{0, 1, 3};
   thrust::device_vector<size_t> d_segments(segments);
   auto s_segments = dh::ToSpan(d_segments);
-  dh::LaunchN(0, 1, [=]__device__(size_t idx) {
+  dh::LaunchN(1, [=]__device__(size_t idx) {
     auto id = dh::SegmentId(s_segments, 0);
     SPAN_CHECK(id == 0);
     id = dh::SegmentId(s_segments, 1);

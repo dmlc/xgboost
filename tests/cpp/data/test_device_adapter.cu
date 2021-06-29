@@ -33,7 +33,7 @@ void TestCudfAdapter()
   EXPECT_EQ(batch.Size(), kRowsA + kRowsB);
 
   EXPECT_NO_THROW({
-    dh::LaunchN(0, batch.Size(), [=] __device__(size_t idx) {
+    dh::LaunchN(batch.Size(), [=] __device__(size_t idx) {
       auto element = batch.GetElement(idx);
       KERNEL_CHECK(element.row_idx == idx / 2);
       if (idx % 2 == 0) {

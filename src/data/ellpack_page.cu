@@ -257,16 +257,16 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
   common::CompressedBufferWriter writer(device_accessor.NumSymbols());
   auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
   auto row_stride = dst->row_stride;
-  dh::LaunchN(device_idx, row_stride * dst->n_rows, [=] __device__(size_t idx) {
-      auto writer_non_const =
-          writer;  // For some reason this variable gets captured as const
-      size_t row_idx = idx / row_stride;
-      size_t row_offset = idx % row_stride;
-      if (row_offset >= row_counts[row_idx]) {
-        writer_non_const.AtomicWriteSymbol(d_compressed_buffer,
-                                           device_accessor.NullValue(), idx);
-      }
-    });
+  dh::LaunchN(row_stride * dst->n_rows, [=] __device__(size_t idx) {
+    // For some reason this variable got captured as const
+    auto writer_non_const = writer;
+    size_t row_idx = idx / row_stride;
+    size_t row_offset = idx % row_stride;
+    if (row_offset >= row_counts[row_idx]) {
+      writer_non_const.AtomicWriteSymbol(d_compressed_buffer,
+                                         device_accessor.NullValue(), idx);
+    }
+  });
 }
 
 template <typename AdapterBatch>
@@ -326,7 +326,7 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   }
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
-  dh::LaunchN(device, num_elements, CopyPage(this, page, offset));
+  dh::LaunchN(num_elements, CopyPage(this, page, offset));
   monitor_.Stop("Copy");
   return num_elements;
 }
@@ -382,7 +382,7 @@ void EllpackPageImpl::Compact(int device, EllpackPageImpl* page,
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
-  dh::LaunchN(device, page->n_rows, CompactPage(this, page, row_indexes));
+  dh::LaunchN(page->n_rows, CompactPage(this, page, row_indexes));
   monitor_.Stop("Compact");
 }
 

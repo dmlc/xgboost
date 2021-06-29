@@ -672,7 +672,7 @@ class SortedLabelList : dh::SegmentSorter<float> {
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
     // For each instance in the group, compute the gradient pair concurrently
-    dh::LaunchN(device_id, niter, nullptr, [=] __device__(uint32_t idx) {
+    dh::LaunchN(niter, nullptr, [=] __device__(uint32_t idx) {
       // First, determine the group 'idx' belongs to
       uint32_t item_idx = idx % total_items;
       uint32_t group_idx =

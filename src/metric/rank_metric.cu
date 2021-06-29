@@ -107,7 +107,7 @@ struct EvalPrecisionGpu {
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
     // For each group item compute the aggregated precision
-    dh::LaunchN(device_id, nitems, nullptr, [=] __device__(uint32_t idx) {
+    dh::LaunchN(nitems, nullptr, [=] __device__(uint32_t idx) {
       const auto group_idx = dgroup_idx[idx];
       const auto group_begin = dgroups[group_idx];
       const auto ridx = idx - group_begin;
@@ -151,7 +151,7 @@ struct EvalNDCGGpu {
     dh::safe_cuda(cudaGetDevice(&device_id));
 
     // For each group item compute the aggregated precision
-    dh::LaunchN(device_id, nitems, nullptr, [=] __device__(uint32_t idx) {
+    dh::LaunchN(nitems, nullptr, [=] __device__(uint32_t idx) {
       const auto group_idx = dgroup_idx[idx];
       const auto group_begin = dgroups[group_idx];
       const auto ridx = idx - group_begin;
@@ -185,7 +185,7 @@ struct EvalNDCGGpu {
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
     // Compute the group's DCG and reduce it across all groups
-    dh::LaunchN(device_id, ngroups, nullptr, [=] __device__(uint32_t gidx) {
+    dh::LaunchN(ngroups, nullptr, [=] __device__(uint32_t gidx) {
       if (didcg[gidx] == 0.0f) {
         ddcg[gidx] = (ecfg.minus) ? 0.0f : 1.0f;
       } else {
@@ -244,7 +244,7 @@ struct EvalMAPGpu {
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
     // For each group item compute the aggregated precision
-    dh::LaunchN(device_id, nitems, nullptr, [=] __device__(uint32_t idx) {
+    dh::LaunchN(nitems, nullptr, [=] __device__(uint32_t idx) {
       if (DetermineNonTrivialLabelLambda(idx)) {
         const auto group_idx = dgroup_idx[idx];
         const auto group_begin = dgroups[group_idx];
@@ -257,7 +257,7 @@ struct EvalMAPGpu {
     });
 
     // Aggregate the group's item precisions
-    dh::LaunchN(device_id, ngroups, nullptr, [=] __device__(uint32_t gidx) {
+    dh::LaunchN(ngroups, nullptr, [=] __device__(uint32_t gidx) {
       auto nhits = dgroups[gidx + 1] ? dhits[dgroups[gidx + 1] - 1] : 0;
       if (nhits != 0) {
         dsumap[gidx] /= nhits;
@@ -391,7 +391,7 @@ struct EvalAucPRGpu : public Metric {
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
     // For each group item compute the aggregated precision
-    dh::LaunchN<1, 32>(device_id, ngroups, nullptr, [=] __device__(uint32_t gidx) {
+    dh::LaunchN<1, 32>(ngroups, nullptr, [=] __device__(uint32_t gidx) {
       // We need pos > 0 && neg > 0
       if (dtotal_pos[gidx] <= 0.0 || dtotal_neg[gidx] <= 0.0) {
         atomicAdd(dauc_error, 1);
