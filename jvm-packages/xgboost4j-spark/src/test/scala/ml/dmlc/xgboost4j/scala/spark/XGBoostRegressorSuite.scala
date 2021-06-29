@@ -25,7 +25,7 @@ import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
-  protected val treeMethod: String = "auto"
+  protected val treeMethod: String = "approx"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
     val trainingDM = new DMatrix(Regression.train.iterator)

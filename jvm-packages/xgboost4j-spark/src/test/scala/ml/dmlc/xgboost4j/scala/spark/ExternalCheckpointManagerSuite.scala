@@ -26,7 +26,7 @@ class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite wit
 
   private def produceParamMap(checkpointPath: String, checkpointInterval: Int):
   Map[String, Any] = {
-    Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+    Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1", "tree_method" -> "approx",
       "objective" -> "binary:logistic", "num_workers" -> sc.defaultParallelism,
       "checkpoint_path" -> checkpointPath, "checkpoint_interval" -> checkpointInterval)
   }
