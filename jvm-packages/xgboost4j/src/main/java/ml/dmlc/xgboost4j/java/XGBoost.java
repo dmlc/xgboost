@@ -61,7 +61,7 @@ public class XGBoost {
       os.write(buf, 0, size);
     }
     in.close();
-    return Booster.loadModel(buf);
+    return Booster.loadModel(os.toByteArray());
   }
 
   /**
