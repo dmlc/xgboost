@@ -38,6 +38,7 @@
 #include "../src/data/sparse_page_raw_format.cc"
 #include "../src/data/ellpack_page.cc"
 #include "../src/data/ellpack_page_source.cc"
+#include "../src/data/gradient_index.cc"
 
 // prediction
 #include "../src/predictor/predictor.cc"

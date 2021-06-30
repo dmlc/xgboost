@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "../../../src/common/hist_util.h"
+#include "../../../src/data/gradient_index.h"
 #include "../helpers.h"
 #include "test_hist_util.h"
 
@@ -255,8 +256,7 @@ TEST(HistUtil, IndexBinBound) {
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-    common::GHistIndexMatrix hmat;
-    hmat.Init(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
@@ -264,7 +264,7 @@ TEST(HistUtil, IndexBinBound) {
 
 template <typename T>
 void CheckIndexData(T* data_ptr, uint32_t* offsets,
-                    const common::GHistIndexMatrix& hmat, size_t n_cols) {
+                    const GHistIndexMatrix& hmat, size_t n_cols) {
   for (size_t i = 0; i < hmat.index.Size(); ++i) {
     EXPECT_EQ(data_ptr[i] + offsets[i % n_cols], hmat.index[i]);
   }
@@ -279,8 +279,7 @@ TEST(HistUtil, IndexBinData) {
 
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    common::GHistIndexMatrix hmat;
-    hmat.Init(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
     uint32_t* offsets = hmat.index.Offset();
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {

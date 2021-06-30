@@ -97,6 +97,10 @@ class DMatrixProxy : public DMatrix {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(nullptr));
   }
+  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam&) override {
+    LOG(FATAL) << "Not implemented.";
+    return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(nullptr));
+  }
 
   dmlc::any Adapter() const {
     return batch_;

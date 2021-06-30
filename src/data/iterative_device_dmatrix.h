@@ -58,6 +58,10 @@ class IterativeDeviceDMatrix : public DMatrix {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SortedCSCPage>(BatchIterator<SortedCSCPage>(nullptr));
   }
+  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam&) override {
+    LOG(FATAL) << "Not implemented.";
+    return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(nullptr));
+  }
 
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 

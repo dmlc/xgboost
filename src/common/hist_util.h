@@ -25,6 +25,8 @@
 #include "../include/rabit/rabit.h"
 
 namespace xgboost {
+class GHistIndexMatrix;
+
 namespace common {
 /*!
  * \brief A single row in global histogram index.
@@ -224,74 +226,6 @@ struct Index {
   size_t p_ {1};
   uint32_t* offset_ptr_ {nullptr};
   Func func_;
-};
-
-
-/*!
- * \brief preprocessed global index matrix, in CSR format
- *
- *  Transform floating values to integer index in histogram This is a global histogram
- *  index for CPU histogram.  On GPU ellpack page is used.
- */
-struct GHistIndexMatrix {
-  /*! \brief row pointer to rows by element position */
-  std::vector<size_t> row_ptr;
-  /*! \brief The index data */
-  Index index;
-  /*! \brief hit count of each index */
-  std::vector<size_t> hit_count;
-  /*! \brief The corresponding cuts */
-  HistogramCuts cut;
-  DMatrix* p_fmat;
-  size_t max_num_bins;
-  // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins);
-
-  // specific method for sparse data as no possibility to reduce allocated memory
-  template <typename BinIdxType, typename GetOffset>
-  void SetIndexData(common::Span<BinIdxType> index_data_span,
-                    size_t batch_threads, const SparsePage &batch,
-                    size_t rbegin, size_t nbins, GetOffset get_offset) {
-    const xgboost::Entry *data_ptr = batch.data.HostVector().data();
-    const std::vector<bst_row_t> &offset_vec = batch.offset.HostVector();
-    const size_t batch_size = batch.Size();
-    CHECK_LT(batch_size, offset_vec.size());
-    BinIdxType* index_data = index_data_span.data();
-    ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
-      const int tid = omp_get_thread_num();
-      size_t ibegin = row_ptr[rbegin + i];
-      size_t iend = row_ptr[rbegin + i + 1];
-      const size_t size = offset_vec[i + 1] - offset_vec[i];
-      SparsePage::Inst inst = {data_ptr + offset_vec[i], size};
-      CHECK_EQ(ibegin + inst.size(), iend);
-      for (bst_uint j = 0; j < inst.size(); ++j) {
-        uint32_t idx = cut.SearchBin(inst[j]);
-        index_data[ibegin + j] = get_offset(idx, j);
-        ++hit_count_tloc_[tid * nbins + idx];
-      }
-    });
-  }
-
-  void ResizeIndex(const size_t n_index,
-                   const bool isDense);
-
-  inline void GetFeatureCounts(size_t* counts) const {
-    auto nfeature = cut.Ptrs().size() - 1;
-    for (unsigned fid = 0; fid < nfeature; ++fid) {
-      auto ibegin = cut.Ptrs()[fid];
-      auto iend = cut.Ptrs()[fid + 1];
-      for (auto i = ibegin; i < iend; ++i) {
-        counts[fid] += hit_count[i];
-      }
-    }
-  }
-  inline bool IsDense() const {
-    return isDense_;
-  }
-
- private:
-  std::vector<size_t> hit_count_tloc_;
-  bool isDense_;
 };
 
 template <typename GradientIndex>
@@ -646,6 +580,42 @@ class GHistBuilder {
   size_t nthread_ { 0 };
   /*! \brief number of all bins over all features */
   uint32_t nbins_ { 0 };
+};
+
+/*!
+ * \brief A C-style array with in-stack allocation. As long as the array is smaller than
+ * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
+ * heap-allocated.
+ */
+template<typename T, size_t MaxStackSize>
+class MemStackAllocator {
+ public:
+  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
+  }
+
+  T* Get() {
+    if (!ptr_) {
+      if (MaxStackSize >= required_size_) {
+        ptr_ = stack_mem_;
+      } else {
+        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
+        do_free_ = true;
+      }
+    }
+
+    return ptr_;
+  }
+
+  ~MemStackAllocator() {
+    if (do_free_) free(ptr_);
+  }
+
+
+ private:
+  T* ptr_ = nullptr;
+  bool do_free_ = false;
+  size_t required_size_;
+  T stack_mem_[MaxStackSize];
 };
 }  // namespace common
 }  // namespace xgboost

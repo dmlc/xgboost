@@ -75,43 +75,9 @@ struct RandomReplace {
   }
 };
 
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than MaxStackSize, it will be allocated inside the stack. Otherwise, it will be heap-allocated.
- */
-template<typename T, size_t MaxStackSize>
-class MemStackAllocator {
- public:
-  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
-  }
-
-  T* Get() {
-    if (!ptr_) {
-      if (MaxStackSize >= required_size_) {
-        ptr_ = stack_mem_;
-      } else {
-        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
-        do_free_ = true;
-      }
-    }
-
-    return ptr_;
-  }
-
-  ~MemStackAllocator() {
-    if (do_free_) free(ptr_);
-  }
-
-
- private:
-  T* ptr_ = nullptr;
-  bool do_free_ = false;
-  size_t required_size_;
-  T stack_mem_[MaxStackSize];
-};
-
 namespace tree {
 
-using xgboost::common::GHistIndexMatrix;
+using xgboost::GHistIndexMatrix;
 using xgboost::common::GHistIndexRow;
 using xgboost::common::HistCollection;
 using xgboost::common::RowSetCollection;
@@ -243,8 +209,6 @@ class QuantileHistMaker: public TreeUpdater {
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
-  // quantized data matrix
-  GHistIndexMatrix gmat_;
   // column accessor
   ColumnMatrix column_matrix_;
   DMatrix const* p_last_dmat_ {nullptr};
@@ -466,6 +430,7 @@ class QuantileHistMaker: public TreeUpdater {
   void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
                          HostDeviceVector<GradientPair> *gpair,
                          DMatrix *dmat,
+                         GHistIndexMatrix const& gmat,
                          const std::vector<RegTree *> &trees);
 
  protected:
