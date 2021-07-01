@@ -209,10 +209,7 @@ class QuantileHistMaker: public TreeUpdater {
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
-  // column accessor
-  ColumnMatrix column_matrix_;
   DMatrix const* p_last_dmat_ {nullptr};
-  bool is_gmat_initialized_ {false};
 
   // data structure
   struct NodeEntry {
@@ -250,11 +247,9 @@ class QuantileHistMaker: public TreeUpdater {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
-    virtual void Update(const GHistIndexMatrix& gmat,
-                        const ColumnMatrix& column_matrix,
-                        HostDeviceVector<GradientPair>* gpair,
-                        DMatrix* p_fmat,
-                        RegTree* p_tree);
+    virtual void Update(GHistIndexMatrix *gmat,
+                        HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+                        RegTree *p_tree);
 
     inline void SubtractionTrick(GHistRowT self,
                                  GHistRowT sibling,
@@ -296,11 +291,8 @@ class QuantileHistMaker: public TreeUpdater {
                         const RegTree& tree);
 
     template <bool any_missing>
-    void ApplySplit(std::vector<CPUExpandEntry> nodes,
-                        const GHistIndexMatrix& gmat,
-                        const ColumnMatrix& column_matrix,
-                        const HistCollection<GradientSumT>& hist,
-                        RegTree* p_tree);
+    void ApplySplit(std::vector<CPUExpandEntry> nodes, GHistIndexMatrix *gmat,
+                    const HistCollection<GradientSumT> &hist, RegTree *p_tree);
 
     void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree* p_tree);
 
@@ -357,8 +349,7 @@ class QuantileHistMaker: public TreeUpdater {
                         const std::vector<GradientPair> &gpair_h,
                         const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
     template <bool any_missing>
-    void ExpandTree(const GHistIndexMatrix& gmat,
-                    const ColumnMatrix& column_matrix,
+    void ExpandTree(GHistIndexMatrix* gmat,
                     DMatrix* p_fmat,
                     RegTree* p_tree,
                     const std::vector<GradientPair>& gpair_h);
@@ -430,7 +421,7 @@ class QuantileHistMaker: public TreeUpdater {
   void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
                          HostDeviceVector<GradientPair> *gpair,
                          DMatrix *dmat,
-                         GHistIndexMatrix const& gmat,
+                         GHistIndexMatrix* gmat,
                          const std::vector<RegTree *> &trees);
 
  protected:
