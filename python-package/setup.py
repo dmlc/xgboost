@@ -301,12 +301,16 @@ if __name__ == '__main__':
     # - pip install . -e
     # - python setup.py develop   # same as above
     logging.basicConfig(level=logging.INFO)
+
+    with open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8') as fd:
+        description = fd.read()
+    with open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')) as fd:
+        version = fd.read().strip()
+
     setup(name='xgboost',
-          version=open(os.path.join(
-              CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+          version=version,
           description="XGBoost Python Package",
-          long_description=open(os.path.join(CURRENT_DIR, 'README.rst'),
-                                encoding='utf-8').read(),
+          long_description=description,
           long_description_content_type="text/x-rst",
           install_requires=[
               'numpy',
