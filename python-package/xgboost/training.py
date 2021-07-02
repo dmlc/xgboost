@@ -502,7 +502,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             results[key + '-std'].append(std)
 
         if should_break:
-            for k in results:
+            for k in results.keys():  # pylint: disable=consider-iterating-dictionary
                 results[k] = results[k][:(booster.best_iteration + 1)]
             break
     if as_pandas:
