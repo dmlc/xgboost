@@ -2225,7 +2225,7 @@ class Booster(object):
                 results[feat] = float(score)
         return results
 
-    def trees_to_dataframe(self, fmap=''):
+    def trees_to_dataframe(self, fmap=''):  # pylint: disable=too-many-statements
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -2251,6 +2251,7 @@ class Booster(object):
         node_ids = []
         fids = []
         splits = []
+        categories = []
         y_directs = []
         n_directs = []
         missings = []
@@ -2275,6 +2276,7 @@ class Booster(object):
                     node_ids.append(int(re.findall(r'\b\d+\b', parse[0])[0]))
                     fids.append('Leaf')
                     splits.append(float('NAN'))
+                    categories.append(float('NAN'))
                     y_directs.append(float('NAN'))
                     n_directs.append(float('NAN'))
                     missings.append(float('NAN'))
@@ -2284,14 +2286,26 @@ class Booster(object):
                 else:
                     # parse string
                     fid = arr[1].split(']')
-                    parse = fid[0].split('<')
+                    if fid[0].find("<") != -1:
+                        # numerical
+                        parse = fid[0].split('<')
+                        splits.append(float(parse[1]))
+                        categories.append(None)
+                    elif fid[0].find(":{") != -1:
+                        # categorical
+                        parse = fid[0].split(":")
+                        cats = parse[1][1:-1]  # strip the {}
+                        cats = cats.split(",")
+                        splits.append(float("NAN"))
+                        categories.append(cats if cats else None)
+                    else:
+                        raise ValueError("Failed to parse model text dump.")
                     stats = re.split('=|,', fid[1])
 
                     # append to lists
                     tree_ids.append(i)
                     node_ids.append(int(re.findall(r'\b\d+\b', arr[0])[0]))
                     fids.append(parse[0])
-                    splits.append(float(parse[1]))
                     str_i = str(i)
                     y_directs.append(str_i + '-' + stats[1])
                     n_directs.append(str_i + '-' + stats[3])
@@ -2303,7 +2317,7 @@ class Booster(object):
         df = DataFrame({'Tree': tree_ids, 'Node': node_ids, 'ID': ids,
                         'Feature': fids, 'Split': splits, 'Yes': y_directs,
                         'No': n_directs, 'Missing': missings, 'Gain': gains,
-                        'Cover': covers})
+                        'Cover': covers, "Category": categories})
 
         if callable(getattr(df, 'sort_values', None)):
             # pylint: disable=no-member
@@ -2381,9 +2395,29 @@ class Booster(object):
         nph = np.column_stack((nph[1][1:], nph[0]))
         nph = nph[nph[:, 1] > 0]
 
+        if nph.size == 0:
+            ft = self.feature_types
+            fn = self.feature_names
+            if fn is None:
+                # Let xgboost generate the feature names.
+                fn = ["f{0}".format(i) for i in range(self.num_features())]
+            try:
+                index = fn.index(feature)
+                feature_t = ft[index]
+            except (ValueError, AttributeError, TypeError):
+                # None.index: attr err, None[0]: type err, fn.index(-1): value err
+                feature_t = None
+            if feature_t == "categorical":
+                raise ValueError(
+                    "Split value historgam doesn't support categorical split."
+                )
+
         if as_pandas and PANDAS_INSTALLED:
             return DataFrame(nph, columns=['SplitValue', 'Count'])
         if as_pandas and not PANDAS_INSTALLED:
-            sys.stderr.write(
-                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
+            warnings.warn(
+                "Returning histogram as ndarray"
+                " (as_pandas == True, but pandas is not installed).",
+                UserWarning
+            )
         return nph
