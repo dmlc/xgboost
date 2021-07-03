@@ -197,7 +197,7 @@ _pandas_dtype_mapper = {
 def _transform_pandas_df(data, enable_categorical,
                          feature_names=None, feature_types=None,
                          meta=None, meta_type=None):
-    from pandas import MultiIndex, Int64Index
+    from pandas import MultiIndex, Int64Index, RangeIndex
     from pandas.api.types import is_sparse, is_categorical_dtype
 
     data_dtypes = data.dtypes
@@ -219,7 +219,7 @@ def _transform_pandas_df(data, enable_categorical,
             feature_names = [
                 ' '.join([str(x) for x in i]) for i in data.columns
             ]
-        elif isinstance(data.columns, Int64Index):
+        elif isinstance(data.columns, (Int64Index, RangeIndex)):
             feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
