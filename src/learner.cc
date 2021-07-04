@@ -1032,6 +1032,8 @@ class LearnerImpl : public LearnerIO {
     out_impl->mparam_ = this->mparam_;
     out_impl->attributes_ = this->attributes_;
     out_impl->learner_model_param_ = this->learner_model_param_;
+    out_impl->SetFeatureNames(this->feature_names_);
+    out_impl->SetFeatureTypes(this->feature_types_);
     out_impl->LoadConfig(config);
     out_impl->Configure();
     return out_impl;
