@@ -232,6 +232,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     snode_[0].stats = GradStats{root_sum.GetGrad(), root_sum.GetHess()};
     snode_[0].root_gain = root_evaluator.CalcGain(RegTree::kRoot, param_,
                                                   GradStats{snode_[0].stats});
+    std::cout << "root_gain:" << snode_[0].root_gain << std::endl;
     auto weight = root_evaluator.CalcWeight(RegTree::kRoot, param_,
                                             GradStats{snode_[0].stats});
     return weight;
@@ -243,6 +244,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
                                       param,
                                       static_cast<bst_feature_t>(info.num_col_),
                                       GenericParameter::kCpuId} {
+    interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_.Init(info.num_col_, info.feature_weigths.HostVector(),
                          param_.colsample_bynode, param_.colsample_bylevel,
                          param_.colsample_bytree, false);

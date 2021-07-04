@@ -464,6 +464,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
   std::vector<CPUExpandEntry> expand;
   InitRoot<any_missing>(gmat, *p_fmat, p_tree, gpair_h, &num_leaves, &expand);
+  std::cout << "nid:" << 0 << expand.front().split << std::endl;
   CHECK((*p_tree)[0].IsLeaf());
   driver.Push(expand[0]);
 
@@ -499,6 +500,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 
       for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
         CPUExpandEntry left_node = nodes_to_evaluate.at(i * 2 + 0);
+        std::cout << left_node.split << std::endl;
         CPUExpandEntry right_node = nodes_to_evaluate.at(i * 2 + 1);
         driver.Push(left_node);
         driver.Push(right_node);
