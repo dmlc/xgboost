@@ -342,7 +342,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     evaluator_.EvaluateSplits(hist_, gmat, *p_tree, {&node});
   }
 
-  // node.loss_chg = snode_[CPUExpandEntry::kRootNid].best.loss_chg;
   expand->push_back(node);
   ++(*num_leaves);
 }
@@ -434,22 +433,6 @@ void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
   builder_monitor_.Stop("SplitSiblings");
 }
 
-template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::BuildNodeStats(
-  const GHistIndexMatrix &gmat,
-  const DMatrix& fmat,
-  const std::vector<GradientPair> &gpair_h,
-  const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree) {
-  for (auto const& candidate : nodes_for_apply_split) {
-    const int nid = candidate.nid;
-    const int cleft = (*p_tree)[nid].LeftChild();
-    const int cright = (*p_tree)[nid].RightChild();
-
-    InitNewNode(cleft, gmat, gpair_h, fmat, *p_tree);
-    InitNewNode(cright, gmat, gpair_h, fmat, *p_tree);
-  }
-}
-
 template<typename GradientSumT>
 template <bool any_missing>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
@@ -464,8 +447,6 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
   std::vector<CPUExpandEntry> expand;
   InitRoot<any_missing>(gmat, *p_fmat, p_tree, gpair_h, &num_leaves, &expand);
-  // std::cout << "nid:" << 0 << expand.front().split << std::endl;
-  CHECK((*p_tree)[0].IsLeaf());
   driver.Push(expand[0]);
 
   int depth = 0;
@@ -491,16 +472,14 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
         hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
       }
 
-      BuildNodeStats(gmat, *p_fmat, gpair_h, nodes_for_apply_split, p_tree);
       std::vector<CPUExpandEntry*> candidates;
       for (auto& v : nodes_to_evaluate) {
         candidates.push_back(&v);
       }
-      EvaluateSplits(candidates, gmat, hist_, *p_tree);
+      evaluator_.EvaluateSplits(hist_, gmat, *p_tree, candidates);
 
       for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
         CPUExpandEntry left_node = nodes_to_evaluate.at(i * 2 + 0);
-        // std::cout << left_node.split << std::endl;
         CPUExpandEntry right_node = nodes_to_evaluate.at(i * 2 + 1);
         driver.Push(left_node);
         driver.Push(right_node);
@@ -791,28 +770,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
   builder_monitor_.Stop("InitData");
 }
 
-// if sum of statistics for non-missing values in the node
-// is equal to sum of statistics for all values:
-// then - there are no missing values
-// else - there are missing values
-template <typename GradientSumT>
-bool QuantileHistMaker::Builder<GradientSumT>::SplitContainsMissingValues(
-    const GradStats e, const NodeEntry &snode) {
-  if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
-// nodes_set - set of nodes to be processed in parallel
-template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
-    std::vector<CPUExpandEntry *> nodes_set, const GHistIndexMatrix &gmat,
-    const HistCollection<GradientSumT> &hist, const RegTree &tree) {
-  evaluator_.EvaluateSplits(hist, gmat, tree, nodes_set);
-}
-
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
                                                      const std::vector<CPUExpandEntry>& nodes,
@@ -922,117 +879,6 @@ void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<CPUE
   // 5. Add info about splits into row_set_collection_
   AddSplitsToRowSet(nodes, p_tree);
   builder_monitor_.Stop("ApplySplit");
-}
-template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
-                                             const GHistIndexMatrix& gmat,
-                                             const std::vector<GradientPair>& gpair,
-                                             const DMatrix& fmat,
-                                             const RegTree& tree) {
-  builder_monitor_.Start("InitNewNode");
-  // {
-  //   snode_.resize(tree.param.num_nodes, NodeEntry(param_));
-  // }
-  // {
-  //   {
-  //     int parent_id = tree[nid].Parent();
-  //     if (tree[nid].IsLeftChild()) {
-  //       snode_[nid].stats = snode_[parent_id].best.left_sum;
-  //     } else {
-  //       snode_[nid].stats = snode_[parent_id].best.right_sum;
-  //     }
-  //   }
-  // }
-
-  // // calculating the weights
-  // {
-  //   auto evaluator = tree_evaluator_.GetEvaluator();
-  //   bst_uint parentid = tree[nid].Parent();
-  //   snode_[nid].weight = static_cast<float>(
-  //       evaluator.CalcWeight(parentid, param_, GradStats{snode_[nid].stats}));
-  //   snode_[nid].root_gain = static_cast<float>(
-  //       evaluator.CalcGain(parentid, param_, GradStats{snode_[nid].stats}));
-  // }
-  builder_monitor_.Stop("InitNewNode");
-}
-
-// Enumerate the split values of specific feature.
-// Returns the sum of gradients corresponding to the data points that contains a non-missing value
-// for the particular feature fid.
-template <typename GradientSumT>
-template <int d_step>
-GradStats QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
-    const GHistIndexMatrix &gmat, const GHistRowT &hist, const NodeEntry &snode,
-    SplitEntry *p_best, bst_uint fid, bst_uint nodeID,
-    TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
-  CHECK(d_step == +1 || d_step == -1);
-
-  // aliases
-  const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
-  const std::vector<bst_float>& cut_val = gmat.cut.Values();
-
-  // statistics on both sides of split
-  GradStats c;
-  GradStats e;
-  // best split so far
-  SplitEntry best;
-
-  // bin boundaries
-  CHECK_LE(cut_ptr[fid],
-           static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-  CHECK_LE(cut_ptr[fid + 1],
-           static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-  // imin: index (offset) of the minimum value for feature fid
-  //       need this for backward enumeration
-  const auto imin = static_cast<int32_t>(cut_ptr[fid]);
-  // ibegin, iend: smallest/largest cut points for feature fid
-  // use int to allow for value -1
-  int32_t ibegin, iend;
-  if (d_step > 0) {
-    ibegin = static_cast<int32_t>(cut_ptr[fid]);
-    iend = static_cast<int32_t>(cut_ptr[fid + 1]);
-  } else {
-    ibegin = static_cast<int32_t>(cut_ptr[fid + 1]) - 1;
-    iend = static_cast<int32_t>(cut_ptr[fid]) - 1;
-  }
-
-  for (int32_t i = ibegin; i != iend; i += d_step) {
-    // start working
-    // try to find a split
-    e.Add(hist[i].GetGrad(), hist[i].GetHess());
-    if (e.GetHess() >= param_.min_child_weight) {
-      c.SetSubstract(snode.stats, e);
-      if (c.GetHess() >= param_.min_child_weight) {
-        bst_float loss_chg;
-        bst_float split_pt;
-        if (d_step > 0) {
-          // forward enumeration: split at right bound of each bin
-          loss_chg = static_cast<bst_float>(
-              evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{e},
-                                      GradStats{c}) -
-              snode.root_gain);
-          split_pt = cut_val[i];
-          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
-        } else {
-          // backward enumeration: split at left bound of each bin
-          loss_chg = static_cast<bst_float>(
-              evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{c},
-                                      GradStats{e}) -
-              snode.root_gain);
-          if (i == imin) {
-            // for leftmost bin, left bound is the smallest feature value
-            split_pt = gmat.cut.MinValues()[fid];
-          } else {
-            split_pt = cut_val[i - 1];
-          }
-          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
-        }
-      }
-    }
-  }
-  p_best->Update(best);
-
-  return e;
 }
 
 template struct QuantileHistMaker::Builder<float>;

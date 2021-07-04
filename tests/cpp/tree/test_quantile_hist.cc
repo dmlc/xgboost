@@ -352,8 +352,6 @@ class QuantileHistMock : public QuantileHistMaker {
       this->hist_builder_.template BuildHist<false>(row_gpairs, this->row_set_collection_[0],
                       gmat, this->hist_[0]);
 
-      RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
-
       /* Compute correct split (best_split) using the computed histogram */
       const size_t num_row = dmat->Info().num_row_;
       const size_t num_feature = dmat->Info().num_col_;
@@ -441,7 +439,6 @@ class QuantileHistMock : public QuantileHistMaker {
         RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
         this->hist_.AddHistRow(0);
         this->hist_.AllocateAllData();
-        RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
 
         const size_t num_row = dmat->Info().num_row_;
         // split by feature 0

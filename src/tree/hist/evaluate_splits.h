@@ -31,6 +31,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
 
   using GHistRowT = common::GHistRow<GradientSumT>;
 
+  // if sum of statistics for non-missing values in the node
+  // is equal to sum of statistics for all values:
+  // then - there are no missing values
+  // else - there are missing values
   bool static SplitContainsMissingValues(const GradStats e,
                                          const NodeEntry &snode) {
     if (e.GetGrad() == snode.stats.GetGrad() &&
@@ -41,6 +45,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     }
   };
 
+  // Enumerate the split values of specific feature
+  // Returns the sum of gradients corresponding to the data points that contains
+  // a non-missing value for the particular feature fid.
   template <int d_step>
   GradStats EnumerateSplit(
       const GHistIndexMatrix &gmat, const GHistRowT &hist,
@@ -170,7 +177,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       for (auto tidx = 0; tidx < num_threads; ++tidx) {
         entries[nidx_in_set]->split.Update(
             tloc_candidates[num_threads * nidx_in_set + tidx].split);
-        // std::cout << "update: " << tloc_candidates[num_threads * nidx_in_set + tidx].split << std::endl;
       }
     }
   }
@@ -232,7 +238,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     snode_[0].stats = GradStats{root_sum.GetGrad(), root_sum.GetHess()};
     snode_[0].root_gain = root_evaluator.CalcGain(RegTree::kRoot, param_,
                                                   GradStats{snode_[0].stats});
-    // std::cout << "root_gain:" << snode_[0].root_gain << std::endl;
     auto weight = root_evaluator.CalcWeight(RegTree::kRoot, param_,
                                             GradStats{snode_[0].stats});
     return weight;

@@ -220,22 +220,7 @@ class QuantileHistMaker: public TreeUpdater {
   DMatrix const* p_last_dmat_ {nullptr};
   bool is_gmat_initialized_ {false};
 
-  // data structure
-  struct NodeEntry {
-    /*! \brief statics for node entry */
-    GradStats stats;
-    /*! \brief loss of this node, without split */
-    bst_float root_gain;
-    /*! \brief weight calculated related to current data */
-    float weight;
-    /*! \brief current best solution */
-    SplitEntry best;
-    // constructor
-    explicit NodeEntry(const TrainParam&)
-        : root_gain(0.0f), weight(0.0f) {}
-  };
   // actual builder that runs the algorithm
-
   template<typename GradientSumT>
   struct Builder {
    public:
@@ -295,11 +280,6 @@ class QuantileHistMaker: public TreeUpdater {
                       std::vector<GradientPair>* gpair,
                       std::vector<size_t>* row_indices);
 
-    void EvaluateSplits(std::vector<CPUExpandEntry*> nodes_set,
-                        const GHistIndexMatrix& gmat,
-                        const HistCollection<GradientSumT>& hist,
-                        const RegTree& tree);
-
     template <bool any_missing>
     void ApplySplit(std::vector<CPUExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
@@ -313,26 +293,6 @@ class QuantileHistMaker: public TreeUpdater {
     void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
                              const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
 
-    void InitNewNode(int nid,
-                     const GHistIndexMatrix& gmat,
-                     const std::vector<GradientPair>& gpair,
-                     const DMatrix& fmat,
-                     const RegTree& tree);
-
-    // Enumerate the split values of specific feature
-    // Returns the sum of gradients corresponding to the data points that contains a non-missing
-    // value for the particular feature fid.
-    template <int d_step>
-    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRowT &hist,
-                             const NodeEntry &snode, SplitEntry *p_best, bst_uint fid,
-                             bst_uint nodeID,
-                             TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const;
-
-    // if sum of statistics for non-missing values in the node
-    // is equal to sum of statistics for all values:
-    // then - there are no missing values
-    // else - there are missing values
-    bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
 
     template <bool any_missing>
     void BuildLocalHistograms(const GHistIndexMatrix &gmat,
@@ -357,10 +317,6 @@ class QuantileHistMaker: public TreeUpdater {
                          int *num_leaves,
                          std::vector<CPUExpandEntry>* nodes_for_apply_split);
 
-    void BuildNodeStats(const GHistIndexMatrix &gmat,
-                        const DMatrix& fmat,
-                        const std::vector<GradientPair> &gpair_h,
-                        const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
     template <bool any_missing>
     void ExpandTree(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
@@ -383,16 +339,11 @@ class QuantileHistMaker: public TreeUpdater {
     // the temp space for split
     std::vector<RowSetCollection::Split> row_split_tloc_;
     std::vector<SplitEntry> best_split_tloc_;
-    /*! \brief TreeNode Data: statistics for each constructed node */
-    // std::vector<NodeEntry> snode_;
     std::vector<GradientPair> gpair_local_;
     /*! \brief culmulative histogram of gradients. */
     HistCollection<GradientSumT> hist_;
     /*! \brief culmulative local parent histogram of gradients. */
     HistCollection<GradientSumT> hist_local_worker_;
-
-
-    // TreeEvaluator tree_evaluator_;
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
