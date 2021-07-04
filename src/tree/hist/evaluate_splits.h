@@ -44,7 +44,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   template <int d_step>
   GradStats EnumerateSplit(
       const GHistIndexMatrix &gmat, const GHistRowT &hist,
-      const NodeEntry &snode, SplitEntry *p_best, bst_uint fid, bst_uint nodeID,
+      const NodeEntry &snode, SplitEntry *p_best, bst_feature_t fidx, bst_node_t nidx,
       TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
 
@@ -59,22 +59,22 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     SplitEntry best;
 
     // bin boundaries
-    CHECK_LE(cut_ptr[fid],
+    CHECK_LE(cut_ptr[fidx],
              static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    CHECK_LE(cut_ptr[fid + 1],
+    CHECK_LE(cut_ptr[fidx + 1],
              static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
     // imin: index (offset) of the minimum value for feature fid
     //       need this for backward enumeration
-    const auto imin = static_cast<int32_t>(cut_ptr[fid]);
+    const auto imin = static_cast<int32_t>(cut_ptr[fidx]);
     // ibegin, iend: smallest/largest cut points for feature fid
     // use int to allow for value -1
     int32_t ibegin, iend;
     if (d_step > 0) {
-      ibegin = static_cast<int32_t>(cut_ptr[fid]);
-      iend = static_cast<int32_t>(cut_ptr[fid + 1]);
+      ibegin = static_cast<int32_t>(cut_ptr[fidx]);
+      iend = static_cast<int32_t>(cut_ptr.at(fidx + 1));
     } else {
-      ibegin = static_cast<int32_t>(cut_ptr[fid + 1]) - 1;
-      iend = static_cast<int32_t>(cut_ptr[fid]) - 1;
+      ibegin = static_cast<int32_t>(cut_ptr[fidx + 1]) - 1;
+      iend = static_cast<int32_t>(cut_ptr[fidx]) - 1;
     }
 
     for (int32_t i = ibegin; i != iend; i += d_step) {
@@ -89,24 +89,24 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
           if (d_step > 0) {
             // forward enumeration: split at right bound of each bin
             loss_chg = static_cast<bst_float>(
-                evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{e},
+                evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{e},
                                         GradStats{c}) -
                 snode.root_gain);
             split_pt = cut_val[i];
-            best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, e, c);
           } else {
             // backward enumeration: split at left bound of each bin
             loss_chg = static_cast<bst_float>(
-                evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{c},
+                evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{c},
                                         GradStats{e}) -
                 snode.root_gain);
             if (i == imin) {
               // for leftmost bin, left bound is the smallest feature value
-              split_pt = gmat.cut.MinValues()[fid];
+              split_pt = gmat.cut.MinValues()[fidx];
             } else {
               split_pt = cut_val[i - 1];
             }
-            best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, c, e);
           }
         }
       }
@@ -156,9 +156,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         auto fidx = features_set[fidx_in_set];
         if (interaction_constraints_.Query(nidx, fidx)) {
           auto grad_stats = EnumerateSplit<+1>(gidx, histogram, snode_[nidx],
-                                               best, nidx, fidx, evaluator);
+                                               best, fidx, nidx, evaluator);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1>(gidx, histogram, snode_[nidx], best, nidx, fidx,
+            EnumerateSplit<-1>(gidx, histogram, snode_[nidx], best, fidx, nidx,
                                evaluator);
           }
         }
@@ -170,28 +170,28 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       for (auto tidx = 0; tidx < num_threads; ++tidx) {
         entries[nidx_in_set]->split.Update(
             tloc_candidates[num_threads * nidx_in_set + tidx].split);
+        // std::cout << "update: " << tloc_candidates[num_threads * nidx_in_set + tidx].split << std::endl;
       }
     }
   }
 
-  void ApplyTreeSplit(ExpandEntry candidate, TrainParam param,
-                      RegTree *p_tree) {
+  void ApplyTreeSplit(ExpandEntry candidate, RegTree *p_tree) {
     auto evaluator = tree_evaluator_.GetEvaluator();
     RegTree &tree = *p_tree;
 
     GradStats parent_sum = candidate.split.left_sum;
     parent_sum.Add(candidate.split.right_sum);
     auto base_weight =
-        evaluator.CalcWeight(candidate.nid, param, GradStats{parent_sum});
+        evaluator.CalcWeight(candidate.nid, param_, GradStats{parent_sum});
 
     auto left_weight =
-        evaluator.CalcWeight(candidate.nid, param,
+        evaluator.CalcWeight(candidate.nid, param_,
                              GradStats{candidate.split.left_sum}) *
-        param.learning_rate;
+        param_.learning_rate;
     auto right_weight =
-        evaluator.CalcWeight(candidate.nid, param,
+        evaluator.CalcWeight(candidate.nid, param_,
                              GradStats{candidate.split.right_sum}) *
-        param.learning_rate;
+        param_.learning_rate;
 
     tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(),
                     candidate.split.split_value, candidate.split.DefaultLeft(),
@@ -212,10 +212,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     snode_.resize(tree.GetNodes().size());
     snode_.at(left_child).stats = candidate.split.left_sum;
     snode_.at(left_child).root_gain = evaluator.CalcGain(
-        candidate.nid, param, GradStats{candidate.split.left_sum});
+        candidate.nid, param_, GradStats{candidate.split.left_sum});
     snode_.at(right_child).stats = candidate.split.right_sum;
     snode_.at(right_child).root_gain = evaluator.CalcGain(
-        candidate.nid, param, GradStats{candidate.split.right_sum});
+        candidate.nid, param_, GradStats{candidate.split.right_sum});
 
     interaction_constraints_.Split(candidate.nid,
                                    tree[candidate.nid].SplitIndex(), left_child,
@@ -232,7 +232,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     snode_[0].stats = GradStats{root_sum.GetGrad(), root_sum.GetHess()};
     snode_[0].root_gain = root_evaluator.CalcGain(RegTree::kRoot, param_,
                                                   GradStats{snode_[0].stats});
-    std::cout << "root_gain:" << snode_[0].root_gain << std::endl;
+    // std::cout << "root_gain:" << snode_[0].root_gain << std::endl;
     auto weight = root_evaluator.CalcWeight(RegTree::kRoot, param_,
                                             GradStats{snode_[0].stats});
     return weight;
