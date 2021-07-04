@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by Contributors
+ * Copyright 2019-2021 by XGBoost Contributors
  * \file simple_dmatrix.cu
  */
 #include <thrust/copy.h>

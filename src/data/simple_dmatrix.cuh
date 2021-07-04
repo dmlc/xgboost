@@ -1,3 +1,7 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ * \file simple_dmatrix.cuh
+ */
 #ifndef XGBOOST_DATA_SIMPLE_DMATRIX_CUH_
 #define XGBOOST_DATA_SIMPLE_DMATRIX_CUH_
 
