@@ -7,6 +7,7 @@
 
 #include <thrust/copy.h>
 #include <thrust/scan.h>
+#include <thrust/execution_policy.h>
 #include "device_adapter.cuh"
 #include "../common/device_helpers.cuh"
 

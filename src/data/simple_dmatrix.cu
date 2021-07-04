@@ -3,12 +3,9 @@
  * \file simple_dmatrix.cu
  */
 #include <thrust/copy.h>
-#include <thrust/execution_policy.h>
-#include <thrust/sort.h>
 #include <xgboost/data.h>
-#include "../common/random.h"
 #include "simple_dmatrix.cuh"
-#include "./simple_dmatrix.h"
+#include "simple_dmatrix.h"
 #include "device_adapter.cuh"
 
 namespace xgboost {
