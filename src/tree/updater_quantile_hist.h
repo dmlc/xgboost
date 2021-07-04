@@ -20,6 +20,8 @@
 
 #include "xgboost/data.h"
 #include "xgboost/json.h"
+
+#include "hist/evaluate_splits.h"
 #include "constraints.h"
 #include "./param.h"
 #include "./driver.h"
@@ -121,19 +123,23 @@ struct CPUExpandEntry {
   static const int kEmptyNid = -1;
   int nid;
   int depth;
-  bst_float loss_chg;
+  SplitEntry split;
+
+  CPUExpandEntry() = default;
   CPUExpandEntry(int nid, int depth, bst_float loss_chg)
-      : nid(nid), depth(depth), loss_chg(loss_chg) {}
+      : nid(nid), depth(depth) {
+    split.loss_chg = loss_chg;
+  }
 
   bool IsValid(TrainParam const &param, int32_t num_leaves) const {
-    bool ret = loss_chg <= kRtEps ||
+    bool ret = split.loss_chg <= kRtEps ||
                (param.max_depth > 0 && this->depth == param.max_depth) ||
                (param.max_leaves > 0 && num_leaves == param.max_leaves);
     return ret;
   }
 
   bst_float GetLossChange() const {
-    return loss_chg;
+    return split.loss_chg;
   }
 
   int GetNodeId() const {
@@ -236,17 +242,16 @@ class QuantileHistMaker: public TreeUpdater {
     using GHistRowT = GHistRow<GradientSumT>;
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
-    explicit Builder(const size_t n_trees,
-                     const TrainParam& param,
+    explicit Builder(const size_t n_trees, const TrainParam &param,
                      std::unique_ptr<TreeUpdater> pruner,
                      FeatureInteractionConstraintHost int_constraints_,
-                     DMatrix const* fmat)
-      : n_trees_(n_trees),
-        param_(param),
-        tree_evaluator_(param, fmat->Info().num_col_, GenericParameter::kCpuId),
-        pruner_(std::move(pruner)),
-        interaction_constraints_{std::move(int_constraints_)},
-        p_last_tree_(nullptr), p_last_fmat_(fmat) {
+                     DMatrix const *fmat)
+        : n_trees_(n_trees), param_(param),
+          pruner_(std::move(pruner)),
+          evaluator_{HistEvaluator<GradientSumT, CPUExpandEntry>{
+              param_, fmat->Info(), omp_get_max_threads()}},
+          p_last_tree_(nullptr),
+          p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
@@ -290,7 +295,7 @@ class QuantileHistMaker: public TreeUpdater {
                       std::vector<GradientPair>* gpair,
                       std::vector<size_t>* row_indices);
 
-    void EvaluateSplits(const std::vector<CPUExpandEntry>& nodes_set,
+    void EvaluateSplits(std::vector<CPUExpandEntry*> nodes_set,
                         const GHistIndexMatrix& gmat,
                         const HistCollection<GradientSumT>& hist,
                         const RegTree& tree);
@@ -379,20 +384,22 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<RowSetCollection::Split> row_split_tloc_;
     std::vector<SplitEntry> best_split_tloc_;
     /*! \brief TreeNode Data: statistics for each constructed node */
-    std::vector<NodeEntry> snode_;
+    // std::vector<NodeEntry> snode_;
     std::vector<GradientPair> gpair_local_;
     /*! \brief culmulative histogram of gradients. */
     HistCollection<GradientSumT> hist_;
     /*! \brief culmulative local parent histogram of gradients. */
     HistCollection<GradientSumT> hist_local_worker_;
-    TreeEvaluator tree_evaluator_;
+
+
+    // TreeEvaluator tree_evaluator_;
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
 
     GHistBuilder<GradientSumT> hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
-    FeatureInteractionConstraintHost interaction_constraints_;
+    HistEvaluator<GradientSumT, CPUExpandEntry> evaluator_;
 
     static constexpr size_t kPartitionBlockSize = 2048;
     common::PartitionBuilder<kPartitionBlockSize> partition_builder_;

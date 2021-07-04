@@ -13,30 +13,117 @@ struct NodeEntry {
   /*! \brief statics for node entry */
   GradStats stats;
   /*! \brief loss of this node, without split */
-  bst_float root_gain;
+  bst_float root_gain {0.0f};
   /*! \brief weight calculated related to current data */
-  float weight;
+  float weight {0.0f};
   /*! \brief current best solution */
   SplitEntry best;
   // constructor
-  explicit NodeEntry(const TrainParam &) : root_gain(0.0f), weight(0.0f) {}
+  NodeEntry() = default;
 };
 
-template <typename GradientSumT, typename ExpandEntry> class ApproxEvaluator {
+template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   TrainParam param_;
   common::ColumnSampler column_sampler_;
   TreeEvaluator tree_evaluator_;
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
 
+  using GHistRowT = common::GHistRow<GradientSumT>;
+
+  bool static SplitContainsMissingValues(const GradStats e,
+                                         const NodeEntry &snode) {
+    if (e.GetGrad() == snode.stats.GetGrad() &&
+        e.GetHess() == snode.stats.GetHess()) {
+      return false;
+    } else {
+      return true;
+    }
+  };
+
+  template <int d_step>
+  GradStats EnumerateSplit(
+      const GHistIndexMatrix &gmat, const GHistRowT &hist,
+      const NodeEntry &snode, SplitEntry *p_best, bst_uint fid, bst_uint nodeID,
+      TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
+    static_assert(d_step == +1 || d_step == -1, "Invalid step.");
+
+    // aliases
+    const std::vector<uint32_t> &cut_ptr = gmat.cut.Ptrs();
+    const std::vector<bst_float> &cut_val = gmat.cut.Values();
+
+    // statistics on both sides of split
+    GradStats c;
+    GradStats e;
+    // best split so far
+    SplitEntry best;
+
+    // bin boundaries
+    CHECK_LE(cut_ptr[fid],
+             static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+    CHECK_LE(cut_ptr[fid + 1],
+             static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+    // imin: index (offset) of the minimum value for feature fid
+    //       need this for backward enumeration
+    const auto imin = static_cast<int32_t>(cut_ptr[fid]);
+    // ibegin, iend: smallest/largest cut points for feature fid
+    // use int to allow for value -1
+    int32_t ibegin, iend;
+    if (d_step > 0) {
+      ibegin = static_cast<int32_t>(cut_ptr[fid]);
+      iend = static_cast<int32_t>(cut_ptr[fid + 1]);
+    } else {
+      ibegin = static_cast<int32_t>(cut_ptr[fid + 1]) - 1;
+      iend = static_cast<int32_t>(cut_ptr[fid]) - 1;
+    }
+
+    for (int32_t i = ibegin; i != iend; i += d_step) {
+      // start working
+      // try to find a split
+      e.Add(hist[i].GetGrad(), hist[i].GetHess());
+      if (e.GetHess() >= param_.min_child_weight) {
+        c.SetSubstract(snode.stats, e);
+        if (c.GetHess() >= param_.min_child_weight) {
+          bst_float loss_chg;
+          bst_float split_pt;
+          if (d_step > 0) {
+            // forward enumeration: split at right bound of each bin
+            loss_chg = static_cast<bst_float>(
+                evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{e},
+                                        GradStats{c}) -
+                snode.root_gain);
+            split_pt = cut_val[i];
+            best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
+          } else {
+            // backward enumeration: split at left bound of each bin
+            loss_chg = static_cast<bst_float>(
+                evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{c},
+                                        GradStats{e}) -
+                snode.root_gain);
+            if (i == imin) {
+              // for leftmost bin, left bound is the smallest feature value
+              split_pt = gmat.cut.MinValues()[fid];
+            } else {
+              split_pt = cut_val[i - 1];
+            }
+            best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
+          }
+        }
+      }
+    }
+    p_best->Update(best);
+
+    return e;
+  }
+
  public:
   void EvaluateSplits(const common::HistCollection<GradientSumT> &hist,
                       GHistIndexMatrix const &gidx, const RegTree &tree,
                       std::vector<ExpandEntry *> entries) {
-      const size_t grain_size = std::max<size_t>(
+    const size_t grain_size = std::max<size_t>(
         1,
         column_sampler_.GetFeatureSet(tree.GetDepth(entries[0]->nid))->Size() /
-        omp_get_max_threads());
+            omp_get_max_threads());
 
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(
@@ -68,14 +155,11 @@ template <typename GradientSumT, typename ExpandEntry> class ApproxEvaluator {
       for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
         auto fidx = features_set[fidx_in_set];
         if (interaction_constraints_.Query(nidx, fidx)) {
-          auto grad_stats = EnumerateSplit<common::GHistRow<GradientSumT>,
-                                           NodeEntry, SplitEntry, +1>(
-              gidx, histogram, snode_[nidx], best, nidx, fidx, param_,
-              evaluator);
+          auto grad_stats = EnumerateSplit<+1>(gidx, histogram, snode_[nidx],
+                                               best, nidx, fidx, evaluator);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<common::GHistRow<GradientSumT>, NodeEntry,
-                           SplitEntry, -1>(gidx, histogram, snode_[nidx], best,
-                                           nidx, fidx, param_, evaluator);
+            EnumerateSplit<-1>(gidx, histogram, snode_[nidx], best, nidx, fidx,
+                               evaluator);
           }
         }
       }
@@ -153,8 +237,8 @@ template <typename GradientSumT, typename ExpandEntry> class ApproxEvaluator {
     return weight;
   }
 
-  ApproxEvaluator() = default;
-  explicit ApproxEvaluator(TrainParam param, MetaInfo const &info)
+  HistEvaluator() = default;
+  explicit HistEvaluator(TrainParam param, MetaInfo const &info, int32_t n_threads)
       : param_{std::move(param)}, tree_evaluator_{
                                       param,
                                       static_cast<bst_feature_t>(info.num_col_),

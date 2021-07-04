@@ -396,7 +396,7 @@ class QuantileHistMock : public QuantileHistMaker {
             }
           }
           // Now compute gain (change in loss)
-          auto evaluator = this->tree_evaluator_.GetEvaluator();
+          auto evaluator = RealImpl::evaluator_.GetEvaluator();
           const auto split_gain = evaluator.CalcSplitGain(
               this->param_, 0, fid, GradStats(left_sum), GradStats(right_sum));
           if (split_gain > best_split_gain) {
@@ -408,12 +408,12 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       /* Now compare against result given by EvaluateSplit() */
-      CPUExpandEntry node(CPUExpandEntry::kRootNid,
-                          tree.GetDepth(0),
-                          this->snode_[0].best.loss_chg);
-      RealImpl::EvaluateSplits({node}, gmat, this->hist_, tree);
-      ASSERT_EQ(this->snode_[0].best.SplitIndex(), best_split_feature);
-      ASSERT_EQ(this->snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
+      auto& stats = RealImpl::evaluator_.Stats();
+      CPUExpandEntry node(CPUExpandEntry::kRootNid, tree.GetDepth(0),
+                          stats[0].best.loss_chg);
+      RealImpl::EvaluateSplits({&node}, gmat, this->hist_, tree);
+      ASSERT_EQ(stats[0].best.SplitIndex(), best_split_feature);
+      ASSERT_EQ(stats[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
     }
 
     void TestEvaluateSplitParallel(const RegTree &tree) {

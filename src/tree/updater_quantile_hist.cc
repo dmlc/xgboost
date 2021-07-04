@@ -296,12 +296,9 @@ void QuantileHistMaker::Builder<GradientSumT>::SetHistRowsAdder(
 template <typename GradientSumT>
 template <bool any_missing>
 void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
-    const GHistIndexMatrix &gmat,
-    const DMatrix& fmat,
-    RegTree *p_tree,
-    const std::vector<GradientPair> &gpair_h,
-    int *num_leaves, std::vector<CPUExpandEntry> *expand) {
-
+    const GHistIndexMatrix &gmat, const DMatrix &fmat, RegTree *p_tree,
+    const std::vector<GradientPair> &gpair_h, int *num_leaves,
+    std::vector<CPUExpandEntry> *expand) {
   CPUExpandEntry node(CPUExpandEntry::kRootNid, p_tree->GetDepth(0), 0.0f);
 
   nodes_for_explicit_hist_build_.clear();
@@ -315,10 +312,37 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
   BuildLocalHistograms<any_missing>(gmat, p_tree, gpair_h);
   hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
 
-  this->InitNewNode(CPUExpandEntry::kRootNid, gmat, gpair_h, fmat, *p_tree);
+  {
+    auto nid = CPUExpandEntry::kRootNid;
+    GHistRowT hist = hist_[nid];
+    GradientPairT grad_stat;
+    if (data_layout_ == DataLayout::kDenseDataZeroBased ||
+        data_layout_ == DataLayout::kDenseDataOneBased) {
+      const std::vector<uint32_t> &row_ptr = gmat.cut.Ptrs();
+      const uint32_t ibegin = row_ptr[fid_least_bins_];
+      const uint32_t iend = row_ptr[fid_least_bins_ + 1];
+      auto begin = hist.data();
+      for (uint32_t i = ibegin; i < iend; ++i) {
+        const GradientPairT et = begin[i];
+        grad_stat.Add(et.GetGrad(), et.GetHess());
+      }
+    } else {
+      const RowSetCollection::Elem e = row_set_collection_[nid];
+      for (const size_t *it = e.begin; it < e.end; ++it) {
+        grad_stat.Add(gpair_h[*it].GetGrad(), gpair_h[*it].GetHess());
+      }
+    }
+    histred_.Allreduce(&grad_stat, 1);
 
-  this->EvaluateSplits({node}, gmat, hist_, *p_tree);
-  node.loss_chg = snode_[CPUExpandEntry::kRootNid].best.loss_chg;
+    auto weight = evaluator_.InitRoot(GradStats{grad_stat});
+    p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
+    p_tree->Stat(RegTree::kRoot).base_weight = weight;
+    (*p_tree)[RegTree::kRoot].SetLeaf(param_.learning_rate * weight);
+
+    evaluator_.EvaluateSplits(hist_, gmat, *p_tree, {&node});
+  }
+
+  // node.loss_chg = snode_[CPUExpandEntry::kRootNid].best.loss_chg;
   expand->push_back(node);
   ++(*num_leaves);
 }
@@ -369,25 +393,10 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
           RegTree *p_tree,
           int *num_leaves,
           std::vector<CPUExpandEntry>* nodes_for_apply_split) {
-  auto evaluator = tree_evaluator_.GetEvaluator();
   for (auto const& entry : expand) {
-    int nid = entry.nid;
-
-    if (entry.IsValid(param_, *num_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-    } else {
+    if (!entry.IsValid(param_, *num_leaves)) {
       nodes_for_apply_split->push_back(entry);
-
-      NodeEntry& e = snode_[nid];
-      bst_float left_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.left_sum}) * param_.learning_rate;
-      bst_float right_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.right_sum}) * param_.learning_rate;
-      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
-                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
-                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
-      // - 1 parent + 2 new children
+      evaluator_.ApplyTreeSplit(entry, param_, p_tree);
       (*num_leaves)++;
     }
   }
@@ -438,10 +447,6 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildNodeStats(
 
     InitNewNode(cleft, gmat, gpair_h, fmat, *p_tree);
     InitNewNode(cright, gmat, gpair_h, fmat, *p_tree);
-    bst_uint featureid = snode_[nid].best.SplitIndex();
-    tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
-                            snode_[cleft].weight, snode_[cright].weight);
-    interaction_constraints_.Split(nid, featureid, cleft, cright);
   }
 }
 
@@ -459,6 +464,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
   std::vector<CPUExpandEntry> expand;
   InitRoot<any_missing>(gmat, *p_fmat, p_tree, gpair_h, &num_leaves, &expand);
+  CHECK((*p_tree)[0].IsLeaf());
   driver.Push(expand[0]);
 
   int depth = 0;
@@ -485,19 +491,15 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       }
 
       BuildNodeStats(gmat, *p_fmat, gpair_h, nodes_for_apply_split, p_tree);
-      EvaluateSplits(nodes_to_evaluate, gmat, hist_, *p_tree);
+      std::vector<CPUExpandEntry*> candidates;
+      for (auto& v : nodes_to_evaluate) {
+        candidates.push_back(&v);
+      }
+      EvaluateSplits(candidates, gmat, hist_, *p_tree);
 
       for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
-        const CPUExpandEntry candidate = nodes_for_apply_split[i];
-        const int nid = candidate.nid;
-        const int cleft = (*p_tree)[nid].LeftChild();
-        const int cright = (*p_tree)[nid].RightChild();
-        CPUExpandEntry left_node = nodes_to_evaluate[i*2 + 0];
-        CPUExpandEntry right_node = nodes_to_evaluate[i*2 + 1];
-
-        left_node.loss_chg = snode_[cleft].best.loss_chg;
-        right_node.loss_chg = snode_[cright].best.loss_chg;
-
+        CPUExpandEntry left_node = nodes_to_evaluate.at(i * 2 + 0);
+        CPUExpandEntry right_node = nodes_to_evaluate.at(i * 2 + 1);
         driver.Push(left_node);
         driver.Push(right_node);
       }
@@ -521,9 +523,8 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
     gpair_local_ = *gpair_ptr;
     gpair_ptr = &gpair_local_;
   }
-  tree_evaluator_ =
-      TreeEvaluator(param_, p_fmat->Info().num_col_, GenericParameter::kCpuId);
-  interaction_constraints_.Reset();
+  evaluator_ = HistEvaluator<GradientSumT, CPUExpandEntry>{
+      param_, p_fmat->Info(), omp_get_max_threads()};
   p_last_fmat_mutable_ = p_fmat;
 
   this->InitData(gmat, *p_fmat, *p_tree, gpair_ptr);
@@ -532,11 +533,6 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
     ExpandTree<true>(gmat, column_matrix, p_fmat, p_tree, *gpair_ptr);
   } else {
     ExpandTree<false>(gmat, column_matrix, p_fmat, p_tree, *gpair_ptr);
-  }
-  for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
-    p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
-    p_tree->Stat(nid).base_weight = snode_[nid].weight;
-    p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.GetHess());
   }
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
@@ -789,10 +785,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
     }
     CHECK_GT(min_nbins_per_feature, 0U);
   }
-  {
-    snode_.reserve(256);
-    snode_.clear();
-  }
 
   builder_monitor_.Stop("InitData");
 }
@@ -812,70 +804,11 @@ bool QuantileHistMaker::Builder<GradientSumT>::SplitContainsMissingValues(
 }
 
 // nodes_set - set of nodes to be processed in parallel
-template<typename GradientSumT>
+template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
-                                               const std::vector<CPUExpandEntry>& nodes_set,
-                                               const GHistIndexMatrix& gmat,
-                                               const HistCollection<GradientSumT>& hist,
-                                               const RegTree& tree) {
-  builder_monitor_.Start("EvaluateSplits");
-
-  const size_t n_nodes_in_set = nodes_set.size();
-  const size_t nthread = std::max(1, this->nthread_);
-
-  using FeatureSetType = std::shared_ptr<HostDeviceVector<bst_feature_t>>;
-  std::vector<FeatureSetType> features_sets(n_nodes_in_set);
-  best_split_tloc_.resize(nthread * n_nodes_in_set);
-
-  // Generate feature set for each tree node
-  for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
-    const int32_t nid = nodes_set[nid_in_set].nid;
-    features_sets[nid_in_set] = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
-
-    for (unsigned tid = 0; tid < nthread; ++tid) {
-      best_split_tloc_[nthread*nid_in_set + tid] = snode_[nid].best;
-    }
-  }
-
-  // Create 2D space (# of nodes to process x # of features to process)
-  // to process them in parallel
-  const size_t grain_size = std::max<size_t>(1, features_sets[0]->Size() / nthread);
-  common::BlockedSpace2d space(n_nodes_in_set, [&](size_t nid_in_set) {
-      return features_sets[nid_in_set]->Size();
-  }, grain_size);
-
-  auto evaluator = tree_evaluator_.GetEvaluator();
-  // Start parallel enumeration for all tree nodes in the set and all features
-  common::ParallelFor2d(space, this->nthread_, [&](size_t nid_in_set, common::Range1d r) {
-    const int32_t nid = nodes_set[nid_in_set].nid;
-    const auto tid = static_cast<unsigned>(omp_get_thread_num());
-    GHistRowT node_hist = hist[nid];
-
-    for (auto idx_in_feature_set = r.begin(); idx_in_feature_set < r.end(); ++idx_in_feature_set) {
-      const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx_in_feature_set];
-      if (interaction_constraints_.Query(nid, fid)) {
-        auto grad_stats = this->EnumerateSplit<+1>(
-            gmat, node_hist, snode_[nid],
-            &best_split_tloc_[nthread * nid_in_set + tid], fid, nid, evaluator);
-        if (SplitContainsMissingValues(grad_stats, snode_[nid])) {
-          this->EnumerateSplit<-1>(
-              gmat, node_hist, snode_[nid],
-              &best_split_tloc_[nthread * nid_in_set + tid], fid, nid,
-              evaluator);
-        }
-      }
-    }
-  });
-
-  // Find Best Split across threads for each node in nodes set
-  for (unsigned nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
-    const int32_t nid = nodes_set[nid_in_set].nid;
-    for (unsigned tid = 0; tid < nthread; ++tid) {
-      snode_[nid].best.Update(best_split_tloc_[nthread*nid_in_set + tid]);
-    }
-  }
-
-  builder_monitor_.Stop("EvaluateSplits");
+    std::vector<CPUExpandEntry *> nodes_set, const GHistIndexMatrix &gmat,
+    const HistCollection<GradientSumT> &hist, const RegTree &tree) {
+  evaluator_.EvaluateSplits(hist, gmat, tree, nodes_set);
 }
 
 template <typename GradientSumT>
@@ -995,51 +928,29 @@ void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
                                              const DMatrix& fmat,
                                              const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
-  {
-    snode_.resize(tree.param.num_nodes, NodeEntry(param_));
-  }
+  // {
+  //   snode_.resize(tree.param.num_nodes, NodeEntry(param_));
+  // }
+  // {
+  //   {
+  //     int parent_id = tree[nid].Parent();
+  //     if (tree[nid].IsLeftChild()) {
+  //       snode_[nid].stats = snode_[parent_id].best.left_sum;
+  //     } else {
+  //       snode_[nid].stats = snode_[parent_id].best.right_sum;
+  //     }
+  //   }
+  // }
 
-  {
-    GHistRowT hist = hist_[nid];
-    GradientPairT grad_stat;
-    if (tree[nid].IsRoot()) {
-      if (data_layout_ == DataLayout::kDenseDataZeroBased
-          || data_layout_ == DataLayout::kDenseDataOneBased) {
-        const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
-        const uint32_t ibegin = row_ptr[fid_least_bins_];
-        const uint32_t iend = row_ptr[fid_least_bins_ + 1];
-        auto begin = hist.data();
-        for (uint32_t i = ibegin; i < iend; ++i) {
-          const GradientPairT et = begin[i];
-          grad_stat.Add(et.GetGrad(), et.GetHess());
-        }
-      } else {
-        const RowSetCollection::Elem e = row_set_collection_[nid];
-        for (const size_t* it = e.begin; it < e.end; ++it) {
-          grad_stat.Add(gpair[*it].GetGrad(), gpair[*it].GetHess());
-        }
-      }
-      histred_.Allreduce(&grad_stat, 1);
-      snode_[nid].stats = tree::GradStats(grad_stat.GetGrad(), grad_stat.GetHess());
-    } else {
-      int parent_id = tree[nid].Parent();
-      if (tree[nid].IsLeftChild()) {
-        snode_[nid].stats = snode_[parent_id].best.left_sum;
-      } else {
-        snode_[nid].stats = snode_[parent_id].best.right_sum;
-      }
-    }
-  }
-
-  // calculating the weights
-  {
-    auto evaluator = tree_evaluator_.GetEvaluator();
-    bst_uint parentid = tree[nid].Parent();
-    snode_[nid].weight = static_cast<float>(
-        evaluator.CalcWeight(parentid, param_, GradStats{snode_[nid].stats}));
-    snode_[nid].root_gain = static_cast<float>(
-        evaluator.CalcGain(parentid, param_, GradStats{snode_[nid].stats}));
-  }
+  // // calculating the weights
+  // {
+  //   auto evaluator = tree_evaluator_.GetEvaluator();
+  //   bst_uint parentid = tree[nid].Parent();
+  //   snode_[nid].weight = static_cast<float>(
+  //       evaluator.CalcWeight(parentid, param_, GradStats{snode_[nid].stats}));
+  //   snode_[nid].root_gain = static_cast<float>(
+  //       evaluator.CalcGain(parentid, param_, GradStats{snode_[nid].stats}));
+  // }
   builder_monitor_.Stop("InitNewNode");
 }
 
