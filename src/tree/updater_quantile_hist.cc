@@ -393,7 +393,7 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
           int *num_leaves,
           std::vector<CPUExpandEntry>* nodes_for_apply_split) {
   for (auto const& entry : expand) {
-    if (!entry.IsValid(param_, *num_leaves)) {
+    if (entry.IsValid(param_, *num_leaves)) {
       nodes_for_apply_split->push_back(entry);
       evaluator_.ApplyTreeSplit(entry, p_tree);
       (*num_leaves)++;

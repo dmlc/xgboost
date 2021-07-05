@@ -132,10 +132,10 @@ struct CPUExpandEntry {
   }
 
   bool IsValid(TrainParam const &param, int32_t num_leaves) const {
-    bool ret = split.loss_chg <= kRtEps ||
-               (param.max_depth > 0 && this->depth == param.max_depth) ||
-               (param.max_leaves > 0 && num_leaves == param.max_leaves);
-    return ret;
+    bool invalid = split.loss_chg <= kRtEps ||
+                   (param.max_depth > 0 && this->depth == param.max_depth) ||
+                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
+    return !invalid;
   }
 
   bst_float GetLossChange() const {
