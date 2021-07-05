@@ -228,15 +228,11 @@ class QuantileHistMaker: public TreeUpdater {
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
     explicit Builder(const size_t n_trees, const TrainParam &param,
-                     std::unique_ptr<TreeUpdater> pruner,
-                     FeatureInteractionConstraintHost int_constraints_,
-                     DMatrix const *fmat)
-        : n_trees_(n_trees), param_(param),
-          pruner_(std::move(pruner)),
+                     std::unique_ptr<TreeUpdater> pruner, DMatrix const *fmat)
+        : n_trees_(n_trees), param_(param), pruner_(std::move(pruner)),
           evaluator_{HistEvaluator<GradientSumT, CPUExpandEntry>{
-              param_, fmat->Info(), omp_get_max_threads()}},
-          p_last_tree_(nullptr),
-          p_last_fmat_(fmat) {
+              param, fmat->Info(), omp_get_max_threads()}},
+          p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
@@ -396,7 +392,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder<double>> double_builder_;
 
   std::unique_ptr<TreeUpdater> pruner_;
-  FeatureInteractionConstraintHost int_constraint_;
 };
 
 template <typename GradientSumT>

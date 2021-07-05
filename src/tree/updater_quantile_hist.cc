@@ -51,11 +51,8 @@ template<typename GradientSumT>
 void QuantileHistMaker::SetBuilder(const size_t n_trees,
                                    std::unique_ptr<Builder<GradientSumT>>* builder,
                                    DMatrix *dmat) {
-  builder->reset(new Builder<GradientSumT>(
-                n_trees,
-                param_,
-                std::move(pruner_),
-                int_constraint_, dmat));
+  builder->reset(
+      new Builder<GradientSumT>(n_trees, param_, std::move(pruner_), dmat));
   if (rabit::IsDistributed()) {
     (*builder)->SetHistSynchronizer(new DistributedHistSynchronizer<GradientSumT>());
     (*builder)->SetHistRowsAdder(new DistributedHistRowsAdder<GradientSumT>());
@@ -93,7 +90,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
-  int_constraint_.Configure(param_, dmat->Info().num_col_);
+
   // build tree
   const size_t n_trees = trees.size();
   if (hist_maker_param_.single_precision_histogram) {

@@ -252,7 +252,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   }
 
   HistEvaluator() = default;
-  explicit HistEvaluator(TrainParam param, MetaInfo const &info,
+  explicit HistEvaluator(TrainParam const& param, MetaInfo const &info,
                          int32_t n_threads)
       : param_{std::move(param)}, tree_evaluator_{param,
                                                   static_cast<bst_feature_t>(

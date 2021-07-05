@@ -26,12 +26,9 @@ class QuantileHistMock : public QuantileHistMaker {
     using RealImpl = QuantileHistMaker::Builder<GradientSumT>;
     using GHistRowT = typename RealImpl::GHistRowT;
 
-    BuilderMock(const TrainParam& param,
-                std::unique_ptr<TreeUpdater> pruner,
-                FeatureInteractionConstraintHost int_constraint,
-                DMatrix const* fmat)
-        : RealImpl(1, param, std::move(pruner),
-          std::move(int_constraint), fmat) {}
+    BuilderMock(const TrainParam &param, std::unique_ptr<TreeUpdater> pruner,
+                DMatrix const *fmat)
+        : RealImpl(1, param, std::move(pruner), fmat) {}
 
    public:
     void TestInitData(const GHistIndexMatrix& gmat,
@@ -426,7 +423,6 @@ class QuantileHistMock : public QuantileHistMaker {
           new BuilderMock<float>(
               param_,
               std::move(pruner_),
-              int_constraint_,
               dmat_.get()));
       if (batch) {
         float_builder_->SetHistSynchronizer(new BatchHistSynchronizer<float>());
@@ -440,7 +436,6 @@ class QuantileHistMock : public QuantileHistMaker {
           new BuilderMock<double>(
               param_,
               std::move(pruner_),
-              int_constraint_,
               dmat_.get()));
       if (batch) {
         double_builder_->SetHistSynchronizer(new BatchHistSynchronizer<double>());
