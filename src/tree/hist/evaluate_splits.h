@@ -135,12 +135,13 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
  public:
   void EvaluateSplits(const common::HistCollection<GradientSumT> &hist,
                       GHistIndexMatrix const &gidx, const RegTree &tree,
-                      std::vector<ExpandEntry *> entries) {
+                      std::vector<ExpandEntry>* p_entries) {
+    auto& entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(
         entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-      auto nidx = entries[nidx_in_set]->nid;
+      auto nidx = entries[nidx_in_set].nid;
       features[nidx_in_set] =
           column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
     }
@@ -154,7 +155,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     std::vector<ExpandEntry> tloc_candidates(omp_get_max_threads() * entries.size());
     for (size_t i = 0; i < entries.size(); ++i) {
       for (decltype(n_threads_) j = 0; j < n_threads_; ++j) {
-        tloc_candidates[i * n_threads_ + j] = *entries[i];
+        tloc_candidates[i * n_threads_ + j] = entries[i];
       }
     }
     auto evaluator = tree_evaluator_.GetEvaluator();
@@ -182,7 +183,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     for (unsigned nidx_in_set = 0; nidx_in_set < entries.size();
          ++nidx_in_set) {
       for (auto tidx = 0; tidx < n_threads_; ++tidx) {
-        entries[nidx_in_set]->split.Update(
+        entries[nidx_in_set].split.Update(
             tloc_candidates[n_threads_ * nidx_in_set + tidx].split);
       }
     }

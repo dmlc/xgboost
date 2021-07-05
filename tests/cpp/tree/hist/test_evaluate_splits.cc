@@ -58,7 +58,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   entries.front().depth = 0;
 
   evaluator.InitRoot(GradStats{total_gpair});
-  evaluator.EvaluateSplits(hist, gmat, tree, {&entries.front()});
+  evaluator.EvaluateSplits(hist, gmat, tree, &entries);
 
   auto best_loss_chg =
       evaluator.Evaluator().CalcSplitGain(
