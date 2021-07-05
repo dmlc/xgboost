@@ -21,14 +21,12 @@ namespace xgboost {
 namespace tree {
 
 template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
- public:
+ private:
   struct NodeEntry {
     /*! \brief statics for node entry */
     GradStats stats;
     /*! \brief loss of this node, without split */
     bst_float root_gain{0.0f};
-    /*! \brief weight calculated related to current data */
-    float weight{0.0f};
   };
 
  private:
