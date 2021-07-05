@@ -146,7 +146,15 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       auto nidx = entries[nidx_in_set]->nid;
-      features[nidx_in_set] = column_sampler_.GetFeatureSet(tree.GetDepth(nidx));
+      std::cout << "nidx: " << nidx << std::endl;
+      features[nidx_in_set] =
+          column_sampler_.GetFeatureSet(tree.GetDepth(nidx));
+      for (auto v : features[nidx_in_set]->HostVector()) {
+        CHECK_NE(v, 0) << " nidx: " << nidx << ", in set:" << nidx_in_set
+                       << std::endl;
+        std::cout << v << ", ";
+      }
+      std::cout << std::endl;
     }
     common::BlockedSpace2d space(entries.size(), [&](size_t nidx_in_set) {
       return features[nidx_in_set]->Size();
