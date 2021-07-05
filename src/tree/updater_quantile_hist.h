@@ -323,7 +323,6 @@ class QuantileHistMaker: public TreeUpdater {
     const TrainParam& param_;
     // number of omp thread used during training
     int nthread_;
-    // common::ColumnSampler column_sampler_;
     // the internal row sets
     RowSetCollection row_set_collection_;
     // tree rows that were not used for current training

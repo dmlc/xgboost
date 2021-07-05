@@ -53,7 +53,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     }
   }
 
-  // Enumerate the split values of specific feature
+  // Enumerate/Scan the split values of specific feature
   // Returns the sum of gradients corresponding to the data points that contains
   // a non-missing value for the particular feature fid.
   template <int d_step>
@@ -136,26 +136,17 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   void EvaluateSplits(const common::HistCollection<GradientSumT> &hist,
                       GHistIndexMatrix const &gidx, const RegTree &tree,
                       std::vector<ExpandEntry *> entries) {
-    const size_t grain_size = std::max<size_t>(
-        1,
-        column_sampler_.GetFeatureSet(tree.GetDepth(entries[0]->nid))->Size() /
-            omp_get_max_threads());
-
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(
         entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       auto nidx = entries[nidx_in_set]->nid;
-      std::cout << "nidx: " << nidx << std::endl;
       features[nidx_in_set] =
           column_sampler_.GetFeatureSet(tree.GetDepth(nidx));
-      for (auto v : features[nidx_in_set]->HostVector()) {
-        CHECK_NE(v, 0) << " nidx: " << nidx << ", in set:" << nidx_in_set
-                       << std::endl;
-        std::cout << v << ", ";
-      }
-      std::cout << std::endl;
     }
+    CHECK(!features.empty());
+    const size_t grain_size =
+        std::max<size_t>(1, features.front()->Size() / n_threads_);
     common::BlockedSpace2d space(entries.size(), [&](size_t nidx_in_set) {
       return features[nidx_in_set]->Size();
     }, grain_size);
@@ -196,7 +187,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       }
     }
   }
-
+  // Add splits to tree, handles all statistic
   void ApplyTreeSplit(ExpandEntry candidate, RegTree *p_tree) {
     auto evaluator = tree_evaluator_.GetEvaluator();
     RegTree &tree = *p_tree;
