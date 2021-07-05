@@ -10,7 +10,10 @@ namespace tree {
 
 template <typename GradientSumT> void TestEvaluateSplits() {
   int static constexpr kRows = 8, kCols = 16;
-  int32_t n_threads = 4;
+  auto orig = omp_get_max_threads();
+  int32_t n_threads = std::min(omp_get_max_threads(), 4);
+  omp_set_num_threads(n_threads);
+
   TrainParam param;
   param.UpdateAllowUnknown(Args{{}});
   param.min_child_weight = 0;
@@ -76,6 +79,8 @@ template <typename GradientSumT> void TestEvaluateSplits() {
       right.SetSubstract(GradStats{total_gpair}, left);
     }
   }
+
+  omp_set_num_threads(orig);
 }
 
 TEST(HistEvaluator, Evaluate) {
