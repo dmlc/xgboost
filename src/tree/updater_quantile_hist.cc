@@ -72,6 +72,7 @@ void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<Gradient
     builder->Update(gmat, column_matrix_, gpair, dmat, tree);
   }
 }
+
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
@@ -331,12 +332,13 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     }
     histred_.Allreduce(&grad_stat, 1);
 
-    auto weight = evaluator_.InitRoot(GradStats{grad_stat});
+    auto weight = evaluator_->InitRoot(GradStats{grad_stat});
     p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
     p_tree->Stat(RegTree::kRoot).base_weight = weight;
     (*p_tree)[RegTree::kRoot].SetLeaf(param_.learning_rate * weight);
 
-    evaluator_.EvaluateSplits(hist_, gmat, *p_tree, {&node});
+    CHECK(evaluator_);
+    evaluator_->EvaluateSplits(hist_, gmat, *p_tree, {&node});
   }
 
   expand->push_back(node);
@@ -392,7 +394,7 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
   for (auto const& entry : expand) {
     if (entry.IsValid(param_, *num_leaves)) {
       nodes_for_apply_split->push_back(entry);
-      evaluator_.ApplyTreeSplit(entry, p_tree);
+      evaluator_->ApplyTreeSplit(entry, p_tree);
       (*num_leaves)++;
     }
   }
@@ -473,7 +475,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       for (auto& v : nodes_to_evaluate) {
         candidates.push_back(&v);
       }
-      evaluator_.EvaluateSplits(hist_, gmat, *p_tree, candidates);
+      evaluator_->EvaluateSplits(hist_, gmat, *p_tree, candidates);
 
       for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
         CPUExpandEntry left_node = nodes_to_evaluate.at(i * 2 + 0);
@@ -501,8 +503,6 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
     gpair_local_ = *gpair_ptr;
     gpair_ptr = &gpair_local_;
   }
-  evaluator_ = HistEvaluator<GradientSumT, CPUExpandEntry>{
-      param_, p_fmat->Info(), omp_get_max_threads()};
   p_last_fmat_mutable_ = p_fmat;
 
   this->InitData(gmat, *p_fmat, *p_tree, gpair_ptr);
@@ -735,14 +735,13 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
   // store a pointer to the tree
   p_last_tree_ = &tree;
   if (data_layout_ == DataLayout::kDenseDataOneBased) {
-    column_sampler_.Init(info.num_col_, info.feature_weigths.ConstHostVector(),
-                         param_.colsample_bynode, param_.colsample_bylevel,
-                         param_.colsample_bytree, true);
+    evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
+        param_, info, this->nthread_, true});
   } else {
-    column_sampler_.Init(info.num_col_, info.feature_weigths.ConstHostVector(),
-                         param_.colsample_bynode, param_.colsample_bylevel,
-                         param_.colsample_bytree, false);
+    evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
+        param_, info, this->nthread_, false});
   }
+
   if (data_layout_ == DataLayout::kDenseDataZeroBased
       || data_layout_ == DataLayout::kDenseDataOneBased) {
     /* specialized code for dense data:

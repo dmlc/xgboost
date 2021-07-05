@@ -230,8 +230,6 @@ class QuantileHistMaker: public TreeUpdater {
     explicit Builder(const size_t n_trees, const TrainParam &param,
                      std::unique_ptr<TreeUpdater> pruner, DMatrix const *fmat)
         : n_trees_(n_trees), param_(param), pruner_(std::move(pruner)),
-          evaluator_{HistEvaluator<GradientSumT, CPUExpandEntry>{
-              param, fmat->Info(), omp_get_max_threads()}},
           p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
@@ -325,7 +323,7 @@ class QuantileHistMaker: public TreeUpdater {
     const TrainParam& param_;
     // number of omp thread used during training
     int nthread_;
-    common::ColumnSampler column_sampler_;
+    // common::ColumnSampler column_sampler_;
     // the internal row sets
     RowSetCollection row_set_collection_;
     // tree rows that were not used for current training
@@ -346,7 +344,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     GHistBuilder<GradientSumT> hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
-    HistEvaluator<GradientSumT, CPUExpandEntry> evaluator_;
+    std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
 
     static constexpr size_t kPartitionBlockSize = 2048;
     common::PartitionBuilder<kPartitionBlockSize> partition_builder_;

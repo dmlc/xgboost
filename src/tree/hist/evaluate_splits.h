@@ -35,7 +35,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   TrainParam param_;
   common::ColumnSampler column_sampler_;
   TreeEvaluator tree_evaluator_;
-  int32_t n_threads_;
+  int32_t n_threads_ {0};
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
 
@@ -259,18 +259,19 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     return weight;
   }
 
+ public:
   HistEvaluator() = default;
-  explicit HistEvaluator(TrainParam const& param, MetaInfo const &info,
-                         int32_t n_threads)
-      : param_{std::move(param)}, tree_evaluator_{param,
-                                                  static_cast<bst_feature_t>(
-                                                      info.num_col_),
-                                                  GenericParameter::kCpuId},
+  explicit HistEvaluator(TrainParam const &param, MetaInfo const &info,
+                         int32_t n_threads, bool skip_0_index = false)
+      : param_{param}, tree_evaluator_{param,
+                                       static_cast<bst_feature_t>(
+                                           info.num_col_),
+                                       GenericParameter::kCpuId},
         n_threads_{n_threads} {
     interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_.Init(info.num_col_, info.feature_weigths.HostVector(),
                          param_.colsample_bynode, param_.colsample_bylevel,
-                         param_.colsample_bytree, false);
+                         param_.colsample_bytree, skip_0_index);
   }
 };
 }      // namespace tree
