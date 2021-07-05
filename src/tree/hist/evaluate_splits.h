@@ -1,5 +1,15 @@
+/*!
+ * Copyright 2021 by XGBoost Contributors
+ */
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
+
+#include <algorithm>
+#include <memory>
+#include <limits>
+#include <utility>
+#include <vector>
+
 #include "../param.h"
 #include "../constraints.h"
 #include "../split_evaluator.h"
@@ -12,14 +22,14 @@ namespace tree {
 
 template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
  public:
-   struct NodeEntry {
-     /*! \brief statics for node entry */
-     GradStats stats;
-     /*! \brief loss of this node, without split */
-     bst_float root_gain{0.0f};
-     /*! \brief weight calculated related to current data */
-     float weight{0.0f};
-   };
+  struct NodeEntry {
+    /*! \brief statics for node entry */
+    GradStats stats;
+    /*! \brief loss of this node, without split */
+    bst_float root_gain{0.0f};
+    /*! \brief weight calculated related to current data */
+    float weight{0.0f};
+  };
 
  private:
   TrainParam param_;
@@ -41,7 +51,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     } else {
       return true;
     }
-  };
+  }
 
   // Enumerate the split values of specific feature
   // Returns the sum of gradients corresponding to the data points that contains
