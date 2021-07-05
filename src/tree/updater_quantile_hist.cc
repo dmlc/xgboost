@@ -475,6 +475,12 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       for (auto& v : nodes_to_evaluate) {
         candidates.push_back(&v);
       }
+
+      std::cout << "constraints: ";
+      for (auto v : evaluator_->Evaluator().constraints) {
+        std::cout << v << ", ";
+      }
+      std::cout << std::endl;
       evaluator_->EvaluateSplits(hist_, gmat, *p_tree, candidates);
 
       for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {

@@ -201,6 +201,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         evaluator.CalcWeight(candidate.nid, param_,
                              GradStats{candidate.split.left_sum}) *
         param_.learning_rate;
+    std::cout << "eta:" << param_.learning_rate << ", "
+              << "nidx:" << candidate.nid << ", "
+              << "left:" << candidate.split.left_sum << std::endl;
     auto right_weight =
         evaluator.CalcWeight(candidate.nid, param_,
                              GradStats{candidate.split.right_sum}) *
