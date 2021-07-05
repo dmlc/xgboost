@@ -736,10 +736,10 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
   p_last_tree_ = &tree;
   if (data_layout_ == DataLayout::kDenseDataOneBased) {
     evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
-        param_, info, this->nthread_, true});
+        param_, info, this->nthread_, column_sampler_, true});
   } else {
     evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
-        param_, info, this->nthread_, false});
+        param_, info, this->nthread_, column_sampler_, false});
   }
 
   if (data_layout_ == DataLayout::kDenseDataZeroBased

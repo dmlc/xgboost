@@ -323,6 +323,9 @@ class QuantileHistMaker: public TreeUpdater {
     const TrainParam& param_;
     // number of omp thread used during training
     int nthread_;
+    std::shared_ptr<common::ColumnSampler> column_sampler_{
+        std::make_shared<common::ColumnSampler>()};
+
     std::vector<size_t> unused_rows_;
     // the internal row sets
     RowSetCollection row_set_collection_;

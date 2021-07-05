@@ -13,6 +13,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   auto orig = omp_get_max_threads();
   int32_t n_threads = std::min(omp_get_max_threads(), 4);
   omp_set_num_threads(n_threads);
+  auto sampler = std::make_shared<common::ColumnSampler>();
 
   TrainParam param;
   param.UpdateAllowUnknown(Args{{}});
@@ -22,7 +23,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
 
   auto evaluator =
-      HistEvaluator<GradientSumT, CPUExpandEntry>{param, dmat->Info(), n_threads};
+      HistEvaluator<GradientSumT, CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
   common::HistCollection<GradientSumT> hist;
   std::vector<GradientPair> row_gpairs = {
       {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},  {2.27f, 0.28f},
@@ -94,8 +95,9 @@ TEST(HistEvaluator, Apply) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{{}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
+  auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator_ =
-      HistEvaluator<float, CPUExpandEntry>{param, dmat->Info(), 4};
+      HistEvaluator<float, CPUExpandEntry>{param, dmat->Info(), 4, sampler};
 
   CPUExpandEntry entry{0, 0, 10.0f};
   entry.split.left_sum = GradStats{0.4, 0.6f};
