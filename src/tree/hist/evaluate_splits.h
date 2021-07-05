@@ -197,21 +197,15 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     auto base_weight =
         evaluator.CalcWeight(candidate.nid, param_, GradStats{parent_sum});
 
-    auto left_weight =
-        evaluator.CalcWeight(candidate.nid, param_,
-                             GradStats{candidate.split.left_sum}) *
-        param_.learning_rate;
-    std::cout << "eta:" << param_.learning_rate << ", "
-              << "nidx:" << candidate.nid << ", "
-              << "left:" << candidate.split.left_sum << std::endl;
-    auto right_weight =
-        evaluator.CalcWeight(candidate.nid, param_,
-                             GradStats{candidate.split.right_sum}) *
-        param_.learning_rate;
+    auto left_weight = evaluator.CalcWeight(
+        candidate.nid, param_, GradStats{candidate.split.left_sum});
+    auto right_weight = evaluator.CalcWeight(
+        candidate.nid, param_, GradStats{candidate.split.right_sum});
 
     tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(),
                     candidate.split.split_value, candidate.split.DefaultLeft(),
-                    base_weight, left_weight, right_weight,
+                    base_weight, left_weight * param_.learning_rate,
+                    right_weight * param_.learning_rate,
                     candidate.split.loss_chg, parent_sum.GetHess(),
                     candidate.split.left_sum.GetHess(),
                     candidate.split.right_sum.GetHess());
