@@ -323,15 +323,9 @@ class QuantileHistMaker: public TreeUpdater {
     const TrainParam& param_;
     // number of omp thread used during training
     int nthread_;
+    std::vector<size_t> unused_rows_;
     // the internal row sets
     RowSetCollection row_set_collection_;
-    // tree rows that were not used for current training
-    std::vector<size_t> unused_rows_;
-    // feature vectors for subsampled prediction
-    std::vector<RegTree::FVec> feat_vecs_;
-    // the temp space for split
-    std::vector<RowSetCollection::Split> row_split_tloc_;
-    std::vector<SplitEntry> best_split_tloc_;
     std::vector<GradientPair> gpair_local_;
     /*! \brief culmulative histogram of gradients. */
     HistCollection<GradientSumT> hist_;
@@ -352,10 +346,6 @@ class QuantileHistMaker: public TreeUpdater {
     const RegTree* p_last_tree_;
     DMatrix const* const p_last_fmat_;
     DMatrix* p_last_fmat_mutable_;
-
-    using ExpandQueue =
-       std::priority_queue<CPUExpandEntry, std::vector<CPUExpandEntry>,
-                           std::function<bool(CPUExpandEntry, CPUExpandEntry)>>;
 
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
     // provides the evidence for subtraction
