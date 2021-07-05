@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
-#include "../../../src/tree/hist/evaluate_splits.h"
-#include "../../../src/tree/updater_quantile_hist.h"
-#include "../../../src/common/hist_util.h"
-#include "../helpers.h"
+#include "../../../../src/tree/hist/evaluate_splits.h"
+#include "../../../../src/tree/updater_quantile_hist.h"
+#include "../../../../src/common/hist_util.h"
+#include "../../helpers.h"
 
 namespace xgboost {
 namespace tree {
