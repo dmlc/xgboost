@@ -9,27 +9,25 @@
 
 namespace xgboost {
 namespace tree {
-struct NodeEntry {
-  /*! \brief statics for node entry */
-  GradStats stats;
-  /*! \brief loss of this node, without split */
-  bst_float root_gain {0.0f};
-  /*! \brief weight calculated related to current data */
-  float weight {0.0f};
-  /*! \brief current best solution */
-  SplitEntry best;
-  // constructor
-  NodeEntry() = default;
-};
 
 template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
+ public:
+   struct NodeEntry {
+     /*! \brief statics for node entry */
+     GradStats stats;
+     /*! \brief loss of this node, without split */
+     bst_float root_gain{0.0f};
+     /*! \brief weight calculated related to current data */
+     float weight{0.0f};
+   };
+
+ private:
   TrainParam param_;
   common::ColumnSampler column_sampler_;
   TreeEvaluator tree_evaluator_;
+  int32_t n_threads_;
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
-
-  using GHistRowT = common::GHistRow<GradientSumT>;
 
   // if sum of statistics for non-missing values in the node
   // is equal to sum of statistics for all values:
@@ -50,8 +48,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   // a non-missing value for the particular feature fid.
   template <int d_step>
   GradStats EnumerateSplit(
-      const GHistIndexMatrix &gmat, const GHistRowT &hist,
-      const NodeEntry &snode, SplitEntry *p_best, bst_feature_t fidx, bst_node_t nidx,
+      const GHistIndexMatrix &gmat, const common::GHistRow<GradientSumT> &hist,
+      const NodeEntry &snode, SplitEntry *p_best, bst_feature_t fidx,
+      bst_node_t nidx,
       TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
 
@@ -143,18 +142,17 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       return features[nidx_in_set]->Size();
     }, grain_size);
 
-    auto num_threads = omp_get_max_threads();
     std::vector<ExpandEntry> tloc_candidates(omp_get_max_threads() * entries.size());
     for (size_t i = 0; i < entries.size(); ++i) {
-      for (decltype(num_threads) j = 0; j < num_threads; ++j) {
-        tloc_candidates[i * num_threads + j] = *entries[i];
+      for (decltype(n_threads_) j = 0; j < n_threads_; ++j) {
+        tloc_candidates[i * n_threads_ + j] = *entries[i];
       }
     }
     auto evaluator = tree_evaluator_.GetEvaluator();
 
-    common::ParallelFor2d(space, num_threads, [&](size_t nidx_in_set, common::Range1d r) {
+    common::ParallelFor2d(space, n_threads_, [&](size_t nidx_in_set, common::Range1d r) {
       auto tidx = omp_get_thread_num();
-      auto entry = &tloc_candidates[num_threads * nidx_in_set + tidx];
+      auto entry = &tloc_candidates[n_threads_ * nidx_in_set + tidx];
       auto best = &entry->split;
       auto nidx = entry->nid;
       auto histogram = hist[nidx];
@@ -174,9 +172,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
 
     for (unsigned nidx_in_set = 0; nidx_in_set < entries.size();
          ++nidx_in_set) {
-      for (auto tidx = 0; tidx < num_threads; ++tidx) {
+      for (auto tidx = 0; tidx < n_threads_; ++tidx) {
         entries[nidx_in_set]->split.Update(
-            tloc_candidates[num_threads * nidx_in_set + tidx].split);
+            tloc_candidates[n_threads_ * nidx_in_set + tidx].split);
       }
     }
   }
@@ -228,7 +226,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
                                    right_child);
   }
 
-  auto GetEvaluator() const { return tree_evaluator_.GetEvaluator(); }
+  auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
   auto const& Stats() const { return snode_; }
 
   float InitRoot(GradStats const& root_sum) {
@@ -244,11 +242,13 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   }
 
   HistEvaluator() = default;
-  explicit HistEvaluator(TrainParam param, MetaInfo const &info, int32_t n_threads)
-      : param_{std::move(param)}, tree_evaluator_{
-                                      param,
-                                      static_cast<bst_feature_t>(info.num_col_),
-                                      GenericParameter::kCpuId} {
+  explicit HistEvaluator(TrainParam param, MetaInfo const &info,
+                         int32_t n_threads)
+      : param_{std::move(param)}, tree_evaluator_{param,
+                                                  static_cast<bst_feature_t>(
+                                                      info.num_col_),
+                                                  GenericParameter::kCpuId},
+        n_threads_{n_threads} {
     interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_.Init(info.num_col_, info.feature_weigths.HostVector(),
                          param_.colsample_bynode, param_.colsample_bylevel,
