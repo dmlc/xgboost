@@ -238,6 +238,10 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
+int32_t GenericParameter::Threads() const {
+  return common::OmpGetNumThreads(nthread);
+}
+
 using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
