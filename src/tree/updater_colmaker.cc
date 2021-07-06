@@ -105,8 +105,10 @@ class ColMaker: public TreeUpdater {
     interaction_constraints_.Configure(param_, dmat->Info().num_row_);
     // build tree
     for (auto tree : trees) {
-      Builder builder(param_, colmaker_param_, interaction_constraints_,
-                      column_densities_, this->tparam_->Threads());
+      Builder builder(
+        param_,
+        colmaker_param_,
+        interaction_constraints_, column_densities_);
       builder.Update(gpair->ConstHostVector(), dmat, tree);
     }
     param_.learning_rate = lr;
@@ -151,10 +153,9 @@ class ColMaker: public TreeUpdater {
     explicit Builder(const TrainParam& param,
                      const ColMakerTrainParam& colmaker_train_param,
                      FeatureInteractionConstraintHost _interaction_constraints,
-                     const std::vector<float> &column_densities,
-                     int32_t n_threads)
+                     const std::vector<float> &column_densities)
         : param_(param), colmaker_train_param_{colmaker_train_param},
-          nthread_(n_threads),
+          nthread_(omp_get_max_threads()),
           tree_evaluator_(param_, column_densities.size(), GenericParameter::kCpuId),
           interaction_constraints_{std::move(_interaction_constraints)},
           column_densities_(column_densities) {}
@@ -524,7 +525,7 @@ class ColMaker: public TreeUpdater {
       // so that they are ignored in future statistics collection
       const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
-      common::ParallelFor(ndata, nthread_, [&](bst_omp_uint ridx) {
+      common::ParallelFor(ndata, [&](bst_omp_uint ridx) {
         CHECK_LT(ridx, position_.size())
             << "ridx exceed bound " << "ridx="<<  ridx << " pos=" << position_.size();
         const int nid = this->DecodePosition(ridx);
@@ -570,7 +571,7 @@ class ColMaker: public TreeUpdater {
         for (auto fid : fsplits) {
           auto col = page[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.size());
-          common::ParallelFor(ndata, this->nthread_, [&](bst_omp_uint j) {
+          common::ParallelFor(ndata, [&](bst_omp_uint j) {
             const bst_uint ridx = col[j].index;
             const int nid = this->DecodePosition(ridx);
             const bst_float fvalue = col[j].fvalue;
