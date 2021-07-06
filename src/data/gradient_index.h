@@ -11,6 +11,10 @@
 #include "../common/threading_utils.h"
 
 namespace xgboost {
+namespace common {
+class ColumnMatrix;
+}  // namespace common
+
 /*!
  * \brief preprocessed global index matrix, in CSR format
  *
@@ -33,8 +37,6 @@ class GHistIndexMatrix {
   GHistIndexMatrix(DMatrix* x, int32_t max_bin) {
     this->Init(x, max_bin);
   }
-  // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins);
 
   // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>
@@ -78,7 +80,15 @@ class GHistIndexMatrix {
     return isDense_;
   }
 
+  common::ColumnMatrix const& Columns(double sparse_threshold);
+
  private:
+  // Create a global histogram matrix, given cut
+  void Init(DMatrix* p_fmat, int max_num_bins);
+  // shared ptr for incomplete type.
+  std::shared_ptr<common::ColumnMatrix> columns_;
+  double sparse_threshold_ {0};
+
   std::vector<size_t> hit_count_tloc_;
   bool isDense_;
 };

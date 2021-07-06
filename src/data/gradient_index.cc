@@ -6,6 +6,7 @@
 #include <limits>
 #include "gradient_index.h"
 #include "../common/hist_util.h"
+#include "../common/column_matrix.h"
 
 namespace xgboost {
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
@@ -161,5 +162,14 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index,
     index.SetBinTypeSize(common::kUint32BinsTypeSize);
     index.Resize((sizeof(uint32_t)) * n_index);
   }
+}
+
+common::ColumnMatrix const& GHistIndexMatrix::Columns(double sparse_threshold) {
+  if (!this->columns_ || sparse_threshold_ != sparse_threshold) {
+    this->columns_.reset(new common::ColumnMatrix{});
+    this->columns_->Init(*this, sparse_threshold);
+    sparse_threshold_ = sparse_threshold;
+  }
+  return *columns_;
 }
 }  // namespace xgboost
