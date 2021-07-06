@@ -62,7 +62,6 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak, undefined and thread.")
 ## Plugins
-option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
@@ -92,6 +91,9 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (PLUGIN_LZ4)
+  message(SEND_ERROR  "The option 'PLUGIN_LZ4' is removed from XGBoost.")
+endif (PLUGIN_LZ4)
 if (PLUGIN_RMM AND NOT (USE_CUDA))
   message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
 endif (PLUGIN_RMM AND NOT (USE_CUDA))

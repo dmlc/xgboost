@@ -21,12 +21,12 @@ jobs:
         submodules: 'true'
     - name: Install system packages
       run: |
-        brew install lz4 ninja libomp
+        brew install ninja libomp
     - name: Build gtest binary
       run: |
         mkdir build
         cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
         ninja -v
     - name: Run gtest binary
       run: |
