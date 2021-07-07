@@ -98,6 +98,10 @@ class ColMaker: public TreeUpdater {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
                     "support distributed training.";
     }
+    if (!dmat->SingleColBlock()) {
+      LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
+                    "support external memory training.";
+    }
     this->LazyGetColumnDensity(dmat);
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
