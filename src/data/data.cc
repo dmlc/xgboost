@@ -835,7 +835,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
   auto page = this->GetView();
-  common::ParallelFor(batch_size, nthread, [&](long i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
@@ -843,7 +843,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
     }
   });
   builder.InitStorage();
-  common::ParallelFor(batch_size, nthread, [&](long i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
