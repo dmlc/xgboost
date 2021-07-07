@@ -11,6 +11,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
