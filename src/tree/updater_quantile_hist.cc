@@ -338,7 +338,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     (*p_tree)[RegTree::kRoot].SetLeaf(param_.learning_rate * weight);
 
     std::vector<CPUExpandEntry> entries{node};
+    builder_monitor_.Start("EvaluateSplits");
     evaluator_->EvaluateSplits(hist_, gmat, *p_tree, &entries);
+    builder_monitor_.Stop("EvaluateSplits");
     node = entries.front();
   }
 
@@ -472,7 +474,9 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
         hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
       }
 
+      builder_monitor_.Start("EvaluateSplits");
       evaluator_->EvaluateSplits(hist_, gmat, *p_tree, &nodes_to_evaluate);
+      builder_monitor_.Stop("EvaluateSplits");
 
       for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
         CPUExpandEntry left_node = nodes_to_evaluate.at(i * 2 + 0);
