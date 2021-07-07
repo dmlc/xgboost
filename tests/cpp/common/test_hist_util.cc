@@ -253,7 +253,8 @@ TEST(HistUtil, QuantileWithHessian) {
       HistogramCuts cuts_wh = SketchOnDMatrix(dmat.get(), num_bins);
       ValidateCuts(cuts_wh, dmat.get(), num_bins);
 
-      for (size_t i = 0; i < cuts.Values().size(); ++i) {
+      ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
+      for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
         ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
       }
 
