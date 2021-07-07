@@ -298,7 +298,7 @@ void HostSketchContainer::AllReduce(
                          &global_sketches);
 
   std::vector<WQSketch::SummaryContainer> final_sketches(n_columns);
-  ParallelFor(omp_ulong(n_columns), n_threads_, [&](omp_ulong fidx) {
+  ParallelFor(n_columns, n_threads_, [&](auto fidx) {
     int32_t intermediate_num_cuts = num_cuts[fidx];
     auto nbytes =
         WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
