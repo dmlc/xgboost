@@ -7,7 +7,7 @@
 
 namespace xgboost {
 namespace data {
-TEST(ProxyDMatrix, Basic) {
+TEST(ProxyDMatrix, DeviceData) {
   constexpr size_t kRows{100}, kCols{100};
   HostDeviceVector<float> storage;
   auto data = RandomDataGenerator(kRows, kCols, 0.5)
