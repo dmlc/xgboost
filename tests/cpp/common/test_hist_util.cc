@@ -235,20 +235,16 @@ TEST(HistUtil, QuantileWithHessian) {
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     auto w = GenerateRandomWeights(num_rows);
     auto hessian = GenerateRandomWeights(num_rows);
+    std::mt19937 rng(0);
+    std::shuffle(hessian.begin(), hessian.end(), rng);
     dmat->Info().weights_.HostVector() = w;
 
     for (auto num_bins : bin_sizes) {
       HistogramCuts cuts_hess = SketchOnDMatrix(dmat.get(), num_bins, hessian);
-      ValidateCuts(cuts_hess, dmat.get(), num_bins);
-
-      HistogramCuts cuts = SketchOnDMatrix(dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
-
-      ASSERT_NE(cuts.Values(), cuts_hess.Values());
-
       for (size_t i = 0; i < w.size(); ++i) {
         dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
       }
+      ValidateCuts(cuts_hess, dmat.get(), num_bins);
 
       HistogramCuts cuts_wh = SketchOnDMatrix(dmat.get(), num_bins);
       ValidateCuts(cuts_wh, dmat.get(), num_bins);
