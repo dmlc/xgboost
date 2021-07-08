@@ -231,7 +231,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * external library to make the data into a blob for normal DMatrix initialization,
  * another by the internal CSR copy of DMatrix.  The second use case is external memory
  * support where users can pass a custom data iterator into XGBoost for loading data in
- * batches.  There are shorts notes on each of the use case in respected DMatrix factory
+ * batches.  There are short notes on each of the use case in respected DMatrix factory
  * function.
  *
  * Related functions are:

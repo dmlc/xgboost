@@ -169,6 +169,12 @@ class MetaInfo {
    * \brief Extend with other MetaInfo.
    *
    * \param that The other MetaInfo object.
+   *
+   * \param accumulate_rows Whether rows need to be accumulated in this function.  If
+   *                        client code knows number of rows in advance, set this
+   *                        parameter to false.
+   * \param check_column Whether the extend method should check the consistency of
+   *                     columns.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
