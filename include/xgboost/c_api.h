@@ -234,8 +234,8 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * - XGProxyDMatrixCreate
  * - XGDMatrixCallbackNext
  * - DataIterResetCallback
- * - XGDeviceQuantileDMatrixSetDataCudaArrayInterface
- * - XGDeviceQuantileDMatrixSetDataCudaColumnar
+ * - XGProxyDMatrixSetDataCudaArrayInterface
+ * - XGProxyDMatrixSetDataCudaColumnar
  * - ... (data setters)
  */
 
@@ -371,9 +371,10 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
-    DMatrixHandle handle,
-    const char* c_interface_str);
+XGB_DLL int
+XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
+                                        const char *c_interface_str);
+
 /*!
  * \brief Set data on a DMatrix proxy.
  *
@@ -383,9 +384,9 @@ XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaColumnar(
-    DMatrixHandle handle,
-    const char* c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
+                                              const char *c_interface_str);
+
 /*
  * ==========================- End data callback APIs ==========================
  */
@@ -563,7 +564,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void *data, bst_ulong size, int type);
+                                  void const *data, bst_ulong size, int type);
 
 /*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix

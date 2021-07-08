@@ -197,8 +197,8 @@ XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out) {
 }
 
 XGB_DLL int
-XGDeviceQuantileDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
-                                                 char const *c_interface_str) {
+XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
+                                        char const *c_interface_str) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -209,9 +209,8 @@ XGDeviceQuantileDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int
-XGDeviceQuantileDMatrixSetDataCudaColumnar(DMatrixHandle handle,
-                                           char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
+                                              char const *c_interface_str) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -433,7 +432,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
 }
 
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void *data, xgboost::bst_ulong size,
+                                  void const *data, xgboost::bst_ulong size,
                                   int type) {
   API_BEGIN();
   CHECK_HANDLE();

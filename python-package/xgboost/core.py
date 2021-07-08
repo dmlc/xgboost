@@ -322,6 +322,7 @@ class DataIter:
         self._handle = _ProxyDMatrix()
         self.exception = None
         self.enable_categorical = False
+        self._allow_host = False
 
     @property
     def proxy(self):
@@ -349,12 +350,12 @@ class DataIter:
             feature_types=None,
             **kwargs
         ):
-            from .data import dispatch_device_quantile_dmatrix_set_data
-            from .data import _device_quantile_transform
-            data, feature_names, feature_types = _device_quantile_transform(
+            from .data import dispatch_proxy_set_data
+            from .data import _proxy_transform
+            data, feature_names, feature_types = _proxy_transform(
                 data, feature_names, feature_types, self.enable_categorical,
             )
-            dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
+            dispatch_proxy_set_data(self.proxy, data, self._allow_host)
             self.proxy.set_info(
                 feature_names=feature_names,
                 feature_types=feature_types,
@@ -1009,18 +1010,18 @@ class _ProxyDMatrix(DMatrix):
         interface = data.__cuda_array_interface__
         interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
         _check_call(
-            _LIB.XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
+            _LIB.XGProxyDMatrixSetDataCudaArrayInterface(
                 self.handle,
                 interface_str
             )
         )
 
     def _set_data_from_cuda_columnar(self, data):
-        '''Set data from CUDA columnar format.1'''
+        '''Set data from CUDA columnar format.'''
         from .data import _cudf_array_interfaces
         _, interfaces_str = _cudf_array_interfaces(data)
         _check_call(
-            _LIB.XGDeviceQuantileDMatrixSetDataCudaColumnar(
+            _LIB.XGProxyDMatrixSetDataCudaColumnar(
                 self.handle,
                 interfaces_str
             )
