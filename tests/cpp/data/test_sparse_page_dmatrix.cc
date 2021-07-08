@@ -6,6 +6,7 @@
 #include <future>
 #include "../../../src/common/io.h"
 #include "../../../src/data/adapter.h"
+#include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/data/file_iterator.h"
 #include "../helpers.h"
@@ -27,6 +28,25 @@ TEST(SparsePageDMatrix, LoadFile) {
                             "cache"};
   ASSERT_EQ(m.Info().num_col_, 5);
   ASSERT_EQ(m.Info().num_row_, 64);
+
+  opath = tmpdir.path + "/1-based.svm";
+  std::unique_ptr<dmlc::Parser<uint32_t>> parser(
+      dmlc::Parser<uint32_t>::Create(opath.c_str(), 0, 1, "auto"));
+  auto adapter = data::FileAdapter{parser.get()};
+
+  data::SimpleDMatrix simple{&adapter, std::numeric_limits<float>::quiet_NaN(),
+                             1};
+  SparsePage out;
+  for (auto const& page : m.GetBatches<SparsePage>()) {
+    out.Push(page);
+  }
+
+  for (auto const& page : simple.GetBatches<SparsePage>()) {
+    ASSERT_EQ(page.offset.HostVector(), out.offset.HostVector());
+    for (size_t i = 0; i < page.data.Size(); ++i) {
+      ASSERT_EQ(page.data.HostVector()[i].fvalue, out.data.HostVector()[i].fvalue);
+    }
+  }
 }
 
 TEST(SparsePageDMatrix, MetaInfo) {
