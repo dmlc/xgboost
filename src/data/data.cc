@@ -633,7 +633,7 @@ DMatrix::~DMatrix() {
   }
 }
 
-DMatrix *LoadBinary(std::string fname, bool silent) {
+DMatrix *TryLoadBinary(std::string fname, bool silent) {
   int magic;
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(fname.c_str(), "r", true));
@@ -708,7 +708,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   // legacy handling of binary data loading
   if (file_format == "auto" && npart == 1) {
-    DMatrix *loaded = LoadBinary(fname, silent);
+    DMatrix *loaded = TryLoadBinary(fname, silent);
     if (loaded) {
       return loaded;
     }

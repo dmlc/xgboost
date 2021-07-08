@@ -13,7 +13,8 @@
 
 using namespace xgboost;  // NOLINT
 
-TEST(SparsePageDMatrix, LoadFile) {
+template <typename Page>
+void TestSparseDMatrixLoadFile() {
   dmlc::TemporaryDirectory tmpdir;
   auto opath = tmpdir.path + "/1-based.svm";
   CreateBigTestData(opath, 3 * 64, false);
@@ -29,24 +30,35 @@ TEST(SparsePageDMatrix, LoadFile) {
   ASSERT_EQ(m.Info().num_col_, 5);
   ASSERT_EQ(m.Info().num_row_, 64);
 
-  opath = tmpdir.path + "/1-based.svm";
   std::unique_ptr<dmlc::Parser<uint32_t>> parser(
       dmlc::Parser<uint32_t>::Create(opath.c_str(), 0, 1, "auto"));
   auto adapter = data::FileAdapter{parser.get()};
 
   data::SimpleDMatrix simple{&adapter, std::numeric_limits<float>::quiet_NaN(),
                              1};
-  SparsePage out;
-  for (auto const& page : m.GetBatches<SparsePage>()) {
-    out.Push(page);
+  Page out;
+  for (auto const& page : m.GetBatches<Page>()) {
+    if (std::is_same<Page, SparsePage>::value) {
+      out.Push(page);
+    } else {
+      out.PushCSC(page);
+    }
   }
+  ASSERT_EQ(m.Info().num_col_, simple.Info().num_col_);
+  ASSERT_EQ(m.Info().num_row_, simple.Info().num_row_);
 
-  for (auto const& page : simple.GetBatches<SparsePage>()) {
+  for (auto const& page : simple.GetBatches<Page>()) {
     ASSERT_EQ(page.offset.HostVector(), out.offset.HostVector());
     for (size_t i = 0; i < page.data.Size(); ++i) {
       ASSERT_EQ(page.data.HostVector()[i].fvalue, out.data.HostVector()[i].fvalue);
     }
   }
+}
+
+TEST(SparsePageDMatrix, LoadFile) {
+  TestSparseDMatrixLoadFile<SparsePage>();
+  TestSparseDMatrixLoadFile<CSCPage>();
+  TestSparseDMatrixLoadFile<SortedCSCPage>();
 }
 
 TEST(SparsePageDMatrix, MetaInfo) {
