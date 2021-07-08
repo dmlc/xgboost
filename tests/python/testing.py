@@ -143,34 +143,10 @@ def skip_s390x():
     return {"condition": condition, "reason": reason}
 
 
-class IteratorForTest(xgb.core.DataIter):
-    def __init__(self, X, y):
-        self.X = X
-        self.y = y
-        assert len(X) == len(y)
-        self.it = 0
-        super().__init__("./")
-
-    def next(self, input_data):
-        if self.it == len(self.X):
-            return 0
-
-        input_data(data=self.X[self.it], label=self.y[self.it])
-        self.it += 1
-        return 1
-
-    def reset(self):
-        self.it = 0
-
-    def as_arrays(self):
-        X = np.concatenate(self.X, axis=0)
-        y = np.concatenate(self.y, axis=0)
-        return X, y
-
-
 # Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
-    def __init__(self, name, get_dataset, objective, metric):
+    def __init__(self, name, get_dataset, objective, metric
+                 ):
         self.name = name
         self.objective = objective
         self.metric = metric
@@ -195,23 +171,16 @@ class TestDataset:
         return xgb.DeviceQuantileDMatrix(X, y, w, base_margin=self.margin)
 
     def get_external_dmat(self):
-        n_samples = self.X.shape[0]
-        n_batches = 10
-        per_batch = n_samples // n_batches + 1
-
-        predictor = []
-        response = []
-        for i in range(n_batches):
-            beg = i * per_batch
-            end = min((i + 1) * per_batch, n_samples)
-            assert end != beg
-            X = self.X[beg: end, ...]
-            y = self.y[beg: end]
-            predictor.append(X)
-            response.append(y)
-
-        it = IteratorForTest(predictor, response)
-        return xgb.DMatrix(it)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'tmptmp_1234.csv')
+            np.savetxt(path,
+                       np.hstack((self.y.reshape(len(self.y), 1), self.X)),
+                       delimiter=',')
+            assert os.path.exists(path)
+            uri = path + '?format=csv&label_column=0#tmptmp_'
+            # The uri looks like:
+            # 'tmptmp_1234.csv?format=csv&label_column=0#tmptmp_'
+            return xgb.DMatrix(uri, weight=self.w, base_margin=self.margin)
 
     def __repr__(self):
         return self.name
