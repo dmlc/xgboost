@@ -223,18 +223,24 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * - XGBCallbackDataIterNext
  * - XGDMatrixCreateFromDataIter
  *
- * Another set is used by external data iterator (like external memory). It accept foreign
- * data iterators as callbacks.
- *
- * There are 2 different types of use.  First it's the Quantile DMatrix used by GPU
- * Hist. For this case, the data is first compressed by quantile sketching then merged.
- * This is particular useful for distributed setting as it eliminates 2 copies of data.  1
- * by a `concat` from external library to make the data into a blob for normal DMatrix
- * initialization, another by the internal CSR copy of DMatrix.  The second use case is
- * external meory support where users can pass a custom data iterator into XGBoost.
+ * Another set is used by external data iterator. It accept foreign data iterators as
+ * callbacks.  There are 2 different senarios where users might want to pass in callbacks
+ * instead of raw data.  First it's the Quantile DMatrix used by GPU Hist. For this case,
+ * the data is first compressed by quantile sketching then merged.  This is particular
+ * useful for distributed setting as it eliminates 2 copies of data.  1 by a `concat` from
+ * external library to make the data into a blob for normal DMatrix initialization,
+ * another by the internal CSR copy of DMatrix.  The second use case is external memory
+ * support where users can pass a custom data iterator into XGBoost for loading data in
+ * batches.  There are shorts notes on each of the use case in respected DMatrix factory
+ * function.
  *
  * Related functions are:
  *
+ * # Factory functions
+ * - `XGDMatrixCreateFromCallback` for external memory
+ * - `XGDeviceQuantileDMatrixCreateFromCallback` for quantile DMatrix
+ *
+ * # Proxy that callers can use to pass data to XGBoost
  * - XGProxyDMatrixCreate
  * - XGDMatrixCallbackNext
  * - DataIterResetCallback
@@ -356,10 +362,10 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  *
  * For example usage see demo/c-api/external-memory
  *
- * \param iter     A handle to external data iterator.
- * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
- * \param reset    Callback function resetting the iterator state.
- * \param next     Callback function yielding the next batch of data.
+ * \param iter           A handle to external data iterator.
+ * \param proxy          A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param reset          Callback function resetting the iterator state.
+ * \param next           Callback function yielding the next batch of data.
  * \param c_json_config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *
  *   - missing: float
@@ -431,21 +437,24 @@ XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
                                               const char *c_interface_str);
 
 /*!
- * \brief Set data on a DMatrix proxy.  See `XGBoosterPredictFromDense` for details of
- *        various parameters.
+ * \brief Set data on a DMatrix proxy.
  *
  * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param c_interface_str Null terminated JSON document string representation of array
+ *                        interface.
  *
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
-                                       char const *array_interface);
+                                       char const *c_interface_str);
 
 /*!
- * \brief Set data on a DMatrix proxy.  See `XGBoosterPredictFromCSR` for details of
- *        various parameters.
+ * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle        A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
+ * \param indices       JSON encoded __array_interface__ to column indices in CSR.
+ * \param values        JSON encoded __array_interface__ to values in CSR..
  *
  * \return 0 when success, -1 when failure happens
  */
