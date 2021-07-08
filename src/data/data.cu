@@ -167,7 +167,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix, size_t page_size) {
+                         const std::string& cache_prefix) {
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
@@ -176,8 +176,8 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(
     data::CudfAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::CupyAdapter>(
     data::CupyAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 }  // namespace xgboost

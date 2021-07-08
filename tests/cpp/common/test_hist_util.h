@@ -83,7 +83,7 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
   }
   fo.close();
   return std::shared_ptr<DMatrix>(DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto"));
 }
 
 // Test that elements are approximately equally distributed among bins

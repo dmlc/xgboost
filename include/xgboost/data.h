@@ -495,8 +495,7 @@ class DMatrix {
   static DMatrix* Load(const std::string& uri,
                        bool silent,
                        bool load_row_split,
-                       const std::string& file_format = "auto",
-                       size_t page_size = kPageSize);
+                       const std::string& file_format = "auto");
 
   /**
    * \brief Creates a new DMatrix from an external data adapter.
@@ -512,8 +511,7 @@ class DMatrix {
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "",
-                         size_t page_size = kPageSize);
+                         const std::string& cache_prefix = "");
 
   /**
    * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
