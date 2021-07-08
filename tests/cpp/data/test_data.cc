@@ -76,12 +76,12 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   // Make sure that the final sparse page has the right number of entries
   ASSERT_EQ(kEntries, page.data.Size());
 
-  // The feature value for a feature in each row should be identical, as that is
-  // how the dmatrix has been created
-  for (size_t i = 0; i < page.Size(); ++i) {
-    auto inst = page.GetView()[i];
-    for (size_t j = 1; j < inst.size(); ++j) {
-      ASSERT_EQ(inst[0].fvalue, inst[j].fvalue);
+  page.SortRows();
+  auto v = page.GetView();
+  for (size_t i = 0; i < v.Size(); ++i) {
+    auto column = v[i];
+    for (size_t j = 1; j < column.size(); ++j) {
+      ASSERT_GE(column[j].fvalue, column[j-1].fvalue);
     }
   }
 }

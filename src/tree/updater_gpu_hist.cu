@@ -812,7 +812,6 @@ class GPUHistMakerSpecialised {
     BatchParam batch_param{
       device_,
       param_.max_bin,
-      generic_param_->gpu_page_size
     };
     auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(device_));

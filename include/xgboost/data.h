@@ -169,11 +169,8 @@ class MetaInfo {
    * \brief Extend with other MetaInfo.
    *
    * \param that The other MetaInfo object.
-   *
-   * \param accumulate_rows Whether rows need to be accumulated in this function.  If
-   *        client code knows number of rows in advance, set this parameter to false.
    */
-  void Extend(MetaInfo const& that, bool accumulate_rows);
+  void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
  private:
   /*! \brief argsort of labels */
@@ -211,14 +208,12 @@ struct BatchParam {
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
   int max_bin{0};
-  /*! \brief Page size for external memory mode. */
-  size_t gpu_page_size;
   BatchParam() = default;
-  BatchParam(int32_t device, int32_t max_bin, size_t gpu_page_size = 0)
-      : gpu_id{device}, max_bin{max_bin}, gpu_page_size{gpu_page_size} {}
-  inline bool operator!=(const BatchParam& other) const {
-    return gpu_id != other.gpu_id || max_bin != other.max_bin ||
-           gpu_page_size != other.gpu_page_size;
+  BatchParam(int32_t device, int32_t max_bin)
+      : gpu_id{device}, max_bin{max_bin} {}
+
+  bool operator!=(const BatchParam& other) const {
+    return gpu_id != other.gpu_id || max_bin != other.max_bin;
   }
 };
 
@@ -402,6 +397,7 @@ class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;  // NOLINT
   explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
+  explicit BatchIterator(std::shared_ptr<BatchIteratorImpl<T>> impl) { impl_ = impl; }
 
   void operator++() {
     CHECK(impl_ != nullptr);
@@ -544,6 +540,31 @@ class DMatrix {
                          XGDMatrixCallbackNext *next, float missing,
                          int nthread,
                          int max_bin);
+
+  /**
+   * \brief Create an external memory DMatrix with callbacks.
+   *
+   * \tparam DataIterHandle         External iterator type, defined in C API.
+   * \tparam DMatrixHandle          DMatrix handle, defined in C API.
+   * \tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
+   * \tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
+   *
+   * \param iter    External data iterator
+   * \param proxy   A hanlde to ProxyDMatrix
+   * \param reset   Callback for reset
+   * \param next    Callback for next
+   * \param missing Value that should be treated as missing.
+   * \param nthread number of threads used for initialization.
+   * \param cache   Prefix of cache file path.
+   *
+   * \return A created external memory DMatrix.
+   */
+  template <typename DataIterHandle, typename DMatrixHandle,
+            typename DataIterResetCallback, typename XGDMatrixCallbackNext>
+  static DMatrix *Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int32_t nthread, std::string cache);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief Number of rows per page in external memory.  Approximately 100MB per page for

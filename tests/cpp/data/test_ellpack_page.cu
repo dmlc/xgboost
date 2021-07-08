@@ -142,7 +142,7 @@ TEST(EllpackPage, Copy) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, kPageSize};
+  BatchParam param{0, 256};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
@@ -188,7 +188,7 @@ TEST(EllpackPage, Compact) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, kPageSize};
+  BatchParam param{0, 256};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
@@ -212,7 +212,7 @@ TEST(EllpackPage, Compact) {
   std::vector<bst_float> row_result(kCols);
   for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
     auto impl = page.Impl();
-    EXPECT_EQ(impl->base_rowid, current_row);
+    ASSERT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
       size_t compacted_row = row_indexes_h[current_row];

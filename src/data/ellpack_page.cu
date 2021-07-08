@@ -122,6 +122,7 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
   dmat->Info().feature_types.SetDevice(param.gpu_id);
   auto ft = dmat->Info().feature_types.ConstDeviceSpan();
   monitor_.Start("BinningCompression");
+  CHECK(dmat->SingleColBlock());
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     CreateHistIndices(param.gpu_id, batch, ft);
   }
@@ -459,7 +460,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
         gidx_buffer.DevicePointer(), row_ptrs.data().get(),
         entries_d.data().get(), device_accessor.gidx_fvalue_map.data(),
         device_accessor.feature_segments.data(), feature_types,
-        row_batch.base_rowid + batch_row_begin, batch_nrows, row_stride,
+        batch_row_begin, batch_nrows, row_stride,
         null_gidx_value);
   }
 }

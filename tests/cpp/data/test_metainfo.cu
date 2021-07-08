@@ -141,7 +141,7 @@ TEST(MetaInfo, DeviceExtend) {
   lhs.num_row_ = kRows;
   rhs.num_row_ = kRows;
 
-  lhs.Extend(rhs, true);
+  lhs.Extend(rhs, true, true);
   ASSERT_EQ(lhs.num_row_, kRows * 2);
   ASSERT_FALSE(lhs.labels_.HostCanRead());
 

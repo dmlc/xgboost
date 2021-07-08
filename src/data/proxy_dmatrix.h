@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 XGBoost contributors
+ * Copyright 2020-2021 XGBoost contributors
  */
 #ifndef XGBOOST_DATA_PROXY_DMATRIX_H_
 #define XGBOOST_DATA_PROXY_DMATRIX_H_

@@ -99,7 +99,6 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   CreateBigTestData(tmp_file, 50000);
   std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load(
       tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 100));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
   EXPECT_FALSE(dmat->SingleColBlock());
   size_t num_row = dmat->Info().num_row_;
   std::vector<bst_float> labels(num_row);

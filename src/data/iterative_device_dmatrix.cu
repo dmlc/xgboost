@@ -143,7 +143,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     proxy->Info().num_row_ = num_rows();
     proxy->Info().num_col_ = cols;
     if (batches != 1) {
-      this->info_.Extend(std::move(proxy->Info()), false);
+      this->info_.Extend(std::move(proxy->Info()), false, true);
     }
     n_batches_for_verification++;
   }
