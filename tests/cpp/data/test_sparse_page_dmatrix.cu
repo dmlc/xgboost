@@ -35,18 +35,6 @@ TEST(SparsePageDMatrix, EllpackPage) {
   delete dmat;
 }
 
-TEST(SparsePageDMatrix, EmptyEllpackPage) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/empty.libsvm";
-  CreateBigTestData(tmp_file, 0);
-  DMatrix* dmat = DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, false);
-  size_t n = 0;
-  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256})) {
-    n += batch.Size();
-  }
-  EXPECT_EQ(n, dmat->Info().num_row_);
-}
-
 TEST(SparsePageDMatrix, MultipleEllpackPages) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
