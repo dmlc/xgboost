@@ -123,9 +123,11 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
   LOG(WARNING) << "External memory support for hist is working in progress.";
   // External memory is not support
   if (!ghist_index_source_ || (param != batch_param_ && param != BatchParam{})) {
+    this->InitializeSparsePage();
     ghist_index_source_.reset(new GHistIndexMatrix{this, param.max_bin});
     batch_param_ = param;
   }
+  this->InitializeSparsePage();
   auto begin_iter = BatchIterator<GHistIndexMatrix>(
       new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_index_source_.get()));
   return BatchSet<GHistIndexMatrix>(begin_iter);
