@@ -120,7 +120,6 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam& param) {
   CHECK_GE(param.max_bin, 2);
-  LOG(WARNING) << "External memory support for hist is working in progress.";
   // External memory is not support
   if (!ghist_index_source_ || (param != batch_param_ && param != BatchParam{})) {
     this->InitializeSparsePage();
