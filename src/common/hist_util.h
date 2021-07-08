@@ -110,7 +110,8 @@ class HistogramCuts {
   }
 };
 
-inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins) {
+inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
+                                     std::vector<float> const &hessian = {}) {
   HistogramCuts out;
   auto const& info = m->Info();
   const auto threads = omp_get_max_threads();
@@ -127,9 +128,9 @@ inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins) {
     }
   }
   HostSketchContainer container(reduced, max_bins,
-                                HostSketchContainer::UseGroup(info));
+                                HostSketchContainer::UseGroup(info), threads);
   for (auto const &page : m->GetBatches<SparsePage>()) {
-    container.PushRowPage(page, info);
+    container.PushRowPage(page, info, hessian);
   }
   container.MakeCuts(&out);
   return out;
