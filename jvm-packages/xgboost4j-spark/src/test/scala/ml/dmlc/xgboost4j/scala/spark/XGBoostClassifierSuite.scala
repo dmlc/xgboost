@@ -25,7 +25,7 @@ import org.apache.spark.Partitioner
 
 abstract class XGBoostClassifierSuiteBase extends FunSuite with PerTest {
 
-  protected val treeMethod: String = "approx"
+  protected val treeMethod: String = "auto"
 
   test("Set params in XGBoost and MLlib way should produce same model") {
     val trainingDF = buildDataFrame(Classification.train)
@@ -208,7 +208,16 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
     val testDM = new DMatrix(Classification.test.iterator)
     val trainingDF = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+    // Hist method output is different when num_workers > 1
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+  }
+
+  test("XGBoost-Spark XGBoostClassifier output should match XGBoost4j (distributed)") {
+    val trainingDM = new DMatrix(Classification.train.iterator)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val trainingDF = buildDataFrame(Classification.train)
+    val testDF = buildDataFrame(Classification.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "approx", numWorkers)
   }
 
   test("XGBoostClassifier should make correct predictions after upstream random sort") {
@@ -216,7 +225,16 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
     val testDM = new DMatrix(Classification.test.iterator)
     val trainingDF = buildDataFrameWithRandSort(Classification.train)
     val testDF = buildDataFrameWithRandSort(Classification.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+    // Hist method output is different when num_workers > 1
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+  }
+
+  test("XGBoostClassifier should make correct predictions after upstream random sort (dist)") {
+    val trainingDM = new DMatrix(Classification.train.iterator)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val trainingDF = buildDataFrameWithRandSort(Classification.train)
+    val testDF = buildDataFrameWithRandSort(Classification.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "approx", numWorkers)
   }
 
   private def checkResultsWithXGBoost4j(
@@ -224,20 +242,22 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
       testDM: DMatrix,
       trainingDF: DataFrame,
       testDF: DataFrame,
+      explicitTreeMethod: String,
+      explicitNumWorkers: Int,
       round: Int = 5): Unit = {
     val paramMap = Map(
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
       "objective" -> "binary:logistic",
-      "tree_method" -> treeMethod,
+      "tree_method" -> explicitTreeMethod,
       "max_bin" -> 16)
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
 
     val model2 = new XGBoostClassifier(paramMap ++ Array("num_round" -> round,
-      "num_workers" -> numWorkers)).fit(trainingDF)
+      "num_workers" -> explicitNumWorkers)).fit(trainingDF)
 
     val prediction2 = model2.transform(testDF).
       collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap

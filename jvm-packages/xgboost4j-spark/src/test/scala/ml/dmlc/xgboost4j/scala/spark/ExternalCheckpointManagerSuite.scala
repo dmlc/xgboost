@@ -26,8 +26,7 @@ class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite wit
 
   private def produceParamMap(checkpointPath: String, checkpointInterval: Int):
   Map[String, Any] = {
-    Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1", "tree_method" -> "approx",
-      "objective" -> "binary:logistic", "num_workers" -> sc.defaultParallelism,
+    Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1", "objective" -> "binary:logistic",
       "checkpoint_path" -> checkpointPath, "checkpoint_interval" -> checkpointInterval)
   }
 
@@ -86,7 +85,10 @@ class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite wit
   }
 
 
-  private def trainingWithCheckpoint(cacheData: Boolean, skipCleanCheckpoint: Boolean): Unit = {
+  private def trainingWithCheckpoint(
+      cacheData: Boolean,
+      skipCleanCheckpoint: Boolean,
+      useSingleUpdater: Boolean): Unit = {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
@@ -98,8 +100,11 @@ class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite wit
     val cacheDataMap = if (cacheData) Map("cacheTrainingSet" -> true) else Map()
     val skipCleanCheckpointMap =
       if (skipCleanCheckpoint) Map("skip_clean_checkpoint" -> true) else Map()
+    val useSingleUpdaterMap =
+      if (useSingleUpdater) Map("tree_method" -> "auto", "num_workers" -> 1)
+      else Map("tree_method" -> "approx", "num_workers" -> sc.defaultParallelism)
 
-    val finalParamMap = paramMap ++ cacheDataMap ++ skipCleanCheckpointMap
+    val finalParamMap = paramMap ++ cacheDataMap ++ skipCleanCheckpointMap ++ useSingleUpdaterMap
 
     val prevModel = new XGBoostClassifier(finalParamMap ++ Seq("num_round" -> 5)).fit(training)
 
@@ -122,14 +127,19 @@ class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite wit
   }
 
   test("training with checkpoint boosters") {
-    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = true)
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = true, useSingleUpdater = false)
+  }
+
+  test("training with checkpoint boosters using tree method heuristic") {
+    // Hist method output is different when num_workers > 1
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = true, useSingleUpdater = true)
   }
 
   test("training with checkpoint boosters with cached training dataset") {
-    trainingWithCheckpoint(cacheData = true, skipCleanCheckpoint = true)
+    trainingWithCheckpoint(cacheData = true, skipCleanCheckpoint = true, useSingleUpdater = false)
   }
 
   test("the checkpoint file should be cleaned after a successful training") {
-    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = false)
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = false, useSingleUpdater = false)
   }
 }

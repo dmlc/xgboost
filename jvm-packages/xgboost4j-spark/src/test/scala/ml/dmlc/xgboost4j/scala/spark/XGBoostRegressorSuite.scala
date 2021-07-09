@@ -25,14 +25,23 @@ import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
-  protected val treeMethod: String = "approx"
+  protected val treeMethod: String = "auto"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
     val trainingDM = new DMatrix(Regression.train.iterator)
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+    // Hist method output is different when num_workers > 1
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+  }
+
+  test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j (distributed)") {
+    val trainingDM = new DMatrix(Regression.train.iterator)
+    val testDM = new DMatrix(Regression.test.iterator)
+    val trainingDF = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "approx", numWorkers)
   }
 
   test("XGBoostRegressor should make correct predictions after upstream random sort") {
@@ -40,7 +49,16 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrameWithRandSort(Regression.train)
     val testDF = buildDataFrameWithRandSort(Regression.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+    // Hist method output is different when num_workers > 1
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+  }
+
+  test("XGBoostRegressor should make correct predictions after upstream random sort (dist)") {
+    val trainingDM = new DMatrix(Regression.train.iterator)
+    val testDM = new DMatrix(Regression.test.iterator)
+    val trainingDF = buildDataFrameWithRandSort(Regression.train)
+    val testDF = buildDataFrameWithRandSort(Regression.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "approx", numWorkers)
   }
 
   private def checkResultsWithXGBoost4j(
@@ -48,6 +66,8 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
       testDM: DMatrix,
       trainingDF: DataFrame,
       testDF: DataFrame,
+      explicitTreeMethod: String,
+      explicitNumWorkers: Int,
       round: Int = 5): Unit = {
     val paramMap = Map(
       "eta" -> "1",
@@ -55,13 +75,13 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
       "silent" -> "1",
       "objective" -> "reg:squarederror",
       "max_bin" -> 16,
-      "tree_method" -> treeMethod)
+      "tree_method" -> explicitTreeMethod)
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
 
     val model2 = new XGBoostRegressor(paramMap ++ Array("num_round" -> round,
-      "num_workers" -> numWorkers)).fit(trainingDF)
+      "num_workers" -> explicitNumWorkers)).fit(trainingDF)
 
     val prediction2 = model2.transform(testDF).
         collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
@@ -130,9 +150,26 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
   }
 
   test("use weight") {
+    // Hist method output is different when num_workers > 1
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> 1,
+      "tree_method" -> treeMethod)
+
+    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f})
+    val trainingDF = buildDataFrame(Regression.train)
+      .withColumn("weight", getWeightFromId(col("id")))
+    val testDF = buildDataFrame(Regression.test)
+
+    val model = new XGBoostRegressor(paramMap).setWeightCol("weight").fit(trainingDF)
+    val prediction = model.transform(testDF).collect()
+    val first = prediction.head.getAs[Double]("prediction")
+    prediction.foreach(x => assert(math.abs(x.getAs[Double]("prediction") - first) <= 0.01f))
+  }
+
+  test("use weight (distributed)") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
-      "tree_method" -> treeMethod)
+      "tree_method" -> "approx")
 
     val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f})
     val trainingDF = buildDataFrame(Regression.train)
