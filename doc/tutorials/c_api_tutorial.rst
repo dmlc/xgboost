@@ -220,7 +220,7 @@ Sample examples along with Code snippet to use C API functions
   }
 
   // Loading the labels
-  safe_xgboost(XGDMatrixSetFloatInfo(dmatrix, "labels", labels, ROWS));
+  safe_xgboost(XGDMatrixSetFloatInfo(dmatrix, "label", labels, ROWS));
   
   // reading the labels and store the length of the result
   bst_ulong result_len;
@@ -228,7 +228,7 @@ Sample examples along with Code snippet to use C API functions
   // labels result
   const float *result;
 
-  safe_xgboost(XGDMatrixGetFloatInfo(dmatrix, "labels", &result_len, &result));
+  safe_xgboost(XGDMatrixGetFloatInfo(dmatrix, "label", &result_len, &result));
 
   for(unsigned int i = 0; i < result_len; i++) {
     printf("label[%i] = %f\n", i, result[i]);
