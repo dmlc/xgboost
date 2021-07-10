@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014~2020 by Contributors
+ * Copyright 2014~2021 by Contributors
  * \file simple_dmatrix.cc
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen

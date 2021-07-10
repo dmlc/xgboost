@@ -5,6 +5,8 @@
 #define XGBOOST_DATA_SIMPLE_BATCH_ITERATOR_H_
 
 #include <memory>
+#include <utility>
+
 #include "xgboost/data.h"
 
 namespace xgboost {
