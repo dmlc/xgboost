@@ -108,7 +108,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
       return false;
     }
     if (fo_) {
-      fo_.reset();
+      fo_.reset();  // flush the data to disk.
       ring_->resize(n_batches_);
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
@@ -116,7 +116,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     size_t constexpr kPreFetch = 4;
 
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
-    CHECK_GT(n_prefetch_batches, 0) << n_batches_;
+    CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
     size_t fetch_it = count_;
     for (size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
@@ -141,15 +141,14 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   }
 
   void WriteCache() {
-    if (!cache_info_->written) {
-      std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
-      if (!fo_) {
-        auto n = cache_info_->ShardName();
-        fo_.reset(dmlc::Stream::Create(n.c_str(), "w"));
-      }
-      auto bytes = fmt->Write(*page_, fo_.get());
-      cache_info_->offset.push_back(bytes);
+    CHECK(!cache_info_->written);
+    std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
+    if (!fo_) {
+      auto n = cache_info_->ShardName();
+      fo_.reset(dmlc::Stream::Create(n.c_str(), "w"));
     }
+    auto bytes = fmt->Write(*page_, fo_.get());
+    cache_info_->offset.push_back(bytes);
   }
 
   virtual void Fetch() = 0;

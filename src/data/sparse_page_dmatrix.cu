@@ -24,11 +24,11 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
     this->InitializeSparsePage();  // reset after use.
 
     row_stride = GetRowStride(this);
+    this->InitializeSparsePage();  // reset after use.
     CHECK_NE(row_stride, 0);
     batch_param_ = param;
 
     auto ft = this->info_.feature_types.ConstDeviceSpan();
-    this->InitializeSparsePage();  // reset after use.
     ellpack_page_source_.reset();  // release resources.
     ellpack_page_source_.reset(new EllpackPageSource(
         this->missing_, this->nthreads_, this->Info().num_col_,
