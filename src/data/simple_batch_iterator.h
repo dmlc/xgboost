@@ -13,7 +13,7 @@ namespace data {
 template<typename T>
 class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
-  explicit SimpleBatchIteratorImpl(std::shared_ptr<T const> page) : page_(page) {}
+  explicit SimpleBatchIteratorImpl(std::shared_ptr<T const> page) : page_(std::move(page)) {}
   const T& operator*() const override {
     CHECK(page_ != nullptr);
     return *page_;
