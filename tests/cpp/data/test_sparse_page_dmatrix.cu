@@ -40,7 +40,7 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
   std::string filename = tmpdir.path + "/big.libsvm";
   size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries, kPageSize, filename);
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries, filename);
 
   // Loop over the batches and count the records
   int64_t batch_count = 0;
@@ -60,9 +60,7 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
 }
 
 TEST(SparsePageDMatrix, RetainEllpackPage) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  auto m = CreateSparsePageDMatrix(10000, 0, tmp_file);
+  auto m = CreateSparsePageDMatrix(10000);
   auto batches = m->GetBatches<EllpackPage>({0, 32});
   auto begin = batches.begin();
   auto end = batches.end();

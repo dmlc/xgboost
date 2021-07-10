@@ -302,8 +302,7 @@ GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
                                             int num_rows, int num_columns);
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
-    size_t n_entries, size_t page_size, std::string tmp_file);
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, std::string prefix = "cache");
 
 /**
  * \fn std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,

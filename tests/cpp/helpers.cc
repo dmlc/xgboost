@@ -362,17 +362,17 @@ GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
-    size_t n_entries, size_t page_size, std::string tmp_file) {
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
+                                                 std::string prefix) {
   size_t n_columns = 3;
   size_t n_rows = n_entries / n_columns;
   ArrayIterForTest iter(0, n_rows, n_columns, 2);
 
   std::unique_ptr<DMatrix> dmat{DMatrix::Create(
       static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), 1, tmp_file)};
+      std::numeric_limits<float>::quiet_NaN(), 1, prefix)};
   auto row_page_path =
-      data::MakeId(tmp_file,
+      data::MakeId(prefix,
                    dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +
       ".row.page";
   EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
@@ -388,7 +388,6 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
   EXPECT_EQ(row_count, dmat->Info().num_row_);
   return dmat;
 }
-
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,

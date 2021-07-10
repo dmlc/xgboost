@@ -59,12 +59,9 @@ TEST(SparsePage, PushCSC) {
 }
 
 TEST(SparsePage, PushCSCAfterTranspose) {
-  dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
   size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat =
-      CreateSparsePageDMatrix(kEntries, 64UL, filename);
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
   const int ncols = dmat->Info().num_col_;
   SparsePage page; // Consolidated sparse page
   for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {

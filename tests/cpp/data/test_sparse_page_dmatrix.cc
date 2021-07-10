@@ -64,9 +64,7 @@ TEST(SparsePageDMatrix, LoadFile) {
 // allow caller to retain pages so they can process multiple pages at the same time.
 template <typename Page>
 void TestRetainPage() {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  auto m = CreateSparsePageDMatrix(10000, 0, tmp_file);
+  auto m = CreateSparsePageDMatrix(10000);
   auto batches = m->GetBatches<Page>();
   auto begin = batches.begin();
   auto end = batches.end();
@@ -121,10 +119,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
-  dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
-  std::unique_ptr<xgboost::DMatrix> dmat =
-      xgboost::CreateSparsePageDMatrix(24, 4, filename);
+  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(24);
 
   // Test the data read into the first row
   auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
@@ -178,13 +173,11 @@ TEST(SparsePageDMatrix, ColAccess) {
 }
 
 TEST(SparsePageDMatrix, ThreadSafetyException) {
-  dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/test";
-  size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
+  size_t constexpr kEntriesPerCol = 3;
+  size_t constexpr kEntries = 64 * kEntriesPerCol * 2;
 
   std::unique_ptr<xgboost::DMatrix> dmat =
-      xgboost::CreateSparsePageDMatrix(kEntries, kPageSize, filename);
+      xgboost::CreateSparsePageDMatrix(kEntries);
 
   int threads = 1000;
 
@@ -216,13 +209,10 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
 // Multi-batches access
 TEST(SparsePageDMatrix, ColAccessBatches) {
-  dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
   size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
   // Create multiple sparse pages
-  std::unique_ptr<xgboost::DMatrix> dmat{
-      xgboost::CreateSparsePageDMatrix(kEntries, kPageSize, filename)};
+  std::unique_ptr<xgboost::DMatrix> dmat{xgboost::CreateSparsePageDMatrix(kEntries)};
   auto n_threads = omp_get_max_threads();
   omp_set_num_threads(16);
   for (auto const &page : dmat->GetBatches<xgboost::CSCPage>()) {
