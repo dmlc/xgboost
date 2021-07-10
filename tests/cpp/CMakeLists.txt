@@ -18,16 +18,7 @@ if (NOT PLUGIN_UPDATER_ONEAPI)
   list(REMOVE_ITEM TEST_SOURCES ${ONEAPI_TEST_SOURCES})
 endif (NOT PLUGIN_UPDATER_ONEAPI)
 
-add_executable(testxgboost ${TEST_SOURCES}
-  ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
-target_link_libraries(testxgboost PRIVATE objxgboost)
-
-if (USE_CUDA)
-  xgboost_set_cuda_flags(testxgboost)
-
-  find_package(CUDA)
-  target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
-endif (USE_CUDA)
+target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 
 if (MSVC)
   target_compile_options(testxgboost PRIVATE
@@ -47,10 +38,6 @@ target_include_directories(testxgboost
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-set_target_properties(
-  testxgboost PROPERTIES
-  CXX_STANDARD 14
-  CXX_STANDARD_REQUIRED ON)
 target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES})
