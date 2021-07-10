@@ -53,27 +53,6 @@ GetCacheShards(const std::string& cache_info) {
 
 namespace xgboost {
 namespace data {
-/*!
- * \brief decide the format from cache prefix.
- * \return pair of row format, column format type of the cache prefix.
- */
-inline std::pair<std::string, std::string> DecideFormat(const std::string& cache_prefix) {
-  size_t pos = cache_prefix.rfind(".fmt-");
-
-  if (pos != std::string::npos) {
-    std::string fmt = cache_prefix.substr(pos + 5, cache_prefix.length());
-    size_t cpos = fmt.rfind('-');
-    if (cpos != std::string::npos) {
-      return std::make_pair(fmt.substr(0, cpos), fmt.substr(cpos + 1, fmt.length()));
-    } else {
-      return std::make_pair(fmt, fmt);
-    }
-  } else {
-    std::string raw = "raw";
-    return std::make_pair(raw, raw);
-  }
-}
-
 inline void TryDeleteCacheFile(const std::string& file) {
   if (std::remove(file.c_str()) != 0) {
     LOG(WARNING) << "Couldn't remove external memory cache file " << file
