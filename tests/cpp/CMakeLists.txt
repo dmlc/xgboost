@@ -23,7 +23,7 @@ target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/
 if (USE_CUDA AND PLUGIN_RMM)
   find_package(CUDA)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
-endif (USE_CUDA)
+endif (USE_CUDA AND PLUGIN_RMM)
 
 if (MSVC)
   target_compile_options(testxgboost PRIVATE
