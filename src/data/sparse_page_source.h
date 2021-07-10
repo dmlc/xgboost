@@ -14,11 +14,6 @@
 #include <map>
 #include <memory>
 
-#if (defined _WIN32) || (defined __CYGWIN__)
-#include <locale>  // std::local
-#include <cctype>  // std::isalpha
-#endif  // (defined _WIN32) || (defined __CYGWIN__)
-
 #include "rabit/rabit.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -28,28 +23,6 @@
 #include "proxy_dmatrix.h"
 
 #include "../common/common.h"
-
-
-namespace detail {
-
-// Split a cache info string with delimiter ':'
-// If cache info string contains drive letter (e.g. C:), exclude it before splitting
-inline std::vector<std::string>
-GetCacheShards(const std::string& cache_info) {
-#if (defined _WIN32) || (defined __CYGWIN__)
-  if (cache_info.length() >= 2
-      && std::isalpha(cache_info[0], std::locale::classic())
-      && cache_info[1] == ':') {
-    std::vector<std::string> cache_shards
-      = xgboost::common::Split(cache_info.substr(2), ':');
-    cache_shards[0] = cache_info.substr(0, 2) + cache_shards[0];
-    return cache_shards;
-  }
-#endif  // (defined _WIN32) || (defined __CYGWIN__)
-  return xgboost::common::Split(cache_info, ':');
-}
-
-}  // namespace detail
 
 namespace xgboost {
 namespace data {
