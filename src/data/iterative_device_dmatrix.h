@@ -84,7 +84,7 @@ inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missin
 inline BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
   common::AssertGPUSupport();
   auto begin_iter =
-      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_.get()));
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

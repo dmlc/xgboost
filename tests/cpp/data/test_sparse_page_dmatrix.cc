@@ -61,6 +61,47 @@ TEST(SparsePageDMatrix, LoadFile) {
   TestSparseDMatrixLoadFile<SortedCSCPage>();
 }
 
+// allow caller to retain pages so they can process multiple pages at the same time.
+template <typename Page>
+void TestRetainPage() {
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  auto m = CreateSparsePageDMatrix(10000, 0, tmp_file);
+  auto batches = m->GetBatches<Page>();
+  auto begin = batches.begin();
+  auto end = batches.end();
+
+  std::vector<Page> pages;
+  std::vector<std::shared_ptr<Page const>> iterators;
+  for (auto it = begin; it != end; ++it) {
+    iterators.push_back(it.Page());
+    pages.emplace_back(Page{});
+    if (std::is_same<Page, SparsePage>::value) {
+      pages.back().Push(*it);
+    } else {
+      pages.back().PushCSC(*it);
+    }
+    ASSERT_EQ(pages.back().Size(), (*it).Size());
+  }
+  ASSERT_GE(iterators.size(), 2);
+
+  for (size_t i = 0; i < iterators.size(); ++i) {
+    ASSERT_EQ((*iterators[i]).Size(), pages.at(i).Size());
+    ASSERT_EQ((*iterators[i]).data.HostVector(), pages.at(i).data.HostVector());
+  }
+
+  // make sure it's const and the caller can not modify the content of page.
+  for (auto& page : m->GetBatches<Page>()) {
+    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+  }
+}
+
+TEST(SparsePageDMatrix, RetainSparsePage) {
+  TestRetainPage<SparsePage>();
+  TestRetainPage<CSCPage>();
+  TestRetainPage<SortedCSCPage>();
+}
+
 TEST(SparsePageDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";

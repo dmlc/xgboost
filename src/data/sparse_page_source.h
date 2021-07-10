@@ -199,15 +199,12 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
   uint32_t Iter() const { return count_; }
 
-  S &operator*() override {
-    CHECK(page_);
-    return *page_;
-  }
   const S &operator*() const override {
     CHECK(page_);
     return *page_;
   }
-  std::shared_ptr<S> Page() const {
+
+  std::shared_ptr<S const> Page() const override {
     return page_;
   }
 
@@ -237,7 +234,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   size_t base_row_id_ {0};
 
   void Fetch() final {
-    page_.reset(new SparsePage{});
+    page_ = std::make_shared<SparsePage>();
     if (!this->ReadCache()) {
       bool type_error { false };
       CHECK(proxy_);

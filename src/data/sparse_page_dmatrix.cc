@@ -128,7 +128,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
   }
   this->InitializeSparsePage();
   auto begin_iter = BatchIterator<GHistIndexMatrix>(
-      new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_index_source_.get()));
+      new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_index_source_));
   return BatchSet<GHistIndexMatrix>(begin_iter);
 }
 

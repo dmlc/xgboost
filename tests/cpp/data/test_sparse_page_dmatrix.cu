@@ -59,6 +59,34 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
       ".ellpack.page";
 }
 
+TEST(SparsePageDMatrix, RetainEllpackPage) {
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  auto m = CreateSparsePageDMatrix(10000, 0, tmp_file);
+  auto batches = m->GetBatches<EllpackPage>({0, 32});
+  auto begin = batches.begin();
+  auto end = batches.end();
+
+  std::vector<HostDeviceVector<common::CompressedByteT>> gidx_buffers;
+  std::vector<std::shared_ptr<EllpackPage const>> iterators;
+  for (auto it = begin; it != end; ++it) {
+    iterators.push_back(it.Page());
+    gidx_buffers.emplace_back(HostDeviceVector<common::CompressedByteT>{});
+    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.Size());
+    gidx_buffers.back().Copy((*it).Impl()->gidx_buffer);
+  }
+  ASSERT_GE(iterators.size(), 2);
+
+  for (size_t i = 0; i < iterators.size(); ++i) {
+    ASSERT_EQ((*iterators[i]).Impl()->gidx_buffer.HostVector(), gidx_buffers.at(i).HostVector());
+  }
+
+  // make sure it's const and the caller can not modify the content of page.
+  for (auto& page : m->GetBatches<EllpackPage>({0, 32})) {
+    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+  }
+}
+
 TEST(SparsePageDMatrix, EllpackPageContent) {
   constexpr size_t kRows = 6;
   constexpr size_t kCols = 2;

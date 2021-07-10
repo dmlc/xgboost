@@ -20,7 +20,39 @@
 
 namespace xgboost {
 namespace data {
-// Used for external memory.
+/**
+ * \brief DMatrix used for external memory.
+ *
+ * The external memory is created for controlling memory usage by splitting up data into
+ * multiple batches.  However that doesn't mean we will actually process exact 1 batch at
+ * a time, which would be terribly slow considering that we have to loop through the
+ * whole dataset for every tree split.  So we use async pre-fetch and let caller to decide
+ * how many batches it wants to process by returning data as shared pointer.  The caller
+ * can use async function to process the data or just stage those batches, making the
+ * decision is out of the scope for sparse page dmatrix.  These 2 optimizations might
+ * defeat the purpose of splitting up dataset since if you load all the batches then the
+ * memory usage is even worse than using a single batch.  Essentially we need to control
+ * how many batches can be in memory at the same time.
+ *
+ * Right now the write to the cache is sequential operation and is blocking, reading from
+ * cache is async but with a hard coded limit of 4 pages as an heuristic.  So by sparse
+ * dmatrix itself there can be only 5 pages in main memory (might be of different types)
+ * at the same time: 1 page pending for write, 4 pre-fetched pages.  If the caller stops
+ * iteration at the middle and start again, then the number of pages in memory can hit 8
+ * due to pre-fetching, but this should be a bug in caller's code (XGBoost doesn't discard
+ * a large portion of data at the end, there's not sampling algo that samples only the
+ * first portion of data).
+ *
+ * Of course if the caller decides to retain some batches to perform parallel processing,
+ * then we might load all pages in memory, which is also considered as a bug in caller's
+ * code.  So if the algo supports external memory, it must be careful that queue for async
+ * call must have an upper limit.
+ *
+ * Another assumption we make is that the data must be immutable so caller should never
+ * change the data.  Sparse page source returns const page to make sure of that.  If you
+ * want to change the generated page like Ellpack, pass parameter into `GetBatches` to
+ * re-generate them instead of trying to modify the pages in-place.
+ */
 class SparsePageDMatrix : public DMatrix {
   MetaInfo info_;
   BatchParam batch_param_;
@@ -47,11 +79,12 @@ class SparsePageDMatrix : public DMatrix {
                              int32_t nthreads, std::string cache_prefix);
 
   ~SparsePageDMatrix() override {
-    // Clear out all resources
+    // Clear out all resources before deleting the cache file.
     sparse_page_source_.reset();
     ellpack_page_source_.reset();
     column_source_.reset();
     sorted_column_source_.reset();
+    ghist_index_source_.reset();
 
     for (auto const &kv : cache_info_) {
       CHECK(kv.second);

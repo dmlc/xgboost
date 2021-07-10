@@ -155,7 +155,8 @@ TEST(GBTree, ChoosePredictor) {
   ASSERT_TRUE(data.HostCanWrite());
 
   // pull data into device.
-  data = HostDeviceVector<Entry>(data.HostVector(), 0);
+  data.HostVector();
+  data.SetDevice(0);
   data.DeviceSpan();
   ASSERT_FALSE(data.HostCanWrite());
 

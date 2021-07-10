@@ -392,10 +392,10 @@ template<typename T>
 class BatchIteratorImpl {
  public:
   virtual ~BatchIteratorImpl() = default;
-  virtual T& operator*() = 0;
   virtual const T& operator*() const = 0;
   virtual void operator++() = 0;
   virtual bool AtEnd() const = 0;
+  virtual std::shared_ptr<T const> Page() const = 0;
 };
 
 template<typename T>
@@ -408,11 +408,6 @@ class BatchIterator {
   void operator++() {
     CHECK(impl_ != nullptr);
     ++(*impl_);
-  }
-
-  T& operator*() {
-    CHECK(impl_ != nullptr);
-    return *(*impl_);
   }
 
   const T& operator*() const {
@@ -428,6 +423,10 @@ class BatchIterator {
   bool AtEnd() const {
     CHECK(impl_ != nullptr);
     return impl_->AtEnd();
+  }
+
+  std::shared_ptr<T const> Page() const {
+    return impl_->Page();
   }
 
  private:
