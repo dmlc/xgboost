@@ -25,19 +25,6 @@ if (USE_CUDA AND PLUGIN_RMM)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
 endif (USE_CUDA AND PLUGIN_RMM)
 
-if (MSVC)
-  target_compile_options(testxgboost PRIVATE
-    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
-    -D_CRT_SECURE_NO_WARNINGS
-    -D_CRT_SECURE_NO_DEPRECATE
-  )
-endif (MSVC)
-
-if (ENABLE_ALL_WARNINGS)
-  target_compile_options(testxgboost PUBLIC
-    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
-endif (ENABLE_ALL_WARNINGS)
-
 target_include_directories(testxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include

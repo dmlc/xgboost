@@ -21,54 +21,10 @@ target_include_directories(objxgboost
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-target_compile_options(objxgboost
-  PRIVATE
-  $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
-  $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
-if (WIN32 AND MINGW)
-  target_compile_options(objxgboost PUBLIC -static-libstdc++)
-endif (WIN32 AND MINGW)
 
-if (MSVC)
-  target_compile_options(objxgboost PRIVATE
-    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
-    -D_CRT_SECURE_NO_WARNINGS
-    -D_CRT_SECURE_NO_DEPRECATE
-  )
-endif (MSVC)
-
-if (ENABLE_ALL_WARNINGS)
-  target_compile_options(objxgboost PUBLIC
-    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>
-  )
-endif (ENABLE_ALL_WARNINGS)
 if (LOG_CAPI_INVOCATION)
   target_compile_definitions(objxgboost PRIVATE -DLOG_CAPI_INVOCATION=1)
 endif (LOG_CAPI_INVOCATION)
-
-target_compile_definitions(objxgboost
-  PRIVATE
-  -DDMLC_LOG_CUSTOMIZE=1  # enable custom logging
-  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>)
-if (USE_DEBUG_OUTPUT)
-  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
-endif (USE_DEBUG_OUTPUT)
-
-if (XGBOOST_MM_PREFETCH_PRESENT)
-  target_compile_definitions(objxgboost
-    PRIVATE
-    -DXGBOOST_MM_PREFETCH_PRESENT=1)
-endif(XGBOOST_MM_PREFETCH_PRESENT)
-if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
-  target_compile_definitions(objxgboost
-    PRIVATE
-    -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
-endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
-
-if (RABIT_BUILD_MPI)
-  find_package(MPI REQUIRED)
-  target_link_libraries(objxgboost PRIVATE MPI::MPI_CXX)
-endif (RABIT_BUILD_MPI)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462

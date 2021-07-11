@@ -15,11 +15,8 @@ if (XGBOOST_BUILD_STATIC_LIB)
   if(USE_CUDA)
     find_dependency(CUDA)
   endif()
-  if(USE_NCCL)
-    find_dependency(Nccl)
-  endif()
+  # nccl should be linked statically if xgboost is built as static library.
 endif (XGBOOST_BUILD_STATIC_LIB)
-
 
 if(NOT TARGET xgboost::xgboost)
   include(${CMAKE_CURRENT_LIST_DIR}/XGBoostTargets.cmake)

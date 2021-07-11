@@ -159,20 +159,17 @@ msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 
 if (MSVC)
-  target_compile_options(dmlc PRIVATE
-                         -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   if (TARGET dmlc_unit_tests)
     target_compile_options(dmlc_unit_tests PRIVATE
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (TARGET dmlc_unit_tests)
 endif (MSVC)
 
-if (ENABLE_ALL_WARNINGS)
-  target_compile_options(dmlc PRIVATE -Wall -Wextra)
-endif (ENABLE_ALL_WARNINGS)
-
 # rabit
 add_subdirectory(rabit)
+if (RABIT_BUILD_MPI)
+  find_package(MPI REQUIRED)
+endif (RABIT_BUILD_MPI)
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
@@ -220,11 +217,13 @@ set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
 foreach(target xgboost objxgboost dmlc runxgboost)
   xgboost_target_properties(${target})
   xgboost_target_link_libraries(${target})
+  xgboost_target_defs(${target})
 endforeach()
 
 if (JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
   xgboost_target_link_libraries(xgboost4j)
+  xgboost_target_defs(xgboost4j)
 endif (JVM_BINDINGS)
 
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
@@ -303,6 +302,7 @@ if (GOOGLE_TEST)
   target_link_libraries(testxgboost PRIVATE objxgboost)
   xgboost_target_properties(testxgboost)
   xgboost_target_link_libraries(testxgboost)
+  xgboost_target_defs(testxgboost)
 
   add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp)
 

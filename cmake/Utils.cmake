@@ -178,6 +178,7 @@ macro(xgboost_link_nccl target)
   endif (BUILD_STATIC_LIB)
 endmacro(xgboost_link_nccl)
 
+# compile options
 macro(xgboost_target_properties target)
   set_target_properties(${target} PROPERTIES
     CXX_STANDARD 14
@@ -191,8 +192,55 @@ macro(xgboost_target_properties target)
       CUDA_VISIBILITY_PRESET hidden
     )
   endif (HIDE_CXX_SYMBOLS)
+
+  if (ENABLE_ALL_WARNINGS)
+    target_compile_options(${target} PUBLIC
+      $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>
+    )
+  endif(ENABLE_ALL_WARNINGS)
+
+  target_compile_options(${target}
+    PRIVATE
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
+
+  if (MSVC)
+    target_compile_options(${target} PRIVATE
+      $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+      -D_CRT_SECURE_NO_WARNINGS
+      -D_CRT_SECURE_NO_DEPRECATE
+      )
+  endif (MSVC)
+
+  if (WIN32 AND MINGW)
+    target_compile_options(${target} PUBLIC -static-libstdc++)
+  endif (WIN32 AND MINGW)
 endmacro(xgboost_target_properties)
 
+# Custom definitions used in xgboost.
+macro(xgboost_target_defs target)
+  if (NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
+    target_compile_definitions(${target}
+      PRIVATE
+      -DDMLC_LOG_CUSTOMIZE=1
+      $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>)
+  endif ()
+  if (USE_DEBUG_OUTPUT)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
+  endif (USE_DEBUG_OUTPUT)
+  if (XGBOOST_MM_PREFETCH_PRESENT)
+    target_compile_definitions(${target}
+      PRIVATE
+      -DXGBOOST_MM_PREFETCH_PRESENT=1)
+  endif(XGBOOST_MM_PREFETCH_PRESENT)
+  if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+    target_compile_definitions(${target}
+      PRIVATE
+      -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
+  endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+endmacro(xgboost_target_defs)
+
+# handles dependencies
 macro(xgboost_target_link_libraries target)
   if (BUILD_STATIC_LIB)
     target_link_libraries(${target} PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
@@ -219,4 +267,8 @@ macro(xgboost_target_link_libraries target)
   if (USE_NVTX)
     enable_nvtx(${target})
   endif (USE_NVTX)
+
+  if (RABIT_BUILD_MPI)
+    target_link_libraries(${target} PRIVATE MPI::MPI_CXX)
+  endif (RABIT_BUILD_MPI)
 endmacro(xgboost_target_link_libraries)
