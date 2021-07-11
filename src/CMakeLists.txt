@@ -26,6 +26,10 @@ if (LOG_CAPI_INVOCATION)
   target_compile_definitions(objxgboost PRIVATE -DLOG_CAPI_INVOCATION=1)
 endif (LOG_CAPI_INVOCATION)
 
+if (USE_ARROW)
+  target_compile_options(objxgboost PRIVATE -DXGBOOST_BUILD_ARROW_SUPPORT)
+endif (USE_ARROW)
+
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags

@@ -494,11 +494,18 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
                                      bst_ulong ncol);
 
 
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+XGB_DLL int XGImportRecordBatch(DataIterHandle data_handle, void* ptr_array, void* ptr_schema);
+
+XGB_DLL int XGDMatrixCreateFromArrowCallback(
+    XGDMatrixCallbackNext *next,
+    float missing,
+    int nthread,
+    DMatrixHandle *out);
+#endif
 /*
  * ==========================- End data callback APIs ==========================
  */
-
-
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
@@ -724,6 +731,9 @@ XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
                             bst_ulong *out);
+
+XGB_DLL int XGDMatricesEqual(DMatrixHandle lmat, DMatrixHandle rmat, bst_ulong *out);
+
 // --- start XGBoost class
 /*!
  * \brief create xgboost learner

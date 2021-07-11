@@ -362,6 +362,28 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   API_END();
 }
 
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+XGB_DLL int XGImportRecordBatch(DataIterHandle data_handle, void* ptr_array, void* ptr_schema) {
+  API_BEGIN();
+  static_cast<data::RecordBatchIterAdapter *>(data_handle)->SetData(
+      static_cast<struct ArrowArray *>(ptr_array),
+      static_cast<struct ArrowSchema *>(ptr_schema));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromArrowCallback(
+    XGDMatrixCallbackNext *next,
+    float missing,
+    int nthread,
+    DMatrixHandle *out) {
+  API_BEGIN();
+  data::RecordBatchIterAdapter adapter(next);
+  *out = new std::shared_ptr<DMatrix>(
+      DMatrix::Create(&adapter, missing, nthread));
+  API_END();
+}
+#endif
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,
@@ -533,6 +555,24 @@ XGB_DLL int XGDMatrixNumCol(const DMatrixHandle handle,
   CHECK_HANDLE();
   *out = static_cast<xgboost::bst_ulong>(
       static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info().num_col_);
+  API_END();
+}
+
+XGB_DLL int XGDMatricesEqual(DMatrixHandle lmat, DMatrixHandle rmat, bst_ulong *out) {
+  API_BEGIN();
+  DMatrixHandle handle = lmat;
+  CHECK_HANDLE();
+  handle = rmat;
+  CHECK_HANDLE();
+  auto ldmat = static_cast<std::shared_ptr<DMatrix>*>(lmat)->get();
+  auto rdmat = static_cast<std::shared_ptr<DMatrix>*>(rmat)->get();
+  data::SimpleDMatrix *lhs, *rhs;
+  if ((lhs = dynamic_cast<data::SimpleDMatrix*>(ldmat)) &&
+      (rhs = dynamic_cast<data::SimpleDMatrix*>(rdmat))) {
+    *out = (*lhs == *rhs);
+  } else {
+    LOG(FATAL) << "equality comparison only supported by SimpleDMatrix";
+  }
   API_END();
 }
 

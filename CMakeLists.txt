@@ -30,6 +30,7 @@ option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(RABIT_BUILD_MPI "Build MPI" OFF)
+option(USE_ARROW "Build with Apache Arrow data format support" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)

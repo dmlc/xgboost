@@ -20,7 +20,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
-                     lazy_isinstance)
+                     lazy_isinstance, ffi)
 from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
@@ -426,6 +426,34 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         """
         raise NotImplementedError()
 
+class RecordBatchDataIter:
+    '''Data iterator used to ingest Arrow columnar record batches. We are not
+    using class DataIter because it is only intended for building Device DMatrix. 
+
+    '''
+
+    def __init__(self, data_iter):
+        self.data_iter = data_iter      # an iterator for Arrow record batches
+        self.c_schema = ffi.new("struct ArrowSchema*")
+        self.c_array = ffi.new("struct ArrowArray*")
+
+    def reset(self):
+        raise NotImplementedError()
+
+    def next(self, data_handle):
+        try:
+            batch = next(self.data_iter)
+            ptr_schema = int(ffi.cast("uintptr_t", self.c_schema))
+            ptr_array = int(ffi.cast("uintptr_t", self.c_array))
+            batch._export_to_c(ptr_array, ptr_schema)
+            _check_call(_LIB.XGImportRecordBatch(
+                ctypes.c_void_p(data_handle),
+                ctypes.c_void_p(ptr_array),
+                ctypes.c_void_p(ptr_schema)))
+            return 1
+        except StopIteration:
+            return 0
+        
 
 # Notice for `_deprecate_positional_args`
 # Authors: Olivier Grisel
@@ -1065,6 +1093,13 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 c_str('feature_type'),
                 None,
                 c_bst_ulong(0)))
+
+    def __eq__(self, other):
+        ret = c_bst_ulong()
+        _check_call(_LIB.XGDMatricesEqual(self.handle, other.handle,
+                                        ctypes.byref(ret)))
+        return bool(ret.value)
+
 
 
 class _ProxyDMatrix(DMatrix):

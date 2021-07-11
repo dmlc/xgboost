@@ -178,7 +178,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
     // determine the correct number of rows, as offset_vec may be too short
     if (std::is_same<AdapterT, IteratorAdapterT>::value
-        || std::is_same<AdapterT, FileAdapter>::value) {
+        || std::is_same<AdapterT, FileAdapter>::value
+        || std::is_same<AdapterT, RecordBatchIterAdapter>::value) {
       info_.num_row_ = total_batch_size;
       // Ensure offset_vec.size() - 1 == [number of rows]
       while (offset_vec.size() - 1 < total_batch_size) {
@@ -236,5 +237,21 @@ template SimpleDMatrix::SimpleDMatrix(
     IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>
         *adapter,
     float missing, int nthread);
+
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+template SimpleDMatrix::SimpleDMatrix(RecordBatchIterAdapter* adapter, float missing,
+                                    int nthread);
+#endif
+
+bool SimpleDMatrix::operator==(const SimpleDMatrix& rhs) const {
+  auto& my_info = info_;
+  auto& your_info = rhs.info_;
+  auto& my_offset = sparse_page_.offset.HostVector();
+  auto& your_offset = rhs.sparse_page_.offset.HostVector();
+  auto& my_data = sparse_page_.data.HostVector();
+  auto& your_data = rhs.sparse_page_.data.HostVector();
+  return (my_info == your_info && my_offset == your_offset && my_data == your_data);
+}
+
 }  // namespace data
 }  // namespace xgboost

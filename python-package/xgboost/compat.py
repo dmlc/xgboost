@@ -123,6 +123,18 @@ except ImportError:
     SCIPY_INSTALLED = False
 
 
+try:
+    import pyarrow as pa
+    from pyarrow import dataset as arrow_dataset
+    from pyarrow.cffi import ffi
+    PYARROW_INSTALLED = True
+except ImportError:
+    pa = None
+    arrow_dataset = None
+    ffi = None
+    PYARROW_INSTALLED = False
+   
+
 # Modified from tensorflow with added caching.  There's a `LazyLoader` in
 # `importlib.utils`, except it's unclear from its document on how to use it.  This one
 # seems to be easy to understand and works out of box.

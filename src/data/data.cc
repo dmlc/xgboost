@@ -866,6 +866,12 @@ DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,
                 float missing, int nthread, const std::string &cache_prefix);
 
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+template DMatrix* DMatrix::Create<data::RecordBatchIterAdapter>(
+    data::RecordBatchIterAdapter* adapter, float missing, int nthread,
+    const std::string&, size_t);
+#endif
+
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
@@ -1023,6 +1029,70 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
   return max_columns;
 }
+
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+uint64_t SparsePage::Push(const data::ArrowColumnarBatch& batch, float missing, int nthread) {
+  // Set number of threads but keep old value so we can reset it after
+  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
+
+  uint64_t num_columns{batch.NumColumns()};
+  size_t batch_size{batch.Size()};
+  size_t batch_nnn{0};
+  auto& data_vec = data.HostVector();
+  auto& offset_vec = offset.HostVector();
+
+  // Compute the starting location for every row in data_vec
+  std::vector<size_t> row_begins(batch_size + 1, 0);
+  row_begins[0] = offset_vec.empty() ? 0 : offset_vec.back();
+#pragma omp parallel for reduction(+:batch_nnn) if(batch_size > (1 << 18))
+  for (size_t i = 0; i < batch_size; ++i) {
+    for (size_t j = 0; j < num_columns; ++j) {
+      auto element = batch.GetColumn(j).GetElement(i);
+      if (!std::isnan(element.value) && element.value != missing) {
+        row_begins[i+1]++;
+        batch_nnn++;
+      }
+    }
+  }
+  // prefix sum
+  std::vector<size_t> temp(batch_size + 1, row_begins[0]);
+  for (size_t j = 0; j < log2(row_begins.size()); ++j) {
+#pragma omp parallel for if(batch_size > (1 << 18))
+    for (size_t i = 1 << j; i < row_begins.size(); ++i) {
+      temp[i] = row_begins[i] + row_begins[i - (1 << j)];
+    }
+#pragma omp parallel for if(batch_size > (1 << 18))
+    for (size_t i = 1 << j; i < row_begins.size(); ++i) {
+      row_begins[i] = temp[i];
+    }
+  }
+
+  CHECK(row_begins.back() - row_begins.front() == batch_nnn);
+
+  // Place elements in correct locations
+  size_t cum_size = data_vec.size() + batch_nnn;
+  data_vec.resize(cum_size);
+#pragma omp parallel for schedule(static)
+  for (size_t i = 0; i < batch_size; ++i) {
+    size_t begin = row_begins[i];
+    for (size_t j = 0; j < num_columns; ++j) {
+      auto element = batch.GetColumn(j).GetElement(i);
+      if (!std::isnan(element.value) && element.value != missing) {
+        data_vec[begin++] = Entry(element.column_idx, element.value);
+      }
+    }
+  }
+
+  // Set offset
+  offset_vec.insert(offset_vec.end(), row_begins.begin() + 1, row_begins.end());
+  CHECK(offset_vec.back() == data_vec.size());
+
+  // Restore omp_num_threads
+  omp_set_num_threads(nthread_original);
+
+  return num_columns;
+}
+#endif
 
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();
