@@ -87,14 +87,14 @@ jobs:
       run: |
         conda info
         conda list
-    - name: Build and install XGBoost
+    - name: Build and install XGBoost static library
       shell: bash -l {0}
       run: |
         mkdir build
         cd build
         cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
         ninja -v install
-    - name: Build and run C API demo
+    - name: Build and run C API demo with static
       shell: bash -l {0}
       run: |
         cd demo/c-api/
@@ -104,6 +104,26 @@ jobs:
         ninja -v
         cd ..
         ./build/api-demo
+        rm -rf ./build
+        cd ../..
+    - name: Build and install XGBoost shared library
+      shell: bash -l {0}
+      run: |
+        cd build
+        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        ninja -v install
+    - name: Build and run C API demo with shared
+      shell: bash -l {0}
+      run: |
+        cd demo/c-api/
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja -v
+        cd ..
+        ./build/api-demo
+        cd ../../
+        ./tests/ci_build/verify_link.sh ./demo/c-api/build/api-demo
 
   lint:
     runs-on: ubuntu-latest
