@@ -36,12 +36,12 @@ namespace data {
  *
  * Right now the write to the cache is sequential operation and is blocking, reading from
  * cache is async but with a hard coded limit of 4 pages as an heuristic.  So by sparse
- * dmatrix itself there can be only 5 pages in main memory (might be of different types)
- * at the same time: 1 page pending for write, 4 pre-fetched pages.  If the caller stops
- * iteration at the middle and start again, then the number of pages in memory can hit 8
- * due to pre-fetching, but this should be a bug in caller's code (XGBoost doesn't discard
- * a large portion of data at the end, there's not sampling algo that samples only the
- * first portion of data).
+ * dmatrix itself there can be only 9 pages in main memory (might be of different types)
+ * at the same time: 1 page pending for write, 4 pre-fetched sparse pages, 4 pre-fetched
+ * dependent pages.  If the caller stops iteration at the middle and start again, then the
+ * number of pages in memory can hit 16 due to pre-fetching, but this should be a bug in
+ * caller's code (XGBoost doesn't discard a large portion of data at the end, there's not
+ * sampling algo that samples only the first portion of data).
  *
  * Of course if the caller decides to retain some batches to perform parallel processing,
  * then we might load all pages in memory, which is also considered as a bug in caller's
@@ -52,6 +52,9 @@ namespace data {
  * change the data.  Sparse page source returns const page to make sure of that.  If you
  * want to change the generated page like Ellpack, pass parameter into `GetBatches` to
  * re-generate them instead of trying to modify the pages in-place.
+ *
+ * A possible optimization is dropping the sparse page once dependent pages like ellpack
+ * are constructed and cached.
  */
 class SparsePageDMatrix : public DMatrix {
   MetaInfo info_;

@@ -304,6 +304,7 @@ class CSCPageSource : public PageSourceIncMixIn<CSCPage> {
     if (!this->ReadCache()) {
       auto const &csr = source_->Page();
       this->page_.reset(new CSCPage{});
+      // we might be able to optimize this by merging transpose and pushcsc
       this->page_->PushCSC(csr->GetTranspose(n_features_));
       page_->SetBaseRowId(csr->base_rowid);
       this->WriteCache();
@@ -328,6 +329,7 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
     if (!this->ReadCache()) {
       auto const &csr = this->source_->Page();
       this->page_.reset(new SortedCSCPage{});
+      // we might be able to optimize this by merging transpose and pushcsc
       this->page_->PushCSC(csr->GetTranspose(n_features_));
       CHECK_EQ(this->page_->Size(), n_features_);
       CHECK_EQ(this->page_->data.Size(), csr->data.Size());
