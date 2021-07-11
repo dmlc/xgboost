@@ -219,12 +219,12 @@ set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
 # Common setup for all targets
 foreach(target xgboost objxgboost dmlc runxgboost)
   xgboost_target_properties(${target})
-  xgboost_link_libraries(${target})
+  xgboost_target_link_libraries(${target})
 endforeach()
 
 if (JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
-  xgboost_link_libraries(xgboost4j)
+  xgboost_target_link_libraries(xgboost4j)
 endif (JVM_BINDINGS)
 
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
@@ -302,7 +302,7 @@ if (GOOGLE_TEST)
   add_executable(testxgboost)
   target_link_libraries(testxgboost PRIVATE objxgboost)
   xgboost_target_properties(testxgboost)
-  xgboost_link_libraries(testxgboost)
+  xgboost_target_link_libraries(testxgboost)
 
   add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp)
 

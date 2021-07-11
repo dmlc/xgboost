@@ -23,7 +23,7 @@ target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/
 if (USE_CUDA AND PLUGIN_RMM)
   find_package(CUDA)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
-endif (USE_CUDA)
+endif (USE_CUDA AND PLUGIN_RMM)
 
 if (MSVC)
   target_compile_options(testxgboost PRIVATE
@@ -40,13 +40,10 @@ endif (ENABLE_ALL_WARNINGS)
 
 target_include_directories(testxgboost
   PRIVATE
-  ${GTEST_INCLUDE_DIRS}
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-target_link_libraries(testxgboost
-  PRIVATE
-  ${GTEST_LIBRARIES})
+target_link_libraries(testxgboost PRIVATE GTest::GTest)
 
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 
