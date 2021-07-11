@@ -22,6 +22,9 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
     : proxy_{proxy_handle}, iter_{iter_handle}, reset_{reset}, next_{next}, missing_{missing},
       nthreads_{nthreads}, cache_prefix_{std::move(cache_prefix)} {
   cache_prefix_ = cache_prefix_.empty() ? "DMatrix" : cache_prefix_;
+  if (rabit::IsDistributed()) {
+    cache_prefix_ += ("-r" + std::to_string(rabit::GetRank()));
+  }
   DMatrixProxy *proxy = MakeProxy(proxy_);
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};

@@ -136,6 +136,10 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         return page;
       });
     }
+    CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(),
+                           [](auto const &f) { return f.valid(); }),
+             n_prefetch_batches)
+        << "Sparse DMatrix assumes forward iteration.";
     page_ = (*ring_)[count_].get();
     return true;
   }
