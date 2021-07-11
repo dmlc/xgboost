@@ -1000,6 +1000,8 @@ template DMatrix *
 DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,
                 float missing, int nthread, const std::string &cache_prefix);
+template DMatrix* DMatrix::Create<data::RecordBatchesIterAdapter>(
+    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;

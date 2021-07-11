@@ -33,6 +33,8 @@ dependencies:
 - boto3
 - awscli
 - py-ubjson
+- cffi
+- pyarrow
 - pip:
   - sphinx_rtd_theme
   - datatable

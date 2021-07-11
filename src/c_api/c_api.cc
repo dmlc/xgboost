@@ -416,6 +416,27 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   API_END();
 }
 
+XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array,
+                                     void *ptr_schema) {
+  API_BEGIN();
+  static_cast<data::RecordBatchesIterAdapter *>(data_handle)
+      ->SetData(static_cast<struct ArrowArray *>(ptr_array),
+                static_cast<struct ArrowSchema *>(ptr_schema));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+                                             DMatrixHandle *out) {
+  API_BEGIN();
+  auto config = Json::Load(StringView{json_config});
+  auto missing = GetMissing(config);
+  int32_t n_threads = get<Integer const>(config["nthread"]);
+  n_threads = common::OmpGetNumThreads(n_threads);
+  data::RecordBatchesIterAdapter adapter(next, n_threads);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,

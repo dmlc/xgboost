@@ -26,6 +26,8 @@ dependencies:
 - awscli
 - numba
 - llvmlite
+- cffi
+- pyarrow
 - pip:
   - shap
   - awscli
