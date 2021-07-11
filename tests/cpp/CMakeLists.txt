@@ -27,10 +27,13 @@ endif (USE_CUDA AND PLUGIN_RMM)
 
 target_include_directories(testxgboost
   PRIVATE
+  ${GTEST_INCLUDE_DIRS}
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-target_link_libraries(testxgboost PRIVATE GTest::GTest)
+target_link_libraries(testxgboost
+  PRIVATE
+  ${GTEST_LIBRARIES})
 
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 
