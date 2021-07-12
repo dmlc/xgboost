@@ -241,7 +241,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     this->Fetch();
   }
 
-  void operator++() final {
+  SparsePageSource& operator++() final {
     TryLockGuard guard{single_threaded_};
     count_++;
     if (cache_info_->written) {
@@ -260,6 +260,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     } else {
       this->Fetch();
     }
+    return *this;
   }
 
   void Reset() override {
@@ -282,7 +283,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
 
  public:
   using SparsePageSourceImpl<S>::SparsePageSourceImpl;
-  void operator++() final {
+  PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
     ++(*source_);
 
@@ -299,6 +300,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
       this->Fetch();
     }
     CHECK_EQ(source_->Iter(), this->count_);
+    return *this;
   }
 };
 

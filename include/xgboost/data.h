@@ -393,7 +393,7 @@ class BatchIteratorImpl {
  public:
   virtual ~BatchIteratorImpl() = default;
   virtual const T& operator*() const = 0;
-  virtual void operator++() = 0;
+  virtual BatchIteratorImpl& operator++() = 0;
   virtual bool AtEnd() const = 0;
   virtual std::shared_ptr<T const> Page() const = 0;
 };

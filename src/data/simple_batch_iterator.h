@@ -20,7 +20,10 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
     CHECK(page_ != nullptr);
     return *page_;
   }
-  void operator++() override { page_ = nullptr; }
+  SimpleBatchIteratorImpl &operator++() override {
+    page_ = nullptr;
+    return *this;
+  }
   bool AtEnd() const override { return page_ == nullptr; }
 
   std::shared_ptr<T const> Page() const override { return page_; }
