@@ -391,6 +391,7 @@ class GHistIndexMatrix;
 template<typename T>
 class BatchIteratorImpl {
  public:
+  using iterator_category = std::forward_iterator_tag;  // NOLINT
   virtual ~BatchIteratorImpl() = default;
   virtual const T& operator*() const = 0;
   virtual BatchIteratorImpl& operator++() = 0;
@@ -405,9 +406,10 @@ class BatchIterator {
   explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
   explicit BatchIterator(std::shared_ptr<BatchIteratorImpl<T>> impl) { impl_ = impl; }
 
-  void operator++() {
+  BatchIterator &operator++() {
     CHECK(impl_ != nullptr);
     ++(*impl_);
+    return *this;
   }
 
   const T& operator*() const {
