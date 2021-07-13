@@ -118,12 +118,12 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
     return thrust::make_pair(fp, tp);
   };  // NOLINT
   auto d_fptp = dh::ToSpan(cache->fptp);
-  dh::LaunchN(device, d_sorted_idx.size(),
+  dh::LaunchN(d_sorted_idx.size(),
               [=] __device__(size_t i) { d_fptp[i] = get_fp_tp(i); });
 
   dh::XGBDeviceAllocator<char> alloc;
   auto d_unique_idx = dh::ToSpan(cache->unique_idx);
-  dh::Iota(d_unique_idx, device);
+  dh::Iota(d_unique_idx);
 
   auto uni_key = dh::MakeTransformIterator<float>(
       thrust::make_counting_iterator(0),
@@ -144,7 +144,7 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
   // scatter unique negaive/positive values
   // shift to right by 1 with initial value being 0
-  dh::LaunchN(device, d_unique_idx.size(), [=] __device__(size_t i) {
+  dh::LaunchN(d_unique_idx.size(), [=] __device__(size_t i) {
     if (d_unique_idx[i] == 0) {  // first unique index is 0
       assert(i == 0);
       d_neg_pos[0] = {0, 0};
@@ -183,7 +183,7 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
                size_t n, int32_t device) {
   CHECK_EQ(in.size(), out.size());
   CHECK_EQ(in.size(), m * n);
-  dh::LaunchN(device, in.size(), [=] __device__(size_t i) {
+  dh::LaunchN(in.size(), [=] __device__(size_t i) {
     size_t col = i / m;
     size_t row = i % m;
     size_t idx = row * n + col;
@@ -255,9 +255,8 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
   if (n_samples == 0) {
     dh::TemporaryArray<float> resutls(n_classes * 4, 0.0f);
     auto d_results = dh::ToSpan(resutls);
-    dh::LaunchN(device, n_classes * 4, [=]__device__(size_t i) {
-      d_results[i] = 0.0f;
-    });
+    dh::LaunchN(n_classes * 4,
+                [=] __device__(size_t i) { d_results[i] = 0.0f; });
     auto local_area = d_results.subspan(0, n_classes);
     auto fp = d_results.subspan(n_classes, n_classes);
     auto tp = d_results.subspan(2 * n_classes, n_classes);
@@ -273,9 +272,8 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
 
   dh::TemporaryArray<uint32_t> class_ptr(n_classes + 1, 0);
   auto d_class_ptr = dh::ToSpan(class_ptr);
-  dh::LaunchN(device, n_classes + 1, [=]__device__(size_t i) {
-    d_class_ptr[i] = i * n_samples;
-  });
+  dh::LaunchN(n_classes + 1,
+              [=] __device__(size_t i) { d_class_ptr[i] = i * n_samples; });
   // no out-of-place sort for thrust, cub sort doesn't accept general iterator. So can't
   // use transform iterator in sorting.
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
@@ -301,7 +299,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
     float tp = label * w;
     return thrust::make_pair(fp, tp);
   };  // NOLINT
-  dh::LaunchN(device, d_sorted_idx.size(),
+  dh::LaunchN(d_sorted_idx.size(),
               [=] __device__(size_t i) { d_fptp[i] = get_fp_tp(i); });
 
   /**
@@ -309,7 +307,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
    */
   dh::XGBDeviceAllocator<char> alloc;
   auto d_unique_idx = dh::ToSpan(cache->unique_idx);
-  dh::Iota(d_unique_idx, device);
+  dh::Iota(d_unique_idx);
   auto uni_key = dh::MakeTransformIterator<thrust::pair<uint32_t, float>>(
       thrust::make_counting_iterator(0), [=] __device__(size_t i) {
         uint32_t class_id = i / n_samples;
@@ -363,7 +361,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
   // When dataset is not empty, each class must have at least 1 (unique) sample
   // prediction, so no need to handle special case.
-  dh::LaunchN(device, d_unique_idx.size(), [=]__device__(size_t i) {
+  dh::LaunchN(d_unique_idx.size(), [=] __device__(size_t i) {
     if (d_unique_idx[i] % n_samples == 0) {  // first unique index is 0
       assert(d_unique_idx[i] % n_samples == 0);
       d_neg_pos[d_unique_idx[i]] = {0, 0};   // class_id * n_samples = i
@@ -419,7 +417,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
   auto tp = d_results.subspan(2 * n_classes, n_classes);
   auto auc = d_results.subspan(3 * n_classes, n_classes);
 
-  dh::LaunchN(device, n_classes, [=] __device__(size_t c) {
+  dh::LaunchN(n_classes, [=] __device__(size_t c) {
     auc[c] = s_d_auc[c];
     auto last = d_fptp[n_samples * c + (n_samples - 1)];
     fp[c] = last.first;

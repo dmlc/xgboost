@@ -23,8 +23,8 @@ RUN \
     bash Miniconda3.sh -b -p /opt/python && \
     /opt/python/bin/python -m pip install auditwheel && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Ninja
     mkdir -p /usr/local && \
     cd /usr/local/ && \

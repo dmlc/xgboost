@@ -379,10 +379,13 @@ class TestModels:
             'num_parallel_tree': 4, 'subsample': 0.5, 'num_class': 3, 'booster': booster,
             'objective': 'multi:softprob'},
                             num_boost_round=num_boost_round, dtrain=dtrain)
+        booster.feature_types = ["q"] * X.shape[1]
+
         assert len(booster.get_dump()) == total_trees
         beg = 3
         end = 7
         sliced: xgb.Booster = booster[beg: end]
+        assert sliced.feature_types == booster.feature_types
 
         sliced_trees = (end - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())

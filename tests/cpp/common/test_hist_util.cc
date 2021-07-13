@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "../../../src/common/hist_util.h"
+#include "../../../src/data/gradient_index.h"
 #include "../helpers.h"
 #include "test_hist_util.h"
 
@@ -225,6 +226,39 @@ TEST(HistUtil, DenseCutsAccuracyTestWeights) {
   }
 }
 
+TEST(HistUtil, QuantileWithHessian) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
+    auto w = GenerateRandomWeights(num_rows);
+    auto hessian = GenerateRandomWeights(num_rows);
+    std::mt19937 rng(0);
+    std::shuffle(hessian.begin(), hessian.end(), rng);
+    dmat->Info().weights_.HostVector() = w;
+
+    for (auto num_bins : bin_sizes) {
+      HistogramCuts cuts_hess = SketchOnDMatrix(dmat.get(), num_bins, hessian);
+      for (size_t i = 0; i < w.size(); ++i) {
+        dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
+      }
+      ValidateCuts(cuts_hess, dmat.get(), num_bins);
+
+      HistogramCuts cuts_wh = SketchOnDMatrix(dmat.get(), num_bins);
+      ValidateCuts(cuts_wh, dmat.get(), num_bins);
+
+      ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
+      for (size_t i = 0; i < cuts_hess.Values().size(); ++i) {
+        ASSERT_NEAR(cuts_wh.Values()[i], cuts_hess.Values()[i], kRtEps);
+      }
+
+      dmat->Info().weights_.HostVector() = w;
+    }
+  }
+}
+
 TEST(HistUtil, DenseCutsExternalMemory) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
@@ -255,8 +289,7 @@ TEST(HistUtil, IndexBinBound) {
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-    common::GHistIndexMatrix hmat;
-    hmat.Init(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
@@ -264,7 +297,7 @@ TEST(HistUtil, IndexBinBound) {
 
 template <typename T>
 void CheckIndexData(T* data_ptr, uint32_t* offsets,
-                    const common::GHistIndexMatrix& hmat, size_t n_cols) {
+                    const GHistIndexMatrix& hmat, size_t n_cols) {
   for (size_t i = 0; i < hmat.index.Size(); ++i) {
     EXPECT_EQ(data_ptr[i] + offsets[i % n_cols], hmat.index[i]);
   }
@@ -279,8 +312,7 @@ TEST(HistUtil, IndexBinData) {
 
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    common::GHistIndexMatrix hmat;
-    hmat.Init(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
     uint32_t* offsets = hmat.index.Offset();
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {

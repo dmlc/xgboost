@@ -11,6 +11,15 @@
 
 namespace xgboost {
 namespace common {
+TEST(MemoryFixSizeBuffer, Seek) {
+  size_t constexpr kSize { 64 };
+  std::vector<int32_t> memory( kSize );
+  rabit::utils::MemoryFixSizeBuffer buf(memory.data(), memory.size());
+  buf.Seek(rabit::utils::MemoryFixSizeBuffer::kSeekEnd);
+  size_t end = buf.Tell();
+  ASSERT_EQ(end, kSize);
+}
+
 TEST(IO, FileExtension) {
   std::string filename {u8"model.json"};
   auto ext = FileExtension(filename);

@@ -238,6 +238,10 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
+int32_t GenericParameter::Threads() const {
+  return common::OmpGetNumThreads(nthread);
+}
+
 using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
@@ -1032,6 +1036,8 @@ class LearnerImpl : public LearnerIO {
     out_impl->mparam_ = this->mparam_;
     out_impl->attributes_ = this->attributes_;
     out_impl->learner_model_param_ = this->learner_model_param_;
+    out_impl->SetFeatureNames(this->feature_names_);
+    out_impl->SetFeatureTypes(this->feature_types_);
     out_impl->LoadConfig(config);
     out_impl->Configure();
     return out_impl;
@@ -1197,23 +1203,6 @@ class LearnerImpl : public LearnerIO {
                         std::vector<bst_feature_t> *features,
                         std::vector<float> *scores) override {
     this->Configure();
-    std::vector<std::string> allowed_importance_type = {
-        "weight", "total_gain", "total_cover", "gain", "cover"
-    };
-    if (std::find(allowed_importance_type.begin(),
-                  allowed_importance_type.end(),
-                  importance_type) == allowed_importance_type.end()) {
-      std::stringstream ss;
-      ss << "importance_type mismatch, got: " << importance_type
-         << "`, expected one of ";
-      for (size_t i = 0; i < allowed_importance_type.size(); ++i) {
-        ss << "`" << allowed_importance_type[i] << "`";
-        if (i != allowed_importance_type.size() - 1) {
-          ss << ", ";
-        }
-      }
-      LOG(FATAL) << ss.str();
-    }
     gbm_->FeatureScore(importance_type, features, scores);
   }
 

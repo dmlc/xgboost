@@ -43,7 +43,7 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   // Generate cuts for distributed environment.
   auto sparsity = 0.5f;
   auto rank = rabit::GetRank();
-  HostSketchContainer sketch_distributed(column_size, n_bins, false);
+  HostSketchContainer sketch_distributed(column_size, n_bins, false, OmpGetNumThreads(0));
   auto m = RandomDataGenerator{rows, cols, sparsity}
                .Seed(rank)
                .Lower(.0f)
@@ -59,7 +59,7 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   rabit::Finalize();
   CHECK_EQ(rabit::GetWorldSize(), 1);
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
-  HostSketchContainer sketch_on_single_node(column_size, n_bins, false);
+  HostSketchContainer sketch_on_single_node(column_size, n_bins, false, OmpGetNumThreads(0));
   for (auto rank = 0; rank < world; ++rank) {
     auto m = RandomDataGenerator{rows, cols, sparsity}
                  .Seed(rank)

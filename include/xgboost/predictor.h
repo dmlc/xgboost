@@ -206,22 +206,18 @@ class Predictor {
    * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
    */
 
-  virtual void PredictContribution(DMatrix* dmat,
-                                   HostDeviceVector<bst_float>* out_contribs,
-                                   const gbm::GBTreeModel& model,
-                                   unsigned tree_end = 0,
-                                   std::vector<bst_float>* tree_weights = nullptr,
-                                   bool approximate = false,
-                                   int condition = 0,
-                                   unsigned condition_feature = 0) const = 0;
+  virtual void
+  PredictContribution(DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
+                      const gbm::GBTreeModel &model, unsigned tree_end = 0,
+                      std::vector<bst_float> const *tree_weights = nullptr,
+                      bool approximate = false, int condition = 0,
+                      unsigned condition_feature = 0) const = 0;
 
-  virtual void PredictInteractionContributions(DMatrix* dmat,
-                                               HostDeviceVector<bst_float>* out_contribs,
-                                               const gbm::GBTreeModel& model,
-                                               unsigned tree_end = 0,
-                                               std::vector<bst_float>* tree_weights = nullptr,
-                                               bool approximate = false) const = 0;
-
+  virtual void PredictInteractionContributions(
+      DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
+      const gbm::GBTreeModel &model, unsigned tree_end = 0,
+      std::vector<bst_float> const *tree_weights = nullptr,
+      bool approximate = false) const = 0;
 
   /**
    * \brief Creates a new Predictor*.

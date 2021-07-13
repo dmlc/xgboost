@@ -156,9 +156,14 @@ __model_doc = f'''
         [2, 3, 4]], where each inner list is a group of indices of features
         that are allowed to interact with each other.  See tutorial for more
         information
-    importance_type: string, default "gain"
+    importance_type: Optional[str]
         The feature importance type for the feature_importances\\_ property:
-        either "gain", "weight", "cover", "total_gain" or "total_cover".
+
+        * For tree model, it's either "gain", "weight", "cover", "total_gain" or
+          "total_cover".
+        * For linear model, only "weight" is defined and it's the normalized coefficients
+          without bias.
+
     gpu_id : Optional[int]
         Device ordinal.
     validate_parameters : Optional[bool]
@@ -382,7 +387,7 @@ class XGBModel(XGBModelBase):
         num_parallel_tree: Optional[int] = None,
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
         interaction_constraints: Optional[Union[str, List[Tuple[str]]]] = None,
-        importance_type: str = "gain",
+        importance_type: Optional[str] = None,
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
         predictor: Optional[str] = None,
@@ -632,6 +637,12 @@ class XGBModel(XGBModelBase):
                 eval_metric = None
             else:
                 params.update({"eval_metric": eval_metric})
+        if self.enable_categorical and params.get("tree_method", None) != "gpu_hist":
+            raise ValueError(
+                "Experimental support for categorical data is not implemented for"
+                " current tree method yet."
+            )
+
         return model, feval, params
 
     def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
@@ -985,29 +996,26 @@ class XGBModel(XGBModelBase):
     @property
     def feature_importances_(self) -> np.ndarray:
         """
-        Feature importances property
-
-        .. note:: Feature importance is defined only for tree boosters
-
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
+        Feature importances property, return depends on `importance_type` parameter.
 
         Returns
         -------
-        feature_importances_ : array of shape ``[n_features]``
+        feature_importances_ : array of shape ``[n_features]`` except for multi-class
+        linear model, which returns an array with shape `(n_features, n_classes)`
 
         """
-        if self.get_params()['booster'] not in {'gbtree', 'dart'}:
-            raise AttributeError(
-                'Feature importance is not defined for Booster type {}'
-                .format(self.booster))
         b: Booster = self.get_booster()
-        score = b.get_score(importance_type=self.importance_type)
+
+        def dft() -> str:
+            return "weight" if self.booster == "gblinear" else "gain"
+        score = b.get_score(
+            importance_type=self.importance_type if self.importance_type else dft()
+        )
         if b.feature_names is None:
             feature_names = ["f{0}".format(i) for i in range(self.n_features_in_)]
         else:
             feature_names = b.feature_names
+        # gblinear returns all features so the `get` in next line is only for gbtree.
         all_features = [score.get(f, 0.) for f in feature_names]
         all_features_arr = np.array(all_features, dtype=np.float32)
         total = all_features_arr.sum()

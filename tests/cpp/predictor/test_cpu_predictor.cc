@@ -86,6 +86,11 @@ TEST(CpuPredictor, Basic) {
   }
 }
 
+
+TEST(CpuPredictor, IterationRange) {
+  TestIterationRange("cpu_predictor");
+}
+
 TEST(CpuPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";

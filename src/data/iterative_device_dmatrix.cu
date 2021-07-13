@@ -11,35 +11,16 @@
 #include "sparse_page_source.h"
 #include "ellpack_page.cuh"
 #include "proxy_dmatrix.h"
+#include "proxy_dmatrix.cuh"
 #include "device_adapter.cuh"
 
 namespace xgboost {
 namespace data {
-
-template <typename Fn>
-decltype(auto) Dispatch(DMatrixProxy const* proxy, Fn fn) {
-  if (proxy->Adapter().type() == typeid(std::shared_ptr<CupyAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<CupyAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<CudfAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<CudfAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  } else {
-    LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
-    auto value = dmlc::get<std::shared_ptr<CudfAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  }
-}
-
 void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missing, int nthread) {
   // A handle passed to external iterator.
-  auto handle = static_cast<std::shared_ptr<DMatrix>*>(proxy_);
-  CHECK(handle);
-  DMatrixProxy* proxy = static_cast<DMatrixProxy*>(handle->get());
+  DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
+
   // The external iterator
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
     iter_handle, reset_, next_};

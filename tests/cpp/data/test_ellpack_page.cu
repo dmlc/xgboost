@@ -166,10 +166,10 @@ TEST(EllpackPage, Copy) {
     EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(0, kCols, ReadRowFunction(result.GetDeviceAccessor(0), current_row, row_result_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(0), current_row, row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);
@@ -221,12 +221,14 @@ TEST(EllpackPage, Compact) {
         continue;
       }
 
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
-      dh::safe_cuda (cudaDeviceSynchronize());
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(0),
+                                         current_row, row_d.data().get()));
+      dh::safe_cuda(cudaDeviceSynchronize());
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(0, kCols,
-                  ReadRowFunction(result.GetDeviceAccessor(0), compacted_row, row_result_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(result.GetDeviceAccessor(0), compacted_row,
+                                  row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);

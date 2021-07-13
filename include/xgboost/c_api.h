@@ -234,8 +234,8 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * - XGProxyDMatrixCreate
  * - XGDMatrixCallbackNext
  * - DataIterResetCallback
- * - XGDeviceQuantileDMatrixSetDataCudaArrayInterface
- * - XGDeviceQuantileDMatrixSetDataCudaColumnar
+ * - XGProxyDMatrixSetDataCudaArrayInterface
+ * - XGProxyDMatrixSetDataCudaColumnar
  * - ... (data setters)
  */
 
@@ -371,9 +371,10 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
-    DMatrixHandle handle,
-    const char* c_interface_str);
+XGB_DLL int
+XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
+                                        const char *c_interface_str);
+
 /*!
  * \brief Set data on a DMatrix proxy.
  *
@@ -383,9 +384,9 @@ XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaColumnar(
-    DMatrixHandle handle,
-    const char* c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
+                                              const char *c_interface_str);
+
 /*
  * ==========================- End data callback APIs ==========================
  */
@@ -563,7 +564,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void *data, bst_ulong size, int type);
+                                  void const *data, bst_ulong size, int type);
 
 /*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
@@ -1195,10 +1196,13 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
                                        const char ***out_features);
 
 /*!
- * \brief Calculate feature scores for tree models.
+ * \brief Calculate feature scores for tree models.  When used on linear model, only the
+ * `weight` importance type is defined, and output scores is a row major matrix with shape
+ * [n_features, n_classes] for multi-class model.  For tree model, out_n_feature is always
+ * equal to out_n_scores and has multiple definitions of importance type.
  *
- * \param handle        An instance of Booster
- * \param json_config   Parameters for computing scores.  Accepted JSON keys are:
+ * \param handle          An instance of Booster
+ * \param json_config     Parameters for computing scores.  Accepted JSON keys are:
  *   - importance_type: A JSON string with following possible values:
  *       * 'weight': the number of times a feature is used to split the data across all trees.
  *       * 'gain': the average gain across all splits the feature is used in.
@@ -1206,15 +1210,20 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
  *       * 'total_gain': the total gain across all splits the feature is used in.
  *       * 'total_cover': the total coverage across all splits the feature is used in.
  *   - feature_map: An optional JSON string with URI or path to the feature map file.
+ *   - feature_names: An optional JSON array with string names for each feature.
  *
- * \param out_length    Length of output arrays.
- * \param out_features  An array of string as feature names, ordered the same as output scores.
- * \param out_scores    An array of floating point as feature scores.
+ * \param out_n_features  Length of output feature names.
+ * \param out_features    An array of string as feature names, ordered the same as output scores.
+ * \param out_dim         Dimension of output feature scores.
+ * \param out_shape       Shape of output feature scores with length of `out_dim`.
+ * \param out_scores      An array of floating point as feature scores with shape of `out_shape`.
  *
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
-                                  bst_ulong *out_length,
-                                  const char ***out_features,
-                                  float **out_scores);
+                                  bst_ulong *out_n_features,
+                                  char const ***out_features,
+                                  bst_ulong *out_dim,
+                                  bst_ulong const **out_shape,
+                                  float const **out_scores);
 #endif  // XGBOOST_C_API_H_

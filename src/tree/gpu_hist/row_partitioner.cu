@@ -96,7 +96,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
 void Reset(int device_idx, common::Span<RowPartitioner::RowIndexT> ridx,
            common::Span<bst_node_t> position) {
   CHECK_EQ(ridx.size(), position.size());
-  dh::LaunchN(device_idx, ridx.size(), [=] __device__(size_t idx) {
+  dh::LaunchN(ridx.size(), [=] __device__(size_t idx) {
     ridx[idx] = idx;
     position[idx] = 0;
   });
@@ -131,7 +131,7 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
   // Return empty span here as a valid result
   // Will error if we try to construct a span from a pointer with size 0
   if (segment.Size() == 0) {
-    return common::Span<const RowPartitioner::RowIndexT>();
+    return {};
   }
   return ridx_.CurrentSpan().subspan(segment.begin, segment.Size());
 }
@@ -180,7 +180,7 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
   const auto d_position_other = position_.Other() + segment.begin;
   const auto d_ridx_current = ridx_.Current() + segment.begin;
   const auto d_ridx_other = ridx_.Other() + segment.begin;
-  dh::LaunchN(device_idx_, segment.Size(), stream, [=] __device__(size_t idx) {
+  dh::LaunchN(segment.Size(), stream, [=] __device__(size_t idx) {
     d_position_current[idx] = d_position_other[idx];
     d_ridx_current[idx] = d_ridx_other[idx];
   });

@@ -11,6 +11,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -416,5 +417,24 @@ class ArrayInterface {
   Type type;
 };
 
+template <typename T> std::string MakeArrayInterface(T const *data, size_t n) {
+  Json arr{Object{}};
+  arr["data"] = Array(std::vector<Json>{
+      Json{Integer{reinterpret_cast<int64_t>(data)}}, Json{Boolean{false}}});
+  arr["shape"] = Array{std::vector<Json>{Json{Integer{n}}, Json{Integer{1}}}};
+  std::string typestr;
+  if (DMLC_LITTLE_ENDIAN) {
+    typestr.push_back('<');
+  } else {
+    typestr.push_back('>');
+  }
+  typestr.push_back(ArrayInterfaceHandler::TypeChar<T>());
+  typestr += std::to_string(sizeof(T));
+  arr["typestr"] = typestr;
+  arr["version"] = 3;
+  std::string str;
+  Json::Dump(arr, &str);
+  return str;
+}
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_ARRAY_INTERFACE_H_

@@ -12,6 +12,7 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <numeric>
 
 #include "xgboost/gbm.h"
 #include "xgboost/json.h"
@@ -19,6 +20,7 @@
 #include "xgboost/linear_updater.h"
 #include "xgboost/logging.h"
 #include "xgboost/learner.h"
+#include "xgboost/linalg.h"
 
 #include "gblinear_model.h"
 #include "../common/timer.h"
@@ -217,6 +219,26 @@ class GBLinear : public GradientBooster {
                                      bool with_stats,
                                      std::string format) const override {
     return model_.DumpModel(fmap, with_stats, format);
+  }
+
+  void FeatureScore(std::string const &importance_type,
+                    std::vector<bst_feature_t> *out_features,
+                    std::vector<float> *out_scores) const override {
+    CHECK(!model_.weight.empty()) << "Model is not initialized";
+    CHECK_EQ(importance_type, "weight")
+        << "gblinear only has `weight` defined for feature importance.";
+    out_features->resize(this->learner_model_param_->num_feature, 0);
+    std::iota(out_features->begin(), out_features->end(), 0);
+    // Don't include the bias term in the feature importance scores
+    // The bias is the last weight
+    out_scores->resize(model_.weight.size() - learner_model_param_->num_output_group, 0);
+    auto n_groups = learner_model_param_->num_output_group;
+    MatrixView<float> scores{out_scores, {learner_model_param_->num_feature, n_groups}};
+    for (size_t i = 0; i < learner_model_param_->num_feature; ++i) {
+      for (bst_group_t g = 0; g < n_groups; ++g) {
+        scores(i, g) = model_[i][g];
+      }
+    }
   }
 
   bool UseGPU() const override {

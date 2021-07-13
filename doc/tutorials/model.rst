@@ -105,7 +105,7 @@ where :math:`K` is the number of trees, :math:`f` is a function in the functiona
 
 Now here comes a trick question: what is the *model* used in random forests? Tree ensembles! So random forests and boosted trees are really the same models; the
 difference arises from how we train them. This means that, if you write a predictive service for tree ensembles, you only need to write one and it should work
-for both random forests and gradient boosted trees. (See `Treelite <http://treelite.io>`_ for an actual example.) One example of why elements of supervised learning rock.
+for both random forests and gradient boosted trees. (See `Treelite <https://treelite.readthedocs.io/en/latest/index.html>`_ for an actual example.) One example of why elements of supervised learning rock.
 
 *************
 Tree Boosting

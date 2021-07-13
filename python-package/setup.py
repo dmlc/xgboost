@@ -26,7 +26,6 @@ USER_OPTIONS = {
     'use-hdfs':   (None, 'Build with HDFS support', 0),
     'use-azure':  (None, 'Build with AZURE support.', 0),
     'use-s3':     (None, 'Build with S3 support', 0),
-    'plugin-lz4': (None, 'Build lz4 plugin.', 0),
     'plugin-dense-parser': (None, 'Build dense parser plugin.', 0),
     # Python specific
     'use-system-libxgboost': (None, 'Use libxgboost.so in system path.', 0)
@@ -268,7 +267,6 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
         self.use_azure = 0
         self.use_s3 = 0
 
-        self.plugin_lz4 = 0
         self.plugin_dense_parser = 0
 
         self.use_system_libxgboost = 0
@@ -301,12 +299,16 @@ if __name__ == '__main__':
     # - pip install . -e
     # - python setup.py develop   # same as above
     logging.basicConfig(level=logging.INFO)
+
+    with open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8') as fd:
+        description = fd.read()
+    with open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')) as fd:
+        version = fd.read().strip()
+
     setup(name='xgboost',
-          version=open(os.path.join(
-              CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+          version=version,
           description="XGBoost Python Package",
-          long_description=open(os.path.join(CURRENT_DIR, 'README.rst'),
-                                encoding='utf-8').read(),
+          long_description=description,
           long_description_content_type="text/x-rst",
           install_requires=[
               'numpy',

@@ -710,6 +710,7 @@ class HostSketchContainer {
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
   bool use_group_ind_{false};
+  int32_t n_threads_;
   Monitor monitor_;
 
  public:
@@ -720,7 +721,7 @@ class HostSketchContainer {
    * \param use_group whether is assigned to group to data instance.
    */
   HostSketchContainer(std::vector<bst_row_t> columns_size, int32_t max_bins,
-                      bool use_group);
+                      bool use_group, int32_t n_threads);
 
   static bool UseGroup(MetaInfo const &info) {
     size_t const num_groups =
@@ -758,7 +759,8 @@ class HostSketchContainer {
                  std::vector<int32_t>* p_num_cuts);
 
   /* \brief Push a CSR matrix. */
-  void PushRowPage(SparsePage const& page, MetaInfo const& info);
+  void PushRowPage(SparsePage const &page, MetaInfo const &info,
+                   std::vector<float> const &hessian = {});
 
   void MakeCuts(HistogramCuts* cuts);
 };

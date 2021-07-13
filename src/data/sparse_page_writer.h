@@ -42,22 +42,11 @@ class SparsePageFormat {
    * \return true of the loading as successful, false if end of file was reached
    */
   virtual bool Read(T* page, dmlc::SeekStream* fi) = 0;
-
-  /*!
-   * \brief read only the segments we are interested in, advance fi to end of the block.
-   * \param page The page to load the data into.
-   * \param fi the input stream of the file
-   * \param sorted_index_set sorted index of segments we are interested in
-   * \return true of the loading as successful, false if end of file was reached
-   */
-  virtual bool Read(T* page,
-                    dmlc::SeekStream* fi,
-                    const std::vector<bst_uint>& sorted_index_set) = 0;
   /*!
    * \brief save the data to fo, when a page was written.
    * \param fo output stream
    */
-  virtual void Write(const T& page, dmlc::Stream* fo) = 0;
+  virtual size_t Write(const T& page, dmlc::Stream* fo) = 0;
 };
 
 /*!

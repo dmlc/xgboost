@@ -224,6 +224,11 @@ TEST(GPUPredictor, Shap) {
   }
 }
 
+TEST(GPUPredictor, IterationRange) {
+  TestIterationRange("gpu_predictor");
+}
+
+
 TEST(GPUPredictor, CategoricalPrediction) {
   TestCategoricalPrediction("gpu_predictor");
 }

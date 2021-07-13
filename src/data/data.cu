@@ -29,7 +29,7 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
 
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
 
-  dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
+  dh::LaunchN(column.num_rows, [=] __device__(size_t idx) {
     p_dst[idx] = column.GetElement(idx, 0);
   });
 }
@@ -49,10 +49,11 @@ void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
       << "Expected integer for group info.";
 
   auto ptr_device = SetDeviceToPtr(column.data);
+  CHECK_EQ(ptr_device, dh::CurrentDevice());
   dh::TemporaryArray<bst_group_t> temp(column.num_rows);
   auto d_tmp = temp.data();
 
-  dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
+  dh::LaunchN(column.num_rows, [=] __device__(size_t idx) {
     d_tmp[idx] = column.GetElement<size_t>(idx, 0);
   });
   auto length = column.num_rows;
@@ -73,8 +74,8 @@ void CopyQidImpl(ArrayInterface array_interface,
   dh::caching_device_vector<bool> flag(1);
   auto d_flag = dh::ToSpan(flag);
   auto d = SetDeviceToPtr(array_interface.data);
-  dh::LaunchN(d, 1, [=] __device__(size_t) { d_flag[0] = true; });
-  dh::LaunchN(d, array_interface.num_rows - 1, [=] __device__(size_t i) {
+  dh::LaunchN(1, [=] __device__(size_t) { d_flag[0] = true; });
+  dh::LaunchN(array_interface.num_rows - 1, [=] __device__(size_t i) {
     if (array_interface.GetElement<uint32_t>(i, 0) >
         array_interface.GetElement<uint32_t>(i + 1, 0)) {
       d_flag[0] = false;

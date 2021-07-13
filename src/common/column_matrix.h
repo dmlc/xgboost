@@ -12,6 +12,7 @@
 #include <vector>
 #include <memory>
 #include "hist_util.h"
+#include "../data/gradient_index.h"
 
 namespace xgboost {
 namespace common {
@@ -262,9 +263,10 @@ class ColumnMatrix {
     return res;
   }
 
-  template<typename T>
-  inline void SetIndexAllDense(T* index, const GHistIndexMatrix& gmat,  const size_t nrow,
-                               const size_t nfeature,  const bool noMissingValues) {
+  template <typename T>
+  inline void SetIndexAllDense(T *index, const GHistIndexMatrix &gmat,
+                               const size_t nrow, const size_t nfeature,
+                               const bool noMissingValues) {
     T* local_index = reinterpret_cast<T*>(&index_[0]);
 
     /* missing values make sense only for column with type kDenseColumn,

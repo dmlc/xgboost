@@ -322,6 +322,7 @@ class DataIter:
         self._handle = _ProxyDMatrix()
         self.exception = None
         self.enable_categorical = False
+        self._allow_host = False
 
     @property
     def proxy(self):
@@ -349,12 +350,12 @@ class DataIter:
             feature_types=None,
             **kwargs
         ):
-            from .data import dispatch_device_quantile_dmatrix_set_data
-            from .data import _device_quantile_transform
-            data, feature_names, feature_types = _device_quantile_transform(
+            from .data import dispatch_proxy_set_data
+            from .data import _proxy_transform
+            data, feature_names, feature_types = _proxy_transform(
                 data, feature_names, feature_types, self.enable_categorical,
             )
-            dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
+            dispatch_proxy_set_data(self.proxy, data, self._allow_host)
             self.proxy.set_info(
                 feature_names=feature_names,
                 feature_types=feature_types,
@@ -1009,18 +1010,18 @@ class _ProxyDMatrix(DMatrix):
         interface = data.__cuda_array_interface__
         interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
         _check_call(
-            _LIB.XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
+            _LIB.XGProxyDMatrixSetDataCudaArrayInterface(
                 self.handle,
                 interface_str
             )
         )
 
     def _set_data_from_cuda_columnar(self, data):
-        '''Set data from CUDA columnar format.1'''
+        '''Set data from CUDA columnar format.'''
         from .data import _cudf_array_interfaces
         _, interfaces_str = _cudf_array_interfaces(data)
         _check_call(
-            _LIB.XGDeviceQuantileDMatrixSetDataCudaColumnar(
+            _LIB.XGProxyDMatrixSetDataCudaColumnar(
                 self.handle,
                 interfaces_str
             )
@@ -2132,46 +2133,17 @@ class Booster(object):
         fmap = os.fspath(os.path.expanduser(fmap))
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
-        if self.feature_names is not None and fmap == '':
-            flen = len(self.feature_names)
-
-            fname = from_pystr_to_cstr(self.feature_names)
-
-            if self.feature_types is None:
-                # use quantitative as default
-                # {'q': quantitative, 'i': indicator}
-                ftype = from_pystr_to_cstr(['q'] * flen)
-            else:
-                ftype = from_pystr_to_cstr(self.feature_types)
-            _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
-                self.handle,
-                ctypes.c_int(flen),
-                fname,
-                ftype,
-                ctypes.c_int(with_stats),
-                c_str(dump_format),
-                ctypes.byref(length),
-                ctypes.byref(sarr)))
-        else:
-            if fmap != '' and not os.path.exists(fmap):
-                raise ValueError("No such file: {0}".format(fmap))
-            _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
-                                                  c_str(fmap),
-                                                  ctypes.c_int(with_stats),
-                                                  c_str(dump_format),
-                                                  ctypes.byref(length),
-                                                  ctypes.byref(sarr)))
+        _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
+                                              c_str(fmap),
+                                              ctypes.c_int(with_stats),
+                                              c_str(dump_format),
+                                              ctypes.byref(length),
+                                              ctypes.byref(sarr)))
         res = from_cstr_to_pystr(sarr, length)
         return res
 
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.
-
-        .. note:: Feature importance is defined only for tree boosters
-
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
 
         .. note:: Zero-importance features will not be included
 
@@ -2190,7 +2162,7 @@ class Booster(object):
         self, fmap: os.PathLike = '', importance_type: str = 'weight'
     ) -> Dict[str, float]:
         """Get feature importance of each feature.
-        Importance type can be defined as:
+        For tree model Importance type can be defined as:
 
         * 'weight': the number of times a feature is used to split the data across all trees.
         * 'gain': the average gain across all splits the feature is used in.
@@ -2198,11 +2170,15 @@ class Booster(object):
         * 'total_gain': the total gain across all splits the feature is used in.
         * 'total_cover': the total coverage across all splits the feature is used in.
 
-        .. note:: Feature importance is defined only for tree boosters
+        .. note::
 
-            Feature importance is only defined when the decision tree model is chosen as
-            base learner (`booster=gbtree` or `booster=dart`). It is not defined for other
-            base learner types, such as linear learners (`booster=gblinear`).
+           For linear model, only "weight" is defined and it's the normalized coefficients
+           without bias.
+
+        .. note:: Zero-importance features will not be included
+
+           Keep in mind that this function does not include zero-importance feature, i.e.
+           those features that have not been used in any split conditions.
 
         Parameters
         ----------
@@ -2213,7 +2189,9 @@ class Booster(object):
 
         Returns
         -------
-        A map between feature names and their scores.
+        A map between feature names and their scores.  When `gblinear` is used for
+        multi-class classification the scores for each feature is a list with length
+        `n_classes`, otherwise they're scalars.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
         args = from_pystr_to_cstr(
@@ -2221,24 +2199,34 @@ class Booster(object):
         )
         features = ctypes.POINTER(ctypes.c_char_p)()
         scores = ctypes.POINTER(ctypes.c_float)()
-        length = c_bst_ulong()
+        n_out_features = c_bst_ulong()
+        out_dim = c_bst_ulong()
+        shape = ctypes.POINTER(c_bst_ulong)()
+
         _check_call(
             _LIB.XGBoosterFeatureScore(
                 self.handle,
                 args,
-                ctypes.byref(length),
+                ctypes.byref(n_out_features),
                 ctypes.byref(features),
-                ctypes.byref(scores)
+                ctypes.byref(out_dim),
+                ctypes.byref(shape),
+                ctypes.byref(scores),
             )
         )
-        features_arr = from_cstr_to_pystr(features, length)
-        scores_arr = ctypes2numpy(scores, length.value, np.float32)
+        features_arr = from_cstr_to_pystr(features, n_out_features)
+        scores_arr = _prediction_output(shape, out_dim, scores, False)
+
         results = {}
-        for feat, score in zip(features_arr, scores_arr):
-            results[feat] = score
+        if len(scores_arr.shape) > 1 and scores_arr.shape[1] > 1:
+            for feat, score in zip(features_arr, scores_arr):
+                results[feat] = [float(s) for s in score]
+        else:
+            for feat, score in zip(features_arr, scores_arr):
+                results[feat] = float(score)
         return results
 
-    def trees_to_dataframe(self, fmap=''):
+    def trees_to_dataframe(self, fmap=''):  # pylint: disable=too-many-statements
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -2264,6 +2252,7 @@ class Booster(object):
         node_ids = []
         fids = []
         splits = []
+        categories = []
         y_directs = []
         n_directs = []
         missings = []
@@ -2288,6 +2277,7 @@ class Booster(object):
                     node_ids.append(int(re.findall(r'\b\d+\b', parse[0])[0]))
                     fids.append('Leaf')
                     splits.append(float('NAN'))
+                    categories.append(float('NAN'))
                     y_directs.append(float('NAN'))
                     n_directs.append(float('NAN'))
                     missings.append(float('NAN'))
@@ -2297,14 +2287,26 @@ class Booster(object):
                 else:
                     # parse string
                     fid = arr[1].split(']')
-                    parse = fid[0].split('<')
+                    if fid[0].find("<") != -1:
+                        # numerical
+                        parse = fid[0].split('<')
+                        splits.append(float(parse[1]))
+                        categories.append(None)
+                    elif fid[0].find(":{") != -1:
+                        # categorical
+                        parse = fid[0].split(":")
+                        cats = parse[1][1:-1]  # strip the {}
+                        cats = cats.split(",")
+                        splits.append(float("NAN"))
+                        categories.append(cats if cats else None)
+                    else:
+                        raise ValueError("Failed to parse model text dump.")
                     stats = re.split('=|,', fid[1])
 
                     # append to lists
                     tree_ids.append(i)
                     node_ids.append(int(re.findall(r'\b\d+\b', arr[0])[0]))
                     fids.append(parse[0])
-                    splits.append(float(parse[1]))
                     str_i = str(i)
                     y_directs.append(str_i + '-' + stats[1])
                     n_directs.append(str_i + '-' + stats[3])
@@ -2316,7 +2318,7 @@ class Booster(object):
         df = DataFrame({'Tree': tree_ids, 'Node': node_ids, 'ID': ids,
                         'Feature': fids, 'Split': splits, 'Yes': y_directs,
                         'No': n_directs, 'Missing': missings, 'Gain': gains,
-                        'Cover': covers})
+                        'Cover': covers, "Category": categories})
 
         if callable(getattr(df, 'sort_values', None)):
             # pylint: disable=no-member
@@ -2394,9 +2396,29 @@ class Booster(object):
         nph = np.column_stack((nph[1][1:], nph[0]))
         nph = nph[nph[:, 1] > 0]
 
+        if nph.size == 0:
+            ft = self.feature_types
+            fn = self.feature_names
+            if fn is None:
+                # Let xgboost generate the feature names.
+                fn = ["f{0}".format(i) for i in range(self.num_features())]
+            try:
+                index = fn.index(feature)
+                feature_t = ft[index]
+            except (ValueError, AttributeError, TypeError):
+                # None.index: attr err, None[0]: type err, fn.index(-1): value err
+                feature_t = None
+            if feature_t == "categorical":
+                raise ValueError(
+                    "Split value historgam doesn't support categorical split."
+                )
+
         if as_pandas and PANDAS_INSTALLED:
             return DataFrame(nph, columns=['SplitValue', 'Count'])
         if as_pandas and not PANDAS_INSTALLED:
-            sys.stderr.write(
-                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
+            warnings.warn(
+                "Returning histogram as ndarray"
+                " (as_pandas == True, but pandas is not installed).",
+                UserWarning
+            )
         return nph

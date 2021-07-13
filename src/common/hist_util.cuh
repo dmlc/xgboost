@@ -41,7 +41,7 @@ void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feat
 
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto d_column_sizes_scan = column_sizes_scan->data().get();
-  dh::LaunchN(device, end - begin, [=] __device__(size_t idx) {
+  dh::LaunchN(end - begin, [=] __device__(size_t idx) {
     auto e = batch_iter[begin + idx];
     if (is_valid(e)) {
       atomicAdd(&d_column_sizes_scan[e.column_idx], static_cast<size_t>(1));

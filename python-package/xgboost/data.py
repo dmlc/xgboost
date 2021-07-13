@@ -197,7 +197,7 @@ _pandas_dtype_mapper = {
 def _transform_pandas_df(data, enable_categorical,
                          feature_names=None, feature_types=None,
                          meta=None, meta_type=None):
-    from pandas import MultiIndex, Int64Index
+    from pandas import MultiIndex, Int64Index, RangeIndex
     from pandas.api.types import is_sparse, is_categorical_dtype
 
     data_dtypes = data.dtypes
@@ -219,7 +219,7 @@ def _transform_pandas_df(data, enable_categorical,
             feature_names = [
                 ' '.join([str(x) for x in i]) for i in data.columns
             ]
-        elif isinstance(data.columns, Int64Index):
+        elif isinstance(data.columns, (Int64Index, RangeIndex)):
             feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
@@ -775,7 +775,7 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
         self.it = 0
 
 
-def _device_quantile_transform(data, feature_names, feature_types, enable_categorical):
+def _proxy_transform(data, feature_names, feature_types, enable_categorical):
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical
@@ -788,8 +788,8 @@ def _device_quantile_transform(data, feature_names, feature_types, enable_catego
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
 
-def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -> None:
-    '''Dispatch for DeviceQuantileDMatrix.'''
+def dispatch_proxy_set_data(proxy: _ProxyDMatrix, data: Any, allow_host: bool) -> None:
+    """Dispatch for DeviceQuantileDMatrix."""
     if _is_cudf_df(data):
         proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212
         return
@@ -803,5 +803,7 @@ def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -
         data = _transform_dlpack(data)
         proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
+    # Part of https://github.com/dmlc/xgboost/pull/7070
+    assert allow_host is False, "host data is not yet supported."
     raise TypeError('Value type is not supported for data iterator:' +
                     str(type(data)))

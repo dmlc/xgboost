@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 project(xgboost LANGUAGES CXX C VERSION 1.5.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
@@ -62,7 +62,6 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak, undefined and thread.")
 ## Plugins
-option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
@@ -92,6 +91,9 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (PLUGIN_LZ4)
+  message(SEND_ERROR  "The option 'PLUGIN_LZ4' is removed from XGBoost.")
+endif (PLUGIN_LZ4)
 if (PLUGIN_RMM AND NOT (USE_CUDA))
   message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
 endif (PLUGIN_RMM AND NOT (USE_CUDA))
@@ -117,7 +119,7 @@ if (USE_SANITIZER)
 endif (USE_SANITIZER)
 
 if (USE_CUDA)
-  SET(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
+  set(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
@@ -148,27 +150,26 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
+if (USE_NCCL)
+  find_package(Nccl REQUIRED)
+endif (USE_NCCL)
+
 # dmlc-core
 msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
-set_target_properties(dmlc PROPERTIES
-  CXX_STANDARD 14
-  CXX_STANDARD_REQUIRED ON
-  POSITION_INDEPENDENT_CODE ON)
+
 if (MSVC)
-  target_compile_options(dmlc PRIVATE
-                         -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   if (TARGET dmlc_unit_tests)
     target_compile_options(dmlc_unit_tests PRIVATE
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (TARGET dmlc_unit_tests)
 endif (MSVC)
-if (ENABLE_ALL_WARNINGS)
-  target_compile_options(dmlc PRIVATE -Wall -Wextra)
-endif (ENABLE_ALL_WARNINGS)
 
 # rabit
 add_subdirectory(rabit)
+if (RABIT_BUILD_MPI)
+  find_package(MPI REQUIRED)
+endif (RABIT_BUILD_MPI)
 
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
@@ -178,6 +179,11 @@ target_link_libraries(objxgboost PUBLIC dmlc)
 if (R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
 endif (R_LIB)
+
+# This creates its own shared library `xgboost4j'.
+if (JVM_BINDINGS)
+  add_subdirectory(${xgboost_SOURCE_DIR}/jvm-packages)
+endif (JVM_BINDINGS)
 
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
@@ -189,49 +195,36 @@ else (BUILD_STATIC_LIB)
   add_library(xgboost SHARED)
 endif (BUILD_STATIC_LIB)
 target_link_libraries(xgboost PRIVATE objxgboost)
-
-if (USE_CUDA)
-  xgboost_set_cuda_flags(xgboost)
-endif (USE_CUDA)
-
-#-- Hide all C++ symbols
-if (HIDE_CXX_SYMBOLS)
-  foreach(target objxgboost xgboost dmlc)
-    set_target_properties(${target} PROPERTIES C_VISIBILITY_PRESET hidden)
-    set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
-    set_target_properties(${target} PROPERTIES CUDA_VISIBILITY_PRESET hidden)
-  endforeach()
-endif (HIDE_CXX_SYMBOLS)
-
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
-
-# This creates its own shared library `xgboost4j'.
-if (JVM_BINDINGS)
-  add_subdirectory(${xgboost_SOURCE_DIR}/jvm-packages)
-endif (JVM_BINDINGS)
 #-- End shared library
 
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 target_link_libraries(runxgboost PRIVATE objxgboost)
-if (USE_NVTX)
-  enable_nvtx(runxgboost)
-endif (USE_NVTX)
-
 target_include_directories(runxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
-  ${xgboost_SOURCE_DIR}/rabit/include)
-set_target_properties(
-  runxgboost PROPERTIES
-  OUTPUT_NAME xgboost
-  CXX_STANDARD 14
-  CXX_STANDARD_REQUIRED ON)
+  ${xgboost_SOURCE_DIR}/rabit/include
+)
+set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
 #-- End CLI for xgboost
+
+# Common setup for all targets
+foreach(target xgboost objxgboost dmlc runxgboost)
+  xgboost_target_properties(${target})
+  xgboost_target_link_libraries(${target})
+  xgboost_target_defs(${target})
+endforeach()
+
+if (JVM_BINDINGS)
+  xgboost_target_properties(xgboost4j)
+  xgboost_target_link_libraries(xgboost4j)
+  xgboost_target_defs(xgboost4j)
+endif (JVM_BINDINGS)
 
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
 set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
@@ -305,12 +298,18 @@ install(
 if (GOOGLE_TEST)
   enable_testing()
   # Unittests.
+  add_executable(testxgboost)
+  target_link_libraries(testxgboost PRIVATE objxgboost)
+  xgboost_target_properties(testxgboost)
+  xgboost_target_link_libraries(testxgboost)
+  xgboost_target_defs(testxgboost)
+
   add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp)
+
   add_test(
     NAME TestXGBoostLib
     COMMAND testxgboost
     WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-
   # CLI tests
   configure_file(
     ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in

@@ -197,8 +197,8 @@ XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out) {
 }
 
 XGB_DLL int
-XGDeviceQuantileDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
-                                                 char const *c_interface_str) {
+XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
+                                        char const *c_interface_str) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -209,9 +209,8 @@ XGDeviceQuantileDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int
-XGDeviceQuantileDMatrixSetDataCudaColumnar(DMatrixHandle handle,
-                                           char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
+                                              char const *c_interface_str) {
   API_BEGIN();
   CHECK_HANDLE();
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
@@ -433,7 +432,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
 }
 
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void *data, xgboost::bst_ulong size,
+                                  void const *data, xgboost::bst_ulong size,
                                   int type) {
   API_BEGIN();
   CHECK_HANDLE();
@@ -927,14 +926,17 @@ XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
   API_END();
 }
 
-inline void XGBoostDumpModelImpl(BoosterHandle handle, const FeatureMap &fmap,
+inline void XGBoostDumpModelImpl(BoosterHandle handle, FeatureMap* fmap,
                                  int with_stats, const char *format,
                                  xgboost::bst_ulong *len,
                                  const char ***out_models) {
   auto *bst = static_cast<Learner*>(handle);
+  bst->Configure();
+  GenerateFeatureMap(bst, {}, bst->GetNumFeature(), fmap);
+
   std::vector<std::string>& str_vecs = bst->GetThreadLocal().ret_vec_str;
   std::vector<const char*>& charp_vecs = bst->GetThreadLocal().ret_vec_charp;
-  str_vecs = bst->DumpModel(fmap, with_stats != 0, format);
+  str_vecs = bst->DumpModel(*fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
     charp_vecs[i] = str_vecs[i].c_str();
@@ -962,14 +964,9 @@ XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
                                  const char*** out_models) {
   API_BEGIN();
   CHECK_HANDLE();
-  FeatureMap featmap;
-  if (strlen(fmap) != 0) {
-    std::unique_ptr<dmlc::Stream> fs(
-        dmlc::Stream::Create(fmap, "r"));
-    dmlc::istream is(fs.get());
-    featmap.LoadText(is);
-  }
-  XGBoostDumpModelImpl(handle, featmap, with_stats, format, len, out_models);
+  std::string uri{fmap};
+  FeatureMap featmap = LoadFeatureMap(uri);
+  XGBoostDumpModelImpl(handle, &featmap, with_stats, format, len, out_models);
   API_END();
 }
 
@@ -980,8 +977,8 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            int with_stats,
                                            xgboost::bst_ulong* len,
                                            const char*** out_models) {
-  return XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype, with_stats,
-                                          "text", len, out_models);
+  return XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype,
+                                          with_stats, "text", len, out_models);
 }
 
 XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
@@ -998,7 +995,7 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
   for (int i = 0; i < fnum; ++i) {
     featmap.PushBack(i, fname[i], ftype[i]);
   }
-  XGBoostDumpModelImpl(handle, featmap, with_stats, format, len, out_models);
+  XGBoostDumpModelImpl(handle, &featmap, with_stats, format, len, out_models);
   API_END();
 }
 
@@ -1098,11 +1095,12 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle,
-                                  const char *json_config,
-                                  xgboost::bst_ulong* out_length,
-                                  const char ***out_features,
-                                  float **out_scores) {
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
+                                  xgboost::bst_ulong *out_n_features,
+                                  char const ***out_features,
+                                  bst_ulong *out_dim,
+                                  bst_ulong const **out_shape,
+                                  float const **out_scores) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
@@ -1113,14 +1111,17 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle,
     feature_map_uri = get<String const>(config["feature_map"]);
   }
   FeatureMap feature_map = LoadFeatureMap(feature_map_uri);
+  std::vector<Json> custom_feature_names;
+  if (!IsA<Null>(config["feature_names"])) {
+    custom_feature_names = get<Array const>(config["feature_names"]);
+  }
 
   auto& scores = learner->GetThreadLocal().ret_vec_float;
   std::vector<bst_feature_t> features;
   learner->CalcFeatureScore(importance, &features, &scores);
 
   auto n_features = learner->GetNumFeature();
-  GenerateFeatureMap(learner, n_features, &feature_map);
-  CHECK_LE(features.size(), n_features);
+  GenerateFeatureMap(learner, custom_feature_names, n_features, &feature_map);
 
   auto& feature_names = learner->GetThreadLocal().ret_vec_str;
   feature_names.resize(features.size());
@@ -1131,10 +1132,24 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle,
     feature_names[i] = feature_map.Name(features[i]);
     feature_names_c[i] = feature_names[i].data();
   }
+  *out_n_features = feature_names.size();
 
-  CHECK_EQ(scores.size(), features.size());
-  CHECK_EQ(scores.size(), feature_names.size());
-  *out_length  = scores.size();
+  CHECK_LE(features.size(), scores.size());
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  if (scores.size() > features.size()) {
+    // Linear model multi-class model
+    CHECK_EQ(scores.size() % features.size(), 0ul);
+    auto n_classes = scores.size() / features.size();
+    *out_dim = 2;
+    shape = {n_features, n_classes};
+  } else {
+    CHECK_EQ(features.size(), scores.size());
+    *out_dim = 1;
+    shape.resize(1);
+    shape.front() = scores.size();
+  }
+
+  *out_shape = dmlc::BeginPtr(shape);
   *out_scores = scores.data();
   *out_features = dmlc::BeginPtr(feature_names_c);
   API_END();

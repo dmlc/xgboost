@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "gradient_index.h"
 
 namespace xgboost {
 namespace data {
@@ -43,12 +44,14 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
+  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) override;
 
   MetaInfo info_;
   SparsePage sparse_page_;  // Primary storage type
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;
   std::unique_ptr<EllpackPage> ellpack_page_;
+  std::unique_ptr<GHistIndexMatrix> gradient_index_;
   BatchParam batch_param_;
 
   bool EllpackExists() const override {

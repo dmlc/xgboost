@@ -13,6 +13,7 @@
 #include <array>
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace xgboost {
 /*!
@@ -55,6 +56,13 @@ template <typename T> class MatrixView {
   MatrixView(HostDeviceVector<T> *vec, std::array<size_t, 2> shape,
              int32_t device)
       : device_{device}, values_{InferValues(vec, device)} {
+    std::copy(shape.cbegin(), shape.cend(), shape_);
+    strides_[0] = shape[1];
+    strides_[1] = 1;
+  }
+  MatrixView(std::vector<T> *vec, std::array<size_t, 2> shape)
+      : device_{GenericParameter::kCpuId}, values_{*vec} {
+    CHECK_EQ(vec->size(), shape[0] * shape[1]);
     std::copy(shape.cbegin(), shape.cend(), shape_);
     strides_[0] = shape[1];
     strides_[1] = 1;
