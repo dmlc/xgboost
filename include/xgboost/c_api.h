@@ -368,10 +368,11 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  * \param next           Callback function yielding the next batch of data.
  * \param c_json_config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *
- *   - missing: float
+ *   - missing:      Which value to represent missing value
  *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  *
- * \param out      The created Device Quantile DMatrix
+ * \param out      The created external memory DMatrix
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -383,7 +384,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
                                         DMatrixHandle *out);
 
 /*!
- * \brief Create a device DMatrix with data iterator.
+ * \brief Create a Quantile DMatrix with data iterator.
  *
  * Short note for how to use the second set of callback for GPU Hist tree method:
  *
