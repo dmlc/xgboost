@@ -29,7 +29,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};
 
-  size_t n_batches = 0;
+  uint32_t n_batches = 0;
   size_t n_features = 0;
   size_t n_samples = 0;
   size_t nnz = 0;

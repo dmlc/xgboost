@@ -92,7 +92,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
   uint32_t count_{0};
 
-  size_t n_batches_ {0};
+  uint32_t n_batches_ {0};
 
   std::shared_ptr<Cache> cache_info_;
   std::unique_ptr<dmlc::Stream> fo_;
@@ -113,7 +113,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    size_t constexpr kPreFetch = 4;
+    uint32_t constexpr kPreFetch = 4;
 
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
@@ -159,7 +159,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features,
-                       size_t n_batches, std::shared_ptr<Cache> cache)
+                       uint32_t n_batches, std::shared_ptr<Cache> cache)
       : missing_{missing}, nthreads_{nthreads}, n_features_{n_features},
         n_batches_{n_batches}, cache_info_{std::move(cache)} {}
 
@@ -231,7 +231,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   SparsePageSource(
       DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter,
       DMatrixProxy *proxy, float missing, int nthreads,
-      bst_feature_t n_features, size_t n_batches, std::shared_ptr<Cache> cache)
+      bst_feature_t n_features, uint32_t n_batches, std::shared_ptr<Cache> cache)
       : SparsePageSourceImpl(missing, nthreads, n_features, n_batches, cache),
         iter_{iter}, proxy_{proxy} {
     if (!cache_info_->written) {
@@ -319,7 +319,7 @@ class CSCPageSource : public PageSourceIncMixIn<CSCPage> {
 
  public:
   CSCPageSource(
-      float missing, int nthreads, bst_feature_t n_features, size_t n_batches,
+      float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
       std::shared_ptr<Cache> cache,
       std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features,
@@ -347,7 +347,7 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
 
  public:
   SortedCSCPageSource(float missing, int nthreads, bst_feature_t n_features,
-                      size_t n_batches, std::shared_ptr<Cache> cache,
+                      uint32_t n_batches, std::shared_ptr<Cache> cache,
                       std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache) {
     this->source_ = source;
