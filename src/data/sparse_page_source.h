@@ -214,8 +214,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (!this->ReadCache()) {
       bool type_error { false };
       CHECK(proxy_);
-      HostAdapterDispatch(proxy_, [&](auto const &value) {
-        page_->Push(value, this->missing_, this->nthreads_);
+      HostAdapterDispatch(proxy_, [&](auto const &adapter_batch) {
+        page_->Push(adapter_batch, this->missing_, this->nthreads_);
       }, &type_error);
       if (type_error) {
         DevicePush(proxy_, missing_, page_.get());
@@ -247,7 +247,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (cache_info_->written) {
       at_end_ = (count_ == n_batches_);
     } else {
-      at_end_ = !iter_.Next();;
+      at_end_ = !iter_.Next();
     }
 
     if (at_end_) {
