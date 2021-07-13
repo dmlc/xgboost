@@ -209,7 +209,7 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
     val trainingDF = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
     // Hist method output is different when num_workers > 1
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "hist", 1)
   }
 
   test("XGBoost-Spark XGBoostClassifier output should match XGBoost4j (distributed)") {
@@ -226,7 +226,7 @@ class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
     val trainingDF = buildDataFrameWithRandSort(Classification.train)
     val testDF = buildDataFrameWithRandSort(Classification.test)
     // Hist method output is different when num_workers > 1
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "hist", 1)
   }
 
   test("XGBoostClassifier should make correct predictions after upstream random sort (dist)") {

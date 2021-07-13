@@ -33,7 +33,7 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
     val trainingDF = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     // Hist method output is different when num_workers > 1
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "hist", 1)
   }
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j (distributed)") {
@@ -50,7 +50,7 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
     val trainingDF = buildDataFrameWithRandSort(Regression.train)
     val testDF = buildDataFrameWithRandSort(Regression.test)
     // Hist method output is different when num_workers > 1
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, treeMethod, 1)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, "hist", 1)
   }
 
   test("XGBoostRegressor should make correct predictions after upstream random sort (dist)") {
