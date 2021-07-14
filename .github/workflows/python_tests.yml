@@ -42,7 +42,7 @@ jobs:
         cd ..
         python -c 'import xgboost'
 
-  python-tests:
+  python-tests-win64:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
     strategy:
@@ -59,7 +59,7 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
-        activate-environment: win64_test
+        activate-environment: xgboost_test
         environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
 
     - name: Display Conda env
@@ -76,6 +76,50 @@ jobs:
         cd build_msvc
         cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
         cmake --build . --config Release --parallel $(nproc)
+
+    - name: Install Python package
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py bdist_wheel --universal
+        pip install ./dist/*.whl
+
+    - name: Test Python package
+      shell: bash -l {0}
+      run: |
+        pytest -s -v ./tests/python
+
+  python-tests-macos:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+        python-version: ["3.8"]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: xgboost_test
+        environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
+
+    - name: Install dependencies
+      shell: bash -l {0}
+      run: |
+        brew install libomp ninja
+
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
 
     - name: Install Python package
       shell: bash -l {0}
