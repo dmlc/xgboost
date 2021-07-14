@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/27
+# Use libomp 11.1.0: https://github.com/dmlc/xgboost/issues/7039
+wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
 brew install cmake libomp
+brew pin libomp
 
 
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
