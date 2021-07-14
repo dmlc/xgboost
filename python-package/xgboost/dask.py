@@ -1201,13 +1201,17 @@ async def _predict_async(
     meta_names = data.meta_names
 
     def dispatched_predict(booster: Booster, part: Any) -> numpy.ndarray:
+        import sys
         data = part[0]
         assert isinstance(part, tuple), type(part)
         base_margin = None
         for i, blob in enumerate(part[1:]):
             if meta_names[i] == "base_margin":
                 base_margin = blob
+        w = str(distributed.get_worker().address)
         with config.config_context(**global_config):
+            print("[py] before DMatrix:", w)
+            sys.stdout.flush()
             m = DMatrix(
                 data,
                 missing=missing,
@@ -1215,6 +1219,8 @@ async def _predict_async(
                 feature_names=feature_names,
                 feature_types=feature_types,
             )
+            print("[py] before predict:", w, id(m))
+            sys.stdout.flush()
             predt = booster.predict(
                 m,
                 output_margin=output_margin,
@@ -1226,6 +1232,8 @@ async def _predict_async(
                 iteration_range=iteration_range,
                 strict_shape=strict_shape,
             )
+            print("[py] after predict:", w, id(m))
+            sys.stdout.flush()
             return predt
 
     all_parts = []

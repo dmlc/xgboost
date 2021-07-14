@@ -54,19 +54,19 @@ pipeline {
       steps {
         script {
           parallel ([
-            'clang-tidy': { ClangTidy() },
-            'build-cpu': { BuildCPU() },
-            'build-cpu-arm64': { BuildCPUARM64() },
-            'build-cpu-rabit-mock': { BuildCPUMock() },
+            // 'clang-tidy': { ClangTidy() },
+            // 'build-cpu': { BuildCPU() },
+            // 'build-cpu-arm64': { BuildCPUARM64() },
+            // 'build-cpu-rabit-mock': { BuildCPUMock() },
             // Build reference, distribution-ready Python wheel with CUDA 10.0
             // using CentOS 6 image
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             // The build-gpu-* builds below use Ubuntu image
-            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
-            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.0') },
-            'build-jvm-packages-gpu-cuda10.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.0') },
-            'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
-            'build-jvm-doc': { BuildJVMDoc() }
+            // 'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
+            // 'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.0') },
+            // 'build-jvm-packages-gpu-cuda10.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.0') },
+            // 'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
+            // 'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
       }
@@ -77,15 +77,15 @@ pipeline {
         script {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
-            'test-python-cpu-arm64': { TestPythonCPUARM64() },
+            // 'test-python-cpu-arm64': { TestPythonCPUARM64() },
             // artifact_cuda_version doesn't apply to RMM tests; RMM tests will always match CUDA version between artifact and host env
-            'test-python-gpu-cuda11.0-cross': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0', test_rmm: true) },
-            'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0', multi_gpu: true, test_rmm: true) },
-            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
-            'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
-            'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
-            'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') }
+            // 'test-python-gpu-cuda11.0-cross': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0', test_rmm: true) },
+            // 'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
+            // 'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0', multi_gpu: true, test_rmm: true) },
+            // 'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
+            // 'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
+            // 'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
+            // 'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') }
           ])
         }
       }
@@ -219,20 +219,13 @@ def BuildCUDA(args) {
       arch_flag = "-DGPU_COMPUTE_VER=75"
     }
     def wheel_tag = "manylinux2010_x86_64"
+    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1,protect_shadow_gap=0,detect_leaks=0 -e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log --cap-add SYS_PTRACE'"
+
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON ${arch_flag}
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;undefined"  -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/ -DCMAKE_BUILD_TYPE=Debug ${arch_flag}
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} ${wheel_tag}
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} ${wheel_tag}
     """
-    if (args.cuda_version == ref_cuda_ver) {
-      sh """
-      ${dockerRun} auditwheel_x86_64 ${docker_binary} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py wheelhouse/*.whl ${commit_id} ${wheel_tag}
-      mv -v wheelhouse/*.whl python-package/dist/
-      # Make sure that libgomp.so is vendored in the wheel
-      ${dockerRun} auditwheel_x86_64 ${docker_binary} bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
-      """
-    }
     echo 'Stashing Python wheel...'
     stash name: "xgboost_whl_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
     if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
@@ -340,7 +333,7 @@ def TestPythonCPU() {
   node('linux && cpu') {
     unstash name: "xgboost_whl_cuda${ref_cuda_ver}"
     unstash name: 'srcs'
-    unstash name: 'xgboost_cli'
+    // unstash name: 'xgboost_cli'
     echo "Test Python CPU"
     def container_type = "cpu"
     def docker_binary = "docker"

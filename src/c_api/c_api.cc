@@ -650,6 +650,8 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         xgboost::bst_ulong *out_dim,
                                         bst_float const **out_result) {
   API_BEGIN();
+  std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
+
   if (handle == nullptr) {
     LOG(FATAL) << "Booster has not been initialized or has already been disposed.";
   }
@@ -668,6 +670,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   auto iteration_end = get<Integer const>(j_config.at("iteration_end"));
 
   auto ntree_limit_it = j_config.find("ntree_limit");
+
+  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
+
   if (ntree_limit_it != j_config.cend() && !IsA<Null>(ntree_limit_it->second) &&
       get<Integer const>(ntree_limit_it->second) != 0) {
     CHECK(iteration_end == 0) <<
@@ -675,6 +680,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
     LOG(WARNING) << "`ntree_limit` is deprecated, use `iteration_range` instead.";
     iteration_end = GetIterationFromTreeLimit(get<Integer const>(ntree_limit_it->second), learner);
   }
+  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
 
   bool approximate = type == PredictionType::kApproxContribution ||
                      type == PredictionType::kApproxInteraction;
@@ -687,8 +693,14 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                    iteration_begin, iteration_end, training,
                    type == PredictionType::kLeaf, contribs, approximate,
                    interactions);
+
+  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
+
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
   auto &shape = learner->GetThreadLocal().prediction_shape;
+
+  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
+
   auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
   auto rounds = iteration_end - iteration_begin;
   rounds = rounds == 0 ? learner->BoostedRounds() : rounds;
@@ -697,7 +709,11 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   CalcPredictShape(strict_shape, type, p_m->Info().num_row_,
                    p_m->Info().num_col_, chunksize, learner->Groups(), rounds,
                    &shape, out_dim);
+  std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
+
   *out_shape = dmlc::BeginPtr(shape);
+
+  std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(dmat) <<  std::endl;
   API_END();
 }
 

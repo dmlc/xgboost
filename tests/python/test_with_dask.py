@@ -634,14 +634,14 @@ def run_auc(client: "Client", tree_method: str) -> None:
     X_, y_ = datasets.make_classification(
         n_samples=n_samples, n_features=n_features, random_state=rng
     )
-    X = dd.from_array(X_, chunksize=10)
-    y = dd.from_array(y_, chunksize=10)
+    X = client.persist(dd.from_array(X_, chunksize=10))
+    y = client.persist(dd.from_array(y_, chunksize=10))
 
     valid_X_, valid_y_ = datasets.make_classification(
         n_samples=n_samples, n_features=n_features, random_state=rng
     )
-    valid_X = dd.from_array(valid_X_, chunksize=10)
-    valid_y = dd.from_array(valid_y_, chunksize=10)
+    valid_X = client.persist(dd.from_array(valid_X_, chunksize=10))
+    valid_y = client.persist(dd.from_array(valid_y_, chunksize=10))
 
     cls = xgb.XGBClassifier(
         tree_method=tree_method, n_estimators=2, use_label_encoder=False
@@ -662,6 +662,7 @@ def run_auc(client: "Client", tree_method: str) -> None:
 
 def test_auc(client: "Client") -> None:
     run_auc(client, "hist")
+
 
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
@@ -826,24 +827,48 @@ def test_predict(client: "Client") -> None:
 
 
 def test_predict_with_meta(client: "Client") -> None:
+    import dask, distributed
+    import sys
+    print(dask.__version__, distributed.__version__)
+    sys.stdout.flush()
+
+    client.get_versions(check=True)
+
     X, y, w = generate_array(with_weights=True)
     assert w is not None
     partition_size = 20
     margin = da.random.random(kRows, partition_size) + 1e4
 
+    X, y, w, margin = client.persist([X, y, w, margin])
+
+    print("before dmatrix")
+    sys.stdout.flush()
     dtrain = DaskDMatrix(client, X, y, weight=w, base_margin=margin)
+    print("before train")
+    sys.stdout.flush()
     booster: xgb.Booster = xgb.dask.train(
         client, {}, dtrain, num_boost_round=4)['booster']
 
+    print("before predict")
+    sys.stdout.flush()
     prediction = xgb.dask.predict(client, model=booster, data=dtrain)
     assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
 
+    print('before compute')
+    sys.stdout.flush()
     prediction = client.compute(prediction).result()
     assert np.all(prediction > 1e3)
 
+    print("before single")
+    sys.stdout.flush()
     m = xgb.DMatrix(X.compute())
+    print("before set info")
+    sys.stdout.flush()
     m.set_info(label=y.compute(), weight=w.compute(), base_margin=margin.compute())
+
+    print('before single threaded predict')
+    sys.stdout.flush()
     single = booster.predict(m)  # Make sure the ordering is correct.
     assert np.all(prediction == single)
 
