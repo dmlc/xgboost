@@ -68,7 +68,7 @@ class HingeObj : public ObjFunction {
             out_gpair, &preds, &info.labels_, &info.weights_);
   }
 
-  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
