@@ -48,7 +48,7 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter = BatchIterator<SparsePage>(
-      std::make_shared<SimpleBatchIteratorImpl<SparsePage>>(sparse_page_));
+      new SimpleBatchIteratorImpl<SparsePage>(sparse_page_));
   return BatchSet<SparsePage>(begin_iter);
 }
 
@@ -57,8 +57,8 @@ BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
   if (!column_page_) {
     column_page_.reset(new CSCPage(sparse_page_->GetTranspose(info_.num_col_)));
   }
-  auto begin_iter = BatchIterator<CSCPage>(
-      std::make_shared<SimpleBatchIteratorImpl<CSCPage>>(column_page_));
+  auto begin_iter =
+      BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_));
   return BatchSet<CSCPage>(begin_iter);
 }
 
@@ -70,8 +70,7 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
     sorted_column_page_->SortRows();
   }
   auto begin_iter = BatchIterator<SortedCSCPage>(
-      std::make_shared<SimpleBatchIteratorImpl<SortedCSCPage>>(
-          sorted_column_page_));
+      new SimpleBatchIteratorImpl<SortedCSCPage>(sorted_column_page_));
   return BatchSet<SortedCSCPage>(begin_iter);
 }
 
@@ -86,8 +85,8 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
     ellpack_page_.reset(new EllpackPage(this, param));
     batch_param_ = param;
   }
-  auto begin_iter = BatchIterator<EllpackPage>(
-      std::make_shared<SimpleBatchIteratorImpl<EllpackPage>>(ellpack_page_));
+  auto begin_iter =
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_));
   return BatchSet<EllpackPage>(begin_iter);
 }
 
@@ -101,8 +100,7 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
     batch_param_ = param;
   }
   auto begin_iter = BatchIterator<GHistIndexMatrix>(
-      std::make_shared<SimpleBatchIteratorImpl<GHistIndexMatrix>>(
-          gradient_index_));
+      new SimpleBatchIteratorImpl<GHistIndexMatrix>(gradient_index_));
   return BatchSet<GHistIndexMatrix>(begin_iter);
 }
 
