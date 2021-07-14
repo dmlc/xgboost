@@ -815,9 +815,6 @@ class Column {
 
     size_t length() const { return length_; }
 
-    // number of non-nulls
-    size_t nnn() const { return length_ - null_count_; }
-
   protected:
     size_t col_idx_;
     size_t length_;
@@ -868,67 +865,126 @@ struct ColumnarMetaInfo {
   int64_t loc{-1};
 };
 
+struct ArrowSchemaImporter {
+  std::vector<ColumnarMetaInfo> columns_;
+  ColumnarMetaInfo label_info_;
+  ColumnarMetaInfo weight_info_;
+  ColumnarMetaInfo base_margin_info_;
+  ColumnarMetaInfo qid_info_;
+
+  // map Arrow format strings to types
+  static ColumnDType format_map(char const* format_str) {
+    CHECK(format_str) << "Format string cannot be empty";
+    switch (format_str[0]) {
+      case 'c':
+        return ColumnDType::INT8;
+      case 'C':
+        return ColumnDType::UINT8;
+      case 's':
+        return ColumnDType::INT16;
+      case 'S':
+        return ColumnDType::UINT16;
+      case 'i':
+        return ColumnDType::INT32;
+      case 'I':
+        return ColumnDType::UINT32;
+      case 'l':
+        return ColumnDType::INT64;
+      case 'L':
+        return ColumnDType::UINT64;
+      case 'f':
+        return ColumnDType::FLOAT;
+      case 'g':
+        return ColumnDType::DOUBLE;
+      default:
+        CHECK(false) << "Column data type not supported by XGBoost";
+        return ColumnDType::UNKNOWN;
+    }
+  }
+
+  void Clear() {
+    columns_.clear();
+    label_info_ = ColumnarMetaInfo();
+    weight_info_ = ColumnarMetaInfo();
+    base_margin_info_ = ColumnarMetaInfo();
+    qid_info_ = ColumnarMetaInfo();
+  }
+
+  void Import(struct ArrowSchema *schema,
+              const char* label_col_name = nullptr,
+              const char* weight_col_name = nullptr,
+              const char* base_margin_col_name = nullptr,
+              const char* qid_col_name = nullptr) {
+    if (schema) {
+      CHECK(std::string(schema->format) == "+s");
+      Clear();
+      for (auto i = 0; i < schema->n_children; ++i) {
+        std::string name{schema->children[i]->name};
+        ColumnDType type = format_map(schema->children[i]->format);
+        ColumnarMetaInfo col_info{type, i};
+        if (label_col_name && name == label_col_name) {
+          label_info_ = col_info;
+        } else if (weight_col_name && name == weight_col_name) {
+          weight_info_ = col_info;
+        } else if (base_margin_col_name && name == base_margin_col_name) {
+          base_margin_info_ = col_info;
+        } else if (qid_col_name && name == qid_col_name) {
+          qid_info_ = col_info;
+        } else {
+          columns_.push_back(col_info);
+        }
+      }
+      if (schema->release) {
+        schema->release(schema);
+      }
+    }
+  }
+};
+
 class ArrowColumnarBatch {
   public:
-    ArrowColumnarBatch(struct ArrowArray* rb,
-                       const std::vector<ColumnarMetaInfo>& infov)
-      : rb_{rb} {
-        for (auto i = 0; i < infov.size(); ++i) {
-          columns_.push_back(CreateColumn(i, infov[i]));
-        }
-    }
-
-    ~ArrowColumnarBatch() {
+    void Clear() {
       if (rb_ && rb_->release) {
         rb_->release(rb_);
+        rb_ = nullptr;
+      }
+      columns_.clear();
+      label_col_.clear();
+      weight_col_.clear();
+      base_margin_col_.clear();
+      qid_col_.clear();
+    }
+
+    void Build(struct ArrowArray *rb, const struct ArrowSchemaImporter& schema) {
+      CHECK(rb) << "Cannot import non-existent record batch";
+      CHECK(!schema.columns_.empty()) << "Cannot import record batch without a schema";
+
+      rb_ = rb;
+      auto& infov = schema.columns_;
+      for (auto i = 0; i < infov.size(); ++i) {
+        columns_.push_back(CreateColumn(i, infov[i]));
+      }
+      if (schema.label_info_.type != ColumnDType::UNKNOWN) {
+        auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.label_info_);
+        label_col_ = col->AsFloatVector();
+      }
+      if (schema.weight_info_.type != ColumnDType::UNKNOWN) {
+        auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.weight_info_);
+        weight_col_ = col->AsFloatVector();
+      }
+      if (schema.base_margin_info_.type != ColumnDType::UNKNOWN) {
+        auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.base_margin_info_);
+        base_margin_col_ = col->AsFloatVector();
+      }
+      if (schema.qid_info_.type != ColumnDType::UNKNOWN) {
+        auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.qid_info_);
+        qid_col_ = col->AsUint64Vector();
       }
     }
 
-    ArrowColumnarBatch(const ArrowColumnarBatch&) = delete;
-    ArrowColumnarBatch& operator=(const ArrowColumnarBatch&) = delete;
-    ArrowColumnarBatch(ArrowColumnarBatch&&) = default;
-    ArrowColumnarBatch& operator=(ArrowColumnarBatch&&) = default;
-
-    size_t Size() const { return rb_->length; };
+    size_t Size() const { return rb_ ? rb_->length : 0; };
 
     size_t NumColumns() const { return columns_.size(); }
-
-    // number of non-nulls
-    size_t Nnn() const {
-      size_t n = 0;
-      for (auto& col : columns_) {
-        n += col->nnn();
-      }
-      return n;
-    }
-
-    void SetLabels(ColumnarMetaInfo info) {
-      auto col = CreateColumn(0/*unused*/, info);
-      if (col) {
-        label_col_ = col->AsFloatVector();
-      } 
-    }
-
-    void SetWeights(ColumnarMetaInfo info) {
-      auto col = CreateColumn(0/*unused*/, info);
-      if (col) {
-        weight_col_ = col->AsFloatVector();
-      } 
-    }
-
-    void SetBaseMargins(ColumnarMetaInfo info) {
-      auto col = CreateColumn(0/*unused*/, info);
-      if (col) {
-        base_margin_col_ = col->AsFloatVector();
-      } 
-    }
-
-    void SetQids(ColumnarMetaInfo info) {
-      auto col = CreateColumn(0/*unused*/, info);
-      if (col) {
-        qid_col_ = col->AsUint64Vector();
-      } 
-    }
 
     const Column& GetColumn(size_t col_idx) const {
       return *columns_[col_idx];
@@ -1030,113 +1086,12 @@ class ArrowColumnarBatch {
       }
     }
 
-    struct ArrowArray* rb_;
+    struct ArrowArray* rb_{nullptr};
     std::vector<std::shared_ptr<Column>> columns_;
     std::vector<float> label_col_;
     std::vector<float> weight_col_;
     std::vector<float> base_margin_col_;
     std::vector<uint64_t> qid_col_;
-};
-
-struct ArrowSchemaImporter {
-  struct ArrowSchema *schema_;
-  std::vector<ColumnarMetaInfo> columns_;
-  ColumnarMetaInfo label_info_;
-  ColumnarMetaInfo weight_info_;
-  ColumnarMetaInfo base_margin_info_;
-  ColumnarMetaInfo qid_info_;
-
-  explicit ArrowSchemaImporter(struct ArrowSchema *schema)
-    :schema_{schema} {}
-
-  ~ArrowSchemaImporter() {
-    if (schema_ && schema_->release) {
-      schema_->release(schema_);
-    }
-  }
-
-  // map Arrow format strings to types
-  static constexpr ColumnDType format_map(char const* format_str) {
-    CHECK(format_str) << "Format string cannot be empty";
-    switch (format_str[0]) {
-      case 'c':
-        return ColumnDType::INT8;
-      case 'C':
-        return ColumnDType::UINT8;
-      case 's':
-        return ColumnDType::INT16;
-      case 'S':
-        return ColumnDType::UINT16;
-      case 'i':
-        return ColumnDType::INT32;
-      case 'I':
-        return ColumnDType::UINT32;
-      case 'l':
-        return ColumnDType::INT64;
-      case 'L':
-        return ColumnDType::UINT64;
-      case 'f':
-        return ColumnDType::FLOAT;
-      case 'g':
-        return ColumnDType::DOUBLE;
-      default:
-        CHECK(false) << "Column data type not supported by XGBoost";
-        return ColumnDType::UNKNOWN;
-    }
-  }
-
-  void Import(const char* label_col_name = nullptr,
-              const char* weight_col_name = nullptr,
-              const char* base_margin_col_name = nullptr,
-              const char* qid_col_name = nullptr) {
-    if (schema_) {
-      CHECK(std::string(schema_->format) == "+s");
-      for (auto i = 0; i < schema_->n_children; ++i) {
-        std::string name{schema_->children[i]->name};
-        ColumnDType type = format_map(schema_->children[i]->format);
-        ColumnarMetaInfo col_info{type, i};
-        if (label_col_name && name == label_col_name) {
-          label_info_ = col_info;
-        } else if (weight_col_name && name == weight_col_name) {
-          weight_info_ = col_info;
-        } else if (base_margin_col_name && name == base_margin_col_name) {
-          base_margin_info_ = col_info;
-        } else if (qid_col_name && name == qid_col_name) {
-          qid_info_ = col_info;
-        } else {
-          columns_.push_back(col_info);
-        }
-      }
-    }
-  }
-};
-
-struct ArrowRecordBatchImporter {
-  struct ArrowArray *rb_;
-  std::shared_ptr<struct ArrowSchemaImporter> schema_imported_;
-  std::unique_ptr<ArrowColumnarBatch> batch_;
-
-  ArrowRecordBatchImporter(struct ArrowArray *rb,
-                           const std::shared_ptr<struct ArrowSchemaImporter>& schema)
-    : rb_{rb}, schema_imported_{schema} {
-      CHECK(schema_imported_) << "Cannot import a RecordBatch without knowing schema";
-    }
-
-  ~ArrowRecordBatchImporter() {
-    if (rb_ && rb_->release) {
-      rb_->release(rb_);
-    }
-  }
-
-  void Import() {
-    // import record batch data
-    batch_.reset(new ArrowColumnarBatch(rb_, schema_imported_->columns_));
-    // set labels, weights, etc.
-    batch_->SetLabels(schema_imported_->label_info_);
-    batch_->SetWeights(schema_imported_->weight_info_);
-    batch_->SetBaseMargins(schema_imported_->base_margin_info_);
-    batch_->SetQids(schema_imported_->qid_info_);
-  }
 };
 
 class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
@@ -1149,6 +1104,7 @@ class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
     }
 
     bool Next() override {
+      batch_.Clear();
       if ((*next_callback_)(this) != 0) {
         at_first_ = false;
         return true;
@@ -1157,8 +1113,8 @@ class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
       }
     }
 
-    ArrowColumnarBatch& Value() const override {
-      return *(rb_->batch_);
+    const ArrowColumnarBatch& Value() const override {
+      return batch_;
     }
 
     void SetData(struct ArrowArray* rb, struct ArrowSchema* schema) {
@@ -1167,29 +1123,26 @@ class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
       // But even schema is not imported we still need to release its C data
       // exported from Arrow.
       if (at_first_ && schema) {
-        schema_.reset(new ArrowSchemaImporter(schema));
-        schema_->Import();
+        schema_.Import(schema);
       } else {
         if (schema && schema->release) {
           schema->release(schema);
         }
       }
       if (rb) {
-        rb_.reset(new ArrowRecordBatchImporter(rb, schema_));
-        rb_->Import();
+        batch_.Build(rb, schema_);
       }
     }
 
-    size_t NumColumns() const { return schema_->columns_.size(); }
+    size_t NumColumns() const { return schema_.columns_.size(); }
     size_t NumRows() const { return kAdapterUnknownSize; }
 
   private:
     XGDMatrixCallbackNext *next_callback_;
     bool at_first_;
-    std::shared_ptr<struct ArrowSchemaImporter> schema_;
-    std::unique_ptr<struct ArrowRecordBatchImporter> rb_;
+    struct ArrowSchemaImporter schema_;
+    ArrowColumnarBatch batch_;
 };
-
 #endif
 
 };  // namespace data
