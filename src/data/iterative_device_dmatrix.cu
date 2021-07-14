@@ -162,8 +162,8 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
 
 BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
   CHECK(page_);
-  auto begin_iter =
-      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
+  auto begin_iter = BatchIterator<EllpackPage>(
+      std::make_shared<SimpleBatchIteratorImpl<EllpackPage>>(page_));
   return BatchSet<EllpackPage>(begin_iter);
 }
 }  // namespace data

@@ -403,7 +403,6 @@ template<typename T>
 class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;  // NOLINT
-  explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
   explicit BatchIterator(std::shared_ptr<BatchIteratorImpl<T>> impl) { impl_ = impl; }
 
   BatchIterator &operator++() {
