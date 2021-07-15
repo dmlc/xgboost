@@ -44,7 +44,8 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6",
+    // Tree method must to be explicitly set. Otherwise, the heuristic will be incorrect
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "tree_method" -> "approx",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
       "use_external_memory" -> true)
     val model = new XGBoostClassifier(paramMap).fit(training)
