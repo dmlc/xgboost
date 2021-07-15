@@ -17,7 +17,10 @@ jobs:
     - name: Install osx system dependencies
       if: matrix.os == 'macos-10.15'
       run: |
+        # Use libomp 11.1.0: https://github.com/dmlc/xgboost/issues/7039
+        wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
         brew install ninja libomp
+        brew pin libomp
     - name: Install Ubuntu system dependencies
       if: matrix.os == 'ubuntu-latest'
       run: |
