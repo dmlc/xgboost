@@ -253,7 +253,6 @@ class CPUPredictor : public Predictor {
                       gbm::GBTreeModel const &model, int32_t tree_begin,
                       int32_t tree_end) const {
     const int threads = omp_get_max_threads();
-    // std::cout << "before" << __func__ << ":" << size_t(p_fmat) << ", threads:" << threads << std::endl;
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(threads * kBlockOfRowsSize,
                    model.learner_model_param->num_feature, &feat_vecs);
@@ -266,13 +265,11 @@ class CPUPredictor : public Predictor {
                                               out_preds, model, tree_begin,
                                               tree_end, &feat_vecs);
     }
-    // std::cout << "after" << __func__ << ":" << size_t(p_fmat) << std::endl;
   }
 
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const override {
-    // std::cout << "before" << __func__ << ":" << size_t(out_preds) << std::endl;
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
@@ -300,7 +297,6 @@ class CPUPredictor : public Predictor {
       std::fill(out_preds_h.begin(), out_preds_h.end(),
                 model.learner_model_param->base_score);
     }
-    // std::cout << "after" << __func__ << ":" << size_t(out_preds) << std::endl;
   }
 
  public:

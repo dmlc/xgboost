@@ -471,7 +471,6 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
                           bool,
                           unsigned layer_begin,
                           unsigned layer_end) {
-  std::cout << "before " << __func__ << ":" << size_t(p_fmat) <<  std::endl;
   CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
@@ -491,20 +490,13 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
     CHECK_EQ(out_preds->version, 0);
   }
 
-  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(p_fmat) <<  std::endl;
-
   auto const& predictor = GetPredictor(&out_preds->predictions, p_fmat);
-
-  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(p_fmat) <<  std::endl;
-
   if (out_preds->version == 0) {
     // out_preds->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
     predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions,
                                   model_);
   }
-
-  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(p_fmat) <<  std::endl;
 
   uint32_t tree_begin, tree_end;
   std::tie(tree_begin, tree_end) =
@@ -513,17 +505,12 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
   if (tree_end > tree_begin) {
     predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
   }
-
-  // std::cout << __FILE__ << ": " << __LINE__ << ":" << size_t(p_fmat) <<  std::endl;
-
   if (reset) {
     out_preds->version = 0;
   } else {
     uint32_t delta = layer_end - out_preds->version;
     out_preds->Update(delta);
   }
-
-  std::cout << "after " << __func__ << ":" << size_t(p_fmat) <<  std::endl;
 }
 
 std::unique_ptr<Predictor> const &

@@ -302,27 +302,14 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _prediction_output(shape, dims, predts, is_cuda, ptr=None):
-    import sys
-    print("[core]:", ptr, "before shape2np", shape, dims, predts)
-    sys.stdout.flush()
+def _prediction_output(shape, dims, predts, is_cuda):
     arr_shape: np.ndarray = ctypes2numpy(shape, dims.value, np.uint64)
-    print("[core]:", ptr, "after shape2np", arr_shape)
-    sys.stdout.flush()
     length = int(np.prod(arr_shape))
-    print("[core]:", ptr, "length", length)
-    sys.stdout.flush()
     if is_cuda:
         arr_predict = ctypes2cupy(predts, length, np.float32)
     else:
-        print("[core]:", ptr, "before 2np")
-        sys.stdout.flush()
         arr_predict: np.ndarray = ctypes2numpy(predts, length, np.float32)
-        print("[core]:", ptr, "after 2np")
-        sys.stdout.flush()
     arr_predict = arr_predict.reshape(arr_shape)
-    print("[core]:", ptr, "after reshape", arr_predict.shape)
-    sys.stdout.flush()
     return arr_predict
 
 
@@ -1813,9 +1800,6 @@ class Booster(object):
         preds = ctypes.POINTER(ctypes.c_float)()
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
-
-        print("[core]:", id(data), "before predict")
-        sys.stdout.flush()
         _check_call(
             _LIB.XGBoosterPredictFromDMatrix(
                 self.handle,
@@ -1826,9 +1810,7 @@ class Booster(object):
                 ctypes.byref(preds)
             )
         )
-        print("[core]:", id(data), "after predict")
-        sys.stdout.flush()
-        return _prediction_output(shape, dims, preds, False, id(data))
+        return _prediction_output(shape, dims, preds, False)
 
     def inplace_predict(
         self,
