@@ -4,9 +4,9 @@ Using XGBoost External Memory Version
 
 XGBoost supports loading data from external memory using builtin data parser.  And
 starting from version 1.5, users can also define a custom iterator to load data in chunks.
-The feature is still experimental.  In this tutorial we will introduce both methods.
-Please note that training on data from external memory is not supported by ``exact`` tree
-method.
+The feature is still experimental and not yet ready for production use.  In this tutorial
+we will introduce both methods.  Please note that training on data from external memory is
+not supported by ``exact`` tree method.
 
 *************
 Data Iterator
@@ -133,15 +133,3 @@ CPU Hist
 
 It's limited by the same factor of GPU Hist, except that gradient based sampling is not
 yet supported on CPU.
-
-*******************
-Distributed Version
-*******************
-The external memory mode with text input naturally works on distributed version, you can simply set path like
-
-.. code-block:: none
-
-  data = "hdfs://path-to-data/#dtrain.cache"
-
-XGBoost will cache the data to the local position. When you run on YARN, the current folder is temporary
-so that you can directly use ``dtrain.cache`` to cache to current folder.
