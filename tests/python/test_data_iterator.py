@@ -7,11 +7,16 @@ from hypothesis import given, strategies, settings
 
 
 def make_batches(
-    n_samples_per_batch: int, n_features: int, n_batches: int
+    n_samples_per_batch: int, n_features: int, n_batches: int, use_cupy: bool = False
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     X = []
     y = []
-    rng = np.random.RandomState(1994)
+    if use_cupy:
+        import cupy
+
+        rng = cupy.random.RandomState(1994)
+    else:
+        rng = np.random.RandomState(1994)
     for i in range(n_batches):
         _X = rng.randn(n_samples_per_batch, n_features)
         _y = rng.randn(n_samples_per_batch)
@@ -64,7 +69,11 @@ def test_single_batch(tree_method: str = "approx") -> None:
 
 
 def run_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int, tree_method: str
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    tree_method: str,
+    cupy: bool,
 ) -> None:
     n_rounds = 2
 
@@ -125,5 +134,5 @@ def run_data_iterator(
 def test_data_iterator(
     n_samples_per_batch: int, n_features: int, n_batches: int
 ) -> None:
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "approx")
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "hist")
+    run_data_iterator(n_samples_per_batch, n_features, n_batches, "approx", False)
+    run_data_iterator(n_samples_per_batch, n_features, n_batches, "hist", False)
