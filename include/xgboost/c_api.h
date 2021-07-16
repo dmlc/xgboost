@@ -223,19 +223,31 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * - XGBCallbackDataIterNext
  * - XGDMatrixCreateFromDataIter
  *
- * Another set is used by Quantile based DMatrix (used by hist algorithm) for reducing
- * memory usage.  Currently only GPU implementation is available.  It accept foreign data
- * iterators as callbacks and works similar to external memory.  For GPU Hist, the data is
- * first compressed by quantile sketching then merged.  This is particular useful for
- * distributed setting as it eliminates 2 copies of data.  1 by a `concat` from external
- * library to make the data into a blob for normal DMatrix initialization, another by the
- * internal CSR copy of DMatrix.  Related functions are:
+ * Another set is used by external data iterator. It accept foreign data iterators as
+ * callbacks.  There are 2 different senarios where users might want to pass in callbacks
+ * instead of raw data.  First it's the Quantile DMatrix used by GPU Hist. For this case,
+ * the data is first compressed by quantile sketching then merged.  This is particular
+ * useful for distributed setting as it eliminates 2 copies of data.  1 by a `concat` from
+ * external library to make the data into a blob for normal DMatrix initialization,
+ * another by the internal CSR copy of DMatrix.  The second use case is external memory
+ * support where users can pass a custom data iterator into XGBoost for loading data in
+ * batches.  There are short notes on each of the use case in respected DMatrix factory
+ * function.
  *
+ * Related functions are:
+ *
+ * # Factory functions
+ * - `XGDMatrixCreateFromCallback` for external memory
+ * - `XGDeviceQuantileDMatrixCreateFromCallback` for quantile DMatrix
+ *
+ * # Proxy that callers can use to pass data to XGBoost
  * - XGProxyDMatrixCreate
  * - XGDMatrixCallbackNext
  * - DataIterResetCallback
  * - XGProxyDMatrixSetDataCudaArrayInterface
  * - XGProxyDMatrixSetDataCudaColumnar
+ * - XGProxyDMatrixSetDataDense
+ * - XGProxyDMatrixSetDataCSR
  * - ... (data setters)
  */
 
@@ -308,17 +320,9 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
     const char* cache_info,
     DMatrixHandle *out);
 
-/*  == Second set of callback functions, used by constructing Quantile based DMatrix. ===
- *
- * Short note for how to use the second set of callback for GPU Hist tree method.
- *
- * Step 0: Define a data iterator with 2 methods `reset`, and `next`.
- * Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
- * Step 2: Pass the iterator handle, proxy handle and 2 methods into
- *         `XGDeviceQuantileDMatrixCreateFromCallback`.
- * Step 3: Call appropriate data setters in `next` functions.
- *
- * See test_iterative_device_dmatrix.cu or Python interface for examples.
+/**
+ * Second set of callback functions, used by constructing Quantile DMatrix or external
+ * memory DMatrix using custom iterator.
  */
 
 /*!
@@ -344,8 +348,53 @@ XGB_EXTERN_C typedef int XGDMatrixCallbackNext(DataIterHandle iter);  // NOLINT(
  */
 XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLINT(*)
 
+
 /*!
- * \brief Create a device DMatrix with data iterator.
+ * \brief Create an external memory DMatrix with data iterator.
+ *
+ * Short note for how to use second set of callback for external memory data support:
+ *
+ * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
+ * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
+ *           `XGDMatrixCreateFromCallback`, along with other parameters encoded as a JSON object.
+ * - Step 3: Call appropriate data setters in `next` functions.
+ *
+ * For example usage see demo/c-api/external-memory
+ *
+ * \param iter           A handle to external data iterator.
+ * \param proxy          A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param reset          Callback function resetting the iterator state.
+ * \param next           Callback function yielding the next batch of data.
+ * \param c_json_config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
+ *
+ *   - missing:      Which value to represent missing value
+ *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *
+ * \param out      The created external memory DMatrix
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
+                                        DMatrixHandle proxy,
+                                        DataIterResetCallback *reset,
+                                        XGDMatrixCallbackNext *next,
+                                        char const* c_json_config,
+                                        DMatrixHandle *out);
+
+/*!
+ * \brief Create a Quantile DMatrix with data iterator.
+ *
+ * Short note for how to use the second set of callback for GPU Hist tree method:
+ *
+ * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
+ * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
+ *           `XGDeviceQuantileDMatrixCreateFromCallback`.
+ * - Step 3: Call appropriate data setters in `next` functions.
+ *
+ * See test_iterative_device_dmatrix.cu or Python interface for examples.
  *
  * \param iter     A handle to external data iterator.
  * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
@@ -362,6 +411,7 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
     DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
     XGDMatrixCallbackNext *next, float missing, int nthread, int max_bin,
     DMatrixHandle *out);
+
 /*!
  * \brief Set data on a DMatrix proxy.
  *
@@ -386,6 +436,33 @@ XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
  */
 XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
                                               const char *c_interface_str);
+
+/*!
+ * \brief Set data on a DMatrix proxy.
+ *
+ * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param c_interface_str Null terminated JSON document string representation of array
+ *                        interface.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
+                                       char const *c_interface_str);
+
+/*!
+ * \brief Set data on a DMatrix proxy.
+ *
+ * \param handle        A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
+ * \param indices       JSON encoded __array_interface__ to column indices in CSR.
+ * \param values        JSON encoded __array_interface__ to values in CSR..
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
+                                     char const *indices, char const *data,
+                                     bst_ulong ncol);
+
 
 /*
  * ==========================- End data callback APIs ==========================

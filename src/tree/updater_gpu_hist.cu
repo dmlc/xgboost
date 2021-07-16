@@ -163,7 +163,7 @@ class DeviceHistogram {
 template <typename GradientSumT>
 struct GPUHistMakerDevice {
   int device_id;
-  EllpackPageImpl* page;
+  EllpackPageImpl const* page;
   common::Span<FeatureType const> feature_types;
   BatchParam batch_param;
 
@@ -199,7 +199,7 @@ struct GPUHistMakerDevice {
   dh::caching_device_vector<uint32_t> node_categories;
 
   GPUHistMakerDevice(int _device_id,
-                     EllpackPageImpl* _page,
+                     EllpackPageImpl const* _page,
                      common::Span<FeatureType const> _feature_types,
                      bst_uint _n_rows,
                      TrainParam _param,
@@ -488,7 +488,7 @@ struct GPUHistMakerDevice {
     }
   }
 
-  void FinalisePositionInPage(EllpackPageImpl *page,
+  void FinalisePositionInPage(EllpackPageImpl const *page,
                               const common::Span<RegTree::Node> d_nodes,
                               common::Span<FeatureType const> d_feature_types,
                               common::Span<uint32_t const> categories,
@@ -812,7 +812,6 @@ class GPUHistMakerSpecialised {
     BatchParam batch_param{
       device_,
       param_.max_bin,
-      generic_param_->gpu_page_size
     };
     auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(device_));

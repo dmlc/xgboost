@@ -55,7 +55,9 @@ int64_t GetFileSize(const std::string& filename);
 
 void CreateSimpleTestData(const std::string& filename);
 
-void CreateBigTestData(const std::string& filename, size_t n_entries);
+// Create a libsvm format file with 3 entries per-row. `zero_based` specifies whether it's
+// 0-based indexing.
+void CreateBigTestData(const std::string& filename, size_t n_entries, bool zero_based = true);
 
 void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> preds,
@@ -300,8 +302,7 @@ GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
                                             int num_rows, int num_columns);
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
-    size_t n_entries, size_t page_size, std::string tmp_file);
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, std::string prefix = "cache");
 
 /**
  * \fn std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
@@ -356,7 +357,8 @@ inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_row
 
 typedef void *DMatrixHandle;  // NOLINT(*);
 
-class CudaArrayIterForTest {
+class ArrayIterForTest {
+ protected:
   HostDeviceVector<float> data_;
   size_t iter_ {0};
   DMatrixHandle proxy_;
@@ -373,20 +375,32 @@ class CudaArrayIterForTest {
   size_t static constexpr kBatches { 100 };
   size_t static constexpr kCols { 13 };
 
-  explicit CudaArrayIterForTest(float sparsity, size_t rows = kRows,
-                                size_t cols = kCols, size_t batches = kBatches);
-  ~CudaArrayIterForTest();
-
   std::string AsArray() const {
     return interface_;
   }
 
-  int Next();
-  void Reset() {
+  virtual int Next();
+  virtual void Reset() {
     iter_ = 0;
   }
   size_t Iter() const { return iter_; }
   auto Proxy() -> decltype(proxy_) { return proxy_; }
+
+  explicit ArrayIterForTest(float sparsity, size_t rows = kRows,
+                            size_t cols = kCols, size_t batches = kBatches);
+  virtual ~ArrayIterForTest();
+};
+
+class CudaArrayIterForTest : public ArrayIterForTest {
+ public:
+  size_t static constexpr kRows{1000};
+  size_t static constexpr kBatches{100};
+  size_t static constexpr kCols{13};
+
+  explicit CudaArrayIterForTest(float sparsity, size_t rows = kRows,
+                                size_t cols = kCols, size_t batches = kBatches);
+  int Next() override;
+  ~CudaArrayIterForTest() override = default;
 };
 
 void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
@@ -396,11 +410,11 @@ void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
 typedef void *DataIterHandle;  // NOLINT(*)
 
 inline void Reset(DataIterHandle self) {
-  static_cast<CudaArrayIterForTest*>(self)->Reset();
+  static_cast<ArrayIterForTest*>(self)->Reset();
 }
 
 inline int Next(DataIterHandle self) {
-  return static_cast<CudaArrayIterForTest*>(self)->Next();
+  return static_cast<ArrayIterForTest*>(self)->Next();
 }
 
 class RMMAllocator;

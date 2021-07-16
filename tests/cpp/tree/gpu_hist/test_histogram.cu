@@ -15,7 +15,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
 
   float sparsity = is_dense ? 0.0f : 0.5f;
   auto matrix = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix();
-  BatchParam batch_param{0, static_cast<int32_t>(kBins), 0};
+  BatchParam batch_param{0, static_cast<int32_t>(kBins)};
 
   for (auto const& batch : matrix->GetBatches<EllpackPage>(batch_param)) {
     auto* page = batch.Impl();
@@ -116,7 +116,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto x = GenerateRandomCategoricalSingleColumn(kRows, num_categories);
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
-  BatchParam batch_param{0, static_cast<int32_t>(kBins), 0};
+  BatchParam batch_param{0, static_cast<int32_t>(kBins)};
   tree::RowPartitioner row_partitioner(0, kRows);
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairPrecise> cat_hist(num_categories);

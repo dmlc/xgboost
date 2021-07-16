@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by XGBoost Contributors
+ * Copyright 2019-2021 by XGBoost Contributors
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
@@ -8,57 +8,44 @@
 #include <xgboost/data.h>
 #include <memory>
 #include <string>
+#include <utility>
 
-#include "../common/timer.h"
+#include "../common/common.h"
 #include "../common/hist_util.h"
 #include "sparse_page_source.h"
 
 namespace xgboost {
 namespace data {
 
-/*!
- * \brief External memory data source for ELLPACK format.
- *
- */
-class EllpackPageSource {
+class EllpackPageSource : public PageSourceIncMixIn<EllpackPage> {
+  bool is_dense_;
+  size_t row_stride_;
+  BatchParam param_;
+  common::Span<FeatureType const> feature_types_;
+  std::unique_ptr<common::HistogramCuts> cuts_;
+
  public:
-  /*!
-   * \brief Create source from cache files the cache_prefix.
-   * \param cache_prefix The prefix of cache we want to solve.
-   */
-  explicit EllpackPageSource(DMatrix* dmat,
-                             const std::string& cache_info,
-                             const BatchParam& param) noexcept(false);
-
-  BatchSet<EllpackPage> GetBatchSet() {
-    auto begin_iter = BatchIterator<EllpackPage>(
-        new SparseBatchIteratorImpl<ExternalMemoryPrefetcher<EllpackPage>,
-                                    EllpackPage>(external_prefetcher_.get()));
-    return BatchSet<EllpackPage>(begin_iter);
+  EllpackPageSource(
+      float missing, int nthreads, bst_feature_t n_features, size_t n_batches,
+      std::shared_ptr<Cache> cache, BatchParam param,
+      std::unique_ptr<common::HistogramCuts> cuts, bool is_dense,
+      size_t row_stride, common::Span<FeatureType const> feature_types,
+      std::shared_ptr<SparsePageSource> source)
+      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache),
+        is_dense_{is_dense}, row_stride_{row_stride}, param_{param},
+        feature_types_{feature_types}, cuts_{std::move(cuts)} {
+    this->source_ = source;
+    this->Fetch();
   }
 
-  ~EllpackPageSource() {
-    external_prefetcher_.reset();
-    for (auto file : cache_info_.name_shards) {
-      TryDeleteCacheFile(file);
-    }
-  }
-
- private:
-  void WriteEllpackPages(int device, DMatrix* dmat,
-                         const common::HistogramCuts& cuts,
-                         const std::string& cache_info,
-                         size_t row_stride) const;
-
-  /*! \brief The page type string for ELLPACK. */
-  const std::string kPageType_{".ellpack.page"};
-
-  size_t page_size_{DMatrix::kPageSize};
-  common::Monitor monitor_;
-  std::unique_ptr<ExternalMemoryPrefetcher<EllpackPage>> external_prefetcher_;
-  CacheInfo cache_info_;
+  void Fetch() final;
 };
 
+#if !defined(XGBOOST_USE_CUDA)
+inline void EllpackPageSource::Fetch() {
+  common::AssertGPUSupport();
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace data
 }  // namespace xgboost
 

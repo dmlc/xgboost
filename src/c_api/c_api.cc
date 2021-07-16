@@ -190,6 +190,35 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
 #endif
 
 // Create from data iterator
+XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
+                                        DMatrixHandle proxy,
+                                        DataIterResetCallback *reset,
+                                        XGDMatrixCallbackNext *next,
+                                        char const* c_json_config,
+                                        DMatrixHandle *out) {
+  API_BEGIN();
+  auto config = Json::Load(StringView{c_json_config});
+  float missing = get<Number const>(config["missing"]);
+  std::string cache = get<String const>(config["cache_prefix"]);
+  int32_t n_threads = omp_get_max_threads();
+  if (!IsA<Null>(config["nthread"])) {
+    n_threads = get<Integer const>(config["nthread"]);
+  }
+  *out = new std::shared_ptr<xgboost::DMatrix>{xgboost::DMatrix::Create(
+      iter, proxy, reset, next, missing, n_threads, cache)};
+  API_END();
+}
+
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
+    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
+    XGDMatrixCallbackNext *next, float missing, int nthread,
+    int max_bin, DMatrixHandle *out) {
+  API_BEGIN();
+  *out = new std::shared_ptr<xgboost::DMatrix>{
+    xgboost::DMatrix::Create(iter, proxy, reset, next, missing, nthread, max_bin)};
+  API_END();
+}
+
 XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out) {
   API_BEGIN();
   *out = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);;
@@ -221,15 +250,31 @@ XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
-    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-    XGDMatrixCallbackNext *next, float missing, int nthread,
-    int max_bin, DMatrixHandle *out) {
+XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
+                                       char const *c_interface_str) {
   API_BEGIN();
-  *out = new std::shared_ptr<xgboost::DMatrix>{
-    xgboost::DMatrix::Create(iter, proxy, reset, next, missing, nthread, max_bin)};
+  CHECK_HANDLE();
+  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  CHECK(p_m);
+  auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
+  CHECK(m) << "Current DMatrix type does not support set data.";
+  m->SetArrayData(c_interface_str);
   API_END();
 }
+
+XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
+                                     char const *indices, char const *data,
+                                     xgboost::bst_ulong ncol) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  CHECK(p_m);
+  auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
+  CHECK(m) << "Current DMatrix type does not support set data.";
+  m->SetCSRData(indptr, indices, data, ncol, true);
+  API_END();
+}
+
 // End Create from data iterator
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
