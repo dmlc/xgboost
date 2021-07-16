@@ -52,8 +52,8 @@ class Iterator(xgboost.DataIter):
             # return 0 to let XGBoost know this is the end of iteration
             return 0
 
-        # input_data is a function passed in by XGBoost who has the exact same signature
-        # of ``DMatrix``
+        # input_data is a function passed in by XGBoost who has the similar signature to
+        # the ``DMatrix`` constructor.
         X, y = self.load_file()
         input_data(data=X, label=y)
         self._it += 1
@@ -76,7 +76,10 @@ def main(tmpdir: str) -> xgboost.Booster:
         files.append((X_path, y_path))
 
     it = Iterator(files)
-    Xy = xgboost.DMatrix(it)
+    # For non-data arguments, specify it here once instead of passing them by the `next`
+    # method.
+    missing = np.NaN
+    Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
 
     # Other tree methods including ``hist`` and ``gpu_hist`` also work, but has some
     # caveats.  This is still an experimental feature.

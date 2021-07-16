@@ -5,7 +5,7 @@
 import collections
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping
-from typing import List, Optional, Any, Union, Dict
+from typing import List, Optional, Any, Union, Dict, TypeVar
 # pylint: enable=no-name-in-module,import-error
 from typing import Callable, Tuple
 import ctypes
@@ -323,6 +323,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         or a file path.
 
     """
+    _T = TypeVar("_T")
 
     def __init__(self, cache_prefix: Optional[str] = None) -> None:
         self._handle = _ProxyDMatrix()
@@ -333,7 +334,10 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         # Stage data in Python until reset or next is called to avoid data being free.
         self._temporary_data = None
 
-    def _get_callbacks(self, allow_host: bool, enable_categorical: bool):
+    def _get_callbacks(
+        self, allow_host: bool, enable_categorical: bool
+    ) -> Tuple[Callable, Callable]:
+        assert hasattr(self, "cache_prefix"), "__init__ is not called."
         self._reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(
             self._reset_wrapper
         )
@@ -350,7 +354,10 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         """Handle of DMatrix proxy."""
         return self._handle
 
-    def _handle_exception(self, fn: Callable, dft_ret):
+    def _handle_exception(self, fn: Callable, dft_ret: _T) -> _T:
+        if self._exception is not None:
+            return dft_ret
+
         try:
             return fn()
         except Exception as e:  # pylint: disable=broad-except
@@ -376,15 +383,13 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         assert self._temporary_data is None, self._temporary_data
         assert self._exception is None
 
-    def _reset_wrapper(self, this) -> None:  # pylint: disable=unused-argument
+    def _reset_wrapper(self, this: None) -> None:  # pylint: disable=unused-argument
         """A wrapper for user defined `reset` function."""
-        if self._exception is not None:
-            return
         # free the data
         self._temporary_data = None
         self._handle_exception(self.reset, None)
 
-    def _next_wrapper(self, this) -> int:  # pylint: disable=unused-argument
+    def _next_wrapper(self, this: None) -> int:  # pylint: disable=unused-argument
         """A wrapper for user defined `next` function.
 
         `this` is not used in Python.  ctypes can handle `self` of a Python
@@ -392,11 +397,14 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         pointer.
 
         """
-        if self._exception is not None:
-            return 0
-
         @_deprecate_positional_args
-        def data_handle(data, *, feature_names=None, feature_types=None, **kwargs):
+        def data_handle(
+            data: Any,
+            *,
+            feature_names: Optional[List[str]] = None,
+            feature_types: Optional[List[str]] = None,
+            **kwargs: Any,
+        ):
             from .data import dispatch_proxy_set_data
             from .data import _proxy_transform
 
