@@ -5,7 +5,7 @@ import ctypes
 import json
 import warnings
 import os
-from typing import Any, Tuple
+from typing import Any, Tuple, Callable
 
 import numpy as np
 
@@ -762,19 +762,19 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     area for meta info.
 
     '''
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         self.kwargs = kwargs
         self.it = 0             # pylint: disable=invalid-name
         super().__init__()
 
-    def next(self, input_data):
+    def next(self, input_data: Callable) -> int:
         if self.it == 1:
             return 0
         self.it += 1
         input_data(**self.kwargs)
         return 1
 
-    def reset(self):
+    def reset(self) -> None:
         self.it = 0
 
 

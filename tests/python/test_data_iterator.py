@@ -1,7 +1,8 @@
 import xgboost as xgb
+from xgboost.data import SingleBatchInternalIter as SingleBatch
 import numpy as np
 from testing import IteratorForTest
-from typing import Tuple, List, Callable, Any
+from typing import Tuple, List
 import pytest
 from hypothesis import given, strategies, settings
 
@@ -23,23 +24,6 @@ def make_batches(
         X.append(_X)
         y.append(_y)
     return X, y
-
-
-class SingleBatch(xgb.core.DataIter):
-    def __init__(self, **kwargs: Any) -> None:
-        self.kwargs = kwargs
-        self.it = 0  # pylint: disable=invalid-name
-        super().__init__("./")
-
-    def next(self, input_data: Callable) -> int:
-        if self.it == 1:
-            return 0
-        self.it += 1
-        input_data(**self.kwargs)
-        return 1
-
-    def reset(self) -> None:
-        self.it = 0
 
 
 def test_single_batch(tree_method: str = "approx") -> None:

@@ -329,7 +329,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         self._handle = _ProxyDMatrix()
         self._exception: Optional[Exception] = None
         self.enable_categorical = False
-        self.cache_prefix = cache_prefix
+        self.cache_prefix = ""
         self._allow_host = True
         # Stage data in Python until reset or next is called to avoid data being free.
         self._temporary_data = None
