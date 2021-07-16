@@ -326,10 +326,11 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
     _T = TypeVar("_T")
 
     def __init__(self, cache_prefix: Optional[str] = None) -> None:
+        self.cache_prefix = cache_prefix
+
         self._handle = _ProxyDMatrix()
         self._exception: Optional[Exception] = None
-        self.enable_categorical = False
-        self.cache_prefix = ""
+        self._enable_categorical = False
         self._allow_host = True
         # Stage data in Python until reset or next is called to avoid data being free.
         self._temporary_data = None
@@ -346,7 +347,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
             ctypes.c_void_p,
         )(self._next_wrapper)
         self._allow_host = allow_host
-        self.enable_categorical = enable_categorical
+        self._enable_categorical = enable_categorical
         return self._reset_callback, self._next_callback
 
     @property
@@ -412,7 +413,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
                 data,
                 feature_names,
                 feature_types,
-                self.enable_categorical,
+                self._enable_categorical,
             )
             # Stage the data, meta info are copied inside C++ MetaInfo.
             self._temporary_data = transformed
@@ -636,7 +637,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         args = {
             "missing": self.missing,
             "nthread": self.nthread,
-            "cache_prefix": it.cache_prefix,
+            "cache_prefix": it.cache_prefix if it.cache_prefix else "",
         }
         args = from_pystr_to_cstr(json.dumps(args))
         handle = ctypes.c_void_p()
