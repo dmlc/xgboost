@@ -152,7 +152,6 @@ TEST(GpuHist, ApplySplit) {
   BatchParam bparam;
   bparam.gpu_id = 0;
   bparam.max_bin = 3;
-  bparam.gpu_page_size = 0;
 
   for (auto& ellpack : m->GetBatches<EllpackPage>(bparam)){
     auto impl = ellpack.Impl();
@@ -291,9 +290,13 @@ void TestHistogramIndexImpl() {
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
   const auto &maker = hist_maker.maker;
+  auto grad = GenerateRandomGradients(kNRows);
+  grad.SetDevice(0);
+  maker->Reset(&grad, hist_maker_dmat.get(), kNCols);
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
   const auto &maker_ext = hist_maker_ext.maker;
+  maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols);
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
   ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
@@ -365,7 +368,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
     // Loop over the batches and count the records
     int64_t batch_count = 0;
     int64_t row_count = 0;
-    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, max_bin, gpu_page_size})) {
+    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, max_bin})) {
       EXPECT_LT(batch.Size(), dmat->Info().num_row_);
       batch_count++;
       row_count += batch.Size();
@@ -386,7 +389,6 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
 
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
   GenericParameter generic_param(CreateEmptyGenericParam(0));
-  generic_param.gpu_page_size = gpu_page_size;
   hist_maker.Configure(args, &generic_param);
 
   hist_maker.Update(gpair, dmat, {tree});

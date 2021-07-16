@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2021 by Contributors
  * \file simple_dmatrix.h
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
@@ -47,11 +47,12 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) override;
 
   MetaInfo info_;
-  SparsePage sparse_page_;  // Primary storage type
-  std::unique_ptr<CSCPage> column_page_;
-  std::unique_ptr<SortedCSCPage> sorted_column_page_;
-  std::unique_ptr<EllpackPage> ellpack_page_;
-  std::unique_ptr<GHistIndexMatrix> gradient_index_;
+  // Primary storage type
+  std::shared_ptr<SparsePage> sparse_page_ = std::make_shared<SparsePage>();
+  std::shared_ptr<CSCPage> column_page_;
+  std::shared_ptr<SortedCSCPage> sorted_column_page_;
+  std::shared_ptr<EllpackPage> ellpack_page_;
+  std::shared_ptr<GHistIndexMatrix> gradient_index_;
   BatchParam batch_param_;
 
   bool EllpackExists() const override {

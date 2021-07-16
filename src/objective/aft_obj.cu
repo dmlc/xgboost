@@ -102,7 +102,7 @@ class AFTObj : public ObjFunction {
     }
   }
 
-  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     // Trees give us a prediction in log scale, so exponentiate
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {

@@ -22,11 +22,10 @@
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
 #include "../data/iterative_device_dmatrix.h"
+#include "file_iterator.h"
 
-#if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
-#endif  // DMLC_ENABLE_STD_THREAD
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
@@ -500,13 +499,17 @@ void MetaInfo::GetFeatureInfo(const char *field,
   }
 }
 
-void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
+void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_column) {
   if (accumulate_rows) {
     this->num_row_ += that.num_row_;
   }
   if (this->num_col_ != 0) {
-    CHECK_EQ(this->num_col_, that.num_col_)
-        << "Number of columns must be consistent across batches.";
+    if (check_column) {
+      CHECK_EQ(this->num_col_, that.num_col_)
+          << "Number of columns must be consistent across batches.";
+    } else {
+      this->num_col_ = std::max(this->num_col_, that.num_col_);
+    }
   }
   this->num_col_ = that.num_col_;
 
@@ -630,11 +633,34 @@ DMatrix::~DMatrix() {
   }
 }
 
+DMatrix *TryLoadBinary(std::string fname, bool silent) {
+  int magic;
+  std::unique_ptr<dmlc::Stream> fi(
+      dmlc::Stream::Create(fname.c_str(), "r", true));
+  if (fi != nullptr) {
+    common::PeekableInStream is(fi.get());
+    if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
+      if (!DMLC_IO_NO_ENDIAN_SWAP) {
+        dmlc::ByteSwap(&magic, sizeof(magic), 1);
+      }
+      if (magic == data::SimpleDMatrix::kMagic) {
+        DMatrix *dmat = new data::SimpleDMatrix(&is);
+        if (!silent) {
+          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_
+                       << " matrix with " << dmat->Info().num_nonzero_
+                       << " entries loaded from " << fname;
+        }
+        return dmat;
+      }
+    }
+  }
+  return nullptr;
+}
+
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
                        bool load_row_split,
-                       const std::string& file_format,
-                       const size_t page_size) {
+                       const std::string& file_format) {
   std::string fname, cache_file;
   size_t dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
@@ -682,35 +708,34 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   // legacy handling of binary data loading
   if (file_format == "auto" && npart == 1) {
-    int magic;
-    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-    if (fi != nullptr) {
-      common::PeekableInStream is(fi.get());
-      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
-        if (!DMLC_IO_NO_ENDIAN_SWAP) {
-          dmlc::ByteSwap(&magic, sizeof(magic), 1);
-        }
-        if (magic == data::SimpleDMatrix::kMagic) {
-          DMatrix* dmat = new data::SimpleDMatrix(&is);
-          if (!silent) {
-            LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
-              << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
-          }
-          return dmat;
-        }
-      }
+    DMatrix *loaded = TryLoadBinary(fname, silent);
+    if (loaded) {
+      return loaded;
     }
   }
 
-  std::unique_ptr<dmlc::Parser<uint32_t> > parser(
-      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-  data::FileAdapter adapter(parser.get());
   DMatrix* dmat {nullptr};
-
   try {
-    dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1,
-                           cache_file, page_size);
-  } catch (dmlc::Error& e) {
+    if (cache_file.empty()) {
+      std::unique_ptr<dmlc::Parser<uint32_t>> parser(
+          dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart,
+                                         file_format.c_str()));
+      data::FileAdapter adapter(parser.get());
+      dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
+                             1, cache_file);
+    } else {
+      data::FileIterator iter{fname, uint32_t(partid), uint32_t(npart),
+                              file_format};
+      dmat = new data::SparsePageDMatrix{
+          &iter,
+          iter.Proxy(),
+          data::fileiter::Reset,
+          data::fileiter::Next,
+          std::numeric_limits<float>::quiet_NaN(),
+          1,
+          cache_file};
+    }
+  } catch (dmlc::Error &e) {
     std::vector<std::string> splited = common::Split(fname, '#');
     std::vector<std::string> args = common::Split(splited.front(), '?');
     std::string format {file_format};
@@ -734,10 +759,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
     LOG(FATAL) << "Encountered parser error:\n" << e.what();
   }
 
-  if (!silent) {
-    LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
-                 << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
-  }
   /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
@@ -769,12 +790,19 @@ DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
                          XGDMatrixCallbackNext *next, float missing,
                          int nthread,
                          int max_bin) {
-#if defined(XGBOOST_USE_CUDA)
-  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing, nthread, max_bin);
-#else
-  common::AssertGPUSupport();
-  return nullptr;
-#endif
+  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing,
+                                          nthread, max_bin);
+}
+
+template <typename DataIterHandle, typename DMatrixHandle,
+          typename DataIterResetCallback, typename XGDMatrixCallbackNext>
+DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int32_t n_threads,
+                         std::string cache) {
+  return new data::SparsePageDMatrix(iter, proxy, reset, next, missing, n_threads,
+                                     cache);
 }
 
 template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
@@ -783,49 +811,42 @@ template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
     XGDMatrixCallbackNext *next, float missing, int nthread,
     int max_bin);
 
+template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
+                                  DataIterResetCallback, XGDMatrixCallbackNext>(
+    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
+    XGDMatrixCallbackNext *next, float missing, int32_t n_threads, std::string);
+
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix,  size_t page_size) {
-  if (cache_prefix.length() == 0) {
-    // Data split mode is fixed to be row right now.
-    return new data::SimpleDMatrix(adapter, missing, nthread);
-  } else {
-#if DMLC_ENABLE_STD_THREAD
-    return new data::SparsePageDMatrix(adapter, missing, nthread, cache_prefix,
-                                       page_size);
-#else
-    LOG(FATAL) << "External memory is not enabled in mingw";
-    return nullptr;
-#endif  // DMLC_ENABLE_STD_THREAD
-  }
+                         const std::string& cache_prefix) {
+  return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::DenseAdapter>(
     data::DenseAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::ArrayAdapter>(
     data::ArrayAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::CSRAdapter>(
     data::CSRAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::CSCAdapter>(
     data::CSCAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::DataTableAdapter>(
     data::DataTableAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::FileAdapter>(
     data::FileAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(
     data::CSRArrayAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+    const std::string& cache_prefix);
 template DMatrix *
 DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,
-                float missing, int nthread, const std::string &cache_prefix,
-                size_t page_size);
+                float missing, int nthread, const std::string &cache_prefix);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
@@ -1043,6 +1064,8 @@ template uint64_t
 SparsePage::Push(const data::ArrayAdapterBatch& batch, float missing, int nthread);
 template uint64_t
 SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::CSRArrayAdapterBatch& batch, float missing, int nthread);
 template uint64_t
 SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
 template uint64_t

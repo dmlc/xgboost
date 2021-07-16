@@ -122,6 +122,7 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
   dmat->Info().feature_types.SetDevice(param.gpu_id);
   auto ft = dmat->Info().feature_types.ConstDeviceSpan();
   monitor_.Start("BinningCompression");
+  CHECK(dmat->SingleColBlock());
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     CreateHistIndices(param.gpu_id, batch, ft);
   }
@@ -301,9 +302,8 @@ struct CopyPage {
   // The number of elements to skip.
   size_t offset;
 
-  CopyPage(EllpackPageImpl* dst, EllpackPageImpl* src, size_t offset)
-      : cbw{dst->NumSymbols()},
-        dst_data_d{dst->gidx_buffer.DevicePointer()},
+  CopyPage(EllpackPageImpl *dst, EllpackPageImpl const *src, size_t offset)
+      : cbw{dst->NumSymbols()}, dst_data_d{dst->gidx_buffer.DevicePointer()},
         src_iterator_d{src->gidx_buffer.DevicePointer(), src->NumSymbols()},
         offset(offset) {}
 
@@ -314,7 +314,8 @@ struct CopyPage {
 };
 
 // Copy the data from the given EllpackPage to the current page.
-size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
+size_t EllpackPageImpl::Copy(int device, EllpackPageImpl const *page,
+                             size_t offset) {
   monitor_.Start("Copy");
   size_t num_elements = page->n_rows * page->row_stride;
   CHECK_EQ(row_stride, page->row_stride);
@@ -351,7 +352,7 @@ struct CompactPage {
   size_t base_rowid;
   size_t row_stride;
 
-  CompactPage(EllpackPageImpl* dst, EllpackPageImpl* src,
+  CompactPage(EllpackPageImpl* dst, EllpackPageImpl const* src,
               common::Span<size_t> row_indexes)
       : cbw{dst->NumSymbols()},
         dst_data_d{dst->gidx_buffer.DevicePointer()},
@@ -374,7 +375,7 @@ struct CompactPage {
 };
 
 // Compacts the data from the given EllpackPage into the current page.
-void EllpackPageImpl::Compact(int device, EllpackPageImpl* page,
+void EllpackPageImpl::Compact(int device, EllpackPageImpl const* page,
                               common::Span<size_t> row_indexes) {
   monitor_.Start("Compact");
   CHECK_EQ(row_stride, page->row_stride);
@@ -459,7 +460,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
         gidx_buffer.DevicePointer(), row_ptrs.data().get(),
         entries_d.data().get(), device_accessor.gidx_fvalue_map.data(),
         device_accessor.feature_segments.data(), feature_types,
-        row_batch.base_rowid + batch_row_begin, batch_nrows, row_stride,
+        batch_row_begin, batch_nrows, row_stride,
         null_gidx_value);
   }
 }

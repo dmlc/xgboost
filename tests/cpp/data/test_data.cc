@@ -59,12 +59,9 @@ TEST(SparsePage, PushCSC) {
 }
 
 TEST(SparsePage, PushCSCAfterTranspose) {
-  dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
   size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat =
-      CreateSparsePageDMatrix(kEntries, 64UL, filename);
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
   const int ncols = dmat->Info().num_col_;
   SparsePage page; // Consolidated sparse page
   for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
@@ -76,12 +73,12 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   // Make sure that the final sparse page has the right number of entries
   ASSERT_EQ(kEntries, page.data.Size());
 
-  // The feature value for a feature in each row should be identical, as that is
-  // how the dmatrix has been created
-  for (size_t i = 0; i < page.Size(); ++i) {
-    auto inst = page.GetView()[i];
-    for (size_t j = 1; j < inst.size(); ++j) {
-      ASSERT_EQ(inst[0].fvalue, inst[j].fvalue);
+  page.SortRows();
+  auto v = page.GetView();
+  for (size_t i = 0; i < v.Size(); ++i) {
+    auto column = v[i];
+    for (size_t j = 1; j < column.size(); ++j) {
+      ASSERT_GE(column[j].fvalue, column[j-1].fvalue);
     }
   }
 }

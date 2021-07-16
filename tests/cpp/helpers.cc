@@ -18,6 +18,7 @@
 #include "xgboost/c_api.h"
 #include "../../src/data/adapter.h"
 #include "../../src/data/simple_dmatrix.h"
+#include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
 
@@ -45,12 +46,25 @@ void CreateSimpleTestData(const std::string& filename) {
   CreateBigTestData(filename, 6);
 }
 
-void CreateBigTestData(const std::string& filename, size_t n_entries) {
+void CreateBigTestData(const std::string& filename, size_t n_entries, bool zero_based) {
   std::ofstream fo(filename.c_str());
   const size_t entries_per_row = 3;
+  std::string odd_row;
+  if (zero_based) {
+    odd_row = " 0:0 3:30 4:40\n";
+  } else {
+    odd_row = " 1:0 4:30 5:40\n";
+  }
+  std::string even_row;
+  if (zero_based) {
+    even_row = " 0:0 1:10 2:20\n";
+  } else {
+    even_row = " 1:0 2:10 3:20\n";
+  }
+
   size_t n_rows = (n_entries + entries_per_row - 1) / entries_per_row;
   for (size_t i = 0; i < n_rows; ++i) {
-    const char* row = i % 2 == 0 ? " 0:0 1:10 2:20\n" : " 0:0 3:30 4:40\n";
+    auto row = i % 2 == 0 ? even_row : odd_row;
     fo << i << row;
   }
 }
@@ -348,13 +362,20 @@ GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
-    size_t n_entries, size_t page_size, std::string tmp_file) {
-  // Create sufficiently large data to make two row pages
-  CreateBigTestData(tmp_file, n_entries);
-  std::unique_ptr<DMatrix> dmat { DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size)};
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
+                                                 std::string prefix) {
+  size_t n_columns = 3;
+  size_t n_rows = n_entries / n_columns;
+  ArrayIterForTest iter(0, n_rows, n_columns, 2);
+
+  std::unique_ptr<DMatrix> dmat{DMatrix::Create(
+      static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
+      std::numeric_limits<float>::quiet_NaN(), 1, prefix)};
+  auto row_page_path =
+      data::MakeId(prefix,
+                   dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +
+      ".row.page";
+  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
 
   // Loop over the batches and count the records
   int64_t batch_count = 0;
@@ -367,7 +388,6 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
   EXPECT_EQ(row_count, dmat->Info().num_row_);
   return dmat;
 }
-
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
@@ -432,7 +452,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     uri += "#" + tmp_file + ".cache";
   }
   std::unique_ptr<DMatrix> dmat(
-      DMatrix::Load(uri, true, false, "auto", page_size));
+      DMatrix::Load(uri, true, false, "auto"));
   return dmat;
 }
 
@@ -480,6 +500,28 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 
   return gbm;
 }
+
+ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols,
+                                   size_t batches) : rows_{rows}, cols_{cols}, n_batches_{batches} {
+  XGProxyDMatrixCreate(&proxy_);
+  rng_.reset(new RandomDataGenerator{rows_, cols_, sparsity});
+  std::tie(batches_, interface_) =
+      rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
+}
+
+ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }
+
+int ArrayIterForTest::Next() {
+  if (iter_ == n_batches_) {
+    return 0;
+  }
+  XGProxyDMatrixSetDataDense(proxy_, batches_[iter_].c_str());
+  iter_++;
+  return 1;
+}
+
+size_t constexpr ArrayIterForTest::kRows;
+size_t constexpr ArrayIterForTest::kCols;
 
 void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
                   std::vector<size_t> *p_row_ptr,

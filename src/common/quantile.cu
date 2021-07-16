@@ -91,7 +91,6 @@ void PruneImpl(int device,
     }
 
     float w = back.rmin - front.rmax;
-    assert(w != 0);
     auto budget = static_cast<float>(d_out.size());
     assert(budget != 0);
     auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);

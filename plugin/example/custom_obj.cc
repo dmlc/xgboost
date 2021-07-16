@@ -58,7 +58,7 @@ class MyLogistic : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return "logloss";
   }
-  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     // transform margin value to probability.
     std::vector<bst_float> &preds = io_preds->HostVector();
     for (auto& pred : preds) {

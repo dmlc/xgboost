@@ -260,7 +260,7 @@ TEST(MetaInfo, HostExtend) {
   lhs.SetInfo("group", groups.data(), xgboost::DataType::kUInt32, groups.size());
   rhs.SetInfo("group", groups.data(), xgboost::DataType::kUInt32, groups.size());
 
-  lhs.Extend(rhs, true);
+  lhs.Extend(rhs, true, true);
   ASSERT_EQ(lhs.num_row_, kRows * 2);
   ASSERT_TRUE(lhs.labels_.HostCanRead());
   ASSERT_TRUE(rhs.labels_.HostCanRead());
