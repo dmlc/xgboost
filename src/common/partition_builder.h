@@ -28,13 +28,13 @@ template<size_t BlockSize>
 class PartitionBuilder {
  public:
   template<typename Func>
-  void Init(const size_t n_tasks, size_t n_nodes, Func funcNTaks) {
+  void Init(const size_t n_tasks, size_t n_nodes, Func funcNTask) {
     left_right_nodes_sizes_.resize(n_nodes);
     blocks_offsets_.resize(n_nodes+1);
 
     blocks_offsets_[0] = 0;
     for (size_t i = 1; i < n_nodes+1; ++i) {
-      blocks_offsets_[i] = blocks_offsets_[i-1] + funcNTaks(i-1);
+      blocks_offsets_[i] = blocks_offsets_[i-1] + funcNTask(i-1);
     }
 
     if (n_tasks > max_n_tasks_) {
