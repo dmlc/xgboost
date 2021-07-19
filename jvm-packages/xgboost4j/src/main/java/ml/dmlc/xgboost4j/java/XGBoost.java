@@ -242,11 +242,15 @@ public class XGBoost {
           if (score > bestScore) {
             bestScore = score;
             bestIteration = iter;
+            booster.setAttr("best_iteration", String.valueOf(bestIteration));
+            booster.setAttr("best_score", String.valueOf(bestScore));
           }
         } else {
           if (score < bestScore) {
             bestScore = score;
             bestIteration = iter;
+            booster.setAttr("best_iteration", String.valueOf(bestIteration));
+            booster.setAttr("best_score", String.valueOf(bestScore));
           }
         }
         if (earlyStoppingRounds > 0) {
