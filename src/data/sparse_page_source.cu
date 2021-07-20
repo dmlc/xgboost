@@ -16,7 +16,7 @@ size_t NSamplesDevice(DMatrixProxy *proxy) {
 size_t NFeaturesDevice(DMatrixProxy *proxy) {
   return Dispatch(proxy, [](auto const &value) { return value.NumCols(); });
 }
-}
+}  // namespace detail
 
 void DevicePush(DMatrixProxy* proxy, float missing, SparsePage* page) {
   auto device = proxy->DeviceIdx();

@@ -16,9 +16,25 @@ MetaInfo &SparsePageDMatrix::Info() { return info_; }
 const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
 namespace detail {
-size_t NSamplesDevice(DMatrixProxy *proxy);
-size_t NFeaturesDevice(DMatrixProxy *proxy);
+size_t NSamplesDevice(DMatrixProxy *proxy)
+#if defined(XGBOOST_USE_CUDA)
+;  // NOLINT
+#else
+{
+  common::AssertGPUSupport();
+  return 0;
 }
+#endif
+size_t NFeaturesDevice(DMatrixProxy *proxy)
+#if defined(XGBOOST_USE_CUDA)
+;  // NOLINT
+#else
+{
+  common::AssertGPUSupport();
+  return 0;
+}
+#endif
+}  // namespace detail
 
 
 SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy_handle,
