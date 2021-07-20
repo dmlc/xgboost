@@ -21,14 +21,21 @@ BASEDIR="$( cd "$( dirname "$0" )" && pwd )" # the directory of this file
 
 docker build -t dmlc/xgboost4j-build "${BASEDIR}" # build and tag the Dockerfile
 
-docker run \
+exec docker run \
   -it \
   --rm  \
   --memory 8g \
   --env JAVA_OPTS="-Xmx6g" \
-  --env MAVEN_OPTS="-Xmx2g" \
+  --env MAVEN_OPTS="-Xmx2g -Dmaven.repo.local=/xgboost/jvm-packages/dev/.m2" \
+  --env CI_BUILD_UID=`id -u` \
+  --env CI_BUILD_GID=`id -g` \
+  --env CI_BUILD_USER=`id -un` \
+  --env CI_BUILD_GROUP=`id -gn` \
   --ulimit core=-1 \
   --volume "${BASEDIR}/../..":/xgboost \
-  --volume "${BASEDIR}/.m2":/root/.m2 \
   dmlc/xgboost4j-build \
-  /xgboost/jvm-packages/dev/package-linux.sh "$@"
+  /xgboost/tests/ci_build/entrypoint.sh jvm-packages/dev/package-linux.sh "$@"
+
+# CI_BUILD_UID, CI_BUILD_GID, CI_BUILD_USER, CI_BUILD_GROUP
+# are used by entrypoint.sh to create the user with the same uid in a container
+# so all produced artifacts would be owned by your host user
