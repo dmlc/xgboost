@@ -77,11 +77,22 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
 
   for (size_t i = 0; i < iterators.size(); ++i) {
     ASSERT_EQ((*iterators[i]).Impl()->gidx_buffer.HostVector(), gidx_buffers.at(i).HostVector());
+    if (i != iterators.size() - 1) {
+      ASSERT_EQ(iterators[i].use_count(), 1);
+    } else {
+      // The last batch is still being held by sparse page DMatrix.
+      ASSERT_EQ(iterators[i].use_count(), 2);
+    }
   }
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto& page : m->GetBatches<EllpackPage>({0, 32})) {
     static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+  }
+
+  // The above iteration clears out all references inside DMatrix.
+  for (auto const& ptr : iterators) {
+    ASSERT_TRUE(ptr.unique());
   }
 }
 

@@ -236,7 +236,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
         iter_{iter}, proxy_{proxy} {
     if (!cache_info_->written) {
       iter_.Reset();
-      iter_.Next();
+      CHECK_EQ(iter_.Next(), 1) << "Must have at least 1 batch.";
     }
     this->Fetch();
   }

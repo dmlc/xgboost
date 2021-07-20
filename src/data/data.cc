@@ -874,8 +874,15 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
           tid);
     }
   });
+
+  if (this->data.Empty()) {
+    transpose.offset.Resize(num_columns + 1);
+    transpose.offset.Fill(0);
+  }
+  CHECK_EQ(transpose.offset.Size(), num_columns + 1);
   return transpose;
 }
+
 void SparsePage::Push(const SparsePage &batch) {
   auto& data_vec = data.HostVector();
   auto& offset_vec = offset.HostVector();
@@ -1007,6 +1014,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   auto const& other_offset = batch.offset.ConstHostVector();
 
   if (other_data.empty()) {
+    self_offset = other_offset;
     return;
   }
   if (!self_data.empty()) {

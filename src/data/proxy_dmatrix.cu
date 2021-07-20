@@ -14,6 +14,9 @@ void DMatrixProxy::FromCudaColumnar(std::string interface_str) {
   device_ = adapter->DeviceIdx();
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
+  if (device_ < 0) {
+    CHECK_EQ(this->Info().num_row_, 0);
+  }
 }
 
 void DMatrixProxy::FromCudaArray(std::string interface_str) {
@@ -22,6 +25,9 @@ void DMatrixProxy::FromCudaArray(std::string interface_str) {
   device_ = adapter->DeviceIdx();
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
+  if (device_ < 0) {
+    CHECK_EQ(this->Info().num_row_, 0);
+  }
 }
 
 }  // namespace data

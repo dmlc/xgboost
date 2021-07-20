@@ -141,9 +141,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
     } else {
       LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
     }
-    auto value = dmlc::get<std::shared_ptr<ArrayAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
+    return std::result_of_t<Fn(
+        decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value()))>();
   }
 }
 }  // namespace data

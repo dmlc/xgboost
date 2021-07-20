@@ -154,7 +154,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
 
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return columns_.size(); }
-  size_t DeviceIdx() const { return device_idx_; }
+  int32_t DeviceIdx() const { return device_idx_; }
 
  private:
   CudfAdapterBatch batch_;
@@ -202,12 +202,12 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
 
   size_t NumRows() const { return array_interface_.num_rows; }
   size_t NumColumns() const { return array_interface_.num_cols; }
-  size_t DeviceIdx() const { return device_idx_; }
+  int32_t DeviceIdx() const { return device_idx_; }
 
  private:
   ArrayInterface array_interface_;
   CupyAdapterBatch batch_;
-  int device_idx_;
+  int32_t device_idx_ {-1};
 };
 
 // Returns maximum row length

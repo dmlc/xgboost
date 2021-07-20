@@ -85,7 +85,7 @@ def main():
     rounds = 100
     it = IterForDMatrixDemo()
 
-    # Use iterator, must be `DeviceQuantileDMatrix`
+    # Use iterator, must be `DeviceQuantileDMatrix` for quantile DMatrix.
     m_with_it = xgboost.DeviceQuantileDMatrix(it)
 
     # Use regular DMatrix.

@@ -24,8 +24,8 @@ int main(int argc, char** argv) {
 
   // load the data
   DMatrixHandle dtrain, dtest;
-  safe_xgboost(XGDMatrixCreateFromFile("../data/agaricus.txt.train", silent, &dtrain));
-  safe_xgboost(XGDMatrixCreateFromFile("../data/agaricus.txt.test", silent, &dtest));
+  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.train", silent, &dtrain));
+  safe_xgboost(XGDMatrixCreateFromFile("../../data/agaricus.txt.test", silent, &dtest));
 
   // create the booster
   BoosterHandle booster;

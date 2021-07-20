@@ -19,11 +19,16 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
     cudaPointerAttributes attr;
     dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
     int32_t ptr_device = attr.device;
-    dh::safe_cuda(cudaSetDevice(ptr_device));
+    if (ptr_device >= 0) {
+      dh::safe_cuda(cudaSetDevice(ptr_device));
+    }
     return ptr_device;
   };
   auto ptr_device = SetDeviceToPtr(column.data);
 
+  if (column.num_rows == 0) {
+    return;
+  }
   out->SetDevice(ptr_device);
   out->Resize(column.num_rows);
 
@@ -123,7 +128,12 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
       << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
   ArrayInterface array_interface(interface_str);
   std::string key{c_key};
-  array_interface.AsColumnVector();
+  if (!((array_interface.num_cols == 1 && array_interface.num_rows == 0) ||
+        (array_interface.num_cols == 0 && array_interface.num_rows == 1))) {
+    // Not an empty column, transform it.
+    array_interface.AsColumnVector();
+  }
+
   CHECK(!array_interface.valid.Data())
       << "Meta info " << key << " should be dense, found validity mask";
   if (array_interface.num_rows == 0) {
