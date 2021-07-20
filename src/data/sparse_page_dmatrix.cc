@@ -16,6 +16,7 @@ MetaInfo &SparsePageDMatrix::Info() { return info_; }
 const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
 namespace detail {
+// Use device dispatch
 size_t NSamplesDevice(DMatrixProxy *proxy)
 #if defined(XGBOOST_USE_CUDA)
 ;  // NOLINT
