@@ -1,19 +1,20 @@
-# pylint: disable=too-many-locals, too-many-arguments, invalid-name,
+# pylint: disable=too-many-locals, too-many-statements, too-many-arguments, invalid-name,
 # pylint: disable=too-many-branches
 # coding: utf-8
 """Plotting Library."""
 from io import BytesIO
 import json
 import numpy as np
-from .core import Booster
+from .core import Booster, _deprecate_positional_args
 from .sklearn import XGBModel
 
 
-def plot_importance(booster, ax=None, height=0.2,
+@_deprecate_positional_args
+def plot_importance(booster, *, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features', fmap='',
                     importance_type='weight', max_num_features=None,
-                    grid=True, show_values=True, **kwargs):
+                    grid=True, show_values=True, feature_names=None, **kwargs):
     """Plot importance based on fitted trees.
 
     Parameters
@@ -48,6 +49,8 @@ def plot_importance(booster, ax=None, height=0.2,
         The name of feature map file.
     show_values : bool, default True
         Show values on plot. To disable, pass False.
+    feature_names : List[str] (optional)
+        List of the feature names
     kwargs :
         Other keywords passed to ax.barh()
 
@@ -75,7 +78,10 @@ def plot_importance(booster, ax=None, height=0.2,
             'Booster.get_score() results in empty.  ' +
             'This maybe caused by having all trees as decision dumps.')
 
-    tuples = [(k, importance[k]) for k in importance]
+    if feature_names is not None:
+        tuples = [(feature_names[int(k.split('f')[1])], importance[k]) for k in importance]
+    else:
+        tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
         # pylint: disable=invalid-unary-operand-type
         tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
