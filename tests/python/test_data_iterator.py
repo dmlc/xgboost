@@ -57,12 +57,12 @@ def run_data_iterator(
     n_features: int,
     n_batches: int,
     tree_method: str,
-    cupy: bool,
+    use_cupy: bool,
 ) -> None:
     n_rounds = 2
 
     it = IteratorForTest(
-        *make_batches(n_samples_per_batch, n_features, n_batches, cupy)
+        *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy)
     )
     if n_batches == 0:
         with pytest.raises(ValueError, match="1 batch"):
@@ -103,8 +103,8 @@ def run_data_iterator(
     if tree_method != "gpu_hist":
         rtol = 1e-1  # flaky
     else:
+        np.testing.assert_allclose(it_predt, arr_predt, rtol=1e-3)
         rtol = 1e-6
-        np.testing.assert_allclose(it_predt, arr_predt)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],

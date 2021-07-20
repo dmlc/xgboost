@@ -20,6 +20,11 @@ size_t NFeaturesDevice(DMatrixProxy *proxy) {
 
 void DevicePush(DMatrixProxy* proxy, float missing, SparsePage* page) {
   auto device = proxy->DeviceIdx();
+  if (device < 0) {
+    device = dh::CurrentDevice();
+  }
+  CHECK_GE(device, 0);
+
   Dispatch(proxy, [&](auto const &value) {
     CopyToSparsePage(value, device, missing, page);
   });
