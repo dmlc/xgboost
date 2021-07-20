@@ -7,6 +7,17 @@
 
 namespace xgboost {
 namespace data {
+
+namespace detail {
+size_t NSamplesDevice(DMatrixProxy *proxy) {
+  return Dispatch(proxy, [](auto const &value) { return value.NumRows(); });
+}
+
+size_t NFeaturesDevice(DMatrixProxy *proxy) {
+  return Dispatch(proxy, [](auto const &value) { return value.NumCols(); });
+}
+}
+
 void DevicePush(DMatrixProxy* proxy, float missing, SparsePage* page) {
   auto device = proxy->DeviceIdx();
   Dispatch(proxy, [&](auto const &value) {

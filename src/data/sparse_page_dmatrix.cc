@@ -15,6 +15,12 @@ MetaInfo &SparsePageDMatrix::Info() { return info_; }
 
 const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
+namespace detail {
+size_t NSamplesDevice(DMatrixProxy *proxy);
+size_t NFeaturesDevice(DMatrixProxy *proxy);
+}
+
+
 SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy_handle,
                                      DataIterResetCallback *reset,
                                      XGDMatrixCallbackNext *next, float missing,
@@ -35,13 +41,24 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   size_t nnz = 0;
 
   auto num_rows = [&]() {
-    return HostAdapterDispatch(
-        proxy, [](auto const &value) { return value.NumRows(); });
+    bool type_error {false};
+    size_t n_samples = HostAdapterDispatch(
+        proxy, [](auto const &value) { return value.NumRows(); }, &type_error);
+    if (type_error) {
+      n_samples = detail::NSamplesDevice(proxy);
+    }
+    return n_samples;
   };
   auto num_cols = [&]() {
-    return HostAdapterDispatch(
-        proxy, [](auto const &value) { return value.NumCols(); });
+    bool type_error {false};
+    size_t n_features = HostAdapterDispatch(
+        proxy, [](auto const &value) { return value.NumCols(); }, &type_error);
+    if (type_error) {
+      n_features = detail::NFeaturesDevice(proxy);
+    }
+    return n_features;
   };
+
   // the proxy is iterated together with the sparse page source so we can obtain all
   // information in 1 pass.
   for (auto const &page : this->GetRowBatchesImpl()) {
