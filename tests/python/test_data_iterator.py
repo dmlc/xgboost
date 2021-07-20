@@ -61,7 +61,9 @@ def run_data_iterator(
 ) -> None:
     n_rounds = 2
 
-    it = IteratorForTest(*make_batches(n_samples_per_batch, n_features, n_batches))
+    it = IteratorForTest(
+        *make_batches(n_samples_per_batch, n_features, n_batches, cupy)
+    )
     if n_batches == 0:
         with pytest.raises(ValueError, match="1 batch"):
             Xy = xgb.DMatrix(it)
