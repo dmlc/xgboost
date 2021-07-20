@@ -24,9 +24,9 @@ docker build -t dmlc/xgboost4j-build "${BASEDIR}" # build and tag the Dockerfile
 docker run \
   -it \
   --rm  \
-  --memory 8g \
-  --env JAVA_OPTS="-Xmx6g" \
-  --env MAVEN_OPTS="-Xmx2g" \
+  --memory 12g \
+  --env JAVA_OPTS="-Xmx9g" \
+  --env MAVEN_OPTS="-Xmx3g" \
   --ulimit core=-1 \
   --volume "${BASEDIR}/../..":/xgboost \
   --volume "${BASEDIR}/.m2":/root/.m2 \
