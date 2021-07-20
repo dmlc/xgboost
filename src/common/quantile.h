@@ -575,7 +575,7 @@ class QuantileSketchTemplate {
    */
   inline void Push(DType x, RType w = 1) {
     if (w == static_cast<RType>(0)) return;
-    if (inqueue.qtail == inqueue.queue.size()) {
+    if (inqueue.qtail == inqueue.queue.size() && inqueue.queue[inqueue.qtail - 1].value != x) {
       // jump from lazy one value to limit_size * 2
       if (inqueue.queue.size() == 1) {
         inqueue.queue.resize(limit_size * 2);
