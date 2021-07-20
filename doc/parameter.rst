@@ -430,7 +430,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``seed_per_iteration`` [default=false]
 
-  - Seed PRNG determnisticly via iterator number, this option will be switched on automatically on distributed mode.
+  - Seed PRNG determnisticly via iterator number.
 
 ***********************
 Command Line Parameters
