@@ -32,11 +32,22 @@ TEST(CPUFeatureInteractionConstraint, Empty) {
   ASSERT_TRUE(constraints.Query(94389, 12309));
 }
 
-TEST(CPUFeatureInteractionConstraint, Basic) {
+TEST(CPUFeatureInteractionConstraint, Overlap) {
+  // Interaction constraint lists with overlap are forbidden
+  // https://github.com/dmlc/xgboost/issues/7115
   std::string const constraints_str = R"constraint([[1, 2], [2, 3, 4]])constraint";
 
-  std::vector<std::pair<std::string, std::string>> args{
-    {"interaction_constraints", constraints_str}};
+  TrainParam param;
+  param.interaction_constraints = constraints_str;
+  bst_feature_t constexpr kFeatures = 6;
+
+  FeatureInteractionConstraintHost constraints;
+  EXPECT_THROW(constraints.Configure(param, kFeatures), dmlc::Error);
+}
+
+TEST(CPUFeatureInteractionConstraint, Basic) {
+  std::string const constraints_str = R"constraint([[1, 2, 3], [0, 4, 5]])constraint";
+
   TrainParam param;
   param.interaction_constraints = constraints_str;
   bst_feature_t constexpr kFeatures = 6;
@@ -50,9 +61,9 @@ TEST(CPUFeatureInteractionConstraint, Basic) {
   ASSERT_TRUE(constraints.Query(1, 1));
   ASSERT_TRUE(constraints.Query(1, 2));
   ASSERT_TRUE(constraints.Query(1, 3));
-  ASSERT_TRUE(constraints.Query(1, 4));
 
   ASSERT_FALSE(constraints.Query(1, 0));
+  ASSERT_FALSE(constraints.Query(1, 4));
   ASSERT_FALSE(constraints.Query(1, 5));
 }
 

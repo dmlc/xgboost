@@ -87,7 +87,7 @@ class TestInteractionConstraints:
             'max_depth': 6,
             'objective': 'binary:logistic',
             'tree_method': tree_method,
-            'interaction_constraints': '[[1,2], [2,3,4]]'
+            'interaction_constraints': '[[1,2], [3,4]]'
         }
         num_boost_round = 5
 

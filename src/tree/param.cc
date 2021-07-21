@@ -2,6 +2,7 @@
  * Copyright by Contributors 2019
  */
 #include <iostream>
+#include <algorithm>
 #include <vector>
 #include <utility>
 
@@ -103,6 +104,18 @@ void ParseInteractionConstraint(
       } else {
         LOG(FATAL) << "Unknown value type for interaction constraint:"
                    << v.GetValue().TypeStr();
+      }
+    }
+  }
+  // Check for overlaps. Interaction constraint lists with overlaps are forbidden
+  // https://github.com/dmlc/xgboost/issues/7115
+  for (size_t i = 0; i < out.size(); ++i) {
+    for (auto v : out[i]) {
+      for (size_t j = i + 1; j < out.size(); ++j) {
+        if (std::any_of(out[j].begin(), out[j].end(), [v](auto e) { return (e == v); })) {
+          LOG(FATAL) << "Found an duplicate element in constraint lists " << i << " and " << j
+              << ": " << v << ". Lists for feature interaction constraint must be disjoint.";
+        }
       }
     }
   }
