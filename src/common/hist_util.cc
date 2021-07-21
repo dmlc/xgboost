@@ -159,13 +159,13 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
     const size_t idx_gh = two * rid[i];
 
     if (do_prefetch) {
-      const size_t icol_start_prftch = any_missing ? row_ptr[rid[i+Prefetch::kPrefetchOffset]] :
+      const size_t icol_start_prefetch = any_missing ? row_ptr[rid[i+Prefetch::kPrefetchOffset]] :
                                        rid[i + Prefetch::kPrefetchOffset] * n_features;
-      const size_t icol_end_prefect = any_missing ?  row_ptr[rid[i+Prefetch::kPrefetchOffset]+1] :
-                                      icol_start_prftch + n_features;
+      const size_t icol_end_prefetch = any_missing ?  row_ptr[rid[i+Prefetch::kPrefetchOffset]+1] :
+                                      icol_start_prefetch + n_features;
 
       PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
-      for (size_t j = icol_start_prftch; j < icol_end_prefect;
+      for (size_t j = icol_start_prefetch; j < icol_end_prefetch;
         j+=Prefetch::GetPrefetchStep<uint32_t>()) {
         PREFETCH_READ_T0(gradient_index + j);
       }
