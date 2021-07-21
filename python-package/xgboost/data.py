@@ -826,4 +826,5 @@ def dispatch_proxy_set_data(proxy: _ProxyDMatrix, data: Any, allow_host: bool) -
         return
     if _is_scipy_csr(data):
         proxy._set_data_from_csr(data)  # pylint: disable=W0212
+        return
     raise err

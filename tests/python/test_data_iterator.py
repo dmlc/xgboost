@@ -5,6 +5,7 @@ from testing import IteratorForTest
 from typing import Tuple, List
 import pytest
 from hypothesis import given, strategies, settings
+from scipy.sparse import csr_matrix
 
 
 def make_batches(
@@ -50,6 +51,16 @@ def test_single_batch(tree_method: str = "approx") -> None:
     from_pd.feature_types = None
 
     assert from_pd.get_dump() == from_it.get_dump()
+
+    X, y = load_breast_cancer(return_X_y=True)
+    X = csr_matrix(X)
+    Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
+    from_it = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+
+    X, y = load_breast_cancer(return_X_y=True)
+    Xy = xgb.DMatrix(SingleBatch(data=X, label=y), missing=0.0)
+    from_np = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    assert from_np.get_dump() == from_it.get_dump()
 
 
 def run_data_iterator(
