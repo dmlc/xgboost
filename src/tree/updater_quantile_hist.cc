@@ -329,8 +329,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
       for (const size_t *it = e.begin; it < e.end; ++it) {
         grad_stat.Add(gpair_h[*it].GetGrad(), gpair_h[*it].GetHess());
       }
+      histred_.Allreduce(&grad_stat, 1);
     }
-    histred_.Allreduce(&grad_stat, 1);
 
     auto weight = evaluator_->InitRoot(GradStats{grad_stat});
     p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
