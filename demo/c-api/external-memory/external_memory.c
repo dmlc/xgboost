@@ -49,7 +49,7 @@ typedef struct _DataIter {
 
 /**
  * Initialize with random data for demo. In practice the data should be loaded
- * from external memory.  We jsut demonstrate how to use the iterator in
+ * from external memory.  We just demonstrate how to use the iterator in
  * XGBoost.
  *
  * \param batch_size  Number of elements for each batch.  The demo here is only using 1

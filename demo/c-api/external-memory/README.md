@@ -1,5 +1,5 @@
-Data Callback
-=============
+Defining a Custom Data Iterator to Load Data from External Memory
+=================================================================
 
 A simple demo for using custom data iterator with XGBoost.  The feature is still
 **experimental** and not ready for production use.  If you are not familiar with C API,
