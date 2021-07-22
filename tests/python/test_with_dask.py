@@ -21,6 +21,7 @@ from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 from test_with_sklearn import run_feature_weights, run_data_initialization
 from test_predict import verify_leaf_output
+from sklearn.datasets import make_regression
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -1492,6 +1493,36 @@ def test_parallel_submits(client: "Client") -> None:
     assert len(classifiers) == n_submits
     for i, cls in enumerate(classifiers):
         assert cls.get_booster().num_boosted_rounds() == i + 1
+
+def test_hist_root_stats_with_different_num_worker() -> None:
+    """assert that different workers count dosn't affect summ statistic's on root"""
+    def dask_train(n_workers, X, y, num_obs, num_features):
+        cluster = LocalCluster(n_workers=n_workers)
+        client = Client(cluster)
+
+        chunk_size = num_obs/n_workers
+        X = da.from_array(X, chunks=(chunk_size, num_features))
+        y = da.from_array(y.reshape(num_obs,1), chunks=(chunk_size, 1))
+        dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+        output = xgb.dask.train(
+            client,
+            {"verbosity": 0, "tree_method": "hist", "objective": "reg:squarederror", 'max_depth': 2},
+            dtrain,
+            num_boost_round=1
+        )
+        dump_model = output['booster'].get_dump(with_stats=True)
+        client.shutdown()
+        return dump_model
+
+    num_obs = 1000
+    num_features = 10
+    X, y = make_regression(num_obs, num_features, random_state=777)
+    first_model = dask_train(1, X, y, num_obs, num_features)[0]
+    second_model = dask_train(2, X, y, num_obs, num_features)[0]
+    first_summ_stats = first_model[first_model.find('cover='):first_model.find('\n')]
+    second_summ_stats = second_model[second_model.find('cover='):second_model.find('\n')]
+    assert first_summ_stats == second_summ_stats
 
 
 def test_parallel_submit_multi_clients() -> None:
