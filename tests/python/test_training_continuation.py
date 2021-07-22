@@ -3,6 +3,8 @@ import testing as tm
 import numpy as np
 import pytest
 import os
+import tempfile
+
 
 rng = np.random.RandomState(1337)
 
@@ -145,3 +147,21 @@ class TestTrainingContinuation:
         for p in params:
             p['updater'] = updaters
         self.run_training_continuation(params[0], params[1], params[2])
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_changed_parameter(self):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        clf = xgb.XGBClassifier(n_estimators=2, use_label_encoder=False)
+        clf.fit(X, y, eval_set=[(X, y)], eval_metric="logloss")
+        assert tm.non_increasing(clf.evals_result()["validation_0"]["logloss"])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            clf.save_model(os.path.join(tmpdir, "clf.json"))
+            loaded = xgb.XGBClassifier(use_label_encoder=False)
+            loaded.load_model(os.path.join(tmpdir, "clf.json"))
+
+        clf = xgb.XGBClassifier(n_estimators=2, use_label_encoder=False)
+        # change metric to error
+        clf.fit(X, y, eval_set=[(X, y)], eval_metric="error")
+        assert tm.non_increasing(clf.evals_result()["validation_0"]["error"])
