@@ -10,6 +10,7 @@
 namespace xgboost {
 namespace data {
 void EllpackPageSource::Fetch() {
+  dh::safe_cuda(cudaSetDevice(param_.gpu_id));
   if (!this->ReadCache()) {
     auto const &csr = source_->Page();
     this->page_.reset(new EllpackPage{});

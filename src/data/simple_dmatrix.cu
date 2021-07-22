@@ -16,7 +16,10 @@ namespace data {
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
-  dh::safe_cuda(cudaSetDevice(adapter->DeviceIdx()));
+  auto device =
+      adapter->DeviceIdx() < 0 ? dh::CurrentDevice() : adapter->DeviceIdx();
+  CHECK_GE(device, 0);
+  dh::safe_cuda(cudaSetDevice(device));
 
   CHECK(adapter->NumRows() != kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != kAdapterUnknownSize);
@@ -27,8 +30,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   // Enforce single batch
   CHECK(!adapter->Next());
 
-  info_.num_nonzero_ = CopyToSparsePage(adapter->Value(), adapter->DeviceIdx(),
-                                        missing, sparse_page_.get());
+  info_.num_nonzero_ =
+      CopyToSparsePage(adapter->Value(), device, missing, sparse_page_.get());
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
