@@ -1494,7 +1494,8 @@ def test_parallel_submits(client: "Client") -> None:
     for i, cls in enumerate(classifiers):
         assert cls.get_booster().num_boosted_rounds() == i + 1
 
-def test_hist_root_stats_with_different_num_worker() -> None:
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_hist_root_stats_with_different_num_worker(tree_method: str) -> None:
     """assert that different workers count dosn't affect summ statistic's on root"""
     def dask_train(n_workers, X, y, num_obs, num_features):
         cluster = LocalCluster(n_workers=n_workers)
@@ -1507,7 +1508,7 @@ def test_hist_root_stats_with_different_num_worker() -> None:
 
         output = xgb.dask.train(
             client,
-            {"verbosity": 0, "tree_method": "hist", "objective": "reg:squarederror", 'max_depth': 2},
+            {"verbosity": 0, "tree_method": tree_method, "objective": "reg:squarederror", 'max_depth': 2},
             dtrain,
             num_boost_round=1
         )
