@@ -14,3 +14,5 @@ XGBoost Python Feature Walkthrough
 * [Sklearn access evals result](sklearn_evals_result.py)
 * [Access evals result](evals_result.py)
 * [External Memory](external_memory.py)
+* [Training continuation](continuation.py)
+* [Feature weights for column sampling](feature_weights.py)

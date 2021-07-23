@@ -1298,19 +1298,6 @@ class Booster(object):
             # Validate feature only after the feature names are saved into booster.
             self._validate_features(d)
 
-        params = params or {}
-        params = self._configure_metrics(params.copy())
-        params = self._configure_constraints(params)
-        if isinstance(params, list):
-            params.append(('validate_parameters', True))
-        else:
-            params['validate_parameters'] = True
-
-        self.set_param(params or {})
-        if (params is not None) and ('booster' in params):
-            self.booster = params['booster']
-        else:
-            self.booster = 'gbtree'
         if isinstance(model_file, Booster):
             assert self.handle is not None
             # We use the pickle interface for getting memory snapshot from
@@ -1329,6 +1316,20 @@ class Booster(object):
             pass
         else:
             raise TypeError('Unknown type:', model_file)
+
+        params = params or {}
+        params = self._configure_metrics(params.copy())
+        params = self._configure_constraints(params)
+        if isinstance(params, list):
+            params.append(('validate_parameters', True))
+        else:
+            params['validate_parameters'] = True
+
+        self.set_param(params or {})
+        if (params is not None) and ('booster' in params):
+            self.booster = params['booster']
+        else:
+            self.booster = 'gbtree'
 
     def _configure_metrics(self, params: Union[Dict, List]) -> Union[Dict, List]:
         if isinstance(params, dict) and 'eval_metric' in params \
