@@ -103,7 +103,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing) {
   }
   exc.Rethrow();
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromMat(BeginPtr(data), nrow, ncol, asReal(missing), &handle));
+  CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol, asReal(missing), &handle, 1));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
