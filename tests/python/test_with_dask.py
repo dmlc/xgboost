@@ -1494,36 +1494,60 @@ def test_parallel_submits(client: "Client") -> None:
     for i, cls in enumerate(classifiers):
         assert cls.get_booster().num_boosted_rounds() == i + 1
 
-@pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_hist_root_stats_with_different_num_worker(tree_method: str) -> None:
-    """assert that different workers count dosn't affect summ statistic's on root"""
-    def dask_train(n_workers, X, y, num_obs, num_features):
-        cluster = LocalCluster(n_workers=n_workers)
-        client = Client(cluster)
 
-        chunk_size = num_obs/n_workers
+def run_tree_stats(client: Client, tree_method: str) -> str:
+    """assert that different workers count dosn't affect summ statistic's on root"""
+
+    def dask_train(X, y, num_obs, num_features):
+        chunk_size = 100
         X = da.from_array(X, chunks=(chunk_size, num_features))
-        y = da.from_array(y.reshape(num_obs,1), chunks=(chunk_size, 1))
+        y = da.from_array(y.reshape(num_obs, 1), chunks=(chunk_size, 1))
         dtrain = xgb.dask.DaskDMatrix(client, X, y)
 
         output = xgb.dask.train(
             client,
-            {"verbosity": 0, "tree_method": tree_method, "objective": "reg:squarederror", 'max_depth': 2},
+            {
+                "verbosity": 0,
+                "tree_method": tree_method,
+                "objective": "reg:squarederror",
+                "max_depth": 3,
+            },
             dtrain,
-            num_boost_round=1
+            num_boost_round=1,
         )
-        dump_model = output['booster'].get_dump(with_stats=True)
-        client.shutdown()
-        return dump_model
+        dump_model = output["booster"].get_dump(with_stats=True, dump_format="json")[0]
+        return json.loads(dump_model)
 
     num_obs = 1000
     num_features = 10
     X, y = make_regression(num_obs, num_features, random_state=777)
-    first_model = dask_train(1, X, y, num_obs, num_features)[0]
-    second_model = dask_train(2, X, y, num_obs, num_features)[0]
-    first_summ_stats = first_model[first_model.find('cover='):first_model.find('\n')]
-    second_summ_stats = second_model[second_model.find('cover='):second_model.find('\n')]
-    assert first_summ_stats == second_summ_stats
+    model = dask_train(X, y, num_obs, num_features)
+
+    # asserts children have correct cover.
+    stack = [model]
+    while stack:
+        node: dict = stack.pop()
+        if "leaf" in node.keys():
+            continue
+        cover = 0
+        for c in node["children"]:
+            cover += c["cover"]
+            stack.append(c)
+        assert cover == node["cover"]
+
+    return model["cover"]
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_tree_stats(tree_method: str) -> None:
+    with LocalCluster(n_workers=1) as cluster:
+        with Client(cluster) as client:
+            local = run_tree_stats(client, tree_method)
+    with LocalCluster(n_workers=2) as cluster:
+        with Client(cluster) as client:
+            distributed = run_tree_stats(client, tree_method)
+
+    assert local == distributed
 
 
 def test_parallel_submit_multi_clients() -> None:
