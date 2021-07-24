@@ -494,7 +494,7 @@ class TestDistributedGPU:
         for rn, drn in zip(ranker_names, dranker_names):
             assert rn == drn
 
-    def test_tree_stats(self):
+    def test_tree_stats(self) -> None:
         with LocalCUDACluster(n_workers=1) as cluster:
             with Client(cluster) as client:
                 local = run_tree_stats(client, "gpu_hist")
