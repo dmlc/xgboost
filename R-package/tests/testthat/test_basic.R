@@ -157,7 +157,7 @@ test_that("train and predict softprob", {
     x3 = rnorm(100)
   )
   y <- sample.int(10, 100, replace = TRUE) - 1
-  dtrain <- xgb.DMatrix(data=d, info = list(label=y))
+  dtrain <- xgb.DMatrix(data = d, info = list(label = y))
   booster <- xgb.train(
     params = list(tree_method = "hist"), data = dtrain, nrounds = 4, num_class = 10,
     objective = "multi:softprob"
