@@ -524,8 +524,9 @@ def _is_list(data):
     return isinstance(data, list)
 
 
-def _from_list(data, missing, feature_names, feature_types):
-    raise TypeError('List input data is not supported for data')
+def _from_list(data, missing, n_threads, feature_names, feature_types):
+    array = np.array(data)
+    return _from_numpy_array(array, missing, n_threads, feature_names, feature_types)
 
 
 def _is_tuple(data):
@@ -578,7 +579,7 @@ def dispatch_data_backend(data, missing, threads,
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types)
     if _is_list(data):
-        return _from_list(data, missing, feature_names, feature_types)
+        return _from_list(data, missing, threads, feature_names, feature_types)
     if _is_tuple(data):
         return _from_tuple(data, missing, feature_names, feature_types)
     if _is_pandas_df(data):
@@ -612,11 +613,12 @@ def dispatch_data_backend(data, missing, threads,
         return _from_pandas_series(data, missing, threads, feature_names,
                                    feature_types)
     if _has_array_protocol(data):
-        pass
+        array = np.asarray(data)
+        return _from_numpy_array(array, missing, threads, feature_names, feature_types)
 
     converted = _convert_unknown_data(data)
-    if converted:
-        return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
+    if converted is not None:
+        return _from_scipy_csr(converted, missing, threads, feature_names, feature_types)
 
     raise TypeError('Not supported type for data.' + str(type(data)))
 
@@ -630,11 +632,12 @@ def _to_data_type(dtype: str, name: str):
     return dtype_map[dtype]
 
 
-def _validate_meta_shape(data):
-    if hasattr(data, 'shape'):
-        assert len(data.shape) == 1 or (
-            len(data.shape) == 2 and
-            (data.shape[1] == 0 or data.shape[1] == 1))
+def _validate_meta_shape(data, name: str) -> None:
+    if hasattr(data, "shape"):
+        if not len(data.shape) == 1 or (
+            len(data.shape) == 2 and (data.shape[1] == 0 or data.shape[1] == 1)
+        ):
+            raise ValueError(f"Invalid shape: {data.shape} for {name}")
 
 
 def _meta_from_numpy(data, field, dtype, handle):
@@ -702,7 +705,7 @@ def _meta_from_dt(data, field, dtype, handle):
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
-    _validate_meta_shape(data)
+    _validate_meta_shape(data, name)
     if data is None:
         return
     if _is_list(data):
@@ -751,7 +754,9 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _has_array_protocol(data):
-        pass
+        array = np.asarray(data)
+        _meta_from_numpy(array, name, dtype, handle)
+        return
     raise TypeError('Unsupported type for ' + name, str(type(data)))
 
 
