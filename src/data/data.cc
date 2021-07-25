@@ -363,7 +363,7 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     auto valid = std::none_of(labels.cbegin(), labels.cend(), [](auto y) {
       return std::isnan(y) || std::isinf(y);
     });
-    CHECK(valid) << "Input contains NaN, infinity or a value too large.";
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
   } else if (!std::strcmp(key, "weight")) {
     auto& weights = weights_.HostVector();
     weights.resize(num);

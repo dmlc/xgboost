@@ -1240,7 +1240,7 @@ def test_estimator_reg(estimator, check):
         X = rng.randn(10, 5)
         y = np.full(10, np.inf)
         with pytest.raises(
-            ValueError, match="Input contains NaN, infinity or a value too large"
+            ValueError, match="contains NaN, infinity or a value too large"
         ):
             estimator.fit(X, y)
         return

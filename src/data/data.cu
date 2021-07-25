@@ -118,7 +118,7 @@ struct LabelsCheck {
   __device__ bool operator()(float y) { return ::isnan(y) || ::isinf(y); }
 };
 struct WeightsCheck {
-  __device__ bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }
+  __device__ bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }  // NOLINT
 };
 }  // anonymous namespace
 
@@ -146,7 +146,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     auto ptr = labels_.ConstDevicePointer();
     auto valid = thrust::none_of(thrust::device, ptr, ptr + labels_.Size(),
                                  LabelsCheck{});
-    CHECK(valid) << "Input contains NaN, infinity or a value too large.";
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
   } else if (key == "weight") {
     CopyInfoImpl(array_interface, &weights_);
     auto ptr = weights_.ConstDevicePointer();
