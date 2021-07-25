@@ -641,7 +641,7 @@ def _to_data_type(dtype: str, name: str):
 
 def _validate_meta_shape(data, name: str) -> None:
     if hasattr(data, "shape"):
-        if len(data.shape) != 1 or (
+        if len(data.shape) > 2 or (
             len(data.shape) == 2 and (data.shape[1] != 0 and data.shape[1] != 1)
         ):
             raise ValueError(f"Invalid shape: {data.shape} for {name}")
