@@ -32,6 +32,11 @@ def _check_complex(data):
         raise ValueError('Complex data not supported')
 
 
+def _check_data_shape(data: Any) -> None:
+    if hasattr(data, "shape") and len(data.shape) != 2:
+        raise ValueError("Please reshape the input data into 2-dimensional matrix.")
+
+
 def _is_scipy_csr(data):
     try:
         import scipy
@@ -526,6 +531,7 @@ def _is_list(data):
 
 def _from_list(data, missing, n_threads, feature_names, feature_types):
     array = np.array(data)
+    _check_data_shape(data)
     return _from_numpy_array(array, missing, n_threads, feature_names, feature_types)
 
 
@@ -567,6 +573,7 @@ def dispatch_data_backend(data, missing, threads,
                           feature_names, feature_types,
                           enable_categorical=False):
     '''Dispatch data for DMatrix.'''
+    _check_data_shape(data)
     if _is_scipy_csr(data):
         return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
     if _is_scipy_csc(data):
@@ -807,6 +814,7 @@ def _proxy_transform(data, feature_names, feature_types, enable_categorical):
 
 def dispatch_proxy_set_data(proxy: _ProxyDMatrix, data: Any, allow_host: bool) -> None:
     """Dispatch for DeviceQuantileDMatrix."""
+    _check_data_shape(data)
     if _is_cudf_df(data):
         proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212
         return
