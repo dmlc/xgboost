@@ -1171,7 +1171,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             ):
                 raise ValueError(label_encoding_check_error)
         else:
-            self.classes_ = np.unique(y)
+            self.classes_ = np.unique(np.asarray(y))
             self.n_classes_ = len(self.classes_)
             if not self.use_label_encoder and (
                 not np.array_equal(self.classes_, np.arange(self.n_classes_))
@@ -1208,11 +1208,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             label_transform = lambda x: x
 
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
-        if len(X.shape) != 2:
-            # Simply raise an error here since there might be many
-            # different ways of reshaping
-            raise ValueError("Please reshape the input data X into 2-dimensional matrix.")
-
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
             X=X,
