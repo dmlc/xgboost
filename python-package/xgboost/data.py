@@ -533,8 +533,8 @@ def _is_tuple(data):
     return isinstance(data, tuple)
 
 
-def _from_tuple(data, missing, feature_names, feature_types):
-    return _from_list(data, missing, feature_names, feature_types)
+def _from_tuple(data, missing, n_threads, feature_names, feature_types):
+    return _from_list(data, missing, n_threads, feature_names, feature_types)
 
 
 def _is_iter(data):
@@ -581,7 +581,7 @@ def dispatch_data_backend(data, missing, threads,
     if _is_list(data):
         return _from_list(data, missing, threads, feature_names, feature_types)
     if _is_tuple(data):
-        return _from_tuple(data, missing, feature_names, feature_types)
+        return _from_tuple(data, missing, threads, feature_names, feature_types)
     if _is_pandas_df(data):
         return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)
@@ -634,7 +634,7 @@ def _to_data_type(dtype: str, name: str):
 
 def _validate_meta_shape(data, name: str) -> None:
     if hasattr(data, "shape"):
-        if not len(data.shape) == 1 or (
+        if not len(data.shape) == 1 or not (
             len(data.shape) == 2 and (data.shape[1] == 0 or data.shape[1] == 1)
         ):
             raise ValueError(f"Invalid shape: {data.shape} for {name}")

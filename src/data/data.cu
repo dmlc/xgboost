@@ -114,11 +114,11 @@ void CopyQidImpl(ArrayInterface array_interface,
 
 namespace {
 // thrust::all_of tries to copy lambda function.
-struct WeightsCheck {
-  __device__ bool operator()(float w) { return w < 0; }
-};
 struct LabelsCheck {
   __device__ bool operator()(float y) { return ::isnan(y) || ::isinf(y); }
+};
+struct WeightsCheck {
+  __device__ bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }
 };
 }  // anonymous namespace
 
