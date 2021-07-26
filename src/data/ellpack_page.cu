@@ -185,10 +185,7 @@ struct TupleScanOp {
 
 // Change the value type of thrust discard iterator so we can use it with cub
 template <typename T>
-class TypedDiscard : public thrust::discard_iterator<T> {
- public:
-  using value_type = T;  // NOLINT
-};
+using TypedDiscard = thrust::discard_iterator<T>;
 
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
