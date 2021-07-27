@@ -16,10 +16,18 @@ inline void InitRabitContext(std::string msg, int32_t n_workers) {
     LOG(WARNING) << msg << " as `DMLC_TRACKER_PORT` is not set up.";
     return;
   }
+  auto uri = std::getenv("DMLC_TRACKER_URI");
+  std::string uri_str;
+  if (uri) {
+    uri_str = uri;
+  } else {
+    LOG(WARNING) << msg << " as `DMLC_TRACKER_URI` is not set up.";
+    return;
+  }
 
   std::vector<std::string> envs{
       "DMLC_TRACKER_PORT=" + port_str,
-      "DMLC_TRACKER_URI=127.0.0.1",
+      "DMLC_TRACKER_URI=" + uri_str,
       "DMLC_NUM_WORKER=" + std::to_string(n_workers)};
   char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
   rabit::Init(3, c_envs);
