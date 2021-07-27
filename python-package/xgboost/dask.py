@@ -73,14 +73,15 @@ except ImportError:
 __all__ = [
     "RabitContext",
     "DaskDMatrix",
-    "DaskPartitionIter",
     "DaskDeviceQuantileDMatrix",
-    "DaskScikitLearnBase",
     "DaskXGBRegressor",
     "DaskXGBClassifier",
     "DaskXGBRanker",
     "DaskXGBRFRegressor",
     "DaskXGBRFClassifier",
+    "train",
+    "predict",
+    "inplace_predict",
 ]
 
 # TODOs:
