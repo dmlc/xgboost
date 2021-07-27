@@ -143,7 +143,18 @@ class RabitTracker(object):
     tracker for rabit
     """
 
-    def __init__(self, hostIP, nslave, port=9091, port_end=9999):
+    def __init__(
+        self, hostIP, nslave, port=9091, port_end=9999, use_logger: bool = True
+    ) -> None:
+        """A Python implementation of RABIT tracker.
+
+        Parameters
+        ..........
+        use_logger:
+            Use logging.info for tracker print command.  When set to False, Python print
+            function is used instead.
+
+        """
         sock = socket.socket(get_family(hostIP), socket.SOCK_STREAM)
         for _port in range(port, port_end):
             try:
@@ -161,6 +172,7 @@ class RabitTracker(object):
         self.start_time = None
         self.end_time = None
         self.nslave = nslave
+        self._use_logger = use_logger
         logging.info('start listen on %s:%d', hostIP, self.port)
 
     def __del__(self):
@@ -272,7 +284,11 @@ class RabitTracker(object):
             s = SlaveEntry(fd, s_addr)
             if s.cmd == 'print':
                 msg = s.sock.recvstr()
-                print(msg.strip())
+                # On dask we use print to avoid setting global verbosity.
+                if self._use_logger:
+                    logging.info(msg.strip())
+                else:
+                    print(msg.strip(), flush=True)
                 continue
             if s.cmd == 'shutdown':
                 assert s.rank >= 0 and s.rank not in shutdown

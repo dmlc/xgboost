@@ -127,7 +127,7 @@ def _start_tracker(n_workers: int) -> Dict[str, Any]:
     """Start Rabit tracker """
     env = {'DMLC_NUM_WORKER': n_workers}
     host = get_host_ip('auto')
-    rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
+    rabit_context = RabitTracker(hostIP=host, nslave=n_workers, use_logger=False)
     env.update(rabit_context.slave_envs())
 
     rabit_context.start(n_workers)
