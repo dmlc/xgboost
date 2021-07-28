@@ -133,12 +133,6 @@ def test_continuation_demo():
     subprocess.check_call(cmd)
 
 
-def test_update_process_demo():
-    script = os.path.join(PYTHON_DEMO_DIR, 'update_process.py')
-    cmd = ['python', script]
-    subprocess.check_call(cmd)
-
-
 # gpu_acceleration is not tested due to covertype dataset is being too huge.
 # gamma regression is not tested as it requires running a R script first.
 # aft viz is not tested due to ploting is not controled
