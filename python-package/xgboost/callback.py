@@ -490,6 +490,11 @@ class EarlyStopping(TrainingCallback):
 
         .. versionadded:: 1.5.0
 
+    min_delta
+        Minimum change in score, can only be set if abs_tol is 0.
+
+        .. versionadded:: 1.5.0
+
         .. code-block:: python
 
             clf = xgboost.XGBClassifier(tree_method="gpu_hist")
@@ -505,13 +510,16 @@ class EarlyStopping(TrainingCallback):
             X, y = load_digits(return_X_y=True)
             clf.fit(X, y, eval_set=[(X, y)], callbacks=[es])
     """
-    def __init__(self,
-                 rounds: int,
-                 metric_name: Optional[str] = None,
-                 data_name: Optional[str] = None,
-                 maximize: Optional[bool] = None,
-                 save_best: Optional[bool] = False,
-                 abs_tol: float = 0) -> None:
+    def __init__(
+        self,
+        rounds: int,
+        metric_name: Optional[str] = None,
+        data_name: Optional[str] = None,
+        maximize: Optional[bool] = None,
+        save_best: Optional[bool] = False,
+        abs_tol: float = 0.0,
+        min_delta: float = 0.0
+    ) -> None:
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
@@ -519,8 +527,13 @@ class EarlyStopping(TrainingCallback):
         self.maximize = maximize
         self.stopping_history: CallbackContainer.EvalsLog = {}
         self._tol = abs_tol
+        self._min_delta = min_delta
         if self._tol < 0:
             raise ValueError("tolerance must be greater or equal to 0.")
+        if self._min_delta < 0:
+            raise ValueError("min_delta must be greater or equal to 0.")
+        if 0.0 not in (self._tol, self._min_delta):
+            raise ValueError("Either min_delta or abs_tol should be 0.")
 
         self.improve_op = None
 
@@ -539,10 +552,12 @@ class EarlyStopping(TrainingCallback):
             return x[0] if isinstance(x, tuple) else x
 
         def maximize(new, best):
-            return numpy.greater(get_s(new) + self._tol, get_s(best))
+            """New score should be greater than the old one."""
+            return numpy.greater(get_s(new) + self._tol - self._min_delta, get_s(best))
 
         def minimize(new, best):
-            return numpy.greater(get_s(best) + self._tol, get_s(new))
+            """New score should be smaller than the old one."""
+            return numpy.greater(get_s(best) + self._tol - self._min_delta, get_s(new))
 
         if self.maximize is None:
             # Just to be compatibility with old behavior before 1.3.  We should let
