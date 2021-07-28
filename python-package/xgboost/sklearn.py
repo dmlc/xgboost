@@ -295,7 +295,7 @@ def _wrap_evaluation_matrices(
             return [None] * n_validation
         if len(meta) != n_validation:
             raise ValueError(
-                f"{name}'s length does not eqaul to `eval_set`, " +
+                f"{name}'s length does not equal `eval_set`'s length, " +
                 f"expecting {n_validation}, got {len(meta)}"
             )
         return meta
