@@ -9,6 +9,8 @@
 #include <cstring>
 #include <cstdio>
 #include <sstream>
+
+#include "../../src/common/threading_utils.h"
 #include "./xgboost_R.h"
 
 /*!
@@ -93,7 +95,9 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   }
   std::vector<float> data(nrow * ncol);
   dmlc::OMPException exc;
-#pragma omp parallel for schedule(static) num_threads(asInteger(n_threads))
+  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
+
+#pragma omp parallel for schedule(static) num_threads(threads)
   for (omp_ulong i = 0; i < nrow; ++i) {
     exc.Run([&]() {
       for (size_t j = 0; j < ncol; ++j) {
@@ -104,8 +108,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   exc.Rethrow();
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol,
-                                        asReal(missing), &handle,
-                                        asInteger(n_threads)));
+                                        asReal(missing), &handle, threads));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
