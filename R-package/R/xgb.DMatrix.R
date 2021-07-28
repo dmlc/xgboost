@@ -20,7 +20,7 @@
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
 #' @export
-xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) {
+xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthread = 1, ...) {
   cnames <- NULL
   if (typeof(data) == "character") {
     if (length(data) > 1)
@@ -29,7 +29,7 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) 
     data <- path.expand(data)
     handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
-    handle <- .Call(XGDMatrixCreateFromMat_R, data, missing)
+    handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, as.integer(nthread))
     cnames <- colnames(data)
   } else if (inherits(data, "dgCMatrix")) {
     handle <- .Call(XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data))

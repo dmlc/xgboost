@@ -47,10 +47,12 @@ XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
  * This assumes the matrix is stored in column major format
  * \param data R Matrix object
  * \param missing which value to represent missing value
+ * \param n_threads Number of threads used to construct DMatrix from dense matrix.
  * \return created dmatrix
  */
 XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
-                                      SEXP missing);
+                                      SEXP missing,
+                                      SEXP n_threads);
 /*!
  * \brief create a matrix content from CSC format
  * \param indptr pointer to column headers

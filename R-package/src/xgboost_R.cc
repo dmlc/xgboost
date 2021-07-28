@@ -77,7 +77,7 @@ XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
   return ret;
 }
 
-XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing) {
+XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   SEXP ret;
   R_API_BEGIN();
   SEXP dim = getAttrib(mat, R_DimSymbol);
@@ -93,7 +93,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing) {
   }
   std::vector<float> data(nrow * ncol);
   dmlc::OMPException exc;
-  #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) num_threads(asInteger(n_threads))
   for (omp_ulong i = 0; i < nrow; ++i) {
     exc.Run([&]() {
       for (size_t j = 0; j < ncol; ++j) {
@@ -103,7 +103,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing) {
   }
   exc.Rethrow();
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol, asReal(missing), &handle, 1));
+  CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol, asReal(missing), &handle, asInteger(n_threads)));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
