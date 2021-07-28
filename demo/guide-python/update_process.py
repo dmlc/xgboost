@@ -54,8 +54,9 @@ def main():
         evals=[(Xy, "Original"), (Xy_refresh, "Train")],
         evals_result=refresh_result,
     )
-    # Withtout refreshing the leaf value, resulting tree should be the same with original
-    # model.  The rtol is for floating point error in prediction.
+    # Without refreshing the leaf value, resulting trees should be the same with original
+    # model except for accumulated statistic.  The rtol is for floating point error in
+    # prediction.
     np.testing.assert_allclose(
         refresh_result["Original"]["rmse"], evals_result["Train"]["rmse"], rtol=1e-5
     )
