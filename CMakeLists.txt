@@ -55,6 +55,7 @@ set(GPU_COMPUTE_VER "" CACHE STRING
 option(USE_HDFS "Build with HDFS support" OFF)
 option(USE_AZURE "Build with AZURE support" OFF)
 option(USE_S3 "Build with S3 support" OFF)
+option(USE_PARQUET "Build with Arrow Parquet" OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
