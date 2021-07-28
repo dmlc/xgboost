@@ -93,7 +93,8 @@ Other Updaters
   doesn't change.
 
   There are examples on both training continuation (adding new trees) and using update
-  process on ``demo/guide-python``.
+  process on ``demo/guide-python``.  Also checkout the ``process_type`` parameter in
+  :doc:`parameter`.
 
 3. ``Sync``: Synchronize the tree among workers when running distributed training.
 
