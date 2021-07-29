@@ -6,8 +6,8 @@ RUN \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
     yum install -y tar unzip wget xz git which ninja-build java-1.8.0-openjdk-devel \
-                   devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-gcc-c++ \
-                   devtoolset-9-runtime devtoolset-9-libstdc++-devel && \
+                   devtoolset-8-gcc devtoolset-8-binutils devtoolset-8-gcc-c++ \
+                   devtoolset-8-runtime devtoolset-8-libstdc++-devel && \
     # Python
     wget -nv -nc -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python && \
@@ -20,9 +20,9 @@ RUN \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven
 
 ENV PATH=/opt/python/bin:/opt/maven/bin:$PATH
-ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
+ENV CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-8/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-8/root/usr/bin/cpp
 
 # Install Python packages
 RUN \
