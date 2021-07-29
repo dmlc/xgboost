@@ -1219,8 +1219,7 @@ async def _predict_async(
         base_margin = None
         for i, blob in enumerate(part[1:]):
             if meta_names[i] == "base_margin":
-                # segfault without copy. See https://github.com/dmlc/xgboost/issues/7111.
-                base_margin = blob.copy()
+                base_margin = blob
         with config.config_context(**global_config):
             m = DMatrix(
                 data,
