@@ -85,7 +85,7 @@ def main(args: argparse.Namespace) -> None:
     rel = version.StrictVersion(args.release)
     platforms = [
         "win_amd64",
-        "manylinux2010_x86_64",
+        "manylinux2014_x86_64",
         "manylinux2014_aarch64",
         "macosx_10_14_x86_64.macosx_10_15_x86_64.macosx_11_0_x86_64",
     ]
