@@ -485,13 +485,8 @@ class EarlyStopping(TrainingCallback):
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best
         Whether training should return the best model or the last model.
-    abs_tol
-        Absolute tolerance for early stopping condition.
-
-        .. versionadded:: 1.5.0
-
     min_delta
-        Minimum change in score, can only be set if abs_tol is 0.
+        Minimum absolute change in score to be qualified as an improvement.
 
         .. versionadded:: 1.5.0
 
@@ -517,7 +512,6 @@ class EarlyStopping(TrainingCallback):
         data_name: Optional[str] = None,
         maximize: Optional[bool] = None,
         save_best: Optional[bool] = False,
-        abs_tol: float = 0.0,
         min_delta: float = 0.0
     ) -> None:
         self.data = data_name
@@ -526,14 +520,9 @@ class EarlyStopping(TrainingCallback):
         self.save_best = save_best
         self.maximize = maximize
         self.stopping_history: CallbackContainer.EvalsLog = {}
-        self._tol = abs_tol
         self._min_delta = min_delta
-        if self._tol < 0:
-            raise ValueError("tolerance must be greater or equal to 0.")
         if self._min_delta < 0:
             raise ValueError("min_delta must be greater or equal to 0.")
-        if 0.0 not in (self._tol, self._min_delta):
-            raise ValueError("Either min_delta or abs_tol should be 0.")
 
         self.improve_op = None
 
@@ -553,11 +542,11 @@ class EarlyStopping(TrainingCallback):
 
         def maximize(new, best):
             """New score should be greater than the old one."""
-            return numpy.greater(get_s(new) + self._tol - self._min_delta, get_s(best))
+            return numpy.greater(get_s(new) - self._min_delta, get_s(best))
 
         def minimize(new, best):
             """New score should be smaller than the old one."""
-            return numpy.greater(get_s(best) + self._tol - self._min_delta, get_s(new))
+            return numpy.greater(get_s(best) - self._min_delta, get_s(new))
 
         if self.maximize is None:
             # Just to be compatibility with old behavior before 1.3.  We should let

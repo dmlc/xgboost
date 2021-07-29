@@ -126,28 +126,7 @@ class TestCallbacks:
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
         assert len(early_stop.stopping_history['Train']['CustomErr']) == len(dump)
 
-        # test tolerance, early stop won't occur with high tolerance.
-        tol = 10
         rounds = 100
-        early_stop = xgb.callback.EarlyStopping(
-            rounds=early_stopping_rounds,
-            metric_name='CustomErr',
-            data_name='Train',
-            abs_tol=tol
-        )
-        booster = xgb.train(
-            {'objective': 'binary:logistic',
-             'eval_metric': ['error', 'rmse'],
-             'tree_method': 'hist'}, D_train,
-            evals=[(D_train, 'Train'), (D_valid, 'Valid')],
-            feval=tm.eval_error_metric,
-            num_boost_round=rounds,
-            callbacks=[early_stop],
-            verbose_eval=False
-        )
-        # 0 based index
-        assert booster.best_iteration == rounds - 1
-
         early_stop = xgb.callback.EarlyStopping(
             rounds=early_stopping_rounds,
             metric_name='CustomErr',
@@ -171,13 +150,6 @@ class TestCallbacks:
         # No iteration can be made with min_delta == 100
         assert booster.best_iteration == 0
         assert booster.num_boosted_rounds() == 1
-
-        with pytest.raises(ValueError):
-            early_stop = xgb.callback.EarlyStopping(
-                rounds=early_stopping_rounds,
-                min_delta=100,
-                abs_tol=100,
-            )
 
     def test_early_stopping_skl(self):
         from sklearn.datasets import load_breast_cancer
