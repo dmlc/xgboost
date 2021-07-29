@@ -131,12 +131,14 @@ class TestModels:
         booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4,
                             xgb_model=booster)
         assert booster.num_boosted_rounds() == 8
-        booster = xgb.train({'updater': 'prune', 'process_type': 'update'}, X,
-                            num_boost_round=4, xgb_model=booster)
-        # Trees are moved for update, the rounds is reduced.  This test is
-        # written for being compatible with current code (1.0.0).  If the
-        # behaviour is considered sub-optimal, feel free to change.
-        assert booster.num_boosted_rounds() == 4
+        with pytest.raises(ValueError, match="4 trees"):
+            # Must update all the trees.
+            xgb.train(
+                {'updater': 'prune', 'process_type': 'update'},
+                X,
+                num_boost_round=4,
+                xgb_model=booster
+            )
 
     def run_custom_objective(self, tree_method=None):
         param = {
@@ -413,9 +415,6 @@ class TestModels:
         with pytest.raises(ValueError, match=r'>= 0'):
             booster[-1: 0]
 
-        # we do not accept empty slice.
-        with pytest.raises(ValueError):
-            booster[1:1]
         # stop can not be smaller than begin
         with pytest.raises(ValueError, match=r'Invalid.*'):
             booster[3:0]

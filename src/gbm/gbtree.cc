@@ -342,8 +342,9 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
           << "No more tree left for updating.  For updating existing trees, "
           << "boosting rounds can not exceed previous training rounds";
       // move an existing tree from trees_to_update
-      auto t = std::move(model_.trees_to_update[model_.trees.size() +
-                                                bst_group * tparam_.num_parallel_tree + i]);
+      auto t = std::move(
+          model_.trees_to_update[model_.trees.size() +
+                                 bst_group * tparam_.num_parallel_tree + i]);
       new_trees.push_back(t.get());
       ret->push_back(std::move(t));
     }
@@ -447,7 +448,7 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   CHECK_NE(layer_trees, 0);
 
   layer_end = layer_end == 0 ? model_.trees.size() / layer_trees : layer_end;
-  CHECK_GT(layer_end, layer_begin);
+  CHECK_GE(layer_end, layer_begin);
   CHECK_GE(step, 1);
   int32_t n_layers = (layer_end - layer_begin) / step;
   std::vector<std::unique_ptr<RegTree>> &out_trees = out_model.trees;

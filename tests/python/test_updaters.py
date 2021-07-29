@@ -67,8 +67,7 @@ class TestTreeMethod:
         grown = str(booster.get_dump())
 
         params = {'updater': 'prune', 'process_type': 'update', 'gamma': '0.2'}
-        booster = xgb.train(params, dtrain=dtrain, num_boost_round=10,
-                            xgb_model=booster)
+        booster = xgb.train(params, dtrain=dtrain, num_boost_round=10, xgb_model=booster)
         after_prune = str(booster.get_dump())
         assert grown != after_prune
 

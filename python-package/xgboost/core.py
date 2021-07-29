@@ -1278,7 +1278,7 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
     return num_parallel_tree, num_groups
 
 
-class Booster(object):
+class Booster:
     # pylint: disable=too-many-public-methods
     """A Booster of XGBoost.
 
@@ -1302,30 +1302,50 @@ class Booster(object):
             if not isinstance(d, DMatrix):
                 raise TypeError(f'invalid cache item: {type(d).__name__}', cache)
 
-        dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
-        self.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
-                                         ctypes.byref(self.handle)))
-        for d in cache:
-            # Validate feature only after the feature names are saved into booster.
-            self._validate_features(d)
+        def _make_handle():
+            dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
+            self.handle = ctypes.c_void_p()
+            _check_call(
+                _LIB.XGBoosterCreate(
+                    dmats, c_bst_ulong(len(cache)), ctypes.byref(self.handle)
+                )
+            )
+            for d in cache:
+                # Validate feature only after the feature names are saved into booster.
+                self._validate_features(d)
 
         if isinstance(model_file, Booster):
-            assert self.handle is not None
-            # We use the pickle interface for getting memory snapshot from
-            # another model, and load the snapshot with this booster.
-            state = model_file.__getstate__()
-            handle = state['handle']
-            del state['handle']
-            ptr = (ctypes.c_char * len(handle)).from_buffer(handle)
-            length = c_bst_ulong(len(handle))
-            _check_call(
-                _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
-            self.__dict__.update(state)
+            if (
+                json.loads(model_file.save_config())["learner"]["gradient_booster"][
+                    "name"
+                ]
+                == "gblinear"
+            ):
+                _make_handle()
+                # We use the pickle interface for getting memory snapshot from
+                # another model, and load the snapshot with this booster.
+                state = model_file.__getstate__()
+                handle = state["handle"]
+                del state["handle"]
+                ptr = (ctypes.c_char * len(handle)).from_buffer(handle)
+                length = c_bst_ulong(len(handle))
+                _check_call(
+                    _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length)
+                )
+                self.__dict__.update(state)
+            else:
+                # Use model slicing to avoid serialization.
+                copied = model_file[:]
+                # swap 2 handles
+                temp = getattr(self, "handle", None)
+                self.handle = copied.handle
+                copied.handle = temp
+            self._load_attributes()
         elif isinstance(model_file, (STRING_TYPES, os.PathLike, bytearray)):
+            _make_handle()
             self.load_model(model_file)
         elif model_file is None:
-            pass
+            _make_handle()
         else:
             raise TypeError('Unknown type:', model_file)
 
@@ -1488,6 +1508,7 @@ class Booster(object):
         sliced = Booster()
         _check_call(_LIB.XGBoosterFree(sliced.handle))
         sliced.handle = sliced_handle
+        sliced._load_attributes()
         return sliced
 
     def save_config(self):
@@ -2137,6 +2158,14 @@ class Booster(object):
                                               ctypes.byref(cptr)))
         return ctypes2buffer(cptr, length.value)
 
+    def _load_attributes(self):
+        if self.attr("best_iteration") is not None:
+            self.best_iteration = int(self.attr("best_iteration"))
+        if self.attr("best_score") is not None:
+            self.best_score = float(self.attr("best_score"))
+        if self.attr("best_ntree_limit") is not None:
+            self.best_ntree_limit = int(self.attr("best_ntree_limit"))
+
     def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
@@ -2168,13 +2197,7 @@ class Booster(object):
                                                           length))
         else:
             raise TypeError('Unknown file type: ', fname)
-
-        if self.attr("best_iteration") is not None:
-            self.best_iteration = int(self.attr("best_iteration"))
-        if self.attr("best_score") is not None:
-            self.best_score = float(self.attr("best_score"))
-        if self.attr("best_ntree_limit") is not None:
-            self.best_ntree_limit = int(self.attr("best_ntree_limit"))
+        self._load_attributes()
 
     def num_boosted_rounds(self) -> int:
         '''Get number of boosted rounds.  For gblinear this is reset to 0 after

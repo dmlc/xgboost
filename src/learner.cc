@@ -1023,6 +1023,7 @@ class LearnerImpl : public LearnerIO {
 
   Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
                  bool *out_of_bound) override {
+    CHECK_NE(this->learner_model_param_.num_feature, 0);
     this->Configure();
     CHECK_NE(this->learner_model_param_.num_feature, 0);
     CHECK_GE(begin_layer, 0);
@@ -1045,16 +1046,6 @@ class LearnerImpl : public LearnerIO {
     out_impl->Configure();
     CHECK_EQ(out_impl->learner_model_param_.num_feature, this->learner_model_param_.num_feature);
     CHECK_NE(out_impl->learner_model_param_.num_feature, 0);
-
-    auto erase_attr = [&](std::string attr) {
-      // Erase invalid attributes.
-      auto attr_it = out_impl->attributes_.find(attr);
-      if (attr_it != out_impl->attributes_.cend()) {
-        out_impl->attributes_.erase(attr_it);
-      }
-    };
-    erase_attr("best_iteration");
-    erase_attr("best_score");
     return out_impl;
   }
 
