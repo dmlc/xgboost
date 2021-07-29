@@ -119,7 +119,7 @@ def checkoutSrcs() {
 }
 
 def GetCUDABuildContainerType(cuda_version) {
-  return (cuda_version == ref_cuda_ver) ? 'gpu_build_centos6' : 'gpu_build'
+  return (cuda_version == ref_cuda_ver) ? 'gpu_build_centos7' : 'gpu_build'
 }
 
 def ClangTidy() {
@@ -218,7 +218,7 @@ def BuildCUDA(args) {
     if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
       arch_flag = "-DGPU_COMPUTE_VER=75"
     }
-    def wheel_tag = "manylinux2010_x86_64"
+    def wheel_tag = "manylinux2014_x86_64"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON ${arch_flag}
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
@@ -251,7 +251,7 @@ def BuildCUDA(args) {
       rm -rf build/
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=gpu_test -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON ${arch_flag}
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2014_x86_64
       """
       echo 'Stashing Python wheel...'
       stash name: "xgboost_whl_rmm_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
@@ -265,7 +265,7 @@ def BuildCUDA(args) {
 def BuildRPackageWithCUDA(args) {
   node('linux && cpu_build') {
     unstash name: 'srcs'
-    def container_type = 'gpu_build_r_centos6'
+    def container_type = 'gpu_build_r_centos7'
     def docker_binary = "docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=10.0"
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
