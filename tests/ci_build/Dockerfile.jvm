@@ -5,7 +5,7 @@ RUN \
     yum install -y epel-release centos-release-scl && \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
-    yum install -y tar unzip make wget xz git which ninja-build java-1.8.0-openjdk-devel \
+    yum install -y tar unzip make bzip2 wget xz git which ninja-build java-1.8.0-openjdk-devel \
                    devtoolset-8-gcc devtoolset-8-binutils devtoolset-8-gcc-c++ \
                    devtoolset-8-runtime devtoolset-8-libstdc++-devel && \
     # Python
