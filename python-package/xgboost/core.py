@@ -2121,6 +2121,14 @@ class Booster(object):
                                               ctypes.byref(cptr)))
         return ctypes2buffer(cptr, length.value)
 
+    def _load_attributes(self):
+        if self.attr("best_iteration") is not None:
+            self.best_iteration = int(self.attr("best_iteration"))
+        if self.attr("best_score") is not None:
+            self.best_score = float(self.attr("best_score"))
+        if self.attr("best_ntree_limit") is not None:
+            self.best_ntree_limit = int(self.attr("best_ntree_limit"))
+
     def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
@@ -2152,13 +2160,7 @@ class Booster(object):
                                                           length))
         else:
             raise TypeError('Unknown file type: ', fname)
-
-        if self.attr("best_iteration") is not None:
-            self.best_iteration = int(self.attr("best_iteration"))
-        if self.attr("best_score") is not None:
-            self.best_score = float(self.attr("best_score"))
-        if self.attr("best_ntree_limit") is not None:
-            self.best_ntree_limit = int(self.attr("best_ntree_limit"))
+        self._load_attributes()
 
     def num_boosted_rounds(self) -> int:
         '''Get number of boosted rounds.  For gblinear this is reset to 0 after

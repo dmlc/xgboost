@@ -342,8 +342,9 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
           << "No more tree left for updating.  For updating existing trees, "
           << "boosting rounds can not exceed previous training rounds";
       // move an existing tree from trees_to_update
-      auto t = std::move(model_.trees_to_update[model_.trees.size() +
-                                                bst_group * tparam_.num_parallel_tree + i]);
+      auto t = std::move(
+          model_.trees_to_update[model_.trees.size() +
+                                 bst_group * tparam_.num_parallel_tree + i]);
       new_trees.push_back(t.get());
       ret->push_back(std::move(t));
     }
@@ -443,6 +444,8 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   CHECK(p_gbtree);
   GBTreeModel &out_model = p_gbtree->model_;
   auto layer_trees = this->LayerTrees();
+  CHECK_NE(this->model_.learner_model_param->num_feature, 0);
+  CHECK_NE(layer_trees, 0);
 
   layer_end = layer_end == 0 ? model_.trees.size() / layer_trees : layer_end;
   CHECK_GT(layer_end, layer_begin);
@@ -453,7 +456,13 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   std::vector<int32_t> &out_trees_info = out_model.tree_info;
   out_trees_info.resize(layer_trees * n_layers);
   out_model.param.num_trees = out_model.trees.size();
-  CHECK(this->model_.trees_to_update.empty());
+  if (!this->model_.trees_to_update.empty()) {
+    CHECK_EQ(this->model_.trees_to_update.size(), this->model_.trees.size())
+        << "Not all trees are updated, "
+        << this->model_.trees_to_update.size() - this->model_.trees.size()
+        << " trees remain.  Slice the model before making update if you only "
+           "want to update a portion of trees.";
+  }
 
   *out_of_bound = detail::SliceTrees(
       layer_begin, layer_end, step, this->model_, tparam_, layer_trees,

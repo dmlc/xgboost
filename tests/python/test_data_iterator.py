@@ -114,7 +114,8 @@ def run_data_iterator(
     if tree_method != "gpu_hist":
         rtol = 1e-1  # flaky
     else:
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=1e-3)
+        # Model can be sensitive to quantiles, use 1e-2 to relax the test.
+        np.testing.assert_allclose(it_predt, arr_predt, rtol=1e-2)
         rtol = 1e-6
 
     np.testing.assert_allclose(
