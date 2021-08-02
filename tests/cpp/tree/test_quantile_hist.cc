@@ -168,9 +168,6 @@ class QuantileHistMock : public QuantileHistMaker {
         // treat everything as dense, as this is what we intend to test here
         cm.Init(gmat, 0.0);
         RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
-        // this->hist_.AddHistRow(0);
-        // this->hist_.AllocateAllData();
-
         const size_t num_row = dmat->Info().num_row_;
         // split by feature 0
         const size_t bin_id_min = gmat.cut.Ptrs()[0];

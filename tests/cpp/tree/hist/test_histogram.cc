@@ -66,7 +66,7 @@ void TestSyncHist() {
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
   uint32_t total_bins = gmat.cut.Ptrs().back();
-  histogram.Reset(total_bins, omp_get_max_threads());
+  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads());
 
   RowSetCollection row_set_collection_;
   {
@@ -218,7 +218,7 @@ void TestBuildHistogram() {
 
   bst_node_t nid = 0;
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
-  histogram.Reset(total_bins, omp_get_max_threads());
+  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads());
 
   RegTree tree;
 

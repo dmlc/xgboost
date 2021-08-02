@@ -24,16 +24,19 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   common::GHistBuilder<GradientSumT> builder_;
   common::ParallelGHistBuilder<GradientSumT> buffer_;
   rabit::Reducer<GradientPairT, GradientPairT::Reduce> reducer_;
-  int32_t n_threads_;
+  int32_t max_bin_ {-1};
+  int32_t n_threads_ {-1};
 
  public:
-  void Reset(uint32_t n_bins, int32_t n_threads) {
+  void Reset(uint32_t total_bins, int32_t max_bin_per_feat, int32_t n_threads) {
     CHECK_GE(n_threads, 1);
     n_threads_ = n_threads;
-    hist_.Init(n_bins);
-    hist_local_worker_.Init(n_bins);
-    buffer_.Init(n_bins);
-    builder_ = common::GHistBuilder<GradientSumT>(n_threads, n_bins);
+    CHECK_GE(max_bin_per_feat, 2);
+    max_bin_ = max_bin_per_feat;
+    hist_.Init(total_bins);
+    hist_local_worker_.Init(total_bins);
+    buffer_.Init(total_bins);
+    builder_ = common::GHistBuilder<GradientSumT>(n_threads, total_bins);
   }
 
   template <bool any_missing>
@@ -61,7 +64,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     buffer_.Reset(this->n_threads_, n_nodes, space, target_hists);
 
     // Parallel processing by nodes and data in each node
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>()) {
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(
+             BatchParam{GenericParameter::kCpuId, max_bin_})) {
       common::ParallelFor2d(
           space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
             const auto tid = static_cast<unsigned>(omp_get_thread_num());
