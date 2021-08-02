@@ -1047,7 +1047,7 @@ class LearnerImpl : public LearnerIO {
     CHECK_NE(out_impl->learner_model_param_.num_feature, 0);
 
     auto erase_attr = [&](std::string attr) {
-      // Erase invalid attributions.
+      // Erase invalid attributes.
       auto attr_it = out_impl->attributes_.find(attr);
       if (attr_it != out_impl->attributes_.cend()) {
         out_impl->attributes_.erase(attr_it);
