@@ -3,6 +3,11 @@
  */
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
+
+#include <algorithm>
+#include <limits>
+#include <vector>
+
 #include "xgboost/tree_model.h"
 #include "../../common/hist_util.h"
 
@@ -37,7 +42,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
       std::vector<ExpandEntry> nodes_for_explicit_hist_build,
       common::RowSetCollection const &row_set_collection,
       const std::vector<GradientPair> &gpair_h) {
-
     const size_t n_nodes = nodes_for_explicit_hist_build.size();
 
     // create space of size (# rows in each node)
@@ -90,7 +94,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
       this->hist_.AddHistRow(node.nid);
     }
     this->hist_.AllocateAllData();
-  };
+  }
 
   void AddHistRowsDistributed(
       int *starting_index, int *sync_count,
@@ -265,6 +269,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   }
   auto& Buffer() { return buffer_; }
 };
-}  // namespace tree
-} // namespace xgboost
+}      // namespace tree
+}      // namespace xgboost
 #endif  // XGBOOST_TREE_HIST_HISTOGRAM_H_
