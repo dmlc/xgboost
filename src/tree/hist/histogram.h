@@ -58,8 +58,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
       const int32_t nid = nodes_for_explicit_hist_build[i].nid;
       target_hists[i] = hist_[nid];
     }
-
-    CHECK_LE(this->n_threads_, 16);
     buffer_.Reset(this->n_threads_, n_nodes, space, target_hists);
 
     // Parallel processing by nodes and data in each node
