@@ -3,6 +3,7 @@ project(xgboost-c-examples)
 
 add_subdirectory(basic)
 add_subdirectory(external-memory)
+add_subdirectory(inference)
 
 enable_testing()
 add_test(
