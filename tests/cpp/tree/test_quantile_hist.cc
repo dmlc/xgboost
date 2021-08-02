@@ -151,43 +151,6 @@ class QuantileHistMock : public QuantileHistMaker {
       omp_set_num_threads(nthreads);
     }
 
-    // void TestBuildHist(int nid,
-    //                    const GHistIndexMatrix& gmat,
-    //                    const DMatrix& fmat,
-    //                    const RegTree& tree) {
-    //   std::vector<GradientPair> gpair =
-    //       { {0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {0.27f, 0.28f},
-    //         {0.27f, 0.29f}, {0.37f, 0.39f}, {0.47f, 0.49f}, {0.57f, 0.59f} };
-    //   RealImpl::InitData(gmat, fmat, tree, &gpair);
-    //   this->hist_.AddHistRow(nid);
-    //   this->hist_.AllocateAllData();
-    //   this->hist_builder_.template BuildHist<true>(gpair, this->row_set_collection_[nid],
-    //                   gmat, this->hist_[nid]);
-
-    //   // Check if number of histogram bins is correct
-    //   ASSERT_EQ(this->hist_[nid].size(), gmat.cut.Ptrs().back());
-    //   std::vector<GradientPairPrecise> histogram_expected(this->hist_[nid].size());
-
-    //   // Compute the correct histogram (histogram_expected)
-    //   const size_t num_row = fmat.Info().num_row_;
-    //   CHECK_EQ(gpair.size(), num_row);
-    //   for (size_t rid = 0; rid < num_row; ++rid) {
-    //     const size_t ibegin = gmat.row_ptr[rid];
-    //     const size_t iend = gmat.row_ptr[rid + 1];
-    //     for (size_t i = ibegin; i < iend; ++i) {
-    //       const size_t bin_id = gmat.index[i];
-    //       histogram_expected[bin_id] += GradientPairPrecise(gpair[rid]);
-    //     }
-    //   }
-
-    //   // Now validate the computed histogram returned by BuildHist
-    //   for (size_t i = 0; i < this->hist_[nid].size(); ++i) {
-    //     GradientPairPrecise sol = histogram_expected[i];
-    //     ASSERT_NEAR(sol.GetGrad(), this->hist_[nid][i].GetGrad(), kEps);
-    //     ASSERT_NEAR(sol.GetHess(), this->hist_[nid][i].GetHess(), kEps);
-    //   }
-    // }
-
     void TestApplySplit(const RegTree& tree) {
       std::vector<GradientPair> row_gpairs =
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
@@ -325,36 +288,6 @@ class QuantileHistMock : public QuantileHistMaker {
     }
   }
 
-  // void TestSyncHistograms() {
-  //   size_t constexpr kMaxBins = 4;
-  //   GHistIndexMatrix gmat(dmat_.get(), kMaxBins);
-
-  //   RegTree tree = RegTree();
-  //   tree.param.UpdateAllowUnknown(cfg_);
-  //   std::vector<GradientPair> gpair =
-  //       { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
-  //         {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
-  //   if (double_builder_) {
-  //     double_builder_->TestSyncHistograms(gmat, &gpair, dmat_.get(), &tree);
-  //   } else {
-  //     float_builder_->TestSyncHistograms(gmat, &gpair, dmat_.get(), &tree);
-  //   }
-  // }
-
-
-  // void TestBuildHist() {
-  //   RegTree tree = RegTree();
-  //   tree.param.UpdateAllowUnknown(cfg_);
-
-  //   size_t constexpr kMaxBins = 4;
-  //   GHistIndexMatrix gmat(dmat_.get(), kMaxBins);
-  //   if (double_builder_) {
-  //     double_builder_->TestBuildHist(0, gmat, *dmat_, tree);
-  //   } else {
-  //     float_builder_->TestBuildHist(0, gmat, *dmat_, tree);
-  //   }
-  // }
-
   void TestApplySplit() {
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -387,57 +320,6 @@ TEST(QuantileHist, InitDataSampling) {
   QuantileHistMock maker_float(cfg, single_precision_histogram);
   maker_float.TestInitDataSampling();
 }
-
-// TEST(QuantileHist, AddHistRows) {
-//   std::vector<std::pair<std::string, std::string>> cfg
-//       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
-//   QuantileHistMock maker(cfg);
-//   maker.TestAddHistRows();
-//   const bool single_precision_histogram = true;
-//   QuantileHistMock maker_float(cfg, single_precision_histogram);
-//   maker_float.TestAddHistRows();
-// }
-
-// TEST(QuantileHist, SyncHistograms) {
-//   std::vector<std::pair<std::string, std::string>> cfg
-//       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
-//   QuantileHistMock maker(cfg);
-//   maker.TestSyncHistograms();
-//   const bool single_precision_histogram = true;
-//   QuantileHistMock maker_float(cfg, single_precision_histogram);
-//   maker_float.TestSyncHistograms();
-// }
-
-// TEST(QuantileHist, DistributedAddHistRows) {
-//   std::vector<std::pair<std::string, std::string>> cfg
-//       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
-//   QuantileHistMock maker(cfg, false);
-//   maker.TestAddHistRows();
-//   const bool single_precision_histogram = true;
-//   QuantileHistMock maker_float(cfg, single_precision_histogram);
-//   maker_float.TestAddHistRows();
-// }
-
-// TEST(QuantileHist, DistributedSyncHistograms) {
-//   std::vector<std::pair<std::string, std::string>> cfg
-//       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
-//   QuantileHistMock maker(cfg, false);
-//   maker.TestSyncHistograms();
-//   const bool single_precision_histogram = true;
-//   QuantileHistMock maker_float(cfg, single_precision_histogram);
-//   maker_float.TestSyncHistograms();
-// }
-
-// TEST(QuantileHist, BuildHist) {
-//   // Don't enable feature grouping
-//   std::vector<std::pair<std::string, std::string>> cfg
-//       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
-//   QuantileHistMock maker(cfg);
-//   maker.TestBuildHist();
-//   const bool single_precision_histogram = true;
-//   QuantileHistMock maker_float(cfg, single_precision_histogram);
-//   maker_float.TestBuildHist();
-// }
 
 TEST(QuantileHist, ApplySplit) {
   std::vector<std::pair<std::string, std::string>> cfg
