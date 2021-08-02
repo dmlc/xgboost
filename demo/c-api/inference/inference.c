@@ -1,3 +1,8 @@
+/*!
+ * Copyright 2021 XGBoost contributors
+ *
+ * \brief A simple example of using prediction functions.
+ */
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
