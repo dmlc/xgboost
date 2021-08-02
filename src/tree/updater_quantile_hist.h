@@ -233,7 +233,7 @@ class QuantileHistMaker: public TreeUpdater {
     explicit Builder(const size_t n_trees, const TrainParam &param,
                      std::unique_ptr<TreeUpdater> pruner, DMatrix const *fmat)
         : n_trees_(n_trees), param_(param), pruner_(std::move(pruner)),
-          p_last_tree_(nullptr), p_last_fmat_(fmat) {
+          p_last_tree_(nullptr), p_last_fmat_(fmat), histogram_builder_{new HistogramBuilder<GradientSumT>} {
       builder_monitor_.Init("Quantile::Builder");
     }
     ~Builder();
@@ -456,8 +456,9 @@ template <typename GradientSumT> class HistogramBuilder {
   int32_t n_threads_;
 
  public:
-  HistogramBuilder(uint32_t n_bins, int32_t n_threads) : n_threads_{n_threads} {
+  void Reset(uint32_t n_bins, int32_t n_threads) {
     CHECK_GE(n_threads, 1);
+    n_threads_ = n_threads;
     hist_.Init(n_bins);
     hist_local_worker_.Init(n_bins);
     buffer_.Init(n_bins);

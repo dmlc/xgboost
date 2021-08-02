@@ -649,8 +649,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
       });
     }
     exc.Rethrow();
-    this->histogram_builder_.reset(
-        new HistogramBuilder<GradientSumT>(nbins, this->nthread_));
+    this->histogram_builder_->Reset(nbins, this->nthread_);
     // hist_builder_ = GHistBuilder<GradientSumT>(this->nthread_, nbins);
 
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
