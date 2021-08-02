@@ -43,6 +43,7 @@ TEST(CPUHistogram, AddRows) {
   TestAddHistRows();
 }
 
+template <typename GradientSumT>
 void TestSyncHist() {
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
@@ -50,9 +51,12 @@ void TestSyncHist() {
   int sync_count = 0;
   RegTree tree;
 
+  HistogramBuilder<float, CPUExpandEntry> histogram;
   // level 0
   nodes_for_explicit_hist_build_.emplace_back(0, tree.GetDepth(0), 0.0f);
-  this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
+  histogram.AddHistRowsLocal(&starting_index, &sync_count,
+                             nodes_for_explicit_hist_build_,
+                             nodes_for_subtraction_trick_);
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
   // level 1
@@ -60,7 +64,9 @@ void TestSyncHist() {
                                               tree.GetDepth(1), 0.0f);
   nodes_for_subtraction_trick_.emplace_back(tree[0].RightChild(),
                                             tree.GetDepth(2), 0.0f);
-  this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
+  histogram.AddHistRowsLocal(&starting_index, &sync_count,
+                             nodes_for_explicit_hist_build_,
+                             nodes_for_subtraction_trick_);
   tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
@@ -71,7 +77,9 @@ void TestSyncHist() {
   nodes_for_subtraction_trick_.emplace_back(4, tree.GetDepth(4), 0.0f);
   nodes_for_explicit_hist_build_.emplace_back(5, tree.GetDepth(5), 0.0f);
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
-  this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
+  histogram.AddHistRowsLocal(&starting_index, &sync_count,
+                             nodes_for_explicit_hist_build_,
+                             nodes_for_subtraction_trick_);
 
   const size_t n_nodes = this->nodes_for_explicit_hist_build_.size();
   ASSERT_EQ(n_nodes, 2ul);
@@ -90,17 +98,17 @@ void TestSyncHist() {
       },
       256);
 
-  std::vector<common::GHistRowT> target_hists(n_nodes);
+  std::vector<common::GHistRow<GradientSumT>> target_hists(n_nodes);
   for (size_t i = 0; i < this->nodes_for_explicit_hist_build_.size(); ++i) {
     const int32_t nid = this->nodes_for_explicit_hist_build_[i].nid;
-    target_hists[i] = this->hist_[nid];
+    target_hists[i] = histogram.Histogram()[nid];
   }
 
   const size_t nbins = this->hist_builder_.GetNumBins();
   // set values to specific nodes hist
   std::vector<size_t> n_ids = {1, 2};
   for (size_t i : n_ids) {
-    auto this_hist = this->hist_[i];
+    auto this_hist = histogram.Histogram()[i];
     GradientSumT *p_hist = reinterpret_cast<GradientSumT *>(this_hist.data());
     for (size_t bin_id = 0; bin_id < 2 * nbins; ++bin_id) {
       p_hist[bin_id] = 2 * bin_id;
@@ -109,7 +117,7 @@ void TestSyncHist() {
   n_ids[0] = 3;
   n_ids[1] = 5;
   for (size_t i : n_ids) {
-    auto this_hist = this->hist_[i];
+    auto this_hist = histogram.Histogram()[i];
     GradientSumT *p_hist = reinterpret_cast<GradientSumT *>(this_hist.data());
     for (size_t bin_id = 0; bin_id < 2 * nbins; ++bin_id) {
       p_hist[bin_id] = bin_id;
@@ -120,7 +128,7 @@ void TestSyncHist() {
   // sync hist
   this->hist_synchronizer_->SyncHistograms(this, starting_index, sync_count,
                                            tree);
-
+  using GHistRowT = common::GHistRow<GradientSumT>;
   auto check_hist = [](const GHistRowT parent, const GHistRowT left,
                        const GHistRowT right, size_t begin, size_t end) {
     const GradientSumT *p_parent =
@@ -134,44 +142,47 @@ void TestSyncHist() {
     }
   };
   size_t node_id = 0;
-  for (const CPUExpandEntry &node : this->nodes_for_explicit_hist_build_) {
-    auto this_hist = this->hist_[node.nid];
+  for (const CPUExpandEntry &node : nodes_for_explicit_hist_build_) {
+    auto this_hist = histogram.Histogram()[node.nid];
     const size_t parent_id = tree[node.nid].Parent();
     const size_t subtraction_node_id =
-        this->nodes_for_subtraction_trick_[node_id].nid;
-    auto parent_hist = this->hist_[parent_id];
-    auto sibling_hist = this->hist_[subtraction_node_id];
+        nodes_for_subtraction_trick_[node_id].nid;
+    auto parent_hist = histogram.Histogram()[parent_id];
+    auto sibling_hist = histogram.Histogram()[subtraction_node_id];
 
     check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
     ++node_id;
   }
   node_id = 0;
-  for (const CPUExpandEntry &node : this->nodes_for_subtraction_trick_) {
-    auto this_hist = this->hist_[node.nid];
+  for (const CPUExpandEntry &node : nodes_for_subtraction_trick_) {
+    auto this_hist = histogram.Histogram()[node.nid];
     const size_t parent_id = tree[node.nid].Parent();
     const size_t subtraction_node_id =
-        this->nodes_for_explicit_hist_build_[node_id].nid;
-    auto parent_hist = this->hist_[parent_id];
-    auto sibling_hist = this->hist_[subtraction_node_id];
+        nodes_for_explicit_hist_build_[node_id].nid;
+    auto parent_hist = histogram.Histogram()[parent_id];
+    auto sibling_hist = histogram.Histogram()[subtraction_node_id];
 
     check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
     ++node_id;
   }
 }
 
+template <typename GradientSumT>
 void TestBuildHistogram() {
+  static double constexpr kEps = 1e-6;
   std::vector<GradientPair> gpair = {
       {0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {0.27f, 0.28f},
       {0.27f, 0.29f}, {0.37f, 0.39f}, {0.47f, 0.49f}, {0.57f, 0.59f}};
-  RealImpl::InitData(gmat, fmat, tree, &gpair);
+
+  HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
   this->hist_.AddHistRow(nid);
   this->hist_.AllocateAllData();
   this->hist_builder_.template BuildHist<true>(
       gpair, this->row_set_collection_[nid], gmat, this->hist_[nid]);
 
   // Check if number of histogram bins is correct
-  ASSERT_EQ(this->hist_[nid].size(), gmat.cut.Ptrs().back());
-  std::vector<GradientPairPrecise> histogram_expected(this->hist_[nid].size());
+  ASSERT_EQ(histogram.Histogram()[nid].size(), gmat.cut.Ptrs().back());
+  std::vector<GradientPairPrecise> histogram_expected(histogram.Histogram()[nid].size());
 
   // Compute the correct histogram (histogram_expected)
   const size_t num_row = fmat.Info().num_row_;
@@ -186,10 +197,10 @@ void TestBuildHistogram() {
   }
 
   // Now validate the computed histogram returned by BuildHist
-  for (size_t i = 0; i < this->hist_[nid].size(); ++i) {
+  for (size_t i = 0; i < histogram.Histogram()[nid].size(); ++i) {
     GradientPairPrecise sol = histogram_expected[i];
-    ASSERT_NEAR(sol.GetGrad(), this->hist_[nid][i].GetGrad(), kEps);
-    ASSERT_NEAR(sol.GetHess(), this->hist_[nid][i].GetHess(), kEps);
+    ASSERT_NEAR(sol.GetGrad(), histogram.Histogram()[nid][i].GetGrad(), kEps);
+    ASSERT_NEAR(sol.GetHess(), histogram.Histogram()[nid][i].GetHess(), kEps);
   }
 }
 
