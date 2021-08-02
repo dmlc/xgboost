@@ -267,9 +267,9 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       // int starting_index = std::numeric_limits<int>::max();
       // int sync_count = 0;
       // hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, p_tree);
-        this->histogram_builder_->BuildHist(
-            p_fmat, p_tree, row_set_collection_, nodes_for_explicit_hist_build_,
-            nodes_for_subtraction_trick_, gpair_h);
+      this->histogram_builder_->BuildHist(
+          p_fmat, p_tree, row_set_collection_, nodes_for_explicit_hist_build_,
+          nodes_for_subtraction_trick_, gpair_h);
       if (depth < param_.max_depth) {
 
         // BuildLocalHistograms<any_missing>(gmat, p_tree, gpair_h);

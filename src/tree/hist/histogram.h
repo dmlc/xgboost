@@ -33,7 +33,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
 
   template <bool any_missing>
   void BuildLocalHistograms(
-      DMatrix *p_fmat, RegTree *p_tree,
+      DMatrix *p_fmat,
       std::vector<ExpandEntry> nodes_for_explicit_hist_build,
       common::RowSetCollection const &row_set_collection,
       const std::vector<GradientPair> &gpair_h) {
@@ -146,10 +146,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     }
 
     if (p_fmat->IsDense()) {
-      BuildLocalHistograms<false>(p_fmat, p_tree, nodes_for_explicit_hist_build,
+      BuildLocalHistograms<false>(p_fmat, nodes_for_explicit_hist_build,
                                   row_set_collection, gpair);
     } else {
-      BuildLocalHistograms<true>(p_fmat, p_tree, nodes_for_explicit_hist_build,
+      BuildLocalHistograms<true>(p_fmat, nodes_for_explicit_hist_build,
                                  row_set_collection, gpair);
     }
     if (rabit::IsDistributed()) {
