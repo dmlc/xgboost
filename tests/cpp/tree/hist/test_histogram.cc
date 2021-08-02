@@ -49,7 +49,7 @@ TEST(CPUHistogram, AddRows) {
 template <typename GradientSumT>
 void TestSyncHist() {
   size_t constexpr kNRows = 8, kNCols = 16;
-  size_t constexpr kMaxBins = 4;
+  int32_t constexpr kMaxBins = 4;
 
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
@@ -202,7 +202,7 @@ TEST(CPUHistogram, SyncHist) {
 template <typename GradientSumT>
 void TestBuildHistogram() {
   size_t constexpr kNRows = 8, kNCols = 16;
-  size_t constexpr kMaxBins = 4;
+  int32_t constexpr kMaxBins = 4;
   auto p_fmat =
       RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
   auto const &gmat = *(p_fmat
