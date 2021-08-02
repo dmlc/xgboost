@@ -253,8 +253,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
               const int subtraction_node_id = subtraction_nodes[node].nid;
               auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
               auto sibling_hist = hist_[subtraction_node_id];
-              SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(),
-                              r.end());
+              common::SubtractionHist(this_hist, parent_hist, sibling_hist,
+                                      r.begin(), r.end());
             }
           }
         });
