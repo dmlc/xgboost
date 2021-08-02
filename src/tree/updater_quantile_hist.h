@@ -212,14 +212,6 @@ class QuantileHistMaker: public TreeUpdater {
                         DMatrix* p_fmat,
                         RegTree* p_tree);
 
-    inline void SubtractionTrick(GHistRowT self,
-                                 GHistRowT sibling,
-                                 GHistRowT parent) {
-      builder_monitor_.Start("SubtractionTrick");
-      // hist_builder_.SubtractionTrick(self, sibling, parent);
-      builder_monitor_.Stop("SubtractionTrick");
-    }
-
     bool UpdatePredictionCache(const DMatrix* data,
                                VectorView<float> out_preds);
 
