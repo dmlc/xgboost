@@ -8,6 +8,7 @@
 
 namespace xgboost {
 namespace tree {
+template <typename GradientSumT>
 void TestAddHistRows() {
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
@@ -24,7 +25,7 @@ void TestAddHistRows() {
   nodes_for_subtraction_trick_.emplace_back(5, tree.GetDepth(5), 0.0f);
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
-  HistogramBuilder<float, CPUExpandEntry> histogram_builder;
+  HistogramBuilder<GradientSumT, CPUExpandEntry> histogram_builder;
   histogram_builder.AddHistRowsLocal(&starting_index, &sync_count,
                                      nodes_for_explicit_hist_build_,
                                      nodes_for_subtraction_trick_);
@@ -41,7 +42,8 @@ void TestAddHistRows() {
 
 
 TEST(CPUHistogram, AddRows) {
-  TestAddHistRows();
+  TestAddHistRows<float>();
+  TestAddHistRows<double>();
 }
 
 template <typename GradientSumT>
@@ -55,8 +57,16 @@ void TestSyncHist() {
   int sync_count = 0;
   RegTree tree;
 
+  auto p_fmat =
+      RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
+  auto const &gmat = *(p_fmat
+                           ->GetBatches<GHistIndexMatrix>(
+                               BatchParam{GenericParameter::kCpuId, kMaxBins})
+                           .begin());
+
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
-  histogram.Reset();
+  uint32_t total_bins = gmat.cut.Ptrs().back();
+  histogram.Reset(total_bins, omp_get_max_threads());
 
   RowSetCollection row_set_collection_;
   {
@@ -73,6 +83,8 @@ void TestSyncHist() {
                              nodes_for_explicit_hist_build_,
                              nodes_for_subtraction_trick_);
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+  nodes_for_explicit_hist_build_.clear();
+  nodes_for_subtraction_trick_.clear();
 
   // level 1
   nodes_for_explicit_hist_build_.emplace_back(tree[0].LeftChild(),
@@ -119,13 +131,12 @@ void TestSyncHist() {
     target_hists[i] = histogram.Histogram()[nid];
   }
 
-  const size_t nbins = this->hist_builder_.GetNumBins();
   // set values to specific nodes hist
   std::vector<size_t> n_ids = {1, 2};
   for (size_t i : n_ids) {
     auto this_hist = histogram.Histogram()[i];
     GradientSumT *p_hist = reinterpret_cast<GradientSumT *>(this_hist.data());
-    for (size_t bin_id = 0; bin_id < 2 * nbins; ++bin_id) {
+    for (size_t bin_id = 0; bin_id < 2 * total_bins; ++bin_id) {
       p_hist[bin_id] = 2 * bin_id;
     }
   }
@@ -134,15 +145,16 @@ void TestSyncHist() {
   for (size_t i : n_ids) {
     auto this_hist = histogram.Histogram()[i];
     GradientSumT *p_hist = reinterpret_cast<GradientSumT *>(this_hist.data());
-    for (size_t bin_id = 0; bin_id < 2 * nbins; ++bin_id) {
+    for (size_t bin_id = 0; bin_id < 2 * total_bins; ++bin_id) {
       p_hist[bin_id] = bin_id;
     }
   }
 
-  this->hist_buffer_.Reset(1, n_nodes, space, target_hists);
+  histogram.Buffer().Reset(1, n_nodes, space, target_hists);
   // sync hist
-  this->hist_synchronizer_->SyncHistograms(this, starting_index, sync_count,
-                                           tree);
+  histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
+                               nodes_for_subtraction_trick_, starting_index,
+                               sync_count);
   using GHistRowT = common::GHistRow<GradientSumT>;
   auto check_hist = [](const GHistRowT parent, const GHistRowT left,
                        const GHistRowT right, size_t begin, size_t end) {
@@ -165,7 +177,7 @@ void TestSyncHist() {
     auto parent_hist = histogram.Histogram()[parent_id];
     auto sibling_hist = histogram.Histogram()[subtraction_node_id];
 
-    check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
+    check_hist(parent_hist, this_hist, sibling_hist, 0, total_bins);
     ++node_id;
   }
   node_id = 0;
@@ -177,7 +189,7 @@ void TestSyncHist() {
     auto parent_hist = histogram.Histogram()[parent_id];
     auto sibling_hist = histogram.Histogram()[subtraction_node_id];
 
-    check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
+    check_hist(parent_hist, this_hist, sibling_hist, 0, total_bins);
     ++node_id;
   }
 }

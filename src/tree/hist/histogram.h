@@ -263,6 +263,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   common::HistCollection<GradientSumT> const& Histogram() {
     return hist_;
   }
+  auto& Buffer() { return buffer_; }
 };
 }  // namespace tree
 } // namespace xgboost
