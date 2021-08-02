@@ -16,3 +16,8 @@ add_test(
   COMMAND external-memory-demo
   WORKING_DIRECTORY ${xgboost-c-examples_BINARY_DIR}
 )
+add_test(
+  NAME test_xgboost_demo_c_inference
+  COMMAND inference-demo
+  WORKING_DIRECTORY ${xgboost-c-examples_BINARY_DIR}
+)
