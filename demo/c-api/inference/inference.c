@@ -121,7 +121,7 @@ int main() {
   DMatrix Xy;
   /* Dense means "dense matrix". */
   safe_xgboost(XGDMatrixCreateFromDense(X_interface, config, &Xy));
-  /* Label must be in contigious array. */
+  /* Label must be in a contigious array. */
   safe_xgboost(XGDMatrixSetDenseInfo(Xy, "label", y->data, y->shape[0], 1));
 
   DMatrix cache[] = {Xy};
@@ -138,7 +138,7 @@ int main() {
   safe_xgboost(XGBoosterSaveModel(booster, "model.json"));
   safe_xgboost(XGBoosterFree(booster));
 
-  /* Load it back for inference.  The save and load is not required, only showed here for
+  /* Load it back for inference.  The save and load is not required, only shown here for
    * demonstration purpose. */
   safe_xgboost(XGBoosterCreate(NULL, 0, &booster));
   safe_xgboost(XGBoosterLoadModel(booster, "model.json"));
@@ -147,11 +147,11 @@ int main() {
     char const config[] =
         "{\"training\": false, \"type\": 0, "
         "\"iteration_begin\": 0, \"iteration_end\": 0, \"strict_shape\": true}";
-    /* Shape of output rediction */
+    /* Shape of output prediction */
     uint64_t const *out_shape;
     /* Dimension of output prediction */
     uint64_t out_dim;
-    /* Pointer to a contigious array, assigned in prediction function. */
+    /* Pointer to a thread local contigious array, assigned in prediction function. */
     float const *out_results;
 
     safe_xgboost(XGBoosterPredictFromDMatrix(booster, Xy, config, &out_shape,
@@ -162,7 +162,7 @@ int main() {
     }
 
     Matrix predt;
-    /* always copy output from XGBoost before calling next API function. */
+    /* Always copy output from XGBoost before calling next API function. */
     Matrix_Create(&predt, out_results, out_shape[0], out_shape[1]);
     printf("Results from prediction\n");
     Matrix_Print(predt);
@@ -175,11 +175,11 @@ int main() {
     char const config[] = "{\"type\": 0, \"iteration_begin\": 0, "
                           "\"iteration_end\": 0, \"strict_shape\": true, "
                           "\"cache_id\": 0, \"missing\": NaN}";
-    /* Shape of output rediction */
+    /* Shape of output prediction */
     uint64_t const *out_shape;
     /* Dimension of output prediction */
     uint64_t out_dim;
-    /* Pointer to a contigious array, assigned in prediction function. */
+    /* Pointer to a thread local contigious array, assigned in prediction function. */
     float const *out_results;
 
     char const *X_interface = Matrix_ArrayInterface(X);
@@ -194,7 +194,7 @@ int main() {
     }
 
     Matrix predt;
-    /* always copy output from XGBoost before calling next API function. */
+    /* Always copy output from XGBoost before calling next API function. */
     Matrix_Create(&predt, out_results, out_shape[0], out_shape[1]);
     printf("Results from inplace prediction\n");
     Matrix_Print(predt);
