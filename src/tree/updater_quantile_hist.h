@@ -88,24 +88,6 @@ using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
-template <typename GradientSumT>
-class HistSynchronizer;
-
-template <typename GradientSumT>
-class BatchHistSynchronizer;
-
-template <typename GradientSumT>
-class DistributedHistSynchronizer;
-
-template <typename GradientSumT>
-class HistRowsAdder;
-
-template <typename GradientSumT>
-class BatchHistRowsAdder;
-
-template <typename GradientSumT>
-class DistributedHistRowsAdder;
-
 // training parameters specific to this algorithm
 struct CPUHistMakerTrainParam
     : public XGBoostParameter<CPUHistMakerTrainParam> {
@@ -255,17 +237,7 @@ class QuantileHistMaker: public TreeUpdater {
     bool UpdatePredictionCache(const DMatrix* data,
                                VectorView<float> out_preds);
 
-    void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
-    void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
-
    protected:
-    friend class HistSynchronizer<GradientSumT>;
-    friend class BatchHistSynchronizer<GradientSumT>;
-    friend class DistributedHistSynchronizer<GradientSumT>;
-    friend class HistRowsAdder<GradientSumT>;
-    friend class BatchHistRowsAdder<GradientSumT>;
-    friend class DistributedHistRowsAdder<GradientSumT>;
-
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
                   const DMatrix& fmat,
@@ -290,11 +262,6 @@ class QuantileHistMaker: public TreeUpdater {
     void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
                              const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
 
-
-    template <bool any_missing>
-    void BuildLocalHistograms(const GHistIndexMatrix &gmat,
-                              RegTree *p_tree,
-                              const std::vector<GradientPair> &gpair_h);
     template <bool any_missing>
     void InitRoot(DMatrix* p_fmat,
                   RegTree *p_tree,
@@ -377,69 +344,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder<double>> double_builder_;
 
   std::unique_ptr<TreeUpdater> pruner_;
-};
-
-template <typename GradientSumT>
-class HistSynchronizer {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-
-  virtual void SyncHistograms(BuilderT* builder,
-                              int starting_index,
-                              int sync_count,
-                              RegTree *p_tree) = 0;
-  virtual ~HistSynchronizer() = default;
-};
-
-template <typename GradientSumT>
-class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void SyncHistograms(BuilderT* builder,
-                      int starting_index,
-                      int sync_count,
-                      RegTree *p_tree) override;
-};
-
-template <typename GradientSumT>
-class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-
-  void SyncHistograms(BuilderT* builder, int starting_index,
-                      int sync_count, RegTree *p_tree) override;
-
-  void ParallelSubtractionHist(BuilderT* builder,
-                               const common::BlockedSpace2d& space,
-                               const std::vector<CPUExpandEntry>& nodes,
-                               const std::vector<CPUExpandEntry>& subtraction_nodes,
-                               const RegTree * p_tree);
-};
-
-template <typename GradientSumT>
-class HistRowsAdder {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-
-  virtual void AddHistRows(BuilderT* builder, int *starting_index,
-                           int *sync_count, RegTree *p_tree) = 0;
-  virtual ~HistRowsAdder() = default;
-};
-
-template <typename GradientSumT>
-class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, int *starting_index,
-                   int *sync_count, RegTree *p_tree) override;
-};
-
-template <typename GradientSumT>
-class DistributedHistRowsAdder: public HistRowsAdder<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, int *starting_index,
-                   int *sync_count, RegTree *p_tree) override;
 };
 
 template <typename GradientSumT> class HistogramBuilder {
