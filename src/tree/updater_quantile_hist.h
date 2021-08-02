@@ -181,20 +181,6 @@ class QuantileHistMaker: public TreeUpdater {
   }
 
  protected:
-  template <typename GradientSumT>
-  friend class HistSynchronizer;
-  template <typename GradientSumT>
-  friend class BatchHistSynchronizer;
-  template <typename GradientSumT>
-  friend class DistributedHistSynchronizer;
-
-  template <typename GradientSumT>
-  friend class HistRowsAdder;
-  template <typename GradientSumT>
-  friend class BatchHistRowsAdder;
-  template <typename GradientSumT>
-  friend class DistributedHistRowsAdder;
-
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
