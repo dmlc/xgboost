@@ -301,7 +301,7 @@ class HistCollection {
   // access histogram for i-th node
   GHistRowT operator[](bst_uint nid) const {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
-    const size_t id = row_ptr_[nid];
+    const size_t id = row_ptr_.at(nid);
     CHECK_NE(id, kMax);
     GradientPairT* ptr = nullptr;
     if (contiguous_allocation_) {
