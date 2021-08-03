@@ -1024,22 +1024,37 @@ class LearnerImpl : public LearnerIO {
   Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
                  bool *out_of_bound) override {
     this->Configure();
+    CHECK_NE(this->learner_model_param_.num_feature, 0);
     CHECK_GE(begin_layer, 0);
     auto *out_impl = new LearnerImpl({});
+    out_impl->learner_model_param_ = this->learner_model_param_;
+    out_impl->generic_parameters_ = this->generic_parameters_;
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
-        this->tparam_.booster, &this->generic_parameters_,
-        &this->learner_model_param_));
+        this->tparam_.booster, &out_impl->generic_parameters_,
+        &out_impl->learner_model_param_));
     this->gbm_->Slice(begin_layer, end_layer, step, gbm.get(), out_of_bound);
     out_impl->gbm_ = std::move(gbm);
+
     Json config { Object() };
     this->SaveConfig(&config);
     out_impl->mparam_ = this->mparam_;
     out_impl->attributes_ = this->attributes_;
-    out_impl->learner_model_param_ = this->learner_model_param_;
     out_impl->SetFeatureNames(this->feature_names_);
     out_impl->SetFeatureTypes(this->feature_types_);
     out_impl->LoadConfig(config);
     out_impl->Configure();
+    CHECK_EQ(out_impl->learner_model_param_.num_feature, this->learner_model_param_.num_feature);
+    CHECK_NE(out_impl->learner_model_param_.num_feature, 0);
+
+    auto erase_attr = [&](std::string attr) {
+      // Erase invalid attributes.
+      auto attr_it = out_impl->attributes_.find(attr);
+      if (attr_it != out_impl->attributes_.cend()) {
+        out_impl->attributes_.erase(attr_it);
+      }
+    };
+    erase_attr("best_iteration");
+    erase_attr("best_score");
     return out_impl;
   }
 
