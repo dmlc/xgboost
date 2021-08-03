@@ -19,8 +19,15 @@ class TestLoadPickle:
         assert os.environ['CUDA_VISIBLE_DEVICES'] == '-1'
         bst = load_pickle(model_path)
         x, y = build_dataset()
-        test_x = xgb.DMatrix(x)
-        res = bst.predict(test_x)
+        if isinstance(bst, xgb.Booster):
+            test_x = xgb.DMatrix(x)
+            res = bst.predict(test_x)
+        else:
+            res = bst.predict(x)
+            assert len(res) == 10
+            bst.set_params(n_jobs=1)  # triggers a re-configuration
+            res = bst.predict(x)
+
         assert len(res) == 10
 
     def test_predictor_type_is_auto(self):
