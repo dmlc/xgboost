@@ -584,8 +584,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             `gpu_predictor` and pandas input are required.
 
         """
-        if isinstance(data, list):
-            raise TypeError("Input data can not be a list.")
         if group is not None and qid is not None:
             raise ValueError("Either one of `group` or `qid` should be None.")
 
@@ -2005,6 +2003,10 @@ class Booster(object):
             p_handle = ctypes.c_void_p()
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
         if validate_features:
+            if not hasattr(data, "shape"):
+                raise TypeError(
+                    "`shape` attribute is required when `validate_features` is True."
+                )
             if len(data.shape) != 1 and self.num_features() != data.shape[1]:
                 raise ValueError(
                     f"Feature shape mismatch, expected: {self.num_features()}, "

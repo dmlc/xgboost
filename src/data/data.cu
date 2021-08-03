@@ -114,10 +114,11 @@ void CopyQidImpl(ArrayInterface array_interface,
 
 namespace {
 // thrust::all_of tries to copy lambda function.
-struct AllOfOp {
-  __device__ bool operator()(float w) {
-    return w >= 0;
-  }
+struct LabelsCheck {
+  __device__ bool operator()(float y) { return ::isnan(y) || ::isinf(y); }
+};
+struct WeightsCheck {
+  __device__ bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }  // NOLINT
 };
 }  // anonymous namespace
 
@@ -142,11 +143,15 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
 
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);
+    auto ptr = labels_.ConstDevicePointer();
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + labels_.Size(),
+                                 LabelsCheck{});
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
   } else if (key == "weight") {
     CopyInfoImpl(array_interface, &weights_);
     auto ptr = weights_.ConstDevicePointer();
-    auto valid =
-        thrust::all_of(thrust::device, ptr, ptr + weights_.Size(), AllOfOp{});
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(),
+                                 WeightsCheck{});
     CHECK(valid) << "Weights must be positive values.";
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
@@ -165,9 +170,9 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   } else if (key == "feature_weights") {
     CopyInfoImpl(array_interface, &feature_weigths);
     auto d_feature_weights = feature_weigths.ConstDeviceSpan();
-    auto valid = thrust::all_of(
+    auto valid = thrust::none_of(
         thrust::device, d_feature_weights.data(),
-        d_feature_weights.data() + d_feature_weights.size(), AllOfOp{});
+        d_feature_weights.data() + d_feature_weights.size(), WeightsCheck{});
     CHECK(valid) << "Feature weight must be greater than 0.";
     return;
   } else {
