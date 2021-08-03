@@ -485,8 +485,8 @@ class EarlyStopping(TrainingCallback):
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best
         Whether training should return the best model or the last model.
-    abs_tol
-        Absolute tolerance for early stopping condition.
+    min_delta
+        Minimum absolute change in score to be qualified as an improvement.
 
         .. versionadded:: 1.5.0
 
@@ -505,22 +505,24 @@ class EarlyStopping(TrainingCallback):
             X, y = load_digits(return_X_y=True)
             clf.fit(X, y, eval_set=[(X, y)], callbacks=[es])
     """
-    def __init__(self,
-                 rounds: int,
-                 metric_name: Optional[str] = None,
-                 data_name: Optional[str] = None,
-                 maximize: Optional[bool] = None,
-                 save_best: Optional[bool] = False,
-                 abs_tol: float = 0) -> None:
+    def __init__(
+        self,
+        rounds: int,
+        metric_name: Optional[str] = None,
+        data_name: Optional[str] = None,
+        maximize: Optional[bool] = None,
+        save_best: Optional[bool] = False,
+        min_delta: float = 0.0
+    ) -> None:
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
         self.stopping_history: CallbackContainer.EvalsLog = {}
-        self._tol = abs_tol
-        if self._tol < 0:
-            raise ValueError("tolerance must be greater or equal to 0.")
+        self._min_delta = min_delta
+        if self._min_delta < 0:
+            raise ValueError("min_delta must be greater or equal to 0.")
 
         self.improve_op = None
 
@@ -539,10 +541,12 @@ class EarlyStopping(TrainingCallback):
             return x[0] if isinstance(x, tuple) else x
 
         def maximize(new, best):
-            return numpy.greater(get_s(new) + self._tol, get_s(best))
+            """New score should be greater than the old one."""
+            return numpy.greater(get_s(new) - self._min_delta, get_s(best))
 
         def minimize(new, best):
-            return numpy.greater(get_s(best) + self._tol, get_s(new))
+            """New score should be smaller than the old one."""
+            return numpy.greater(get_s(best) - self._min_delta, get_s(new))
 
         if self.maximize is None:
             # Just to be compatibility with old behavior before 1.3.  We should let
