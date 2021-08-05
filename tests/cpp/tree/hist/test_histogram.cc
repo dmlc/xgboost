@@ -9,7 +9,7 @@
 namespace xgboost {
 namespace tree {
 template <typename GradientSumT>
-void TestAddHistRows() {
+void TestAddHistRows(bool is_distributed) {
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
   int starting_index = std::numeric_limits<int>::max();
@@ -26,9 +26,16 @@ void TestAddHistRows() {
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram_builder;
-  histogram_builder.AddHistRowsLocal(&starting_index, &sync_count,
-                                     nodes_for_explicit_hist_build_,
-                                     nodes_for_subtraction_trick_);
+  if (is_distributed) {
+    histogram_builder.AddHistRowsDistributed(
+        &starting_index, &sync_count, nodes_for_explicit_hist_build_,
+        nodes_for_subtraction_trick_, &tree);
+  } else {
+    histogram_builder.AddHistRowsLocal(&starting_index, &sync_count,
+                                       nodes_for_explicit_hist_build_,
+                                       nodes_for_subtraction_trick_);
+  }
+
   ASSERT_EQ(sync_count, 2);
   ASSERT_EQ(starting_index, 3);
 
@@ -42,12 +49,15 @@ void TestAddHistRows() {
 
 
 TEST(CPUHistogram, AddRows) {
-  TestAddHistRows<float>();
-  TestAddHistRows<double>();
+  TestAddHistRows<float>(true);
+  TestAddHistRows<double>(true);
+
+  TestAddHistRows<float>(false);
+  TestAddHistRows<double>(false);
 }
 
 template <typename GradientSumT>
-void TestSyncHist() {
+void TestSyncHist(bool is_distributed) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
 
@@ -66,7 +76,7 @@ void TestSyncHist() {
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
   uint32_t total_bins = gmat.cut.Ptrs().back();
-  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads());
+  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(), is_distributed);
 
   RowSetCollection row_set_collection_;
   {
@@ -79,9 +89,16 @@ void TestSyncHist() {
 
   // level 0
   nodes_for_explicit_hist_build_.emplace_back(0, tree.GetDepth(0), 0.0f);
-  histogram.AddHistRowsLocal(&starting_index, &sync_count,
-                             nodes_for_explicit_hist_build_,
-                             nodes_for_subtraction_trick_);
+  if (is_distributed) {
+    histogram.AddHistRowsLocal(&starting_index, &sync_count,
+                               nodes_for_explicit_hist_build_,
+                               nodes_for_subtraction_trick_);
+  } else {
+    histogram.AddHistRowsDistributed(&starting_index, &sync_count,
+                                     nodes_for_explicit_hist_build_,
+                                     nodes_for_subtraction_trick_, &tree);
+  }
+
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
@@ -91,9 +108,17 @@ void TestSyncHist() {
                                               tree.GetDepth(1), 0.0f);
   nodes_for_subtraction_trick_.emplace_back(tree[0].RightChild(),
                                             tree.GetDepth(2), 0.0f);
-  histogram.AddHistRowsLocal(&starting_index, &sync_count,
-                             nodes_for_explicit_hist_build_,
-                             nodes_for_subtraction_trick_);
+
+  if (is_distributed) {
+    histogram.AddHistRowsDistributed(&starting_index, &sync_count,
+                                     nodes_for_explicit_hist_build_,
+                                     nodes_for_subtraction_trick_, &tree);
+  } else {
+    histogram.AddHistRowsLocal(&starting_index, &sync_count,
+                               nodes_for_explicit_hist_build_,
+                               nodes_for_subtraction_trick_);
+  }
+
   tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
@@ -104,9 +129,17 @@ void TestSyncHist() {
   nodes_for_subtraction_trick_.emplace_back(4, tree.GetDepth(4), 0.0f);
   nodes_for_explicit_hist_build_.emplace_back(5, tree.GetDepth(5), 0.0f);
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
-  histogram.AddHistRowsLocal(&starting_index, &sync_count,
-                             nodes_for_explicit_hist_build_,
-                             nodes_for_subtraction_trick_);
+
+  if (is_distributed) {
+    histogram.AddHistRowsDistributed(&starting_index, &sync_count,
+                                     nodes_for_explicit_hist_build_,
+                                     nodes_for_subtraction_trick_, &tree);
+  } else {
+    histogram.AddHistRowsLocal(&starting_index, &sync_count,
+                               nodes_for_explicit_hist_build_,
+                               nodes_for_subtraction_trick_);
+  }
+
 
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
   ASSERT_EQ(n_nodes, 2ul);
@@ -152,9 +185,16 @@ void TestSyncHist() {
 
   histogram.Buffer().Reset(1, n_nodes, space, target_hists);
   // sync hist
-  histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
-                               nodes_for_subtraction_trick_, starting_index,
-                               sync_count);
+  if (is_distributed) {
+    histogram.SyncHistogramDistributed(&tree, nodes_for_explicit_hist_build_,
+                                       nodes_for_subtraction_trick_,
+                                       starting_index, sync_count);
+  } else {
+    histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
+                                 nodes_for_subtraction_trick_, starting_index,
+                                 sync_count);
+  }
+
   using GHistRowT = common::GHistRow<GradientSumT>;
   auto check_hist = [](const GHistRowT parent, const GHistRowT left,
                        const GHistRowT right, size_t begin, size_t end) {
@@ -195,12 +235,15 @@ void TestSyncHist() {
 }
 
 TEST(CPUHistogram, SyncHist) {
-  TestSyncHist<float>();
-  TestSyncHist<double>();
+  TestSyncHist<float>(true);
+  TestSyncHist<double>(true);
+
+  TestSyncHist<float>(false);
+  TestSyncHist<double>(false);
 }
 
 template <typename GradientSumT>
-void TestBuildHistogram() {
+void TestBuildHistogram(bool is_distributed) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
   auto p_fmat =
@@ -218,7 +261,7 @@ void TestBuildHistogram() {
 
   bst_node_t nid = 0;
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
-  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads());
+  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(), is_distributed);
 
   RegTree tree;
 
@@ -259,8 +302,11 @@ void TestBuildHistogram() {
 }
 
 TEST(CPUHistogram, BuildHist) {
-  TestBuildHistogram<float>();
-  TestBuildHistogram<double>();
+  TestBuildHistogram<float>(true);
+  TestBuildHistogram<double>(true);
+
+  TestBuildHistogram<float>(false);
+  TestBuildHistogram<double>(false);
 }
 }  // namespace tree
 }  // namespace xgboost

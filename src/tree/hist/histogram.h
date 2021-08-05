@@ -8,6 +8,7 @@
 #include <limits>
 #include <vector>
 
+#include "rabit/rabit.h"
 #include "xgboost/tree_model.h"
 #include "../../common/hist_util.h"
 
@@ -26,9 +27,11 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   rabit::Reducer<GradientPairT, GradientPairT::Reduce> reducer_;
   int32_t max_bin_ {-1};
   int32_t n_threads_ {-1};
+  bool is_distributed_ {false};
 
  public:
-  void Reset(uint32_t total_bins, int32_t max_bin_per_feat, int32_t n_threads) {
+  void Reset(uint32_t total_bins, int32_t max_bin_per_feat, int32_t n_threads,
+             bool is_distributed = rabit::IsDistributed()) {
     CHECK_GE(n_threads, 1);
     n_threads_ = n_threads;
     CHECK_GE(max_bin_per_feat, 2);
@@ -37,6 +40,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     hist_local_worker_.Init(total_bins);
     buffer_.Init(total_bins);
     builder_ = common::GHistBuilder<GradientSumT>(n_threads, total_bins);
+    is_distributed_ = is_distributed;
   }
 
   template <bool any_missing>
@@ -141,7 +145,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
             std::vector<GradientPair> const &gpair) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
-    if (rabit::IsDistributed()) {
+    if (is_distributed_) {
       this->AddHistRowsDistributed(&starting_index, &sync_count,
                                    nodes_for_explicit_hist_build,
                                    nodes_for_subtraction_trick, p_tree);
@@ -158,7 +162,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
       BuildLocalHistograms<true>(p_fmat, nodes_for_explicit_hist_build,
                                  row_set_collection, gpair);
     }
-    if (rabit::IsDistributed()) {
+    if (is_distributed_) {
       this->SyncHistogramDistributed(p_tree, nodes_for_explicit_hist_build,
                                      nodes_for_subtraction_trick,
                                      starting_index, sync_count);
