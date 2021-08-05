@@ -243,8 +243,10 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   InitRoot<any_missing>(p_fmat, p_tree, gpair_h, &num_leaves, &expand);
   driver.Push(expand[0]);
 
+  int32_t depth = 0;
   while (!driver.IsEmpty()) {
     expand = driver.Pop();
+    depth = expand[0].depth + 1;
     std::vector<CPUExpandEntry> nodes_for_apply_split;
     std::vector<CPUExpandEntry> nodes_to_evaluate;
     nodes_for_explicit_hist_build_.clear();
@@ -256,10 +258,17 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       ApplySplit<any_missing>(nodes_for_apply_split, gmat, column_matrix, p_tree);
       SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
 
-      // FIXME: check for perf change.
-      this->histogram_builder_->BuildHist(
-          p_fmat, p_tree, row_set_collection_, nodes_for_explicit_hist_build_,
-          nodes_for_subtraction_trick_, gpair_h);
+      if (depth < param_.max_depth) {
+        this->histogram_builder_->BuildHist(
+            p_fmat, p_tree, row_set_collection_, nodes_for_explicit_hist_build_,
+            nodes_for_subtraction_trick_, gpair_h);
+      } else {
+        int starting_index = std::numeric_limits<int>::max();
+        int sync_count = 0;
+        this->histogram_builder_->AddHistRows(
+            &starting_index, &sync_count, nodes_for_explicit_hist_build_,
+            nodes_for_subtraction_trick_, p_tree);
+      }
 
       builder_monitor_.Start("EvaluateSplits");
       evaluator_->EvaluateSplits(this->histogram_builder_->Histogram(), gmat,

@@ -94,57 +94,20 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     }
   }
 
-  // Add a tree node to histogram buffer in local training environment.
-  void AddHistRowsLocal(
-      int *starting_index, int *sync_count,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
-    for (auto const &entry : nodes_for_explicit_hist_build) {
-      int nid = entry.nid;
-      this->hist_.AddHistRow(nid);
-      (*starting_index) = std::min(nid, (*starting_index));
+  void
+  AddHistRows(int *starting_index, int *sync_count,
+              std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+              std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+              RegTree *p_tree) {
+    if (is_distributed_) {
+      this->AddHistRowsDistributed(starting_index, sync_count,
+                                   nodes_for_explicit_hist_build,
+                                   nodes_for_subtraction_trick, p_tree);
+    } else {
+      this->AddHistRowsLocal(starting_index, sync_count,
+                             nodes_for_explicit_hist_build,
+                             nodes_for_subtraction_trick);
     }
-    (*sync_count) = nodes_for_explicit_hist_build.size();
-
-    for (auto const &node : nodes_for_subtraction_trick) {
-      this->hist_.AddHistRow(node.nid);
-    }
-    this->hist_.AllocateAllData();
-  }
-
-  void AddHistRowsDistributed(
-      int *starting_index, int *sync_count,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      RegTree *p_tree) {
-    const size_t explicit_size = nodes_for_explicit_hist_build.size();
-    const size_t subtaction_size = nodes_for_subtraction_trick.size();
-    std::vector<int> merged_node_ids(explicit_size + subtaction_size);
-    for (size_t i = 0; i < explicit_size; ++i) {
-      merged_node_ids[i] = nodes_for_explicit_hist_build[i].nid;
-    }
-    for (size_t i = 0; i < subtaction_size; ++i) {
-      merged_node_ids[explicit_size + i] = nodes_for_subtraction_trick[i].nid;
-    }
-    std::sort(merged_node_ids.begin(), merged_node_ids.end());
-    int n_left = 0;
-    for (auto const &nid : merged_node_ids) {
-      if ((*p_tree)[nid].IsLeftChild()) {
-        this->hist_.AddHistRow(nid);
-        (*starting_index) = std::min(nid, (*starting_index));
-        n_left++;
-        this->hist_local_worker_.AddHistRow(nid);
-      }
-    }
-    for (auto const &nid : merged_node_ids) {
-      if (!((*p_tree)[nid].IsLeftChild())) {
-        this->hist_.AddHistRow(nid);
-        this->hist_local_worker_.AddHistRow(nid);
-      }
-    }
-    this->hist_.AllocateAllData();
-    this->hist_local_worker_.AllocateAllData();
-    (*sync_count) = std::max(1, n_left);
   }
 
   /* Main entry point of this class, build histogram for tree nodes. */
@@ -155,16 +118,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
                  std::vector<GradientPair> const &gpair) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
-    if (is_distributed_) {
-      this->AddHistRowsDistributed(&starting_index, &sync_count,
-                                   nodes_for_explicit_hist_build,
-                                   nodes_for_subtraction_trick, p_tree);
-    } else {
-      this->AddHistRowsLocal(&starting_index, &sync_count,
-                             nodes_for_explicit_hist_build,
-                             nodes_for_subtraction_trick);
-    }
-
+    this->AddHistRows(&starting_index, &sync_count,
+                      nodes_for_explicit_hist_build,
+                      nodes_for_subtraction_trick, p_tree);
     if (p_fmat->IsDense()) {
       BuildLocalHistograms<false>(p_fmat, nodes_for_explicit_hist_build,
                                   row_set_collection, gpair);
@@ -286,6 +242,59 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
             }
           }
         });
+  }
+
+  // Add a tree node to histogram buffer in local training environment.
+  void AddHistRowsLocal(
+      int *starting_index, int *sync_count,
+      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+      std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
+    for (auto const &entry : nodes_for_explicit_hist_build) {
+      int nid = entry.nid;
+      this->hist_.AddHistRow(nid);
+      (*starting_index) = std::min(nid, (*starting_index));
+    }
+    (*sync_count) = nodes_for_explicit_hist_build.size();
+
+    for (auto const &node : nodes_for_subtraction_trick) {
+      this->hist_.AddHistRow(node.nid);
+    }
+    this->hist_.AllocateAllData();
+  }
+
+  void AddHistRowsDistributed(
+      int *starting_index, int *sync_count,
+      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+      std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+      RegTree *p_tree) {
+    const size_t explicit_size = nodes_for_explicit_hist_build.size();
+    const size_t subtaction_size = nodes_for_subtraction_trick.size();
+    std::vector<int> merged_node_ids(explicit_size + subtaction_size);
+    for (size_t i = 0; i < explicit_size; ++i) {
+      merged_node_ids[i] = nodes_for_explicit_hist_build[i].nid;
+    }
+    for (size_t i = 0; i < subtaction_size; ++i) {
+      merged_node_ids[explicit_size + i] = nodes_for_subtraction_trick[i].nid;
+    }
+    std::sort(merged_node_ids.begin(), merged_node_ids.end());
+    int n_left = 0;
+    for (auto const &nid : merged_node_ids) {
+      if ((*p_tree)[nid].IsLeftChild()) {
+        this->hist_.AddHistRow(nid);
+        (*starting_index) = std::min(nid, (*starting_index));
+        n_left++;
+        this->hist_local_worker_.AddHistRow(nid);
+      }
+    }
+    for (auto const &nid : merged_node_ids) {
+      if (!((*p_tree)[nid].IsLeftChild())) {
+        this->hist_.AddHistRow(nid);
+        this->hist_local_worker_.AddHistRow(nid);
+      }
+    }
+    this->hist_.AllocateAllData();
+    this->hist_local_worker_.AllocateAllData();
+    (*sync_count) = std::max(1, n_left);
   }
 };
 }      // namespace tree

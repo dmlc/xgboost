@@ -15,6 +15,15 @@ void TestAddHistRows(bool is_distributed) {
   int starting_index = std::numeric_limits<int>::max();
   int sync_count = 0;
 
+  size_t constexpr kNRows = 8, kNCols = 16;
+  int32_t constexpr kMaxBins = 4;
+  auto p_fmat =
+      RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
+  auto const &gmat = *(p_fmat
+                           ->GetBatches<GHistIndexMatrix>(
+                               BatchParam{GenericParameter::kCpuId, kMaxBins})
+                           .begin());
+
   RegTree tree;
 
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -26,15 +35,11 @@ void TestAddHistRows(bool is_distributed) {
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram_builder;
-  if (is_distributed) {
-    histogram_builder.AddHistRowsDistributed(
-        &starting_index, &sync_count, nodes_for_explicit_hist_build_,
-        nodes_for_subtraction_trick_, &tree);
-  } else {
-    histogram_builder.AddHistRowsLocal(&starting_index, &sync_count,
-                                       nodes_for_explicit_hist_build_,
-                                       nodes_for_subtraction_trick_);
-  }
+  histogram_builder.Reset(gmat.cut.TotalBins(), kMaxBins, omp_get_max_threads(),
+                          is_distributed);
+  histogram_builder.AddHistRows(&starting_index, &sync_count,
+                                nodes_for_explicit_hist_build_,
+                                nodes_for_subtraction_trick_, &tree);
 
   ASSERT_EQ(sync_count, 2);
   ASSERT_EQ(starting_index, 3);
@@ -89,15 +94,9 @@ void TestSyncHist(bool is_distributed) {
 
   // level 0
   nodes_for_explicit_hist_build_.emplace_back(0, tree.GetDepth(0), 0.0f);
-  if (is_distributed) {
-    histogram.AddHistRowsLocal(&starting_index, &sync_count,
-                               nodes_for_explicit_hist_build_,
-                               nodes_for_subtraction_trick_);
-  } else {
-    histogram.AddHistRowsDistributed(&starting_index, &sync_count,
-                                     nodes_for_explicit_hist_build_,
-                                     nodes_for_subtraction_trick_, &tree);
-  }
+  histogram.AddHistRows(&starting_index, &sync_count,
+                        nodes_for_explicit_hist_build_,
+                        nodes_for_subtraction_trick_, &tree);
 
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   nodes_for_explicit_hist_build_.clear();
@@ -109,15 +108,9 @@ void TestSyncHist(bool is_distributed) {
   nodes_for_subtraction_trick_.emplace_back(tree[0].RightChild(),
                                             tree.GetDepth(2), 0.0f);
 
-  if (is_distributed) {
-    histogram.AddHistRowsDistributed(&starting_index, &sync_count,
-                                     nodes_for_explicit_hist_build_,
-                                     nodes_for_subtraction_trick_, &tree);
-  } else {
-    histogram.AddHistRowsLocal(&starting_index, &sync_count,
-                               nodes_for_explicit_hist_build_,
-                               nodes_for_subtraction_trick_);
-  }
+  histogram.AddHistRows(&starting_index, &sync_count,
+                        nodes_for_explicit_hist_build_,
+                        nodes_for_subtraction_trick_, &tree);
 
   tree.ExpandNode(tree[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
   tree.ExpandNode(tree[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -130,16 +123,9 @@ void TestSyncHist(bool is_distributed) {
   nodes_for_explicit_hist_build_.emplace_back(5, tree.GetDepth(5), 0.0f);
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
-  if (is_distributed) {
-    histogram.AddHistRowsDistributed(&starting_index, &sync_count,
-                                     nodes_for_explicit_hist_build_,
-                                     nodes_for_subtraction_trick_, &tree);
-  } else {
-    histogram.AddHistRowsLocal(&starting_index, &sync_count,
-                               nodes_for_explicit_hist_build_,
-                               nodes_for_subtraction_trick_);
-  }
-
+  histogram.AddHistRows(&starting_index, &sync_count,
+                        nodes_for_explicit_hist_build_,
+                        nodes_for_subtraction_trick_, &tree);
 
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
   ASSERT_EQ(n_nodes, 2ul);
