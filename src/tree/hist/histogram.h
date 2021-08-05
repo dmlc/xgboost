@@ -27,9 +27,18 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   rabit::Reducer<GradientPairT, GradientPairT::Reduce> reducer_;
   int32_t max_bin_ {-1};
   int32_t n_threads_ {-1};
+  // Whether XGBoost is running in distributed environment.
   bool is_distributed_ {false};
 
  public:
+  /**
+   * \param total_bins       Total number of bins across all features
+   * \param max_bin_per_feat Maximum number of bins per feature, same as the `max_bin`
+   *                         training parameter.
+   * \param n_threads        Number of threads.
+   * \param is_distributed   Mostly used for testing to allow injecting parameters instead
+   *                         of using global rabit variable.
+   */
   void Reset(uint32_t total_bins, int32_t max_bin_per_feat, int32_t n_threads,
              bool is_distributed = rabit::IsDistributed()) {
     CHECK_GE(n_threads, 1);
@@ -44,11 +53,11 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   }
 
   template <bool any_missing>
-  void BuildLocalHistograms(
-      DMatrix *p_fmat,
-      std::vector<ExpandEntry> nodes_for_explicit_hist_build,
-      common::RowSetCollection const &row_set_collection,
-      const std::vector<GradientPair> &gpair_h) {
+  void
+  BuildLocalHistograms(DMatrix *p_fmat,
+                       std::vector<ExpandEntry> nodes_for_explicit_hist_build,
+                       common::RowSetCollection const &row_set_collection,
+                       const std::vector<GradientPair> &gpair_h) {
     const size_t n_nodes = nodes_for_explicit_hist_build.size();
 
     // create space of size (# rows in each node)
@@ -85,6 +94,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     }
   }
 
+  // Add a tree node to histogram buffer in local training environment.
   void AddHistRowsLocal(
       int *starting_index, int *sync_count,
       std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
@@ -137,12 +147,12 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     (*sync_count) = std::max(1, n_left);
   }
 
-  void
-  BuildHist(DMatrix *p_fmat, RegTree *p_tree,
-            common::RowSetCollection const &row_set_collection,
-            std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-            std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-            std::vector<GradientPair> const &gpair) {
+  /* Main entry point of this class, build histogram for tree nodes. */
+  void BuildHist(DMatrix *p_fmat, RegTree *p_tree,
+                 common::RowSetCollection const &row_set_collection,
+                 std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                 std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
+                 std::vector<GradientPair> const &gpair) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     if (is_distributed_) {
@@ -248,6 +258,14 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
         });
   }
 
+ public:
+  /* Getters for tests. */
+  common::HistCollection<GradientSumT> const& Histogram() {
+    return hist_;
+  }
+  auto& Buffer() { return buffer_; }
+
+ private:
   void
   ParallelSubtractionHist(const common::BlockedSpace2d &space,
                           const std::vector<ExpandEntry> &nodes,
@@ -269,11 +287,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
           }
         });
   }
-
-  common::HistCollection<GradientSumT> const& Histogram() {
-    return hist_;
-  }
-  auto& Buffer() { return buffer_; }
 };
 }      // namespace tree
 }      // namespace xgboost
