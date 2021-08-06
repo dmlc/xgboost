@@ -943,18 +943,15 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   const size_t thread_size = batch_size / nthread;
 
   builder.InitBudget(expected_rows, nthread);
-  std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
   dmlc::OMPException exec;
   std::atomic<bool> valid{true};
   // First-pass over the batch counting valid elements
-#pragma omp parallel num_threads(nthread)
+#pragma omp parallel num_threads(nthread) reduction(max : max_columns)
   {
     exec.Run([&]() {
       int tid = omp_get_thread_num();
       size_t begin = tid*thread_size;
       size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
-      max_columns_vector[tid].resize(1, 0);
-      uint64_t& max_columns_local = max_columns_vector[tid][0];
 
       for (size_t i = begin; i < end; ++i) {
         auto line = batch.GetLine(i);
@@ -965,8 +962,8 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
           }
           const size_t key = element.row_idx - base_rowid;
           CHECK_GE(key,  builder_base_row_offset);
-          max_columns_local =
-              std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
+          max_columns =
+              std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
 
           if (!common::CheckNAN(element.value) && element.value != missing) {
             // Adapter row index is absolute, here we want it relative to
@@ -979,9 +976,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   }
   exec.Rethrow();
   CHECK(valid) << "Input data contains `inf` or `nan`";
-  for (const auto & max : max_columns_vector) {
-    max_columns = std::max(max_columns, max[0]);
-  }
 
   builder.InitStorage();
 
