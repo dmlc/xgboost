@@ -798,8 +798,8 @@ class XGBModel(XGBModelBase):
         # error with incompatible data type.
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
-        params = self.get_params()
-        if params.get("predictor", None) is None and self.booster != "gblinear":
+        predictor = self.get_params().get("predictor", None)
+        if predictor in ("auto", None) and self.booster != "gblinear":
             return True
         return False
 
