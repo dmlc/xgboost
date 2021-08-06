@@ -250,6 +250,8 @@ if (BUILD_C_DOC)
   run_doxygen()
 endif (BUILD_C_DOC)
 
+include(CPack)
+
 include(GNUInstallDirs)
 # Install all headers.  Please note that currently the C++ headers does not form an "API".
 install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
