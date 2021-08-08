@@ -943,7 +943,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   const size_t thread_size = batch_size / nthread;
 
   builder.InitBudget(expected_rows, nthread);
-  std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
+  std::vector<std::vector<uint64_t>> max_columns_vector(nthread, std::vector<uint64_t>{0});
   dmlc::OMPException exec;
   std::atomic<bool> valid{true};
   // First-pass over the batch counting valid elements
@@ -953,7 +953,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       int tid = omp_get_thread_num();
       size_t begin = tid*thread_size;
       size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
-      max_columns_vector[tid].resize(1, 0);
       uint64_t& max_columns_local = max_columns_vector[tid][0];
 
       for (size_t i = begin; i < end; ++i) {
