@@ -21,7 +21,7 @@ void Monitor::Start(std::string const &name) {
     auto &stats = statistics_map_[name];
     stats.timer.Start();
 #if defined(XGBOOST_USE_NVTX)
-    std::string nvtx_name = label_ + "::" + name;
+    std::string nvtx_name = "xgboost::" + label_ + "::" + name;
     stats.nvtx_id = nvtxRangeStartA(nvtx_name.c_str());
 #endif  // defined(XGBOOST_USE_NVTX)
   }
