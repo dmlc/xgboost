@@ -59,8 +59,6 @@ struct Monitor {
   std::map<std::string, Statistics> statistics_map_;
   Timer self_timer_;
 
-  /*! \brief Collect time statistics across all workers. */
-  std::vector<StatMap> CollectFromOtherRanks() const;
   void PrintStatistics(StatMap const& statistics) const;
 
  public:
