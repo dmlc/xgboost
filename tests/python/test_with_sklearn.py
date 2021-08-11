@@ -1254,3 +1254,20 @@ def test_estimator_reg(estimator, check):
         estimator.set_params(**xgb.XGBRegressor().fit(X, y).get_params())
 
     check(estimator)
+
+
+def test_prediction_config():
+    reg = xgb.XGBRegressor()
+    assert reg._can_use_inplace_predict() is True
+
+    reg.set_params(predictor="cpu_predictor")
+    assert reg._can_use_inplace_predict() is False
+
+    reg.set_params(predictor="auto")
+    assert reg._can_use_inplace_predict() is True
+
+    reg.set_params(predictor=None)
+    assert reg._can_use_inplace_predict() is True
+
+    reg.set_params(booster="gblinear")
+    assert reg._can_use_inplace_predict() is False
