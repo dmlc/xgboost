@@ -230,9 +230,9 @@ struct GPUHistMakerDevice {
     // feature_groups.reset(new FeatureGroups(
     //     page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(device_id),
     //     sizeof(GradientSumT)));
-    feature_groups.reset(new FeatureGroups(
-        page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(device_id),
-        sizeof(GradientPairInt32)));
+    feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
+                                           dh::MaxSharedMemoryOptin(device_id),
+                                           sizeof(GradientPair)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT

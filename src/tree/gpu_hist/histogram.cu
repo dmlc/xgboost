@@ -113,11 +113,12 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
   FeatureGroup group = feature_groups[blockIdx.y];
+  using SharedHist = GradientPair;
   //GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
-  GradientPairInt32* smem_arr = reinterpret_cast<GradientPairInt32*>(smem);  // NOLINT
+  SharedHist *smem_arr = reinterpret_cast<SharedHist *>(smem); // NOLINT
   if (use_shared_memory_histograms) {
     //dh::BlockFill(smem_arr, group.num_bins, GradientSumT());
-    dh::BlockFill(smem_arr, group.num_bins, GradientPairInt32());
+    dh::BlockFill(smem_arr, group.num_bins, SharedHist());
     __syncthreads();
   }
   int feature_stride = matrix.is_dense ? group.num_features : matrix.row_stride;
@@ -127,24 +128,26 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
                                 idx % feature_stride];
     if (gidx != matrix.NumBins()) {
-      GradientSumT adjusted = GradientSumT(
-        d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad(),
-        d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess());
+      // GradientSumT adjusted = GradientSumT(
+      //   d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad(),
+      //   d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess());
       // GradientSumT truncated {
       //   TruncateWithRoundingFactor<T>(rounding.GetGrad(), d_gpair[ridx].GetGrad()),
       //   TruncateWithRoundingFactor<T>(rounding.GetHess(), d_gpair[ridx].GetHess()),
       // };
-      
+
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       // GradientSumT* atomic_add_ptr =
       //   use_shared_memory_histograms ? smem_arr : d_node_hist;
-      GradientPairInt32* atomic_add_ptr =
-        use_shared_memory_histograms ? smem_arr : (GradientPairInt32*)d_node_hist;
+      // GradientPairInt32* atomic_add_ptr =
+      //   use_shared_memory_histograms ? smem_arr : (GradientPairInt32*)d_node_hist;
+      SharedHist *atomic_add_ptr =
+          use_shared_memory_histograms ? smem_arr : (SharedHist *)d_node_hist;
       //GradientPairInt32* atomic_add_ptr = smem_arr;
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       //dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, adjusted);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
     }
   }
 
@@ -152,12 +155,11 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      GradientSumT sum = GradientSumT(
-        smem_arr[i].GetGrad() * adjust_rounding.GetGrad(),
-        smem_arr[i].GetHess() * adjust_rounding.GetHess());
       GradientSumT truncated{
-        TruncateWithRoundingFactor<T>(rounding.GetGrad(), sum.GetGrad()),
-        TruncateWithRoundingFactor<T>(rounding.GetHess(), sum.GetHess()),
+          TruncateWithRoundingFactor<T>(rounding.GetGrad(),
+                                        smem_arr[i].GetGrad()),
+          TruncateWithRoundingFactor<T>(rounding.GetHess(),
+                                        smem_arr[i].GetHess()),
       };
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
@@ -175,8 +177,9 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
+  using SharedHist = GradientPair;
   //size_t smem_size = sizeof(GradientSumT) * feature_groups.max_group_bins;
-  size_t smem_size = sizeof(GradientPairInt32) * feature_groups.max_group_bins;
+  size_t smem_size = sizeof(SharedHist) * feature_groups.max_group_bins;
   bool shared = smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
@@ -221,7 +224,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   GradientSumT adjust_rounding = rounding / float(1 << 30);
   GradientSumT inv_adjust_rounding = GradientSumT
     (T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
-  
+
   dh::LaunchKernel {
     dim3(grid_size, num_groups), static_cast<uint32_t>(block_threads), smem_size} (
       kernel,
