@@ -181,7 +181,8 @@ struct GPUHistMakerDevice {
   TrainParam param;
   bool deterministic_histogram;
 
-  GradientSumT histogram_rounding;
+  GradientSumT global_rounding;
+  GradientPair local_rounding;
 
   dh::PinnedMemory pinned;
 
@@ -267,9 +268,11 @@ struct GPUHistMakerDevice {
     gpair = sample.gpair;
 
     if (deterministic_histogram) {
-      histogram_rounding = CreateRoundingFactor<GradientSumT>(this->gpair);
+      global_rounding = CreateRoundingFactor<GradientSumT>(this->gpair);
+      local_rounding  = CreateRoundingFactor<GradientPair>(this->gpair);
     } else {
-      histogram_rounding = GradientSumT{0.0, 0.0};
+      global_rounding = GradientSumT{0.0, 0.0};
+      local_rounding = GradientPair{0.0f, 0.0f};
     }
 
     row_partitioner.reset();  // Release the device memory first before reallocating
@@ -378,7 +381,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(device_id),
                            feature_groups->DeviceAccessor(device_id), gpair,
-                           d_ridx, d_node_hist, histogram_rounding);
+                           d_ridx, d_node_hist, local_rounding, global_rounding);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
