@@ -66,6 +66,12 @@ struct DeviceSplitCandidate {
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
 
+  XGBOOST_DEVICE DeviceSplitCandidate(float loss_chg, DefaultDirection dir, int findex,
+                                      float fvalue, bool is_cat, GradientPair left_sum,
+                                      GradientPair right_sum)
+    : loss_chg(loss_chg), dir(dir), findex(findex), fvalue(fvalue), is_cat(is_cat),
+      left_sum(left_sum), right_sum(right_sum) {}
+
   template <typename ParamT>
   XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
                              const ParamT& param) {
