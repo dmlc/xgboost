@@ -28,12 +28,6 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_coordinate);
 
 class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
  public:
-  ~GPUCoordinateUpdater() {  // NOLINT
-    if (learner_param_->gpu_id >= 0) {
-      dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
-    }
-  }
-
   // set training parameter
   void Configure(Args const& args) override {
     tparam_.UpdateAllowUnknown(args);
