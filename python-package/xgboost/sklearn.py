@@ -4,8 +4,7 @@ import copy
 import warnings
 import json
 import os
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type, cast
-from typing import Sequence
+from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type, cast, Sequence
 import numpy as np
 
 from .core import Booster, DMatrix, XGBoostError
@@ -14,6 +13,7 @@ from .core import Metric
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
+from .typing import array_like, CuDFLike
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -24,8 +24,6 @@ from .compat import (
     XGBRegressorBase,
     XGBoostLabelEncoder,
 )
-
-array_like = Any
 
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
@@ -1049,7 +1047,7 @@ class XGBModel(XGBModelBase):
                 if _is_cupy_array(predts):
                     import cupy     # pylint: disable=import-error
                     predts = cupy.asnumpy(predts)  # ensure numpy array is used.
-                return predts
+                return cast(np.ndarray, predts)
             except TypeError:
                 # coo, csc, dt
                 pass
@@ -1329,7 +1327,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
 
-            self.classes_ = cp.unique(y.values)
+            self.classes_ = cp.unique(cast(CuDFLike, y).values)
             self.n_classes_ = len(self.classes_)
             expected_classes = cp.arange(self.n_classes_)
         elif _is_cupy_array(y):
