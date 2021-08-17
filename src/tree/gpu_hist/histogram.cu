@@ -106,7 +106,6 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* __restrict__ d_node_hist,
                                     const GradientPair* __restrict__ d_gpair,
-                                    GradientPair const local_rounding,
                                     GradientSumT const rounding,
                                     GradientSumT adjust_rounding,
                                     GradientSumT inv_adjust_rounding,
@@ -132,10 +131,10 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // GradientSumT adjusted = GradientSumT(
       //   d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad(),
       //   d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess());
-      SharedHist truncated {
-        TruncateWithRoundingFactor<SharedHist::ValueT>(local_rounding.GetGrad(), d_gpair[ridx].GetGrad()),
-        TruncateWithRoundingFactor<SharedHist::ValueT>(local_rounding.GetHess(), d_gpair[ridx].GetHess()),
-      };
+      // GradientSumT truncated {
+      //   TruncateWithRoundingFactor<T>(rounding.GetGrad(), d_gpair[ridx].GetGrad()),
+      //   TruncateWithRoundingFactor<T>(rounding.GetHess(), d_gpair[ridx].GetHess()),
+      // };
 
       // If we are not using shared memory, accumulate the values directly into
       // global memory
@@ -147,8 +146,8 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
           use_shared_memory_histograms ? smem_arr : (SharedHist *)d_node_hist;
       //GradientPairInt32* atomic_add_ptr = smem_arr;
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
-      // dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
+      //dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
     }
   }
 
@@ -173,7 +172,6 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> d_ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientPair local_rounding,
                             GradientSumT rounding) {
   // decide whether to use shared memory
   int device = 0;
@@ -231,7 +229,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
     dim3(grid_size, num_groups), static_cast<uint32_t>(block_threads), smem_size} (
       kernel,
       matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
-      local_rounding, rounding, adjust_rounding, inv_adjust_rounding,
+      rounding, adjust_rounding, inv_adjust_rounding,
       shared);
   dh::safe_cuda(cudaGetLastError());
 }
@@ -242,7 +240,6 @@ template void BuildGradientHistogram<GradientPair>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPair> histogram,
-    GradientPair local_rounding,
     GradientPair rounding);
 
 template void BuildGradientHistogram<GradientPairPrecise>(
@@ -251,7 +248,6 @@ template void BuildGradientHistogram<GradientPairPrecise>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPairPrecise> histogram,
-    GradientPair local_rounding,
     GradientPairPrecise rounding);
 
 }  // namespace tree
