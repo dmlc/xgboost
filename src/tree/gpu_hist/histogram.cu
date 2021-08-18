@@ -262,7 +262,6 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
         rounding, adjust_rounding, inv_adjust_rounding);
   };
-  std::cout << "shared:" << shared << std::endl;
   if (shared) {
     runit(SharedMemHistKernel<GradientSumT, true>);
   } else {
