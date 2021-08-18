@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/reduce.h>
@@ -237,24 +237,6 @@ struct GPUHistMakerDevice {
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
     }
-  }
-
-  // Get vector of at least n initialised streams
-  std::vector<cudaStream_t>& GetStreams(int n) {
-    if (n > streams.size()) {
-      for (auto& stream : streams) {
-        dh::safe_cuda(cudaStreamDestroy(stream));
-      }
-
-      streams.clear();
-      streams.resize(n);
-
-      for (auto& stream : streams) {
-        dh::safe_cuda(cudaStreamCreate(&stream));
-      }
-    }
-
-    return streams;
   }
 
   // Reset values for each update iteration
