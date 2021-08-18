@@ -100,7 +100,7 @@ GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
 template GradientPairPrecise CreateRoundingFactor(common::Span<GradientPair const> gpair);
 template GradientPair CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
-template <typename GradientSumT>
+template <typename GradientSumT, bool use_shared_memory_histograms>
 __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     FeatureGroupsAccessor feature_groups,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
@@ -108,15 +108,12 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     const GradientPair* __restrict__ d_gpair,
                                     GradientSumT const rounding,
                                     GradientSumT adjust_rounding,
-                                    GradientSumT inv_adjust_rounding,
-                                    bool use_shared_memory_histograms) {
+                                    GradientSumT inv_adjust_rounding) {
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
   FeatureGroup group = feature_groups[blockIdx.y];
-  //GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
-  GradientPairInt32* smem_arr = reinterpret_cast<GradientPairInt32*>(smem);  // NOLINT
+  GradientPairInt32 *smem_arr = reinterpret_cast<GradientPairInt32 *>(smem);
   if (use_shared_memory_histograms) {
-    //dh::BlockFill(smem_arr, group.num_bins, GradientSumT());
     dh::BlockFill(smem_arr, group.num_bins, GradientPairInt32());
     __syncthreads();
   }
@@ -127,24 +124,23 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
                                 idx % feature_stride];
     if (gidx != matrix.NumBins()) {
-      GradientSumT adjusted = GradientSumT(
-        d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad(),
-        d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess());
-      // GradientSumT truncated {
-      //   TruncateWithRoundingFactor<T>(rounding.GetGrad(), d_gpair[ridx].GetGrad()),
-      //   TruncateWithRoundingFactor<T>(rounding.GetHess(), d_gpair[ridx].GetHess()),
-      // };
-      
       // If we are not using shared memory, accumulate the values directly into
       // global memory
-      // GradientSumT* atomic_add_ptr =
-      //   use_shared_memory_histograms ? smem_arr : d_node_hist;
-      GradientPairInt32* atomic_add_ptr =
-        use_shared_memory_histograms ? smem_arr : (GradientPairInt32*)d_node_hist;
-      //GradientPairInt32* atomic_add_ptr = smem_arr;
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
-      //dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, adjusted);
+      if (use_shared_memory_histograms) {
+        GradientSumT adjusted = GradientSumT(
+            d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad(),
+            d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess());
+        dh::AtomicAddGpair(smem_arr + gidx, adjusted);
+      } else {
+        GradientSumT truncated{
+            TruncateWithRoundingFactor<T>(rounding.GetGrad(),
+                                          d_gpair[ridx].GetGrad()),
+            TruncateWithRoundingFactor<T>(rounding.GetHess(),
+                                          d_gpair[ridx].GetHess()),
+        };
+        dh::AtomicAddGpair(d_node_hist + gidx, truncated);
+      }
     }
   }
 
@@ -152,16 +148,54 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      GradientSumT sum = GradientSumT(
-        smem_arr[i].GetGrad() * adjust_rounding.GetGrad(),
-        smem_arr[i].GetHess() * adjust_rounding.GetHess());
+      GradientSumT sum =
+          GradientSumT(smem_arr[i].GetGrad() * adjust_rounding.GetGrad(),
+                       smem_arr[i].GetHess() * adjust_rounding.GetHess());
       GradientSumT truncated{
-        TruncateWithRoundingFactor<T>(rounding.GetGrad(), sum.GetGrad()),
-        TruncateWithRoundingFactor<T>(rounding.GetHess(), sum.GetHess()),
+          TruncateWithRoundingFactor<T>(rounding.GetGrad(), sum.GetGrad()),
+          TruncateWithRoundingFactor<T>(rounding.GetHess(), sum.GetHess()),
       };
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
   }
+}
+
+std::string floatToBinary(float f) {
+  union {
+    float f;
+    uint32_t i;
+  } u;
+  u.f = f;
+  std::string str;
+
+  for (int i = 0; i < 32; i++) {
+    if (u.i % 2) {
+      str.push_back('1');
+    }
+    else {
+      str.push_back('0');
+    }
+    u.i >>= 1;
+  }
+
+  // Reverse the string since now it's backwards
+  std::string temp(str.rbegin(), str.rend());
+  return temp;
+}
+
+struct FixedPoint {
+  uint32_t value;
+};
+
+FixedPoint XGBOOST_DEVICE Float2Fix(float input) {
+  FixedPoint v;
+  v.value = ::round(input * (1u << 30));
+  return v;
+}
+
+float FixedToFloat(FixedPoint value) {
+  auto v = float(value.value) / float(1u << 30);
+  return v;
 }
 
 template <typename GradientSumT>
@@ -181,53 +215,60 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   smem_size = shared ? smem_size : 0;
 
   // opt into maximum shared memory for the kernel if necessary
-  auto kernel = SharedMemHistKernel<GradientSumT>;
+  // auto kernel = SharedMemHistKernel<GradientSumT, shared>;
+
+  auto runit = [&](auto kernel) {
+    if (shared) {
+      dh::safe_cuda(cudaFuncSetAttribute(
+          kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+          max_shared_memory));
+    }
+
+    // determine the launch configuration
+    int min_grid_size;
+    int block_threads = 1024;
+    dh::safe_cuda(cudaOccupancyMaxPotentialBlockSize(
+        &min_grid_size, &block_threads, kernel, smem_size, 0));
+
+    int num_groups = feature_groups.NumGroups();
+    int n_mps = 0;
+    dh::safe_cuda(
+        cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
+    int n_blocks_per_mp = 0;
+    dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &n_blocks_per_mp, kernel, block_threads, smem_size));
+    unsigned grid_size = n_blocks_per_mp * n_mps;
+
+    // TODO(canonizer): This is really a hack, find a better way to distribute
+    // the data among thread blocks. The intention is to generate enough thread
+    // blocks to fill the GPU, but avoid having too many thread blocks, as this
+    // is less efficient when the number of rows is low. At least one thread
+    // block per feature group is required. The number of thread blocks:
+    // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
+    // - for num_groups_threshold <= num_groups <= num_groups_threshold *
+    // grid_size,
+    //     around grid_size * num_groups_threshold
+    // - for num_groups_threshold * grid_size <= num_groups, around num_groups
+    int num_groups_threshold = 4;
+    grid_size = common::DivRoundUp(
+        grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
+
+    using T = typename GradientSumT::ValueT;
+    GradientSumT adjust_rounding = rounding / T(1 << 30); // keep 1 for sign bit
+    GradientSumT inv_adjust_rounding = GradientSumT(
+        T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
+    dh::LaunchKernel{dim3(grid_size, num_groups),
+                     static_cast<uint32_t>(block_threads), smem_size}(
+        kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
+        rounding, adjust_rounding, inv_adjust_rounding);
+  };
+  std::cout << "shared:" << shared << std::endl;
   if (shared) {
-    dh::safe_cuda(cudaFuncSetAttribute
-                  (kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                   max_shared_memory));
+    runit(SharedMemHistKernel<GradientSumT, true>);
+  } else {
+    runit(SharedMemHistKernel<GradientSumT, false>);
   }
 
-  // determine the launch configuration
-  int min_grid_size;
-  int block_threads = 1024;
-  dh::safe_cuda(cudaOccupancyMaxPotentialBlockSize(
-      &min_grid_size, &block_threads, kernel, smem_size, 0));
-
-  int num_groups = feature_groups.NumGroups();
-  int n_mps = 0;
-  dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
-  int n_blocks_per_mp = 0;
-  dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor
-                (&n_blocks_per_mp, kernel, block_threads, smem_size));
-  unsigned grid_size = n_blocks_per_mp * n_mps;
-
-  // TODO(canonizer): This is really a hack, find a better way to distribute the
-  // data among thread blocks.
-  // The intention is to generate enough thread blocks to fill the GPU, but
-  // avoid having too many thread blocks, as this is less efficient when the
-  // number of rows is low. At least one thread block per feature group is
-  // required.
-  // The number of thread blocks:
-  // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
-  // - for num_groups_threshold <= num_groups <= num_groups_threshold * grid_size,
-  //     around grid_size * num_groups_threshold
-  // - for num_groups_threshold * grid_size <= num_groups, around num_groups
-  int num_groups_threshold = 4;
-  grid_size = common::DivRoundUp(grid_size,
-      common::DivRoundUp(num_groups, num_groups_threshold));
-
-  using T = typename GradientSumT::ValueT;
-  GradientSumT adjust_rounding = rounding / float(1 << 30);
-  GradientSumT inv_adjust_rounding = GradientSumT
-    (T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
-  
-  dh::LaunchKernel {
-    dim3(grid_size, num_groups), static_cast<uint32_t>(block_threads), smem_size} (
-      kernel,
-      matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
-      rounding, adjust_rounding, inv_adjust_rounding,
-      shared);
   dh::safe_cuda(cudaGetLastError());
 }
 
