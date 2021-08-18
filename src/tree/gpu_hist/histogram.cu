@@ -128,9 +128,9 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // global memory
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       if (use_shared_memory_histograms) {
-        GradientSumT adjusted = GradientSumT(
-            d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad(),
-            d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess());
+        auto adjusted = GradientPairInt32(
+            ::round(d_gpair[ridx].GetGrad() * inv_adjust_rounding.GetGrad()),
+            ::round(d_gpair[ridx].GetHess() * inv_adjust_rounding.GetHess()));
         dh::AtomicAddGpair(smem_arr + gidx, adjusted);
       } else {
         GradientSumT truncated{
