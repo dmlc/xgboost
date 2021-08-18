@@ -1289,7 +1289,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         X: array_like,
         ntree_limit: Optional[int] = None,
-        validate_features: bool = False,
+        validate_features: bool = True,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
