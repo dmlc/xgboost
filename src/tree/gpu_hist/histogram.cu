@@ -100,6 +100,43 @@ GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
 template GradientPairPrecise CreateRoundingFactor(common::Span<GradientPair const> gpair);
 template GradientPair CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
+using GradientPairInt64 = detail::GradientPairInternal<int64_t>;
+
+constexpr uint32_t Carry(uint32_t a, uint32_t x) {
+  return uint32_t(((x > 0) && (a > UINT_MAX - x)) ||
+                  ((x < 0) && (a < UINT32_MAX - x)));
+}
+
+__device__ void ScaledAdd(int64_t *dst, int64_t src) {
+  auto higher = reinterpret_cast<int32_t *>(dst);
+  auto lower = reinterpret_cast<uint32_t *>(higher + 1);
+
+  const uint32_t y_low = static_cast<uint32_t>(src);
+  const uint32_t y_high = static_cast<uint32_t>(src >> 32);
+
+  auto old = atomicAdd(lower, y_low);
+  auto c = Carry(old, y_low);
+  auto sig = y_high + c;
+  if (c != 0) {
+    assert(c == 1);
+    sig += 1;
+  }
+  atomicAdd(higher, sig);
+}
+
+double FixedToDouble(int64_t v) {
+  double res = double(v) / double(1ul << 62);
+  return res;
+}
+
+template <typename InputGradientT>
+XGBOOST_DEV_INLINE void AtomicAddGpair(GradientPairInt64 *dest,
+                                       const GradientPairInt64 &gpair) {
+  auto dst_ptr = reinterpret_cast<typename GradientPairInt64::ValueT *>(dest);
+  ScaledAdd(dst_ptr, gpair.GetGrad());
+  ScaledAdd(dst_ptr, gpair.GetHess());
+}
+
 template <typename GradientSumT, bool use_shared_memory_histograms>
 __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     FeatureGroupsAccessor feature_groups,
