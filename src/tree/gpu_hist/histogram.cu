@@ -16,6 +16,25 @@
 #include "../../common/device_helpers.cuh"
 
 namespace xgboost {
+using GradientPairInt64 = detail::GradientPairInternal<int64_t>;
+}
+
+namespace dh {
+XGBOOST_DEV_INLINE void AtomicAddGpair(xgboost::GradientPairInt64 *dest,
+                                       xgboost::GradientPairInt64 const &gpair) {
+  auto dst_ptr = reinterpret_cast<uint64_t *>(dest);
+  auto g = gpair.GetGrad();
+  auto h = gpair.GetHess();
+
+  auto ug = *reinterpret_cast<uint64_t*>(&g);
+  auto uh = *reinterpret_cast<uint64_t*>(&h);
+
+  atomicAdd(dst_ptr, ug);
+  atomicAdd(dst_ptr + 1, uh);
+}
+}
+
+namespace xgboost {
 namespace tree {
 // Following 2 functions are slightly modified version of fbcuda.
 
@@ -100,44 +119,7 @@ GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
 template GradientPairPrecise CreateRoundingFactor(common::Span<GradientPair const> gpair);
 template GradientPair CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
-using GradientPairInt64 = detail::GradientPairInternal<int64_t>;
-
-constexpr uint32_t Carry(uint32_t a, uint32_t x) {
-  return uint32_t(((x > 0) && (a > UINT_MAX - x)) ||
-                  ((x < 0) && (a < UINT32_MAX - x)));
-}
-
-__device__ void ScaledAdd(int64_t *dst, int64_t src) {
-  auto higher = reinterpret_cast<int32_t *>(dst);
-  auto lower = reinterpret_cast<uint32_t *>(higher + 1);
-
-  const uint32_t y_low = static_cast<uint32_t>(src);
-  const uint32_t y_high = static_cast<uint32_t>(src >> 32);
-
-  auto old = atomicAdd(lower, y_low);
-  auto c = Carry(old, y_low);
-  auto sig = y_high + c;
-  if (c != 0) {
-    assert(c == 1);
-    sig += 1;
-  }
-  atomicAdd(higher, sig);
-}
-
-double FixedToDouble(int64_t v) {
-  double res = double(v) / double(1ul << 62);
-  return res;
-}
-
-template <typename InputGradientT>
-XGBOOST_DEV_INLINE void AtomicAddGpair(GradientPairInt64 *dest,
-                                       const GradientPairInt64 &gpair) {
-  auto dst_ptr = reinterpret_cast<typename GradientPairInt64::ValueT *>(dest);
-  ScaledAdd(dst_ptr, gpair.GetGrad());
-  ScaledAdd(dst_ptr, gpair.GetHess());
-}
-
-template <typename GradientSumT, bool use_shared_memory_histograms>
+template <typename GradientSumT, typename SharedSumT, bool use_shared_memory_histograms>
 __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     FeatureGroupsAccessor feature_groups,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
@@ -149,9 +131,9 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
   FeatureGroup group = feature_groups[blockIdx.y];
-  GradientPairInt32 *smem_arr = reinterpret_cast<GradientPairInt32 *>(smem);
+  SharedSumT *smem_arr = reinterpret_cast<SharedSumT *>(smem);
   if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, group.num_bins, GradientPairInt32());
+    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
     __syncthreads();
   }
   int feature_stride = matrix.is_dense ? group.num_features : matrix.row_stride;
@@ -165,9 +147,9 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // global memory
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       if (use_shared_memory_histograms) {
-        auto adjusted = GradientPairInt32(
-            d_gpair[ridx].GetGrad() * ::round(inv_adjust_rounding.GetGrad()),
-            d_gpair[ridx].GetHess() * ::round(inv_adjust_rounding.GetHess()));
+        auto adjusted = SharedSumT(
+            T(d_gpair[ridx].GetGrad() * ::round(inv_adjust_rounding.GetGrad())),
+            T(d_gpair[ridx].GetHess() * ::round(inv_adjust_rounding.GetHess())));
         dh::AtomicAddGpair(smem_arr + gidx, adjusted);
       } else {
         GradientSumT truncated{
@@ -247,7 +229,10 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   dh::safe_cuda(cudaGetDevice(&device));
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
   //size_t smem_size = sizeof(GradientSumT) * feature_groups.max_group_bins;
-  size_t smem_size = sizeof(GradientPairInt32) * feature_groups.max_group_bins;
+  using SharedSumT =
+      std::conditional_t<sizeof(typename GradientSumT::ValueT) == 4,
+                         GradientPairInt32, GradientPairInt64>;
+  size_t smem_size = sizeof(SharedSumT) * feature_groups.max_group_bins;
   bool shared = smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
@@ -291,7 +276,9 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
 
     using T = typename GradientSumT::ValueT;
-    GradientSumT adjust_rounding = rounding / T(1 << 30); // keep 1 for sign bit
+    GradientSumT adjust_rounding =
+        rounding / T(1ul << sizeof(typename SharedSumT::ValueT) -
+                                2); // keep 1 for sign bit
     GradientSumT inv_adjust_rounding = GradientSumT(
         T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
     dh::LaunchKernel{dim3(grid_size, num_groups),
@@ -300,9 +287,9 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         rounding, adjust_rounding, inv_adjust_rounding);
   };
   if (shared) {
-    runit(SharedMemHistKernel<GradientSumT, true>);
+    runit(SharedMemHistKernel<GradientSumT, SharedSumT, true>);
   } else {
-    runit(SharedMemHistKernel<GradientSumT, false>);
+    runit(SharedMemHistKernel<GradientSumT, SharedSumT, false>);
   }
 
   dh::safe_cuda(cudaGetLastError());
