@@ -222,7 +222,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
      * Facotr for converting gradients from fixed-point to floating-point.
      */
     GradientSumT adjust_rounding =
-        rounding / T(1ul << (sizeof(typename SharedSumT::ValueT) -
+        rounding / T(1ul << (sizeof(typename SharedSumT::ValueT) * 8 -
                              2));  // keep 1 for sign bit
     /**
      * Factor for converting gradients from floating-point to fixed-point.
