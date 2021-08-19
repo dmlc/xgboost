@@ -223,7 +223,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
      */
     GradientSumT adjust_rounding =
         rounding / T(1ul << sizeof(typename SharedSumT::ValueT) -
-                                2); // keep 1 for sign bit
+                                2);  // keep 1 for sign bit
     /**
      * Factor for converting gradients from floating-point to fixed-point.
      *
@@ -233,8 +233,8 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
      */
     GradientSumT inv_adjust_rounding = GradientSumT(
         T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
-    dh::LaunchKernel{dim3(grid_size, num_groups),
-                     static_cast<uint32_t>(block_threads), smem_size}(
+    dh::LaunchKernel {dim3(grid_size, num_groups),
+                      static_cast<uint32_t>(block_threads), smem_size} (
         kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
         rounding, adjust_rounding, inv_adjust_rounding);
   };
