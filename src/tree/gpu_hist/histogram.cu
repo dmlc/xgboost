@@ -16,25 +16,6 @@
 #include "../../common/device_helpers.cuh"
 
 namespace xgboost {
-using GradientPairInt64 = detail::GradientPairInternal<int64_t>;
-}
-
-namespace dh {
-XGBOOST_DEV_INLINE void AtomicAddGpair(xgboost::GradientPairInt64 *dest,
-                                       xgboost::GradientPairInt64 const &gpair) {
-  auto dst_ptr = reinterpret_cast<uint64_t *>(dest);
-  auto g = gpair.GetGrad();
-  auto h = gpair.GetHess();
-
-  auto ug = *reinterpret_cast<uint64_t*>(&g);
-  auto uh = *reinterpret_cast<uint64_t*>(&h);
-
-  atomicAdd(dst_ptr, ug);
-  atomicAdd(dst_ptr + 1, uh);
-}
-}
-
-namespace xgboost {
 namespace tree {
 // Following 2 functions are slightly modified version of fbcuda.
 
@@ -179,44 +160,6 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
   }
 }
 
-std::string floatToBinary(float f) {
-  union {
-    float f;
-    uint32_t i;
-  } u;
-  u.f = f;
-  std::string str;
-
-  for (int i = 0; i < 32; i++) {
-    if (u.i % 2) {
-      str.push_back('1');
-    }
-    else {
-      str.push_back('0');
-    }
-    u.i >>= 1;
-  }
-
-  // Reverse the string since now it's backwards
-  std::string temp(str.rbegin(), str.rend());
-  return temp;
-}
-
-struct FixedPoint {
-  uint32_t value;
-};
-
-FixedPoint XGBOOST_DEVICE Float2Fix(float input) {
-  FixedPoint v;
-  v.value = ::round(input * (1u << 30));
-  return v;
-}
-
-float FixedToFloat(FixedPoint value) {
-  auto v = float(value.value) / float(1u << 30);
-  return v;
-}
-
 template <typename GradientSumT>
 void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             FeatureGroupsAccessor const& feature_groups,
@@ -227,17 +170,16 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   // decide whether to use shared memory
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
+  // opt into maximum shared memory for the kernel if necessary
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
-  //size_t smem_size = sizeof(GradientSumT) * feature_groups.max_group_bins;
+
   using SharedSumT =
       std::conditional_t<sizeof(typename GradientSumT::ValueT) == 4,
                          GradientPairInt32, GradientPairInt64>;
+
   size_t smem_size = sizeof(SharedSumT) * feature_groups.max_group_bins;
   bool shared = smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
-
-  // opt into maximum shared memory for the kernel if necessary
-  // auto kernel = SharedMemHistKernel<GradientSumT, shared>;
 
   auto runit = [&](auto kernel) {
     if (shared) {
@@ -276,9 +218,19 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
 
     using T = typename GradientSumT::ValueT;
+    /**
+     * Facotr for converting gradients from fixed-point to floating-point.
+     */
     GradientSumT adjust_rounding =
         rounding / T(1ul << sizeof(typename SharedSumT::ValueT) -
                                 2); // keep 1 for sign bit
+    /**
+     * Factor for converting gradients from floating-point to fixed-point.
+     *
+     *   Precision = 64 - 1 - log2(rounding)
+     *
+     * rounding is calcuated as exp(m), see the rounding factor calcuation for details.
+     */
     GradientSumT inv_adjust_rounding = GradientSumT(
         T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
     dh::LaunchKernel{dim3(grid_size, num_groups),
@@ -286,6 +238,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
         rounding, adjust_rounding, inv_adjust_rounding);
   };
+
   if (shared) {
     runit(SharedMemHistKernel<GradientSumT, SharedSumT, true>);
   } else {
