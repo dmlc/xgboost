@@ -1,7 +1,10 @@
 /*!
  * Copyright 2017-2021 XGBoost contributors
  */
+#include <cstddef>
+#include <cstdint>
 #include <thrust/device_vector.h>
+#include <vector>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/quantile.h"
@@ -191,5 +194,38 @@ TEST(DeviceHelpers, ArgSort) {
                                 thrust::greater<size_t>{}));
   ASSERT_TRUE(thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(),
                                 thrust::greater<size_t>{}));
+}
+
+__device__ void AtomicAddForTest(int64_t* a, int64_t b) {
+  auto dst = reinterpret_cast<uint64_t*>(a);
+  auto src = *reinterpret_cast<uint64_t*>(&b);
+  atomicAdd(dst, src);
+}
+
+void TestAtomicAdd() {
+  size_t n_elements = 1024;
+  dh::caching_device_vector<int64_t> result_a(1);
+  auto d_result_a = result_a.data().get();
+
+  dh::caching_device_vector<int64_t> result_b(1);
+  auto d_result_b = result_b.data().get();
+
+  std::vector<int64_t> h_inputs(n_elements);
+  for (size_t i = 0; i < h_inputs.size(); ++i) {
+    h_inputs[i] = (i % 2 == 0) ? i : -i;
+  }
+  dh::device_vector<int64_t> inputs(h_inputs);
+  auto d_inputs = inputs.data().get();
+
+  dh::LaunchN(n_elements, [=] __device__(size_t i) {
+    dh::AtomicAdd(d_result_a, d_inputs[i]);
+    AtomicAddForTest(d_result_b, d_inputs[i]);
+  });
+
+  ASSERT_EQ(result_a[0], result_b[0]);
+}
+
+TEST(AtomicAdd, Int64) {
+  TestAtomicAdd();
 }
 }  // namespace xgboost
