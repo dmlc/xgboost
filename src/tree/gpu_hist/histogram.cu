@@ -1,6 +1,7 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2021 by XGBoost Contributors
  */
+#include <cstdint>
 #include <thrust/reduce.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <algorithm>
@@ -34,7 +35,7 @@ namespace tree {
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
 template <typename T>
-XGBOOST_DEV_INLINE __host__ T CreateRoundingFactor(T max_abs, int n) {
+T CreateRoundingFactor(T max_abs, int n) {
   T delta = max_abs / (static_cast<T>(1.0) - 2 * n * std::numeric_limits<T>::epsilon());
 
   // Calculate ceil(log_2(delta)).
@@ -173,9 +174,9 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   // opt into maximum shared memory for the kernel if necessary
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
 
-  using SharedSumT =
-      std::conditional_t<sizeof(typename GradientSumT::ValueT) == 4,
-                         GradientPairInt32, GradientPairInt64>;
+  using SharedSumT = std::conditional_t<
+      std::is_same<typename GradientSumT::ValueT, float>::value,
+      GradientPairInt32, GradientPairInt64>;
 
   size_t smem_size = sizeof(SharedSumT) * feature_groups.max_group_bins;
   bool shared = smem_size <= max_shared_memory;
@@ -219,13 +220,13 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
 
     using T = typename GradientSumT::ValueT;
     /**
-     * Facotr for converting gradients from fixed-point to floating-point.
+     * Factor for converting gradients from fixed-point to floating-point.
      */
     GradientSumT adjust_rounding =
         rounding / T(1ul << (sizeof(typename SharedSumT::ValueT) * 8 -
                              2));  // keep 1 for sign bit
     /**
-     * Factor for converting gradients from floating-point to fixed-point.
+     * Factor for converting gradients from floating-point to fixed-point. For f64:
      *
      *   Precision = 64 - 1 - log2(rounding)
      *
