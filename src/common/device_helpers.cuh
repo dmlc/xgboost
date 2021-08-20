@@ -1123,7 +1123,7 @@ XGBOOST_DEV_INLINE void AtomicAdd(int64_t *dst, int64_t src) {
 
   auto old = atomicAdd(lower, x_low);
   auto carry = [](uint32_t a, uint32_t x) {
-    return uint32_t((x > 0) && (a > UINT32_MAX - x));
+    return int32_t(a > UINT32_MAX - x);
   };
   auto c = carry(old, x_low);
   auto sig = x_high + c;
