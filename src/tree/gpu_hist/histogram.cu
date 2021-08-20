@@ -1,7 +1,6 @@
 /*!
  * Copyright 2020-2021 by XGBoost Contributors
  */
-#include <cstdint>
 #include <thrust/reduce.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <algorithm>
