@@ -1111,7 +1111,7 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
  *   `reinterpret_cast`.  This function is written in a way that we try to use int32_t
  *   version on shared memory as much as possible.
  */
-void __device__ AtomicAdd(int64_t *dst, int64_t src) {
+XGBOOST_DEV_INLINE void AtomicAdd(int64_t *dst, int64_t src) {
   auto lower = reinterpret_cast<uint32_t *>(dst);
   auto higher = reinterpret_cast<int32_t *>(lower + 1);
 
