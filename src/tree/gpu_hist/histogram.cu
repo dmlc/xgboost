@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2020-2021 by XGBoost Contributors
  */
 #include <cstdint>
 #include <thrust/reduce.h>

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
@@ -101,8 +101,6 @@ struct IsSorted {
 }  // namespace
 
 namespace xgboost {
-namespace common {
-
 void TestSegmentedUniqueRegression(std::vector<SketchEntry> values, size_t n_duplicated) {
   std::vector<bst_feature_t> segments{0, static_cast<bst_feature_t>(values.size())};
 
@@ -194,5 +192,4 @@ TEST(DeviceHelpers, ArgSort) {
   ASSERT_TRUE(thrust::is_sorted(sorted_idx.begin() + 10, sorted_idx.end(),
                                 thrust::greater<size_t>{}));
 }
-}  // namespace common
 }  // namespace xgboost
