@@ -1105,9 +1105,9 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
 }
 
 /**
- * \brief An atomicAdd designed for gradient pair, for normal.
+ * \brief An atomicAdd designed for gradient pair.
  *
- *   For normal int64_t atomic add, one should just use the version of uint64_t with
+ *   For normal int64_t atomic add, one should just use the uint64_t version with
  *   `reinterpret_cast`.  This function is written in a way that we try to use int32_t
  *   version on shared memory as much as possible.
  */
