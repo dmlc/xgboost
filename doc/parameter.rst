@@ -245,16 +245,6 @@ Additional parameters for ``hist`` and ``gpu_hist`` tree method
 
   - Use single precision to build histograms instead of double precision.
 
-Additional parameters for ``gpu_hist`` tree method
-==================================================
-
-* ``deterministic_histogram``, [default=``true``]
-
-  - Build histogram on GPU deterministically.  Histogram building is not deterministic due
-    to the non-associative aspect of floating point summation.  We employ a pre-rounding
-    routine to mitigate the issue, which may lead to slightly lower accuracy.  Set to
-    ``false`` to disable it.
-
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
 

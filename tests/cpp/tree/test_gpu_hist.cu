@@ -80,8 +80,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param, kNCols, kNCols,
-                                         true, batch_param);
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param,
+                                         kNCols, kNCols, batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -93,14 +93,18 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-
-
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistogram(0);
   maker.gpair = gpair.DeviceSpan();
+  maker.histogram_rounding = CreateRoundingFactor<GradientSumT>(maker.gpair);;
 
-  maker.BuildHist(0);
-  DeviceHistogram<GradientSumT> d_hist = maker.hist;
+  BuildGradientHistogram(
+      page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
+      gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
+      maker.hist.GetNodeHistogram(0), maker.histogram_rounding);
+
+  // maker.BuildHist(0);
+  DeviceHistogram<GradientSumT>& d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
@@ -158,7 +162,8 @@ TEST(GpuHist, ApplySplit) {
     HostDeviceVector<FeatureType> feature_types(10, FeatureType::kCategorical);
     feature_types.SetDevice(bparam.gpu_id);
     tree::GPUHistMakerDevice<GradientPairPrecise> updater(
-        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols, true, bparam);
+        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols,
+        bparam);
     updater.ApplySplit(candidate, &tree);
 
     ASSERT_EQ(tree.GetSplitTypes().size(), 3);
@@ -217,8 +222,8 @@ TEST(GpuHist, EvaluateRootSplit) {
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientPairPrecise>
-      maker(0, page.get(), {}, kNRows, param, kNCols, kNCols, true, batch_param);
+  GPUHistMakerDevice<GradientPairPrecise> maker(
+      0, page.get(), {}, kNRows, param, kNCols, kNCols, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {};
 
