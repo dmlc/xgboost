@@ -196,12 +196,6 @@ TEST(DeviceHelpers, ArgSort) {
                                 thrust::greater<size_t>{}));
 }
 
-__device__ void AtomicAddForTest(int64_t* a, int64_t b) {
-  auto dst = reinterpret_cast<uint64_t*>(a);
-  auto src = *reinterpret_cast<uint64_t*>(&b);
-  atomicAdd(dst, src);
-}
-
 void TestAtomicAdd() {
   size_t n_elements = 1024;
   dh::caching_device_vector<int64_t> result_a(1);
@@ -218,8 +212,8 @@ void TestAtomicAdd() {
   auto d_inputs = inputs.data().get();
 
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
-    dh::AtomicAdd(d_result_a, d_inputs[i]);
-    AtomicAddForTest(d_result_b, d_inputs[i]);
+    dh::AtomicAdd64As32(d_result_a, d_inputs[i]);
+    atomicAdd(d_result_b, d_inputs[i]);
   });
 
   ASSERT_EQ(result_a[0], result_b[0]);

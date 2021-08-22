@@ -98,10 +98,17 @@ template <typename T = size_t,
           std::enable_if_t<std::is_same<size_t, T>::value &&
                            !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
               nullptr>
-T __device__ __forceinline__ atomicAdd(T *addr, T v) {  // NOLINT
+T XGBOOST_DEV_INLINE atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
   return static_cast<T>(ret);
+}
+
+int64_t XGBOOST_DEV_INLINE atomicAdd(int64_t* dst, int64_t src) {  // NOLINT
+  uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
+  uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
+  uint64_t ret = ::atomicAdd(u_dst, u_src);
+  return *reinterpret_cast<int64_t*>(&ret);
 }
 
 namespace dh {
@@ -1111,7 +1118,7 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
  *   `reinterpret_cast`.  This function is written in a way that we try to use int32_t
  *   version on shared memory as much as possible.
  */
-XGBOOST_DEV_INLINE void AtomicAdd(int64_t *dst, int64_t src) {
+XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
   auto lower = reinterpret_cast<uint32_t *>(dst);
   auto higher = reinterpret_cast<int32_t *>(lower + 1);
 
@@ -1141,8 +1148,12 @@ AtomicAddGpair(xgboost::GradientPairInt64 *dest,
   auto g = gpair.GetGrad();
   auto h = gpair.GetHess();
 
-  AtomicAdd(dst_ptr, g);
-  AtomicAdd(dst_ptr + 1, h);
+  if (g < 0) {
+    atomicAdd(dst_ptr, g);
+  } else {
+    AtomicAdd64As32(dst_ptr, g);
+  }
+  AtomicAdd64As32(dst_ptr + 1, h);
 }
 
 XGBOOST_DEV_INLINE void
@@ -1150,8 +1161,8 @@ AtomicAddGpair(xgboost::GradientPairInt32 *dest,
                xgboost::GradientPairInt32 const &gpair) {
   auto dst_ptr = reinterpret_cast<typename xgboost::GradientPairInt32::ValueT*>(dest);
 
-  atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
+  ::atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
+  ::atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
 }
 
 // Thrust version of this function causes error on Windows
