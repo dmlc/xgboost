@@ -148,12 +148,11 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      GradientSumT sum =
-          GradientSumT(smem_arr[i].GetGrad() * adjust_rounding.GetGrad(),
-                       smem_arr[i].GetHess() * adjust_rounding.GetHess());
+      auto g = smem_arr[i].GetGrad() * adjust_rounding.GetGrad();
+      auto h = smem_arr[i].GetHess() * adjust_rounding.GetHess();
       GradientSumT truncated{
-          TruncateWithRoundingFactor<T>(rounding.GetGrad(), sum.GetGrad()),
-          TruncateWithRoundingFactor<T>(rounding.GetHess(), sum.GetHess()),
+          TruncateWithRoundingFactor<T>(rounding.GetGrad(), g),
+          TruncateWithRoundingFactor<T>(rounding.GetHess(), h),
       };
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
