@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2021 by XGBoost Contributors
  */
 #ifndef HISTOGRAM_CUH_
 #define HISTOGRAM_CUH_
