@@ -1,8 +1,13 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <vector>
 
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <thrust/sequence.h>
+
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 
