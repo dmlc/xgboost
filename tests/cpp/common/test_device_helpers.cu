@@ -200,9 +200,11 @@ void TestAtomicAdd() {
   size_t n_elements = 1024;
   dh::caching_device_vector<int64_t> result_a(1);
   auto d_result_a = result_a.data().get();
+  thrust::fill(result_a.begin(), result_a.end(), 0);
 
   dh::caching_device_vector<int64_t> result_b(1);
   auto d_result_b = result_b.data().get();
+  thrust::fill(result_b.begin(), result_b.end(), 0);
 
   std::vector<int64_t> h_inputs(n_elements);
   for (size_t i = 0; i < h_inputs.size(); ++i) {
