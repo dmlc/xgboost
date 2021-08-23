@@ -103,7 +103,6 @@ void TestBuildHist(bool use_shared_memory_histograms) {
       gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
       maker.hist.GetNodeHistogram(0), maker.histogram_rounding);
 
-  // maker.BuildHist(0);
   DeviceHistogram<GradientSumT>& d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
@@ -119,6 +118,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   std::cout << std::fixed;
   for (size_t i = 0; i < h_result.size(); ++i) {
+    ASSERT_FALSE(std::isnan(h_result[i].GetGrad()));
     EXPECT_NEAR(h_result[i].GetGrad(), solution[i].GetGrad(), 0.01f);
     EXPECT_NEAR(h_result[i].GetHess(), solution[i].GetHess(), 0.01f);
   }
