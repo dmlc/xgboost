@@ -1134,8 +1134,6 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
   };
   auto c = carry(old, x_low);
   auto sig = x_high + c;
-  // This is mostly caused by negative gradient (hessian is positive).
-  // TODO(jiamingy): Is there a way to avoid it?
   if (sig != 0) {
     atomicAdd(higher, sig);
   }
