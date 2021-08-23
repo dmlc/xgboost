@@ -165,7 +165,8 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> d_ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding) {
+                            GradientSumT rounding,
+                            bool force_global_memory) {
   // decide whether to use shared memory
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
@@ -177,7 +178,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
       GradientPairInt32, GradientPairInt64>;
 
   size_t smem_size = sizeof(SharedSumT) * feature_groups.max_group_bins;
-  bool shared = smem_size <= max_shared_memory;
+  bool shared = !force_global_memory && smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
   auto runit = [&](auto kernel) {
@@ -256,7 +257,8 @@ template void BuildGradientHistogram<GradientPair>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPair> histogram,
-    GradientPair rounding);
+    GradientPair rounding,
+    bool force_global_memory);
 
 template void BuildGradientHistogram<GradientPairPrecise>(
     EllpackDeviceAccessor const& matrix,
@@ -264,7 +266,8 @@ template void BuildGradientHistogram<GradientPairPrecise>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPairPrecise> histogram,
-    GradientPairPrecise rounding);
+    GradientPairPrecise rounding,
+    bool force_global_memory);
 
 }  // namespace tree
 }  // namespace xgboost

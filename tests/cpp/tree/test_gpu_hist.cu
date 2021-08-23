@@ -102,7 +102,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   BuildGradientHistogram(
       page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
       gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
-      maker.hist.GetNodeHistogram(0), maker.histogram_rounding);
+      maker.hist.GetNodeHistogram(0), maker.histogram_rounding,
+      !use_shared_memory_histograms);
 
   DeviceHistogram<GradientSumT>& d_hist = maker.hist;
 
