@@ -224,7 +224,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
      */
     GradientSumT to_floating_point =
         rounding / T(IntT(1) << (sizeof(typename SharedSumT::ValueT) * 8 -
-                                 2)); // keep 1 for sign bit
+                                 2));  // keep 1 for sign bit
     /**
      * Factor for converting gradients from floating-point to fixed-point. For
      * f64:

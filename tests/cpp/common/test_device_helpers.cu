@@ -196,6 +196,16 @@ TEST(DeviceHelpers, ArgSort) {
                                 thrust::greater<size_t>{}));
 }
 
+namespace {
+// Atomic add as type cast for test.
+XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t *dst, int64_t src) {  // NOLINT
+  uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
+  uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
+  uint64_t ret = ::atomicAdd(u_dst, u_src);
+  return *reinterpret_cast<int64_t*>(&ret);
+}
+}
+
 void TestAtomicAdd() {
   size_t n_elements = 1024;
   dh::caching_device_vector<int64_t> result_a(1);

@@ -53,27 +53,6 @@
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
-
-#else  // In device code and CUDA < 600
-__device__ __forceinline__ double atomicAdd(double* address, double val) {  // NOLINT
-  unsigned long long int* address_as_ull =
-      (unsigned long long int*)address;                   // NOLINT
-  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
-
-  do {
-    assumed = old;
-    old = atomicCAS(address_as_ull, assumed,
-                    __double_as_longlong(val + __longlong_as_double(assumed)));
-
-    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
-    // NaN)
-  } while (assumed != old);
-
-  return __longlong_as_double(old);
-}
-#endif
-
 namespace dh {
 namespace detail {
 template <size_t size>
@@ -103,14 +82,6 @@ XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
   return static_cast<T>(ret);
 }
-
-XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t *dst, int64_t src) {  // NOLINT
-  uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
-  uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
-  uint64_t ret = ::atomicAdd(u_dst, u_src);
-  return *reinterpret_cast<int64_t*>(&ret);
-}
-
 namespace dh {
 
 #ifdef XGBOOST_USE_NCCL
@@ -1113,10 +1084,6 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
 
 /**
  * \brief An atomicAdd designed for gradient pair.
- *
- *   For normal int64_t atomic add, one should just use the uint64_t version with
- *   `reinterpret_cast`.  This function is written in a way that we try to use int32_t
- *   version on shared memory as much as possible.
  */
 XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
   auto lower = reinterpret_cast<uint32_t *>(dst);
@@ -1146,11 +1113,7 @@ AtomicAddGpair(xgboost::GradientPairInt64 *dest,
   auto g = gpair.GetGrad();
   auto h = gpair.GetHess();
 
-  if (g < 0) {
-    atomicAdd(dst_ptr, g);
-  } else {
-    AtomicAdd64As32(dst_ptr, g);
-  }
+  AtomicAdd64As32(dst_ptr, g);
   AtomicAdd64As32(dst_ptr + 1, h);
 }
 
