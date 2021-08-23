@@ -98,13 +98,13 @@ template <typename T = size_t,
           std::enable_if_t<std::is_same<size_t, T>::value &&
                            !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
               nullptr>
-T XGBOOST_DEV_INLINE atomicAdd(T *addr, T v) {  // NOLINT
+XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
   return static_cast<T>(ret);
 }
 
-int64_t XGBOOST_DEV_INLINE atomicAdd(int64_t* dst, int64_t src) {  // NOLINT
+XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t *dst, int64_t src) {  // NOLINT
   uint64_t* u_dst = reinterpret_cast<uint64_t*>(dst);
   uint64_t u_src = *reinterpret_cast<uint64_t*>(&src);
   uint64_t ret = ::atomicAdd(u_dst, u_src);
