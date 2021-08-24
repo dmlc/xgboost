@@ -40,7 +40,6 @@ class GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
-  DMatrix* p_fmat;
   /*! \brief max_bin for each feature. */
   size_t max_num_bins;
   /*! \brief base row index for current page (used by external memory) */
@@ -119,8 +118,12 @@ class GHistIndexMatrix {
     return row_ptr.empty() ? 0 : row_ptr.size() - 1;
   }
 
+  bool ReadColumnPage(dmlc::SeekStream* fi);
+  size_t WriteColumnPage(dmlc::Stream* fo) const;
+
+  common::ColumnMatrix const& Transpose() const;
+
  private:
-  // unused at the moment: https://github.com/dmlc/xgboost/pull/7531
   std::unique_ptr<common::ColumnMatrix> columns_;
   std::vector<size_t> hit_count_tloc_;
   bool isDense_;

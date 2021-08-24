@@ -94,7 +94,7 @@ class GloablApproxBuilder {
     rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double *>(&root_sum), 2);
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
-    auto space = this->ConstructHistSpace(nodes);
+    auto space = ConstructHistSpace(partitioner_, nodes);
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(), nodes,
                                    {}, gpair);
@@ -123,25 +123,6 @@ class GloablApproxBuilder {
     monitor_->Stop(__func__);
   }
 
-  // Construct a work space for building histogram.  Eventually we should move this
-  // function into histogram builder once hist tree method supports external memory.
-  common::BlockedSpace2d ConstructHistSpace(
-      std::vector<CPUExpandEntry> const &nodes_to_build) const {
-    std::vector<size_t> partition_size(nodes_to_build.size(), 0);
-    for (auto const &partition : partitioner_) {
-      size_t k = 0;
-      for (auto node : nodes_to_build) {
-        auto n_rows_in_node = partition.Partitions()[node.nid].Size();
-        partition_size[k] = std::max(partition_size[k], n_rows_in_node);
-        k++;
-      }
-    }
-    common::BlockedSpace2d space{nodes_to_build.size(),
-                                 [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; },
-                                 256};
-    return space;
-  }
-
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
                       std::vector<CPUExpandEntry> const &valid_candidates,
                       std::vector<GradientPair> const &gpair, common::Span<float> hess) {
@@ -164,7 +145,7 @@ class GloablApproxBuilder {
     }
 
     size_t i = 0;
-    auto space = this->ConstructHistSpace(nodes_to_build);
+    auto space = ConstructHistSpace(partitioner_, nodes_to_build);
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(),
                                    nodes_to_build, nodes_to_sub, gpair);

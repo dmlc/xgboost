@@ -26,9 +26,8 @@ class QuantileHistMock : public QuantileHistMaker {
   struct BuilderMock : public QuantileHistMaker::Builder<GradientSumT> {
     using RealImpl = QuantileHistMaker::Builder<GradientSumT>;
 
-    BuilderMock(const TrainParam &param, std::unique_ptr<TreeUpdater> pruner,
-                DMatrix const *fmat, GenericParameter const* ctx)
-        : RealImpl(1, param, std::move(pruner), fmat, ObjInfo{ObjInfo::kRegression}, ctx) {}
+    BuilderMock(const TrainParam& param, DMatrix const* fmat, GenericParameter const* ctx)
+        : RealImpl(1, param, fmat, ObjInfo{ObjInfo::kRegression}, ctx) {}
 
    public:
     void TestInitData(const GHistIndexMatrix& gmat,
@@ -112,10 +111,10 @@ class QuantileHistMock : public QuantileHistMaker {
     dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
     ctx_.UpdateAllowUnknown(Args{});
     if (single_precision_histogram) {
-      float_builder_.reset(new BuilderMock<float>(param_, std::move(pruner_), dmat_.get(), &ctx_));
+      float_builder_.reset(new BuilderMock<float>(param_, dmat_.get(), &ctx_));
     } else {
       double_builder_.reset(
-          new BuilderMock<double>(param_, std::move(pruner_), dmat_.get(), &ctx_));
+          new BuilderMock<double>(param_, dmat_.get(), &ctx_));
     }
   }
   ~QuantileHistMock() override = default;
@@ -124,7 +123,8 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     int32_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat{dmat_.get(), kMaxBins, 0.0f, false, common::OmpGetNumThreads(0)};
+    GHistIndexMatrix gmat{dmat_.get(), kMaxBins, param_.sparse_threshold, false,
+                          common::OmpGetNumThreads(0)};
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -163,45 +163,44 @@ TEST(QuantileHist, Partitioner) {
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
 
-  auto grad = GenerateRandomGradients(n_samples);
-  std::vector<float> hess(grad.Size());
-  std::transform(grad.HostVector().cbegin(), grad.HostVector().cend(), hess.begin(),
-                 [](auto gpair) { return gpair.GetHess(); });
+  auto cuts = common::SketchOnDMatrix(Xy.get(), 64, ctx.Threads());
 
-  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, 0.5})) {
+  for (auto const& page : Xy->GetBatches<SparsePage>()) {
+    GHistIndexMatrix gmat;
+    gmat.Init(page, {}, cuts, 64, false, 0.5, ctx.Threads());
     bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
-    column_indices.Init(page, 0.5, ctx.Threads());
+    column_indices.Init(page, gmat, 0.5, ctx.Threads());
     {
-      auto min_value = page.cut.MinValues()[split_ind];
+      auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree;
       HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
       GetSplit(&tree, min_value, &candidates);
-      partitioner.UpdatePosition<false, true>(&ctx, page, column_indices, candidates, &tree);
+      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
       ASSERT_EQ(partitioner[1].Size(), 0);
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
       HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
-      auto ptr = page.cut.Ptrs()[split_ind + 1];
-      float split_value = page.cut.Values().at(ptr / 2);
+      auto ptr = gmat.cut.Ptrs()[split_ind + 1];
+      float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree;
       GetSplit(&tree, split_value, &candidates);
       auto left_nidx = tree[RegTree::kRoot].LeftChild();
-      partitioner.UpdatePosition<false, true>(&ctx, page, column_indices, candidates, &tree);
+      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
 
       auto elem = partitioner[left_nidx];
       ASSERT_LT(elem.Size(), n_samples);
       ASSERT_GT(elem.Size(), 1);
       for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = page.cut.Values().at(page.index[*it]);
+        auto value = gmat.cut.Values().at(gmat.index[*it]);
         ASSERT_LE(value, split_value);
       }
       auto right_nidx = tree[RegTree::kRoot].RightChild();
       elem = partitioner[right_nidx];
       for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = page.cut.Values().at(page.index[*it]);
+        auto value = gmat.cut.Values().at(gmat.index[*it]);
         ASSERT_GT(value, split_value) << *it;
       }
     }

@@ -1313,9 +1313,12 @@ class TestWithDask:
             pytest.skip("Skipping dask tests on Windows")
 
         exe: Optional[str] = None
-        for possible_path in {'./testxgboost', './build/testxgboost',
-                              '../build/cpubuild/testxgboost',
-                              '../cpu-build/testxgboost'}:
+        for possible_path in {
+            './testxgboost',
+            './build/testxgboost',
+            '../build/testxgboost',
+            "../build/cpubuild/testxgboost",
+        }:
             if os.path.exists(possible_path):
                 exe = possible_path
         if exe is None:

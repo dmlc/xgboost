@@ -7,6 +7,13 @@ namespace xgboost {
 namespace data {
 void GradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
+    if (count_ != 0 && !sync_) {
+      // source is initialized to be the 0th page during construction, so when count_ is 0
+      // there's no need to increment the source.
+      ++(*source_);
+    }
+    // This is not read from cache so we still need it to be synced with sparse page source.
+    CHECK_EQ(count_, source_->Iter());
     auto const& csr = source_->Page();
     this->page_.reset(new GHistIndexMatrix());
     CHECK_NE(cuts_.Values().size(), 0);
