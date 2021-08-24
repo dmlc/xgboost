@@ -158,9 +158,6 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam& param) {
   CHECK_GE(param.max_bin, 2);
-  auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
-  this->InitializeSparsePage();
-
   if (param.hess.empty()) {
     // hist method doesn't support full external memory implementation, so we concatenate
     // all index here.
@@ -175,6 +172,8 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
     return BatchSet<GHistIndexMatrix>(begin_iter);
   }
 
+  auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
+  this->InitializeSparsePage();
   if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{})) {
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
