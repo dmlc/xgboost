@@ -214,9 +214,14 @@ struct BatchParam {
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
   int max_bin{0};
+  /*! \brief Gradient pairs, used for sketching with future approx implementation. */
+  common::Span<GradientPair> gpair;
+
   BatchParam() = default;
   BatchParam(int32_t device, int32_t max_bin)
       : gpu_id{device}, max_bin{max_bin} {}
+  BatchParam(int32_t device, int32_t max_bin, common::Span<GradientPair> gpair)
+      : gpu_id{device}, max_bin{max_bin}, gpair{gpair} {}
 
   bool operator!=(const BatchParam& other) const {
     return gpu_id != other.gpu_id || max_bin != other.max_bin;
