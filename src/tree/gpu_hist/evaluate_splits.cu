@@ -21,7 +21,7 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
 
   // Handle empty (trivial) input
   if (l_n_features == 0 && r_n_features == 0) {
-    dh::LaunchN(out_splits.size(), [=]XGBOOST_DEVICE(std::size_t idx) {
+    dh::LaunchN(out_splits.size(), [=]__device__(std::size_t idx) {
       out_splits[idx] = DeviceSplitCandidate{};
     });
     return;
@@ -108,11 +108,6 @@ EvaluateSplitsFindOptimalSplitsViaScan(
       WriteScan<GradientSumT>{left, right, evaluator, dh::ToSpan(out_scan)});
 
   auto scan_op = ScanOp<GradientSumT>{left, right, evaluator};
-  /*auto scan_op = []__device__(
-      thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>> lhs,
-      thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>> rhs) {
-    return lhs;
-  };*/
   std::size_t n_temp_bytes = 0;
   cub::DeviceScan::InclusiveScan(nullptr, n_temp_bytes, scan_input_iter, scan_out_iter,
                                  scan_op, size);
@@ -124,7 +119,7 @@ EvaluateSplitsFindOptimalSplitsViaScan(
 
 template <typename GradientSumT>
 template <bool forward>
-XGBOOST_DEVICE ScanElem<GradientSumT>
+__noinline__ __device__ ScanElem<GradientSumT>
 ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
     EvaluateSplitsHistEntry entry,
     EvaluateSplitInputs<GradientSumT> split_input) {
@@ -170,7 +165,7 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
 }
 
 template <typename GradientSumT>
-XGBOOST_DEVICE thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>
+__noinline__ __device__ thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>
 ScanValueOp<GradientSumT>::operator() (
     thrust::tuple<EvaluateSplitsHistEntry, EvaluateSplitsHistEntry> entry_tup) {
   const auto& fw = thrust::get<0>(entry_tup);
@@ -187,7 +182,7 @@ ScanValueOp<GradientSumT>::operator() (
 
 template <typename GradientSumT>
 template <bool forward>
-XGBOOST_DEVICE ScanElem<GradientSumT>
+__noinline__ __device__ ScanElem<GradientSumT>
 ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs) {
   ScanElem<GradientSumT> ret;
   ret = rhs;
@@ -236,7 +231,7 @@ ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rh
 }
 
 template <typename GradientSumT>
-XGBOOST_DEVICE thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>
+__noinline__ __device__ thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>
 ScanOp<GradientSumT>::operator() (
     thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>> lhs,
     thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>> rhs) {
@@ -250,7 +245,7 @@ ScanOp<GradientSumT>::operator() (
 template <typename GradientSumT>
 template <bool forward>
 void
-XGBOOST_DEVICE WriteScan<GradientSumT>::DoIt(ScanElem<GradientSumT> e) {
+__noinline__ __device__ WriteScan<GradientSumT>::DoIt(ScanElem<GradientSumT> e) {
   EvaluateSplitInputs<GradientSumT>& split_input =
       (e.indicator == ChildNodeIndicator::kLeftChild) ? left : right;
   std::size_t offset = 0;
@@ -268,7 +263,7 @@ XGBOOST_DEVICE WriteScan<GradientSumT>::DoIt(ScanElem<GradientSumT> e) {
 
 template <typename GradientSumT>
 thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>
-XGBOOST_DEVICE WriteScan<GradientSumT>::operator() (
+__noinline__ __device__ WriteScan<GradientSumT>::operator() (
     thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>> e) {
   const auto& fw = thrust::get<0>(e);
   const auto& bw = thrust::get<1>(e);
@@ -278,7 +273,7 @@ XGBOOST_DEVICE WriteScan<GradientSumT>::operator() (
 }
 
 template <typename GradientSumT>
-XGBOOST_DEVICE bool
+__noinline__ __device__ bool
 ScanComputedElem<GradientSumT>::Update(
     GradientSumT left_sum_in,
     GradientSumT right_sum_in,

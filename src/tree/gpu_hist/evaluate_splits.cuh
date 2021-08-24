@@ -46,7 +46,7 @@ struct ScanComputedElem {
   float best_fvalue{std::numeric_limits<float>::quiet_NaN()};
   DefaultDirection best_direction{DefaultDirection::kLeftDir};
 
-  XGBOOST_DEVICE bool Update(
+  __noinline__ __device__ bool Update(
       GradientSumT left_sum_in,
       GradientSumT right_sum_in,
       GradientSumT parent_sum_in,
@@ -78,10 +78,10 @@ struct ScanValueOp {
   using ScanElemT = ScanElem<GradientSumT>;
 
   template <bool forward>
-  XGBOOST_DEVICE ScanElemT MapEvaluateSplitsHistEntryToScanElem(
+  __noinline__ __device__ ScanElemT MapEvaluateSplitsHistEntryToScanElem(
       EvaluateSplitsHistEntry entry,
       EvaluateSplitInputs<GradientSumT> split_input);
-  XGBOOST_DEVICE thrust::tuple<ScanElemT, ScanElemT>
+  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
   operator() (thrust::tuple<EvaluateSplitsHistEntry, EvaluateSplitsHistEntry> entry_tup);
 };
 
@@ -93,9 +93,9 @@ struct ScanOp {
   using ScanElemT = ScanElem<GradientSumT>;
 
   template<bool forward>
-  XGBOOST_DEVICE ScanElem<GradientSumT>
+  __noinline__ __device__ ScanElem<GradientSumT>
   DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs);
-  XGBOOST_DEVICE thrust::tuple<ScanElemT, ScanElemT>
+  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
   operator() (thrust::tuple<ScanElemT, ScanElemT> lhs, thrust::tuple<ScanElemT, ScanElemT> rhs);
 };
 
@@ -108,9 +108,9 @@ struct WriteScan {
   using ScanElemT = ScanElem<GradientSumT>;
 
   template <bool forward>
-  XGBOOST_DEVICE void DoIt(ScanElemT e);
+  __noinline__ __device__ void DoIt(ScanElemT e);
 
-  XGBOOST_DEVICE thrust::tuple<ScanElemT, ScanElemT>
+  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
   operator() (thrust::tuple<ScanElemT, ScanElemT> e);
 };
 
