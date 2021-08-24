@@ -147,6 +147,9 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
   }
 }
 
+void GHistIndexMatrix::Init(SparsePage const& batch, common::HistogramCuts const& cuts) {
+
+}
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index,
                                    const bool isDense) {

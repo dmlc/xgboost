@@ -16,6 +16,7 @@
 #include <map>
 
 #include "ellpack_page_source.h"
+#include "gradient_index_page_source.h"
 #include "sparse_page_source.h"
 
 namespace xgboost {
@@ -118,7 +119,7 @@ class SparsePageDMatrix : public DMatrix {
   std::shared_ptr<EllpackPageSource> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
-  std::shared_ptr<GHistIndexMatrix> ghist_index_source_;
+  std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
 
   bool EllpackExists() const override {
     return static_cast<bool>(ellpack_page_source_);

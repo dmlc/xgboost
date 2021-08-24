@@ -1,7 +1,11 @@
 /*!
  * Copyright 2021 XGBoost contributors
  */
+#ifndef XGBOOST_DATA_HISTOGRAM_CUT_FORMAT_H_
+#define XGBOOST_DATA_HISTOGRAM_CUT_FORMAT_H_
+
 #include "../common/hist_util.h"
+
 namespace xgboost {
 namespace data {
 inline bool ReadHistogramCuts(common::HistogramCuts *cuts, dmlc::SeekStream *fi) {
@@ -29,3 +33,4 @@ inline size_t WriteHistogramCuts(common::HistogramCuts const &cuts, dmlc::Stream
 }
 }  // namespace data
 }  // namespace xgboost
+#endif  // XGBOOST_DATA_HISTOGRAM_CUT_FORMAT_H_
