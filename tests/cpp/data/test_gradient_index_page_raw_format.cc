@@ -3,8 +3,8 @@
  */
 #include <gtest/gtest.h>
 
-#include "../../../src/data/sparse_page_source.h"
 #include "../../../src/data/gradient_index.h"
+#include "../../../src/data/sparse_page_source.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -24,15 +24,21 @@ TEST(GHistIndexPageRawFormat, IO) {
   }
 
   GHistIndexMatrix page;
-  std::unique_ptr<dmlc::SeekStream> fi{dmlc::SeekStream::CreateForRead(path.c_str())};
+  std::unique_ptr<dmlc::SeekStream> fi{
+      dmlc::SeekStream::CreateForRead(path.c_str())};
   format->Read(&page, fi.get());
 
   for (auto const &gidx : m->GetBatches<GHistIndexMatrix>({0, 256})) {
-    auto const& loaded = gidx;
+    auto const &loaded = gidx;
     ASSERT_EQ(loaded.cut.Ptrs(), page.cut.Ptrs());
     ASSERT_EQ(loaded.cut.MinValues(), page.cut.MinValues());
     ASSERT_EQ(loaded.cut.Values(), page.cut.Values());
     ASSERT_EQ(loaded.base_rowid, page.base_rowid);
+    ASSERT_TRUE(std::equal(loaded.index.begin(), loaded.index.end(),
+                           page.index.begin()));
+    ASSERT_TRUE(std::equal(loaded.index.Offset(),
+                           loaded.index.Offset() + loaded.index.OffsetSize(),
+                           page.index.Offset()));
   }
 }
 } // namespace data

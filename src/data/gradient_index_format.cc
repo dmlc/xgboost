@@ -1,11 +1,19 @@
+/*!
+ * Copyright 2021 XGBoost contributors
+ */
 #include "sparse_page_writer.h"
 #include "gradient_index.h"
+#include "histogram_cut_format.h"
+
 namespace xgboost {
 namespace data {
 
 class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
  public:
   bool Read(GHistIndexMatrix* page, dmlc::SeekStream* fi) override {
+    if (!ReadHistogramCuts(&page->cut, fi)) {
+      return false;
+    }
     // indptr
     fi->Read(&page->row_ptr);
     // offset
@@ -44,6 +52,7 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
 
   size_t Write(GHistIndexMatrix const &page, dmlc::Stream *fo) override {
     size_t bytes = 0;
+    bytes += WriteHistogramCuts(page.cut, fo);
     // indptr
     fo->Write(page.row_ptr);
     bytes += page.row_ptr.size() * sizeof(decltype(page.row_ptr)::value_type) +
