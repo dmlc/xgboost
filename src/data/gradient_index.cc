@@ -149,15 +149,16 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
 
 void GHistIndexMatrix::Init(SparsePage const &batch,
                             common::HistogramCuts const &cuts, bool isDense, int32_t n_threads) {
+  CHECK_GE(n_threads, 1);
   base_rowid = batch.base_rowid;
   isDense_ = isDense;
+  cut = cuts;
 
   // The number of threads is pegged to the batch size. If the OMP
   // block is parallelized on anything other than the batch/block size,
   // it should be reassigned
-  const size_t batch_threads =
-      std::max(size_t(1), std::min(batch.Size(),
-                                   static_cast<size_t>(omp_get_max_threads())));
+  const size_t batch_threads = std::max(
+      size_t(1), std::min(batch.Size(), static_cast<size_t>(n_threads)));
   auto page = batch.GetView();
   common::MemStackAllocator<size_t, 128> partial_sums(batch_threads);
   size_t *p_part = partial_sums.Get();
@@ -165,6 +166,9 @@ void GHistIndexMatrix::Init(SparsePage const &batch,
 
   size_t block_size = batch.Size() / batch_threads;
   const uint32_t nbins = cut.Ptrs().back();
+  hit_count.resize(nbins, 0);
+  hit_count_tloc_.resize(n_threads * nbins, 0);
+
   size_t rbegin = 0;
   size_t prev_sum = 0;
 
