@@ -214,14 +214,18 @@ struct BatchParam {
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
   int max_bin{0};
-  /*! \brief Gradient pairs, used for sketching with future approx implementation. */
-  common::Span<GradientPair> gpair;
+  /*! \brief Hessian, used for sketching with future approx implementation. */
+  common::Span<float> hess;
 
   BatchParam() = default;
   BatchParam(int32_t device, int32_t max_bin)
       : gpu_id{device}, max_bin{max_bin} {}
-  BatchParam(int32_t device, int32_t max_bin, common::Span<GradientPair> gpair)
-      : gpu_id{device}, max_bin{max_bin}, gpair{gpair} {}
+  /**
+   * \brief Get batch with sketch weighted by hessian.  The batch will be regenerated if
+   *        the span is changed, so caller should keep the span for each iteration.
+   */
+  BatchParam(int32_t device, int32_t max_bin, common::Span<float> hessian)
+      : gpu_id{device}, max_bin{max_bin}, hess{hessian} {}
 
   bool operator!=(const BatchParam& other) const {
     return gpu_id != other.gpu_id || max_bin != other.max_bin;

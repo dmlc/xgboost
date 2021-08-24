@@ -160,6 +160,21 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
   CHECK_GE(param.max_bin, 2);
   auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
   this->InitializeSparsePage();
+
+  if (param.hess.empty()) {
+    // hist method doesn't support full external memory implementation, so we concatenate
+    // all index here.
+    if (!ghist_index_source_ || (param != batch_param_ && param != BatchParam{})) {
+      this->InitializeSparsePage();
+      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin});
+      this->InitializeSparsePage();
+      batch_param_ = param;
+    }
+    auto begin_iter = BatchIterator<GHistIndexMatrix>(
+        new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_index_page_));
+    return BatchSet<GHistIndexMatrix>(begin_iter);
+  }
+
   if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{})) {
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
