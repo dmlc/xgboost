@@ -96,7 +96,7 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
   }
   if (!gradient_index_  || (batch_param_ != param && param != BatchParam{})) {
     CHECK_GE(param.max_bin, 2);
-    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin));
+    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin, param.hess));
     batch_param_ = param;
   }
   auto begin_iter = BatchIterator<GHistIndexMatrix>(

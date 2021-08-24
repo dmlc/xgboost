@@ -125,8 +125,8 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, size_t rbegin,
   });
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
-  cut = common::SketchOnDMatrix(p_fmat, max_bins);
+void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins, common::Span<float> hess) {
+  cut = common::SketchOnDMatrix(p_fmat, max_bins, hess);
 
   max_num_bins = max_bins;
   const int32_t nthread = omp_get_max_threads();

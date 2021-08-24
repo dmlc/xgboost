@@ -35,11 +35,11 @@ class GHistIndexMatrix {
   size_t base_rowid{0};
 
   GHistIndexMatrix() = default;
-  GHistIndexMatrix(DMatrix* x, int32_t max_bin) {
-    this->Init(x, max_bin);
+  GHistIndexMatrix(DMatrix* x, int32_t max_bin, common::Span<float> hess = {}) {
+    this->Init(x, max_bin, hess);
   }
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins);
+  void Init(DMatrix* p_fmat, int max_num_bins, common::Span<float> hess);
   void Init(SparsePage const &page, common::HistogramCuts const &cuts,
             bool is_dense, int32_t n_threads);
 
