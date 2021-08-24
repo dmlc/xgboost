@@ -35,6 +35,7 @@ DMLC_REGISTRY_LINK_TAG(updater_refresh);
 DMLC_REGISTRY_LINK_TAG(updater_prune);
 DMLC_REGISTRY_LINK_TAG(updater_quantile_hist);
 DMLC_REGISTRY_LINK_TAG(updater_histmaker);
+DMLC_REGISTRY_LINK_TAG(updater_approx);
 DMLC_REGISTRY_LINK_TAG(updater_sync);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(updater_gpu_hist);

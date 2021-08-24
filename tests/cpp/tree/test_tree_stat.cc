@@ -114,4 +114,70 @@ TEST_F(UpdaterEtaTest, Approx) { this->RunTest("grow_histmaker"); }
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(UpdaterEtaTest, GpuHist) { this->RunTest("grow_gpu_hist"); }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+class TestMinSplitLoss : public ::testing::Test {
+  std::shared_ptr<DMatrix> dmat_;
+  HostDeviceVector<GradientPair> gpair_;
+
+  void SetUp() override {
+    constexpr size_t kRows = 32;
+    constexpr size_t kCols = 16;
+    constexpr float kSparsity = 0.6;
+    dmat_ = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
+    gpair_ = GenerateRandomGradients(kRows);
+  }
+
+  int32_t Update(std::string updater, float gamma) {
+    Args args{{"max_depth", "1"},
+              {"max_leaves", "0"},
+
+              // Disable all other parameters.
+              {"colsample_bynode", "1"},
+              {"colsample_bylevel", "1"},
+              {"colsample_bytree", "1"},
+              {"min_child_weight", "0.01"},
+              {"reg_alpha", "0"},
+              {"reg_lambda", "0"},
+              {"max_delta_step", "0"},
+
+              // test gamma
+              {"gamma", std::to_string(gamma)}};
+
+    GenericParameter generic_param(CreateEmptyGenericParam(0));
+    auto up = std::unique_ptr<TreeUpdater>{
+        TreeUpdater::Create(updater, &generic_param, ObjInfo{ObjInfo::kRegression})};
+    up->Configure(args);
+
+    RegTree tree;
+    up->Update(&gpair_, dmat_.get(), {&tree});
+
+    auto n_nodes = tree.NumExtraNodes();
+    return n_nodes;
+  }
+
+ public:
+  void RunTest(std::string updater) {
+    {
+      int32_t n_nodes = Update(updater, 0.01);
+      // This is not strictly verified, meaning the numeber `2` is whatever GPU_Hist retured
+      // when writing this test, and only used for testing larger gamma (below) does prevent
+      // building tree.
+      ASSERT_EQ(n_nodes, 2);
+    }
+    {
+      int32_t n_nodes = Update(updater, 100.0);
+      // No new nodes with gamma == 100.
+      ASSERT_EQ(n_nodes, static_cast<decltype(n_nodes)>(0));
+    }
+  }
+};
+
+/* Exact tree method requires a pruner as an additional updater, so not tested here. */
+
+TEST_F(TestMinSplitLoss, Approx) { this->RunTest("grow_histmaker"); }
+
+TEST_F(TestMinSplitLoss, Hist) { this->RunTest("grow_quantile_histmaker"); }
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(TestMinSplitLoss, GpuHist) { this->RunTest("grow_gpu_hist"); }
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

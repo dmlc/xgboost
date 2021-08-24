@@ -1031,10 +1031,10 @@ def test_pandas_input():
                                np.array([0, 1]))
 
 
-def run_feature_weights(X, y, fw, model=xgb.XGBRegressor):
+def run_feature_weights(X, y, fw, tree_method, model=xgb.XGBRegressor):
     with tempfile.TemporaryDirectory() as tmpdir:
         colsample_bynode = 0.5
-        reg = model(tree_method='hist', colsample_bynode=colsample_bynode)
+        reg = model(tree_method=tree_method, colsample_bynode=colsample_bynode)
 
         reg.fit(X, y, feature_weights=fw)
         model_path = os.path.join(tmpdir, 'model.json')
@@ -1069,7 +1069,8 @@ def run_feature_weights(X, y, fw, model=xgb.XGBRegressor):
         return w
 
 
-def test_feature_weights():
+@pytest.mark.parametrize("tree_method", ["approx", "hist"])
+def test_feature_weights(tree_method):
     kRows = 512
     kCols = 64
     X = rng.randn(kRows, kCols)
@@ -1078,12 +1079,12 @@ def test_feature_weights():
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(i)
-    poly_increasing = run_feature_weights(X, y, fw, xgb.XGBRegressor)
+    poly_increasing = run_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(kCols - i)
-    poly_decreasing = run_feature_weights(X, y, fw, xgb.XGBRegressor)
+    poly_decreasing = run_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
 
     # Approxmated test, this is dependent on the implementation of random
     # number generator in std library.

@@ -267,6 +267,16 @@ __model_doc = f'''
             callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                     save_best=True)]
 
+    max_cat_to_onehot : bool
+
+        .. versionadded:: 1.6.0
+
+        A threshold for deciding whether XGBoost should use one-hot encoding based split
+        for categorical data.  When number of categories is lesser than the threshold then
+        one-hot encoding is chosen, otherwise the categories will be partitioned into
+        children nodes.  Only relevant for regression and binary classification and
+        `approx` tree method.
+
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters
         can be found :doc:`here </parameter>`.
@@ -483,6 +493,7 @@ class XGBModel(XGBModelBase):
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
+        max_cat_to_onehot: Optional[int] = None,
         **kwargs: Any
     ) -> None:
         if not SKLEARN_INSTALLED:
@@ -522,6 +533,7 @@ class XGBModel(XGBModelBase):
         self.eval_metric = eval_metric
         self.early_stopping_rounds = early_stopping_rounds
         self.callbacks = callbacks
+        self.max_cat_to_onehot = max_cat_to_onehot
         if kwargs:
             self.kwargs = kwargs
 
@@ -800,8 +812,8 @@ class XGBModel(XGBModelBase):
             _duplicated("callbacks")
         callbacks = self.callbacks if self.callbacks is not None else callbacks
 
-        # lastly check categorical data support.
-        if self.enable_categorical and params.get("tree_method", None) != "gpu_hist":
+        tree_method = params.get("tree_method", None)
+        if self.enable_categorical and tree_method not in ("gpu_hist", "approx"):
             raise ValueError(
                 "Experimental support for categorical data is not implemented for"
                 " current tree method yet."
@@ -876,8 +888,7 @@ class XGBModel(XGBModelBase):
         feature_weights :
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
-            otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
-            `exact` tree methods.
+            otherwise a `ValueError` is thrown.
 
         callbacks :
             .. deprecated: 1.6.0
@@ -1750,8 +1761,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         feature_weights :
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
-            otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
-            `exact` tree methods.
+            otherwise a `ValueError` is thrown.
 
         callbacks :
             .. deprecated: 1.6.0

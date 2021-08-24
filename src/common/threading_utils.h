@@ -130,8 +130,7 @@ class BlockedSpace2d {
 template <typename Func>
 void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   const size_t num_blocks_in_space = space.Size();
-  nthreads = std::min(nthreads, omp_get_max_threads());
-  nthreads = std::max(nthreads, 1);
+  CHECK_GE(nthreads, 1);
 
   dmlc::OMPException exc;
 #pragma omp parallel num_threads(nthreads)
@@ -277,9 +276,10 @@ inline int32_t OmpSetNumThreadsWithoutHT(int32_t* p_threads) {
 
 inline int32_t OmpGetNumThreads(int32_t n_threads) {
   if (n_threads <= 0) {
-    n_threads = omp_get_num_procs();
+    n_threads = std::min(omp_get_num_procs(), omp_get_max_threads());
   }
   n_threads = std::min(n_threads, OmpGetThreadLimit());
+  n_threads = std::max(n_threads, 1);
   return n_threads;
 }
 }  // namespace common

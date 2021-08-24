@@ -53,7 +53,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "max_depth" -> "6",
       "silent" -> "1",
       "objective" -> "reg:squarederror",
-      "max_bin" -> 16,
+      "max_bin" -> 64,
       "tree_method" -> treeMethod)
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
