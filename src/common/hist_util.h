@@ -111,7 +111,7 @@ class HistogramCuts {
 };
 
 inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
-                                     std::vector<float> const &hessian = {}) {
+                                     Span<float> const hessian = {}) {
   HistogramCuts out;
   auto const& info = m->Info();
   const auto threads = omp_get_max_threads();

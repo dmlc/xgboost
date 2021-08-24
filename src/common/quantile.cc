@@ -94,7 +94,7 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalance(
 namespace {
 // Function to merge hessian and sample weights
 std::vector<float> MergeWeights(MetaInfo const &info,
-                                std::vector<float> const &hessian,
+                                Span<float> const hessian,
                                 bool use_group, int32_t n_threads) {
   CHECK_EQ(hessian.size(), info.num_row_);
   std::vector<float> results(hessian.size());
@@ -141,7 +141,7 @@ std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
 }  // anonymous namespace
 
 void HostSketchContainer::PushRowPage(
-    SparsePage const &page, MetaInfo const &info, std::vector<float> const &hessian) {
+    SparsePage const &page, MetaInfo const &info, Span<float> hessian) {
   monitor_.Start(__func__);
   bst_feature_t n_columns = info.num_col_;
   auto is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;

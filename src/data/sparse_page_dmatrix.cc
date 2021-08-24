@@ -177,7 +177,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
   if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{})) {
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
-    auto cuts = common::SketchOnDMatrix(this, param.max_bin);
+    auto cuts = common::SketchOnDMatrix(this, param.max_bin, param.hess);
     this->InitializeSparsePage();  // reset after use.
 
     batch_param_ = param;
