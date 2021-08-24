@@ -207,6 +207,13 @@ struct Index {
     return data_.end();
   }
 
+  std::vector<uint8_t>::iterator begin() {  // NOLINT
+    return data_.begin();
+  }
+  std::vector<uint8_t>::iterator end() {  // NOLINT
+    return data_.end();
+  }
+
  private:
   static uint32_t GetValueFromUint8(void *t, size_t i) {
     return reinterpret_cast<uint8_t*>(t)[i];

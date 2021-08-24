@@ -29,7 +29,9 @@ class GHistIndexMatrix {
   common::HistogramCuts cut;
   DMatrix* p_fmat;
   size_t max_num_bins;
+  size_t base_rowid{0};
 
+  GHistIndexMatrix() = default;
   GHistIndexMatrix(DMatrix* x, int32_t max_bin) {
     this->Init(x, max_bin);
   }
