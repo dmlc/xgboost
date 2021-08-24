@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2021 by XGBoost Contributors
+ */
 #include "gradient_index_page_source.h"
 
 namespace xgboost {

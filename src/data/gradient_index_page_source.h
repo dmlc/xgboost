@@ -1,9 +1,11 @@
 /*!
  * Copyright 2021 by XGBoost Contributors
  */
-
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_
 #define XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_
+
+#include <memory>
+#include <utility>
 
 #include "sparse_page_source.h"
 #include "gradient_index.h"
