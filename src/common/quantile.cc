@@ -111,9 +111,8 @@ std::vector<float> MergeWeights(MetaInfo const &info,
       }
     }
   } else {
-    auto const &sample_weights = info.weights_.HostVector();
     ParallelFor(hessian.size(), n_threads, Sched::Auto(),
-                [&](auto i) { results[i] = hessian[i] * sample_weights[i]; });
+                [&](auto i) { results[i] = hessian[i] * info.GetWeight(i); });
   }
   return results;
 }
