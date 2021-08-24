@@ -12,6 +12,7 @@ namespace xgboost {
 namespace data {
 class GradientIndexPageSource : public PageSourceIncMixIn<GHistIndexMatrix> {
   common::HistogramCuts cuts_;
+  bool is_dense_;
 
  public:
   GradientIndexPageSource(
@@ -20,7 +21,7 @@ class GradientIndexPageSource : public PageSourceIncMixIn<GHistIndexMatrix> {
       common::HistogramCuts cuts, bool is_dense,
       std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache),
-        cuts_{std::move(cuts)} {
+        cuts_{std::move(cuts)}, is_dense_{is_dense} {
     this->source_ = source;
     this->Fetch();
   }

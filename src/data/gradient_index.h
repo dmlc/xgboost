@@ -37,7 +37,7 @@ class GHistIndexMatrix {
   }
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
-  void Init(SparsePage const& page, common::HistogramCuts const& cuts);
+  void Init(SparsePage const& page, common::HistogramCuts const& cuts, bool is_dense, int32_t n_threads);
 
   // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>

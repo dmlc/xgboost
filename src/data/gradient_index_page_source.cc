@@ -6,8 +6,7 @@ void GradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
     auto const& csr = source_->Page();
     this->page_.reset(new GHistIndexMatrix());
-    this->page_->Init(*csr, cuts_);
-    this->page_->base_rowid = csr->base_rowid;
+    this->page_->Init(*csr, cuts_, is_dense_, nthreads_);
     this->WriteCache();
   }
 }
