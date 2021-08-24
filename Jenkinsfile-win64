@@ -40,7 +40,8 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-win64-cuda10.1': { BuildWin64() }
+            'build-win64-cuda10.1': { BuildWin64() },
+            'build-rpkg-win64-cuda10.1': { BuildRPackageWin64() }
           ])
         }
       }
@@ -113,6 +114,26 @@ def BuildWin64() {
     stash name: 'xgboost_cli', includes: 'xgboost.exe'
     deleteDir()
   }
+}
+
+def BuildRPackageWin64() {
+  node('win64 && cuda10_unified') {
+    unstash name: 'srcs'
+    echo "Building XGBoost for Windows AMD64 target..."
+    bat "nvcc --version"
+    def arch_flag = ""
+    if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
+      arch_flag = "-DGPU_COMPUTE_VER=75"
+    }
+    bat """
+    bash tests/ci_build/build_r_pkg_with_cuda_win64.sh ${commit_id}
+    """
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading R tarball...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_win64_*.tar.gz'
+    }
+    deleteDir()
 }
 
 def TestWin64() {
