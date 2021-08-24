@@ -44,12 +44,9 @@ is the product of interaction between :math:`x_1`, :math:`x_7`, and
   Source(source, format='png').render('../_static/feature_interaction_illustration1', view=False)
   Source(source, format='svg').render('../_static/feature_interaction_illustration1', view=False)
 
-.. raw:: html
-
-  <p>
-  <img src="../_static/feature_interaction_illustration1.svg"
-    onerror="this.src='../_static/feature_interaction_illustration1.png'; this.onerror=null;">
-  </p>
+.. figure:: ../_static/feature_interaction_illustration1.svg
+   :align: center
+   :figwidth: 80 %
 
 When the tree depth is larger than one, many variables interact on
 the sole basis of minimizing training loss, and the resulting decision tree may
@@ -130,14 +127,12 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
   Source(source, format='png').render('../_static/feature_interaction_illustration3', view=False)
   Source(source, format='svg').render('../_static/feature_interaction_illustration3', view=False)
 
-.. raw:: html
 
-  <p>
-  <img src="../_static/feature_interaction_illustration2.svg"
-       onerror="this.src='../_static/feature_interaction_illustration2.png'; this.onerror=null;">
-  <img src="../_static/feature_interaction_illustration3.svg"
-       onerror="this.src='../_static/feature_interaction_illustration3.png'; this.onerror=null;">
-  </p>
+.. figure:: ../_static/feature_interaction_illustration2.svg
+   :align: left
+
+.. figure:: ../_static/feature_interaction_illustration3.svg
+
 
 ****************************************************
 Enforcing Feature Interaction Constraints in XGBoost

@@ -19,11 +19,16 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
     cudaPointerAttributes attr;
     dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
     int32_t ptr_device = attr.device;
-    dh::safe_cuda(cudaSetDevice(ptr_device));
+    if (ptr_device >= 0) {
+      dh::safe_cuda(cudaSetDevice(ptr_device));
+    }
     return ptr_device;
   };
   auto ptr_device = SetDeviceToPtr(column.data);
 
+  if (column.num_rows == 0) {
+    return;
+  }
   out->SetDevice(ptr_device);
   out->Resize(column.num_rows);
 
@@ -109,10 +114,11 @@ void CopyQidImpl(ArrayInterface array_interface,
 
 namespace {
 // thrust::all_of tries to copy lambda function.
-struct AllOfOp {
-  __device__ bool operator()(float w) {
-    return w >= 0;
-  }
+struct LabelsCheck {
+  __device__ bool operator()(float y) { return ::isnan(y) || ::isinf(y); }
+};
+struct WeightsCheck {
+  __device__ bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }  // NOLINT
 };
 }  // anonymous namespace
 
@@ -123,7 +129,12 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
       << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
   ArrayInterface array_interface(interface_str);
   std::string key{c_key};
-  array_interface.AsColumnVector();
+  if (!((array_interface.num_cols == 1 && array_interface.num_rows == 0) ||
+        (array_interface.num_cols == 0 && array_interface.num_rows == 1))) {
+    // Not an empty column, transform it.
+    array_interface.AsColumnVector();
+  }
+
   CHECK(!array_interface.valid.Data())
       << "Meta info " << key << " should be dense, found validity mask";
   if (array_interface.num_rows == 0) {
@@ -132,11 +143,15 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
 
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);
+    auto ptr = labels_.ConstDevicePointer();
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + labels_.Size(),
+                                 LabelsCheck{});
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
   } else if (key == "weight") {
     CopyInfoImpl(array_interface, &weights_);
     auto ptr = weights_.ConstDevicePointer();
-    auto valid =
-        thrust::all_of(thrust::device, ptr, ptr + weights_.Size(), AllOfOp{});
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(),
+                                 WeightsCheck{});
     CHECK(valid) << "Weights must be positive values.";
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
@@ -155,9 +170,9 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   } else if (key == "feature_weights") {
     CopyInfoImpl(array_interface, &feature_weigths);
     auto d_feature_weights = feature_weigths.ConstDeviceSpan();
-    auto valid = thrust::all_of(
+    auto valid = thrust::none_of(
         thrust::device, d_feature_weights.data(),
-        d_feature_weights.data() + d_feature_weights.size(), AllOfOp{});
+        d_feature_weights.data() + d_feature_weights.size(), WeightsCheck{});
     CHECK(valid) << "Feature weight must be greater than 0.";
     return;
   } else {

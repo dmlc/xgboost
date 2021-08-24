@@ -125,8 +125,8 @@ if (USE_CUDA)
   message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 
   enable_language(CUDA)
-  if (${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 10.0)
-    message(FATAL_ERROR "CUDA version must be at least 10.0!")
+  if (${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 10.1)
+    message(FATAL_ERROR "CUDA version must be at least 10.1!")
   endif()
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
@@ -249,6 +249,8 @@ if (BUILD_C_DOC)
   include(cmake/Doc.cmake)
   run_doxygen()
 endif (BUILD_C_DOC)
+
+include(CPack)
 
 include(GNUInstallDirs)
 # Install all headers.  Please note that currently the C++ headers does not form an "API".

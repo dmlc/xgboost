@@ -5,6 +5,7 @@
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
+#include <thrust/host_vector.h>
 #include <GPUTreeShap/gpu_treeshap.h>
 #include <memory>
 

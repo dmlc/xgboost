@@ -643,7 +643,7 @@ public class BoosterImplTest {
     }});
 
     Map<String, String> attr = booster.getAttrs();
-    TestCase.assertEquals(attr.size(), 4);
+    TestCase.assertEquals(attr.size(), 6);
     TestCase.assertEquals(attr.get("testKey1"), "testValue2");
     TestCase.assertEquals(attr.get("aa"), "AA");
     TestCase.assertEquals(attr.get("bb"), "BB");

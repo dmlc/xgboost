@@ -95,36 +95,40 @@ jobs:
         cd build
         cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
         ninja -v install
+        cd -
     - name: Build and run C API demo with static
       shell: bash -l {0}
       run: |
+        pushd .
         cd demo/c-api/
         mkdir build
         cd build
         cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
         ninja -v
+        ctest
         cd ..
-        ./build/api-demo
         rm -rf ./build
-        cd ../..
+        popd
     - name: Build and install XGBoost shared library
       shell: bash -l {0}
       run: |
         cd build
         cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
         ninja -v install
+        cd -
     - name: Build and run C API demo with shared
       shell: bash -l {0}
       run: |
+        pushd .
         cd demo/c-api/
         mkdir build
         cd build
         cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
         ninja -v
-        cd ..
-        ./build/api-demo
-        cd ../../
-        ./tests/ci_build/verify_link.sh ./demo/c-api/build/api-demo
+        ctest
+        popd
+        ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
+        ./tests/ci_build/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
 
   lint:
     runs-on: ubuntu-latest

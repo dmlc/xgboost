@@ -330,3 +330,12 @@ class TestDMatrix:
             with pytest.warns(UserWarning):
                 d = Data()
                 xgb.DMatrix(d)
+
+        from scipy import sparse
+        rng = np.random.RandomState(1994)
+        X = rng.rand(10, 10)
+        y = rng.rand(10)
+        X = sparse.dok_matrix(X)
+        Xy = xgb.DMatrix(X, y)
+        assert Xy.num_row() == 10
+        assert Xy.num_col() == 10

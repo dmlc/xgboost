@@ -295,7 +295,7 @@ def _wrap_evaluation_matrices(
             return [None] * n_validation
         if len(meta) != n_validation:
             raise ValueError(
-                f"{name}'s length does not eqaul to `eval_set`, " +
+                f"{name}'s length does not equal `eval_set`'s length, " +
                 f"expecting {n_validation}, got {len(meta)}"
             )
         return meta
@@ -419,7 +419,6 @@ class XGBModel(XGBModelBase):
         self.base_score = base_score
         self.missing = missing
         self.num_parallel_tree = num_parallel_tree
-        self.kwargs = kwargs
         self.random_state = random_state
         self.n_jobs = n_jobs
         self.monotone_constraints = monotone_constraints
@@ -429,6 +428,8 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.predictor = predictor
         self.enable_categorical = enable_categorical
+        if kwargs:
+            self.kwargs = kwargs
 
     def _more_tags(self) -> Dict[str, bool]:
         '''Tags used for scikit-learn data validation.'''
@@ -469,6 +470,8 @@ class XGBModel(XGBModelBase):
             if hasattr(self, key):
                 setattr(self, key, value)
             else:
+                if not hasattr(self, "kwargs"):
+                    self.kwargs = {}
                 self.kwargs[key] = value
 
         if hasattr(self, '_Booster'):
@@ -491,7 +494,7 @@ class XGBModel(XGBModelBase):
         cp.__class__ = cp.__class__.__bases__[0]
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
-        if isinstance(self.kwargs, dict):
+        if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
             params.update(self.kwargs)
         if isinstance(params['random_state'], np.random.RandomState):
             params['random_state'] = params['random_state'].randint(
@@ -745,7 +748,6 @@ class XGBModel(XGBModelBase):
 
         """
         evals_result: TrainingCallback.EvalsLog = {}
-
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
             X=X,
@@ -796,8 +798,8 @@ class XGBModel(XGBModelBase):
         # error with incompatible data type.
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
-        params = self.get_params()
-        if params.get("predictor", None) is None and self.booster != "gblinear":
+        predictor = self.get_params().get("predictor", None)
+        if predictor in ("auto", None) and self.booster != "gblinear":
             return True
         return False
 
@@ -1169,7 +1171,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             ):
                 raise ValueError(label_encoding_check_error)
         else:
-            self.classes_ = np.unique(y)
+            self.classes_ = np.unique(np.asarray(y))
             self.n_classes_ = len(self.classes_)
             if not self.use_label_encoder and (
                 not np.array_equal(self.classes_, np.arange(self.n_classes_))
@@ -1206,11 +1208,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             label_transform = lambda x: x
 
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
-        if len(X.shape) != 2:
-            # Simply raise an error here since there might be many
-            # different ways of reshaping
-            raise ValueError("Please reshape the input data X into 2-dimensional matrix.")
-
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
             X=X,
@@ -1292,7 +1289,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         X: array_like,
         ntree_limit: Optional[int] = None,
-        validate_features: bool = False,
+        validate_features: bool = True,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:

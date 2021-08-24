@@ -20,10 +20,7 @@ namespace xgboost {
 namespace metric {
 namespace {
 template <typename T>
-class Discard : public thrust::discard_iterator<T>  {
- public:
-  using value_type = T;  // NOLINT
-};
+using Discard = thrust::discard_iterator<T>;
 
 struct GetWeightOp {
   common::Span<float const> weights;

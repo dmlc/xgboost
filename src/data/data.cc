@@ -360,13 +360,18 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+    auto valid = std::none_of(labels.cbegin(), labels.cend(), [](auto y) {
+      return std::isnan(y) || std::isinf(y);
+    });
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
   } else if (!std::strcmp(key, "weight")) {
     auto& weights = weights_.HostVector();
     weights.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, weights.begin()));
-    auto valid = std::all_of(weights.cbegin(), weights.cend(),
-                             [](float w) { return w >= 0; });
+    auto valid = std::none_of(weights.cbegin(), weights.cend(), [](float w) {
+      return w < 0 || std::isinf(w) || std::isnan(w);
+    });
     CHECK(valid) << "Weights must be positive values.";
   } else if (!std::strcmp(key, "base_margin")) {
     auto& base_margin = base_margin_.HostVector();
@@ -419,8 +424,8 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
         dtype, dptr, cast_dptr,
         std::copy(cast_dptr, cast_dptr + num, h_feature_weights.begin()));
     bool valid =
-        std::all_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
-                    [](float w) { return w >= 0; });
+        std::none_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
+                     [](float w) { return w < 0; });
     CHECK(valid) << "Feature weight must be greater than 0.";
   } else {
     LOG(FATAL) << "Unknown key for MetaInfo: " << key;
@@ -874,8 +879,15 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
           tid);
     }
   });
+
+  if (this->data.Empty()) {
+    transpose.offset.Resize(num_columns + 1);
+    transpose.offset.Fill(0);
+  }
+  CHECK_EQ(transpose.offset.Size(), num_columns + 1);
   return transpose;
 }
+
 void SparsePage::Push(const SparsePage &batch) {
   auto& data_vec = data.HostVector();
   auto& offset_vec = offset.HostVector();
@@ -931,7 +943,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   const size_t thread_size = batch_size / nthread;
 
   builder.InitBudget(expected_rows, nthread);
-  std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
+  std::vector<std::vector<uint64_t>> max_columns_vector(nthread, std::vector<uint64_t>{0});
   dmlc::OMPException exec;
   std::atomic<bool> valid{true};
   // First-pass over the batch counting valid elements
@@ -941,7 +953,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       int tid = omp_get_thread_num();
       size_t begin = tid*thread_size;
       size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
-      max_columns_vector[tid].resize(1, 0);
       uint64_t& max_columns_local = max_columns_vector[tid][0];
 
       for (size_t i = begin; i < end; ++i) {
@@ -1007,6 +1018,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   auto const& other_offset = batch.offset.ConstHostVector();
 
   if (other_data.empty()) {
+    self_offset = other_offset;
     return;
   }
   if (!self_data.empty()) {

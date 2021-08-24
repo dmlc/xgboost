@@ -1329,22 +1329,22 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
 
   if (accending) {
     void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
     TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   } else {
     void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
     TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   }

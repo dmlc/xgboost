@@ -10,7 +10,7 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     save_period = NULL, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
 
-  dtrain <- xgb.get.DMatrix(data, label, missing, weight)
+  dtrain <- xgb.get.DMatrix(data, label, missing, weight, nthread = params$nthread)
 
   watchlist <- list(train = dtrain)
 

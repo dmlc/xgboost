@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux2010_x86_64
+FROM quay.io/pypa/manylinux2014_x86_64
 
 # Install lightweight sudo (not bound to TTY)
 ENV GOSU_VERSION 1.10

@@ -13,6 +13,8 @@ rng = np.random.RandomState(1994)
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
+from sklearn.utils.estimator_checks import parametrize_with_checks
+
 
 class TemporaryDirectory(object):
     """Context manager for tempfile.mkdtemp()"""
@@ -1223,3 +1225,49 @@ def test_data_initialization():
     from sklearn.datasets import load_digits
     X, y = load_digits(return_X_y=True)
     run_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
+
+
+@parametrize_with_checks([xgb.XGBRegressor()])
+def test_estimator_reg(estimator, check):
+    if os.environ["PYTEST_CURRENT_TEST"].find("check_supervised_y_no_nan") != -1:
+        # The test uses float64 and requires the error message to contain:
+        #
+        #   "value too large for dtype(float64)",
+        #
+        # while XGBoost stores values as float32.  But XGBoost does verify the label
+        # internally, so we replace this test with custom check.
+        rng = np.random.RandomState(888)
+        X = rng.randn(10, 5)
+        y = np.full(10, np.inf)
+        with pytest.raises(
+            ValueError, match="contains NaN, infinity or a value too large"
+        ):
+            estimator.fit(X, y)
+        return
+    if os.environ["PYTEST_CURRENT_TEST"].find("check_estimators_overwrite_params") != -1:
+        # A hack to pass the scikit-learn parameter mutation tests.  XGBoost regressor
+        # returns actual internal default values for parameters in `get_params`, but those
+        # are set as `None` in sklearn interface to avoid duplication.  So we fit a dummy
+        # model and obtain the default parameters here for the mutation tests.
+        from sklearn.datasets import make_regression
+        X, y = make_regression(n_samples=2, n_features=1)
+        estimator.set_params(**xgb.XGBRegressor().fit(X, y).get_params())
+
+    check(estimator)
+
+
+def test_prediction_config():
+    reg = xgb.XGBRegressor()
+    assert reg._can_use_inplace_predict() is True
+
+    reg.set_params(predictor="cpu_predictor")
+    assert reg._can_use_inplace_predict() is False
+
+    reg.set_params(predictor="auto")
+    assert reg._can_use_inplace_predict() is True
+
+    reg.set_params(predictor=None)
+    assert reg._can_use_inplace_predict() is True
+
+    reg.set_params(booster="gblinear")
+    assert reg._can_use_inplace_predict() is False
