@@ -55,15 +55,15 @@ class GHistIndexMatrix {
     BinIdxType* index_data = index_data_span.data();
     common::ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
       const int tid = omp_get_thread_num();
-      size_t ibegin = row_ptr.at(rbegin + i);
-      size_t iend = row_ptr.at(rbegin + i + 1);
-      const size_t size = offset_vec.at(i + 1) - offset_vec[i];
+      size_t ibegin = row_ptr[rbegin + i];
+      size_t iend = row_ptr[rbegin + i + 1];
+      const size_t size = offset_vec[i + 1] - offset_vec[i];
       SparsePage::Inst inst = {data_ptr + offset_vec[i], size};
       CHECK_EQ(ibegin + inst.size(), iend);
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.SearchBin(inst[j]);
         index_data[ibegin + j] = get_offset(idx, j);
-        ++hit_count_tloc_.at(tid * nbins + idx);
+        ++hit_count_tloc_[tid * nbins + idx];
       }
     });
   }
