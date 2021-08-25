@@ -22,7 +22,7 @@ except ImportError:
     pass
 
 VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
-with open(VERSION_FILE) as f:
+with open(VERSION_FILE, encoding="ascii") as f:
     __version__ = f.read().strip()
 
 __all__ = ['DMatrix', 'DeviceQuantileDMatrix', 'Booster', 'DataIter',
