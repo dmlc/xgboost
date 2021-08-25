@@ -56,6 +56,12 @@ struct Pair {
 __host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
+
+// Type used in shared memory.
+template <typename GradientSumT>
+using SharedSumT = std::conditional_t<
+    std::is_same<typename GradientSumT::ValueT, float>::value,
+    GradientPairInt32, GradientPairInt64>;
 }  // anonymous namespace
 
 struct Clip : public thrust::unary_function<GradientPair, Pair> {
@@ -78,7 +84,7 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
 };
 
 template <typename GradientSumT>
-GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
+HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const> gpair) {
   using T = typename GradientSumT::ValueT;
   dh::XGBCachingDeviceAllocator<char> alloc;
 
@@ -94,27 +100,49 @@ GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
                             gpair.size()),
     CreateRoundingFactor<T>(std::max(positive_sum.GetHess(), negative_sum.GetHess()),
                             gpair.size()) };
-  return histogram_rounding;
+
+  using IntT = typename SharedSumT<GradientSumT>::ValueT;
+
+  /**
+   * Factor for converting gradients from fixed-point to floating-point.
+   */
+  GradientSumT to_floating_point =
+      histogram_rounding /
+      T(IntT(1) << (sizeof(typename GradientSumT::ValueT) * 8 -
+                    2));  // keep 1 for sign bit
+  /**
+   * Factor for converting gradients from floating-point to fixed-point. For
+   * f64:
+   *
+   *   Precision = 64 - 1 - log2(rounding)
+   *
+   * rounding is calcuated as exp(m), see the rounding factor calcuation for
+   * details.
+   */
+  GradientSumT to_fixed_point = GradientSumT(
+      T(1) / to_floating_point.GetGrad(), T(1) / to_floating_point.GetHess());
+
+  return {histogram_rounding, to_fixed_point, to_floating_point};
 }
 
-template GradientPairPrecise CreateRoundingFactor(common::Span<GradientPair const> gpair);
-template GradientPair CreateRoundingFactor(common::Span<GradientPair const> gpair);
+template HistRounding<GradientPairPrecise>
+CreateRoundingFactor(common::Span<GradientPair const> gpair);
+template HistRounding<GradientPair>
+CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
-template <typename GradientSumT, typename SharedSumT, bool use_shared_memory_histograms>
+template <typename GradientSumT, bool use_shared_memory_histograms>
 __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     FeatureGroupsAccessor feature_groups,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* __restrict__ d_node_hist,
                                     const GradientPair* __restrict__ d_gpair,
-                                    GradientSumT const rounding,
-                                    GradientSumT to_floating_point,
-                                    GradientSumT to_fixed_point) {
+                                    HistRounding<GradientSumT> const rounding) {
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
   FeatureGroup group = feature_groups[blockIdx.y];
-  SharedSumT *smem_arr = reinterpret_cast<SharedSumT *>(smem);
+  SharedSumT<GradientSumT> *smem_arr = reinterpret_cast<SharedSumT<GradientSumT> *>(smem);
   if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
+    dh::BlockFill(smem_arr, group.num_bins, SharedSumT<GradientSumT>());
     __syncthreads();
   }
   int feature_stride = matrix.is_dense ? group.num_features : matrix.row_stride;
@@ -128,15 +156,15 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // global memory
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       if (use_shared_memory_histograms) {
-        auto adjusted = SharedSumT(
-            T(d_gpair[ridx].GetGrad() * to_fixed_point.GetGrad()),
-            T(d_gpair[ridx].GetHess() * to_fixed_point.GetHess()));
+        auto adjusted = SharedSumT<GradientSumT>(
+            T(d_gpair[ridx].GetGrad() * rounding.to_fixed_point.GetGrad()),
+            T(d_gpair[ridx].GetHess() * rounding.to_fixed_point.GetHess()));
         dh::AtomicAddGpair(smem_arr + gidx, adjusted);
       } else {
         GradientSumT truncated{
-            TruncateWithRoundingFactor<T>(rounding.GetGrad(),
+            TruncateWithRoundingFactor<T>(rounding.rounding.GetGrad(),
                                           d_gpair[ridx].GetGrad()),
-            TruncateWithRoundingFactor<T>(rounding.GetHess(),
+            TruncateWithRoundingFactor<T>(rounding.rounding.GetHess(),
                                           d_gpair[ridx].GetHess()),
         };
         dh::AtomicAddGpair(d_node_hist + gidx, truncated);
@@ -148,11 +176,11 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      auto g = smem_arr[i].GetGrad() * to_floating_point.GetGrad();
-      auto h = smem_arr[i].GetHess() * to_floating_point.GetHess();
+      auto g = smem_arr[i].GetGrad() * rounding.to_floating_point.GetGrad();
+      auto h = smem_arr[i].GetHess() * rounding.to_floating_point.GetHess();
       GradientSumT truncated{
-          TruncateWithRoundingFactor<T>(rounding.GetGrad(), g),
-          TruncateWithRoundingFactor<T>(rounding.GetHess(), h),
+          TruncateWithRoundingFactor<T>(rounding.rounding.GetGrad(), g),
+          TruncateWithRoundingFactor<T>(rounding.rounding.GetHess(), h),
       };
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
@@ -165,7 +193,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> d_ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding,
+                            HistRounding<GradientSumT> rounding,
                             bool force_global_memory) {
   // decide whether to use shared memory
   int device = 0;
@@ -173,11 +201,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   // opt into maximum shared memory for the kernel if necessary
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
 
-  using SharedSumT = std::conditional_t<
-      std::is_same<typename GradientSumT::ValueT, float>::value,
-      GradientPairInt32, GradientPairInt64>;
-
-  size_t smem_size = sizeof(SharedSumT) * feature_groups.max_group_bins;
+  size_t smem_size = sizeof(SharedSumT<GradientSumT>) * feature_groups.max_group_bins;
   bool shared = !force_global_memory && smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
@@ -218,34 +242,16 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
 
     using T = typename GradientSumT::ValueT;
-    using IntT = typename SharedSumT::ValueT;
-    /**
-     * Factor for converting gradients from fixed-point to floating-point.
-     */
-    GradientSumT to_floating_point =
-        rounding / T(IntT(1) << (sizeof(typename SharedSumT::ValueT) * 8 -
-                                 2));  // keep 1 for sign bit
-    /**
-     * Factor for converting gradients from floating-point to fixed-point. For
-     * f64:
-     *
-     *   Precision = 64 - 1 - log2(rounding)
-     *
-     * rounding is calcuated as exp(m), see the rounding factor calcuation for
-     * details.
-     */
-    GradientSumT to_fixed_point = GradientSumT(
-        T(1) / to_floating_point.GetGrad(), T(1) / to_floating_point.GetHess());
-    dh::LaunchKernel {dim3(grid_size, num_groups),
-                      static_cast<uint32_t>(block_threads), smem_size} (
-        kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
-        rounding, to_floating_point, to_fixed_point);
+    dh::LaunchKernel{dim3(grid_size, num_groups),
+                     static_cast<uint32_t>(block_threads),
+                     smem_size}(kernel, matrix, feature_groups, d_ridx,
+                                histogram.data(), gpair.data(), rounding);
   };
 
   if (shared) {
-    runit(SharedMemHistKernel<GradientSumT, SharedSumT, true>);
+    runit(SharedMemHistKernel<GradientSumT, true>);
   } else {
-    runit(SharedMemHistKernel<GradientSumT, SharedSumT, false>);
+    runit(SharedMemHistKernel<GradientSumT, false>);
   }
 
   dh::safe_cuda(cudaGetLastError());
@@ -257,7 +263,7 @@ template void BuildGradientHistogram<GradientPair>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPair> histogram,
-    GradientPair rounding,
+    HistRounding<GradientPair> rounding,
     bool force_global_memory);
 
 template void BuildGradientHistogram<GradientPairPrecise>(
@@ -266,7 +272,7 @@ template void BuildGradientHistogram<GradientPairPrecise>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPairPrecise> histogram,
-    GradientPairPrecise rounding,
+    HistRounding<GradientPairPrecise> rounding,
     bool force_global_memory);
 
 }  // namespace tree

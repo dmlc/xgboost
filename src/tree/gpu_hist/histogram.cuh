@@ -13,7 +13,14 @@ namespace xgboost {
 namespace tree {
 
 template <typename GradientSumT>
-GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair);
+struct HistRounding {
+  GradientSumT rounding;
+  GradientSumT to_fixed_point;
+  GradientSumT to_floating_point;
+};
+
+template <typename GradientSumT>
+HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
 template <typename T, typename U>
 XGBOOST_DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, U const x) {
@@ -27,7 +34,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding,
+                            HistRounding<GradientSumT> rounding,
                             bool force_global_memory = false);
 }  // namespace tree
 }  // namespace xgboost

@@ -177,7 +177,7 @@ struct GPUHistMakerDevice {
 
   TrainParam param;
 
-  GradientSumT histogram_rounding;
+  HistRounding<GradientSumT> histogram_rounding;
 
   dh::PinnedMemory pinned;
 

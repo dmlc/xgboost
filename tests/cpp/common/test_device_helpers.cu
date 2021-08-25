@@ -214,11 +214,13 @@ void TestAtomicAdd() {
   dh::device_vector<int64_t> result_b(1, 0);
   auto d_result_b = result_b.data().get();
 
+  /**
+   * Test for simple inputs
+   */
   std::vector<int64_t> h_inputs(n_elements);
   for (size_t i = 0; i < h_inputs.size(); ++i) {
     h_inputs[i] = (i % 2 == 0) ? i : -i;
   }
-
   dh::device_vector<int64_t> inputs(h_inputs);
   auto d_inputs = inputs.data().get();
 
@@ -228,6 +230,9 @@ void TestAtomicAdd() {
   });
   ASSERT_EQ(result_a[0], result_b[0]);
 
+  /**
+   * Test for input that doesn't fit into 32 bit integer.
+   */
   for (size_t i = 0; i < h_inputs.size(); ++i) {
     auto v = std::numeric_limits<uint32_t>::max() - i;
     h_inputs[i] = (i % 2 == 0) ? v : -v;
@@ -239,6 +244,7 @@ void TestAtomicAdd() {
     dh::AtomicAdd64As32(d_result_a, d_inputs[i]);
     atomicAdd(d_result_b, d_inputs[i]);
   });
+
   ASSERT_EQ(result_a[0], result_b[0]);
 }
 
