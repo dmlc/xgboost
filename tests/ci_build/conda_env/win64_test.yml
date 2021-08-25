@@ -14,5 +14,5 @@ dependencies:
 - jsonschema
 - cupy
 - python-graphviz
-- modin-all
+- modin-ray
 - pip
