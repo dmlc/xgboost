@@ -110,7 +110,7 @@ namespace dh {
 #define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
 
 inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
-                                        int line) {
+                                     int line) {
   if (code != ncclSuccess) {
     std::stringstream ss;
     ss << "NCCL failure :" << ncclGetErrorString(code);
@@ -120,7 +120,7 @@ inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
       ss << " " << thrust::system_error(err, thrust::cuda_category()).what();
     }
     ss << " " << file << "(" << line << ")";
-    throw std::runtime_error(ss.str());
+    LOG(FATAL) << ss.str();
   }
 
   return code;
