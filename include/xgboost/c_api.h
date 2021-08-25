@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015~2021 by Contributors
+ * Copyright (c) 2015-2021 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
