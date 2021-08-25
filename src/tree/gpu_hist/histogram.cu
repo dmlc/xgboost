@@ -242,10 +242,10 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
         grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
 
     using T = typename GradientSumT::ValueT;
-    dh::LaunchKernel{dim3(grid_size, num_groups),
-                     static_cast<uint32_t>(block_threads),
-                     smem_size}(kernel, matrix, feature_groups, d_ridx,
-                                histogram.data(), gpair.data(), rounding);
+    dh::LaunchKernel {dim3(grid_size, num_groups),
+          static_cast<uint32_t>(block_threads),
+          smem_size} (kernel, matrix, feature_groups, d_ridx,
+                      histogram.data(), gpair.data(), rounding);
   };
 
   if (shared) {
