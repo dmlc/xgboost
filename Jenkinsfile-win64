@@ -76,6 +76,7 @@ def checkoutSrcs() {
 
 def BuildWin64() {
   node('win64 && cuda10_unified') {
+    deleteDir()
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     bat "nvcc --version"
@@ -118,6 +119,7 @@ def BuildWin64() {
 
 def BuildRPackageWithCUDAWin64() {
   node('win64 && cuda10_unified') {
+    deleteDir()
     unstash name: 'srcs'
     bat "nvcc --version"
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
@@ -134,6 +136,7 @@ def BuildRPackageWithCUDAWin64() {
 
 def TestWin64() {
   node('win64 && cuda10_unified') {
+    deleteDir()
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cli'
