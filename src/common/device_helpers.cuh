@@ -1093,12 +1093,11 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
   auto cast_src = reinterpret_cast<uint64_t *>(&src);
 
   const uint32_t x_low = static_cast<uint32_t>(src);
-  const uint32_t x_high_u = (*cast_src) >> 32;
-  const int32_t x_high = *(reinterpret_cast<int32_t const *>(&x_high_u));
+  const uint32_t x_high = (*cast_src) >> 32;
 
   auto old = atomicAdd(y_low, x_low);
-  int32_t carry = old > (std::numeric_limits<uint32_t>::max() - x_low);
-  auto sig = x_high + carry;
+  uint32_t carry = old > (std::numeric_limits<uint32_t>::max() - x_low);
+  uint32_t sig = x_high + carry;
   atomicAdd(y_high, sig);
 }
 
