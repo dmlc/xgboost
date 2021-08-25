@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2021 by XGBoost Contributors
  */
 #ifndef HISTOGRAM_CUH_
 #define HISTOGRAM_CUH_
@@ -15,8 +15,9 @@ namespace tree {
 template <typename GradientSumT>
 GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
-template <typename T>
-XGBOOST_DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, float const x) {
+template <typename T, typename U>
+XGBOOST_DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, U const x) {
+  static_assert(sizeof(T) >= sizeof(U), "Rounding must have higher or equal precision.");
   return (rounding_factor + static_cast<T>(x)) - rounding_factor;
 }
 
