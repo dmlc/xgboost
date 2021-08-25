@@ -113,8 +113,13 @@ inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
                                         int line) {
   if (code != ncclSuccess) {
     std::stringstream ss;
-    ss << "NCCL failure :" << ncclGetErrorString(code) << " ";
-    ss << file << "(" << line << ")";
+    ss << "NCCL failure :" << ncclGetErrorString(code);
+    if (code == ncclUnhandledCudaError) {
+      // nccl usually preserves the last error so we can get more details.
+      auto err = cudaPeekAtLastError();
+      ss << " " << thrust::system_error(err, thrust::cuda_category()).what();
+    }
+    ss << " " << file << "(" << line << ")";
     throw std::runtime_error(ss.str());
   }
 
