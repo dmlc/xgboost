@@ -208,18 +208,17 @@ XGBOOST_DEV_INLINE int64_t atomicAdd(int64_t *dst, int64_t src) {  // NOLINT
 
 void TestAtomicAdd() {
   size_t n_elements = 1024;
-  dh::caching_device_vector<int64_t> result_a(1);
+  dh::device_vector<int64_t> result_a(1, 0);
   auto d_result_a = result_a.data().get();
-  thrust::fill(result_a.begin(), result_a.end(), 0);
 
-  dh::caching_device_vector<int64_t> result_b(1);
+  dh::device_vector<int64_t> result_b(1, 0);
   auto d_result_b = result_b.data().get();
-  thrust::fill(result_b.begin(), result_b.end(), 0);
 
   std::vector<int64_t> h_inputs(n_elements);
   for (size_t i = 0; i < h_inputs.size(); ++i) {
     h_inputs[i] = (i % 2 == 0) ? i : -i;
   }
+
   dh::device_vector<int64_t> inputs(h_inputs);
   auto d_inputs = inputs.data().get();
 
@@ -227,7 +226,19 @@ void TestAtomicAdd() {
     dh::AtomicAdd64As32(d_result_a, d_inputs[i]);
     atomicAdd(d_result_b, d_inputs[i]);
   });
+  ASSERT_EQ(result_a[0], result_b[0]);
 
+  for (size_t i = 0; i < h_inputs.size(); ++i) {
+    auto v = std::numeric_limits<uint32_t>::max() - i;
+    h_inputs[i] = (i % 2 == 0) ? v : -v;
+  }
+  thrust::copy(h_inputs.cbegin(), h_inputs.cend(), inputs.begin());
+  thrust::fill(result_a.begin(), result_a.end(), 0);
+  thrust::fill(result_b.begin(), result_b.end(), 0);
+  dh::LaunchN(n_elements, [=] __device__(size_t i) {
+    dh::AtomicAdd64As32(d_result_a, d_inputs[i]);
+    atomicAdd(d_result_b, d_inputs[i]);
+  });
   ASSERT_EQ(result_a[0], result_b[0]);
 }
 

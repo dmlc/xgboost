@@ -1083,27 +1083,23 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
 }
 
 /**
- * \brief An atomicAdd designed for gradient pair.
+ * \brief An atomicAdd designed for gradient pair with better performance.  For general
+ *        int64_t atomicAdd, one can simply cast it to unsigned long long.
  */
 XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
-  auto lower = reinterpret_cast<uint32_t *>(dst);
-  auto higher = reinterpret_cast<int32_t *>(lower + 1);
+  auto y_low = reinterpret_cast<uint32_t *>(dst);
+  auto y_high = reinterpret_cast<int32_t *>(y_low + 1);
 
-  auto casted_src = reinterpret_cast<uint64_t *>(&src);
+  auto cast_src = reinterpret_cast<uint64_t *>(&src);
 
   const uint32_t x_low = static_cast<uint32_t>(src);
-  const uint32_t x_high_u = (*casted_src) >> 32;
+  const uint32_t x_high_u = (*cast_src) >> 32;
   const int32_t x_high = *(reinterpret_cast<int32_t const *>(&x_high_u));
 
-  auto old = atomicAdd(lower, x_low);
-  auto carry = [](uint32_t a, uint32_t x) {
-    return int32_t(a > UINT32_MAX - x);
-  };
-  auto c = carry(old, x_low);
-  auto sig = x_high + c;
-  if (sig != 0) {
-    atomicAdd(higher, sig);
-  }
+  auto old = atomicAdd(y_low, x_low);
+  auto carry = !!(old > (UINT32_MAX - x_low));
+  auto sig = x_high + carry;
+  atomicAdd(y_high, sig);
 }
 
 XGBOOST_DEV_INLINE void
