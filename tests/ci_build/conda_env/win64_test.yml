@@ -12,8 +12,7 @@ dependencies:
 - boto3
 - hypothesis
 - jsonschema
+- cupy
+- python-graphviz
+- modin-all
 - pip
-- pip:
-  - cupy-cuda101
-  - modin[all]
-  - graphviz

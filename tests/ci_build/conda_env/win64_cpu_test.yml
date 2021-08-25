@@ -16,6 +16,5 @@ dependencies:
 - jsonschema
 - hypothesis
 - jsonschema
+- python-graphviz
 - pip
-- pip:
-  - graphviz
