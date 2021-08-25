@@ -1087,8 +1087,8 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
  *        int64_t atomicAdd, one can simply cast it to unsigned long long.
  */
 XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
-  auto y_low = reinterpret_cast<uint32_t *>(dst);
-  auto y_high = reinterpret_cast<int32_t *>(y_low + 1);
+  uint32_t* y_low = reinterpret_cast<uint32_t *>(dst);
+  uint32_t* y_high = y_low + 1;
 
   auto cast_src = reinterpret_cast<uint64_t *>(&src);
 
