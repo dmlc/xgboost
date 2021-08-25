@@ -134,6 +134,7 @@ def BuildRPackageWin64() {
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_win64_*.tar.gz'
     }
     deleteDir()
+  }
 }
 
 def TestWin64() {
