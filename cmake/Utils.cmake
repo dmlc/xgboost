@@ -91,7 +91,7 @@ function(format_gencode_flags flags out)
   # Set up architecture flags
   if(NOT flags)
     if (CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
-      set(flags "35;50;52;60;61;70;75;80")
+      set(flags "50;52;60;61;70;75;80;86")
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
       set(flags "35;50;52;60;61;70;75")
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "9.0")

@@ -2,7 +2,7 @@ name: win64_env
 channels:
 - conda-forge
 dependencies:
-- python=3.7
+- python=3.8
 - numpy
 - scipy
 - matplotlib
@@ -12,8 +12,7 @@ dependencies:
 - boto3
 - hypothesis
 - jsonschema
+- cupy
+- python-graphviz
+- modin-ray
 - pip
-- pip:
-  - cupy-cuda101
-  - modin[all]
-  - graphviz
