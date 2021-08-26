@@ -19,7 +19,7 @@ namespace xgboost {
  */
 class GHistIndexMatrix {
  public:
-  common::Monitor monitor_;
+  common::Monitor monitor;
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
   /*! \brief The index data */

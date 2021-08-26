@@ -9,7 +9,7 @@
 
 namespace xgboost {
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
-  monitor_.Start("GHistIndexMatrix::Init");
+  monitor.Start("GHistIndexMatrix::Init");
   cut = common::SketchOnDMatrix(p_fmat, max_bins);
 
   max_num_bins = max_bins;
@@ -168,7 +168,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
     prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
   }
-  monitor_.Stop("GHistIndexMatrix::Init");
+  monitor.Stop("GHistIndexMatrix::Init");
 }
 
 
