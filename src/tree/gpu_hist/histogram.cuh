@@ -12,10 +12,16 @@
 namespace xgboost {
 namespace tree {
 
+/**
+ * Truncation factor for gradient, see comments in `CreateRoundingFactor()` for details.
+ */
 template <typename GradientSumT>
 struct HistRounding {
+  /* Factor to truncate the gradient before building histogram for deterministic result. */
   GradientSumT rounding;
+  /* Convert gradient to fixed point representation. */
   GradientSumT to_fixed_point;
+  /* Convert fixed point representation back to floating point. */
   GradientSumT to_floating_point;
 };
 
