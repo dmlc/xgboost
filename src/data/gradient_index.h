@@ -19,6 +19,7 @@ namespace xgboost {
  */
 class GHistIndexMatrix {
  public:
+  common::Monitor monitor_;
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
@@ -37,8 +38,9 @@ class GHistIndexMatrix {
   void Init(DMatrix* p_fmat, int max_num_bins);
 
   // specific method for sparse data as no possibility to reduce allocated memory
-  template <typename BinIdxType, typename GetOffset>
+  template <typename BinIdxType, typename GetOffset, bool IsDense>
   void SetIndexData(common::Span<BinIdxType> index_data_span,
+                    common::Span<BinIdxType> index_second_data_span,
                     size_t batch_threads, const SparsePage &batch,
                     size_t rbegin, size_t nbins, GetOffset get_offset) {
     const xgboost::Entry *data_ptr = batch.data.HostVector().data();
@@ -46,6 +48,7 @@ class GHistIndexMatrix {
     const size_t batch_size = batch.Size();
     CHECK_LT(batch_size, offset_vec.size());
     BinIdxType* index_data = index_data_span.data();
+    BinIdxType* index_second_data = index_second_data_span.data();
     common::ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
@@ -56,6 +59,9 @@ class GHistIndexMatrix {
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.SearchBin(inst[j]);
         index_data[ibegin + j] = get_offset(idx, j);
+        if (IsDense) {
+          index_second_data[ibegin + j] = index_data[ibegin + j];
+        }
         ++hit_count_tloc_[tid * nbins + idx];
       }
     });

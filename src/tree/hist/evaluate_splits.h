@@ -16,6 +16,7 @@
 #include "../../common/random.h"
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
+#include "../../common/opt_partition_builder.h"
 
 namespace xgboost {
 namespace tree {
@@ -34,9 +35,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   TreeEvaluator tree_evaluator_;
   int32_t n_threads_ {0};
+  bool is_distributed_ = false;
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
-
   // if sum of statistics for non-missing values in the node
   // is equal to sum of statistics for all values:
   // then - there are no missing values
@@ -133,8 +134,22 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
  public:
   void EvaluateSplits(const common::HistCollection<GradientSumT> &hist,
                       GHistIndexMatrix const &gidx, const RegTree &tree,
-                      std::vector<ExpandEntry>* p_entries) {
+                      std::vector<ExpandEntry>* p_entries,
+                      std::vector<ExpandEntry>* p_entries_sub,
+                      std::vector<ExpandEntry>* p_evaluate_entries,
+                      std::vector<std::vector<std::vector<GradientSumT>>>* p_histograms,
+                      const common::OptPartitionBuilder* p_opt_partition_builder,
+                      // template?
+                      std::vector<uint16_t>* p_nodes_mapping, RegTree* p_tree,
+                      const bool colsample_enabled) {
+    const std::vector<uint32_t> &cut_ptr = gidx.cut.Ptrs();
+    const size_t n_bins = gidx.cut.Ptrs().back();
+    size_t n_features = gidx.cut.Ptrs().size() - 1;
+    std::vector<std::vector<std::vector<GradientSumT>>>& histograms = *p_histograms;
+    std::vector<uint16_t>& nodes_mapping = *p_nodes_mapping;
     auto& entries = *p_entries;
+    auto& entries_sub = *p_entries_sub;
+    auto& evaluate_entries = *p_evaluate_entries;
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(
         entries.size());
@@ -142,11 +157,28 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       auto nidx = entries[nidx_in_set].nid;
       features[nidx_in_set] =
           column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
+          auto features_set = features[nidx_in_set]->ConstHostSpan();
+    }
+    std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features_sub;
+    if (entries_sub.size() != 0) {
+      features_sub.resize(entries_sub.size());
+      for (size_t nidx_in_set = 0; nidx_in_set < entries_sub.size(); ++nidx_in_set) {
+        auto nidx = entries_sub[nidx_in_set].nid;
+        features_sub[nidx_in_set] =
+            column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
+          auto features_set = features_sub[nidx_in_set]->ConstHostSpan();
+      }
     }
     CHECK(!features.empty());
-    const size_t grain_size =
-        std::max<size_t>(1, features.front()->Size() / n_threads_);
+    const size_t average_bin_size = n_bins / (gidx.cut.Ptrs().size() - 1);
+    CHECK_GE(average_bin_size, 1);
+    const size_t grain_size = std::min<size_t>(1024/average_bin_size,
+                                               std::max<size_t>(1,
+                                               features.front()->Size() / n_threads_));
     common::BlockedSpace2d space(entries.size(), [&](size_t nidx_in_set) {
+      if (entries_sub.size() != 0) {
+        CHECK_EQ(features[nidx_in_set]->Size(), features_sub[nidx_in_set]->Size());
+      }
       return features[nidx_in_set]->Size();
     }, grain_size);
 
@@ -156,36 +188,133 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         tloc_candidates[i * n_threads_ + j] = entries[i];
       }
     }
+    std::vector<ExpandEntry> tloc_candidates_sub;
+    if (entries_sub.size() != 0) {
+      tloc_candidates_sub.resize(omp_get_max_threads() * entries_sub.size());
+      for (size_t i = 0; i < entries_sub.size(); ++i) {
+        for (decltype(n_threads_) j = 0; j < n_threads_; ++j) {
+          tloc_candidates_sub[i * n_threads_ + j] = entries_sub[i];
+        }
+      }
+    }
     auto evaluator = tree_evaluator_.GetEvaluator();
 
-    common::ParallelFor2d(space, n_threads_, [&](size_t nidx_in_set, common::Range1d r) {
-      auto tidx = omp_get_thread_num();
-      auto entry = &tloc_candidates[n_threads_ * nidx_in_set + tidx];
+    const size_t num_blocks_in_space = space.Size();
+    const bool is_dense_and_root = gidx.IsDense() && entries_sub.size() == 0;
+    #pragma omp parallel for schedule(guided)
+    for (bst_omp_uint task_id = 0; task_id < num_blocks_in_space; ++task_id) {
+      const auto tidx = omp_get_thread_num();
+      size_t nidx_in_set = space.GetFirstDimension(task_id);
+      common::Range1d r = space.GetRange(task_id);
+
+      ExpandEntry* entry = &tloc_candidates[n_threads_ * nidx_in_set + tidx];
       auto best = &entry->split;
-      auto nidx = entry->nid;
-      auto histogram = hist[nidx];
+      int nidx = entry->nid;
+      typename common::HistCollection<GradientSumT>::GHistRowT histogram = hist[nidx];
       auto features_set = features[nidx_in_set]->ConstHostSpan();
+
+      GradientSumT* parent_hist = nullptr;
+      GradientSumT* largest_hist = nullptr;
+      ExpandEntry* entry_s = nullptr;
+      int nidx_s = 0;
+      typename common::HistCollection<GradientSumT>::GHistRowT histogram_s;
+      if (entries_sub.size() != 0) {
+        entry_s = &tloc_candidates_sub[n_threads_ * nidx_in_set + tidx];
+        nidx_s = entry_s->nid;
+        histogram_s = hist[nidx_s];
+        const size_t parent_id = (*p_tree)[nidx_s].Parent();
+        parent_hist = reinterpret_cast<GradientSumT*>(hist[parent_id].data());
+        largest_hist = reinterpret_cast<GradientSumT*>(histogram_s.data());
+      }
+      size_t begin = 2*cut_ptr[features_set[r.begin()]];
+      size_t end = 2*cut_ptr[features_set[r.end()-1] + 1];
+
+      GradientSumT* dest_hist = reinterpret_cast<GradientSumT*>(histogram.data());
+      if (p_opt_partition_builder->threads_id_for_nodes_[nidx].size() != 0
+          && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
+        const size_t first_thread_id = p_opt_partition_builder->threads_id_for_nodes_[nidx][0];
+        const size_t node_id = nodes_mapping.data()[nidx];
+        GradientSumT* hist0 =  histograms[first_thread_id][node_id].data();
+
+        size_t local_size = end - begin;
+        size_t local_block_size = 512;
+        size_t n_local_blocks = local_size / local_block_size + !!(local_size % local_block_size);
+        for (size_t block_id = 0; block_id < n_local_blocks; ++block_id) {
+          size_t local_begin = begin + block_id*local_block_size;
+          size_t local_end = std::min(local_begin + local_block_size, end);
+          common::ReduceHist(dest_hist, hist0, &histograms,
+                             node_id, p_opt_partition_builder->threads_id_for_nodes_[nidx],
+                             local_begin, local_end);
+          if (entries_sub.size() != 0) {
+            // subtric large
+            common::SubtractionHist(largest_hist, parent_hist, dest_hist,
+                            local_begin, local_end);
+          }
+        }
+      } else if (p_opt_partition_builder->threads_id_for_nodes_[nidx].size() == 0
+                 && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
+        common::ClearHist(dest_hist, begin, end);
+        if (entries_sub.size() != 0) {
+          // subtric large
+          common::SubtractionHist(largest_hist, parent_hist, dest_hist, begin, end);
+        }
+      }
+
+      // reduce small
       for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
         auto fidx = features_set[fidx_in_set];
         if (interaction_constraints_.Query(nidx, fidx)) {
           auto grad_stats = EnumerateSplit<+1>(gidx, histogram, snode_[nidx],
-                                               best, fidx, nidx, evaluator);
+                                              best, fidx, nidx, evaluator);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
             EnumerateSplit<-1>(gidx, histogram, snode_[nidx], best, fidx, nidx,
-                               evaluator);
+                              evaluator);
           }
         }
       }
-    });
 
+      if (entries_sub.size() != 0) {
+        auto best_s = &entry_s->split;
+        auto features_set_s = features_sub[nidx_in_set]->ConstHostSpan();
+          // call evaluate for it
+        for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
+          auto fidx = features_set_s[fidx_in_set];
+          if (interaction_constraints_.Query(nidx_s, fidx)) {
+            auto grad_stats = EnumerateSplit<+1>(gidx, histogram_s, snode_[nidx_s],
+                                                best_s, fidx, nidx_s, evaluator);
+            if (SplitContainsMissingValues(grad_stats, snode_[nidx_s])) {
+              EnumerateSplit<-1>(gidx, histogram_s, snode_[nidx_s], best_s, fidx, nidx_s,
+                                evaluator);
+            }
+          }
+        }
+      }
+    }
+    size_t entry_id = 0;
     for (unsigned nidx_in_set = 0; nidx_in_set < entries.size();
          ++nidx_in_set) {
       for (auto tidx = 0; tidx < n_threads_; ++tidx) {
         entries[nidx_in_set].split.Update(
             tloc_candidates[n_threads_ * nidx_in_set + tidx].split);
       }
+
+      evaluate_entries[entry_id++] = entries[nidx_in_set];
+      if (entries_sub.size() != 0) {
+        for (auto tidx = 0; tidx < n_threads_; ++tidx) {
+          entries_sub[nidx_in_set].split.Update(
+              tloc_candidates_sub[n_threads_ * nidx_in_set + tidx].split);
+        }
+
+        evaluate_entries[entry_id++] = entries_sub[nidx_in_set];
+      }
+    }
+    if (entries_sub.size() != 0) {
+      CHECK_EQ(entry_id, 2*entries.size());
+    } else {
+      CHECK_EQ(entry_id, 1);
     }
   }
+
   // Add splits to tree, handles all statistic
   void ApplyTreeSplit(ExpandEntry candidate, RegTree *p_tree) {
     auto evaluator = tree_evaluator_.GetEvaluator();
@@ -256,7 +385,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       : param_{param}, column_sampler_{std::move(sampler)},
         tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_),
                         GenericParameter::kCpuId},
-        n_threads_{n_threads} {
+        n_threads_{n_threads}, is_distributed_(rabit::IsDistributed()) {
     interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_->Init(info.num_col_, info.feature_weigths.HostVector(),
                           param_.colsample_bynode, param_.colsample_bylevel,

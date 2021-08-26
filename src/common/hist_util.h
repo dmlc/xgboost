@@ -179,8 +179,12 @@ struct Index {
     return binTypeSize_;
   }
   template<typename T>
-  T* data() const {  // NOLINT
+  T* Data() const {  // NOLINT
     return static_cast<T*>(data_ptr_);
+  }
+  template<typename T>
+  T* SecondData() const {  // NOLINT
+    return static_cast<T*>(second_data_ptr_);
   }
   uint32_t* Offset() const {
     return offset_ptr_;
@@ -191,9 +195,20 @@ struct Index {
   size_t Size() const {
     return data_.size() / (binTypeSize_);
   }
-  void Resize(const size_t nBytesData) {
-    data_.resize(nBytesData);
+  void Resize(const size_t nBytesData, bool is_dense) {
+    const size_t n_threads = omp_get_max_threads();
+    #pragma omp parallel num_threads(n_threads)
+    {
+      const size_t tid = omp_get_thread_num();
+      if (tid == 0) {
+        data_.resize(nBytesData, 0);
+      }
+      if (tid == (n_threads - 1) && is_dense) {
+        second_data_.resize(nBytesData, 0);
+      }
+    }
     data_ptr_ = reinterpret_cast<void*>(data_.data());
+    second_data_ptr_ = reinterpret_cast<void*>(second_data_.data());
   }
   void ResizeOffset(const size_t nDisps) {
     offset_.resize(nDisps);
@@ -221,8 +236,10 @@ struct Index {
   using Func = uint32_t (*)(void*, size_t);
 
   std::vector<uint8_t> data_;
+  std::vector<uint8_t> second_data_;
   std::vector<uint32_t> offset_;  // size of this field is equal to number of features
   void* data_ptr_;
+  void* second_data_ptr_;
   BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
   size_t p_ {1};
   uint32_t* offset_ptr_ {nullptr};
@@ -285,9 +302,26 @@ void CopyHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> src,
  * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
  */
 template<typename GradientSumT>
-void SubtractionHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> src1,
-                     const GHistRow<GradientSumT> src2,
+void SubtractionHist(GradientSumT* dst, const GradientSumT* src1,
+                     const GradientSumT* src2,
                      size_t begin, size_t end);
+
+/*!
+ * \brief Reduce histograms
+ */
+template<typename GradientSumT>
+void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
+                std::vector<std::vector<std::vector<GradientSumT>>>* histograms,
+                const size_t node_displace,
+                const std::vector<uint16_t>& threads_id_for_node,
+                size_t begin, size_t end);
+
+/*!
+ * \brief Clear histogram
+ */
+template<typename GradientSumT>
+void ClearHist(GradientSumT* dest_hist,
+                size_t begin, size_t end);
 
 /*!
  * \brief histogram of gradient statistics for multiple nodes

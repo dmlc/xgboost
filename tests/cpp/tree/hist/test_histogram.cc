@@ -35,7 +35,14 @@ void TestAddHistRows(bool is_distributed) {
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram_builder;
+
   histogram_builder.Reset(gmat.cut.TotalBins(), kMaxBins, omp_get_max_threads(),
+                          gmat.cut.Ptrs().size() - 1,
+                          /*max_depth*/ 2,
+                          /*sampling*/  1, 1, 1,
+                          {nullptr},
+                          gmat.index.Offset(),
+                          gmat.IsDense(),
                           is_distributed);
   histogram_builder.AddHistRows(&starting_index, &sync_count,
                                 nodes_for_explicit_hist_build_,
@@ -81,7 +88,14 @@ void TestSyncHist(bool is_distributed) {
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
   uint32_t total_bins = gmat.cut.Ptrs().back();
-  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(), is_distributed);
+  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(),
+                          gmat.cut.Ptrs().size() - 1,
+                          /*max_depth*/ 2,
+                          /*sampling*/  1, 1, 1,
+                          {nullptr},
+                          gmat.index.Offset(),
+                          gmat.IsDense(),
+                          is_distributed);
 
   RowSetCollection row_set_collection_;
   {
@@ -169,16 +183,22 @@ void TestSyncHist(bool is_distributed) {
     }
   }
 
-  histogram.Buffer().Reset(1, n_nodes, space, target_hists);
   // sync hist
+  common::OptPartitionBuilder opt_partition_builder;
+  opt_partition_builder.threads_id_for_nodes_.resize(nodes_for_explicit_hist_build_[nodes_for_explicit_hist_build_.size() - 1].nid + 1);
+  const std::vector<uint16_t> nodes_mapping;
+
   if (is_distributed) {
-    histogram.SyncHistogramDistributed(&tree, nodes_for_explicit_hist_build_,
-                                       nodes_for_subtraction_trick_,
-                                       starting_index, sync_count);
+    histogram.template SyncHistograms<true>(gmat, &tree, nodes_for_explicit_hist_build_,
+                                            nodes_for_subtraction_trick_,
+                                            starting_index, sync_count,
+                                            &opt_partition_builder, &nodes_mapping);
+
   } else {
-    histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
-                                 nodes_for_subtraction_trick_, starting_index,
-                                 sync_count);
+    histogram.template SyncHistograms<false>(gmat, &tree, nodes_for_explicit_hist_build_,
+                                             nodes_for_subtraction_trick_,
+                                             starting_index, sync_count,
+                                             &opt_partition_builder, &nodes_mapping);
   }
 
   using GHistRowT = common::GHistRow<GradientSumT>;
@@ -247,22 +267,43 @@ void TestBuildHistogram(bool is_distributed) {
 
   bst_node_t nid = 0;
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
-  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(), is_distributed);
-
+  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(),
+                  gmat.cut.Ptrs().size() - 1,
+                  /*max_depth*/ 1,
+                  /*sampling*/  0.5, 1, 1,
+                  {nullptr},
+                  gmat.index.Offset(),
+                  gmat.IsDense(),
+                  is_distributed);
   RegTree tree;
-
-  RowSetCollection row_set_collection_;
-  row_set_collection_.Clear();
-  std::vector<size_t> &row_indices = *row_set_collection_.Data();
-  row_indices.resize(kNRows);
-  std::iota(row_indices.begin(), row_indices.end(), 0);
-  row_set_collection_.Init();
 
   CPUExpandEntry node(CPUExpandEntry::kRootNid, tree.GetDepth(0), 0.0f);
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
+  std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
   nodes_for_explicit_hist_build_.push_back(node);
-  histogram.BuildHist(p_fmat.get(), &tree, row_set_collection_,
-                      nodes_for_explicit_hist_build_, {}, gpair);
+  ColumnMatrix column_matrix;
+  column_matrix.Init(gmat, 1);
+  common::OptPartitionBuilder opt_partition_builder;
+
+  // create partitioner
+  opt_partition_builder.template Init<uint8_t>(gmat,
+                                      column_matrix,
+                                      &tree,
+                                      omp_get_max_threads(),
+                                      1,
+                                      kNRows,
+                                      false);
+  opt_partition_builder.UpdateRootThreadWork(true);
+  std::vector<uint16_t> nodes_mapping(1, 0);
+  std::vector<uint16_t> node_ids(kNRows, 0);
+
+
+  histogram.template BuildHist<uint8_t, true, true>(p_fmat.get(), gmat, &tree, gpair, 0, column_matrix,
+                      nodes_for_explicit_hist_build_,
+                      nodes_for_subtraction_trick_,
+                      &opt_partition_builder,
+                      &nodes_mapping,
+                      &node_ids);
 
   // Check if number of histogram bins is correct
   ASSERT_EQ(histogram.Histogram()[nid].size(), gmat.cut.Ptrs().back());
