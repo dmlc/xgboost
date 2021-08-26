@@ -185,7 +185,7 @@ void TestSyncHist(bool is_distributed) {
 
   // sync hist
   common::OptPartitionBuilder opt_partition_builder;
-  opt_partition_builder.threads_id_for_nodes_.resize(nodes_for_explicit_hist_build_[nodes_for_explicit_hist_build_.size() - 1].nid + 1);
+  opt_partition_builder.threads_id_for_nodes.resize(nodes_for_explicit_hist_build_[nodes_for_explicit_hist_build_.size() - 1].nid + 1);
   const std::vector<uint16_t> nodes_mapping;
 
   if (is_distributed) {

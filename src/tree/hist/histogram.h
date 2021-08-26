@@ -124,7 +124,7 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
                           uint16_t* nodes_ids, const std::vector<std::vector<uint64_t>>& offsets640,
                           const common::ColumnMatrix *column_matrix,
                           const uint16_t* nodes_mapping_ids, const std::vector<int>& fids) {
-  constexpr bool is_single = static_cast<bool>(sizeof(GradientSumT) == 4);
+  constexpr bool kIsSingle = static_cast<bool>(sizeof(GradientSumT) == 4);
 
   if (read_by_column) {
     using DenseColumnT = common::DenseColumn<BinIdxType, any_missing>;
@@ -132,8 +132,8 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
     const size_t n_columns = column_sampling ? fids.size() : n_features;
     for (size_t cid = 0; cid < n_columns; ++cid) {
       const size_t local_cid = column_sampling ? fids[cid] : cid;
-      const DenseColumnT* column = dynamic_cast<const DenseColumnT*>(
-        column_matrix->GetColumn<BinIdxType, any_missing>(local_cid).get());
+      const auto column_ptr = column_matrix->GetColumn<BinIdxType, any_missing>(local_cid);
+      const DenseColumnT* column = dynamic_cast<const DenseColumnT*>(column_ptr.get());
       CHECK_NE(column, static_cast<const DenseColumnT*>(nullptr));
       const BinIdxType* gr_index_local = column->GetFeatureBinIdxPtr().data();
       const size_t base_idx = column->GetBaseIdx();
@@ -147,7 +147,7 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
           const size_t idx_gh = row_id << 1;
           const uint64_t* offsets64 = offsets640[nid].data();
           const double pgh_d[2] = {pgh[idx_gh], pgh[idx_gh + 1]};
-          if (is_single) {
+          if (kIsSingle) {
             float* hist_local = reinterpret_cast<float*>(
               offsets64[local_cid] + (static_cast<size_t>(gr_index_local[row_id])) * 8 +
               (any_missing ? base_idx * 8 : 0));
@@ -169,7 +169,7 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
     const float* pgh = reinterpret_cast<const float*>(gpair.data());
     const BinIdxType* gradient_index = any_missing ? gmat.index.Data<BinIdxType>() : numa;
 
-    const size_t feature_block_size = feature_blocking ? 13 : n_features;
+    const size_t feature_block_size = feature_blocking ? static_cast<size_t>(13) : n_features;
     const size_t nb = n_features / feature_block_size + !!(n_features % feature_block_size);
     const size_t size_with_prefetch = (is_root || feature_blocking) ? 0 :
                                       ((row_size > Prefetch1::kPrefetchOffset) ?
@@ -178,14 +178,14 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
       RowsWiseBuildHist<true, BinIdxType,
                         feature_blocking,
                         is_root, any_missing,
-                        is_single> (gradient_index, rows, row_ptr, row_begin,
+                        kIsSingle> (gradient_index, rows, row_ptr, row_begin,
                                     row_begin + size_with_prefetch,
                                     n_features, nodes_ids,
                                     offsets640, nodes_mapping_ids, pgh, ib);
       RowsWiseBuildHist<false, BinIdxType,
                         feature_blocking,
                         is_root, any_missing,
-                        is_single> (gradient_index, rows, row_ptr, row_begin + size_with_prefetch,
+                        kIsSingle> (gradient_index, rows, row_ptr, row_begin + size_with_prefetch,
                                     row_end, n_features, nodes_ids,
                                     offsets640, nodes_mapping_ids, pgh, ib);
     }
@@ -216,9 +216,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   bool is_distributed_ {false};
 
  public:
-  std::vector<std::vector<std::vector<GradientSumT>>> histograms_buffer_;
+  std::vector<std::vector<std::vector<GradientSumT>>> histograms_buffer;
   std::vector<std::vector<std::vector<GradientSumT>>>* GetHistBuffer() {
-    return &histograms_buffer_;
+    return &histograms_buffer;
   }
   /**
    * \param total_bins       Total number of bins across all features
@@ -249,14 +249,14 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     colsample_bylevel_ = colsample_bylevel;
     colsample_bynode_ = colsample_bynode;
     column_sampler_ = column_sampler;
-    if (histograms_buffer_.size() == 0) {
+    if (histograms_buffer.size() == 0) {
       n_bins_ = total_bins;
-      histograms_buffer_.resize(n_threads);
+      histograms_buffer.resize(n_threads);
       offsets64_.resize(n_threads);
       #pragma omp parallel num_threads(n_threads)
       {
         const size_t tid = omp_get_thread_num();
-        histograms_buffer_[tid].resize((1 << (max_depth_ - 1)));
+        histograms_buffer[tid].resize((1 << (max_depth_ - 1)));
         offsets64_[tid].resize((1 << (max_depth_ - 1)));
       }
     }
@@ -323,7 +323,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
                             std::vector<uint16_t>* node_ids) {
     // std::string depth_str = std::to_string(depth);
     const std::vector<uint16_t>& nodes_mapping = *p_nodes_mapping;
-    const common::OptPartitionBuilder& opt_partition_builder_ = *p_opt_partition_builder;
+    const common::OptPartitionBuilder& opt_partition_builder = *p_opt_partition_builder;
     std::vector<uint16_t>& node_ids_ = *node_ids;
     using BuildHistFunc = void(*)(const std::vector<GradientPair>&,
                                   const uint32_t*,
@@ -364,29 +364,28 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
         size_t tid = omp_get_thread_num();
         const BinIdxType* numa = tid < nthreads/2 ?  gmat_local.index.Data<BinIdxType>() :
                                                     gmat_local.index.SecondData<BinIdxType>();
-        const std::vector<common::Slice>& local_thread_addr =
-          opt_partition_builder_.threads_addr_[tid];
-        const size_t thread_size = opt_partition_builder_.node_id_for_threads_[tid].size();
+        const std::vector<common::Slice>& local_slices =
+          opt_partition_builder.threads_addr[tid];
+        const size_t thread_size = opt_partition_builder.node_id_for_threads[tid].size();
         for (size_t nid = 0; nid < thread_size; ++nid) {
-          const size_t node_id = opt_partition_builder_.node_id_for_threads_[tid][nid];
+          const size_t node_id = opt_partition_builder.node_id_for_threads[tid][nid];
           const int32_t mapped_node_id = nodes_mapping.data()[node_id];
           if (offsets64_[tid][mapped_node_id].size() == 0) {
             offsets64_[tid][mapped_node_id].resize(n_features, 0);
-            histograms_buffer_[tid][mapped_node_id].resize(n_bins_*2, 0);
+            histograms_buffer[tid][mapped_node_id].resize(n_bins_*2, 0);
             uint64_t* offsets640 = offsets64_[tid][mapped_node_id].data();
             const uint32_t* offsets = gmat_local.index.Offset();
             for (size_t i = 0; i < n_features; ++i) {
               offsets640[i] = !any_missing ?
-                reinterpret_cast<uint64_t>(histograms_buffer_[tid][mapped_node_id].data()) +
+                reinterpret_cast<uint64_t>(histograms_buffer[tid][mapped_node_id].data()) +
                 sizeof(GradientSumT)*2*static_cast<uint64_t>(offsets[i]) :
-                reinterpret_cast<uint64_t>(histograms_buffer_[tid][mapped_node_id].data());
+                reinterpret_cast<uint64_t>(histograms_buffer[tid][mapped_node_id].data());
             }
           }
         }
-        for (uint32_t block_id = 0; block_id < local_thread_addr.size(); ++block_id) {
-          const uint32_t* rows = local_thread_addr[block_id].addr;
-          build_hist_func(gpair_h, rows, local_thread_addr[block_id].b,
-                          local_thread_addr[block_id].e, gmat_local, n_features,
+        for (const common::Slice& slice : local_slices) {
+          const uint32_t* rows = slice.addr;
+          build_hist_func(gpair_h, rows, slice.b, slice.e, gmat_local, n_features,
                           numa, node_ids_.data(), offsets64_[tid],
                           &column_matrix, nodes_mapping.data(), fids);
         }
@@ -481,16 +480,16 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
           // Merging histograms from each thread into once
 
           GradientSumT* dest_hist = reinterpret_cast<GradientSumT*>(this_hist.data());
-          if (opt_partition_builder.threads_id_for_nodes_[entry.nid].size() != 0) {
+          if (opt_partition_builder.threads_id_for_nodes[entry.nid].size() != 0) {
             const int32_t node_id = nodes_mapping.data()[entry.nid];
             const size_t first_thread_id =
-              opt_partition_builder.threads_id_for_nodes_[entry.nid][0];
-            GradientSumT* hist0 =  histograms_buffer_[first_thread_id][node_id].data();
+              opt_partition_builder.threads_id_for_nodes[entry.nid][0];
+            GradientSumT* hist0 =  histograms_buffer[first_thread_id][node_id].data();
             common::ReduceHist(dest_hist,
                                hist0,
-                               &histograms_buffer_,
+                               &histograms_buffer,
                                node_id,
-                               opt_partition_builder.threads_id_for_nodes_[entry.nid],
+                               opt_partition_builder.threads_id_for_nodes[entry.nid],
                                2 * r.begin(), 2 * r.end());
           } else {
             common::ClearHist(dest_hist, 2 * r.begin(), 2 * r.end());

@@ -230,9 +230,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       size_t end = 2*cut_ptr[features_set[r.end()-1] + 1];
 
       GradientSumT* dest_hist = reinterpret_cast<GradientSumT*>(histogram.data());
-      if (p_opt_partition_builder->threads_id_for_nodes_[nidx].size() != 0
+      if (p_opt_partition_builder->threads_id_for_nodes[nidx].size() != 0
           && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
-        const size_t first_thread_id = p_opt_partition_builder->threads_id_for_nodes_[nidx][0];
+        const size_t first_thread_id = p_opt_partition_builder->threads_id_for_nodes[nidx][0];
         const size_t node_id = nodes_mapping.data()[nidx];
         GradientSumT* hist0 =  histograms[first_thread_id][node_id].data();
 
@@ -243,7 +243,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
           size_t local_begin = begin + block_id*local_block_size;
           size_t local_end = std::min(local_begin + local_block_size, end);
           common::ReduceHist(dest_hist, hist0, &histograms,
-                             node_id, p_opt_partition_builder->threads_id_for_nodes_[nidx],
+                             node_id, p_opt_partition_builder->threads_id_for_nodes[nidx],
                              local_begin, local_end);
           if (entries_sub.size() != 0) {
             // subtric large
@@ -251,7 +251,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
                             local_begin, local_end);
           }
         }
-      } else if (p_opt_partition_builder->threads_id_for_nodes_[nidx].size() == 0
+      } else if (p_opt_partition_builder->threads_id_for_nodes[nidx].size() == 0
                  && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
         common::ClearHist(dest_hist, begin, end);
         if (entries_sub.size() != 0) {

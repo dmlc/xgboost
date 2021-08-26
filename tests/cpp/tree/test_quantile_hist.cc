@@ -135,8 +135,8 @@ class QuantileHistMock : public QuantileHistMaker {
         ColumnMatrix column_matrix;
         column_matrix.Init(gmat, 1);
         RealImpl::InitData(gmat, column_matrix, *p_fmat, tree, gpair);
-        for (size_t i = 0; i < unused_rows.size(); ++i) {
-          ASSERT_EQ((*gpair)[unused_rows[i]], GradientPair(0));
+        for (const size_t unused_row : unused_rows) {
+          ASSERT_EQ((*gpair)[unused_row], GradientPair(0));
         }
       }
       omp_set_num_threads(nthreads);
@@ -237,8 +237,8 @@ class QuantileHistMock : public QuantileHistMaker {
           RealImpl::opt_partition_builder_.UpdateRowBuffer(node_ids, &tree,
                                                            gmat, gmat.cut.Ptrs().size() - 1,
                                                            0, node_ids, false);
-          ASSERT_EQ(RealImpl::opt_partition_builder_.summ_size_, left_cnt);
-          ASSERT_EQ(num_row - RealImpl::opt_partition_builder_.summ_size_, right_cnt);
+          ASSERT_EQ(RealImpl::opt_partition_builder_.summ_size, left_cnt);
+          ASSERT_EQ(num_row - RealImpl::opt_partition_builder_.summ_size, right_cnt);
         }
       }
       omp_set_num_threads(initial_nthreads);

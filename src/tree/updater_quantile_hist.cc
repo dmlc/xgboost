@@ -160,8 +160,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
       }
     } else {
       builder_monitor_.Start("RootStatsCalculation");
-      for (size_t it = 0; it < gpair_h.size(); ++it) {
-        grad_stat.Add(gpair_h[it].GetGrad(), gpair_h[it].GetHess());
+      for (const GradientPair& gh : gpair_h) {
+        grad_stat.Add(gh.GetGrad(), gh.GetHess());
       }
       rabit::Allreduce<rabit::op::Sum, GradientSumT>(
           reinterpret_cast<GradientSumT *>(&grad_stat), 2);
@@ -221,15 +221,14 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
       compleate_node_ids.push_back((*p_tree)[entry.nid].RightChild());
       if (entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess() || is_loss_guided) {
         smalest_nodes_mask[curr_level_nodes_[2*entry.nid]] = true;
-        // std::cout << "small is " << curr_level_nodes_[2*entry.nid] << std::endl;
       } else {
         smalest_nodes_mask[curr_level_nodes_[2*entry.nid + 1]] = true;
-        // std::cout << "small is " << curr_level_nodes_[2*entry.nid + 1] << std::endl;
       }
     } else {
       is_compleate_tree_ = false;
-      curr_level_nodes_[2*entry.nid] = (uint16_t)(1) << 15 | (uint16_t)(entry.nid);
-      curr_level_nodes_[2*entry.nid + 1] = (uint16_t)(1) << 15 | (uint16_t)(entry.nid);
+      curr_level_nodes_[2*entry.nid] = static_cast<uint16_t>(1) << 15 |
+                                       static_cast<uint16_t>(entry.nid);
+      curr_level_nodes_[2*entry.nid + 1] = curr_level_nodes_[2*entry.nid];
     }
   }
   compleate_trees_depth_wise_ = compleate_node_ids;
@@ -258,8 +257,8 @@ void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
     bool is_loss_guide =  static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy) ==
                           TrainParam::kDepthWise ? false : true;
     if (is_loss_guide) {
-      if (opt_partition_builder_.partitions_[cleft].Size() <=
-          opt_partition_builder_.partitions_[cright].Size()) {
+      if (opt_partition_builder_.partitions[cleft].Size() <=
+          opt_partition_builder_.partitions[cright].Size()) {
         nodes_for_explicit_hist_build_.push_back(left_node);
         nodes_for_subtraction_trick_.push_back(right_node);
       } else {
@@ -304,7 +303,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 
   opt_partition_builder_.SetSlice(0, 0, size_threads);
   const size_t n_threads = omp_get_max_threads();
-  opt_partition_builder_.nthreads_ = n_threads;
+  opt_partition_builder_.n_threads = n_threads;
   node_ids_.resize(size_threads, 0);
   bool is_loss_guide = static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy) ==
                        TrainParam::kDepthWise ? false : true;
@@ -480,7 +479,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
         bst_float leaf_value;
         // if a node is marked as deleted by the pruner, traverse upward to locate
         // a non-deleted leaf.
-        int nid = (~((uint16_t)(1) << 15)) & node_ids_[it];
+        int nid = (~(static_cast<uint16_t>(1) << 15)) & node_ids_[it];
         if ((*p_last_tree_)[nid].IsDeleted()) {
           while ((*p_last_tree_)[nid].IsDeleted()) {
             nid = (*p_last_tree_)[nid].Parent();
@@ -489,8 +488,6 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
         }
         leaf_value = (*p_last_tree_)[nid].LeafValue();
         out_preds[it] += leaf_value;
-        // CHECK_LT(nid,  nodes_count[tid].size());
-        // nodes_count[tid][nid] += 1;
       }
     });
   builder_monitor_.Stop("UpdatePredictionCache");
@@ -707,9 +704,8 @@ void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
                                                      const RegTree& tree,
                                                      const GHistIndexMatrix& gmat,
                                                      std::vector<int32_t>* split_conditions) {
-  const size_t n_nodes = nodes.size();
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
+  for (const auto& node : nodes) {
+    const int32_t nid = node.nid;
     const bst_uint fid = tree[nid].SplitIndex();
     const bst_float split_pt = tree[nid].SplitCond();
     const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
