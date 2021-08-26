@@ -169,8 +169,8 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
     const float* pgh = reinterpret_cast<const float*>(gpair.data());
     const BinIdxType* gradient_index = any_missing ? gmat.index.Data<BinIdxType>() : numa;
 
-    const size_t feature_block_size = feature_blocking ? static_cast<size_t>(13) : n_features;   // NOLINT
-    const size_t nb = n_features / feature_block_size + !!(n_features % feature_block_size);
+    const size_t feature_block_size = feature_blocking ? static_cast<size_t>(13) : n_features;
+    const size_t nb = n_features / feature_block_size + !!(n_features % feature_block_size);   // NOLINT
     const size_t size_with_prefetch = (is_root || feature_blocking) ? 0 :
                                       ((row_size > Prefetch1::kPrefetchOffset) ?
                                       (row_size - Prefetch1::kPrefetchOffset) : 0);
