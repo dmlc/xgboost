@@ -75,7 +75,7 @@ class RegLossObj : public ObjFunction {
 
     const size_t nthreads = omp_get_max_threads();
     const size_t n_data_blocks = nthreads;
-    common::Transform<>::Init([&ndata, &nthreads] XGBOOST_DEVICE(size_t data_block_idx,
+    common::Transform<>::Init([ndata, nthreads] XGBOOST_DEVICE(size_t data_block_idx,
                            common::Span<float> _additional_input,
                            common::Span<GradientPair> _out_gpair,
                            common::Span<const bst_float> _preds,
