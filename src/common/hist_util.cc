@@ -120,6 +120,7 @@ template void ClearHist(double* dest_hist,
 
 template<typename GradientSumT>
 void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
+                const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                 std::vector<std::vector<std::vector<GradientSumT>>>* histograms,
                 const size_t node_id,
                 const std::vector<uint16_t>& threads_id_for_node,
@@ -130,7 +131,8 @@ void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
   }
   for (size_t tid = 1; tid < threads_id_for_node.size(); ++tid) {
     const size_t thread_id = threads_id_for_node[tid];
-    GradientSumT* hist =  (*histograms)[thread_id][node_id].data();
+    const size_t mapped_nod_id = local_threads_mapping[thread_id][node_id];
+    GradientSumT* hist =  (*histograms)[thread_id][mapped_nod_id].data();
     for (size_t bin_id = begin; bin_id < end; ++bin_id) {
       dest_hist[bin_id] += hist[bin_id];
       hist[bin_id] = 0;
@@ -138,11 +140,13 @@ void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
   }
 }
 template void ReduceHist(float* dest_hist, float* hist0,
+                         const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                          std::vector<std::vector<std::vector<float>>>* histograms,
                          const size_t node_displace,
                          const std::vector<uint16_t>& threads_id_for_node,
                          size_t begin, size_t end);
 template void ReduceHist(double* dest_hist, double* hist0,
+                         const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                          std::vector<std::vector<std::vector<double>>>* histograms,
                          const size_t node_displace,
                          const std::vector<uint16_t>& threads_id_for_node,

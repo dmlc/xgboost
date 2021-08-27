@@ -142,7 +142,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
                                                                nodes_for_explicit_hist_build_,
                                                                nodes_for_subtraction_trick_,
                                                                &opt_partition_builder_,
-                                                               &nodes_mapping_, &node_ids_);
+                                                               &node_ids_);
 
   {
     auto nid = CPUExpandEntry::kRootNid;
@@ -181,7 +181,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
                                 *p_tree, &nodes_for_explicit_hist_build_,
                                 &nodes_for_subtraction_trick_, &entries,
                                 histogram_builder_->GetHistBuffer(),
-                                &opt_partition_builder_, &nodes_mapping_, p_tree,
+                                histogram_builder_->GetLocalThreadsMapping(),
+                                &opt_partition_builder_, p_tree,
                                 param_.colsample_bylevel != 1 ||
                                 param_.colsample_bynode  != 1 ||
                                 param_.colsample_bytree  != 1);
@@ -204,17 +205,12 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
   std::vector<bool>& smalest_nodes_mask = *smalest_nodes_mask_ptr;
   const bool is_loss_guided = static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy)
                               != TrainParam::kDepthWise;
-  size_t i = 0;
   std::vector<uint16_t> compleate_node_ids;
   for (auto const& entry : expand) {
     if (entry.IsValid(param_, *num_leaves)) {
       nodes_for_apply_split->push_back(entry);
       evaluator_->ApplyTreeSplit(entry, p_tree);
       (*num_leaves)++;
-      nodes_mapping_[(*p_tree)[entry.nid].LeftChild()] = is_loss_guided ? 0 : i;
-      ++i;
-      nodes_mapping_[(*p_tree)[entry.nid].RightChild()] = is_loss_guided ? 0 : i;
-      ++i;
       curr_level_nodes_[2*entry.nid] = (*p_tree)[entry.nid].LeftChild();
       curr_level_nodes_[2*entry.nid + 1] = (*p_tree)[entry.nid].RightChild();
       compleate_node_ids.push_back((*p_tree)[entry.nid].LeftChild());
@@ -310,8 +306,6 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   int depth = 0;
   curr_level_nodes_.clear();
   curr_level_nodes_.resize(1 << (param_.max_depth + 2), 0);
-  nodes_mapping_.resize(1 << (param_.max_depth + 2), 0);
-  nodes_mapping_[0] = 0;
   InitRoot<BinIdxType, any_missing, hist_fit_to_l2>(gmat, p_fmat, p_tree, gpair_h,
                                                     &num_leaves, &expand, nullptr,
                                                     column_matrix, is_loss_guide);
@@ -356,15 +350,16 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
                                                                      nodes_for_explicit_hist_build_,
                                                                      nodes_for_subtraction_trick_,
                                                                      &opt_partition_builder_,
-                                                                     &nodes_mapping_, &node_ids_);
+                                                                     &node_ids_);
         builder_monitor_.Start("EvaluateSplits");
         for (auto const &gmat_local : p_fmat->GetBatches<GHistIndexMatrix>(
              BatchParam{GenericParameter::kCpuId, param_.max_bin})) {
           evaluator_->EvaluateSplits(this->histogram_builder_->Histogram(),
                                     gmat_local, *p_tree, &nodes_for_explicit_hist_build_,
                                     &nodes_for_subtraction_trick_, &nodes_to_evaluate,
-                                    histogram_builder_->GetHistBuffer(), &opt_partition_builder_,
-                                    &nodes_mapping_, p_tree,
+                                    histogram_builder_->GetHistBuffer(),
+                                    histogram_builder_->GetLocalThreadsMapping(),
+                                    &opt_partition_builder_, p_tree,
                                     param_.colsample_bylevel != 1 ||
                                     param_.colsample_bynode  != 1 ||
                                     param_.colsample_bytree  != 1);

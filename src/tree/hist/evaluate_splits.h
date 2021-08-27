@@ -138,15 +138,15 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
                       std::vector<ExpandEntry>* p_entries_sub,
                       std::vector<ExpandEntry>* p_evaluate_entries,
                       std::vector<std::vector<std::vector<GradientSumT>>>* p_histograms,
+                      std::vector<std::vector<uint16_t>>* p_local_threads_mapping,
                       const common::OptPartitionBuilder* p_opt_partition_builder,
-                      // template?
-                      std::vector<uint16_t>* p_nodes_mapping, RegTree* p_tree,
+                      RegTree* p_tree,
                       const bool colsample_enabled) {
     const std::vector<uint32_t> &cut_ptr = gidx.cut.Ptrs();
     const size_t n_bins = gidx.cut.Ptrs().back();
     size_t n_features = gidx.cut.Ptrs().size() - 1;
     std::vector<std::vector<std::vector<GradientSumT>>>& histograms = *p_histograms;
-    std::vector<uint16_t>& nodes_mapping = *p_nodes_mapping;
+    std::vector<std::vector<uint16_t>>& local_threads_mapping = *p_local_threads_mapping;
     auto& entries = *p_entries;
     auto& entries_sub = *p_entries_sub;
     auto& evaluate_entries = *p_evaluate_entries;
@@ -233,8 +233,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       if (p_opt_partition_builder->threads_id_for_nodes[nidx].size() != 0
           && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
         const size_t first_thread_id = p_opt_partition_builder->threads_id_for_nodes[nidx][0];
-        const size_t node_id = nodes_mapping.data()[nidx];
-        GradientSumT* hist0 =  histograms[first_thread_id][node_id].data();
+        std::vector<uint16_t>& local_thread_mapping = local_threads_mapping[first_thread_id];
+
+        GradientSumT* hist0 =  histograms[first_thread_id][local_thread_mapping[nidx]].data();
 
         size_t local_size = end - begin;
         size_t local_block_size = 512;
@@ -242,8 +243,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         for (size_t block_id = 0; block_id < n_local_blocks; ++block_id) {
           size_t local_begin = begin + block_id*local_block_size;
           size_t local_end = std::min(local_begin + local_block_size, end);
-          common::ReduceHist(dest_hist, hist0, &histograms,
-                             node_id, p_opt_partition_builder->threads_id_for_nodes[nidx],
+          common::ReduceHist(dest_hist, hist0, local_threads_mapping, &histograms,
+                             nidx, p_opt_partition_builder->threads_id_for_nodes[nidx],
                              local_begin, local_end);
           if (entries_sub.size() != 0) {
             // subtric large

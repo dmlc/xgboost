@@ -281,7 +281,6 @@ class QuantileHistMaker: public TreeUpdater {
     RowSetCollection row_set_collection_;
     std::vector<uint16_t> node_ids_;
     std::vector<uint16_t> curr_level_nodes_;
-    std::vector<uint16_t> nodes_mapping_;
     std::vector<int32_t> saved_split_ind_;
     std::vector<int32_t> split_conditions_;
     std::vector<uint64_t> split_ind_;

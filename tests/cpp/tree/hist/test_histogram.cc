@@ -186,19 +186,18 @@ void TestSyncHist(bool is_distributed) {
   // sync hist
   common::OptPartitionBuilder opt_partition_builder;
   opt_partition_builder.threads_id_for_nodes.resize(nodes_for_explicit_hist_build_[nodes_for_explicit_hist_build_.size() - 1].nid + 1);
-  const std::vector<uint16_t> nodes_mapping;
 
   if (is_distributed) {
     histogram.template SyncHistograms<true>(gmat, &tree, nodes_for_explicit_hist_build_,
                                             nodes_for_subtraction_trick_,
                                             starting_index, sync_count,
-                                            &opt_partition_builder, &nodes_mapping);
+                                            &opt_partition_builder);
 
   } else {
     histogram.template SyncHistograms<false>(gmat, &tree, nodes_for_explicit_hist_build_,
                                              nodes_for_subtraction_trick_,
                                              starting_index, sync_count,
-                                             &opt_partition_builder, &nodes_mapping);
+                                             &opt_partition_builder);
   }
 
   using GHistRowT = common::GHistRow<GradientSumT>;
@@ -294,7 +293,6 @@ void TestBuildHistogram(bool is_distributed) {
                                       kNRows,
                                       false);
   opt_partition_builder.UpdateRootThreadWork(true);
-  std::vector<uint16_t> nodes_mapping(1, 0);
   std::vector<uint16_t> node_ids(kNRows, 0);
 
 
@@ -302,7 +300,6 @@ void TestBuildHistogram(bool is_distributed) {
                       nodes_for_explicit_hist_build_,
                       nodes_for_subtraction_trick_,
                       &opt_partition_builder,
-                      &nodes_mapping,
                       &node_ids);
 
   // Check if number of histogram bins is correct

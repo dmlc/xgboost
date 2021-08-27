@@ -311,6 +311,7 @@ void SubtractionHist(GradientSumT* dst, const GradientSumT* src1,
  */
 template<typename GradientSumT>
 void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
+                const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                 std::vector<std::vector<std::vector<GradientSumT>>>* histograms,
                 const size_t node_displace,
                 const std::vector<uint16_t>& threads_id_for_node,

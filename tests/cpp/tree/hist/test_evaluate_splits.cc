@@ -76,13 +76,13 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   opt_partition_builder.UpdateRootThreadWork(true);
 
   std::vector<uint16_t> nodes_mapping;
+  std::vector<std::vector<uint16_t>> local_threads_mapping;
   RegTree* p_tree = nullptr;
 
-  std::cout << "EvaluateSplits" << std::endl;
   evaluator.EvaluateSplits(hist, gmat, tree, &entries, &entries_sub,
-                           &entries, &histograms, &opt_partition_builder,
-                           &nodes_mapping, p_tree, true);
-  std::cout << "EvaluateSplits finished" << std::endl;
+                           &entries, &histograms, &local_threads_mapping,
+                           &opt_partition_builder,
+                           p_tree, true);
 
   auto best_loss_chg =
       evaluator.Evaluator().CalcSplitGain(
