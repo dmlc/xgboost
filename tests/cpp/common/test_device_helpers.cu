@@ -242,6 +242,8 @@ void TestAtomicAdd() {
     atomicAdd(d_result_b, d_inputs[i]);
   });
   ASSERT_EQ(result_a[0], result_b[0]);
+  ASSERT_GT(result_a[0], std::numeric_limits<uint32_t>::max());
+  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
 
   /**
    * Test for negative values that don't fit into 32 bit integer.
@@ -255,6 +257,8 @@ void TestAtomicAdd() {
     atomicAdd(d_result_b, d_inputs[i]);
   });
   ASSERT_EQ(result_a[0], result_b[0]);
+  ASSERT_LT(result_a[0], std::numeric_limits<int32_t>::min());
+  CHECK_EQ(thrust::reduce(inputs.begin(), inputs.end(), int64_t(0)), result_a[0]);
 }
 
 TEST(AtomicAdd, Int64) {
