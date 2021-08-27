@@ -1,7 +1,16 @@
 find_package(JNI REQUIRED)
 
-add_library(xgboost4j SHARED
+list(APPEND JVM_SOURCES
   ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
+
+if (USE_CUDA)
+  list(APPEND JVM_SOURCES
+    ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-gpu/src/native/xgboost4j-gpu.cu
+    ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-gpu/src/native/xgboost4j-gpu.cpp)
+endif (USE_CUDA)
+
+add_library(xgboost4j SHARED ${JVM_SOURCES} ${XGBOOST_OBJ_SOURCES})
+
 if (ENABLE_ALL_WARNINGS)
   target_compile_options(xgboost4j PUBLIC -Wall -Wextra)
 endif (ENABLE_ALL_WARNINGS)
@@ -13,6 +22,16 @@ target_include_directories(xgboost4j
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
   ${PROJECT_SOURCE_DIR}/rabit/include)
+
+if (USE_CUDA)
+  target_include_directories(xgboost4j PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  target_compile_options(xgboost4j PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++14>
+    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
+endif (USE_CUDA)
 
 set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
 set_target_properties(

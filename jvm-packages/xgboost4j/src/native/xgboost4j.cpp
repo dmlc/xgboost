@@ -43,12 +43,14 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
-// global JVM
-static JavaVM* global_jvm = nullptr;
+JavaVM*& GlobalJvm() {
+  static JavaVM* vm;
+  return vm;
+}
 
 // overrides JNI on load
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
-  global_jvm = vm;
+  GlobalJvm() = vm;
   return JNI_VERSION_1_6;
 }
 
@@ -58,9 +60,9 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     DataHolderHandle set_function_handle) {
   jobject jiter = static_cast<jobject>(data_handle);
   JNIEnv* jenv;
-  int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_6);
+  int jni_status = GlobalJvm()->GetEnv((void **)&jenv, JNI_VERSION_1_6);
   if (jni_status == JNI_EDETACHED) {
-    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    GlobalJvm()->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
   } else {
     CHECK(jni_status == JNI_OK);
   }
@@ -148,13 +150,13 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     jenv->DeleteLocalRef(iterClass);
     // only detach if it is a async call.
     if (jni_status == JNI_EDETACHED) {
-      global_jvm->DetachCurrentThread();
+      GlobalJvm()->DetachCurrentThread();
     }
     return ret_value;
   } catch(dmlc::Error const& e) {
     // only detach if it is a async call.
     if (jni_status == JNI_EDETACHED) {
-      global_jvm->DetachCurrentThread();
+      GlobalJvm()->DetachCurrentThread();
     }
     LOG(FATAL) << e.what();
     return -1;

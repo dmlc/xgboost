@@ -1303,4 +1303,9 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
                                   bst_ulong *out_dim,
                                   bst_ulong const **out_shape,
                                   float const **out_scores);
+
+XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
+                                                     float missing,
+                                                     int nthread,
+                                                     DMatrixHandle* out);
 #endif  // XGBOOST_C_API_H_

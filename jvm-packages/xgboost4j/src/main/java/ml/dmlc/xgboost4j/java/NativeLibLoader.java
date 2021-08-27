@@ -31,7 +31,7 @@ import org.apache.commons.logging.LogFactory;
  *
  * @author hzx
  */
-class NativeLibLoader {
+public class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
   /**
@@ -118,7 +118,7 @@ class NativeLibLoader {
    * Throws UnsatisfiedLinkError if the library failed to load it's dependencies.
    * @throws IOException If the library could not be extracted from the jar.
    */
-  static synchronized void initXGBoost() throws IOException {
+  public static synchronized void initXGBoost() throws IOException {
     if (!initialized) {
       OS os = OS.detectOS();
       Arch arch = Arch.detectArch();
