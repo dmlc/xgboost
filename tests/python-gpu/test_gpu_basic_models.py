@@ -55,9 +55,6 @@ class TestGPUBasicModels:
         model_0, model_1 = self.run_cls(X, y, True)
         assert model_0 == model_1
 
-        model_0, model_1 = self.run_cls(X, y, False)
-        assert model_0 != model_1
-
     def test_invalid_gpu_id(self):
         X = np.random.randn(10, 5) * 1e4
         y = np.random.randint(0, 2, size=10) * 1e4
