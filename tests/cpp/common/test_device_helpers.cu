@@ -231,20 +231,29 @@ void TestAtomicAdd() {
   ASSERT_EQ(result_a[0], result_b[0]);
 
   /**
-   * Test for input that doesn't fit into 32 bit integer.
+   * Test for positive values that don't fit into 32 bit integer.
    */
-  for (size_t i = 0; i < h_inputs.size(); ++i) {
-    auto v = std::numeric_limits<uint32_t>::max() - i;
-    h_inputs[i] = (i % 2 == 0) ? v : -v;
-  }
-  thrust::copy(h_inputs.cbegin(), h_inputs.cend(), inputs.begin());
+  thrust::fill(inputs.begin(), inputs.end(),
+               (std::numeric_limits<uint32_t>::max() / 2));
   thrust::fill(result_a.begin(), result_a.end(), 0);
   thrust::fill(result_b.begin(), result_b.end(), 0);
   dh::LaunchN(n_elements, [=] __device__(size_t i) {
     dh::AtomicAdd64As32(d_result_a, d_inputs[i]);
     atomicAdd(d_result_b, d_inputs[i]);
   });
+  ASSERT_EQ(result_a[0], result_b[0]);
 
+  /**
+   * Test for negative values that don't fit into 32 bit integer.
+   */
+  thrust::fill(inputs.begin(), inputs.end(),
+               (std::numeric_limits<int32_t>::min() / 2));
+  thrust::fill(result_a.begin(), result_a.end(), 0);
+  thrust::fill(result_b.begin(), result_b.end(), 0);
+  dh::LaunchN(n_elements, [=] __device__(size_t i) {
+    dh::AtomicAdd64As32(d_result_a, d_inputs[i]);
+    atomicAdd(d_result_b, d_inputs[i]);
+  });
   ASSERT_EQ(result_a[0], result_b[0]);
 }
 

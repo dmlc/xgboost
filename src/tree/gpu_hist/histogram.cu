@@ -56,12 +56,6 @@ struct Pair {
 __host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
-
-// Type used in shared memory.
-template <typename GradientSumT>
-using SharedSumT = std::conditional_t<
-    std::is_same<typename GradientSumT::ValueT, float>::value,
-    GradientPairInt32, GradientPairInt64>;
 }  // anonymous namespace
 
 struct Clip : public thrust::unary_function<GradientPair, Pair> {
@@ -101,7 +95,7 @@ HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const>
     CreateRoundingFactor<T>(std::max(positive_sum.GetHess(), negative_sum.GetHess()),
                             gpair.size()) };
 
-  using IntT = typename SharedSumT<GradientSumT>::ValueT;
+  using IntT = typename HistRounding<GradientSumT>::SharedSumT::ValueT;
 
   /**
    * Factor for converting gradients from fixed-point to floating-point.
@@ -137,12 +131,14 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     GradientSumT* __restrict__ d_node_hist,
                                     const GradientPair* __restrict__ d_gpair,
                                     HistRounding<GradientSumT> const rounding) {
+  using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
   using T = typename GradientSumT::ValueT;
+
   extern __shared__ char smem[];
   FeatureGroup group = feature_groups[blockIdx.y];
-  SharedSumT<GradientSumT> *smem_arr = reinterpret_cast<SharedSumT<GradientSumT> *>(smem);
+  SharedSumT *smem_arr = reinterpret_cast<SharedSumT *>(smem);
   if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, group.num_bins, SharedSumT<GradientSumT>());
+    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
     __syncthreads();
   }
   int feature_stride = matrix.is_dense ? group.num_features : matrix.row_stride;
@@ -156,9 +152,7 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // global memory
       gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       if (use_shared_memory_histograms) {
-        auto adjusted = SharedSumT<GradientSumT>(
-            T(d_gpair[ridx].GetGrad() * rounding.to_fixed_point.GetGrad()),
-            T(d_gpair[ridx].GetHess() * rounding.to_fixed_point.GetHess()));
+        auto adjusted = rounding.ToFixedPoint(d_gpair[ridx]);
         dh::AtomicAddGpair(smem_arr + gidx, adjusted);
       } else {
         GradientSumT truncated{
@@ -176,12 +170,7 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      auto g = smem_arr[i].GetGrad() * rounding.to_floating_point.GetGrad();
-      auto h = smem_arr[i].GetHess() * rounding.to_floating_point.GetHess();
-      GradientSumT truncated{
-          TruncateWithRoundingFactor<T>(rounding.rounding.GetGrad(), g),
-          TruncateWithRoundingFactor<T>(rounding.rounding.GetHess(), h),
-      };
+      auto truncated = rounding.ToFloatingPoint(smem_arr[i]);
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
   }
@@ -201,7 +190,8 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   // opt into maximum shared memory for the kernel if necessary
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
 
-  size_t smem_size = sizeof(SharedSumT<GradientSumT>) * feature_groups.max_group_bins;
+  size_t smem_size = sizeof(typename HistRounding<GradientSumT>::SharedSumT) *
+                     feature_groups.max_group_bins;
   bool shared = !force_global_memory && smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
