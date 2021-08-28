@@ -53,6 +53,27 @@
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
+
+#else  // In device code and CUDA < 600
+__device__ __forceinline__ double atomicAdd(double* address, double val) {  // NOLINT
+  unsigned long long int* address_as_ull =
+      (unsigned long long int*)address;                   // NOLINT
+  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
+
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull, assumed,
+                    __double_as_longlong(val + __longlong_as_double(assumed)));
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
+    // NaN)
+  } while (assumed != old);
+
+  return __longlong_as_double(old);
+}
+#endif
+
 namespace dh {
 namespace detail {
 template <size_t size>
