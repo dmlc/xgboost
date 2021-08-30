@@ -22,8 +22,8 @@ import org.apache.commons.logging.LogFactory;
 import ml.dmlc.xgboost4j.java.NativeLibLoader;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
-class GpuXGBoostJNI {
-  private static final Log logger = LogFactory.getLog(GpuXGBoostJNI.class);
+class XGBoostJNI {
+  private static final Log logger = LogFactory.getLog(XGBoostJNI.class);
 
   static {
     try {
@@ -51,7 +51,7 @@ class GpuXGBoostJNI {
     long handle, String field, String json);
 
   public final static native int XGDeviceQuantileDMatrixCreateFromCallback(
-    java.util.Iterator<TableBatch> iter, float missing, int nthread, int maxBin, long[] out);
+    java.util.Iterator<TableInfo> iter, float missing, int nthread, int maxBin, long[] out);
 
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
     String columnJosn, float missing, int nthread, long[] out);

@@ -15,9 +15,9 @@ import ai.rapids.cudf.Table;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
- * Test suite for GpuDMatrix
+ * Test suite for ColumnDMatrix
  */
-public class GpuDMatrixTest {
+public class ColumnDMatrixTest {
 
   @Test
   public void testCreateFromArrayInterfaceColumns() {
@@ -29,11 +29,11 @@ public class GpuDMatrixTest {
         .column(labelFloats)              // the label column
         .build()) {
 
-      GpuTable cudfTable = new GpuTable(table, new int[]{0}, new int[]{1});
-      String featureJson = cudfTable.getFeatureArrayInterface();
-      String anchorJson = cudfTable.getLabelArrayInterface();
+      GpuTable gpuTable = new GpuTable(table, new int[]{0}, new int[]{1});
+      String featureJson = gpuTable.getFeatureArrayInterface();
+      String anchorJson = gpuTable.getLabelArrayInterface();
 
-      GpuDMatrix dMatrix = new GpuDMatrix(featureJson, 0, 1);
+      ColumnDMatrix dMatrix = new ColumnDMatrix(featureJson, 0, 1);
       dMatrix.setLabel(anchorJson);
       dMatrix.setWeight(anchorJson);
       dMatrix.setBaseMargin(anchorJson);
@@ -78,12 +78,12 @@ public class GpuDMatrixTest {
         .column(baseMargin2)
         .build()) {
 
-      List<GpuTable> rapidsTables = new LinkedList<>();
+      List<GpuTable> tables = new LinkedList<>();
 
-      rapidsTables.add(new GpuTable(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
-      rapidsTables.add(new GpuTable(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new GpuTable(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new GpuTable(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
 
-      GpuDMatrix dmat = new GpuDMatrix(rapidsTables.iterator(), 0.0f, 8, 1);
+      ColumnDMatrix dmat = new ColumnDMatrix(tables.iterator(), 0.0f, 8, 1);
 
       float[] anchorLabel = convertFloatTofloat((Float[]) ArrayUtils.addAll(label1, label2));
       float[] anchorWeight = convertFloatTofloat((Float[]) ArrayUtils.addAll(weight1, weight2));

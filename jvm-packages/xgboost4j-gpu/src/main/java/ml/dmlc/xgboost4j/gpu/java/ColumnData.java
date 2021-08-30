@@ -27,10 +27,10 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * This class is composing of base data from Gpu ColumnVector. It will be used to generate
- * cuda array interface and to build unsafe row.
+ * This class is composing of base data with Apache Arrow format from Gpu ColumnVector.
+ * It will be used to generate the cuda array interface.
  */
-public class GpuColumnData {
+public class ColumnData {
   private long dataPtr; //  gpu data buffer address
   private long shape;   // row count
   private long validPtr; // gpu valid buffer address
@@ -38,8 +38,8 @@ public class GpuColumnData {
   private String typeStr; // follow array interface spec
   private long nullCount; // null count
 
-  public GpuColumnData(long dataPtr, long shape, long validPtr, int typeSize, String typeStr,
-                       long nullCount) {
+  public ColumnData(long dataPtr, long shape, long validPtr, int typeSize, String typeStr,
+                    long nullCount) {
     this.dataPtr = dataPtr;
     this.shape = shape;
     this.validPtr = validPtr;
@@ -48,8 +48,8 @@ public class GpuColumnData {
     this.nullCount = nullCount;
   }
 
-  public static String getArrayInterface(GpuColumnData... gpuColumnDataList) {
-    return new Builder().add(gpuColumnDataList).build();
+  public static String getArrayInterface(ColumnData... columnDataList) {
+    return new Builder().add(columnDataList).build();
   }
 
   // Helper class to build array interface string
@@ -57,11 +57,11 @@ public class GpuColumnData {
     private JsonNodeFactory nodeFactory = new JsonNodeFactory(false);
     private ArrayNode rootArrayNode = nodeFactory.arrayNode();
 
-    private Builder add(GpuColumnData... cds) {
+    private Builder add(ColumnData... cds) {
       if (cds == null || cds.length <= 0) {
-        throw new IllegalArgumentException("At least one GpuColumnData is required.");
+        throw new IllegalArgumentException("At least one ColumnData is required.");
       }
-      for (GpuColumnData cd : cds) {
+      for (ColumnData cd : cds) {
         rootArrayNode.add(buildColumnObject(cd));
       }
       return this;
@@ -79,7 +79,7 @@ public class GpuColumnData {
       }
     }
 
-    private ObjectNode buildColumnObject(GpuColumnData cd) {
+    private ObjectNode buildColumnObject(ColumnData cd) {
       if (cd.dataPtr == 0) {
         throw new IllegalArgumentException("Empty column data is NOT accepted!");
       }

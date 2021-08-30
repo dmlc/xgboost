@@ -25,7 +25,7 @@ import ai.rapids.cudf.DType;
 import ai.rapids.cudf.Table;
 
 /**
- * Class to wrap CUDF Table and to generate the cuda array interface.
+ * Class to wrap CUDF Table to generate the cuda array interface.
  */
 public class GpuTable implements AutoCloseable {
   private Table table;          // The CUDF Table
@@ -163,18 +163,18 @@ public class GpuTable implements AutoCloseable {
 
   private String getArrayInterface(int... indices) {
     if (indices == null || indices.length == 0) return "";
-    return GpuColumnData.getArrayInterface(getAsColumnData(indices));
+    return ColumnData.getArrayInterface(getAsColumnData(indices));
   }
 
-  private GpuColumnData[] getAsColumnData(int... indices) {
-    if (indices == null || indices.length == 0) return new GpuColumnData[]{};
+  private ColumnData[] getAsColumnData(int... indices) {
+    if (indices == null || indices.length == 0) return new ColumnData[]{};
     return Arrays.stream(indices)
       .mapToObj(this::getColumnVector)
       .map(this::getColumnData)
-      .toArray(GpuColumnData[]::new);
+      .toArray(ColumnData[]::new);
   }
 
-  private GpuColumnData getColumnData(ColumnVector columnVector) {
+  private ColumnData getColumnData(ColumnVector columnVector) {
     BaseDeviceMemoryBuffer dataBuffer = columnVector.getDeviceBufferFor(BufferType.DATA);
     BaseDeviceMemoryBuffer validBuffer = columnVector.getDeviceBufferFor(BufferType.VALIDITY);
     long validPtr = 0;
@@ -196,7 +196,7 @@ public class GpuTable implements AutoCloseable {
       throw new IllegalArgumentException("Not supporting data type: " + dType);
     }
 
-    return new GpuColumnData(dataBuffer.getAddress(), columnVector.getRowCount(), validPtr,
+    return new ColumnData(dataBuffer.getAddress(), columnVector.getRowCount(), validPtr,
       dType.getSizeInBytes(), typeStr, columnVector.getNullCount());
   }
 

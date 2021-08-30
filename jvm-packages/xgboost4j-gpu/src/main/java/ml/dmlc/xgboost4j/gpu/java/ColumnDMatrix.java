@@ -24,7 +24,7 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
 /**
  * DMatrix based on GPU
  */
-class GpuDMatrix extends DMatrix {
+class ColumnDMatrix extends DMatrix {
 
   /**
    * Create DeviceQuantileDMatrix from iterator based on the cuda array interface
@@ -34,12 +34,12 @@ class GpuDMatrix extends DMatrix {
    * @param nthread  the parallelism
    * @throws XGBoostError
    */
-  public GpuDMatrix(Iterator<GpuTable> iter, float missing, int maxBin, int nthread)
+  public ColumnDMatrix(Iterator<GpuTable> iter, float missing, int maxBin, int nthread)
       throws XGBoostError {
     super(0);
     long[] out = new long[1];
-    Iterator<TableBatch> batchIter = new TableBatch.ColumnBatchIterator(iter);
-    GpuXGBoostJNI.checkCall(GpuXGBoostJNI.XGDeviceQuantileDMatrixCreateFromCallback(
+    Iterator<TableInfo> batchIter = new TableInfo.TableInfoBatchIterator(iter);
+    XGBoostJNI.checkCall(XGBoostJNI.XGDeviceQuantileDMatrixCreateFromCallback(
         batchIter, missing, maxBin, nthread, out));
     handle = out[0];
   }
@@ -51,10 +51,11 @@ class GpuDMatrix extends DMatrix {
    * @param nthread threads number
    * @throws XGBoostError
    */
-  public GpuDMatrix(String featureArrayInterfaces, float missing, int nthread) throws XGBoostError {
+  public ColumnDMatrix(String featureArrayInterfaces, float missing, int nthread)
+      throws XGBoostError {
     super(0);
     long[] out = new long[1];
-    GpuXGBoostJNI.checkCall(GpuXGBoostJNI.XGDMatrixCreateFromArrayInterfaceColumns(
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromArrayInterfaceColumns(
         featureArrayInterfaces, missing, nthread, out));
     handle = out[0];
   }
@@ -66,8 +67,8 @@ class GpuDMatrix extends DMatrix {
    * @throws XGBoostError native error
    */
   public void setLabel(String labelJson) throws XGBoostError {
-    GpuXGBoostJNI.checkCall(
-        GpuXGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "label", labelJson));
+    XGBoostJNI.checkCall(
+        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "label", labelJson));
   }
 
   /**
@@ -77,8 +78,8 @@ class GpuDMatrix extends DMatrix {
    * @throws XGBoostError native error
    */
   public void setWeight(String weightJson) throws XGBoostError {
-    GpuXGBoostJNI.checkCall(
-        GpuXGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "weight", weightJson));
+    XGBoostJNI.checkCall(
+        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "weight", weightJson));
   }
 
   /**
@@ -88,8 +89,8 @@ class GpuDMatrix extends DMatrix {
    * @throws XGBoostError native error
    */
   public void setBaseMargin(String baseMarginJson) throws XGBoostError {
-    GpuXGBoostJNI.checkCall(
-        GpuXGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "base_margin", baseMarginJson));
+    XGBoostJNI.checkCall(
+        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "base_margin", baseMarginJson));
   }
 
 }

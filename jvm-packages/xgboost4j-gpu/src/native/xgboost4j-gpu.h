@@ -12,7 +12,7 @@ extern "C" {
  * Method:    XGBGetLastError
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGBGpuGetLastError
+JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_gpu_java_XGBoostJNI_XGBGpuGetLastError
   (JNIEnv *, jclass);
 
 /*
@@ -20,7 +20,7 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGBGpuGe
  * Method:    XGDMatrixSetInfoFromInterface
  * Signature: (JLjava/lang/String;Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGDMatrixSetInfoFromInterface
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_XGBoostJNI_XGDMatrixSetInfoFromInterface
   (JNIEnv *, jclass, jlong, jstring, jstring);
 
 /*
@@ -28,7 +28,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGDMatrixSe
  * Method:    XGDeviceQuantileDMatrixCreateFromCallback
  * Signature: (Ljava/util/Iterator;FII[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGDeviceQuantileDMatrixCreateFromCallback
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_XGBoostJNI_XGDeviceQuantileDMatrixCreateFromCallback
   (JNIEnv *, jclass, jobject, jfloat, jint, jint, jlongArray);
 
 /*
@@ -36,7 +36,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGDeviceQua
  * Method:    XGDMatrixCreateFromArrayInterfaceColumns
  * Signature: (Ljava/lang/String;FI[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_GpuXGBoostJNI_XGDMatrixCreateFromArrayInterfaceColumns
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_gpu_java_XGBoostJNI_XGDMatrixCreateFromArrayInterfaceColumns
 (JNIEnv *, jclass, jstring, jfloat, jint, jlongArray);
 
 #ifdef __cplusplus

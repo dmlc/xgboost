@@ -19,16 +19,16 @@ package ml.dmlc.xgboost4j.gpu.java;
 import java.util.Iterator;
 
 /**
- * A mini-batch of Table that can be converted to GpuDMatrix.
+ * A mini-batch of Table that can be converted to ColumnDMatrix.
  *
- * This class is used to support advanced creation of DMatrix from Iterator of TableBatch,
+ * This class is used to support advanced creation of DMatrix from Iterator of TableInfo,
  */
-public class TableBatch implements AutoCloseable {
+class TableInfo implements AutoCloseable {
 
   private String arrayInterfaceJson;
   private GpuTable table;
 
-  public TableBatch(GpuTable table, String arrayInterfaceJson) {
+  public TableInfo(GpuTable table, String arrayInterfaceJson) {
     this.table = table;
     this.arrayInterfaceJson = arrayInterfaceJson;
   }
@@ -44,10 +44,10 @@ public class TableBatch implements AutoCloseable {
     table.close();
   }
 
-  public static class ColumnBatchIterator implements Iterator<TableBatch> {
+  public static class TableInfoBatchIterator implements Iterator<TableInfo> {
     private Iterator<GpuTable> base;
 
-    public ColumnBatchIterator(Iterator<GpuTable> base) {
+    public TableInfoBatchIterator(Iterator<GpuTable> base) {
       this.base = base;
     }
 
@@ -57,9 +57,9 @@ public class TableBatch implements AutoCloseable {
     }
 
     @Override
-    public TableBatch next() {
+    public TableInfo next() {
       GpuTable table = base.next();
-      return new TableBatch(table, table.getJson());
+      return new TableInfo(table, table.getJson());
     }
   }
 }

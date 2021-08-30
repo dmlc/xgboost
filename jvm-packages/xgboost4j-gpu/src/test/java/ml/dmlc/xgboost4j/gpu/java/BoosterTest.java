@@ -35,7 +35,7 @@ import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
- * Test the BoosterTest trained by GpuDMatrix
+ * Tests the BoosterTest trained by ColumnDMatrix
  * @throws XGBoostError
  */
 public class BoosterTest {
@@ -74,14 +74,14 @@ public class BoosterTest {
       //set watchList
       HashMap<String, DMatrix> watches = new HashMap<>();
 
-      GpuDMatrix dMatrix1 = new GpuDMatrix(gpuTable.getFeatureArrayInterface(), Float.NaN, 1);
+      ColumnDMatrix dMatrix1 = new ColumnDMatrix(gpuTable.getFeatureArrayInterface(), Float.NaN, 1);
       dMatrix1.setLabel(gpuTable.getLabelArrayInterface());
       watches.put("train", dMatrix1);
       Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
 
-      List<GpuTable> rapidsTables = new LinkedList<>();
-      rapidsTables.add(gpuTable);
-      DMatrix incrementalDMatrix = new GpuDMatrix(rapidsTables.iterator(), Float.NaN, maxBin, 1);
+      List<GpuTable> tables = new LinkedList<>();
+      tables.add(gpuTable);
+      DMatrix incrementalDMatrix = new ColumnDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
       //set watchList
       HashMap<String, DMatrix> watches1 = new HashMap<>();
       watches1.put("train", incrementalDMatrix);
