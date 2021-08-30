@@ -61,9 +61,12 @@ R
      and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a
      single CPU core, leading to suboptimal training speed.
 
-* We also provide **experimental** pre-built binary on Linux x86_64 with GPU support.
+* We also provide **experimental** pre-built binary with GPU support. With this binary,
+  you will be able to use the GPU algorithm without building XGBoost from the source.
   Download the binary package from the Releases page. The file name will be of the form
-  ``xgboost_r_gpu_linux_[version].tar.gz``. Then install XGBoost by running:
+  ``xgboost_r_gpu_[os]_[version].tar.gz``, where ``[os]`` is either ``linux`` or ``win64``.
+  (We build the binaries for 64-bit Linux and Windows.)
+  Then install XGBoost by running:
 
   .. code-block:: bash
 
@@ -142,9 +145,11 @@ R
 -
 
 Other than standard CRAN installation, we also provide *experimental* pre-built binary on
-Linux x86_64 with GPU support.  You can go to `this page
+with GPU support.  You can go to `this page
 <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_, Find the commit
-ID you want to install: ``xgboost_r_gpu_linux_[commit].tar.gz``, download it then run:
+ID you want to install and then locate the file ``xgboost_r_gpu_[os]_[commit].tar.gz``,
+where ``[os]`` is either ``linux`` or ``win64``. (We build the binaries for 64-bit Linux
+and Windows.) Download it and run the following commands:
 
 .. code-block:: bash
 

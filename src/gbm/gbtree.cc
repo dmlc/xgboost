@@ -142,7 +142,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     LOG(INFO) << "Tree method is automatically set to 'approx' "
                  "since external-memory data matrix is used.";
     tparam_.tree_method = TreeMethod::kApprox;
-  } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
+  } else if (fmat->Info().num_row_ >= (1UL << 18UL)) {
     /* Choose tree_method='hist' automatically for large data matrix */
     LOG(INFO) << "Tree method is automatically selected to be "
                  "'hist' for faster work. To use the old behavior "

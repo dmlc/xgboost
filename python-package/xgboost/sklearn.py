@@ -538,7 +538,7 @@ class XGBModel(XGBModelBase):
             'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder',
             "enable_categorical"
         }
-        filtered = dict()
+        filtered = {}
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
                 filtered[k] = v
@@ -557,7 +557,7 @@ class XGBModel(XGBModelBase):
         return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
-        meta = dict()
+        meta = {}
         for k, v in self.__dict__.items():
             if k == '_le':
                 meta['_le'] = self._le.to_json()
@@ -596,7 +596,7 @@ class XGBModel(XGBModelBase):
             )
             return
         meta = json.loads(meta_str)
-        states = dict()
+        states = {}
         for k, v in meta.items():
             if k == '_le':
                 self._le = XGBoostLabelEncoder()
