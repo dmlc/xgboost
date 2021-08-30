@@ -902,14 +902,6 @@ struct ArrowSchemaImporter {
     }
   }
 
-  void Clear() {
-    columns_.clear();
-    label_info_ = ColumnarMetaInfo();
-    weight_info_ = ColumnarMetaInfo();
-    base_margin_info_ = ColumnarMetaInfo();
-    qid_info_ = ColumnarMetaInfo();
-  }
-
   void Import(struct ArrowSchema *schema,
               const char* label_col_name = nullptr,
               const char* weight_col_name = nullptr,
@@ -917,7 +909,7 @@ struct ArrowSchemaImporter {
               const char* qid_col_name = nullptr) {
     if (schema) {
       CHECK(std::string(schema->format) == "+s");
-      Clear();
+      CHECK(columns_.empty());
       for (auto i = 0; i < schema->n_children; ++i) {
         std::string name{schema->children[i]->name};
         ColumnDType type = format_map(schema->children[i]->format);
