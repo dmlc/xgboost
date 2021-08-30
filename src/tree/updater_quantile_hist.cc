@@ -549,8 +549,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
   const auto& info = fmat.Info();
 
   {
-    // initialize the row set
-    // row_set_collection_.Clear();
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     // initialize histogram builder
@@ -604,23 +602,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
 
     // mark subsample and build list of member rows
     const size_t block_size = info.num_row_ / this->nthread_ + !!(info.num_row_ % this->nthread_);
-
-    // #pragma omp parallel num_threads(this->nthread_)
-    // {
-    //   exc.Run([&]() {
-    //     const size_t tid = omp_get_thread_num();
-    //     const size_t ibegin = tid * block_size;
-    //     const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
-    //         static_cast<size_t>(info.num_row_));
-
-    //     for (size_t i = ibegin; i < iend; ++i) {
-    //       if ((*gpair)[i].GetHess() < 0.0f) {
-    //         (*gpair)[i] = GradientPair(0);
-    //       }
-    //     }
-    //   });
-    // }
-    // exc.Rethrow();
 
     if (is_lossguide) {
       opt_partition_builder_.ResizeRowsBuffer(info.num_row_);

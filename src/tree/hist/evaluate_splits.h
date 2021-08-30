@@ -232,33 +232,17 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       GradientSumT* dest_hist = reinterpret_cast<GradientSumT*>(histogram.data());
       if (p_opt_partition_builder->threads_id_for_nodes[nidx].size() != 0
           && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
-        const size_t first_thread_id = p_opt_partition_builder->threads_id_for_nodes[nidx][0];
-        std::vector<uint16_t>& local_thread_mapping = local_threads_mapping[first_thread_id];
-
-        GradientSumT* hist0 =  histograms[first_thread_id][local_thread_mapping[nidx]].data();
-
-        size_t local_size = end - begin;
-        size_t local_block_size = 512;
-        size_t n_local_blocks = local_size / local_block_size + !!(local_size % local_block_size);
-        for (size_t block_id = 0; block_id < n_local_blocks; ++block_id) {
-          size_t local_begin = begin + block_id*local_block_size;
-          size_t local_end = std::min(local_begin + local_block_size, end);
-          common::ReduceHist(dest_hist, hist0, local_threads_mapping, &histograms,
-                             nidx, p_opt_partition_builder->threads_id_for_nodes[nidx],
-                             local_begin, local_end);
-          if (entries_sub.size() != 0) {
-            // subtric large
-            common::SubtractionHist(largest_hist, parent_hist, dest_hist,
-                            local_begin, local_end);
-          }
-        }
+        common::ReduceHist(dest_hist, local_threads_mapping, &histograms,
+                           nidx, p_opt_partition_builder->threads_id_for_nodes[nidx],
+                           begin, end);
       } else if (p_opt_partition_builder->threads_id_for_nodes[nidx].size() == 0
                  && !is_distributed_ && !is_dense_and_root && !colsample_enabled) {
         common::ClearHist(dest_hist, begin, end);
-        if (entries_sub.size() != 0) {
-          // subtric large
-          common::SubtractionHist(largest_hist, parent_hist, dest_hist, begin, end);
-        }
+      }
+      if (entries_sub.size() != 0) {
+        // subtric large
+        common::SubtractionHist(largest_hist, parent_hist, dest_hist,
+                                begin, end);
       }
 
       // reduce small

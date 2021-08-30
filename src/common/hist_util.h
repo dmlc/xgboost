@@ -25,7 +25,6 @@
 #include "../include/rabit/rabit.h"
 
 namespace xgboost {
-class GHistIndexMatrix;
 
 namespace common {
 /*!
@@ -310,7 +309,7 @@ void SubtractionHist(GradientSumT* dst, const GradientSumT* src1,
  * \brief Reduce histograms
  */
 template<typename GradientSumT>
-void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
+void ReduceHist(GradientSumT* dest_hist,
                 const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                 std::vector<std::vector<std::vector<GradientSumT>>>* histograms,
                 const size_t node_displace,

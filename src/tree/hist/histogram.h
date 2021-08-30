@@ -15,39 +15,10 @@
 #include "../../common/column_matrix.h"
 #include "../../common/opt_partition_builder.h"
 #include "../../common/random.h"
-
-#if defined(XGBOOST_MM_PREFETCH_PRESENT)
-  #include <xmmintrin.h>
-  #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
-#elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
-  #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
-#else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
-  #define PREFETCH_READ_T0(addr) do {} while (0)
-#endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
+#include "../../common/prefetch.h"
 
 namespace xgboost {
 namespace tree {
-
-struct Prefetch1 {
- public:
-  static constexpr size_t kCacheLineSize = 64;
-  static constexpr size_t kPrefetchOffset = 10;
-
- private:
-  static constexpr size_t kNoPrefetchSize1 =
-      kPrefetchOffset + kCacheLineSize /
-      sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
-
- public:
-  static size_t NoPrefetchSize(size_t rows) {
-    return std::min(rows, kNoPrefetchSize1);
-  }
-
-  template <typename T>
-  static constexpr size_t GetPrefetchStep() {
-    return Prefetch1::kCacheLineSize / sizeof(T);
-  }
-};
 
 template<bool do_prefetch,
          typename BinIdxType,
@@ -77,16 +48,16 @@ inline void RowsWiseBuildHist(const BinIdxType* gradient_index,
     const uint32_t nid = is_root ? 0 : mapping_ids[nodes_ids[i]];
     if (do_prefetch) {
       const size_t icol_start_prefetch = any_missing ?
-                                         row_ptr[rows[ri + Prefetch1::kPrefetchOffset]] :
-                                         rows[ri + Prefetch1::kPrefetchOffset] * n_features;
+                                         row_ptr[rows[ri + common::Prefetch::kPrefetchOffset]] :
+                                         rows[ri + common::Prefetch::kPrefetchOffset] * n_features;
       const size_t icol_end_prefetch = any_missing ?
-                                       row_ptr[rows[ri + Prefetch1::kPrefetchOffset] + 1] :
+                                       row_ptr[rows[ri + common::Prefetch::kPrefetchOffset] + 1] :
                                        (icol_start_prefetch + n_features);
 
-      PREFETCH_READ_T0(pgh + two * rows[ri + Prefetch1::kPrefetchOffset]);
-      PREFETCH_READ_T0(0 + rows[ri + Prefetch1::kPrefetchOffset]);
+      PREFETCH_READ_T0(pgh + two * rows[ri + common::Prefetch::kPrefetchOffset]);
+      PREFETCH_READ_T0(0 + rows[ri + common::Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_end_prefetch;
-          j += Prefetch1::GetPrefetchStep<BinIdxType>()) {
+          j += common::Prefetch::GetPrefetchStep<BinIdxType>()) {
         PREFETCH_READ_T0(gradient_index + j);
       }
     } else if (is_root) {
@@ -173,8 +144,8 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
     const size_t feature_block_size = feature_blocking ? static_cast<size_t>(13) : n_features;
     const size_t nb = n_features / feature_block_size + !!(n_features % feature_block_size);   // NOLINT
     const size_t size_with_prefetch = (is_root || feature_blocking) ? 0 :
-                                      ((row_size > Prefetch1::kPrefetchOffset) ?
-                                      (row_size - Prefetch1::kPrefetchOffset) : 0);
+                                      ((row_size > common::Prefetch::kPrefetchOffset) ?
+                                      (row_size - common::Prefetch::kPrefetchOffset) : 0);
     for (size_t ib = 0; ib < nb; ++ib) {
       RowsWiseBuildHist<true, BinIdxType,
                         feature_blocking,
@@ -484,13 +455,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
 
           GradientSumT* dest_hist = reinterpret_cast<GradientSumT*>(this_hist.data());
           if (opt_partition_builder.threads_id_for_nodes[entry.nid].size() != 0) {
-            const size_t first_thread_id =
-              opt_partition_builder.threads_id_for_nodes[entry.nid][0];
-            std::vector<uint16_t>& local_thread_mapping = local_threads_mapping[first_thread_id];
-            GradientSumT* hist0 =  histograms_buffer[first_thread_id][
-                                   local_thread_mapping[entry.nid]].data();
             common::ReduceHist(dest_hist,
-                               hist0,
                                local_threads_mapping,
                                &histograms_buffer,
                                entry.nid,

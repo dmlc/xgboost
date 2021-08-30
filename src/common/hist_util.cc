@@ -17,18 +17,12 @@
 #include "quantile.h"
 #include "./../tree/updater_quantile_hist.h"
 #include "../data/gradient_index.h"
-
-#if defined(XGBOOST_MM_PREFETCH_PRESENT)
-  #include <xmmintrin.h>
-  #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
-#elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
-  #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
-#else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
-  #define PREFETCH_READ_T0(addr) do {} while (0)
-#endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
+#include "prefetch.h"
 
 namespace xgboost {
 namespace common {
+
+constexpr size_t Prefetch::kNoPrefetchSize;
 
 HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
@@ -119,12 +113,16 @@ template void ClearHist(double* dest_hist,
                         size_t begin, size_t end);
 
 template<typename GradientSumT>
-void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
+void ReduceHist(GradientSumT* dest_hist,
                 const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                 std::vector<std::vector<std::vector<GradientSumT>>>* histograms,
                 const size_t node_id,
                 const std::vector<uint16_t>& threads_id_for_node,
                 size_t begin, size_t end) {
+  const size_t first_thread_id = threads_id_for_node[0];
+  const size_t mapped_nod_id = local_threads_mapping[first_thread_id][node_id];
+  GradientSumT* hist0 =  (*histograms)[first_thread_id][mapped_nod_id].data();
+
   for (size_t bin_id = begin; bin_id < end; ++bin_id) {
     dest_hist[bin_id] = hist0[bin_id];
     hist0[bin_id] = 0;
@@ -139,42 +137,18 @@ void ReduceHist(GradientSumT* dest_hist, GradientSumT* hist0,
     }
   }
 }
-template void ReduceHist(float* dest_hist, float* hist0,
+template void ReduceHist(float* dest_hist,
                          const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                          std::vector<std::vector<std::vector<float>>>* histograms,
                          const size_t node_displace,
                          const std::vector<uint16_t>& threads_id_for_node,
                          size_t begin, size_t end);
-template void ReduceHist(double* dest_hist, double* hist0,
+template void ReduceHist(double* dest_hist,
                          const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                          std::vector<std::vector<std::vector<double>>>* histograms,
                          const size_t node_displace,
                          const std::vector<uint16_t>& threads_id_for_node,
                          size_t begin, size_t end);
-
-struct Prefetch {
- public:
-  static constexpr size_t kCacheLineSize = 64;
-  static constexpr size_t kPrefetchOffset = 10;
-
- private:
-  static constexpr size_t kNoPrefetchSize =
-      kPrefetchOffset + kCacheLineSize /
-      sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
-
- public:
-  static size_t NoPrefetchSize(size_t rows) {
-    return std::min(rows, kNoPrefetchSize);
-  }
-
-  template <typename T>
-  static constexpr size_t GetPrefetchStep() {
-    return Prefetch::kCacheLineSize / sizeof(T);
-  }
-};
-
-constexpr size_t Prefetch::kNoPrefetchSize;
-
 
 template<typename FPType, bool do_prefetch, typename BinIdxType, bool any_missing = true>
 void BuildHistKernel(const std::vector<GradientPair>& gpair,
