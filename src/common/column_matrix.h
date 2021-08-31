@@ -55,9 +55,6 @@ class Column {
 
   /* returns number of elements in column */
   size_t Size() const { return index_.size(); }
-  int32_t GetBinIdx(size_t idx, size_t* state) const {
-    return 0;
-  }
 
  private:
   /* type of column */
@@ -153,7 +150,7 @@ class ColumnMatrix {
     return index_.data();
   }
   const uint8_t* GetIndexSecondData() const {
-    return index_second_.data();
+    return index_on_second_numa_.data();
   }
 
   bool AnySparseColumn() const {
@@ -210,7 +207,7 @@ class ColumnMatrix {
         index_.resize(feature_offsets_[nfeature] * bins_type_size_, 0);
       }
       if (tid == (n_threads - 1) && gmat.IsDense()) {
-        index_second_.resize(feature_offsets_[nfeature] * bins_type_size_, 0);
+        index_on_second_numa_.resize(feature_offsets_[nfeature] * bins_type_size_, 0);
       }
     }
     if (!all_dense) {
@@ -297,7 +294,7 @@ class ColumnMatrix {
     /* missing values make sense only for column with type kDenseColumn,
        and if no missing values were observed it could be handled much faster. */
     if (noMissingValues) {
-      T* local_index2 = reinterpret_cast<T*>(&index_second_[0]);
+      T* local_index2 = reinterpret_cast<T*>(&index_on_second_numa_[0]);
       ParallelFor(omp_ulong(nrow), [&](omp_ulong rid) {
         const size_t ibegin = rid*nfeature;
         const size_t iend = (rid+1)*nfeature;
@@ -396,7 +393,7 @@ class ColumnMatrix {
 
  private:
   std::vector<uint8_t> index_;
-  std::vector<uint8_t> index_second_;
+  std::vector<uint8_t> index_on_second_numa_;
 
   std::vector<size_t> feature_counts_;
   std::vector<ColumnType> type_;

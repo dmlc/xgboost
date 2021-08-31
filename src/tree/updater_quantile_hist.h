@@ -281,12 +281,9 @@ class QuantileHistMaker: public TreeUpdater {
     RowSetCollection row_set_collection_;
     std::vector<uint16_t> node_ids_;
     std::vector<uint16_t> curr_level_nodes_;
-    std::vector<int32_t> saved_split_ind_;
     std::vector<int32_t> split_conditions_;
     std::vector<uint64_t> split_ind_;
     std::vector<uint16_t> compleate_trees_depth_wise_;
-    bool is_compleate_tree_ = true;
-
 
     std::vector<GradientPair> gpair_local_;
 

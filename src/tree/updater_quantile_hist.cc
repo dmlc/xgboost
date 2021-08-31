@@ -221,7 +221,6 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
         smalest_nodes_mask[curr_level_nodes_[2*entry.nid + 1]] = true;
       }
     } else {
-      is_compleate_tree_ = false;
       curr_level_nodes_[2*entry.nid] = static_cast<uint16_t>(1) << 15 |
                                        static_cast<uint16_t>(entry.nid);
       curr_level_nodes_[2*entry.nid + 1] = curr_level_nodes_[2*entry.nid];
@@ -284,11 +283,8 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     const std::vector<GradientPair>& gpair_h) {
   builder_monitor_.Start("ExpandTree");
   int num_leaves = 0;
-  saved_split_ind_.clear();
-  saved_split_ind_.resize(1 << (param_.max_depth + 1), 0);
   split_conditions_.clear();
   split_ind_.clear();
-  is_compleate_tree_ = true;
 
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
   std::vector<CPUExpandEntry> expand;
@@ -698,7 +694,6 @@ void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
     }
 
     (*split_conditions)[nid] = split_cond;
-    saved_split_ind_[nid] = split_cond;
   }
 }
 
