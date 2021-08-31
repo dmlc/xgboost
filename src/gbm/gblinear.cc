@@ -37,6 +37,17 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   std::string updater;
   float tolerance;
   size_t max_row_perbatch;
+
+  void CheckGPUSupport() {
+    auto n_gpus = common::AllVisibleGPUs();
+    if (n_gpus == 0 && this->updater == "gpu_coord_descent") {
+      common::AssertGPUSupport();
+      this->UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
+      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
+                      "updater to `coord_descent`.";
+    }
+  }
+
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(updater)
         .set_default("shotgun")
@@ -74,13 +85,7 @@ class GBLinear : public GradientBooster {
       model_.Configure(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
-    auto n_gpus = common::AllVisibleGPUs();
-    if (n_gpus == 0 && param_.updater == "gpu_coord_descent") {
-      common::AssertGPUSupport();
-      param_.UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
-      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
-                      "updater to `coord_descent`.";
-    }
+    param_.CheckGPUSupport();
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
@@ -114,12 +119,7 @@ class GBLinear : public GradientBooster {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
     FromJson(in["gblinear_train_param"], &param_);
-    auto n_gpus = common::AllVisibleGPUs();
-    if (n_gpus == 0 && param_.updater == "gpu_coord_descent") {
-      param_.UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
-      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
-                      "updater to `coord_descent`.";
-    }
+    param_.CheckGPUSupport();
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     this->updater_->LoadConfig(in["updater"]);
   }
