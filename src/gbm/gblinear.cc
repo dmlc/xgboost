@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -110,6 +110,12 @@ class GBLinear : public GradientBooster {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
     FromJson(in["gblinear_train_param"], &param_);
+    auto n_gpus = common::AllVisibleGPUs();
+    if (n_gpus == 0 && param_.updater == "gpu_coord_descent") {
+      param_.UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
+      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
+                      "updater to `coord_descent`.";
+    }
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     this->updater_->LoadConfig(in["updater"]);
   }
