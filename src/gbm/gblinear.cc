@@ -74,12 +74,16 @@ class GBLinear : public GradientBooster {
       model_.Configure(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
+    auto n_gpus = common::AllVisibleGPUs();
+    if (n_gpus == 0 && param_.updater == "gpu_coord_descent") {
+      common::AssertGPUSupport();
+      param_.UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
+      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
+                      "updater to `coord_descent`.";
+    }
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
-    if (param_.updater == "gpu_coord_descent") {
-      common::AssertGPUSupport();
-    }
   }
 
   int32_t BoostedRounds() const override {
