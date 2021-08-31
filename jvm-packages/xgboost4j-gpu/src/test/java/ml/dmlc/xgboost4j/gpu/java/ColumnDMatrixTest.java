@@ -23,6 +23,7 @@ public class ColumnDMatrixTest {
   public void testCreateFromArrayInterfaceColumns() {
     Float[] labelFloats = new Float[]{2f, 4f, 6f, 8f, 10f};
 
+    Throwable ex = null;
     try (
       Table table = new Table.TestBuilder()
         .column(1.f, null, 5.f, 7.f, 9.f) // the feature columns
@@ -46,9 +47,11 @@ public class ColumnDMatrixTest {
       TestCase.assertTrue(Arrays.equals(anchor, label));
       TestCase.assertTrue(Arrays.equals(anchor, weight));
       TestCase.assertTrue(Arrays.equals(anchor, baseMargin));
-    } catch (XGBoostError xgBoostError) {
-      xgBoostError.printStackTrace();
+    } catch (Throwable e) {
+      ex = e;
+      e.printStackTrace();
     }
+    TestCase.assertNull(ex);
   }
 
   @Test

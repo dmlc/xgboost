@@ -394,5 +394,5 @@ jint XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
   setHandle(jenv, jout, result);
   return ret;
 }
-} // namespace spark
+} // namespace jni
 } // namespace xgboost
