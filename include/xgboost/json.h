@@ -82,7 +82,7 @@ class JsonString : public Value {
   JsonString() : Value(ValueKind::kString) {}
   JsonString(std::string const& str) :  // NOLINT
       Value(ValueKind::kString), str_{str} {}
-  JsonString(std::string&& str) :  // NOLINT
+  JsonString(std::string&& str) noexcept :  // NOLINT
       Value(ValueKind::kString), str_{std::move(str)} {}
   JsonString(JsonString&& str) noexcept :  // NOLINT
       Value(ValueKind::kString), str_{std::move(str.str_)} {}
@@ -109,12 +109,12 @@ class JsonArray : public Value {
 
  public:
   JsonArray() : Value(ValueKind::kArray) {}
-  JsonArray(std::vector<Json>&& arr) :  // NOLINT
+  JsonArray(std::vector<Json>&& arr) noexcept :  // NOLINT
       Value(ValueKind::kArray), vec_{std::move(arr)} {}
   JsonArray(std::vector<Json> const& arr) :  // NOLINT
       Value(ValueKind::kArray), vec_{arr} {}
   JsonArray(JsonArray const& that) = delete;
-  JsonArray(JsonArray && that);
+  JsonArray(JsonArray && that) noexcept;
 
   void Save(JsonWriter* writer) override;
 
@@ -138,9 +138,9 @@ class JsonObject : public Value {
 
  public:
   JsonObject() : Value(ValueKind::kObject) {}
-  JsonObject(std::map<std::string, Json>&& object);  // NOLINT
+  JsonObject(std::map<std::string, Json>&& object) noexcept;  // NOLINT
   JsonObject(JsonObject const& that) = delete;
-  JsonObject(JsonObject && that);
+  JsonObject(JsonObject && that) noexcept;
 
   void Save(JsonWriter* writer) override;
 
@@ -419,9 +419,9 @@ class Json {
   Json(Json const& other) = default;
   Json& operator=(Json const& other);
   // move
-  Json(Json&& other) : ptr_{std::move(other.ptr_)} {}
-  Json& operator=(Json&& other) {
-    ptr_ = std::move(other.ptr_);
+  Json(Json &&other) noexcept { std::swap(this->ptr_, other.ptr_); }
+  Json &operator=(Json &&other) noexcept {
+    std::swap(this->ptr_, other.ptr_);
     return *this;
   }
 
