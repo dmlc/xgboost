@@ -751,4 +751,9 @@ std::ostream &operator<<(std::ostream &os, StringView const v) {
   }
   return os;
 }
+
+static_assert(std::is_nothrow_move_constructible<Json>::value, "");
+static_assert(std::is_nothrow_move_constructible<Object>::value, "");
+static_assert(std::is_nothrow_move_constructible<Array>::value, "");
+static_assert(std::is_nothrow_move_constructible<String>::value, "");
 }  // namespace xgboost
