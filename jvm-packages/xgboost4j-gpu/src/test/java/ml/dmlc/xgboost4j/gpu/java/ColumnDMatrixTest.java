@@ -30,14 +30,13 @@ public class ColumnDMatrixTest {
         .column(labelFloats)              // the label column
         .build()) {
 
-      GpuTable gpuTable = new GpuTable(table, new int[]{0}, new int[]{1});
-      String featureJson = gpuTable.getFeatureArrayInterface();
-      String anchorJson = gpuTable.getLabelArrayInterface();
+      CudfTable cudfTable = new CudfTable(table, new int[]{0}, new int[]{1}, new int[]{1},
+        new int[]{1});
 
-      ColumnDMatrix dMatrix = new ColumnDMatrix(featureJson, 0, 1);
-      dMatrix.setLabel(anchorJson);
-      dMatrix.setWeight(anchorJson);
-      dMatrix.setBaseMargin(anchorJson);
+      ColumnDMatrix dMatrix = new ColumnDMatrix(cudfTable, 0, 1);
+      dMatrix.setLabel(cudfTable);
+      dMatrix.setWeight(cudfTable);
+      dMatrix.setBaseMargin(cudfTable);
 
       float[] anchor = convertFloatTofloat(labelFloats);
       float[] label = dMatrix.getLabel();
@@ -81,10 +80,10 @@ public class ColumnDMatrixTest {
         .column(baseMargin2)
         .build()) {
 
-      List<GpuTable> tables = new LinkedList<>();
+      List<XGBoostTable> tables = new LinkedList<>();
 
-      tables.add(new GpuTable(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
-      tables.add(new GpuTable(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfTable(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfTable(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
 
       ColumnDMatrix dmat = new ColumnDMatrix(tables.iterator(), 0.0f, 8, 1);
 

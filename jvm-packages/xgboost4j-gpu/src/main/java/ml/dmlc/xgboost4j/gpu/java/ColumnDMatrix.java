@@ -34,7 +34,7 @@ class ColumnDMatrix extends DMatrix {
    * @param nthread  the parallelism
    * @throws XGBoostError
    */
-  public ColumnDMatrix(Iterator<GpuTable> iter, float missing, int maxBin, int nthread)
+  public ColumnDMatrix(Iterator<XGBoostTable> iter, float missing, int maxBin, int nthread)
       throws XGBoostError {
     super(0);
     long[] out = new long[1];
@@ -46,51 +46,59 @@ class ColumnDMatrix extends DMatrix {
 
   /**
    * Create the normal DMatrix from column array interface
-   * @param featureArrayInterfaces the cuda array interface of feature columns
+   * @param table  the XGBoostTable to provide the cuda array interface of feature columns
    * @param missing missing value
    * @param nthread threads number
    * @throws XGBoostError
    */
-  public ColumnDMatrix(String featureArrayInterfaces, float missing, int nthread)
-      throws XGBoostError {
+  public ColumnDMatrix(XGBoostTable table, float missing, int nthread) throws XGBoostError {
     super(0);
     long[] out = new long[1];
+    String json = table.getFeatureArrayInterface();
+    if (json == null || json.isEmpty()) {
+      throw new XGBoostError("Get the empty feature columns' array interface");
+    }
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromArrayInterfaceColumns(
-        featureArrayInterfaces, missing, nthread, out));
+        json, missing, nthread, out));
     handle = out[0];
   }
 
   /**
    * Set label of DMatrix from cuda array interface
    *
-   * @param labelJson the cuda array interface of label column
+   * @param table the XGBoostTable to provide the cuda array interface of label column
    * @throws XGBoostError native error
    */
-  public void setLabel(String labelJson) throws XGBoostError {
-    XGBoostJNI.checkCall(
-        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "label", labelJson));
+  public void setLabel(XGBoostTable table) throws XGBoostError {
+    setXGBDMatrixInfo("label", table.getLabelArrayInterface());
   }
 
   /**
    * Set weight of DMatrix from cuda array interface
    *
-   * @param weightJson the cuda array interface of weight column
+   * @param table the XGBoostTable to provide the cuda array interface of weight column
    * @throws XGBoostError native error
    */
-  public void setWeight(String weightJson) throws XGBoostError {
-    XGBoostJNI.checkCall(
-        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "weight", weightJson));
+  public void setWeight(XGBoostTable table) throws XGBoostError {
+    setXGBDMatrixInfo("weight", table.getWeightArrayInterface());
   }
 
   /**
    * Set base margin of DMatrix from cuda array interface
    *
-   * @param baseMarginJson the cuda array interface of base margin column
+   * @param table the XGBoostTable to provide the cuda array interface of base margin column
    * @throws XGBoostError native error
    */
-  public void setBaseMargin(String baseMarginJson) throws XGBoostError {
+  public void setBaseMargin(XGBoostTable table) throws XGBoostError {
+    setXGBDMatrixInfo("base_margin", table.getBaseMarginArrayInterface());
+  }
+
+  private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {
+    if (json == null || json.isEmpty()) {
+      throw new XGBoostError("Empty " + type + " columns' array interface");
+    }
     XGBoostJNI.checkCall(
-        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, "base_margin", baseMarginJson));
+        XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, type, json));
   }
 
 }

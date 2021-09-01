@@ -27,33 +27,33 @@ import ai.rapids.cudf.Table;
 /**
  * Class to wrap CUDF Table to generate the cuda array interface.
  */
-public class GpuTable implements AutoCloseable {
-  private Table table;          // The CUDF Table
-  private int[] featureIndices; // The feature columns
-  private int[] labelIndices;   // The label columns
-  private int[] weightIndices;  // The weight columns
-  private int[] baseMarginIndices; // The base margin columns
+public class CudfTable extends XGBoostTable {
+  private final Table table;          // The CUDF Table
+  private final int[] featureIndices; // The feature columns
+  private final int[] labelIndices;   // The label columns
+  private final int[] weightIndices;  // The weight columns
+  private final int[] baseMarginIndices; // The base margin columns
 
   /**
-   * GpuTable constructor
+   * CudfTable constructor
    * @param table             the CUDF table
    * @param featureIndices    must-have, specify the feature's indices in the table
    * @param labelIndices      must-have, specify the label's indices in the table
    */
-  public GpuTable(Table table, int[] featureIndices, int[] labelIndices) {
+  public CudfTable(Table table, int[] featureIndices, int[] labelIndices) {
     this(table, featureIndices, labelIndices, null, null);
   }
 
   /**
-   * GpuTable constructor
+   * CudfTable constructor
    * @param table             the CUDF table
    * @param featureIndices    must-have, specify the feature's indices in the table
    * @param labelIndices      must-have, specify the label's indices in the table
    * @param weightIndices     optional, specify the weight's indices in the table
    * @param baseMarginIndices optional, specify the base marge's indices in the table
    */
-  public GpuTable(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
-                  int[] baseMarginIndices) {
+  public CudfTable(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
+                   int[] baseMarginIndices) {
     this.table = table;
     this.featureIndices = featureIndices;
     this.labelIndices = labelIndices;
@@ -65,14 +65,14 @@ public class GpuTable implements AutoCloseable {
 
   private void validate() {
     if (labelIndices == null) {
-      throw new RuntimeException("GpuTable requires label column");
+      throw new RuntimeException("CudfTable requires label column");
     } else {
       validateArrayIndex(labelIndices, "label");
     }
 
 
     if (featureIndices == null) {
-      throw new RuntimeException("GpuTable requires feature columns");
+      throw new RuntimeException("CudfTable requires feature columns");
     } else {
       validateArrayIndex(featureIndices, "feature");
     }
@@ -114,7 +114,8 @@ public class GpuTable implements AutoCloseable {
    *
    * @return Json string
    */
-  public String getJson() {
+  @Override
+  public String getArrayInterfaceJson() {
     StringBuilder builder = new StringBuilder();
 
     builder.append("{");
@@ -149,16 +150,28 @@ public class GpuTable implements AutoCloseable {
   }
 
   @Override
-  public void close() {
-    if (table != null) table.close();
-  }
-
   public String getFeatureArrayInterface() {
     return getArrayInterface(featureIndices);
   }
 
+  @Override
   public String getLabelArrayInterface() {
     return getArrayInterface(labelIndices);
+  }
+
+  @Override
+  public String getWeightArrayInterface() {
+    return getArrayInterface(weightIndices);
+  }
+
+  @Override
+  public String getBaseMarginArrayInterface() {
+    return getArrayInterface(baseMarginIndices);
+  }
+
+  @Override
+  public void close() {
+    if (table != null) table.close();
   }
 
   private String getArrayInterface(int... indices) {

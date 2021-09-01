@@ -69,18 +69,18 @@ public class BoosterTest {
     try (Table tmpTable = Table.readCSV(schema,
         new File("./src/test/resources/iris.data.csv"))) {
 
-      GpuTable gpuTable = new GpuTable(tmpTable, new int[]{0, 1, 2, 3}, new int[]{4});
+      CudfTable cudfTable = new CudfTable(tmpTable, new int[]{0, 1, 2, 3}, new int[]{4});
 
       //set watchList
       HashMap<String, DMatrix> watches = new HashMap<>();
 
-      ColumnDMatrix dMatrix1 = new ColumnDMatrix(gpuTable.getFeatureArrayInterface(), Float.NaN, 1);
-      dMatrix1.setLabel(gpuTable.getLabelArrayInterface());
+      ColumnDMatrix dMatrix1 = new ColumnDMatrix(cudfTable, Float.NaN, 1);
+      dMatrix1.setLabel(cudfTable);
       watches.put("train", dMatrix1);
       Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
 
-      List<GpuTable> tables = new LinkedList<>();
-      tables.add(gpuTable);
+      List<XGBoostTable> tables = new LinkedList<>();
+      tables.add(cudfTable);
       DMatrix incrementalDMatrix = new ColumnDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
       //set watchList
       HashMap<String, DMatrix> watches1 = new HashMap<>();

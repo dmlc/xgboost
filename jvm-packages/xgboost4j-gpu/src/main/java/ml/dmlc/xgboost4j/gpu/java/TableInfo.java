@@ -26,9 +26,9 @@ import java.util.Iterator;
 class TableInfo implements AutoCloseable {
 
   private String arrayInterfaceJson;
-  private GpuTable table;
+  private XGBoostTable table;
 
-  public TableInfo(GpuTable table, String arrayInterfaceJson) {
+  public TableInfo(XGBoostTable table, String arrayInterfaceJson) {
     this.table = table;
     this.arrayInterfaceJson = arrayInterfaceJson;
   }
@@ -40,14 +40,14 @@ class TableInfo implements AutoCloseable {
 
   // Called from native
   @Override
-  public void close() {
+  public void close() throws Exception {
     table.close();
   }
 
   public static class TableInfoBatchIterator implements Iterator<TableInfo> {
-    private Iterator<GpuTable> base;
+    private Iterator<XGBoostTable> base;
 
-    public TableInfoBatchIterator(Iterator<GpuTable> base) {
+    public TableInfoBatchIterator(Iterator<XGBoostTable> base) {
       this.base = base;
     }
 
@@ -58,8 +58,8 @@ class TableInfo implements AutoCloseable {
 
     @Override
     public TableInfo next() {
-      GpuTable table = base.next();
-      return new TableInfo(table, table.getJson());
+      XGBoostTable table = base.next();
+      return new TableInfo(table, table.getArrayInterfaceJson());
     }
   }
 }
