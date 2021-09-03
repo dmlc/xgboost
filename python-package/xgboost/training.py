@@ -103,7 +103,9 @@ def _train_internal(params, dtrain,
         # Due to compatibility with version older than 1.4, these attributes are added
         # to Python object even if early stopping is not used.
         bst.best_iteration = bst.num_boosted_rounds() - 1
+        bst.set_attr(best_iteration=str(bst.best_iteration))
         bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+        bst.set_attr(best_ntree_limit=str(bst.best_ntree_limit))
 
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
@@ -502,7 +504,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             results[key + '-std'].append(std)
 
         if should_break:
-            for k in results:
+            for k in results.keys():  # pylint: disable=consider-iterating-dictionary
                 results[k] = results[k][:(booster.best_iteration + 1)]
             break
     if as_pandas:

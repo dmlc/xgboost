@@ -20,6 +20,9 @@
 
 #include "xgboost/data.h"
 #include "xgboost/json.h"
+
+#include "hist/evaluate_splits.h"
+#include "hist/histogram.h"
 #include "constraints.h"
 #include "./param.h"
 #include "./driver.h"
@@ -75,43 +78,9 @@ struct RandomReplace {
   }
 };
 
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than MaxStackSize, it will be allocated inside the stack. Otherwise, it will be heap-allocated.
- */
-template<typename T, size_t MaxStackSize>
-class MemStackAllocator {
- public:
-  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
-  }
-
-  T* Get() {
-    if (!ptr_) {
-      if (MaxStackSize >= required_size_) {
-        ptr_ = stack_mem_;
-      } else {
-        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
-        do_free_ = true;
-      }
-    }
-
-    return ptr_;
-  }
-
-  ~MemStackAllocator() {
-    if (do_free_) free(ptr_);
-  }
-
-
- private:
-  T* ptr_ = nullptr;
-  bool do_free_ = false;
-  size_t required_size_;
-  T stack_mem_[MaxStackSize];
-};
-
 namespace tree {
 
-using xgboost::common::GHistIndexMatrix;
+using xgboost::GHistIndexMatrix;
 using xgboost::common::GHistIndexRow;
 using xgboost::common::HistCollection;
 using xgboost::common::RowSetCollection;
@@ -119,24 +88,6 @@ using xgboost::common::GHistRow;
 using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
-
-template <typename GradientSumT>
-class HistSynchronizer;
-
-template <typename GradientSumT>
-class BatchHistSynchronizer;
-
-template <typename GradientSumT>
-class DistributedHistSynchronizer;
-
-template <typename GradientSumT>
-class HistRowsAdder;
-
-template <typename GradientSumT>
-class BatchHistRowsAdder;
-
-template <typename GradientSumT>
-class DistributedHistRowsAdder;
 
 // training parameters specific to this algorithm
 struct CPUHistMakerTrainParam
@@ -155,19 +106,23 @@ struct CPUExpandEntry {
   static const int kEmptyNid = -1;
   int nid;
   int depth;
-  bst_float loss_chg;
+  SplitEntry split;
+
+  CPUExpandEntry() = default;
   CPUExpandEntry(int nid, int depth, bst_float loss_chg)
-      : nid(nid), depth(depth), loss_chg(loss_chg) {}
+      : nid(nid), depth(depth) {
+    split.loss_chg = loss_chg;
+  }
 
   bool IsValid(TrainParam const &param, int32_t num_leaves) const {
-    bool ret = loss_chg <= kRtEps ||
-               (param.max_depth > 0 && this->depth == param.max_depth) ||
-               (param.max_leaves > 0 && num_leaves == param.max_leaves);
-    return ret;
+    bool invalid = split.loss_chg <= kRtEps ||
+                   (param.max_depth > 0 && this->depth == param.max_depth) ||
+                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
+    return !invalid;
   }
 
   bst_float GetLossChange() const {
-    return loss_chg;
+    return split.loss_chg;
   }
 
   int GetNodeId() const {
@@ -226,65 +181,30 @@ class QuantileHistMaker: public TreeUpdater {
   }
 
  protected:
-  template <typename GradientSumT>
-  friend class HistSynchronizer;
-  template <typename GradientSumT>
-  friend class BatchHistSynchronizer;
-  template <typename GradientSumT>
-  friend class DistributedHistSynchronizer;
-
-  template <typename GradientSumT>
-  friend class HistRowsAdder;
-  template <typename GradientSumT>
-  friend class BatchHistRowsAdder;
-  template <typename GradientSumT>
-  friend class DistributedHistRowsAdder;
-
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
-  // quantized data matrix
-  GHistIndexMatrix gmat_;
   // column accessor
   ColumnMatrix column_matrix_;
   DMatrix const* p_last_dmat_ {nullptr};
   bool is_gmat_initialized_ {false};
 
-  // data structure
-  struct NodeEntry {
-    /*! \brief statics for node entry */
-    GradStats stats;
-    /*! \brief loss of this node, without split */
-    bst_float root_gain;
-    /*! \brief weight calculated related to current data */
-    float weight;
-    /*! \brief current best solution */
-    SplitEntry best;
-    // constructor
-    explicit NodeEntry(const TrainParam&)
-        : root_gain(0.0f), weight(0.0f) {}
-  };
   // actual builder that runs the algorithm
-
   template<typename GradientSumT>
   struct Builder {
    public:
     using GHistRowT = GHistRow<GradientSumT>;
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
-    explicit Builder(const size_t n_trees,
-                     const TrainParam& param,
-                     std::unique_ptr<TreeUpdater> pruner,
-                     FeatureInteractionConstraintHost int_constraints_,
-                     DMatrix const* fmat)
-      : n_trees_(n_trees),
-        param_(param),
-        tree_evaluator_(param, fmat->Info().num_col_, GenericParameter::kCpuId),
-        pruner_(std::move(pruner)),
-        interaction_constraints_{std::move(int_constraints_)},
-        p_last_tree_(nullptr), p_last_fmat_(fmat) {
+    explicit Builder(const size_t n_trees, const TrainParam &param,
+                     std::unique_ptr<TreeUpdater> pruner, DMatrix const *fmat)
+        : n_trees_(n_trees), param_(param), pruner_(std::move(pruner)),
+          p_last_tree_(nullptr), p_last_fmat_(fmat),
+          histogram_builder_{
+              new HistogramBuilder<GradientSumT, CPUExpandEntry>} {
       builder_monitor_.Init("Quantile::Builder");
     }
+    ~Builder();
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
@@ -292,28 +212,10 @@ class QuantileHistMaker: public TreeUpdater {
                         DMatrix* p_fmat,
                         RegTree* p_tree);
 
-    inline void SubtractionTrick(GHistRowT self,
-                                 GHistRowT sibling,
-                                 GHistRowT parent) {
-      builder_monitor_.Start("SubtractionTrick");
-      hist_builder_.SubtractionTrick(self, sibling, parent);
-      builder_monitor_.Stop("SubtractionTrick");
-    }
-
     bool UpdatePredictionCache(const DMatrix* data,
                                VectorView<float> out_preds);
 
-    void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
-    void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
-
    protected:
-    friend class HistSynchronizer<GradientSumT>;
-    friend class BatchHistSynchronizer<GradientSumT>;
-    friend class DistributedHistSynchronizer<GradientSumT>;
-    friend class HistRowsAdder<GradientSumT>;
-    friend class BatchHistRowsAdder<GradientSumT>;
-    friend class DistributedHistRowsAdder<GradientSumT>;
-
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
                   const DMatrix& fmat,
@@ -326,16 +228,10 @@ class QuantileHistMaker: public TreeUpdater {
                       std::vector<GradientPair>* gpair,
                       std::vector<size_t>* row_indices);
 
-    void EvaluateSplits(const std::vector<CPUExpandEntry>& nodes_set,
-                        const GHistIndexMatrix& gmat,
-                        const HistCollection<GradientSumT>& hist,
-                        const RegTree& tree);
-
     template <bool any_missing>
     void ApplySplit(std::vector<CPUExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
-                        const HistCollection<GradientSumT>& hist,
                         RegTree* p_tree);
 
     void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree* p_tree);
@@ -344,34 +240,8 @@ class QuantileHistMaker: public TreeUpdater {
     void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
                              const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
 
-    void InitNewNode(int nid,
-                     const GHistIndexMatrix& gmat,
-                     const std::vector<GradientPair>& gpair,
-                     const DMatrix& fmat,
-                     const RegTree& tree);
-
-    // Enumerate the split values of specific feature
-    // Returns the sum of gradients corresponding to the data points that contains a non-missing
-    // value for the particular feature fid.
-    template <int d_step>
-    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRowT &hist,
-                             const NodeEntry &snode, SplitEntry *p_best, bst_uint fid,
-                             bst_uint nodeID,
-                             TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const;
-
-    // if sum of statistics for non-missing values in the node
-    // is equal to sum of statistics for all values:
-    // then - there are no missing values
-    // else - there are missing values
-    bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
-
     template <bool any_missing>
-    void BuildLocalHistograms(const GHistIndexMatrix &gmat,
-                              RegTree *p_tree,
-                              const std::vector<GradientPair> &gpair_h);
-    template <bool any_missing>
-    void InitRoot(const GHistIndexMatrix &gmat,
-                  const DMatrix& fmat,
+    void InitRoot(DMatrix* p_fmat,
                   RegTree *p_tree,
                   const std::vector<GradientPair> &gpair_h,
                   int *num_leaves, std::vector<CPUExpandEntry> *expand);
@@ -388,10 +258,6 @@ class QuantileHistMaker: public TreeUpdater {
                          int *num_leaves,
                          std::vector<CPUExpandEntry>* nodes_for_apply_split);
 
-    void BuildNodeStats(const GHistIndexMatrix &gmat,
-                        const DMatrix& fmat,
-                        const std::vector<GradientPair> &gpair_h,
-                        const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
     template <bool any_missing>
     void ExpandTree(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
@@ -404,31 +270,20 @@ class QuantileHistMaker: public TreeUpdater {
     const TrainParam& param_;
     // number of omp thread used during training
     int nthread_;
-    common::ColumnSampler column_sampler_;
+    std::shared_ptr<common::ColumnSampler> column_sampler_{
+        std::make_shared<common::ColumnSampler>()};
+
+    std::vector<size_t> unused_rows_;
     // the internal row sets
     RowSetCollection row_set_collection_;
-    // tree rows that were not used for current training
-    std::vector<size_t> unused_rows_;
-    // feature vectors for subsampled prediction
-    std::vector<RegTree::FVec> feat_vecs_;
-    // the temp space for split
-    std::vector<RowSetCollection::Split> row_split_tloc_;
-    std::vector<SplitEntry> best_split_tloc_;
-    /*! \brief TreeNode Data: statistics for each constructed node */
-    std::vector<NodeEntry> snode_;
     std::vector<GradientPair> gpair_local_;
-    /*! \brief culmulative histogram of gradients. */
-    HistCollection<GradientSumT> hist_;
-    /*! \brief culmulative local parent histogram of gradients. */
-    HistCollection<GradientSumT> hist_local_worker_;
-    TreeEvaluator tree_evaluator_;
+
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
 
-    GHistBuilder<GradientSumT> hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
-    FeatureInteractionConstraintHost interaction_constraints_;
+    std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
 
     static constexpr size_t kPartitionBlockSize = 2048;
     common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
@@ -438,10 +293,6 @@ class QuantileHistMaker: public TreeUpdater {
     DMatrix const* const p_last_fmat_;
     DMatrix* p_last_fmat_mutable_;
 
-    using ExpandQueue =
-       std::priority_queue<CPUExpandEntry, std::vector<CPUExpandEntry>,
-                           std::function<bool(CPUExpandEntry, CPUExpandEntry)>>;
-
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
     // provides the evidence for subtraction
     std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
@@ -450,12 +301,10 @@ class QuantileHistMaker: public TreeUpdater {
 
     enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
+    std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>>
+        histogram_builder_;
 
     common::Monitor builder_monitor_;
-    common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
-    rabit::Reducer<GradientPairT, GradientPairT::Reduce> histred_;
-    std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
-    std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
   };
   common::Monitor updater_monitor_;
 
@@ -466,6 +315,7 @@ class QuantileHistMaker: public TreeUpdater {
   void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
                          HostDeviceVector<GradientPair> *gpair,
                          DMatrix *dmat,
+                         GHistIndexMatrix const& gmat,
                          const std::vector<RegTree *> &trees);
 
  protected:
@@ -473,73 +323,7 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder<double>> double_builder_;
 
   std::unique_ptr<TreeUpdater> pruner_;
-  FeatureInteractionConstraintHost int_constraint_;
 };
-
-template <typename GradientSumT>
-class HistSynchronizer {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-
-  virtual void SyncHistograms(BuilderT* builder,
-                              int starting_index,
-                              int sync_count,
-                              RegTree *p_tree) = 0;
-  virtual ~HistSynchronizer() = default;
-};
-
-template <typename GradientSumT>
-class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void SyncHistograms(BuilderT* builder,
-                      int starting_index,
-                      int sync_count,
-                      RegTree *p_tree) override;
-};
-
-template <typename GradientSumT>
-class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-
-  void SyncHistograms(BuilderT* builder, int starting_index,
-                      int sync_count, RegTree *p_tree) override;
-
-  void ParallelSubtractionHist(BuilderT* builder,
-                               const common::BlockedSpace2d& space,
-                               const std::vector<CPUExpandEntry>& nodes,
-                               const std::vector<CPUExpandEntry>& subtraction_nodes,
-                               const RegTree * p_tree);
-};
-
-template <typename GradientSumT>
-class HistRowsAdder {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-
-  virtual void AddHistRows(BuilderT* builder, int *starting_index,
-                           int *sync_count, RegTree *p_tree) = 0;
-  virtual ~HistRowsAdder() = default;
-};
-
-template <typename GradientSumT>
-class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, int *starting_index,
-                   int *sync_count, RegTree *p_tree) override;
-};
-
-template <typename GradientSumT>
-class DistributedHistRowsAdder: public HistRowsAdder<GradientSumT> {
- public:
-  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, int *starting_index,
-                   int *sync_count, RegTree *p_tree) override;
-};
-
-
 }  // namespace tree
 }  // namespace xgboost
 

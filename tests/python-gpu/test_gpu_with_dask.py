@@ -28,6 +28,7 @@ from test_with_dask import _get_client_workers        # noqa
 from test_with_dask import generate_array             # noqa
 from test_with_dask import kCols as random_cols       # noqa
 from test_with_dask import suppress                   # noqa
+from test_with_dask import run_tree_stats             # noqa
 import testing as tm                                  # noqa
 
 
@@ -211,20 +212,34 @@ def test_categorical(local_cuda_cluster: LocalCUDACluster) -> None:
         )
         assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
 
-        model = output["booster"]
-        with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.json")
-            model.save_model(path)
-            with open(path, "r") as fd:
-                categorical = json.load(fd)
+        def check_model_output(model: dxgb.Booster) -> None:
+            with tempfile.TemporaryDirectory() as tempdir:
+                path = os.path.join(tempdir, "model.json")
+                model.save_model(path)
+                with open(path, "r") as fd:
+                    categorical = json.load(fd)
 
-            categories_sizes = np.array(
-                categorical["learner"]["gradient_booster"]["model"]["trees"][-1][
-                    "categories_sizes"
-                ]
-            )
-            assert categories_sizes.shape[0] != 0
-            np.testing.assert_allclose(categories_sizes, 1)
+                categories_sizes = np.array(
+                    categorical["learner"]["gradient_booster"]["model"]["trees"][-1][
+                        "categories_sizes"
+                    ]
+                )
+                assert categories_sizes.shape[0] != 0
+                np.testing.assert_allclose(categories_sizes, 1)
+
+        check_model_output(output["booster"])
+        reg = dxgb.DaskXGBRegressor(
+            enable_categorical=True, n_estimators=10, tree_method="gpu_hist"
+        )
+        reg.fit(X, y)
+
+        check_model_output(reg.get_booster())
+
+        reg = dxgb.DaskXGBRegressor(
+            enable_categorical=True, n_estimators=10
+        )
+        with pytest.raises(ValueError):
+            reg.fit(X, y)
 
 
 def to_cp(x: Any, DMatrixT: Type) -> Any:
@@ -478,6 +493,17 @@ class TestDistributedGPU:
 
         for rn, drn in zip(ranker_names, dranker_names):
             assert rn == drn
+
+    def test_tree_stats(self) -> None:
+        with LocalCUDACluster(n_workers=1) as cluster:
+            with Client(cluster) as client:
+                local = run_tree_stats(client, "gpu_hist")
+
+        with LocalCUDACluster(n_workers=2) as cluster:
+            with Client(cluster) as client:
+                distributed = run_tree_stats(client, "gpu_hist")
+
+        assert local == distributed
 
     def run_quantile(self, name: str, local_cuda_cluster: LocalCUDACluster) -> None:
         if sys.platform.startswith("win"):

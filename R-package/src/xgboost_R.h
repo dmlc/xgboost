@@ -47,10 +47,12 @@ XGB_DLL SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
  * This assumes the matrix is stored in column major format
  * \param data R Matrix object
  * \param missing which value to represent missing value
+ * \param n_threads Number of threads used to construct DMatrix from dense matrix.
  * \return created dmatrix
  */
 XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
-                                      SEXP missing);
+                                      SEXP missing,
+                                      SEXP n_threads);
 /*!
  * \brief create a matrix content from CSC format
  * \param indptr pointer to column headers
@@ -274,5 +276,13 @@ XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
  * \return string vector containing attribute names
  */
 XGB_DLL SEXP XGBoosterGetAttrNames_R(SEXP handle);
+
+/*!
+ * \brief Get feature scores from the model.
+ * \param json_config See `XGBoosterFeatureScore` in xgboost c_api.h
+ * \return A vector with the first element as feature names, second element as shape of
+ *         feature scores and thrid element as feature scores.
+ */
+XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config);
 
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

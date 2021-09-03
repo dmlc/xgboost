@@ -142,7 +142,7 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   IterativeDeviceDMatrix m(
       &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
       0, 256);
-  auto &ellpack = *m.GetBatches<EllpackPage>({0, 256, 0}).begin();
+  auto &ellpack = *m.GetBatches<EllpackPage>({0, 256}).begin();
   auto impl = ellpack.Impl();
   common::CompressedIterator<uint32_t> iterator(
       impl->gidx_buffer.HostVector().data(), impl->NumSymbols());

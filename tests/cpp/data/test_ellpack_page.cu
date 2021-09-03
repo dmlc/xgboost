@@ -142,7 +142,7 @@ TEST(EllpackPage, Copy) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, kPageSize};
+  BatchParam param{0, 256};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
@@ -166,10 +166,10 @@ TEST(EllpackPage, Copy) {
     EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(0, kCols, ReadRowFunction(result.GetDeviceAccessor(0), current_row, row_result_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(0), current_row, row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);
@@ -188,7 +188,7 @@ TEST(EllpackPage, Compact) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, kPageSize};
+  BatchParam param{0, 256};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
@@ -212,7 +212,7 @@ TEST(EllpackPage, Compact) {
   std::vector<bst_float> row_result(kCols);
   for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
     auto impl = page.Impl();
-    EXPECT_EQ(impl->base_rowid, current_row);
+    ASSERT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
       size_t compacted_row = row_indexes_h[current_row];
@@ -221,12 +221,14 @@ TEST(EllpackPage, Compact) {
         continue;
       }
 
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
-      dh::safe_cuda (cudaDeviceSynchronize());
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(0),
+                                         current_row, row_d.data().get()));
+      dh::safe_cuda(cudaDeviceSynchronize());
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(0, kCols,
-                  ReadRowFunction(result.GetDeviceAccessor(0), compacted_row, row_result_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(result.GetDeviceAccessor(0), compacted_row,
+                                  row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);

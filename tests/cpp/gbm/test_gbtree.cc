@@ -155,7 +155,8 @@ TEST(GBTree, ChoosePredictor) {
   ASSERT_TRUE(data.HostCanWrite());
 
   // pull data into device.
-  data = HostDeviceVector<Entry>(data.HostVector(), 0);
+  data.HostVector();
+  data.SetDevice(0);
   data.DeviceSpan();
   ASSERT_FALSE(data.HostCanWrite());
 
@@ -395,6 +396,10 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
     CHECK_EQ(tree, sliced_tree);
     j++;
   }
+
+  // CHECK sliced model doesn't have dependency on old one
+  learner.reset();
+  CHECK_EQ(sliced->GetNumFeature(), kCols);
 
   return std::make_pair(model, sliced_model);
 }

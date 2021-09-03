@@ -44,7 +44,7 @@ SegmentedTrapezoidThreads(xgboost::common::Span<U> group_ptr,
   CHECK_GE(group_ptr.size(), 1);
   CHECK_EQ(group_ptr.size(), out_group_threads_ptr.size());
   dh::LaunchN(
-      dh::CurrentDevice(), group_ptr.size(), [=] XGBOOST_DEVICE(size_t idx) {
+      group_ptr.size(), [=] XGBOOST_DEVICE(size_t idx) {
         if (idx == 0) {
           out_group_threads_ptr[0] = 0;
           return;

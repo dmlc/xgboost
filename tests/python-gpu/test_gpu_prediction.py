@@ -5,7 +5,7 @@ import numpy as np
 import xgboost as xgb
 from xgboost.compat import PANDAS_INSTALLED
 
-from hypothesis import given, strategies, assume, settings, note
+from hypothesis import given, strategies, assume, settings
 
 if PANDAS_INSTALLED:
     from hypothesis.extra.pandas import column, data_frames, range_indexes
@@ -274,6 +274,25 @@ class TestGPUPredict:
         assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
                            margin,
                            1e-3, 1e-3)
+
+    def test_shap_categorical(self):
+        X, y = tm.make_categorical(100, 20, 7, False)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        booster = xgb.train({"tree_method": "gpu_hist"}, Xy, num_boost_round=10)
+
+        booster.set_param({"predictor": "gpu_predictor"})
+        shap = booster.predict(Xy, pred_contribs=True)
+        margin = booster.predict(Xy, output_margin=True)
+        np.testing.assert_allclose(
+            np.sum(shap, axis=len(shap.shape) - 1), margin, rtol=1e-3
+        )
+
+        booster.set_param({"predictor": "cpu_predictor"})
+        shap = booster.predict(Xy, pred_contribs=True)
+        margin = booster.predict(Xy, output_margin=True)
+        np.testing.assert_allclose(
+            np.sum(shap, axis=len(shap.shape) - 1), margin, rtol=1e-3
+        )
 
     def test_predict_leaf_basic(self):
         gpu_leaf = run_predict_leaf('gpu_predictor')

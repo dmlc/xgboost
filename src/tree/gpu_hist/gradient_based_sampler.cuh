@@ -16,7 +16,7 @@ struct GradientBasedSample {
   /*!\brief Number of sampled rows. */
   size_t sample_rows;
   /*!\brief Sampled rows in ELLPACK format. */
-  EllpackPageImpl* page;
+  EllpackPageImpl const* page;
   /*!\brief Gradient pairs for the sampled rows. */
   common::Span<GradientPair> gpair;
 };
@@ -31,17 +31,17 @@ class SamplingStrategy {
 /*! \brief No sampling in in-memory mode. */
 class NoSampling : public SamplingStrategy {
  public:
-  explicit NoSampling(EllpackPageImpl* page);
+  explicit NoSampling(EllpackPageImpl const* page);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl* page_;
+  EllpackPageImpl const* page_;
 };
 
 /*! \brief No sampling in external memory mode. */
 class ExternalMemoryNoSampling : public SamplingStrategy {
  public:
-  ExternalMemoryNoSampling(EllpackPageImpl* page,
+  ExternalMemoryNoSampling(EllpackPageImpl const* page,
                            size_t n_rows,
                            const BatchParam& batch_param);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
@@ -55,25 +55,25 @@ class ExternalMemoryNoSampling : public SamplingStrategy {
 /*! \brief Uniform sampling in in-memory mode. */
 class UniformSampling : public SamplingStrategy {
  public:
-  UniformSampling(EllpackPageImpl* page, float subsample);
+  UniformSampling(EllpackPageImpl const* page, float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl* page_;
+  EllpackPageImpl const* page_;
   float subsample_;
 };
 
 /*! \brief No sampling in external memory mode. */
 class ExternalMemoryUniformSampling : public SamplingStrategy {
  public:
-  ExternalMemoryUniformSampling(EllpackPageImpl* page,
+  ExternalMemoryUniformSampling(EllpackPageImpl const* page,
                                 size_t n_rows,
                                 const BatchParam& batch_param,
                                 float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl* original_page_;
+  EllpackPageImpl const* original_page_;
   BatchParam batch_param_;
   float subsample_;
   std::unique_ptr<EllpackPageImpl> page_;
@@ -84,14 +84,14 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
 /*! \brief Gradient-based sampling in in-memory mode.. */
 class GradientBasedSampling : public SamplingStrategy {
  public:
-  GradientBasedSampling(EllpackPageImpl* page,
+  GradientBasedSampling(EllpackPageImpl const* page,
                         size_t n_rows,
                         const BatchParam& batch_param,
                         float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl* page_;
+  EllpackPageImpl const* page_;
   float subsample_;
   dh::caching_device_vector<float> threshold_;
   dh::caching_device_vector<float> grad_sum_;
@@ -100,14 +100,14 @@ class GradientBasedSampling : public SamplingStrategy {
 /*! \brief Gradient-based sampling in external memory mode.. */
 class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  public:
-  ExternalMemoryGradientBasedSampling(EllpackPageImpl* page,
+  ExternalMemoryGradientBasedSampling(EllpackPageImpl const* page,
                                       size_t n_rows,
                                       const BatchParam& batch_param,
                                       float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl* original_page_;
+  EllpackPageImpl const* original_page_;
   BatchParam batch_param_;
   float subsample_;
   dh::caching_device_vector<float> threshold_;
@@ -128,7 +128,7 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  */
 class GradientBasedSampler {
  public:
-  GradientBasedSampler(EllpackPageImpl* page,
+  GradientBasedSampler(EllpackPageImpl const* page,
                        size_t n_rows,
                        const BatchParam& batch_param,
                        float subsample,

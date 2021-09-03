@@ -42,6 +42,12 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, bst_cat_t
   return !s_cats.Check(cat);
 }
 
+struct IsCatOp {
+  XGBOOST_DEVICE bool operator()(FeatureType ft) {
+    return ft == FeatureType::kCategorical;
+  }
+};
+
 using CatBitField = LBitField32;
 using KCatBitField = CLBitField32;
 }  // namespace common

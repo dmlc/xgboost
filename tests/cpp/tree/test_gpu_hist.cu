@@ -1,8 +1,9 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <random>
@@ -80,8 +81,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param, kNCols, kNCols,
-                                         true, batch_param);
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param,
+                                         kNCols, kNCols, batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -93,14 +94,18 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-
-
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistogram(0);
   maker.gpair = gpair.DeviceSpan();
+  maker.histogram_rounding = CreateRoundingFactor<GradientSumT>(maker.gpair);;
 
-  maker.BuildHist(0);
-  DeviceHistogram<GradientSumT> d_hist = maker.hist;
+  BuildGradientHistogram(
+      page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
+      gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
+      maker.hist.GetNodeHistogram(0), maker.histogram_rounding,
+      !use_shared_memory_histograms);
+
+  DeviceHistogram<GradientSumT>& d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
@@ -115,6 +120,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   std::cout << std::fixed;
   for (size_t i = 0; i < h_result.size(); ++i) {
+    ASSERT_FALSE(std::isnan(h_result[i].GetGrad()));
     EXPECT_NEAR(h_result[i].GetGrad(), solution[i].GetGrad(), 0.01f);
     EXPECT_NEAR(h_result[i].GetHess(), solution[i].GetHess(), 0.01f);
   }
@@ -152,14 +158,14 @@ TEST(GpuHist, ApplySplit) {
   BatchParam bparam;
   bparam.gpu_id = 0;
   bparam.max_bin = 3;
-  bparam.gpu_page_size = 0;
 
   for (auto& ellpack : m->GetBatches<EllpackPage>(bparam)){
     auto impl = ellpack.Impl();
     HostDeviceVector<FeatureType> feature_types(10, FeatureType::kCategorical);
     feature_types.SetDevice(bparam.gpu_id);
     tree::GPUHistMakerDevice<GradientPairPrecise> updater(
-        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols, true, bparam);
+        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols,
+        bparam);
     updater.ApplySplit(candidate, &tree);
 
     ASSERT_EQ(tree.GetSplitTypes().size(), 3);
@@ -218,8 +224,8 @@ TEST(GpuHist, EvaluateRootSplit) {
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientPairPrecise>
-      maker(0, page.get(), {}, kNRows, param, kNCols, kNCols, true, batch_param);
+  GPUHistMakerDevice<GradientPairPrecise> maker(
+      0, page.get(), {}, kNRows, param, kNCols, kNCols, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {};
 
@@ -291,9 +297,13 @@ void TestHistogramIndexImpl() {
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
   const auto &maker = hist_maker.maker;
+  auto grad = GenerateRandomGradients(kNRows);
+  grad.SetDevice(0);
+  maker->Reset(&grad, hist_maker_dmat.get(), kNCols);
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
   const auto &maker_ext = hist_maker_ext.maker;
+  maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols);
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
   ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
@@ -365,7 +375,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
     // Loop over the batches and count the records
     int64_t batch_count = 0;
     int64_t row_count = 0;
-    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, max_bin, gpu_page_size})) {
+    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, max_bin})) {
       EXPECT_LT(batch.Size(), dmat->Info().num_row_);
       batch_count++;
       row_count += batch.Size();
@@ -386,7 +396,6 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
 
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
   GenericParameter generic_param(CreateEmptyGenericParam(0));
-  generic_param.gpu_page_size = gpu_page_size;
   hist_maker.Configure(args, &generic_param);
 
   hist_maker.Update(gpair, dmat, {tree});

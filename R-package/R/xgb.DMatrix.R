@@ -20,7 +20,7 @@
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
 #' @export
-xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) {
+xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthread = NULL, ...) {
   cnames <- NULL
   if (typeof(data) == "character") {
     if (length(data) > 1)
@@ -29,7 +29,7 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) 
     data <- path.expand(data)
     handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
-    handle <- .Call(XGDMatrixCreateFromMat_R, data, missing)
+    handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, as.integer(NVL(nthread, -1)))
     cnames <- colnames(data)
   } else if (inherits(data, "dgCMatrix")) {
     handle <- .Call(XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data))
@@ -51,12 +51,12 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) 
 
 # get dmatrix from data, label
 # internal helper method
-xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
+xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL, nthread = NULL) {
   if (inherits(data, "dgCMatrix") || is.matrix(data)) {
     if (is.null(label)) {
       stop("label must be provided when data is a matrix")
     }
-    dtrain <- xgb.DMatrix(data, label = label, missing = missing)
+    dtrain <- xgb.DMatrix(data, label = label, missing = missing, nthread = nthread)
     if (!is.null(weight)){
       setinfo(dtrain, "weight", weight)
     }

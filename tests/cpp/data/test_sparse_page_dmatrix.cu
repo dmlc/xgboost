@@ -4,6 +4,7 @@
 #include "../helpers.h"
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/sparse_page_dmatrix.h"
 
 namespace xgboost {
 
@@ -14,13 +15,22 @@ TEST(SparsePageDMatrix, EllpackPage) {
   DMatrix* dmat = DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, false);
 
   // Loop over the batches and assert the data is as expected
-  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 64})) {
-    EXPECT_EQ(batch.Size(), dmat->Info().num_row_);
+  size_t n = 0;
+  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256})) {
+    n += batch.Size();
   }
+  EXPECT_EQ(n, dmat->Info().num_row_);
 
-  EXPECT_TRUE(FileExists(tmp_file + ".cache"));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.ellpack.page"));
+  auto path =
+      data::MakeId(tmp_file + ".cache",
+                   dynamic_cast<data::SparsePageDMatrix *>(dmat)) +
+      ".row.page";
+  EXPECT_TRUE(FileExists(path));
+  path =
+      data::MakeId(tmp_file + ".cache",
+                   dynamic_cast<data::SparsePageDMatrix *>(dmat)) +
+      ".ellpack.page";
+  EXPECT_TRUE(FileExists(path));
 
   delete dmat;
 }
@@ -30,12 +40,12 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
   std::string filename = tmpdir.path + "/big.libsvm";
   size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
   size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries, kPageSize, filename);
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries, filename);
 
   // Loop over the batches and count the records
   int64_t batch_count = 0;
   int64_t row_count = 0;
-  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 7UL})) {
+  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256})) {
     EXPECT_LT(batch.Size(), dmat->Info().num_row_);
     batch_count++;
     row_count += batch.Size();
@@ -43,7 +53,47 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
   EXPECT_GE(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
-  EXPECT_TRUE(FileExists(filename + ".cache.ellpack.page"));
+  auto path =
+      data::MakeId(filename,
+                   dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +
+      ".ellpack.page";
+}
+
+TEST(SparsePageDMatrix, RetainEllpackPage) {
+  auto m = CreateSparsePageDMatrix(10000);
+  auto batches = m->GetBatches<EllpackPage>({0, 32});
+  auto begin = batches.begin();
+  auto end = batches.end();
+
+  std::vector<HostDeviceVector<common::CompressedByteT>> gidx_buffers;
+  std::vector<std::shared_ptr<EllpackPage const>> iterators;
+  for (auto it = begin; it != end; ++it) {
+    iterators.push_back(it.Page());
+    gidx_buffers.emplace_back(HostDeviceVector<common::CompressedByteT>{});
+    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.Size());
+    gidx_buffers.back().Copy((*it).Impl()->gidx_buffer);
+  }
+  ASSERT_GE(iterators.size(), 2);
+
+  for (size_t i = 0; i < iterators.size(); ++i) {
+    ASSERT_EQ((*iterators[i]).Impl()->gidx_buffer.HostVector(), gidx_buffers.at(i).HostVector());
+    if (i != iterators.size() - 1) {
+      ASSERT_EQ(iterators[i].use_count(), 1);
+    } else {
+      // The last batch is still being held by sparse page DMatrix.
+      ASSERT_EQ(iterators[i].use_count(), 2);
+    }
+  }
+
+  // make sure it's const and the caller can not modify the content of page.
+  for (auto& page : m->GetBatches<EllpackPage>({0, 32})) {
+    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+  }
+
+  // The above iteration clears out all references inside DMatrix.
+  for (auto const& ptr : iterators) {
+    ASSERT_TRUE(ptr.unique());
+  }
 }
 
 TEST(SparsePageDMatrix, EllpackPageContent) {
@@ -59,7 +109,7 @@ TEST(SparsePageDMatrix, EllpackPageContent) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, 2, 0};
+  BatchParam param{0, 2};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
@@ -67,7 +117,17 @@ TEST(SparsePageDMatrix, EllpackPageContent) {
   EXPECT_EQ(impl->row_stride, 2);
   EXPECT_EQ(impl->Cuts().TotalBins(), 4);
 
-  auto impl_ext = (*dmat_ext->GetBatches<EllpackPage>(param).begin()).Impl();
+  std::unique_ptr<EllpackPageImpl> impl_ext;
+  size_t offset = 0;
+  for (auto& batch : dmat_ext->GetBatches<EllpackPage>(param)) {
+    if (!impl_ext) {
+      impl_ext.reset(new EllpackPageImpl(
+          batch.Impl()->gidx_buffer.DeviceIdx(), batch.Impl()->Cuts(),
+          batch.Impl()->is_dense, batch.Impl()->row_stride, kRows));
+    }
+    auto n_elems = impl_ext->Copy(0, batch.Impl(), offset);
+    offset += n_elems;
+  }
   EXPECT_EQ(impl_ext->base_rowid, 0);
   EXPECT_EQ(impl_ext->n_rows, kRows);
   EXPECT_FALSE(impl_ext->is_dense);
@@ -109,7 +169,7 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, kMaxBins, kPageSize};
+  BatchParam param{0, kMaxBins};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
@@ -124,10 +184,10 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
     EXPECT_EQ(impl_ext->base_rowid, current_row);
 
     for (size_t i = 0; i < impl_ext->Size(); i++) {
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->GetDeviceAccessor(0), current_row, row_ext_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(impl_ext->GetDeviceAccessor(0), current_row, row_ext_d.data().get()));
       thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
 
       EXPECT_EQ(row, row_ext);
@@ -150,7 +210,7 @@ TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, kMaxBins, kPageSize};
+  BatchParam param{0, kMaxBins};
 
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {

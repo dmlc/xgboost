@@ -255,9 +255,12 @@ class GradientPairInternal {
 
 /*! \brief gradient statistics pair usually needed in gradient boosting */
 using GradientPair = detail::GradientPairInternal<float>;
-
 /*! \brief High precision gradient statistics pair */
 using GradientPairPrecise = detail::GradientPairInternal<double>;
+/*! \brief Fixed point representation for gradient pair. */
+using GradientPairInt32 = detail::GradientPairInternal<int>;
+/*! \brief Fixed point representation for high precision gradient pair. */
+using GradientPairInt64 = detail::GradientPairInternal<int64_t>;
 
 using Args = std::vector<std::pair<std::string, std::string> >;
 

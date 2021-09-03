@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014~2020 by Contributors
+ * Copyright 2014~2021 by Contributors
  * \file simple_dmatrix.cc
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
@@ -17,6 +17,7 @@
 #include "../common/random.h"
 #include "../common/threading_utils.h"
 #include "adapter.h"
+#include "gradient_index.h"
 
 namespace xgboost {
 namespace data {
@@ -26,7 +27,7 @@ const MetaInfo& SimpleDMatrix::Info() const { return info_; }
 
 DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   auto out = new SimpleDMatrix;
-  SparsePage& out_page = out->sparse_page_;
+  SparsePage& out_page = *out->sparse_page_;
   for (auto const &page : this->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     auto& h_data = out_page.data.HostVector();
@@ -47,17 +48,17 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter = BatchIterator<SparsePage>(
-      new SimpleBatchIteratorImpl<SparsePage>(&sparse_page_));
+      new SimpleBatchIteratorImpl<SparsePage>(sparse_page_));
   return BatchSet<SparsePage>(begin_iter);
 }
 
 BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
   // column page doesn't exist, generate it
   if (!column_page_) {
-    column_page_.reset(new CSCPage(sparse_page_.GetTranspose(info_.num_col_)));
+    column_page_.reset(new CSCPage(sparse_page_->GetTranspose(info_.num_col_)));
   }
   auto begin_iter =
-      BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_.get()));
+      BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_));
   return BatchSet<CSCPage>(begin_iter);
 }
 
@@ -65,11 +66,11 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
     sorted_column_page_.reset(
-        new SortedCSCPage(sparse_page_.GetTranspose(info_.num_col_)));
+        new SortedCSCPage(sparse_page_->GetTranspose(info_.num_col_)));
     sorted_column_page_->SortRows();
   }
   auto begin_iter = BatchIterator<SortedCSCPage>(
-      new SimpleBatchIteratorImpl<SortedCSCPage>(sorted_column_page_.get()));
+      new SimpleBatchIteratorImpl<SortedCSCPage>(sorted_column_page_));
   return BatchSet<SortedCSCPage>(begin_iter);
 }
 
@@ -85,8 +86,22 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
     batch_param_ = param;
   }
   auto begin_iter =
-      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_.get()));
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_));
   return BatchSet<EllpackPage>(begin_iter);
+}
+
+BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& param) {
+  if (!(batch_param_ != BatchParam{})) {
+    CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
+  }
+  if (!gradient_index_  || (batch_param_ != param && param != BatchParam{})) {
+    CHECK_GE(param.max_bin, 2);
+    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin));
+    batch_param_ = param;
+  }
+  auto begin_iter = BatchIterator<GHistIndexMatrix>(
+      new SimpleBatchIteratorImpl<GHistIndexMatrix>(gradient_index_));
+  return BatchSet<GHistIndexMatrix>(begin_iter);
 }
 
 template <typename AdapterT>
@@ -95,8 +110,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
   bst_uint group_size = 0;
-  auto& offset_vec = sparse_page_.offset.HostVector();
-  auto& data_vec = sparse_page_.data.HostVector();
+  auto& offset_vec = sparse_page_->offset.HostVector();
+  auto& data_vec = sparse_page_->data.HostVector();
   uint64_t inferred_num_columns = 0;
   uint64_t total_batch_size = 0;
     // batch_size is either number of rows or cols, depending on data layout
@@ -105,7 +120,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   // Iterate over batches of input data
   while (adapter->Next()) {
     auto& batch = adapter->Value();
-    auto batch_max_columns = sparse_page_.Push(batch, missing, nthread);
+    auto batch_max_columns = sparse_page_->Push(batch, missing, nthread);
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available
@@ -188,8 +203,8 @@ SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
   CHECK(in_stream->Read(&tmagic)) << "invalid input file format";
   CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
   info_.LoadBinary(in_stream);
-  in_stream->Read(&sparse_page_.offset.HostVector());
-  in_stream->Read(&sparse_page_.data.HostVector());
+  in_stream->Read(&sparse_page_->offset.HostVector());
+  in_stream->Read(&sparse_page_->data.HostVector());
 }
 
 void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
@@ -197,8 +212,8 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
     int tmagic = kMagic;
     fo->Write(tmagic);
     info_.SaveBinary(fo.get());
-    fo->Write(sparse_page_.offset.HostVector());
-    fo->Write(sparse_page_.data.HostVector());
+    fo->Write(sparse_page_->offset.HostVector());
+    fo->Write(sparse_page_->data.HostVector());
 }
 
 template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing,

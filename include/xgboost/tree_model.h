@@ -550,6 +550,7 @@ class RegTree : public Model {
    * \param condition_feature the index of the feature to fix
    */
   void CalculateContributions(const RegTree::FVec& feat,
+                              std::vector<float>* mean_values,
                               bst_float* out_contribs, int condition = 0,
                               unsigned condition_feature = 0) const;
   /*!
@@ -566,7 +567,7 @@ class RegTree : public Model {
    * \param condition_feature the index of the feature to fix
    * \param condition_fraction what fraction of the current weight matches our conditioning feature
    */
-  void TreeShap(const RegTree::FVec& feat, bst_float* phi, unsigned node_index,
+  void TreeShap(const RegTree::FVec& feat, bst_float* phi, bst_node_t node_index,
                 unsigned unique_depth, PathElement* parent_unique_path,
                 bst_float parent_zero_fraction, bst_float parent_one_fraction,
                 int parent_feature_index, int condition,
@@ -578,6 +579,7 @@ class RegTree : public Model {
    * \param out_contribs output vector to hold the contributions
    */
   void CalculateContributionsApprox(const RegTree::FVec& feat,
+                                    std::vector<float>* mean_values,
                                     bst_float* out_contribs) const;
   /*!
    * \brief dump the model in the requested format as a text string
@@ -589,10 +591,6 @@ class RegTree : public Model {
   std::string DumpModel(const FeatureMap& fmap,
                         bool with_stats,
                         std::string format) const;
-  /*!
-   * \brief calculate the mean value for each node, required for feature contributions
-   */
-  void FillNodeMeanValues();
   /*!
    * \brief Get split type for a node.
    * \param nidx Index of node.
@@ -639,7 +637,6 @@ class RegTree : public Model {
   std::vector<int>  deleted_nodes_;
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
-  std::vector<bst_float> node_mean_values_;
   std::vector<FeatureType> split_types_;
 
   // Categories for each internal node.
@@ -680,7 +677,6 @@ class RegTree : public Model {
     nodes_[nid].MarkDelete();
     ++param.num_deleted;
   }
-  bst_float FillNodeMeanValue(int nid);
 };
 
 inline void RegTree::FVec::Init(size_t size) {

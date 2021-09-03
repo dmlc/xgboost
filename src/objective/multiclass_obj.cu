@@ -121,7 +121,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
       }
     }
   }
-  void PredTransform(HostDeviceVector<bst_float>* io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float>* io_preds) const override {
     this->Transform(io_preds, output_prob_);
   }
   void EvalTransform(HostDeviceVector<bst_float>* io_preds) override {
@@ -131,10 +131,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
     return "mlogloss";
   }
 
-  inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) {
+  inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) const {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
-    max_preds_.Resize(ndata);
 
     auto device = io_preds->DeviceIdx();
     if (prob) {
@@ -148,23 +147,22 @@ class SoftmaxMultiClassObj : public ObjFunction {
         .Eval(io_preds);
     } else {
       io_preds->SetDevice(device);
-      max_preds_.SetDevice(device);
+      HostDeviceVector<bst_float> max_preds;
+      max_preds.SetDevice(device);
+      max_preds.Resize(ndata);
       common::Transform<>::Init(
-          [=] XGBOOST_DEVICE(size_t _idx,
-                             common::Span<const bst_float> _preds,
+          [=] XGBOOST_DEVICE(size_t _idx, common::Span<const bst_float> _preds,
                              common::Span<bst_float> _max_preds) {
             common::Span<const bst_float> point =
                 _preds.subspan(_idx * nclass, nclass);
             _max_preds[_idx] =
-                common::FindMaxIndex(point.cbegin(),
-                                     point.cend()) - point.cbegin();
+                common::FindMaxIndex(point.cbegin(), point.cend()) -
+                point.cbegin();
           },
           common::Range{0, ndata}, device, false)
-        .Eval(io_preds, &max_preds_);
-    }
-    if (!prob) {
-      io_preds->Resize(max_preds_.Size());
-      io_preds->Copy(max_preds_);
+          .Eval(io_preds, &max_preds);
+      io_preds->Resize(max_preds.Size());
+      io_preds->Copy(max_preds);
     }
   }
 
@@ -188,7 +186,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
   // parameter
   SoftmaxMultiClassParam param_;
   // Cache for max_preds
-  HostDeviceVector<bst_float> max_preds_;
   HostDeviceVector<int> label_correct_;
 };
 

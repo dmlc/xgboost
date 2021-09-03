@@ -18,28 +18,12 @@ if (NOT PLUGIN_UPDATER_ONEAPI)
   list(REMOVE_ITEM TEST_SOURCES ${ONEAPI_TEST_SOURCES})
 endif (NOT PLUGIN_UPDATER_ONEAPI)
 
-add_executable(testxgboost ${TEST_SOURCES}
-  ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
-target_link_libraries(testxgboost PRIVATE objxgboost)
+target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 
-if (USE_CUDA)
-  xgboost_set_cuda_flags(testxgboost)
-
+if (USE_CUDA AND PLUGIN_RMM)
   find_package(CUDA)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
-endif (USE_CUDA)
-
-if (MSVC)
-  target_compile_options(testxgboost PRIVATE
-    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
-    -D_CRT_SECURE_NO_WARNINGS
-    -D_CRT_SECURE_NO_DEPRECATE
-  )
-endif (MSVC)
-if (ENABLE_ALL_WARNINGS)
-  target_compile_options(testxgboost PUBLIC
-    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
-endif (ENABLE_ALL_WARNINGS)
+endif (USE_CUDA AND PLUGIN_RMM)
 
 target_include_directories(testxgboost
   PRIVATE
@@ -47,10 +31,6 @@ target_include_directories(testxgboost
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-set_target_properties(
-  testxgboost PROPERTIES
-  CXX_STANDARD 14
-  CXX_STANDARD_REQUIRED ON)
 target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES})

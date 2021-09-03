@@ -75,8 +75,8 @@ Parameters for Tree Booster
 
 * ``max_depth`` [default=6]
 
-  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguided`` growing policy when tree_method is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
-  - range: [0,∞] (0 is only accepted in ``lossguided`` growing policy when tree_method is set as ``hist`` or ``gpu_hist``)
+  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguide`` growing policy when tree_method is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
+  - range: [0,∞] (0 is only accepted in ``lossguide`` growing policy when tree_method is set as ``hist`` or ``gpu_hist``)
 
 * ``min_child_weight`` [default=1]
 
@@ -177,7 +177,7 @@ Parameters for Tree Booster
     - ``grow_gpu_hist``: Grow tree with GPU.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
-    - ``prune``: prunes the splits where loss < min_split_loss (or gamma).
+    - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
 
   - In a distributed setting, the implicit updater sequence value would be adjusted to ``grow_histmaker,prune`` by default, and you can set ``tree_method`` as ``hist`` to use ``grow_histmaker``.
 
@@ -244,16 +244,6 @@ Additional parameters for ``hist`` and ``gpu_hist`` tree method
 * ``single_precision_histogram``, [default=``false``]
 
   - Use single precision to build histograms instead of double precision.
-
-Additional parameters for ``gpu_hist`` tree method
-==================================================
-
-* ``deterministic_histogram``, [default=``true``]
-
-  - Build histogram on GPU deterministically.  Histogram building is not deterministic due
-    to the non-associative aspect of floating point summation.  We employ a pre-rounding
-    routine to mitigate the issue, which may lead to slightly lower accuracy.  Set to
-    ``false`` to disable it.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

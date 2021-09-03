@@ -21,6 +21,7 @@ from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 from test_with_sklearn import run_feature_weights, run_data_initialization
 from test_predict import verify_leaf_output
+from sklearn.datasets import make_regression
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -184,6 +185,9 @@ def test_dask_predict_shape_infer(client: "Client") -> None:
 def run_boost_from_prediction(
     X: xgb.dask._DaskCollection, y: xgb.dask._DaskCollection, tree_method: str, client: "Client"
 ) -> None:
+    X = client.persist(X)
+    y = client.persist(y)
+
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, random_state=0, n_estimators=4,
         tree_method=tree_method)
@@ -1489,6 +1493,61 @@ def test_parallel_submits(client: "Client") -> None:
     assert len(classifiers) == n_submits
     for i, cls in enumerate(classifiers):
         assert cls.get_booster().num_boosted_rounds() == i + 1
+
+
+def run_tree_stats(client: Client, tree_method: str) -> str:
+    """assert that different workers count dosn't affect summ statistic's on root"""
+
+    def dask_train(X, y, num_obs, num_features):
+        chunk_size = 100
+        X = da.from_array(X, chunks=(chunk_size, num_features))
+        y = da.from_array(y.reshape(num_obs, 1), chunks=(chunk_size, 1))
+        dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+        output = xgb.dask.train(
+            client,
+            {
+                "verbosity": 0,
+                "tree_method": tree_method,
+                "objective": "reg:squarederror",
+                "max_depth": 3,
+            },
+            dtrain,
+            num_boost_round=1,
+        )
+        dump_model = output["booster"].get_dump(with_stats=True, dump_format="json")[0]
+        return json.loads(dump_model)
+
+    num_obs = 1000
+    num_features = 10
+    X, y = make_regression(num_obs, num_features, random_state=777)
+    model = dask_train(X, y, num_obs, num_features)
+
+    # asserts children have correct cover.
+    stack = [model]
+    while stack:
+        node: dict = stack.pop()
+        if "leaf" in node.keys():
+            continue
+        cover = 0
+        for c in node["children"]:
+            cover += c["cover"]
+            stack.append(c)
+        assert cover == node["cover"]
+
+    return model["cover"]
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_tree_stats(tree_method: str) -> None:
+    with LocalCluster(n_workers=1) as cluster:
+        with Client(cluster) as client:
+            local = run_tree_stats(client, tree_method)
+    with LocalCluster(n_workers=2) as cluster:
+        with Client(cluster) as client:
+            distributed = run_tree_stats(client, tree_method)
+
+    assert local == distributed
 
 
 def test_parallel_submit_multi_clients() -> None:

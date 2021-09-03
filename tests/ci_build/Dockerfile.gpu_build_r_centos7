@@ -1,0 +1,53 @@
+ARG CUDA_VERSION_ARG
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
+ARG CUDA_VERSION_ARG
+
+# Install all basic requirements
+RUN \
+    yum install -y epel-release centos-release-scl && \
+    yum-config-manager --enable centos-sclo-rh-testing && \
+    yum -y update && \
+    yum install -y tar unzip wget xz git which ninja-build readline-devel libX11-devel libXt-devel \
+                   xorg-x11-server-devel openssl-devel zlib-devel bzip2-devel xz-devel \
+                   pcre-devel libcurl-devel texlive-* \
+                   devtoolset-8-gcc devtoolset-8-binutils devtoolset-8-gcc-c++ \
+                   devtoolset-8-gcc-gfortran devtoolset-8-libquadmath-devel \
+                   devtoolset-8-runtime devtoolset-8-libstdc++-devel
+
+ENV PATH=/opt/python/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/3.3.0/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/3.3.0/lib64:$LD_LIBRARY_PATH
+ENV CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-8/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-8/root/usr/bin/cpp
+ENV F77=/opt/rh/devtoolset-8/root/usr/bin/gfortran
+
+# R 3.3.0
+RUN \
+    wget -nv -nc https://cran.r-project.org/src/base/R-3/R-3.3.0.tar.gz  && \
+    tar xf R-3.3.0.tar.gz  && \
+    cd R-3.3.0  && \
+    ./configure --prefix=/opt/R/3.3.0 --enable-R-shlib  && \
+    make -j$(nproc)  && \
+    make install  && \
+    # Python
+    wget -nv -nc -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python && \
+    /opt/python/bin/python -m pip install auditwheel && \
+    # CMake
+    wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr
+
+ENV GOSU_VERSION 1.10
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    wget -nv -nc -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]

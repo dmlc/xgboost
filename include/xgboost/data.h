@@ -171,9 +171,12 @@ class MetaInfo {
    * \param that The other MetaInfo object.
    *
    * \param accumulate_rows Whether rows need to be accumulated in this function.  If
-   *        client code knows number of rows in advance, set this parameter to false.
+   *                        client code knows number of rows in advance, set this
+   *                        parameter to false.
+   * \param check_column Whether the extend method should check the consistency of
+   *                     columns.
    */
-  void Extend(MetaInfo const& that, bool accumulate_rows);
+  void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
  private:
   /*! \brief argsort of labels */
@@ -211,14 +214,12 @@ struct BatchParam {
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
   int max_bin{0};
-  /*! \brief Page size for external memory mode. */
-  size_t gpu_page_size;
   BatchParam() = default;
-  BatchParam(int32_t device, int32_t max_bin, size_t gpu_page_size = 0)
-      : gpu_id{device}, max_bin{max_bin}, gpu_page_size{gpu_page_size} {}
-  inline bool operator!=(const BatchParam& other) const {
-    return gpu_id != other.gpu_id || max_bin != other.max_bin ||
-           gpu_page_size != other.gpu_page_size;
+  BatchParam(int32_t device, int32_t max_bin)
+      : gpu_id{device}, max_bin{max_bin} {}
+
+  bool operator!=(const BatchParam& other) const {
+    return gpu_id != other.gpu_id || max_bin != other.max_bin;
   }
 };
 
@@ -385,14 +386,17 @@ class EllpackPage {
   std::unique_ptr<EllpackPageImpl> impl_;
 };
 
+class GHistIndexMatrix;
+
 template<typename T>
 class BatchIteratorImpl {
  public:
+  using iterator_category = std::forward_iterator_tag;  // NOLINT
   virtual ~BatchIteratorImpl() = default;
-  virtual T& operator*() = 0;
   virtual const T& operator*() const = 0;
-  virtual void operator++() = 0;
+  virtual BatchIteratorImpl& operator++() = 0;
   virtual bool AtEnd() const = 0;
+  virtual std::shared_ptr<T const> Page() const = 0;
 };
 
 template<typename T>
@@ -400,15 +404,12 @@ class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;  // NOLINT
   explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
+  explicit BatchIterator(std::shared_ptr<BatchIteratorImpl<T>> impl) { impl_ = impl; }
 
-  void operator++() {
+  BatchIterator &operator++() {
     CHECK(impl_ != nullptr);
     ++(*impl_);
-  }
-
-  T& operator*() {
-    CHECK(impl_ != nullptr);
-    return *(*impl_);
+    return *this;
   }
 
   const T& operator*() const {
@@ -424,6 +425,10 @@ class BatchIterator {
   bool AtEnd() const {
     CHECK(impl_ != nullptr);
     return impl_->AtEnd();
+  }
+
+  std::shared_ptr<T const> Page() const {
+    return impl_->Page();
   }
 
  private:
@@ -497,8 +502,7 @@ class DMatrix {
   static DMatrix* Load(const std::string& uri,
                        bool silent,
                        bool load_row_split,
-                       const std::string& file_format = "auto",
-                       size_t page_size = kPageSize);
+                       const std::string& file_format = "auto");
 
   /**
    * \brief Creates a new DMatrix from an external data adapter.
@@ -514,8 +518,7 @@ class DMatrix {
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "",
-                         size_t page_size = kPageSize);
+                         const std::string& cache_prefix = "");
 
   /**
    * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
@@ -543,6 +546,31 @@ class DMatrix {
                          int nthread,
                          int max_bin);
 
+  /**
+   * \brief Create an external memory DMatrix with callbacks.
+   *
+   * \tparam DataIterHandle         External iterator type, defined in C API.
+   * \tparam DMatrixHandle          DMatrix handle, defined in C API.
+   * \tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
+   * \tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
+   *
+   * \param iter    External data iterator
+   * \param proxy   A hanlde to ProxyDMatrix
+   * \param reset   Callback for reset
+   * \param next    Callback for next
+   * \param missing Value that should be treated as missing.
+   * \param nthread number of threads used for initialization.
+   * \param cache   Prefix of cache file path.
+   *
+   * \return A created external memory DMatrix.
+   */
+  template <typename DataIterHandle, typename DMatrixHandle,
+            typename DataIterResetCallback, typename XGDMatrixCallbackNext>
+  static DMatrix *Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int32_t nthread, std::string cache);
+
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief Number of rows per page in external memory.  Approximately 100MB per page for
    *  dataset with 100 features. */
@@ -553,6 +581,7 @@ class DMatrix {
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
   virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
+  virtual BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) = 0;
 
   virtual bool EllpackExists() const = 0;
   virtual bool SparsePageExists() const = 0;
@@ -586,6 +615,11 @@ inline BatchSet<SortedCSCPage> DMatrix::GetBatches(const BatchParam&) {
 template<>
 inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
   return GetEllpackBatches(param);
+}
+
+template<>
+inline BatchSet<GHistIndexMatrix> DMatrix::GetBatches(const BatchParam& param) {
+  return GetGradientIndex(param);
 }
 }  // namespace xgboost
 

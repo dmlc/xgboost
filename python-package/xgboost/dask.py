@@ -48,7 +48,6 @@ from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
 from .sklearn import XGBRanker
 
-
 if TYPE_CHECKING:
     from dask import dataframe as dd
     from dask import array as da
@@ -70,6 +69,20 @@ try:
     })
 except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
+
+__all__ = [
+    "RabitContext",
+    "DaskDMatrix",
+    "DaskDeviceQuantileDMatrix",
+    "DaskXGBRegressor",
+    "DaskXGBClassifier",
+    "DaskXGBRanker",
+    "DaskXGBRFRegressor",
+    "DaskXGBRFClassifier",
+    "train",
+    "predict",
+    "inplace_predict",
+]
 
 # TODOs:
 #   - CV
@@ -127,7 +140,7 @@ def _start_tracker(n_workers: int) -> Dict[str, Any]:
     """Start Rabit tracker """
     env = {'DMLC_NUM_WORKER': n_workers}
     host = get_host_ip('auto')
-    rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
+    rabit_context = RabitTracker(hostIP=host, nslave=n_workers, use_logger=False)
     env.update(rabit_context.slave_envs())
 
     rabit_context.start(n_workers)

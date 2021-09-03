@@ -194,8 +194,8 @@ inline FeatureMap LoadFeatureMap(std::string const& uri) {
   return feat;
 }
 
-// FIXME(jiamingy): Use this for model dump.
 inline void GenerateFeatureMap(Learner const *learner,
+                               std::vector<Json> const &custom_feature_names,
                                size_t n_features, FeatureMap *out_feature_map) {
   auto &feature_map = *out_feature_map;
   auto maybe = [&](std::vector<std::string> const &values, size_t i,
@@ -205,15 +205,31 @@ inline void GenerateFeatureMap(Learner const *learner,
   if (feature_map.Size() == 0) {
     // Use the feature names and types from booster.
     std::vector<std::string> feature_names;
-    learner->GetFeatureNames(&feature_names);
+    // priority:
+    // 1. feature map.
+    // 2. customized feature name.
+    // 3. from booster
+    // 4. default feature name.
+    if (!custom_feature_names.empty()) {
+      CHECK_EQ(custom_feature_names.size(), n_features)
+          << "Incorrect number of feature names.";
+      feature_names.resize(custom_feature_names.size());
+      std::transform(custom_feature_names.begin(), custom_feature_names.end(),
+                     feature_names.begin(),
+                     [](Json const &name) { return get<String const>(name); });
+    } else {
+      learner->GetFeatureNames(&feature_names);
+    }
     if (!feature_names.empty()) {
       CHECK_EQ(feature_names.size(), n_features) << "Incorrect number of feature names.";
     }
+
     std::vector<std::string> feature_types;
     learner->GetFeatureTypes(&feature_types);
     if (!feature_types.empty()) {
       CHECK_EQ(feature_types.size(), n_features) << "Incorrect number of feature types.";
     }
+
     for (size_t i = 0; i < n_features; ++i) {
       feature_map.PushBack(
           i,

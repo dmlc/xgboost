@@ -11,35 +11,16 @@
 #include "sparse_page_source.h"
 #include "ellpack_page.cuh"
 #include "proxy_dmatrix.h"
+#include "proxy_dmatrix.cuh"
 #include "device_adapter.cuh"
 
 namespace xgboost {
 namespace data {
-
-template <typename Fn>
-decltype(auto) Dispatch(DMatrixProxy const* proxy, Fn fn) {
-  if (proxy->Adapter().type() == typeid(std::shared_ptr<CupyAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<CupyAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<CudfAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<CudfAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  } else {
-    LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
-    auto value = dmlc::get<std::shared_ptr<CudfAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  }
-}
-
 void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missing, int nthread) {
   // A handle passed to external iterator.
-  auto handle = static_cast<std::shared_ptr<DMatrix>*>(proxy_);
-  CHECK(handle);
-  DMatrixProxy* proxy = static_cast<DMatrixProxy*>(handle->get());
+  DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
+
   // The external iterator
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
     iter_handle, reset_, next_};
@@ -162,7 +143,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     proxy->Info().num_row_ = num_rows();
     proxy->Info().num_col_ = cols;
     if (batches != 1) {
-      this->info_.Extend(std::move(proxy->Info()), false);
+      this->info_.Extend(std::move(proxy->Info()), false, true);
     }
     n_batches_for_verification++;
   }
@@ -182,7 +163,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
 BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
   CHECK(page_);
   auto begin_iter =
-      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_.get()));
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
   return BatchSet<EllpackPage>(begin_iter);
 }
 }  // namespace data

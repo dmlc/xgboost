@@ -156,9 +156,14 @@ __model_doc = f'''
         [2, 3, 4]], where each inner list is a group of indices of features
         that are allowed to interact with each other.  See tutorial for more
         information
-    importance_type: string, default "gain"
+    importance_type: Optional[str]
         The feature importance type for the feature_importances\\_ property:
-        either "gain", "weight", "cover", "total_gain" or "total_cover".
+
+        * For tree model, it's either "gain", "weight", "cover", "total_gain" or
+          "total_cover".
+        * For linear model, only "weight" is defined and it's the normalized coefficients
+          without bias.
+
     gpu_id : Optional[int]
         Device ordinal.
     validate_parameters : Optional[bool]
@@ -290,7 +295,7 @@ def _wrap_evaluation_matrices(
             return [None] * n_validation
         if len(meta) != n_validation:
             raise ValueError(
-                f"{name}'s length does not eqaul to `eval_set`, " +
+                f"{name}'s length does not equal `eval_set`'s length, " +
                 f"expecting {n_validation}, got {len(meta)}"
             )
         return meta
@@ -382,7 +387,7 @@ class XGBModel(XGBModelBase):
         num_parallel_tree: Optional[int] = None,
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
         interaction_constraints: Optional[Union[str, List[Tuple[str]]]] = None,
-        importance_type: str = "gain",
+        importance_type: Optional[str] = None,
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
         predictor: Optional[str] = None,
@@ -414,7 +419,6 @@ class XGBModel(XGBModelBase):
         self.base_score = base_score
         self.missing = missing
         self.num_parallel_tree = num_parallel_tree
-        self.kwargs = kwargs
         self.random_state = random_state
         self.n_jobs = n_jobs
         self.monotone_constraints = monotone_constraints
@@ -424,6 +428,8 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.predictor = predictor
         self.enable_categorical = enable_categorical
+        if kwargs:
+            self.kwargs = kwargs
 
     def _more_tags(self) -> Dict[str, bool]:
         '''Tags used for scikit-learn data validation.'''
@@ -464,6 +470,8 @@ class XGBModel(XGBModelBase):
             if hasattr(self, key):
                 setattr(self, key, value)
             else:
+                if not hasattr(self, "kwargs"):
+                    self.kwargs = {}
                 self.kwargs[key] = value
 
         if hasattr(self, '_Booster'):
@@ -486,7 +494,7 @@ class XGBModel(XGBModelBase):
         cp.__class__ = cp.__class__.__bases__[0]
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
-        if isinstance(self.kwargs, dict):
+        if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
             params.update(self.kwargs)
         if isinstance(params['random_state'], np.random.RandomState):
             params['random_state'] = params['random_state'].randint(
@@ -530,7 +538,7 @@ class XGBModel(XGBModelBase):
             'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder',
             "enable_categorical"
         }
-        filtered = dict()
+        filtered = {}
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
                 filtered[k] = v
@@ -549,7 +557,7 @@ class XGBModel(XGBModelBase):
         return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
-        meta = dict()
+        meta = {}
         for k, v in self.__dict__.items():
             if k == '_le':
                 meta['_le'] = self._le.to_json()
@@ -588,7 +596,7 @@ class XGBModel(XGBModelBase):
             )
             return
         meta = json.loads(meta_str)
-        states = dict()
+        states = {}
         for k, v in meta.items():
             if k == '_le':
                 self._le = XGBoostLabelEncoder()
@@ -632,6 +640,12 @@ class XGBModel(XGBModelBase):
                 eval_metric = None
             else:
                 params.update({"eval_metric": eval_metric})
+        if self.enable_categorical and params.get("tree_method", None) != "gpu_hist":
+            raise ValueError(
+                "Experimental support for categorical data is not implemented for"
+                " current tree method yet."
+            )
+
         return model, feval, params
 
     def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
@@ -734,7 +748,6 @@ class XGBModel(XGBModelBase):
 
         """
         evals_result: TrainingCallback.EvalsLog = {}
-
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
             X=X,
@@ -785,7 +798,8 @@ class XGBModel(XGBModelBase):
         # error with incompatible data type.
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
-        if self.predictor is None and self.booster != "gblinear":
+        predictor = self.get_params().get("predictor", None)
+        if predictor in ("auto", None) and self.booster != "gblinear":
             return True
         return False
 
@@ -988,29 +1002,26 @@ class XGBModel(XGBModelBase):
     @property
     def feature_importances_(self) -> np.ndarray:
         """
-        Feature importances property
-
-        .. note:: Feature importance is defined only for tree boosters
-
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
+        Feature importances property, return depends on `importance_type` parameter.
 
         Returns
         -------
-        feature_importances_ : array of shape ``[n_features]``
+        feature_importances_ : array of shape ``[n_features]`` except for multi-class
+        linear model, which returns an array with shape `(n_features, n_classes)`
 
         """
-        if self.get_params()['booster'] not in {'gbtree', 'dart'}:
-            raise AttributeError(
-                'Feature importance is not defined for Booster type {}'
-                .format(self.booster))
         b: Booster = self.get_booster()
-        score = b.get_score(importance_type=self.importance_type)
+
+        def dft() -> str:
+            return "weight" if self.booster == "gblinear" else "gain"
+        score = b.get_score(
+            importance_type=self.importance_type if self.importance_type else dft()
+        )
         if b.feature_names is None:
             feature_names = ["f{0}".format(i) for i in range(self.n_features_in_)]
         else:
             feature_names = b.feature_names
+        # gblinear returns all features so the `get` in next line is only for gbtree.
         all_features = [score.get(f, 0.) for f in feature_names]
         all_features_arr = np.array(all_features, dtype=np.float32)
         total = all_features_arr.sum()
@@ -1164,7 +1175,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             ):
                 raise ValueError(label_encoding_check_error)
         else:
-            self.classes_ = np.unique(y)
+            self.classes_ = np.unique(np.asarray(y))
             self.n_classes_ = len(self.classes_)
             if not self.use_label_encoder and (
                 not np.array_equal(self.classes_, np.arange(self.n_classes_))
@@ -1201,11 +1212,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             label_transform = lambda x: x
 
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
-        if len(X.shape) != 2:
-            # Simply raise an error here since there might be many
-            # different ways of reshaping
-            raise ValueError("Please reshape the input data X into 2-dimensional matrix.")
-
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
             X=X,
@@ -1291,7 +1297,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         X: array_like,
         ntree_limit: Optional[int] = None,
-        validate_features: bool = False,
+        validate_features: bool = True,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
         output_margin=False,

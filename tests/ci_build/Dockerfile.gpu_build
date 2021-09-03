@@ -9,10 +9,13 @@ SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget bzip2 libgomp1 git build-essential doxygen graphviz llvm libasan2 libidn11 liblz4-dev ninja-build && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update && \
+    apt-get install -y tar unzip wget bzip2 libgomp1 git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
     wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python
@@ -25,6 +28,9 @@ RUN \
     apt-get install -y --allow-downgrades --allow-change-held-packages libnccl2=${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-dev=${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/python/bin:$PATH
+ENV CC=gcc-8
+ENV CXX=g++-8
+ENV CPP=cpp-8
 
 ENV GOSU_VERSION 1.10
 

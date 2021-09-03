@@ -154,6 +154,9 @@ class TestBasic:
         dump4j = json.loads(dump4[0])
         assert 'gain' in dump4j, "Expected 'gain' to be dumped in JSON."
 
+        with pytest.raises(ValueError):
+            bst.get_dump(fmap="foo")
+
     def test_feature_score(self):
         rng = np.random.RandomState(0)
         data = rng.randn(100, 2)
@@ -170,6 +173,11 @@ class TestBasic:
         booster.feature_names = ["F0"]
         with pytest.raises(ValueError):
             booster.get_fscore()
+
+        booster.feature_names = None
+        # Use JSON to make sure the output has native Python type
+        scores = json.loads(json.dumps(booster.get_fscore()))
+        np.testing.assert_allclose(scores["f0"], 6.0)
 
     def test_load_file_invalid(self):
         with pytest.raises(xgb.core.XGBoostError):

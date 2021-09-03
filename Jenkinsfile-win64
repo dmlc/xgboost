@@ -40,7 +40,8 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-win64-cuda10.1': { BuildWin64() }
+            'build-win64-cuda10.1': { BuildWin64() },
+            'build-rpkg-win64-cuda10.1': { BuildRPackageWithCUDAWin64() }
           ])
         }
       }
@@ -75,6 +76,7 @@ def checkoutSrcs() {
 
 def BuildWin64() {
   node('win64 && cuda10_unified') {
+    deleteDir()
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     bat "nvcc --version"
@@ -115,8 +117,26 @@ def BuildWin64() {
   }
 }
 
+def BuildRPackageWithCUDAWin64() {
+  node('win64 && cuda10_unified') {
+    deleteDir()
+    unstash name: 'srcs'
+    bat "nvcc --version"
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      bat """
+      bash tests/ci_build/build_r_pkg_with_cuda_win64.sh ${commit_id}
+      """
+      echo 'Uploading R tarball...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_win64_*.tar.gz'
+    }
+    deleteDir()
+  }
+}
+
 def TestWin64() {
   node('win64 && cuda10_unified') {
+    deleteDir()
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cli'
@@ -127,7 +147,7 @@ def TestWin64() {
     bat "build\\testxgboost.exe"
     echo "Installing Python dependencies..."
     def env_name = 'win64_' + UUID.randomUUID().toString().replaceAll('-', '')
-    bat "conda env create -n ${env_name} --file=tests/ci_build/conda_env/win64_test.yml"
+    bat "conda activate && mamba env create -n ${env_name} --file=tests/ci_build/conda_env/win64_test.yml"
     echo "Installing Python wheel..."
     bat """
     conda activate ${env_name} && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"

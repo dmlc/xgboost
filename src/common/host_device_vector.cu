@@ -93,9 +93,8 @@ class HostDeviceVectorImpl {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       auto s_data = dh::ToSpan(*data_d_);
-      dh::LaunchN(device_, data_d_->size(), [=]XGBOOST_DEVICE(size_t i) {
-          s_data[i] = v;
-      });
+      dh::LaunchN(data_d_->size(),
+                  [=] XGBOOST_DEVICE(size_t i) { s_data[i] = v; });
     }
   }
 

@@ -238,6 +238,10 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
+int32_t GenericParameter::Threads() const {
+  return common::OmpGetNumThreads(nthread);
+}
+
 using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
@@ -1061,20 +1065,37 @@ class LearnerImpl : public LearnerIO {
   Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
                  bool *out_of_bound) override {
     this->Configure();
+    CHECK_NE(this->learner_model_param_.num_feature, 0);
     CHECK_GE(begin_layer, 0);
     auto *out_impl = new LearnerImpl({});
+    out_impl->learner_model_param_ = this->learner_model_param_;
+    out_impl->generic_parameters_ = this->generic_parameters_;
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
-        this->tparam_.booster, &this->generic_parameters_,
-        &this->learner_model_param_));
+        this->tparam_.booster, &out_impl->generic_parameters_,
+        &out_impl->learner_model_param_));
     this->gbm_->Slice(begin_layer, end_layer, step, gbm.get(), out_of_bound);
     out_impl->gbm_ = std::move(gbm);
+
     Json config { Object() };
     this->SaveConfig(&config);
     out_impl->mparam_ = this->mparam_;
     out_impl->attributes_ = this->attributes_;
-    out_impl->learner_model_param_ = this->learner_model_param_;
+    out_impl->SetFeatureNames(this->feature_names_);
+    out_impl->SetFeatureTypes(this->feature_types_);
     out_impl->LoadConfig(config);
     out_impl->Configure();
+    CHECK_EQ(out_impl->learner_model_param_.num_feature, this->learner_model_param_.num_feature);
+    CHECK_NE(out_impl->learner_model_param_.num_feature, 0);
+
+    auto erase_attr = [&](std::string attr) {
+      // Erase invalid attributes.
+      auto attr_it = out_impl->attributes_.find(attr);
+      if (attr_it != out_impl->attributes_.cend()) {
+        out_impl->attributes_.erase(attr_it);
+      }
+    };
+    erase_attr("best_iteration");
+    erase_attr("best_score");
     return out_impl;
   }
 
@@ -1238,23 +1259,6 @@ class LearnerImpl : public LearnerIO {
                         std::vector<bst_feature_t> *features,
                         std::vector<float> *scores) override {
     this->Configure();
-    std::vector<std::string> allowed_importance_type = {
-        "weight", "total_gain", "total_cover", "gain", "cover"
-    };
-    if (std::find(allowed_importance_type.begin(),
-                  allowed_importance_type.end(),
-                  importance_type) == allowed_importance_type.end()) {
-      std::stringstream ss;
-      ss << "importance_type mismatch, got: " << importance_type
-         << "`, expected one of ";
-      for (size_t i = 0; i < allowed_importance_type.size(); ++i) {
-        ss << "`" << allowed_importance_type[i] << "`";
-        if (i != allowed_importance_type.size() - 1) {
-          ss << ", ";
-        }
-      }
-      LOG(FATAL) << ss.str();
-    }
     gbm_->FeatureScore(importance_type, features, scores);
   }
 

@@ -1,8 +1,8 @@
-##############################
-C API Tutorial 
-##############################
+##############
+C API Tutorial
+##############
 
-In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some useful tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset. 
+In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some useful tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset.
 
 .. contents::
   :backlinks: none
@@ -12,7 +12,7 @@ In this tutorial, we are going to install XGBoost library & configure the CMakeL
 Requirements
 ************
 
-Install CMake - Follow the `cmake installation documentation <https://cmake.org/install/>`_ for instructions. 
+Install CMake - Follow the `cmake installation documentation <https://cmake.org/install/>`_ for instructions.
 Install Conda - Follow the `conda installation  documentation <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`_ for instructions
 
 *************************************
@@ -31,18 +31,18 @@ Run the following commands on your terminal. The below commands will install the
     # Activate the Conda environment, into which we'll install XGBoost
     conda activate [env_name]
     # Build the compiled version of XGBoost inside the build folder
-    cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
+    cmake .. -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
     # install XGBoost in your conda environment (usually under [your home directory]/miniconda3)
     make install
 
 *********************************************************************
-Configure CMakeList.txt file of your application to link with XGBoost 
+Configure CMakeList.txt file of your application to link with XGBoost
 *********************************************************************
 
 Here, we assume that your C++ application is using CMake for builds.
 
 Use ``find_package()`` and ``target_link_libraries()`` in your application's CMakeList.txt to link with the XGBoost library:
-   
+
 .. code-block:: cmake
 
     cmake_minimum_required(VERSION 3.13)
@@ -79,8 +79,8 @@ a. In a C application: Use the following macro to guard all calls to XGBoost's C
 
 .. code-block:: c
 
-  #define safe_xgboost(call) {  \                                    
-    int err = (call); \                         
+  #define safe_xgboost(call) {  \
+    int err = (call); \
     if (err != 0) { \
       fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError());  \
       exit(1); \
@@ -101,8 +101,8 @@ b. In a C++ application: modify the macro ``safe_xgboost`` to throw an exception
 
 .. code-block:: cpp
 
-  #define safe_xgboost(call) {  \                                    
-    int err = (call); \                         
+  #define safe_xgboost(call) {  \
+    int err = (call); \
     if (err != 0) { \
       throw new Exception(std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
                           ": error in " + #call + ":" + XGBGetLastError()));  \
@@ -125,29 +125,29 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
     #include <stdio.h>
     #include <stdlib.h>
     #include <xgboost/c_api.h>
-    
+
     int main(int argc, char** argv) {
       int silent = 0;
-  
+
       BoosterHandle booster;
-   
+
       // do something with booster
-   
+
       //free the memory
       XGBoosterFree(booster)
 
       DMatrixHandle DMatrixHandle_param;
-   
+
       // do something with DMatrixHandle_param
-   
+
       // free the memory
       XGDMatrixFree(DMatrixHandle_param);
-   
+
       return 0;
     }
 
 
-3. For tree models, it is important to use consistent data formats during training and scoring/ predicting otherwise it will result in wrong outputs. 
+3. For tree models, it is important to use consistent data formats during training and scoring/ predicting otherwise it will result in wrong outputs.
    Example if we our training data is in ``dense matrix`` format then your prediction dataset should also be a ``dense matrix`` or if training in ``libsvm`` format then dataset for prediction should also be in ``libsvm`` format.
 
 
@@ -166,7 +166,7 @@ Sample examples along with Code snippet to use C API functions
 1. If the dataset is available in a file, it can be loaded into a ``DMatrix`` object using the `XGDMatrixCreateFromFile <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a357c3654a1a4dcc05e6b5c50acd17105>`_
 
 .. code-block:: c
-  
+
   DMatrixHandle data; // handle to DMatrix
   // Load the dat from file & store it in data variable of DMatrixHandle datatype
   safe_xgboost(XGDMatrixCreateFromFile("/path/to/file/filename", silent, &data));
@@ -188,10 +188,10 @@ Sample examples along with Code snippet to use C API functions
   // dmatrix variable will contain the created DMatrix using it
   safe_xgboost(XGDMatrixCreateFromMat(data1, 1, 50, 0, &dmatrix));
   // here -1 represents the missing value in the matrix dataset
-  safe_xgboost(XGDMatrixCreateFromMat(data2, ROWS, COLS, -1, &dmatrix2)(;
+  safe_xgboost(XGDMatrixCreateFromMat(data2, ROWS, COLS, -1, &dmatrix2));
 
 
-3. Create a Booster object for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_ 
+3. Create a Booster object for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_
 
 .. code-block:: c
 
@@ -201,7 +201,7 @@ Sample examples along with Code snippet to use C API functions
   DMatrixHandle eval_dmats[eval_dmats_size] = {train, test};
   safe_xgboost(XGBoosterCreate(eval_dmats, eval_dmats_size, &booster));
 
-  
+
 4. For each ``DMatrix`` object, set the labels using `XGDMatrixSetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aef75cda93db3ae9af89e465ae7e9cbe3>`_. Later you can access the label using `XGDMatrixGetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ab0ee317539a1fb1ce2b5f249e8c768f6>`_.
 
 .. code-block:: c
@@ -220,25 +220,25 @@ Sample examples along with Code snippet to use C API functions
   }
 
   // Loading the labels
-  safe_xgboost(XGDMatrixSetFloatInfo(dmatrix, "labels", labels, ROWS));
-  
+  safe_xgboost(XGDMatrixSetFloatInfo(dmatrix, "label", labels, ROWS));
+
   // reading the labels and store the length of the result
   bst_ulong result_len;
 
   // labels result
   const float *result;
 
-  safe_xgboost(XGDMatrixGetFloatInfo(dmatrix, "labels", &result_len, &result));
+  safe_xgboost(XGDMatrixGetFloatInfo(dmatrix, "label", &result_len, &result));
 
   for(unsigned int i = 0; i < result_len; i++) {
     printf("label[%i] = %f\n", i, result[i]);
   }
-   
-    
+
+
 5. Set the parameters for the ``Booster`` object according to the requirement using `XGBoosterSetParam <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af7378865b0c999d2d08a5b16483b8bcb>`_ . Check out the full list of parameters available `here <https://xgboost.readthedocs.io/en/latest/parameter.html>`_ .
 
 .. code-block :: c
- 
+
     BoosterHandle booster;
     safe_xgboost(XGBoosterSetParam(booster, "booster", "gblinear"));
     // default max_depth =6

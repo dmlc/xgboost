@@ -6,7 +6,7 @@ import json
 import sys
 import warnings
 import os
-from typing import Any, Tuple
+from typing import Any, Tuple, Callable
 
 import numpy as np
 
@@ -31,6 +31,11 @@ def _check_complex(data):
                       np.cfloat, np.cdouble, np.clongdouble)
     if hasattr(data, 'dtype') and data.dtype in complex_dtypes:
         raise ValueError('Complex data not supported')
+
+
+def _check_data_shape(data: Any) -> None:
+    if hasattr(data, "shape") and len(data.shape) != 2:
+        raise ValueError("Please reshape the input data into 2-dimensional matrix.")
 
 
 def _is_scipy_csr(data):
@@ -198,7 +203,7 @@ _pandas_dtype_mapper = {
 def _transform_pandas_df(data, enable_categorical,
                          feature_names=None, feature_types=None,
                          meta=None, meta_type=None):
-    from pandas import MultiIndex, Int64Index
+    from pandas import MultiIndex, Int64Index, RangeIndex
     from pandas.api.types import is_sparse, is_categorical_dtype
 
     data_dtypes = data.dtypes
@@ -220,7 +225,7 @@ def _transform_pandas_df(data, enable_categorical,
             feature_names = [
                 ' '.join([str(x) for x in i]) for i in data.columns
             ]
-        elif isinstance(data.columns, Int64Index):
+        elif isinstance(data.columns, (Int64Index, RangeIndex)):
             feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
@@ -239,10 +244,13 @@ def _transform_pandas_df(data, enable_categorical,
     if meta and len(data.columns) > 1:
         raise ValueError(
             'DataFrame for {meta} cannot have multiple columns'.format(
-                meta=meta))
+                meta=meta)
+        )
 
     dtype = meta_type if meta_type else np.float32
-    data = np.ascontiguousarray(data.values, dtype=dtype)
+    data = data.values
+    if meta_type:
+        data = data.astype(meta_type)
     return data, feature_names, feature_types
 
 
@@ -542,16 +550,18 @@ def _is_list(data):
     return isinstance(data, list)
 
 
-def _from_list(data, missing, feature_names, feature_types):
-    raise TypeError('List input data is not supported for data')
+def _from_list(data, missing, n_threads, feature_names, feature_types):
+    array = np.array(data)
+    _check_data_shape(data)
+    return _from_numpy_array(array, missing, n_threads, feature_names, feature_types)
 
 
 def _is_tuple(data):
     return isinstance(data, tuple)
 
 
-def _from_tuple(data, missing, feature_names, feature_types):
-    return _from_list(data, missing, feature_names, feature_types)
+def _from_tuple(data, missing, n_threads, feature_names, feature_types):
+    return _from_list(data, missing, n_threads, feature_names, feature_types)
 
 
 def _is_iter(data):
@@ -584,6 +594,8 @@ def dispatch_data_backend(data, missing, threads,
                           feature_names, feature_types,
                           enable_categorical=False):
     '''Dispatch data for DMatrix.'''
+    if not _is_cudf_ser(data) and not _is_pandas_series(data):
+        _check_data_shape(data)
     if _is_scipy_csr(data):
         return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
     if _is_scipy_csc(data):
@@ -596,9 +608,9 @@ def dispatch_data_backend(data, missing, threads,
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types)
     if _is_list(data):
-        return _from_list(data, missing, feature_names, feature_types)
+        return _from_list(data, missing, threads, feature_names, feature_types)
     if _is_tuple(data):
-        return _from_tuple(data, missing, feature_names, feature_types)
+        return _from_tuple(data, missing, threads, feature_names, feature_types)
     if _is_pandas_df(data):
         return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)
@@ -630,11 +642,12 @@ def dispatch_data_backend(data, missing, threads,
         return _from_pandas_series(data, missing, threads, feature_names,
                                    feature_types)
     if _has_array_protocol(data):
-        pass
+        array = np.asarray(data)
+        return _from_numpy_array(array, missing, threads, feature_names, feature_types)
 
     converted = _convert_unknown_data(data)
-    if converted:
-        return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
+    if converted is not None:
+        return _from_scipy_csr(converted, missing, threads, feature_names, feature_types)
 
     raise TypeError('Not supported type for data.' + str(type(data)))
 
@@ -648,11 +661,12 @@ def _to_data_type(dtype: str, name: str):
     return dtype_map[dtype]
 
 
-def _validate_meta_shape(data):
-    if hasattr(data, 'shape'):
-        assert len(data.shape) == 1 or (
-            len(data.shape) == 2 and
-            (data.shape[1] == 0 or data.shape[1] == 1))
+def _validate_meta_shape(data, name: str) -> None:
+    if hasattr(data, "shape"):
+        if len(data.shape) > 2 or (
+            len(data.shape) == 2 and (data.shape[1] != 0 and data.shape[1] != 1)
+        ):
+            raise ValueError(f"Invalid shape: {data.shape} for {name}")
 
 
 def _meta_from_numpy(data, field, dtype, handle):
@@ -720,7 +734,7 @@ def _meta_from_dt(data, field, dtype, handle):
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
-    _validate_meta_shape(data)
+    _validate_meta_shape(data, name)
     if data is None:
         return
     if _is_list(data):
@@ -769,7 +783,9 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _has_array_protocol(data):
-        pass
+        array = np.asarray(data)
+        _meta_from_numpy(array, name, dtype, handle)
+        return
     raise TypeError('Unsupported type for ' + name, str(type(data)))
 
 
@@ -780,23 +796,23 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     area for meta info.
 
     '''
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         self.kwargs = kwargs
         self.it = 0             # pylint: disable=invalid-name
         super().__init__()
 
-    def next(self, input_data):
+    def next(self, input_data: Callable) -> int:
         if self.it == 1:
             return 0
         self.it += 1
         input_data(**self.kwargs)
         return 1
 
-    def reset(self):
+    def reset(self) -> None:
         self.it = 0
 
 
-def _device_quantile_transform(data, feature_names, feature_types, enable_categorical):
+def _proxy_transform(data, feature_names, feature_types, enable_categorical):
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical
@@ -806,11 +822,22 @@ def _device_quantile_transform(data, feature_names, feature_types, enable_catego
         return data, feature_names, feature_types
     if _is_dlpack(data):
         return _transform_dlpack(data), feature_names, feature_types
+    if _is_numpy_array(data):
+        return data, feature_names, feature_types
+    if _is_scipy_csr(data):
+        return data, feature_names, feature_types
+    if _is_pandas_df(data):
+        arr, feature_names, feature_types = _transform_pandas_df(
+            data, enable_categorical, feature_names, feature_types
+        )
+        return arr, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
 
-def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -> None:
-    '''Dispatch for DeviceQuantileDMatrix.'''
+def dispatch_proxy_set_data(proxy: _ProxyDMatrix, data: Any, allow_host: bool) -> None:
+    """Dispatch for DeviceQuantileDMatrix."""
+    if not _is_cudf_ser(data) and not _is_pandas_series(data):
+        _check_data_shape(data)
     if _is_cudf_df(data):
         proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212
         return
@@ -824,5 +851,16 @@ def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -
         data = _transform_dlpack(data)
         proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
         return
-    raise TypeError('Value type is not supported for data iterator:' +
-                    str(type(data)))
+
+    err = TypeError("Value type is not supported for data iterator:" + str(type(data)))
+
+    if not allow_host:
+        raise err
+
+    if _is_numpy_array(data):
+        proxy._set_data_from_array(data)  # pylint: disable=W0212
+        return
+    if _is_scipy_csr(data):
+        proxy._set_data_from_csr(data)  # pylint: disable=W0212
+        return
+    raise err

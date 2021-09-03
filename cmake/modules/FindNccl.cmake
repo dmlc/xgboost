@@ -29,7 +29,7 @@
 #  NCCL_INCLUDE_DIR, directory containing header
 #  NCCL_LIBRARY, directory containing nccl library
 #  NCCL_LIB_NAME, nccl library name
-#  USE_NCCL_LIB_PATH, when set, NCCL_LIBRARY path is also inspected for the 
+#  USE_NCCL_LIB_PATH, when set, NCCL_LIBRARY path is also inspected for the
 #                     location of the nccl library. This would disable
 #                     switching between static and shared.
 #

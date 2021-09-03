@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -98,24 +98,28 @@ template <typename T = size_t,
           std::enable_if_t<std::is_same<size_t, T>::value &&
                            !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
               nullptr>
-T __device__ __forceinline__ atomicAdd(T *addr, T v) {  // NOLINT
+XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
   return static_cast<T>(ret);
 }
-
 namespace dh {
 
 #ifdef XGBOOST_USE_NCCL
 #define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
 
 inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
-                                        int line) {
+                                     int line) {
   if (code != ncclSuccess) {
     std::stringstream ss;
-    ss << "NCCL failure :" << ncclGetErrorString(code) << " ";
-    ss << file << "(" << line << ")";
-    throw std::runtime_error(ss.str());
+    ss << "NCCL failure :" << ncclGetErrorString(code);
+    if (code == ncclUnhandledCudaError) {
+      // nccl usually preserves the last error so we can get more details.
+      auto err = cudaPeekAtLastError();
+      ss << " " << thrust::system_error(err, thrust::cuda_category()).what();
+    }
+    ss << " " << file << "(" << line << ")";
+    LOG(FATAL) << ss.str();
   }
 
   return code;
@@ -279,7 +283,7 @@ class LaunchKernel {
 };
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
+inline void LaunchN(size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
@@ -291,13 +295,13 @@ inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
 
 // Default stream version
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, L lambda) {
-  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
+inline void LaunchN(size_t n, L lambda) {
+  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(n, nullptr, lambda);
 }
 
 template <typename Container>
-void Iota(Container array, int32_t device = CurrentDevice()) {
-  LaunchN(device, array.size(), [=] __device__(size_t i) { array[i] = i; });
+void Iota(Container array) {
+  LaunchN(array.size(), [=] __device__(size_t i) { array[i] = i; });
 }
 
 namespace detail {
@@ -539,7 +543,7 @@ class TemporaryArray {
     int device = 0;
     dh::safe_cuda(cudaGetDevice(&device));
     auto d_data = ptr_.get();
-    LaunchN(device, this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
+    LaunchN(this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
   }
   thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
   size_t size() { return size_; }  // NOLINT
@@ -1104,6 +1108,44 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
             static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
+/**
+ * \brief An atomicAdd designed for gradient pair with better performance.  For general
+ *        int64_t atomicAdd, one can simply cast it to unsigned long long.
+ */
+XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
+  uint32_t* y_low = reinterpret_cast<uint32_t *>(dst);
+  uint32_t *y_high = y_low + 1;
+
+  auto cast_src = reinterpret_cast<uint64_t *>(&src);
+
+  uint32_t const x_low = static_cast<uint32_t>(src);
+  uint32_t const x_high = (*cast_src) >> 32;
+
+  auto const old = atomicAdd(y_low, x_low);
+  uint32_t const carry = old > (std::numeric_limits<uint32_t>::max() - x_low) ? 1 : 0;
+  uint32_t const sig = x_high + carry;
+  atomicAdd(y_high, sig);
+}
+
+XGBOOST_DEV_INLINE void
+AtomicAddGpair(xgboost::GradientPairInt64 *dest,
+               xgboost::GradientPairInt64 const &gpair) {
+  auto dst_ptr = reinterpret_cast<int64_t *>(dest);
+  auto g = gpair.GetGrad();
+  auto h = gpair.GetHess();
+
+  AtomicAdd64As32(dst_ptr, g);
+  AtomicAdd64As32(dst_ptr + 1, h);
+}
+
+XGBOOST_DEV_INLINE void
+AtomicAddGpair(xgboost::GradientPairInt32 *dest,
+               xgboost::GradientPairInt32 const &gpair) {
+  auto dst_ptr = reinterpret_cast<typename xgboost::GradientPairInt32::ValueT*>(dest);
+
+  ::atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
+  ::atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
+}
 
 // Thrust version of this function causes error on Windows
 template <typename ReturnT, typename IterT, typename FuncT>
@@ -1329,22 +1371,22 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
 
   if (accending) {
     void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
     TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   } else {
     void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
     TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   }

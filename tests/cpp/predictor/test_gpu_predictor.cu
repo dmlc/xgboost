@@ -102,13 +102,10 @@ TEST(GPUPredictor, ExternalMemoryTest) {
 
   gbm::GBTreeModel model = CreateTestModel(&param, n_classes);
   std::vector<std::unique_ptr<DMatrix>> dmats;
-  dmlc::TemporaryDirectory tmpdir;
-  std::string file0 = tmpdir.path + "/big_0.libsvm";
-  std::string file1 = tmpdir.path + "/big_1.libsvm";
-  std::string file2 = tmpdir.path + "/big_2.libsvm";
-  dmats.push_back(CreateSparsePageDMatrix(400, 64UL, file0));
-  dmats.push_back(CreateSparsePageDMatrix(800, 128UL, file1));
-  dmats.push_back(CreateSparsePageDMatrix(8000, 1024UL, file2));
+
+  dmats.push_back(CreateSparsePageDMatrix(400));
+  dmats.push_back(CreateSparsePageDMatrix(800));
+  dmats.push_back(CreateSparsePageDMatrix(8000));
 
   for (const auto& dmat: dmats) {
     dmat->Info().base_margin_.Resize(dmat->Info().num_row_ * n_classes, 0.5);
@@ -223,6 +220,11 @@ TEST(GPUPredictor, Shap) {
     EXPECT_NEAR(cpu_phis[i], phis[i], 1e-3);
   }
 }
+
+TEST(GPUPredictor, IterationRange) {
+  TestIterationRange("gpu_predictor");
+}
+
 
 TEST(GPUPredictor, CategoricalPrediction) {
   TestCategoricalPrediction("gpu_predictor");

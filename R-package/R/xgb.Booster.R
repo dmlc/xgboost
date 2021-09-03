@@ -428,7 +428,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     } else if (!reshape && n_groups != 1) {
       arr <- ret
     } else if (reshape && n_groups != 1) {
-      arr <- matrix(arr, ncol = 3, byrow = TRUE)
+      arr <- matrix(arr, ncol = n_groups, byrow = TRUE)
     }
     arr <- drop(arr)
     if (length(dim(arr)) == 1) {

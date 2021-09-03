@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -16,6 +16,7 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <numeric>
 
 #include "xgboost/gbm.h"
 #include "xgboost/json.h"
@@ -23,6 +24,7 @@
 #include "xgboost/linear_updater.h"
 #include "xgboost/logging.h"
 #include "xgboost/learner.h"
+#include "xgboost/linalg.h"
 
 #include "gblinear_model.h"
 #include "../common/timer.h"
@@ -39,6 +41,17 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   std::string updater;
   float tolerance;
   size_t max_row_perbatch;
+
+  void CheckGPUSupport() {
+    auto n_gpus = common::AllVisibleGPUs();
+    if (n_gpus == 0 && this->updater == "gpu_coord_descent") {
+      common::AssertGPUSupport();
+      this->UpdateAllowUnknown(Args{{"updater", "coord_descent"}});
+      LOG(WARNING) << "Loading configuration on a CPU only machine.   Changing "
+                      "updater to `coord_descent`.";
+    }
+  }
+
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(updater)
         .set_default("shotgun")
@@ -76,12 +89,10 @@ class GBLinear : public GradientBooster {
       model_.Configure(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
+    param_.CheckGPUSupport();
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
-    if (param_.updater == "gpu_coord_descent") {
-      common::AssertGPUSupport();
-    }
   }
 
   int32_t BoostedRounds() const override {
@@ -112,6 +123,7 @@ class GBLinear : public GradientBooster {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
     FromJson(in["gblinear_train_param"], &param_);
+    param_.CheckGPUSupport();
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     this->updater_->LoadConfig(in["updater"]);
   }
@@ -228,6 +240,26 @@ class GBLinear : public GradientBooster {
     // This is forcing visit of model which is inherent part of this object
     model_.Accept(v);
   }
+  void FeatureScore(std::string const &importance_type,
+                    std::vector<bst_feature_t> *out_features,
+                    std::vector<float> *out_scores) const override {
+    CHECK(!model_.weight.empty()) << "Model is not initialized";
+    CHECK_EQ(importance_type, "weight")
+        << "gblinear only has `weight` defined for feature importance.";
+    out_features->resize(this->learner_model_param_->num_feature, 0);
+    std::iota(out_features->begin(), out_features->end(), 0);
+    // Don't include the bias term in the feature importance scores
+    // The bias is the last weight
+    out_scores->resize(model_.weight.size() - learner_model_param_->num_output_group, 0);
+    auto n_groups = learner_model_param_->num_output_group;
+    MatrixView<float> scores{out_scores, {learner_model_param_->num_feature, n_groups}};
+    for (size_t i = 0; i < learner_model_param_->num_feature; ++i) {
+      for (bst_group_t g = 0; g < n_groups; ++g) {
+        scores(i, g) = model_[i][g];
+      }
+    }
+  }
+
   bool UseGPU() const override {
     if (param_.updater == "gpu_coord_descent") {
       return true;

@@ -14,6 +14,7 @@
 #include "xgboost/data.h"
 #include "xgboost/c_api.h"
 #include "proxy_dmatrix.h"
+#include "simple_batch_iterator.h"
 
 namespace xgboost {
 namespace data {
@@ -36,9 +37,10 @@ class IterativeDeviceDMatrix : public DMatrix {
                                   XGDMatrixCallbackNext *next, float missing,
                                   int nthread, int max_bin)
       : proxy_{proxy}, reset_{reset}, next_{next} {
-    batch_param_ = BatchParam{0, max_bin, 0};
+    batch_param_ = BatchParam{0, max_bin};
     this->Initialize(iter, missing, nthread);
   }
+  ~IterativeDeviceDMatrix() override = default;
 
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
@@ -58,6 +60,10 @@ class IterativeDeviceDMatrix : public DMatrix {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SortedCSCPage>(BatchIterator<SortedCSCPage>(nullptr));
   }
+  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam&) override {
+    LOG(FATAL) << "Not implemented.";
+    return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(nullptr));
+  }
 
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
@@ -70,6 +76,18 @@ class IterativeDeviceDMatrix : public DMatrix {
     return info_;
   }
 };
+
+#if !defined(XGBOOST_USE_CUDA)
+inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing, int nthread) {
+  common::AssertGPUSupport();
+}
+inline BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
+  common::AssertGPUSupport();
+  auto begin_iter =
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
+  return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace data
 }  // namespace xgboost
 

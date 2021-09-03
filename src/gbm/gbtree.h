@@ -325,16 +325,19 @@ class GBTree : public GradientBooster {
       add_score([&](auto const &p_tree, bst_node_t, bst_feature_t split) {
         gain_map[split] = split_counts[split];
       });
-    }
-    if (importance_type == "gain" || importance_type == "total_gain") {
+    } else if (importance_type == "gain" || importance_type == "total_gain") {
       add_score([&](auto const &p_tree, bst_node_t nidx, bst_feature_t split) {
         gain_map[split] += p_tree->Stat(nidx).loss_chg;
       });
-    }
-    if (importance_type == "cover" || importance_type == "total_cover") {
+    } else if (importance_type == "cover" || importance_type == "total_cover") {
       add_score([&](auto const &p_tree, bst_node_t nidx, bst_feature_t split) {
         gain_map[split] += p_tree->Stat(nidx).sum_hess;
       });
+    } else {
+      LOG(FATAL)
+          << "Unknown feature importance type, expected one of: "
+          << R"({"weight", "total_gain", "total_cover", "gain", "cover"}, got: )"
+          << importance_type;
     }
     if (importance_type == "gain" || importance_type == "cover") {
       for (size_t i = 0; i < gain_map.size(); ++i) {

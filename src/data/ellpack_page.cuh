@@ -164,7 +164,7 @@ class EllpackPageImpl {
    * @param offset The number of elements to skip before copying.
    * @returns The number of elements copied.
    */
-  size_t Copy(int device, EllpackPageImpl* page, size_t offset);
+  size_t Copy(int device, EllpackPageImpl const *page, size_t offset);
 
   /*! \brief Compact the given ELLPACK page into the current page.
    *
@@ -172,7 +172,7 @@ class EllpackPageImpl {
    * @param page The ELLPACK page to compact from.
    * @param row_indexes Row indexes for the compacted page.
    */
-  void Compact(int device, EllpackPageImpl* page, common::Span<size_t> row_indexes);
+  void Compact(int device, EllpackPageImpl const* page, common::Span<size_t> row_indexes);
 
 
   /*! \return Number of instances in the page. */
