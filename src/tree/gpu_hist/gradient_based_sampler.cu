@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #include "../../common/compressed_iterator.h"
 #include "../../common/random.h"
