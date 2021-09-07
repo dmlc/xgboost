@@ -231,6 +231,9 @@ struct BatchParam {
       : gpu_id{device}, max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
   bool operator!=(const BatchParam& other) const {
+    if (hess.empty() && other.hess.empty()) {
+      return gpu_id != other.gpu_id || max_bin != other.max_bin;
+    }
     return gpu_id != other.gpu_id || max_bin != other.max_bin || hess != other.hess;
   }
 };

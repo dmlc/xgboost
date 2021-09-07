@@ -162,7 +162,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
   if (param.hess.empty()) {
     // hist method doesn't support full external memory implementation, so we concatenate
     // all index here.
-    if (!ghist_index_source_ || (param != batch_param_ && param != BatchParam{})) {
+    if (!ghist_index_page_ || (param != batch_param_ && param != BatchParam{})) {
       this->InitializeSparsePage();
       ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin});
       this->InitializeSparsePage();
