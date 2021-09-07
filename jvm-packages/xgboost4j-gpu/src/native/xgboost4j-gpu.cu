@@ -381,11 +381,11 @@ int Next(DataIterHandle self) {
 }
 } // anonymous namespace
 
-jint XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
-                                                   jobject jiter,
-                                                   jfloat jmissing,
-                                                   jint jmax_bin, jint jnthread,
-                                                   jlongArray jout) {
+XGB_DLL jint XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
+                                                           jobject jiter,
+                                                           jfloat jmissing,
+                                                           jint jmax_bin, jint jnthread,
+                                                           jlongArray jout) {
   xgboost::jni::DataIteratorProxy proxy(jiter);
   DMatrixHandle result;
   auto ret = XGDeviceQuantileDMatrixCreateFromCallback(

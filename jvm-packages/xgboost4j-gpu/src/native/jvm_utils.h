@@ -1,8 +1,6 @@
 #ifndef JVM_UTILS_H_
 #define JVM_UTILS_H_
 
-#include "./xgboost4j-gpu.h"
-
 #define JVM_CHECK_CALL(__expr)                                                 \
   {                                                                            \
     int __errcode = (__expr);                                                  \

@@ -1,3 +1,19 @@
+/*
+ Copyright (c) 2021 by Contributors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
+
 package ml.dmlc.xgboost4j.gpu.java;
 
 import java.util.Arrays;
@@ -12,12 +28,14 @@ import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
 import ai.rapids.cudf.Table;
+import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.DataFrame;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
- * Test suite for ColumnDMatrix
+ * Test suite for DMatrix based on GPU
  */
-public class ColumnDMatrixTest {
+public class DMatrixTest {
 
   @Test
   public void testCreateFromArrayInterfaceColumns() {
@@ -30,13 +48,13 @@ public class ColumnDMatrixTest {
         .column(labelFloats)              // the label column
         .build()) {
 
-      CudfTable cudfTable = new CudfTable(table, new int[]{0}, new int[]{1}, new int[]{1},
+      CudfDataFrame cudfDataFrame = new CudfDataFrame(table, new int[]{0}, new int[]{1}, new int[]{1},
         new int[]{1});
 
-      ColumnDMatrix dMatrix = new ColumnDMatrix(cudfTable, 0, 1);
-      dMatrix.setLabel(cudfTable);
-      dMatrix.setWeight(cudfTable);
-      dMatrix.setBaseMargin(cudfTable);
+      DMatrix dMatrix = new DMatrix(cudfDataFrame, 0, 1);
+      dMatrix.setLabel(cudfDataFrame);
+      dMatrix.setWeight(cudfDataFrame);
+      dMatrix.setBaseMargin(cudfDataFrame);
 
       float[] anchor = convertFloatTofloat(labelFloats);
       float[] label = dMatrix.getLabel();
@@ -80,12 +98,12 @@ public class ColumnDMatrixTest {
         .column(baseMargin2)
         .build()) {
 
-      List<XGBoostTable> tables = new LinkedList<>();
+      List<DataFrame> tables = new LinkedList<>();
 
-      tables.add(new CudfTable(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
-      tables.add(new CudfTable(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfDataFrame(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfDataFrame(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
 
-      ColumnDMatrix dmat = new ColumnDMatrix(tables.iterator(), 0.0f, 8, 1);
+      DMatrix dmat = new DMatrix(tables.iterator(), 0.0f, 8, 1);
 
       float[] anchorLabel = convertFloatTofloat((Float[]) ArrayUtils.addAll(label1, label2));
       float[] anchorWeight = convertFloatTofloat((Float[]) ArrayUtils.addAll(weight1, weight2));

@@ -14,22 +14,22 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.gpu.java;
+package ml.dmlc.xgboost4j.java;
 
 import java.util.Iterator;
 
 /**
- * A mini-batch of Table that can be converted to ColumnDMatrix.
+ * A mini-batch of DataFrame that can be converted to DMatrix.
  *
- * This class is used to support advanced creation of DMatrix from Iterator of TableInfo,
+ * This class is used to support advanced creation of DMatrix from Iterator of DataFrameBatch,
  */
-class TableInfo implements AutoCloseable {
+class DataFrameBatch implements AutoCloseable {
 
   private String arrayInterfaceJson;
-  private XGBoostTable table;
+  private DataFrame dataFrame;
 
-  public TableInfo(XGBoostTable table, String arrayInterfaceJson) {
-    this.table = table;
+  public DataFrameBatch(DataFrame dataFrame, String arrayInterfaceJson) {
+    this.dataFrame = dataFrame;
     this.arrayInterfaceJson = arrayInterfaceJson;
   }
 
@@ -41,13 +41,13 @@ class TableInfo implements AutoCloseable {
   // Called from native
   @Override
   public void close() throws Exception {
-    table.close();
+    dataFrame.close();
   }
 
-  public static class TableInfoBatchIterator implements Iterator<TableInfo> {
-    private Iterator<XGBoostTable> base;
+  static class BatchIterator implements Iterator<DataFrameBatch> {
+    private Iterator<DataFrame> base;
 
-    public TableInfoBatchIterator(Iterator<XGBoostTable> base) {
+    public BatchIterator(Iterator<DataFrame> base) {
       this.base = base;
     }
 
@@ -57,9 +57,9 @@ class TableInfo implements AutoCloseable {
     }
 
     @Override
-    public TableInfo next() {
-      XGBoostTable table = base.next();
-      return new TableInfo(table, table.getArrayInterfaceJson());
+    public DataFrameBatch next() {
+      DataFrame dataFrame = base.next();
+      return new DataFrameBatch(dataFrame, dataFrame.getArrayInterfaceJson());
     }
   }
 }

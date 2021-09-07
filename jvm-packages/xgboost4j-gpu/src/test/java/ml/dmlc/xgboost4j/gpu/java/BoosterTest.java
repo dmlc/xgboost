@@ -32,11 +32,12 @@ import ai.rapids.cudf.Table;
 import ai.rapids.cudf.CSVOptions;
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.DataFrame;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
- * Tests the BoosterTest trained by ColumnDMatrix
+ * Tests the BoosterTest trained by DMatrix
  * @throws XGBoostError
  */
 public class BoosterTest {
@@ -82,19 +83,19 @@ public class BoosterTest {
 
     try (Table tmpTable = Table.readCSV(schema, opts,
 					new File(trainingDataPath))) {
-      CudfTable cudfTable = new CudfTable(tmpTable, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, new int[]{12});
+      CudfDataFrame cudfDataFrame = new CudfDataFrame(tmpTable, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, new int[]{12});
 
       //set watchList
       HashMap<String, DMatrix> watches = new HashMap<>();
 
-      ColumnDMatrix dMatrix1 = new ColumnDMatrix(cudfTable, Float.NaN, 1);
-      dMatrix1.setLabel(cudfTable);
+      DMatrix dMatrix1 = new DMatrix(cudfDataFrame, Float.NaN, 1);
+      dMatrix1.setLabel(cudfDataFrame);
       watches.put("train", dMatrix1);
       Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
 
-      List<XGBoostTable> tables = new LinkedList<>();
-      tables.add(cudfTable);
-      DMatrix incrementalDMatrix = new ColumnDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
+      List<DataFrame> tables = new LinkedList<>();
+      tables.add(cudfDataFrame);
+      DMatrix incrementalDMatrix = new DMatrix(tables.iterator(), Float.NaN, maxBin, 1);
       //set watchList
       HashMap<String, DMatrix> watches1 = new HashMap<>();
       watches1.put("train", incrementalDMatrix);

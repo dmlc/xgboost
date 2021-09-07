@@ -5,7 +5,9 @@ list(APPEND JVM_SOURCES
 
 if (USE_CUDA)
   list(APPEND JVM_SOURCES
-    ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-gpu/src/native/xgboost4j-gpu.cu
+    ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-gpu/src/native/xgboost4j-gpu.cu)
+else (USE_CUDA)
+  list(APPEND JVM_SOURCES
     ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-gpu/src/native/xgboost4j-gpu.cpp)
 endif (USE_CUDA)
 

@@ -24,10 +24,12 @@ import ai.rapids.cudf.ColumnVector;
 import ai.rapids.cudf.DType;
 import ai.rapids.cudf.Table;
 
+import ml.dmlc.xgboost4j.java.DataFrame;
+
 /**
  * Class to wrap CUDF Table to generate the cuda array interface.
  */
-public class CudfTable extends XGBoostTable {
+public class CudfDataFrame extends DataFrame {
   private final Table table;          // The CUDF Table
   private final int[] featureIndices; // The feature columns
   private final int[] labelIndices;   // The label columns
@@ -35,25 +37,25 @@ public class CudfTable extends XGBoostTable {
   private final int[] baseMarginIndices; // The base margin columns
 
   /**
-   * CudfTable constructor
+   * CudfDataFrame constructor
    * @param table             the CUDF table
    * @param featureIndices    must-have, specify the feature's indices in the table
    * @param labelIndices      must-have, specify the label's indices in the table
    */
-  public CudfTable(Table table, int[] featureIndices, int[] labelIndices) {
+  public CudfDataFrame(Table table, int[] featureIndices, int[] labelIndices) {
     this(table, featureIndices, labelIndices, null, null);
   }
 
   /**
-   * CudfTable constructor
+   * CudfDataFrame constructor
    * @param table             the CUDF table
    * @param featureIndices    must-have, specify the feature's indices in the table
    * @param labelIndices      must-have, specify the label's indices in the table
    * @param weightIndices     optional, specify the weight's indices in the table
    * @param baseMarginIndices optional, specify the base marge's indices in the table
    */
-  public CudfTable(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
-                   int[] baseMarginIndices) {
+  public CudfDataFrame(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
+                       int[] baseMarginIndices) {
     this.table = table;
     this.featureIndices = featureIndices;
     this.labelIndices = labelIndices;
@@ -65,14 +67,14 @@ public class CudfTable extends XGBoostTable {
 
   private void validate() {
     if (labelIndices == null) {
-      throw new RuntimeException("CudfTable requires label column");
+      throw new RuntimeException("CudfDataFrame requires label column");
     } else {
       validateArrayIndex(labelIndices, "label");
     }
 
 
     if (featureIndices == null) {
-      throw new RuntimeException("CudfTable requires feature columns");
+      throw new RuntimeException("CudfDataFrame requires feature columns");
     } else {
       validateArrayIndex(featureIndices, "feature");
     }
