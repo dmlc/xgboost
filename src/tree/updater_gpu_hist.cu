@@ -209,7 +209,7 @@ struct GPUHistMakerDevice {
         tree_evaluator(param, n_features, _device_id),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
-        batch_param(_batch_param) {
+        batch_param(std::move(_batch_param)) {
     sampler.reset(new GradientBasedSampler(
         page, _n_rows, batch_param, param.subsample, param.sampling_method));
     if (!param.monotone_constraints.empty()) {

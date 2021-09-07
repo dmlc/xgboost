@@ -32,7 +32,7 @@ class EllpackPageSource : public PageSourceIncMixIn<EllpackPage> {
       size_t row_stride, common::Span<FeatureType const> feature_types,
       std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache),
-        is_dense_{is_dense}, row_stride_{row_stride}, param_{param},
+        is_dense_{is_dense}, row_stride_{row_stride}, param_{std::move(param)},
         feature_types_{feature_types}, cuts_{std::move(cuts)} {
     this->source_ = source;
     this->Fetch();

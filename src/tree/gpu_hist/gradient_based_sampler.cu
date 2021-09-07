@@ -259,10 +259,10 @@ GradientBasedSample GradientBasedSampling::Sample(common::Span<GradientPair> gpa
 ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(
     EllpackPageImpl const* page,
     size_t n_rows,
-    const BatchParam& batch_param,
+    BatchParam batch_param,
     float subsample)
     : original_page_(page),
-      batch_param_(batch_param),
+      batch_param_(std::move(batch_param)),
       subsample_(subsample),
       threshold_(n_rows + 1, 0.0f),
       grad_sum_(n_rows, 0.0f),
