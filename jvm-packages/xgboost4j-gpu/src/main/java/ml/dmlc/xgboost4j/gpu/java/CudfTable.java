@@ -205,8 +205,8 @@ public class CudfTable extends XGBoostTable {
           dType == DType.INT32 || dType == DType.INT64) {
       typeStr = "<i" + dType.getSizeInBytes();
     } else {
-      // not supporting type.
-      throw new IllegalArgumentException("Not supporting data type: " + dType);
+      // Unsupported type.
+      throw new IllegalArgumentException("Unsupported data type: " + dType);
     }
 
     return new ColumnData(dataBuffer.getAddress(), columnVector.getRowCount(), validPtr,
