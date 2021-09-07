@@ -32,10 +32,13 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     page->index.Resize(data.size());
     std::copy(data.cbegin(), data.cend(), page->index.begin());
     // bin type
-    common::BinTypeSize size_type;
-    if (!fi->Read(&size_type)) {
+    // Old gcc doesn't support reading from enum.
+    std::underlying_type_t<common::BinTypeSize> uint_bin_type{0};
+    if (!fi->Read(&uint_bin_type)) {
       return false;
     }
+    common::BinTypeSize size_type =
+        static_cast<common::BinTypeSize>(uint_bin_type);
     page->index.SetBinTypeSize(size_type);
     // hit count
     if (!fi->Read(&page->hit_count)) {
@@ -74,7 +77,9 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     fo->Write(data);
     bytes += data.size() * sizeof(decltype(data)::value_type) + sizeof(uint64_t);
     // bin type
-    fo->Write(page.index.GetBinTypeSize());
+    std::underlying_type_t<common::BinTypeSize> uint_bin_type =
+        page.index.GetBinTypeSize();
+    fo->Write(uint_bin_type);
     bytes += sizeof(page.index.GetBinTypeSize());
     // hit count
     fo->Write(page.hit_count);
