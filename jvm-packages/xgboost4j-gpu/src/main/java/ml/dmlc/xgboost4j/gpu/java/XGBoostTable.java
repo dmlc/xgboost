@@ -12,6 +12,24 @@ public abstract class XGBoostTable implements AutoCloseable {
    */
   public abstract String getFeatureArrayInterface();
 
+  /**
+   * Get the cuda array interface of the label column.
+   * The turned value must not be null or empty
+   */
+  public abstract String getLabelArrayInterface();
+
+  /**
+   * Get the cuda array interface of the weight column.
+   * The turned value can be null or empty
+   */
+  public abstract String getWeightArrayInterface();
+
+  /**
+   * Get the cuda array interface of the base margin column.
+   * The turned value can be null or empty
+   */
+  public abstract String getBaseMarginArrayInterface();
+
   @Override
   public void close() throws Exception {
 

@@ -154,14 +154,17 @@ public class CudfTable extends XGBoostTable {
     return getArrayInterface(featureIndices);
   }
 
+  @Override
   public String getLabelArrayInterface() {
     return getArrayInterface(labelIndices);
   }
 
+  @Override
   public String getWeightArrayInterface() {
     return getArrayInterface(weightIndices);
   }
 
+  @Override
   public String getBaseMarginArrayInterface() {
     return getArrayInterface(baseMarginIndices);
   }

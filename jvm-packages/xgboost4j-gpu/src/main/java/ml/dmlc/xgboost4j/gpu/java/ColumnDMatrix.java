@@ -66,31 +66,31 @@ class ColumnDMatrix extends DMatrix {
   /**
    * Set label of DMatrix from cuda array interface
    *
-   * @param labelJson the cuda array interface of label column
+   * @param table the XGBoostTable to provide the cuda array interface of label column
    * @throws XGBoostError native error
    */
-  public void setLabel(String labelJson) throws XGBoostError {
-    setXGBDMatrixInfo("label", labelJson);
+  public void setLabel(XGBoostTable table) throws XGBoostError {
+    setXGBDMatrixInfo("label", table.getLabelArrayInterface());
   }
 
   /**
    * Set weight of DMatrix from cuda array interface
    *
-   * @param weightJson the cuda array interface of weight column
+   * @param table the XGBoostTable to provide the cuda array interface of weight column
    * @throws XGBoostError native error
    */
-  public void setWeight(String weightJson) throws XGBoostError {
-    setXGBDMatrixInfo("weight", weightJson);
+  public void setWeight(XGBoostTable table) throws XGBoostError {
+    setXGBDMatrixInfo("weight", table.getWeightArrayInterface());
   }
 
   /**
    * Set base margin of DMatrix from cuda array interface
    *
-   * @param baseMarginJson the cuda array interface of base margin column
+   * @param table the XGBoostTable to provide the cuda array interface of base margin column
    * @throws XGBoostError native error
    */
-  public void setBaseMargin(String baseMarginJson) throws XGBoostError {
-    setXGBDMatrixInfo("base_margin", baseMarginJson);
+  public void setBaseMargin(XGBoostTable table) throws XGBoostError {
+    setXGBDMatrixInfo("base_margin", table.getBaseMarginArrayInterface());
   }
 
   private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {
