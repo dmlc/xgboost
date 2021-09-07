@@ -165,4 +165,3 @@ if __name__ == "__main__":
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "{}/src/test/resources".format(xgboost4j))
 
-    cp("../demo/data/veterans_lung_cancer.csv", "{}/src/test/resources".format(xgboost4j))

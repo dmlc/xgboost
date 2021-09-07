@@ -43,6 +43,7 @@ public class BoosterTest {
 
   @Test
   public void testBooster() throws XGBoostError {
+    String trainingDataPath = "../../demo/data/veterans_lung_cancer.csv";
     Schema schema = Schema.builder()
       .column(DType.FLOAT32, "A")
       .column(DType.FLOAT32, "B")
@@ -70,8 +71,7 @@ public class BoosterTest {
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 2);
-        put("objective", "multi:softprob");
-        put("num_class", 3);
+        put("objective", "binary:logistic");
         put("num_round", round);
         put("num_workers", 1);
         put("tree_method", "gpu_hist");
@@ -81,7 +81,7 @@ public class BoosterTest {
     };
 
     try (Table tmpTable = Table.readCSV(schema, opts,
-					new File("./src/test/resources/veterans_lung_cancer.csv"))) {
+					new File(trainingDataPath))) {
       CudfTable cudfTable = new CudfTable(tmpTable, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, new int[]{12});
 
       //set watchList
