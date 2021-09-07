@@ -29,6 +29,7 @@ import org.junit.Test;
 import ai.rapids.cudf.DType;
 import ai.rapids.cudf.Schema;
 import ai.rapids.cudf.Table;
+import ai.rapids.cudf.CSVOptions;
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
@@ -43,12 +44,25 @@ public class BoosterTest {
   @Test
   public void testBooster() throws XGBoostError {
     Schema schema = Schema.builder()
-      .column(DType.FLOAT32, "A")  // column 0
-      .column(DType.FLOAT32, "B")  // column 1
-      .column(DType.FLOAT32, "C")  // column 2
-      .column(DType.FLOAT32, "D")  // column 3
-      .column(DType.FLOAT32, "label") // column 4
+      .column(DType.FLOAT32, "A")
+      .column(DType.FLOAT32, "B")
+      .column(DType.FLOAT32, "C")
+      .column(DType.FLOAT32, "D")
+
+      .column(DType.FLOAT32, "E")
+      .column(DType.FLOAT32, "F")
+      .column(DType.FLOAT32, "G")
+      .column(DType.FLOAT32, "H")
+
+      .column(DType.FLOAT32, "I")
+      .column(DType.FLOAT32, "J")
+      .column(DType.FLOAT32, "K")
+      .column(DType.FLOAT32, "L")
+
+      .column(DType.FLOAT32, "label")
       .build();
+    CSVOptions opts = CSVOptions.builder()
+      .hasHeader().build();
 
     int maxBin = 16;
     int round = 100;
@@ -66,10 +80,9 @@ public class BoosterTest {
       }
     };
 
-    try (Table tmpTable = Table.readCSV(schema,
-        new File("./src/test/resources/iris.data.csv"))) {
-
-      CudfTable cudfTable = new CudfTable(tmpTable, new int[]{0, 1, 2, 3}, new int[]{4});
+    try (Table tmpTable = Table.readCSV(schema, opts,
+					new File("./src/test/resources/veterans_lung_cancer.csv"))) {
+      CudfTable cudfTable = new CudfTable(tmpTable, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, new int[]{12});
 
       //set watchList
       HashMap<String, DMatrix> watches = new HashMap<>();
