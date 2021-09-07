@@ -136,7 +136,7 @@ inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
   return out;
 }
 
-enum BinTypeSize {
+enum BinTypeSize : uint32_t {
   kUint8BinsTypeSize  = 1,
   kUint16BinsTypeSize = 2,
   kUint32BinsTypeSize = 4
