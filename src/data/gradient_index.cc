@@ -120,7 +120,7 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, size_t rbegin,
   common::ParallelFor(bst_omp_uint(nbins), n_threads, [&](bst_omp_uint idx) {
     for (int32_t tid = 0; tid < n_threads; ++tid) {
       hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
-      hit_count_tloc_[tid * nbins + idx] = 0; // reset for next batch
+      hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
     }
   });
 }
@@ -156,13 +156,15 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins, common::Span<float> h
 }
 
 void GHistIndexMatrix::Init(SparsePage const &batch,
-                            common::HistogramCuts const &cuts, bool isDense,
+                            common::HistogramCuts const &cuts,
+                            int32_t max_bins_per_feat, bool isDense,
                             int32_t n_threads) {
   CHECK_GE(n_threads, 1);
   base_rowid = batch.base_rowid;
   isDense_ = isDense;
   cut = cuts;
-
+  max_num_bins = max_bins_per_feat;
+  CHECK_EQ(row_ptr.size(), 0);
   // The number of threads is pegged to the batch size. If the OMP
   // block is parallelized on anything other than the batch/block size,
   // it should be reassigned

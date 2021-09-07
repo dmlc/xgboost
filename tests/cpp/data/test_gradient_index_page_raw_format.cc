@@ -18,7 +18,8 @@ TEST(GHistIndexPageRawFormat, IO) {
 
   {
     std::unique_ptr<dmlc::Stream> fo{dmlc::Stream::Create(path.c_str(), "w")};
-    for (auto const &index : m->GetBatches<GHistIndexMatrix>({0, 256})) {
+    for (auto const &index :
+         m->GetBatches<GHistIndexMatrix>({GenericParameter::kCpuId, 256})) {
       format->Write(index, fo.get());
     }
   }
@@ -28,12 +29,14 @@ TEST(GHistIndexPageRawFormat, IO) {
       dmlc::SeekStream::CreateForRead(path.c_str())};
   format->Read(&page, fi.get());
 
-  for (auto const &gidx : m->GetBatches<GHistIndexMatrix>({0, 256})) {
+  for (auto const &gidx :
+       m->GetBatches<GHistIndexMatrix>({GenericParameter::kCpuId, 256})) {
     auto const &loaded = gidx;
     ASSERT_EQ(loaded.cut.Ptrs(), page.cut.Ptrs());
     ASSERT_EQ(loaded.cut.MinValues(), page.cut.MinValues());
     ASSERT_EQ(loaded.cut.Values(), page.cut.Values());
     ASSERT_EQ(loaded.base_rowid, page.base_rowid);
+    ASSERT_EQ(loaded.IsDense(), page.IsDense());
     ASSERT_TRUE(std::equal(loaded.index.begin(), loaded.index.end(),
                            page.index.begin()));
     ASSERT_TRUE(std::equal(loaded.index.Offset(),

@@ -43,7 +43,8 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
                                      XGDMatrixCallbackNext *next, float missing,
                                      int32_t nthreads, std::string cache_prefix)
     : proxy_{proxy_handle}, iter_{iter_handle}, reset_{reset}, next_{next}, missing_{missing},
-      nthreads_{nthreads}, cache_prefix_{std::move(cache_prefix)} {
+      cache_prefix_{std::move(cache_prefix)} {
+  ctx_.nthread = nthreads;
   cache_prefix_ = cache_prefix_.empty() ? "DMatrix" : cache_prefix_;
   if (rabit::IsDistributed()) {
     cache_prefix_ += ("-r" + std::to_string(rabit::GetRank()));
@@ -112,7 +113,7 @@ void SparsePageDMatrix::InitializeSparsePage() {
   DMatrixProxy *proxy = MakeProxy(proxy_);
   sparse_page_source_.reset();  // clear before creating new one to prevent conflicts.
   sparse_page_source_ = std::make_shared<SparsePageSource>(
-      iter, proxy, this->missing_, this->nthreads_, this->info_.num_col_,
+      iter, proxy, this->missing_, this->ctx_.Threads(), this->info_.num_col_,
       this->n_batches_, cache_info_.at(id));
 }
 
@@ -132,7 +133,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches() {
   this->InitializeSparsePage();
   if (!column_source_) {
     column_source_ = std::make_shared<CSCPageSource>(
-        this->missing_, this->nthreads_, this->Info().num_col_,
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), sparse_page_source_);
   } else {
     column_source_->Reset();
@@ -147,7 +148,7 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   this->InitializeSparsePage();
   if (!sorted_column_source_) {
     sorted_column_source_ = std::make_shared<SortedCSCPageSource>(
-        this->missing_, this->nthreads_, this->Info().num_col_,
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), sparse_page_source_);
   } else {
     sorted_column_source_->Reset();
@@ -184,9 +185,9 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
     ghist_index_source_.reset();
     CHECK_NE(cuts.Values().size(), 0);
     ghist_index_source_.reset(new GradientIndexPageSource(
-        this->missing_, this->nthreads_, this->Info().num_col_,
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), param, std::move(cuts),
-        this->IsDense(), sparse_page_source_));
+        this->IsDense(), param.max_bin, sparse_page_source_));
   } else {
     CHECK(ghist_index_source_);
     ghist_index_source_->Reset();

@@ -68,7 +68,7 @@ class SparsePageDMatrix : public DMatrix {
   XGDMatrixCallbackNext *next_;
 
   float missing_;
-  int nthreads_;
+  GenericParameter ctx_;
   std::string cache_prefix_;
   uint32_t n_batches_ {0};
   // sparse page is the source to other page types, we make a special member function.

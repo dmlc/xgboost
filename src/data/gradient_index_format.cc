@@ -47,6 +47,11 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     if (!fi->Read(&page->base_rowid)) {
       return false;
     }
+    bool is_dense = false;
+    if (!fi->Read(&is_dense)) {
+      return false;
+    }
+    page->SetDense(is_dense);
     return true;
   }
 
@@ -76,11 +81,13 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     bytes +=
         page.hit_count.size() * sizeof(decltype(page.hit_count)::value_type) +
         sizeof(uint64_t);
-    // max_bins, base row
+    // max_bins, base row, is_dense
     fo->Write(page.max_num_bins);
     bytes += sizeof(page.max_num_bins);
     fo->Write(page.base_rowid);
     bytes += sizeof(page.base_rowid);
+    fo->Write(page.IsDense());
+    bytes += sizeof(page.IsDense());
     return bytes;
   }
 };
