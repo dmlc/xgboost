@@ -186,10 +186,10 @@ GradientBasedSample UniformSampling::Sample(common::Span<GradientPair> gpair, DM
 
 ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(EllpackPageImpl const* page,
                                                              size_t n_rows,
-                                                             const BatchParam& batch_param,
+                                                             BatchParam batch_param,
                                                              float subsample)
     : original_page_(page),
-      batch_param_(batch_param),
+      batch_param_(std::move(batch_param)),
       subsample_(subsample),
       sample_row_index_(n_rows) {}
 
