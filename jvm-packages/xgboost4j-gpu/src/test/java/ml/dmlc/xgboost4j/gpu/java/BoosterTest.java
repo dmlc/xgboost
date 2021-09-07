@@ -75,7 +75,7 @@ public class BoosterTest {
       HashMap<String, DMatrix> watches = new HashMap<>();
 
       ColumnDMatrix dMatrix1 = new ColumnDMatrix(cudfTable, Float.NaN, 1);
-      dMatrix1.setLabel(cudfTable);
+      dMatrix1.setLabel(cudfTable.getLabelArrayInterface());
       watches.put("train", dMatrix1);
       Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
 

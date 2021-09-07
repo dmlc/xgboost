@@ -34,9 +34,9 @@ public class ColumnDMatrixTest {
         new int[]{1});
 
       ColumnDMatrix dMatrix = new ColumnDMatrix(cudfTable, 0, 1);
-      dMatrix.setLabel(cudfTable);
-      dMatrix.setWeight(cudfTable);
-      dMatrix.setBaseMargin(cudfTable);
+      dMatrix.setLabel(cudfTable.getLabelArrayInterface());
+      dMatrix.setWeight(cudfTable.getWeightArrayInterface());
+      dMatrix.setBaseMargin(cudfTable.getBaseMarginArrayInterface());
 
       float[] anchor = convertFloatTofloat(labelFloats);
       float[] label = dMatrix.getLabel();
