@@ -21,7 +21,8 @@ class HistogramCutsWrapper : public common::HistogramCuts {
 }  //  anonymous namespace
 
 inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
-    int n_rows, int n_cols, bst_float sparsity= 0) {
+    int n_rows, int n_cols, bst_float sparsity = 0) {
+  CHECK_EQ(n_cols, 8) << "n_cols must be equal to 8";
   auto dmat = RandomDataGenerator(n_rows, n_cols, sparsity).Seed(3).GenerateDMatrix();
   const SparsePage& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
 
