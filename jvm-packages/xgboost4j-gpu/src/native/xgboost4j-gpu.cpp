@@ -4,6 +4,11 @@
 
 #ifndef XGBOOST_USE_CUDA
 
+#include <jni.h>
+
+#include "../../../../src/common/common.h"
+#include "../../../../src/c_api/c_api_error.h"
+
 namespace xgboost {
 namespace jni {
 XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
