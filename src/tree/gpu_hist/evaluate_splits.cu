@@ -101,74 +101,6 @@ EvaluateSplitsFindOptimalSplitsViaScan(
   auto scan_input_iter =
       dh::MakeTransformIterator<thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>>(
       zip_loc_iter, ScanValueOp<GradientSumT>{left, right, evaluator});
-  {
-    auto write_computed_result = [](std::ostream& os, const ScanComputedElem<GradientSumT>& m) {
-      std::string best_direction_str =
-          (m.best_direction == DefaultDirection::kLeftDir) ? "left" : "right";
-      os << "(left_sum: " << m.left_sum << ", right_sum: " << m.right_sum
-         << ", parent_sum: " << m.parent_sum << ", best_loss_chg: " << m.best_loss_chg
-         << ", best_findex: " << m.best_findex << ", best_fvalue: " << m.best_fvalue
-         << ", best_direction: " << best_direction_str << ")";
-    };
-    auto write_scan_elem = [&](std::ostream& os, const ScanElem<GradientSumT>& m) {
-      std::string indicator_str =
-          (m.indicator == ChildNodeIndicator::kLeftChild) ? "kLeftChild" : "kRightChild";
-      os << "(head_flag: " << (m.head_flag ? "true" : "false") << ", indicator: " << indicator_str
-         << ", hist_idx: " << m.hist_idx << ", findex: " << m.findex << ", gpair: "<< m.gpair
-         << ", fvalue: " << m.fvalue << ", is_cat: " << (m.is_cat ? "true" : "false")
-         << ", computed_result: ";
-      write_computed_result(os, m.computed_result);
-      os << ")";
-    };
-    {
-      using TupT = thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>;
-      thrust::device_vector<TupT> d_vec(size);
-      thrust::host_vector<TupT> vec(size);
-      thrust::copy(thrust::device, scan_input_iter, scan_input_iter + size, d_vec.begin());
-      thrust::copy(d_vec.begin(), d_vec.end(), vec.begin());
-      std::ostringstream oss;
-      for (const auto& e: vec) {
-        auto fw = thrust::get<0>(e);
-        auto bw = thrust::get<1>(e);
-        oss << "forward: ";
-        write_scan_elem(oss, fw);
-        oss << std::endl;
-        oss << "backward: ";
-        write_scan_elem(oss, bw);
-        oss << std::endl;
-      }
-      LOG(CONSOLE) << oss.str();
-    }
-
-    {
-      using TupT = thrust::tuple<ScanElem<GradientSumT>, ScanElem<GradientSumT>>;
-      thrust::device_vector<TupT> d_vec(size);
-
-      auto scan_op = ScanOp<GradientSumT>{left, right, evaluator};
-      std::size_t n_temp_bytes = 0;
-      cub::DeviceScan::InclusiveScan(nullptr, n_temp_bytes, scan_input_iter, d_vec.begin(),
-                                     scan_op, size);
-      dh::TemporaryArray<int8_t> temp(n_temp_bytes);
-      cub::DeviceScan::InclusiveScan(temp.data().get(), n_temp_bytes, scan_input_iter,
-                                     d_vec.begin(),
-                                     scan_op, size);
-
-      thrust::host_vector<TupT> vec(size);
-      thrust::copy(d_vec.begin(), d_vec.end(), vec.begin());
-      std::ostringstream oss;
-      for (const auto& e: vec) {
-        auto fw = thrust::get<0>(e);
-        auto bw = thrust::get<1>(e);
-        oss << "forward: ";
-        write_scan_elem(oss, fw);
-        oss << std::endl;
-        oss << "backward: ";
-        write_scan_elem(oss, bw);
-        oss << std::endl;
-      }
-      LOG(CONSOLE) << oss.str();
-    }
-  }
 
   dh::device_vector<ScanComputedElem<GradientSumT>> out_scan(l_n_features + r_n_features);
   auto scan_out_iter = thrust::make_transform_output_iterator(
@@ -182,24 +114,6 @@ EvaluateSplitsFindOptimalSplitsViaScan(
   dh::TemporaryArray<int8_t> temp(n_temp_bytes);
   cub::DeviceScan::InclusiveScan(temp.data().get(), n_temp_bytes, scan_input_iter, scan_out_iter,
                                  scan_op, size);
-  {
-    auto write_computed_result = [](std::ostream& os, const ScanComputedElem<GradientSumT>& m) {
-      std::string best_direction_str =
-          (m.best_direction == DefaultDirection::kLeftDir) ? "left" : "right";
-      os << "(left_sum: " << m.left_sum << ", right_sum: " << m.right_sum
-         << ", parent_sum: " << m.parent_sum << ", best_loss_chg: " << m.best_loss_chg
-         << ", best_findex: " << m.best_findex << ", best_fvalue: " << m.best_fvalue
-         << ", best_direction: " << best_direction_str << ")";
-    };
-    thrust::host_vector<ScanComputedElem<GradientSumT>> h_out_scan(l_n_features + r_n_features);
-    thrust::copy(out_scan.begin(), out_scan.end(), h_out_scan.begin());
-    std::ostringstream oss;
-    for (const auto& e : h_out_scan) {
-      write_computed_result(oss, e);
-      oss << std::endl;
-    }
-    LOG(CONSOLE) << oss.str();
-  }
   return out_scan;
 }
 
@@ -222,7 +136,6 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
      * For the element at the beginning of each segment, compute gradient sums and loss_chg
      * ahead of time. These will be later used by the inclusive scan operator.
      **/
-    ret.head_flag = true;
     if (ret.is_cat) {
       ret.computed_result.left_sum = split_input.parent_sum - ret.gpair;
       ret.computed_result.right_sum = ret.gpair;
@@ -248,8 +161,6 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
     ret.computed_result.best_fvalue = ret.fvalue;
     ret.computed_result.best_direction =
         (forward ? DefaultDirection::kRightDir : DefaultDirection::kLeftDir);
-  } else {
-    ret.head_flag = false;
   }
 
   return ret;
@@ -275,13 +186,13 @@ template <typename GradientSumT>
 template <bool forward>
 __noinline__ __device__ ScanElem<GradientSumT>
 ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs) {
-  if (rhs.head_flag) {
+  ScanElem<GradientSumT> ret;
+  ret = rhs;
+  ret.computed_result = {};
+  if (lhs.findex != rhs.findex || lhs.indicator != rhs.indicator) {
     // Segmented Scan
     return rhs;
   }
-  ScanElem<GradientSumT> ret;
-  ret = rhs;
-  ret.head_flag = (lhs.head_flag || rhs.head_flag);
   if (((lhs.indicator == ChildNodeIndicator::kLeftChild) &&
       (left.feature_set.size() != left.feature_segments.size()) &&
       !thrust::binary_search(thrust::seq, left.feature_set.begin(), left.feature_set.end(),

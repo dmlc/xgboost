@@ -257,7 +257,7 @@ TEST(GpuHist, EvaluateRootSplit) {
 
   DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
 
-  EXPECT_EQ(res.findex, 7);
+  ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
 }
 

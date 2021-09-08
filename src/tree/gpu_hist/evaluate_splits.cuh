@@ -63,8 +63,7 @@ struct ScanComputedElem {
 template <typename GradientSumT>
 struct ScanElem {
   ChildNodeIndicator indicator{ChildNodeIndicator::kLeftChild};
-  uint64_t hist_idx{0};
-  bool head_flag{false};
+  uint64_t hist_idx;
   GradientSumT gpair{0.0, 0.0};
   int32_t findex{-1};
   float fvalue{std::numeric_limits<float>::quiet_NaN()};
