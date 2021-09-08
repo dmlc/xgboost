@@ -98,6 +98,7 @@ void DataIterator_Free(DataIter *self) {
   }
   free(self->data);
   free(self->lengths);
+  free(self->labels);
   safe_xgboost(XGDMatrixFree(self->_proxy));
 };
 
