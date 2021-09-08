@@ -44,8 +44,8 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
       [d_out_scan] __device__(std::size_t i) {
         ScanComputedElem<GradientSumT> c = d_out_scan[i];
         return DeviceSplitCandidate{c.best_loss_chg, c.best_direction, c.best_findex,
-                                    c.best_fvalue, c.is_cat, GradientPair{c.left_sum},
-                                    GradientPair{c.right_sum}};
+                                    c.best_fvalue, c.is_cat, GradientPair{c.best_left_sum},
+                                    GradientPair{c.best_right_sum}};
       });
   GPUTrainingParam param = left.param;
   thrust::reduce_by_key(
@@ -235,6 +235,8 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
         ret.computed_result.right_sum = ret.gpair;
       }
     }
+    ret.computed_result.best_left_sum = ret.computed_result.left_sum;
+    ret.computed_result.best_right_sum = ret.computed_result.right_sum;
     ret.computed_result.parent_sum = split_input.parent_sum;
     float parent_gain = evaluator.CalcGain(split_input.nidx, split_input.param,
                                            GradStats{ret.computed_result.parent_sum});
@@ -313,7 +315,7 @@ ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rh
   float loss_chg = gain - parent_gain;
   ret.computed_result = lhs.computed_result;
   ret.computed_result.Update(left_sum, right_sum, parent_sum,
-                             loss_chg, lhs.findex, lhs.is_cat, lhs.fvalue,
+                             loss_chg, rhs.findex, rhs.is_cat, rhs.fvalue,
                              (forward ? DefaultDirection::kRightDir : DefaultDirection::kLeftDir),
                              left.param);
   return ret;
@@ -373,6 +375,9 @@ ScanComputedElem<GradientSumT>::Update(
     float fvalue_in,
     DefaultDirection dir_in,
     const GPUTrainingParam& param) {
+  left_sum = left_sum_in;
+  right_sum = right_sum_in;
+  parent_sum = parent_sum_in;
   if (loss_chg_in > best_loss_chg &&
       left_sum_in.GetHess() >= param.min_child_weight &&
       right_sum_in.GetHess() >= param.min_child_weight) {
@@ -381,9 +386,8 @@ ScanComputedElem<GradientSumT>::Update(
     is_cat = is_cat_in;
     best_fvalue = fvalue_in;
     best_direction = dir_in;
-    left_sum = left_sum_in;
-    right_sum = right_sum_in;
-    parent_sum = parent_sum_in;
+    best_left_sum = left_sum_in;
+    best_right_sum = right_sum_in;
     return true;
   }
   return false;

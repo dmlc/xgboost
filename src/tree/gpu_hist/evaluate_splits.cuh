@@ -40,6 +40,8 @@ struct ScanComputedElem {
   GradientSumT left_sum{0.0, 0.0};
   GradientSumT right_sum{0.0, 0.0};
   GradientSumT parent_sum{0.0, 0.0};
+  GradientSumT best_left_sum{0.0, 0.0};
+  GradientSumT best_right_sum{0.0, 0.0};
   float best_loss_chg{std::numeric_limits<float>::lowest()};
   int32_t best_findex{-1};
   bool is_cat{false};
