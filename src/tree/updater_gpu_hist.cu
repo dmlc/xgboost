@@ -46,14 +46,11 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 struct GPUHistMakerTrainParam
     : public XGBoostParameter<GPUHistMakerTrainParam> {
   bool single_precision_histogram;
-  bool deterministic_histogram;
   bool debug_synchronize;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUHistMakerTrainParam) {
     DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
         "Use single precision to build histograms.");
-    DMLC_DECLARE_FIELD(deterministic_histogram).set_default(true).describe(
-        "Pre-round the gradient for obtaining deterministic gradient histogram.");
     DMLC_DECLARE_FIELD(debug_synchronize).set_default(false).describe(
         "Check if all distributed tree are identical after tree construction.");
   }
@@ -153,7 +150,7 @@ class DeviceHistogram {
    */
   common::Span<GradientSumT> GetNodeHistogram(int nidx) {
     CHECK(this->HistogramExists(nidx));
-    auto ptr = data_.data().get() + nidx_map_[nidx];
+    auto ptr = data_.data().get() + nidx_map_.at(nidx);
     return common::Span<GradientSumT>(
         reinterpret_cast<GradientSumT*>(ptr), n_bins_);
   }
@@ -179,9 +176,8 @@ struct GPUHistMakerDevice {
   std::vector<GradientPair> node_sum_gradients;
 
   TrainParam param;
-  bool deterministic_histogram;
 
-  GradientSumT histogram_rounding;
+  HistRounding<GradientSumT> histogram_rounding;
 
   dh::PinnedMemory pinned;
 
@@ -205,7 +201,6 @@ struct GPUHistMakerDevice {
                      TrainParam _param,
                      uint32_t column_sampler_seed,
                      uint32_t n_features,
-                     bool deterministic_histogram,
                      BatchParam _batch_param)
       : device_id(_device_id),
         page(_page),
@@ -214,7 +209,6 @@ struct GPUHistMakerDevice {
         tree_evaluator(param, n_features, _device_id),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
-        deterministic_histogram{deterministic_histogram},
         batch_param(_batch_param) {
     sampler.reset(new GradientBasedSampler(
         page, _n_rows, batch_param, param.subsample, param.sampling_method));
@@ -227,9 +221,9 @@ struct GPUHistMakerDevice {
     // Init histogram
     hist.Init(device_id, page->Cuts().TotalBins());
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
-    feature_groups.reset(new FeatureGroups(
-        page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(device_id),
-        sizeof(GradientSumT)));
+    feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
+                                           dh::MaxSharedMemoryOptin(device_id),
+                                           sizeof(GradientSumT)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT
@@ -263,11 +257,7 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
-    if (deterministic_histogram) {
-      histogram_rounding = CreateRoundingFactor<GradientSumT>(this->gpair);
-    } else {
-      histogram_rounding = GradientSumT{0.0, 0.0};
-    }
+    histogram_rounding = CreateRoundingFactor<GradientSumT>(this->gpair);
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(device_id,  sample.sample_rows));
@@ -805,7 +795,6 @@ class GPUHistMakerSpecialised {
                                                      param_,
                                                      column_sampling_seed,
                                                      info_->num_col_,
-                                                     hist_maker_param_.deterministic_histogram,
                                                      batch_param));
 
     p_last_fmat_ = dmat;

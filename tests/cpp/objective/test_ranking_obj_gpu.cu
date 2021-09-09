@@ -1,5 +1,9 @@
-#include "test_ranking_obj.cc"
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
+#include <thrust/host_vector.h>
 
+#include "test_ranking_obj.cc"
 #include "../../../src/objective/rank_obj.cu"
 
 namespace xgboost {

@@ -41,13 +41,7 @@ class TestPickling:
         "-s",
         "--fulltrace"]
 
-    def test_pickling(self):
-        x, y = build_dataset()
-        train_x = xgb.DMatrix(x, label=y)
-        param = {'tree_method': 'gpu_hist',
-                 'verbosity': 1}
-        bst = xgb.train(param, train_x)
-
+    def run_pickling(self, bst) -> None:
         save_pickle(bst, model_path)
         args = [
             "pytest", "--verbose", "-s", "--fulltrace",
@@ -70,6 +64,25 @@ class TestPickling:
         status = subprocess.call(command, env=env, shell=True)
         assert status == 0
         os.remove(model_path)
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_pickling(self):
+        x, y = build_dataset()
+        train_x = xgb.DMatrix(x, label=y)
+
+        param = {'tree_method': 'gpu_hist', "gpu_id": 0}
+        bst = xgb.train(param, train_x)
+        self.run_pickling(bst)
+
+        bst = xgb.XGBRegressor(**param).fit(x, y)
+        self.run_pickling(bst)
+
+        param = {"booster": "gblinear", "updater": "gpu_coord_descent", "gpu_id": 0}
+        bst = xgb.train(param, train_x)
+        self.run_pickling(bst)
+
+        bst = xgb.XGBRegressor(**param).fit(x, y)
+        self.run_pickling(bst)
 
     @pytest.mark.mgpu
     def test_wrap_gpu_id(self):
