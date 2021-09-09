@@ -103,7 +103,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
-  EXPECT_EQ(result.dir, kRightDir);
+  EXPECT_EQ(result.dir, DefaultDirection::kRightDir);
   EXPECT_EQ(result.left_sum, GradientPair(-0.5, 0.5));
   EXPECT_EQ(result.right_sum, GradientPair(1.5, 1.0));
 }

@@ -47,7 +47,7 @@ static const bst_node_t kUnusedNode = -1;
  * @enum DefaultDirection node.cuh
  * @brief Default direction to be followed in case of missing values
  */
-enum DefaultDirection {
+enum class DefaultDirection : int8_t {
   /** move to left child */
   kLeftDir = 0,
   /** move to right child */
@@ -56,7 +56,7 @@ enum DefaultDirection {
 
 struct DeviceSplitCandidate {
   float loss_chg {-FLT_MAX};
-  DefaultDirection dir {kLeftDir};
+  DefaultDirection dir {DefaultDirection::kLeftDir};
   int findex {-1};
   float fvalue {0};
   bool is_cat { false };
@@ -104,7 +104,7 @@ struct DeviceSplitCandidate {
 
   friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
     os << "loss_chg:" << c.loss_chg << ", "
-       << "dir: " << c.dir << ", "
+       << "dir: " << static_cast<int>(c.dir) << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
        << "is_cat: " << c.is_cat << ", "
