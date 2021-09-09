@@ -19,6 +19,7 @@
 #include <xgboost/c_api.h>
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
 #include "./xgboost4j.h"
 #include <cstring>
 #include <vector>
@@ -1021,8 +1022,13 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
   (JNIEnv *jenv, jclass jcls, jstring jjson_columns, jfloat jmissing, jint jnthread, jlongArray jout) {
   DMatrixHandle result;
   const char* cjson_columns = jenv->GetStringUTFChars(jjson_columns, nullptr);
-  int ret = XGDMatrixCreateFromArrayInterfaceColumns(
-    cjson_columns, jmissing, jnthread, &result);
+  xgboost::Json config{xgboost::Object{}};
+  config["missing"] = xgboost::Number(jmissing);
+  config["nthread"] = xgboost::Integer(jnthread);
+  std::string config_str;
+  xgboost::Json::Dump(config, &config_str);
+  int ret = XGDMatrixCreateFromCudaColumnar(cjson_columns, config_str.c_str(),
+                                            &result);
   JVM_CHECK_CALL(ret);
   if (cjson_columns) {
     jenv->ReleaseStringUTFChars(jjson_columns, cjson_columns);
