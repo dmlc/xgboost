@@ -210,6 +210,36 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
                                   DMatrixHandle* out,
                                   int nthread);
 
+/*!
+ * \brief Create DMatrix from CUDA columnar format. (cuDF)
+ * \param data Array of JSON encoded __cuda_array_interface__ for each column.
+ * \param json_config JSON encoded configuration.  Required values are:
+ *
+ *          - missing
+ *          - nthread
+ *
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
+                                            char const* json_config,
+                                            DMatrixHandle *out);
+
+/*!
+ * \brief Create DMatrix from CUDA array.
+ * \param data JSON encoded __cuda_array_interface__ for array data.
+ * \param json_config JSON encoded configuration.  Required values are:
+ *
+ *          - missing
+ *          - nthread
+ *
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
+                                                  char const* json_config,
+                                                  DMatrixHandle *out);
+
 /*
  * ========================== Begin data callback APIs =========================
  *
