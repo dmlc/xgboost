@@ -1023,8 +1023,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
   DMatrixHandle result;
   const char* cjson_columns = jenv->GetStringUTFChars(jjson_columns, nullptr);
   xgboost::Json config{xgboost::Object{}};
-  config["missing"] = xgboost::Number(jmissing);
-  config["nthread"] = xgboost::Integer(jnthread);
+  auto missing = static_cast<float>(jmissing);
+  auto n_threads = static_cast<int32_t>(jnthread);
+  config["missing"] = xgboost::Number(missing);
+  config["nthread"] = xgboost::Integer(n_threads);
   std::string config_str;
   xgboost::Json::Dump(config, &config_str);
   int ret = XGDMatrixCreateFromCudaColumnar(cjson_columns, config_str.c_str(),
