@@ -22,4 +22,4 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass j
 }
 } // namespace jni
 } // namespace xgboost
-#endif
+#endif  // XGBOOST_USE_CUDA

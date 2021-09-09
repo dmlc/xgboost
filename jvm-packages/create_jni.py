@@ -164,4 +164,3 @@ if __name__ == "__main__":
     maybe_makedirs("{}/src/test/resources".format(xgboost4j))
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "{}/src/test/resources".format(xgboost4j))
-
