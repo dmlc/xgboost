@@ -26,23 +26,28 @@ void XGBoostAPIGuard::RestoreGPUAttribute() {
 
 using namespace xgboost;  // NOLINT
 
-XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
-                                                     bst_float missing,
-                                                     int nthread,
-                                                     DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
+                                            char const* c_json_config,
+                                            DMatrixHandle *out) {
   API_BEGIN();
-  std::string json_str{c_json_strs};
+  std::string json_str{data};
+  auto config = Json::Load(StringView{c_json_config});
+  float missing = GetMissing(config);
+  auto nthread = get<Integer const>(config["nthread"]);
   data::CudfAdapter adapter(json_str);
   *out =
       new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
-                                              bst_float missing, int nthread,
-                                              DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
+                                                  char const* c_json_config,
+                                                  DMatrixHandle *out) {
   API_BEGIN();
-  std::string json_str{c_json_strs};
+  std::string json_str{data};
+  auto config = Json::Load(StringView{c_json_config});
+  float missing = GetMissing(config);
+  auto nthread = get<Integer const>(config["nthread"]);
   data::CupyAdapter adapter(json_str);
   *out =
       new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
