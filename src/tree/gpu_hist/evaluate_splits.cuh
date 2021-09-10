@@ -26,49 +26,23 @@ struct EvaluateSplitInputs {
   common::Span<const GradientSumT> gradient_histogram;
 };
 
-enum class ChildNodeIndicator : int8_t {
-  kLeftChild, kRightChild
-};
-
 struct EvaluateSplitsHistEntry {
-  ChildNodeIndicator indicator;
-  uint64_t hist_idx;
-};
-
-template <typename GradientSumT>
-struct ScanComputedElem {
-  GradientSumT left_sum{0.0, 0.0};
-  GradientSumT right_sum{0.0, 0.0};
-  GradientSumT parent_sum{0.0, 0.0};
-  GradientSumT best_left_sum{0.0, 0.0};
-  GradientSumT best_right_sum{0.0, 0.0};
-  float best_loss_chg{std::numeric_limits<float>::lowest()};
-  int32_t best_findex{-1};
-  bool is_cat{false};
-  float best_fvalue{std::numeric_limits<float>::quiet_NaN()};
-  DefaultDirection best_direction{DefaultDirection::kLeftDir};
-
-  __noinline__ __device__ bool Update(
-      GradientSumT left_sum_in,
-      GradientSumT right_sum_in,
-      GradientSumT parent_sum_in,
-      float loss_chg_in,
-      int32_t findex_in,
-      bool is_cat_in,
-      float fvalue_in,
-      DefaultDirection dir_in,
-      const GPUTrainingParam& param);
+  uint32_t node_idx;
+  uint32_t hist_idx;
+  bool forward;
 };
 
 template <typename GradientSumT>
 struct ScanElem {
-  ChildNodeIndicator indicator{ChildNodeIndicator::kLeftChild};
-  uint64_t hist_idx;
-  GradientSumT gpair{0.0, 0.0};
+  uint32_t node_idx;
+  uint32_t hist_idx;
   int32_t findex{-1};
   float fvalue{std::numeric_limits<float>::quiet_NaN()};
   bool is_cat{false};
-  ScanComputedElem<GradientSumT> computed_result{};
+  bool forward{true};
+  GradientSumT gpair{0.0, 0.0};
+  GradientSumT partial_sum{0.0, 0.0};
+  GradientSumT parent_sum{0.0, 0.0};
 };
 
 template <typename GradientSumT>
@@ -79,12 +53,11 @@ struct ScanValueOp {
 
   using ScanElemT = ScanElem<GradientSumT>;
 
-  template <bool forward>
   __noinline__ __device__ ScanElemT MapEvaluateSplitsHistEntryToScanElem(
       EvaluateSplitsHistEntry entry,
       EvaluateSplitInputs<GradientSumT> split_input);
-  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
-  operator() (thrust::tuple<EvaluateSplitsHistEntry, EvaluateSplitsHistEntry> entry_tup);
+  __noinline__ __device__ ScanElemT
+  operator() (EvaluateSplitsHistEntry entry);
 };
 
 template <typename GradientSumT>
@@ -94,31 +67,37 @@ struct ScanOp {
 
   using ScanElemT = ScanElem<GradientSumT>;
 
-  template<bool forward>
-  __noinline__ __device__ ScanElem<GradientSumT>
-  DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs);
-  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
-  operator() (thrust::tuple<ScanElemT, ScanElemT> lhs, thrust::tuple<ScanElemT, ScanElemT> rhs);
+  __noinline__ __device__ ScanElemT DoIt(ScanElemT lhs, ScanElemT rhs);
+  __noinline__ __device__ ScanElemT operator() (ScanElemT lhs, ScanElemT rhs);
 };
 
 template <typename GradientSumT>
-struct WriteScan {
+struct ReduceElem {
+  GradientSumT partial_sum{0.0, 0.0};
+  GradientSumT parent_sum{0.0, 0.0};
+  float loss_chg{std::numeric_limits<float>::lowest()};
+  int32_t findex{-1};
+  uint32_t node_idx{0};
+  float fvalue{std::numeric_limits<float>::quiet_NaN()};
+  bool is_cat{false};
+  DefaultDirection direction{DefaultDirection::kLeftDir};
+};
+
+template <typename GradientSumT>
+struct ReduceValueOp {
   EvaluateSplitInputs<GradientSumT> left, right;
   TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator;
-  common::Span<ScanComputedElem<GradientSumT>> d_out_scan;
 
   using ScanElemT = ScanElem<GradientSumT>;
+  using ReduceElemT = ReduceElem<GradientSumT>;
 
-  template <bool forward>
-  __noinline__ __device__ void DoIt(ScanElemT e);
-
-  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
-  operator() (thrust::tuple<ScanElemT, ScanElemT> e);
+  __noinline__ __device__ ReduceElemT DoIt(ScanElemT e);
+  __noinline__ __device__ ReduceElemT operator() (ScanElemT e);
 };
 
 template <typename GradientSumT>
-dh::device_vector<ScanComputedElem<GradientSumT>>
-EvaluateSplitsFindOptimalSplitsViaScan(
+dh::device_vector<ReduceElem<GradientSumT>>
+EvaluateSplitsGenerateSplitCandidatesViaScan(
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientSumT> left,
     EvaluateSplitInputs<GradientSumT> right);
