@@ -617,13 +617,13 @@ struct GPUHistMakerDevice {
       dh::CopyToD(split_cats, &node_categories);
       tree.ExpandCategorical(
           candidate.nid, candidate.split.findex, split_cats,
-          candidate.split.dir == DefaultDirection::kLeftDir, base_weight, left_weight,
+          candidate.split.dir == kLeftDir, base_weight, left_weight,
           right_weight, candidate.split.loss_chg, parent_sum.GetHess(),
           candidate.split.left_sum.GetHess(),
           candidate.split.right_sum.GetHess());
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.findex,
-                      candidate.split.fvalue, candidate.split.dir == DefaultDirection::kLeftDir,
+                      candidate.split.fvalue, candidate.split.dir == kLeftDir,
                       base_weight, left_weight, right_weight,
                       candidate.split.loss_chg, parent_sum.GetHess(),
                       candidate.split.left_sum.GetHess(),

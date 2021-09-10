@@ -26,25 +26,31 @@ struct EvaluateSplitInputs {
   common::Span<const GradientSumT> gradient_histogram;
 };
 
+enum class ChildNodeIndicator : int8_t {
+  kLeftChild, kRightChild
+};
 
 struct EvaluateSplitsHistEntry {
-  uint32_t node_idx;
-  uint32_t hist_idx;
+  ChildNodeIndicator indicator;
+  uint64_t hist_idx;
 };
 
 template <typename GradientSumT>
 struct ScanComputedElem {
-  bool is_cat{false};
-  DefaultDirection best_direction{DefaultDirection::kLeftDir};
-  int32_t best_findex{-1};
-  float best_loss_chg{std::numeric_limits<float>::lowest()};
-  float best_fvalue{std::numeric_limits<float>::quiet_NaN()};
-  GradientSumT partial_sum{0.0, 0.0};
-  GradientSumT best_partial_sum{0.0, 0.0};
+  GradientSumT left_sum{0.0, 0.0};
+  GradientSumT right_sum{0.0, 0.0};
   GradientSumT parent_sum{0.0, 0.0};
+  GradientSumT best_left_sum{0.0, 0.0};
+  GradientSumT best_right_sum{0.0, 0.0};
+  float best_loss_chg{std::numeric_limits<float>::lowest()};
+  int32_t best_findex{-1};
+  bool is_cat{false};
+  float best_fvalue{std::numeric_limits<float>::quiet_NaN()};
+  DefaultDirection best_direction{DefaultDirection::kLeftDir};
 
   __noinline__ __device__ bool Update(
-      GradientSumT partial_sum_in,
+      GradientSumT left_sum_in,
+      GradientSumT right_sum_in,
       GradientSumT parent_sum_in,
       float loss_chg_in,
       int32_t findex_in,
@@ -56,8 +62,8 @@ struct ScanComputedElem {
 
 template <typename GradientSumT>
 struct ScanElem {
-  uint32_t node_idx;  // 0: left child node, 1: right child node
-  uint32_t hist_idx;
+  ChildNodeIndicator indicator{ChildNodeIndicator::kLeftChild};
+  uint64_t hist_idx;
   GradientSumT gpair{0.0, 0.0};
   int32_t findex{-1};
   float fvalue{std::numeric_limits<float>::quiet_NaN()};
@@ -67,43 +73,47 @@ struct ScanElem {
 
 template <typename GradientSumT>
 struct ScanValueOp {
-  bool forward;
   EvaluateSplitInputs<GradientSumT> left;
   EvaluateSplitInputs<GradientSumT> right;
   TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator;
 
   using ScanElemT = ScanElem<GradientSumT>;
 
+  template <bool forward>
   __noinline__ __device__ ScanElemT MapEvaluateSplitsHistEntryToScanElem(
       EvaluateSplitsHistEntry entry,
       EvaluateSplitInputs<GradientSumT> split_input);
-  __noinline__ __device__ ScanElemT operator() (EvaluateSplitsHistEntry entry);
+  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
+  operator() (thrust::tuple<EvaluateSplitsHistEntry, EvaluateSplitsHistEntry> entry_tup);
 };
 
 template <typename GradientSumT>
 struct ScanOp {
-  bool forward;
   EvaluateSplitInputs<GradientSumT> left, right;
   TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator;
 
   using ScanElemT = ScanElem<GradientSumT>;
 
-  __noinline__ __device__ ScanElemT DoIt(ScanElemT lhs, ScanElemT rhs);
-  __noinline__ __device__ ScanElemT operator() (ScanElemT lhs, ScanElemT rhs);
+  template<bool forward>
+  __noinline__ __device__ ScanElem<GradientSumT>
+  DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs);
+  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
+  operator() (thrust::tuple<ScanElemT, ScanElemT> lhs, thrust::tuple<ScanElemT, ScanElemT> rhs);
 };
 
 template <typename GradientSumT>
 struct WriteScan {
-  bool forward;
   EvaluateSplitInputs<GradientSumT> left, right;
   TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator;
   common::Span<ScanComputedElem<GradientSumT>> d_out_scan;
 
   using ScanElemT = ScanElem<GradientSumT>;
 
+  template <bool forward>
   __noinline__ __device__ void DoIt(ScanElemT e);
 
-  __noinline__ __device__ ScanElemT operator() (ScanElemT e);
+  __noinline__ __device__ thrust::tuple<ScanElemT, ScanElemT>
+  operator() (thrust::tuple<ScanElemT, ScanElemT> e);
 };
 
 template <typename GradientSumT>
