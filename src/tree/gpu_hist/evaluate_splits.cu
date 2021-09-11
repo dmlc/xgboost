@@ -72,12 +72,15 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
         return l;
       });
   if (right.gradient_histogram.empty()) {
-    thrust::copy(thrust::device, out_reduce.begin(), out_reduce.begin() + 1, out_splits.begin());
-  } else {
-    dh::LaunchN(1, [out_reduce = dh::ToSpan(out_reduce), param]__device__(std::size_t) {
-      out_reduce[0].Update(out_reduce[2], param);
+    dh::LaunchN(1, [out_reduce = dh::ToSpan(out_reduce), out_splits]__device__(std::size_t) {
+      out_splits[0] = out_reduce[0];
     });
-    thrust::copy(thrust::device, out_reduce.begin(), out_reduce.begin() + 2, out_splits.begin());
+  } else {
+    dh::LaunchN(1, [out_reduce = dh::ToSpan(out_reduce), out_splits, param]__device__(std::size_t) {
+      out_reduce[0].Update(out_reduce[2], param);
+      out_splits[0] = out_reduce[0];
+      out_splits[1] = out_reduce[1];
+    });
   }
 }
 
