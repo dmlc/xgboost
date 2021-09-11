@@ -18,18 +18,15 @@ package ml.dmlc.xgboost4j.gpu.java;
 
 import java.util.Arrays;
 
-import ai.rapids.cudf.BaseDeviceMemoryBuffer;
-import ai.rapids.cudf.BufferType;
 import ai.rapids.cudf.ColumnVector;
-import ai.rapids.cudf.DType;
 import ai.rapids.cudf.Table;
 
-import ml.dmlc.xgboost4j.java.DataFrame;
+import ml.dmlc.xgboost4j.java.ColumnBatch;
 
 /**
  * Class to wrap CUDF Table to generate the cuda array interface.
  */
-public class CudfDataFrame extends DataFrame {
+public class CudfColumnBatch extends ColumnBatch {
   private final Table table;          // The CUDF Table
   private final int[] featureIndices; // The feature columns
   private final int[] labelIndices;   // The label columns
@@ -37,25 +34,34 @@ public class CudfDataFrame extends DataFrame {
   private final int[] baseMarginIndices; // The base margin columns
 
   /**
-   * CudfDataFrame constructor
+   * CudfColumnBatch constructor
    * @param table             the CUDF table
    * @param featureIndices    must-have, specify the feature's indices in the table
-   * @param labelIndices      must-have, specify the label's indices in the table
    */
-  public CudfDataFrame(Table table, int[] featureIndices, int[] labelIndices) {
+  public CudfColumnBatch(Table table, int[] featureIndices) {
+    this(table, featureIndices, null, null, null);
+  }
+
+  /**
+   * CudfColumnBatch constructor
+   * @param table             the CUDF table
+   * @param featureIndices    must-have, specify the feature's indices in the table
+   * @param labelIndices      optional, specify the label's indices in the table
+   */
+  public CudfColumnBatch(Table table, int[] featureIndices, int[] labelIndices) {
     this(table, featureIndices, labelIndices, null, null);
   }
 
   /**
-   * CudfDataFrame constructor
+   * CudfColumnBatch constructor
    * @param table             the CUDF table
    * @param featureIndices    must-have, specify the feature's indices in the table
    * @param labelIndices      must-have, specify the label's indices in the table
    * @param weightIndices     optional, specify the weight's indices in the table
    * @param baseMarginIndices optional, specify the base marge's indices in the table
    */
-  public CudfDataFrame(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
-                       int[] baseMarginIndices) {
+  public CudfColumnBatch(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
+                         int[] baseMarginIndices) {
     this.table = table;
     this.featureIndices = featureIndices;
     this.labelIndices = labelIndices;
@@ -66,17 +72,14 @@ public class CudfDataFrame extends DataFrame {
   }
 
   private void validate() {
-    if (labelIndices == null) {
-      throw new RuntimeException("CudfDataFrame requires label column");
-    } else {
-      validateArrayIndex(labelIndices, "label");
-    }
-
-
     if (featureIndices == null) {
-      throw new RuntimeException("CudfDataFrame requires feature columns");
+      throw new RuntimeException("CudfColumnBatch requires feature columns");
     } else {
       validateArrayIndex(featureIndices, "feature");
+    }
+
+    if (labelIndices != null) {
+      validateArrayIndex(labelIndices, "label");
     }
 
     if (weightIndices != null) {
@@ -111,11 +114,6 @@ public class CudfDataFrame extends DataFrame {
     return table.getColumn(index);
   }
 
-  /**
-   * Get the Json string for cuda array interfaces.
-   *
-   * @return Json string
-   */
   @Override
   public String getArrayInterfaceJson() {
     StringBuilder builder = new StringBuilder();
@@ -157,62 +155,21 @@ public class CudfDataFrame extends DataFrame {
   }
 
   @Override
-  public String getLabelArrayInterface() {
-    return getArrayInterface(labelIndices);
-  }
-
-  @Override
-  public String getWeightArrayInterface() {
-    return getArrayInterface(weightIndices);
-  }
-
-  @Override
-  public String getBaseMarginArrayInterface() {
-    return getArrayInterface(baseMarginIndices);
-  }
-
-  @Override
   public void close() {
     if (table != null) table.close();
   }
 
   private String getArrayInterface(int... indices) {
     if (indices == null || indices.length == 0) return "";
-    return ColumnData.getArrayInterface(getAsColumnData(indices));
+    return CudfUtils.buildArrayInterface(getAsCudfColumn(indices));
   }
 
-  private ColumnData[] getAsColumnData(int... indices) {
-    if (indices == null || indices.length == 0) return new ColumnData[]{};
+  private CudfColumn[] getAsCudfColumn(int... indices) {
+    if (indices == null || indices.length == 0) return new CudfColumn[]{};
     return Arrays.stream(indices)
       .mapToObj(this::getColumnVector)
-      .map(this::getColumnData)
-      .toArray(ColumnData[]::new);
-  }
-
-  private ColumnData getColumnData(ColumnVector columnVector) {
-    BaseDeviceMemoryBuffer dataBuffer = columnVector.getDeviceBufferFor(BufferType.DATA);
-    BaseDeviceMemoryBuffer validBuffer = columnVector.getDeviceBufferFor(BufferType.VALIDITY);
-    long validPtr = 0;
-    if (validBuffer != null) {
-      validPtr = validBuffer.getAddress();
-    }
-    DType dType = columnVector.getType();
-    String typeStr = "";
-    if (dType == DType.FLOAT32 || dType == DType.FLOAT64 ||
-          dType == DType.TIMESTAMP_DAYS || dType == DType.TIMESTAMP_MICROSECONDS ||
-          dType == DType.TIMESTAMP_MILLISECONDS || dType == DType.TIMESTAMP_NANOSECONDS ||
-          dType == DType.TIMESTAMP_SECONDS) {
-      typeStr = "<f" + dType.getSizeInBytes();
-    } else if (dType == DType.BOOL8 || dType == DType.INT8 || dType == DType.INT16 ||
-          dType == DType.INT32 || dType == DType.INT64) {
-      typeStr = "<i" + dType.getSizeInBytes();
-    } else {
-      // Unsupported type.
-      throw new IllegalArgumentException("Unsupported data type: " + dType);
-    }
-
-    return new ColumnData(dataBuffer.getAddress(), columnVector.getRowCount(), validPtr,
-      dType.getSizeInBytes(), typeStr, columnVector.getNullCount());
+      .map(CudfColumn::from)
+      .toArray(CudfColumn[]::new);
   }
 
 }

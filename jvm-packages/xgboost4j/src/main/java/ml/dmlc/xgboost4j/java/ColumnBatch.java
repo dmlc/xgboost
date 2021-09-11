@@ -16,38 +16,30 @@
 
 package ml.dmlc.xgboost4j.java;
 
+import java.util.Iterator;
+
 /**
- * The abstracted XGBoost DataFrame to build the DMatrix on device.
+ * The abstracted XGBoost ColumnBatch to get cuda array interface which is used to build
+ * the DMatrix on device.
  *
  */
-public abstract class DataFrame implements AutoCloseable {
+public abstract class ColumnBatch implements AutoCloseable {
 
-  /** Get the cuda array interface json string for the whole DataFrame */
+  /**
+   * Get the cuda array interface json string for the whole ColumnBatch including
+   * the must-have feature, label columns and the optional weight, base margin columns.
+   *
+   * This API will be called by {@link DMatrix#DMatrix(Iterator, float, int, int)}
+   *
+   */
   public abstract String getArrayInterfaceJson();
 
   /**
    * Get the cuda array interface of the feature columns.
-   * The turned value must not be null or empty
+   *
+   * This API will be called by {@link DMatrix#DMatrix(ColumnBatch, float, int)}
    */
   public abstract String getFeatureArrayInterface();
-
-  /**
-   * Get the cuda array interface of the label column.
-   * The turned value can be null or empty
-   */
-  public abstract String getLabelArrayInterface();
-
-  /**
-   * Get the cuda array interface of the weight column.
-   * The turned value can be null or empty
-   */
-  public abstract String getWeightArrayInterface();
-
-  /**
-   * Get the cuda array interface of the base margin column.
-   * The turned value can be null or empty
-   */
-  public abstract String getBaseMarginArrayInterface();
 
   @Override
   public void close() throws Exception {}

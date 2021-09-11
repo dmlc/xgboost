@@ -19,17 +19,17 @@ package ml.dmlc.xgboost4j.java;
 import java.util.Iterator;
 
 /**
- * A mini-batch of DataFrame that can be converted to DMatrix.
+ * A mini-batch of ColumnBatch that can be converted to DMatrix.
  *
  * This class is used to support advanced creation of DMatrix from Iterator of DataFrameBatch,
  */
 class DataFrameBatch implements AutoCloseable {
 
   private String arrayInterfaceJson;
-  private DataFrame dataFrame;
+  private ColumnBatch columnBatch;
 
-  public DataFrameBatch(DataFrame dataFrame, String arrayInterfaceJson) {
-    this.dataFrame = dataFrame;
+  public DataFrameBatch(ColumnBatch columnBatch, String arrayInterfaceJson) {
+    this.columnBatch = columnBatch;
     this.arrayInterfaceJson = arrayInterfaceJson;
   }
 
@@ -41,13 +41,13 @@ class DataFrameBatch implements AutoCloseable {
   // Called from native
   @Override
   public void close() throws Exception {
-    dataFrame.close();
+    columnBatch.close();
   }
 
   static class BatchIterator implements Iterator<DataFrameBatch> {
-    private Iterator<DataFrame> base;
+    private Iterator<ColumnBatch> base;
 
-    public BatchIterator(Iterator<DataFrame> base) {
+    public BatchIterator(Iterator<ColumnBatch> base) {
       this.base = base;
     }
 
@@ -58,8 +58,8 @@ class DataFrameBatch implements AutoCloseable {
 
     @Override
     public DataFrameBatch next() {
-      DataFrame dataFrame = base.next();
-      return new DataFrameBatch(dataFrame, dataFrame.getArrayInterfaceJson());
+      ColumnBatch columnBatch = base.next();
+      return new DataFrameBatch(columnBatch, columnBatch.getArrayInterfaceJson());
     }
   }
 }

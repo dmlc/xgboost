@@ -175,13 +175,13 @@ public class DMatrix {
 
   /**
    * Create DeviceQuantileDMatrix from iterator based on the cuda array interface
-   * @param iter the XGBoost DataFrame batch to provide the corresponding cuda array interface
+   * @param iter the XGBoost ColumnBatch batch to provide the corresponding cuda array interface
    * @param missing the missing value
    * @param maxBin the max bin
    * @param nthread the parallelism
    * @throws XGBoostError
    */
-  public DMatrix(Iterator<DataFrame> iter, float missing, int maxBin, int nthread)
+  public DMatrix(Iterator<ColumnBatch> iter, float missing, int maxBin, int nthread)
       throws XGBoostError {
     long[] out = new long[1];
     Iterator<DataFrameBatch> batchIter = new DataFrameBatch.BatchIterator(iter);
@@ -192,14 +192,15 @@ public class DMatrix {
 
   /**
    * Create the normal DMatrix from column array interface
-   * @param dataFrame the XGBoost DataFrame to provide the cuda array interface of feature columns
+   * @param columnBatch the XGBoost ColumnBatch to provide the cuda array interface
+   *                    of feature columns
    * @param missing missing value
    * @param nthread threads number
    * @throws XGBoostError
    */
-  public DMatrix(DataFrame dataFrame, float missing, int nthread) throws XGBoostError {
+  public DMatrix(ColumnBatch columnBatch, float missing, int nthread) throws XGBoostError {
     long[] out = new long[1];
-    String json = dataFrame.getFeatureArrayInterface();
+    String json = columnBatch.getFeatureArrayInterface();
     if (json == null || json.isEmpty()) {
       throw new XGBoostError("Expecting non-empty feature columns' array interface");
     }
@@ -211,32 +212,34 @@ public class DMatrix {
   /**
    * Set label of DMatrix from cuda array interface
    *
-   * @param dataFrame the XGBoost DataFrame to provide the cuda array interface of label column
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of label column
    * @throws XGBoostError native error
    */
-  public void setLabel(DataFrame dataFrame) throws XGBoostError {
-    setXGBDMatrixInfo("label", dataFrame.getLabelArrayInterface());
+  public void setLabel(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("label", column.getArrayInterfaceJson());
   }
 
   /**
    * Set weight of DMatrix from cuda array interface
    *
-   * @param dataFrame the XGBoost DataFrame to provide the cuda array interface of weight column
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of weight column
    * @throws XGBoostError native error
    */
-  public void setWeight(DataFrame dataFrame) throws XGBoostError {
-    setXGBDMatrixInfo("weight", dataFrame.getWeightArrayInterface());
+  public void setWeight(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("weight", column.getArrayInterfaceJson());
   }
 
   /**
    * Set base margin of DMatrix from cuda array interface
    *
-   * @param dataFrame the XGBoost DataFrame to provide the cuda array interface of base margin
-   *                  column
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of base margin column
    * @throws XGBoostError native error
    */
-  public void setBaseMargin(DataFrame dataFrame) throws XGBoostError {
-    setXGBDMatrixInfo("base_margin", dataFrame.getBaseMarginArrayInterface());
+  public void setBaseMargin(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("base_margin", column.getArrayInterfaceJson());
   }
 
   private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {

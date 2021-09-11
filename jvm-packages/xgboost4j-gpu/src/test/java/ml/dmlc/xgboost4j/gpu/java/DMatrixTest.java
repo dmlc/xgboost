@@ -29,7 +29,7 @@ import org.junit.Test;
 
 import ai.rapids.cudf.Table;
 import ml.dmlc.xgboost4j.java.DMatrix;
-import ml.dmlc.xgboost4j.java.DataFrame;
+import ml.dmlc.xgboost4j.java.ColumnBatch;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
@@ -48,13 +48,17 @@ public class DMatrixTest {
         .column(labelFloats)              // the label column
         .build()) {
 
-      CudfDataFrame cudfDataFrame = new CudfDataFrame(table, new int[]{0}, new int[]{1}, new int[]{1},
+      CudfColumnBatch cudfDataFrame = new CudfColumnBatch(table, new int[]{0}, new int[]{1}, new int[]{1},
         new int[]{1});
 
+      CudfColumn labelColumn = CudfColumn.from(table.getColumn(1));
+      CudfColumn weightColumn = CudfColumn.from(table.getColumn(1));
+      CudfColumn baseMarginColumn = CudfColumn.from(table.getColumn(1));
+
       DMatrix dMatrix = new DMatrix(cudfDataFrame, 0, 1);
-      dMatrix.setLabel(cudfDataFrame);
-      dMatrix.setWeight(cudfDataFrame);
-      dMatrix.setBaseMargin(cudfDataFrame);
+      dMatrix.setLabel(labelColumn);
+      dMatrix.setWeight(weightColumn);
+      dMatrix.setBaseMargin(baseMarginColumn);
 
       float[] anchor = convertFloatTofloat(labelFloats);
       float[] label = dMatrix.getLabel();
@@ -98,10 +102,10 @@ public class DMatrixTest {
         .column(baseMargin2)
         .build()) {
 
-      List<DataFrame> tables = new LinkedList<>();
+      List<ColumnBatch> tables = new LinkedList<>();
 
-      tables.add(new CudfDataFrame(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
-      tables.add(new CudfDataFrame(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfColumnBatch(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfColumnBatch(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
 
       DMatrix dmat = new DMatrix(tables.iterator(), 0.0f, 8, 1);
 

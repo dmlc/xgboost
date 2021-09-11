@@ -27,29 +27,17 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * This class is composing of base data with Apache Arrow format from Gpu ColumnVector.
- * It will be used to generate the cuda array interface.
+ * Cudf utilities to build cuda array interface against {@link CudfColumn}
  */
-public class ColumnData {
-  private long dataPtr; //  gpu data buffer address
-  private long shape;   // row count
-  private long validPtr; // gpu valid buffer address
-  private int typeSize; // type size in bytes
-  private String typeStr; // follow array interface spec
-  private long nullCount; // null count
+class CudfUtils {
 
-  public ColumnData(long dataPtr, long shape, long validPtr, int typeSize, String typeStr,
-                    long nullCount) {
-    this.dataPtr = dataPtr;
-    this.shape = shape;
-    this.validPtr = validPtr;
-    this.typeSize = typeSize;
-    this.typeStr = typeStr;
-    this.nullCount = nullCount;
-  }
-
-  public static String getArrayInterface(ColumnData... columnDataList) {
-    return new Builder().add(columnDataList).build();
+  /**
+   * Build the cuda array interface based on CudfColumn(s)
+   * @param cudfColumns the CudfColumn(s) to be built
+   * @return the json format of cuda array interface
+   */
+  public static String buildArrayInterface(CudfColumn... cudfColumns) {
+    return new Builder().add(cudfColumns).build();
   }
 
   // Helper class to build array interface string
@@ -57,11 +45,11 @@ public class ColumnData {
     private JsonNodeFactory nodeFactory = new JsonNodeFactory(false);
     private ArrayNode rootArrayNode = nodeFactory.arrayNode();
 
-    private Builder add(ColumnData... cds) {
-      if (cds == null || cds.length <= 0) {
+    private Builder add(CudfColumn... columns) {
+      if (columns == null || columns.length <= 0) {
         throw new IllegalArgumentException("At least one ColumnData is required.");
       }
-      for (ColumnData cd : cds) {
+      for (CudfColumn cd : columns) {
         rootArrayNode.add(buildColumnObject(cd));
       }
       return this;
@@ -79,17 +67,18 @@ public class ColumnData {
       }
     }
 
-    private ObjectNode buildColumnObject(ColumnData cd) {
-      if (cd.dataPtr == 0) {
+    private ObjectNode buildColumnObject(CudfColumn column) {
+      if (column.getDataPtr() == 0) {
         throw new IllegalArgumentException("Empty column data is NOT accepted!");
       }
-      if (cd.typeStr == null || cd.typeStr.isEmpty()) {
+      if (column.getTypeStr() == null || column.getTypeStr().isEmpty()) {
         throw new IllegalArgumentException("Empty type string is NOT accepted!");
       }
-      ObjectNode colDataObj = buildMetaObject(cd.dataPtr, cd.shape, cd.typeStr);
+      ObjectNode colDataObj = buildMetaObject(column.getDataPtr(), column.getShape(),
+          column.getTypeStr());
 
-      if (cd.validPtr != 0 && cd.nullCount != 0) {
-        ObjectNode validObj = buildMetaObject(cd.validPtr, cd.shape, "<t1");
+      if (column.getValidPtr() != 0 && column.getNullCount() != 0) {
+        ObjectNode validObj = buildMetaObject(column.getValidPtr(), column.getShape(), "<t1");
         colDataObj.set("mask", validObj);
       }
       return colDataObj;
@@ -101,9 +90,9 @@ public class ColumnData {
       shapeNode.add(shape);
       ArrayNode dataNode = objNode.putArray("data");
       dataNode.add(ptr)
-              .add(false);
+        .add(false);
       objNode.put("typestr", typeStr)
-             .put("version", 1);
+        .put("version", 1);
       return objNode;
     }
   }
