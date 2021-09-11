@@ -32,6 +32,7 @@ dependencies:
 - awscli
 - numba
 - llvmlite
+- pyarrow
 - pip:
   - shap
   - ipython                     # required by shap at import time.

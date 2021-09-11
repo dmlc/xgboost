@@ -375,9 +375,17 @@ XGB_DLL int XGDMatrixCreateFromArrowCallback(
     XGDMatrixCallbackNext *next,
     float missing,
     int nthread,
+    const char* label_col_name,
+    const char* weight_col_name,
+    const char* base_margin_col_name,
+    const char* qid_col_name,
     DMatrixHandle *out) {
   API_BEGIN();
-  data::RecordBatchIterAdapter adapter(next);
+  data::RecordBatchIterAdapter adapter(next,
+                                      label_col_name,
+                                      weight_col_name,
+                                      base_margin_col_name,
+                                      qid_col_name);
   *out = new std::shared_ptr<DMatrix>(
       DMatrix::Create(&adapter, missing, nthread));
   API_END();

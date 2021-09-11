@@ -20,7 +20,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
-                     lazy_isinstance, ffi)
+                     lazy_isinstance, ffi, pa)
 from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
@@ -428,7 +428,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
 
 class RecordBatchDataIter:
     '''Data iterator used to ingest Arrow columnar record batches. We are not
-    using class DataIter because it is only intended for building Device DMatrix. 
+    using class DataIter because it is only intended for building Device DMatrix.
 
     '''
 
@@ -437,14 +437,15 @@ class RecordBatchDataIter:
         self.c_schema = ffi.new("struct ArrowSchema*")
         self.c_array = ffi.new("struct ArrowArray*")
 
-    def reset(self):
+    def reset(self): # pylint: disable=missing-function-docstring
         raise NotImplementedError()
 
-    def next(self, data_handle):
+    def next(self, data_handle): # pylint: disable=missing-function-docstring
         try:
             batch = next(self.data_iter)
             ptr_schema = int(ffi.cast("uintptr_t", self.c_schema))
             ptr_array = int(ffi.cast("uintptr_t", self.c_array))
+            # pylint: disable=protected-access
             batch._export_to_c(ptr_array, ptr_schema)
             _check_call(_LIB.XGImportRecordBatch(
                 ctypes.c_void_p(data_handle),
@@ -453,7 +454,6 @@ class RecordBatchDataIter:
             return 1
         except StopIteration:
             return 0
-        
 
 # Notice for `_deprecate_positional_args`
 # Authors: Olivier Grisel
@@ -608,10 +608,33 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.handle = None
             return
 
-        from .data import dispatch_data_backend, _is_iter
+        from .data import dispatch_data_backend, _is_iter, _is_arrow
 
         if _is_iter(data):
             self._init_from_iter(data, enable_categorical)
+            assert self.handle is not None
+            return
+
+        if _is_arrow(data):
+            if not all(pa.types.is_integer(t) or pa.types.is_floating(t)
+                        for t in data.schema.types):
+                raise ValueError(
+                    'Features in dataset can only be integers or floating point number')
+
+            if feature_types is not None:
+                raise ValueError(
+                    'Arrow dataset has own feature types, cannot pass them in')
+
+            if not all((label is None or isinstance(label, str),
+                weight is None or isinstance(weight, str),
+                base_margin is None or isinstance(base_margin, str),
+                qid is None or isinstance(qid, str))):
+                raise ValueError(
+                    'label, weight, base_margin, and qid must be column names in string')
+
+            rb_iter = iter(data.to_batches())
+            it = RecordBatchDataIter(rb_iter)
+            self._init_from_arrow(it, label, weight, base_margin, qid)
             assert self.handle is not None
             return
 
@@ -641,6 +664,36 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.feature_names = feature_names
         if feature_types is not None:
             self.feature_types = feature_types
+
+    def _init_from_arrow(
+            self,
+            iterator: RecordBatchDataIter,
+            label: str,
+            weight: str,
+            base_margin: str,
+            qid: str):
+        handle = ctypes.c_void_p()
+        next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(iterator.next)
+        plabel = (ctypes.POINTER(ctypes.c_char_p)() if label is None else
+                bytes(label, "utf-8"))
+        pweight = (ctypes.POINTER(ctypes.c_char_p)() if weight is None else
+                bytes(label, "utf-8"))
+        pbase_margin = (ctypes.POINTER(ctypes.c_char_p)() if base_margin is None else
+                bytes(label, "utf-8"))
+        pqid = (ctypes.POINTER(ctypes.c_char_p)() if qid is None else
+                bytes(label, "utf-8"))
+        ret = _LIB.XGDMatrixCreateFromArrowCallback(
+            next_callback,
+            ctypes.c_float(self.missing),
+            ctypes.c_int(self.nthread),
+            plabel,
+            pweight,
+            pbase_margin,
+            pqid,
+            ctypes.byref(handle)
+        )
+        _check_call(ret)
+        self.handle = handle
 
     def _init_from_iter(self, iterator: DataIter, enable_categorical: bool) -> None:
         it = iterator

@@ -246,10 +246,10 @@ template SimpleDMatrix::SimpleDMatrix(RecordBatchIterAdapter* adapter, float mis
 bool SimpleDMatrix::operator==(const SimpleDMatrix& rhs) const {
   auto& my_info = info_;
   auto& your_info = rhs.info_;
-  auto& my_offset = sparse_page_.offset.HostVector();
-  auto& your_offset = rhs.sparse_page_.offset.HostVector();
-  auto& my_data = sparse_page_.data.HostVector();
-  auto& your_data = rhs.sparse_page_.data.HostVector();
+  auto& my_offset = sparse_page_->offset.HostVector();
+  auto& your_offset = rhs.sparse_page_->offset.HostVector();
+  auto& my_data = sparse_page_->data.HostVector();
+  auto& your_data = rhs.sparse_page_->data.HostVector();
   return (my_info == your_info && my_offset == your_offset && my_data == your_data);
 }
 

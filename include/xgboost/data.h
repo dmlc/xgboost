@@ -192,9 +192,9 @@ class MetaInfo {
             base_margin_.HostVector() == rhs.base_margin_.HostVector() &&
             labels_lower_bound_.HostVector() == rhs.labels_lower_bound_.HostVector() &&
             labels_upper_bound_.HostVector() == rhs.labels_upper_bound_.HostVector() &&
-            //feature_type_names == rhs.feature_type_names &&
-            //feature_names == rhs.feature_names &&
-            //feature_types.HostVector() == rhs.feature_types.HostVector() &&
+            // feature_type_names == rhs.feature_type_names &&
+            // feature_names == rhs.feature_names &&
+            // feature_types.HostVector() == rhs.feature_types.HostVector() &&
             feature_weigths.HostVector() == rhs.feature_weigths.HostVector());
   }
 

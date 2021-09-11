@@ -204,38 +204,7 @@ def _is_modin_df(data):
 def _is_arrow(data):
     if not PYARROW_INSTALLED:
         return False
-    return (isinstance(data, pa.lib.Table)
-            or isinstance(data, arrow_dataset.FileSystemDataset))
-
-
-def _transfrom_arrow(data, feature_types):
-    if not all(pa.types.is_integer(t) or pa.types.is_floating(t)
-                for t in data.schema.types):
-        raise ValueError(
-            'Features in dataset can only be integers or floating point number')
-
-    if feature_types is not None:
-        raise ValueError(
-            'Arrow dataset has own feature types, cannot pass them in')
-
-    return iter(data.to_batches())
-
-
-def _from_arrow(data, missing, nthread, feature_names, feature_types):
-    batches = _transfrom_arrow(data, feature_types)
-
-    from .core import RecordBatchDataIter
-    handle = ctypes.c_void_p()
-    it = RecordBatchDataIter(batches)
-    next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(it.next)
-    ret = _LIB.XGDMatrixCreateFromArrowCallback(
-        next_callback,
-        ctypes.c_float(missing),
-        ctypes.c_int(nthread),
-        ctypes.byref(handle)
-    )
-    _check_call(ret)
-    return handle, feature_names, feature_types
+    return isinstance(data, (pa.Table, arrow_dataset.Dataset))
 
 
 _pandas_dtype_mapper = {
