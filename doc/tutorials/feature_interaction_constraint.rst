@@ -77,8 +77,8 @@ interaction constraints is expressed as a nested list, e.g.
 ``[[0, 1], [2, 3, 4]]``, where each inner list is a group of indices of features
 that are allowed to interact with each other.
 
-In the following diagram, the first decision tree is in violation of the first
-constraint (``[0, 1]``), whereas the second decision tree complies with both the
+In the following diagram, the left decision tree is in violation of the first
+constraint (``[0, 1]``), whereas the right decision tree complies with both the
 first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
 
 .. plot::
@@ -127,19 +127,19 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
   Source(source, format='png').render('../_static/feature_interaction_illustration3', view=False)
   Source(source, format='svg').render('../_static/feature_interaction_illustration3', view=False)
 
-.. list-table::
+.. |fig1| image:: ../_static/feature_interaction_illustration2.svg
+   :scale: 7%
+   :align: middle  
 
-  * - .. figure:: ../_static/feature_interaction_illustration2.svg
-         :align: left
-         :figwidth: 80 %
-    
-         fobidden splits
+.. |fig2| image:: ../_static/feature_interaction_illustration3.svg
+   :scale: 7%
+   :align: middle
 
-  * - .. figure:: ../_static/feature_interaction_illustration3.svg
-         :align: left
-         :figwidth: 80 %
-
-         allowed splits
++-----------+---------+
+| |fig1|    | |fig2|  |
++-----------+---------+
+| forbidden | allowed |
++-----------+---------+
 
 
 ****************************************************
