@@ -8,6 +8,7 @@
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
 #include <xgboost/data.h>
+#include <xgboost/logging.h>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -145,6 +146,7 @@ MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
   auto it = cache_info.find(id);
   if (it == cache_info.cend()) {
     cache_info[id].reset(new Cache{false, name, format});
+    LOG(INFO) << "Make cache:" << name << std::endl;
   }
   return id;
 }

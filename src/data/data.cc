@@ -1090,5 +1090,6 @@ namespace data {
 
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
+DMLC_REGISTRY_LINK_TAG(gradient_index_format);
 }  // namespace data
 }  // namespace xgboost

@@ -99,20 +99,21 @@ std::vector<float> MergeWeights(MetaInfo const &info,
   CHECK_EQ(hessian.size(), info.num_row_);
   std::vector<float> results(hessian.size());
   auto const &group_ptr = info.group_ptr_;
+  auto const& weights = info.weights_.HostVector();
+  auto get_weight = [&](size_t i) { return weights.empty() ? 1.0f : weights[i]; };
   if (use_group) {
-    auto const &group_weights = info.weights_.HostVector();
     CHECK_GE(group_ptr.size(), 2);
     CHECK_EQ(group_ptr.back(), hessian.size());
     size_t cur_group = 0;
     for (size_t i = 0; i < hessian.size(); ++i) {
-      results[i] = hessian[i] * group_weights[cur_group];
+      results[i] = hessian[i] * get_weight(cur_group);
       if (i == group_ptr[cur_group + 1]) {
         cur_group++;
       }
     }
   } else {
     ParallelFor(hessian.size(), n_threads, Sched::Auto(),
-                [&](auto i) { results[i] = hessian[i] * info.GetWeight(i); });
+                [&](auto i) { results[i] = hessian[i] * get_weight(i); });
   }
   return results;
 }

@@ -97,6 +97,8 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
   }
 };
 
+DMLC_REGISTRY_FILE_TAG(gradient_index_format);
+
 XGBOOST_REGISTER_GHIST_INDEX_PAGE_FORMAT(raw)
     .describe("Raw GHistIndex binary data format.")
     .set_body([]() { return new GHistIndexRawFormat(); });

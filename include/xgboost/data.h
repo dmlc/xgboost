@@ -234,7 +234,7 @@ struct BatchParam {
     if (hess.empty() && other.hess.empty()) {
       return gpu_id != other.gpu_id || max_bin != other.max_bin;
     }
-    return gpu_id != other.gpu_id || max_bin != other.max_bin || hess != other.hess;
+    return gpu_id != other.gpu_id || max_bin != other.max_bin || hess.data() != other.hess.data();
   }
 };
 
