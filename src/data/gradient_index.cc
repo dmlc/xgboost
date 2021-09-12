@@ -9,6 +9,7 @@
 
 namespace xgboost {
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
+  monitor.Start("GHistIndexMatrix::Init");
   cut = common::SketchOnDMatrix(p_fmat, max_bins);
 
   max_num_bins = max_bins;
@@ -103,36 +104,58 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
     if (isDense) {
       common::BinTypeSize curent_bin_size = index.GetBinTypeSize();
       if (curent_bin_size == common::kUint8BinsTypeSize) {
-        common::Span<uint8_t> index_data_span = {index.data<uint8_t>(),
+        common::Span<uint8_t> index_data_span = {index.Data<uint8_t>(),
                                                  n_index};
-        SetIndexData(index_data_span, batch_threads, batch, rbegin, nbins,
-                     [offsets](auto idx, auto j) {
-                       return static_cast<uint8_t>(idx - offsets[j]);
-                     });
+        common::Span<uint8_t> index_second_data_span = {index.SecondData<uint8_t>(),
+                                                 n_index};
+        auto get_offset = [offsets](auto idx, auto j) {
+          return static_cast<uint8_t>(idx - offsets[j]);
+        };
+        SetIndexData<uint8_t, decltype(get_offset), true>(index_data_span,
+                                                         index_second_data_span,
+                                                         batch_threads, batch,
+                                                         rbegin, nbins,
+                                                         get_offset);
 
       } else if (curent_bin_size == common::kUint16BinsTypeSize) {
-        common::Span<uint16_t> index_data_span = {index.data<uint16_t>(),
+        common::Span<uint16_t> index_data_span = {index.Data<uint16_t>(),
                                                   n_index};
-        SetIndexData(index_data_span, batch_threads, batch, rbegin, nbins,
-                     [offsets](auto idx, auto j) {
-                       return static_cast<uint16_t>(idx - offsets[j]);
-                     });
+        common::Span<uint16_t> index_second_data_span = {index.SecondData<uint16_t>(),
+                                                  n_index};
+        auto get_offset = [offsets](auto idx, auto j) {
+          return static_cast<uint16_t>(idx - offsets[j]);
+        };
+        SetIndexData<uint16_t, decltype(get_offset), true>(index_data_span,
+                                                          index_second_data_span,
+                                                          batch_threads, batch,
+                                                          rbegin, nbins, get_offset);
       } else {
         CHECK_EQ(curent_bin_size, common::kUint32BinsTypeSize);
-        common::Span<uint32_t> index_data_span = {index.data<uint32_t>(),
+        common::Span<uint32_t> index_data_span = {index.Data<uint32_t>(),
                                                   n_index};
-        SetIndexData(index_data_span, batch_threads, batch, rbegin, nbins,
-                     [offsets](auto idx, auto j) {
-                       return static_cast<uint32_t>(idx - offsets[j]);
-                     });
+        common::Span<uint32_t> index_second_data_span = {index.SecondData<uint32_t>(),
+                                                  n_index};
+        auto get_offset = [offsets](auto idx, auto j) {
+          return static_cast<uint32_t>(idx - offsets[j]);
+        };
+        SetIndexData<uint32_t, decltype(get_offset), true>(index_data_span,
+                                                          index_second_data_span,
+                                                          batch_threads, batch,
+                                                          rbegin, nbins, get_offset);
       }
 
     /* For sparse DMatrix we have to store index of feature for each bin
        in index field to chose right offset. So offset is nullptr and index is not reduced */
     } else {
-      common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
-      SetIndexData(index_data_span, batch_threads, batch, rbegin, nbins,
-                   [](auto idx, auto) { return idx; });
+      common::Span<uint32_t> index_data_span = {index.Data<uint32_t>(), n_index};
+      common::Span<uint32_t> index_second_data_span = {index.Data<uint32_t>(), n_index};
+      auto get_offset = [offsets](auto idx, auto) {
+        return idx;
+      };
+      SetIndexData<uint32_t, decltype(get_offset), false>(index_data_span,
+                                                        index_second_data_span,
+                                                        batch_threads, batch,
+                                                        rbegin, nbins, get_offset);
     }
 
     common::ParallelFor(bst_omp_uint(nbins), nthread, [&](bst_omp_uint idx) {
@@ -145,6 +168,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
     prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
   }
+  monitor.Stop("GHistIndexMatrix::Init");
 }
 
 
@@ -152,14 +176,14 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index,
                                    const bool isDense) {
   if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
     index.SetBinTypeSize(common::kUint8BinsTypeSize);
-    index.Resize((sizeof(uint8_t)) * n_index);
+    index.Resize((sizeof(uint8_t)) * n_index, isDense);
   } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
     max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense) {
     index.SetBinTypeSize(common::kUint16BinsTypeSize);
-    index.Resize((sizeof(uint16_t)) * n_index);
+    index.Resize((sizeof(uint16_t)) * n_index, isDense);
   } else {
     index.SetBinTypeSize(common::kUint32BinsTypeSize);
-    index.Resize((sizeof(uint32_t)) * n_index);
+    index.Resize((sizeof(uint32_t)) * n_index, isDense);
   }
 }
 }  // namespace xgboost

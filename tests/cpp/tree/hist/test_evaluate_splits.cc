@@ -58,7 +58,31 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   entries.front().depth = 0;
 
   evaluator.InitRoot(GradStats{total_gpair});
-  evaluator.EvaluateSplits(hist, gmat, tree, &entries);
+  std::vector<CPUExpandEntry> entries_sub;
+  std::vector<std::vector<std::vector<GradientSumT>>> histograms;
+
+  ColumnMatrix column_matrix;
+  column_matrix.Init(gmat, 1);
+
+  // create partitioner
+  common::OptPartitionBuilder opt_partition_builder;
+  opt_partition_builder.template Init<uint8_t>(gmat,
+                                      column_matrix,
+                                      &tree,
+                                      omp_get_max_threads(),
+                                      1,
+                                      kRows,
+                                      false);
+  opt_partition_builder.UpdateRootThreadWork(true);
+
+  std::vector<uint16_t> nodes_mapping;
+  std::vector<std::vector<uint16_t>> local_threads_mapping;
+  RegTree* p_tree = nullptr;
+
+  evaluator.EvaluateSplits(hist, gmat, tree, &entries, &entries_sub,
+                           &entries, &histograms, &local_threads_mapping,
+                           &opt_partition_builder,
+                           p_tree, true);
 
   auto best_loss_chg =
       evaluator.Evaluator().CalcSplitGain(

@@ -317,15 +317,15 @@ TEST(HistUtil, IndexBinData) {
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {
       case kBinSizes[0]:
-        CheckIndexData(hmat.index.data<uint8_t>(),
+        CheckIndexData(hmat.index.Data<uint8_t>(),
                        offsets, hmat, kCols);
         break;
       case kBinSizes[1]:
-        CheckIndexData(hmat.index.data<uint16_t>(),
+        CheckIndexData(hmat.index.Data<uint16_t>(),
                        offsets, hmat, kCols);
         break;
       case kBinSizes[2]:
-        CheckIndexData(hmat.index.data<uint32_t>(),
+        CheckIndexData(hmat.index.Data<uint32_t>(),
                        offsets, hmat, kCols);
         break;
     }

@@ -32,6 +32,7 @@
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/partition_builder.h"
+#include "../common/opt_partition_builder.h"
 #include "../common/column_matrix.h"
 
 namespace xgboost {
@@ -218,6 +219,7 @@ class QuantileHistMaker: public TreeUpdater {
    protected:
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
+                  const ColumnMatrix& column_matrix,
                   const DMatrix& fmat,
                   const RegTree& tree,
                   std::vector<GradientPair>* gpair);
@@ -228,23 +230,24 @@ class QuantileHistMaker: public TreeUpdater {
                       std::vector<GradientPair>* gpair,
                       std::vector<size_t>* row_indices);
 
-    template <bool any_missing>
+    template <bool any_missing, typename BinIdxType, bool is_loss_guided>
     void ApplySplit(std::vector<CPUExpandEntry> nodes,
-                        const GHistIndexMatrix& gmat,
-                        const ColumnMatrix& column_matrix,
-                        RegTree* p_tree);
-
-    void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree* p_tree);
-
+                    const GHistIndexMatrix& gmat,
+                    const ColumnMatrix& column_matrix,
+                    const HistCollection<GradientSumT>& hist,
+                    RegTree* p_tree, int depth,
+                    std::vector<bool>* smalest_nodes_mask_ptr,
+                    const std::vector<GradientPair> &gpair_h, const bool loss_guide);
 
     void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
                              const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
 
-    template <bool any_missing>
-    void InitRoot(DMatrix* p_fmat,
-                  RegTree *p_tree,
-                  const std::vector<GradientPair> &gpair_h,
-                  int *num_leaves, std::vector<CPUExpandEntry> *expand);
+
+    template <typename BinIdxType, bool any_missing, bool hist_fit_to_l2>
+    void InitRoot(const GHistIndexMatrix &gmat, DMatrix* fmat, RegTree *p_tree,
+                  const std::vector<GradientPair> &gpair_h, int *num_leaves,
+                  std::vector<CPUExpandEntry> *expand, common::BlockedSpace2d* space_ptr,
+                  const ColumnMatrix& column_matrix, bool is_loss_guide);
 
     // Split nodes to 2 sets depending on amount of rows in each node
     // Histograms for small nodes will be built explicitly
@@ -256,9 +259,10 @@ class QuantileHistMaker: public TreeUpdater {
     void AddSplitsToTree(const std::vector<CPUExpandEntry>& expand,
                          RegTree *p_tree,
                          int *num_leaves,
-                         std::vector<CPUExpandEntry>* nodes_for_apply_split);
+                         std::vector<CPUExpandEntry>* nodes_for_apply_split,
+                         std::vector<bool>* smalest_nodes_mask_ptr);
 
-    template <bool any_missing>
+    template <typename BinIdxType, bool any_missing, bool hist_fit_to_l2>
     void ExpandTree(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
                     DMatrix* p_fmat,
@@ -273,9 +277,14 @@ class QuantileHistMaker: public TreeUpdater {
     std::shared_ptr<common::ColumnSampler> column_sampler_{
         std::make_shared<common::ColumnSampler>()};
 
-    std::vector<size_t> unused_rows_;
     // the internal row sets
     RowSetCollection row_set_collection_;
+    std::vector<uint16_t> node_ids_;
+    std::vector<uint16_t> curr_level_nodes_;
+    std::vector<int32_t> split_conditions_;
+    std::vector<uint64_t> split_ind_;
+    std::vector<uint16_t> compleate_trees_depth_wise_;
+
     std::vector<GradientPair> gpair_local_;
 
     /*! \brief feature with least # of bins. to be used for dense specialization
@@ -287,7 +296,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     static constexpr size_t kPartitionBlockSize = 2048;
     common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
-
+    common::OptPartitionBuilder opt_partition_builder_;
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;
     DMatrix const* const p_last_fmat_;
