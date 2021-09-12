@@ -16,7 +16,7 @@ from .compat import lazy_isinstance
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
-cat_t = "c"
+CAT_T = "c"
 
 
 def _warn_unused_missing(data, missing):
@@ -260,7 +260,7 @@ def _transform_pandas_df(
                 feature_types.append(_pandas_dtype_mapper[
                     dtype.subtype.name])
             elif is_categorical_dtype(dtype) and enable_categorical:
-                feature_types.append(cat_t)
+                feature_types.append(CAT_T)
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 
@@ -469,7 +469,7 @@ def _transform_cudf_df(
             dtypes = data.dtypes
         for dtype in dtypes:
             if is_categorical_dtype(dtype) and enable_categorical:
-                feature_types.append(cat_t)
+                feature_types.append(CAT_T)
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
     return data, feature_names, feature_types
