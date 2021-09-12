@@ -128,7 +128,7 @@ class TestPandas:
         X = pd.DataFrame({'f0': X})
         y = rng.randn(rows)
         m = xgb.DMatrix(X, y, enable_categorical=True)
-        assert m.feature_types[0] == 'categorical'
+        assert m.feature_types[0] == 'c'
 
     def test_pandas_sparse(self):
         import pandas as pd

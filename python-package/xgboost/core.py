@@ -518,8 +518,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin=None,
         missing: Optional[float] = None,
         silent=False,
-        feature_names=None,
-        feature_types=None,
+        feature_names: Optional[List[str]] = None,
+        feature_types: Optional[List[str]] = None,
         nthread: Optional[int] = None,
         group=None,
         qid=None,
@@ -558,8 +558,17 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             Whether print messages during construction
         feature_names : list, optional
             Set names for features.
-        feature_types : list, optional
-            Set types for features.
+        feature_types :
+
+            Set types for features.  When `enable_categorical` is set to `True`, string
+            "c" represents categorical data type.  For numerical data, it can be one for
+            the following:
+
+                - "q" for quantitive
+                - "float" for float
+                - "i" for indicator
+                - "int" for integer
+
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
@@ -673,8 +682,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
-        feature_names=None,
-        feature_types=None,
+        feature_names: Optional[List[str]] = None,
+        feature_types: Optional[List[str]] = None,
         feature_weights=None
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
@@ -945,7 +954,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> Optional[List[str]]:
         """Get feature names (column labels).
 
         Returns
@@ -1033,17 +1042,21 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @feature_types.setter
-    def feature_types(self, feature_types: Optional[Union[List[Any], Any]]) -> None:
+    def feature_types(self, feature_types: Optional[Union[List[str], str]]) -> None:
         """Set feature types (column types).
 
-        This is for displaying the results and unrelated
-        to the learning process.
+        This is for displaying the results and categorical data support.  See doc string
+        of :py:obj:`xgboost.DMatrix` for details.
 
         Parameters
         ----------
         feature_types : list or None
             Labels for features. None will reset existing feature names
+
         """
+        # For compatibility reason this function wraps single str input into a list.  But
+        # we should not promote such usage since other than visualization, the field is
+        # also used for specifying categorical data type.
         if feature_types is not None:
             if not isinstance(feature_types, (list, str)):
                 raise TypeError(

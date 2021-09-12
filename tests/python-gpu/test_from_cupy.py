@@ -170,6 +170,19 @@ Arrow specification.'''
         xgb.DMatrix(X.toDlpack())
 
     @pytest.mark.skipif(**tm.no_cupy())
+    def test_cupy_categorical(self):
+        import cupy as cp
+        n_features = 10
+        X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
+        X = cp.asarray(X.values.astype(cp.float32))
+        y = cp.array(y)
+        feature_types = ['c'] * n_features
+
+        assert isinstance(X, cp.ndarray)
+        Xy = xgb.DMatrix(X, y, feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+    @pytest.mark.skipif(**tm.no_cupy())
     def test_dlpack_device_dmat(self):
         import cupy as cp
         n = 100
