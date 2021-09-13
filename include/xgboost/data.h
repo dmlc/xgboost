@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015-2021 by Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
@@ -214,12 +214,27 @@ struct BatchParam {
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
   int max_bin{0};
+  /*! \brief Hessian, used for sketching with future approx implementation. */
+  common::Span<float> hess;
+  /*! \brief Whether should DMatrix regenerate the batch.  Only used for GHistIndex. */
+  bool regen {false};
+
   BatchParam() = default;
   BatchParam(int32_t device, int32_t max_bin)
       : gpu_id{device}, max_bin{max_bin} {}
+  /**
+   * \brief Get batch with sketch weighted by hessian.  The batch will be regenerated if
+   *        the span is changed, so caller should keep the span for each iteration.
+   */
+  BatchParam(int32_t device, int32_t max_bin, common::Span<float> hessian,
+             bool regenerate = false)
+      : gpu_id{device}, max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
   bool operator!=(const BatchParam& other) const {
-    return gpu_id != other.gpu_id || max_bin != other.max_bin;
+    if (hess.empty() && other.hess.empty()) {
+      return gpu_id != other.gpu_id || max_bin != other.max_bin;
+    }
+    return gpu_id != other.gpu_id || max_bin != other.max_bin || hess.data() != other.hess.data();
   }
 };
 

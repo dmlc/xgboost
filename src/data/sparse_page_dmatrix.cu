@@ -31,7 +31,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
     auto ft = this->info_.feature_types.ConstDeviceSpan();
     ellpack_page_source_.reset();  // release resources.
     ellpack_page_source_.reset(new EllpackPageSource(
-        this->missing_, this->nthreads_, this->Info().num_col_,
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), param, std::move(cuts),
         this->IsDense(), row_stride, ft, sparse_page_source_));
   } else {

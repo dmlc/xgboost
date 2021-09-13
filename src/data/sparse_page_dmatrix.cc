@@ -43,7 +43,8 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
                                      XGDMatrixCallbackNext *next, float missing,
                                      int32_t nthreads, std::string cache_prefix)
     : proxy_{proxy_handle}, iter_{iter_handle}, reset_{reset}, next_{next}, missing_{missing},
-      nthreads_{nthreads}, cache_prefix_{std::move(cache_prefix)} {
+      cache_prefix_{std::move(cache_prefix)} {
+  ctx_.nthread = nthreads;
   cache_prefix_ = cache_prefix_.empty() ? "DMatrix" : cache_prefix_;
   if (rabit::IsDistributed()) {
     cache_prefix_ += ("-r" + std::to_string(rabit::GetRank()));
@@ -112,7 +113,7 @@ void SparsePageDMatrix::InitializeSparsePage() {
   DMatrixProxy *proxy = MakeProxy(proxy_);
   sparse_page_source_.reset();  // clear before creating new one to prevent conflicts.
   sparse_page_source_ = std::make_shared<SparsePageSource>(
-      iter, proxy, this->missing_, this->nthreads_, this->info_.num_col_,
+      iter, proxy, this->missing_, this->ctx_.Threads(), this->info_.num_col_,
       this->n_batches_, cache_info_.at(id));
 }
 
@@ -132,7 +133,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches() {
   this->InitializeSparsePage();
   if (!column_source_) {
     column_source_ = std::make_shared<CSCPageSource>(
-        this->missing_, this->nthreads_, this->Info().num_col_,
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), sparse_page_source_);
   } else {
     column_source_->Reset();
@@ -147,7 +148,7 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   this->InitializeSparsePage();
   if (!sorted_column_source_) {
     sorted_column_source_ = std::make_shared<SortedCSCPageSource>(
-        this->missing_, this->nthreads_, this->Info().num_col_,
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), sparse_page_source_);
   } else {
     sorted_column_source_->Reset();
@@ -158,16 +159,41 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam& param) {
   CHECK_GE(param.max_bin, 2);
-  // External memory is not support
-  if (!ghist_index_source_ || (param != batch_param_ && param != BatchParam{})) {
-    this->InitializeSparsePage();
-    ghist_index_source_.reset(new GHistIndexMatrix{this, param.max_bin});
-    batch_param_ = param;
+  if (param.hess.empty()) {
+    // hist method doesn't support full external memory implementation, so we concatenate
+    // all index here.
+    if (!ghist_index_page_ || (param != batch_param_ && param != BatchParam{})) {
+      this->InitializeSparsePage();
+      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin});
+      this->InitializeSparsePage();
+      batch_param_ = param;
+    }
+    auto begin_iter = BatchIterator<GHistIndexMatrix>(
+        new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_index_page_));
+    return BatchSet<GHistIndexMatrix>(begin_iter);
   }
+
+  auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
   this->InitializeSparsePage();
-  auto begin_iter = BatchIterator<GHistIndexMatrix>(
-      new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_index_source_));
-  return BatchSet<GHistIndexMatrix>(begin_iter);
+  if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{})) {
+    cache_info_.erase(id);
+    MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
+    auto cuts = common::SketchOnDMatrix(this, param.max_bin, param.hess);
+    this->InitializeSparsePage();  // reset after use.
+
+    batch_param_ = param;
+    ghist_index_source_.reset();
+    CHECK_NE(cuts.Values().size(), 0);
+    ghist_index_source_.reset(new GradientIndexPageSource(
+        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
+        this->n_batches_, cache_info_.at(id), param, std::move(cuts),
+        this->IsDense(), param.max_bin, sparse_page_source_));
+  } else {
+    CHECK(ghist_index_source_);
+    ghist_index_source_->Reset();
+  }
+  auto begin_iter = BatchIterator<GHistIndexMatrix>(ghist_index_source_);
+  return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(begin_iter));
 }
 
 #if !defined(XGBOOST_USE_CUDA)

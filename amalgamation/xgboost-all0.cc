@@ -38,6 +38,8 @@
 #include "../src/data/sparse_page_raw_format.cc"
 #include "../src/data/ellpack_page.cc"
 #include "../src/data/gradient_index.cc"
+#include "../src/data/gradient_index_page_source.cc"
+#include "../src/data/gradient_index_format.cc"
 #include "../src/data/sparse_page_dmatrix.cc"
 #include "../src/data/proxy_dmatrix.cc"
 

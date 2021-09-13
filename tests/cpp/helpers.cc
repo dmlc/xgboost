@@ -370,7 +370,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
 
   std::unique_ptr<DMatrix> dmat{DMatrix::Create(
       static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), 1, prefix)};
+      std::numeric_limits<float>::quiet_NaN(), omp_get_max_threads(), prefix)};
   auto row_page_path =
       data::MakeId(prefix,
                    dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +

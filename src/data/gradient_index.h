@@ -18,6 +18,9 @@ namespace xgboost {
  *  index for CPU histogram.  On GPU ellpack page is used.
  */
 class GHistIndexMatrix {
+  void PushBatch(SparsePage const &batch, size_t rbegin, size_t prev_sum,
+                 uint32_t nbins, int32_t n_threads);
+
  public:
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
@@ -29,12 +32,16 @@ class GHistIndexMatrix {
   common::HistogramCuts cut;
   DMatrix* p_fmat;
   size_t max_num_bins;
+  size_t base_rowid{0};
 
-  GHistIndexMatrix(DMatrix* x, int32_t max_bin) {
-    this->Init(x, max_bin);
+  GHistIndexMatrix() = default;
+  GHistIndexMatrix(DMatrix* x, int32_t max_bin, common::Span<float> hess = {}) {
+    this->Init(x, max_bin, hess);
   }
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins);
+  void Init(DMatrix* p_fmat, int max_num_bins, common::Span<float> hess);
+  void Init(SparsePage const &page, common::HistogramCuts const &cuts,
+            int32_t max_bins_per_feat, bool is_dense, int32_t n_threads);
 
   // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>
@@ -76,6 +83,11 @@ class GHistIndexMatrix {
   }
   inline bool IsDense() const {
     return isDense_;
+  }
+  void SetDense(bool is_dense) { isDense_ = is_dense; }
+
+  bst_row_t Size() const {
+    return row_ptr.empty() ? 0 : row_ptr.size() - 1;
   }
 
  private:

@@ -94,26 +94,26 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalance(
 namespace {
 // Function to merge hessian and sample weights
 std::vector<float> MergeWeights(MetaInfo const &info,
-                                std::vector<float> const &hessian,
+                                Span<float> const hessian,
                                 bool use_group, int32_t n_threads) {
   CHECK_EQ(hessian.size(), info.num_row_);
   std::vector<float> results(hessian.size());
   auto const &group_ptr = info.group_ptr_;
+  auto const& weights = info.weights_.HostVector();
+  auto get_weight = [&](size_t i) { return weights.empty() ? 1.0f : weights[i]; };
   if (use_group) {
-    auto const &group_weights = info.weights_.HostVector();
     CHECK_GE(group_ptr.size(), 2);
     CHECK_EQ(group_ptr.back(), hessian.size());
     size_t cur_group = 0;
     for (size_t i = 0; i < hessian.size(); ++i) {
-      results[i] = hessian[i] * group_weights[cur_group];
+      results[i] = hessian[i] * get_weight(cur_group);
       if (i == group_ptr[cur_group + 1]) {
         cur_group++;
       }
     }
   } else {
-    auto const &sample_weights = info.weights_.HostVector();
     ParallelFor(hessian.size(), n_threads, Sched::Auto(),
-                [&](auto i) { results[i] = hessian[i] * sample_weights[i]; });
+                [&](auto i) { results[i] = hessian[i] * get_weight(i); });
   }
   return results;
 }
@@ -141,7 +141,7 @@ std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
 }  // anonymous namespace
 
 void HostSketchContainer::PushRowPage(
-    SparsePage const &page, MetaInfo const &info, std::vector<float> const &hessian) {
+    SparsePage const &page, MetaInfo const &info, Span<float> hessian) {
   monitor_.Start(__func__);
   bst_feature_t n_columns = info.num_col_;
   auto is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
