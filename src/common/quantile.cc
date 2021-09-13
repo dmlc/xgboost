@@ -12,7 +12,8 @@ namespace common {
 
 HostSketchContainer::HostSketchContainer(
     std::vector<bst_row_t> columns_size, int32_t max_bins,
-    common::Span<FeatureType> feature_types, bool use_group, int32_t n_threads)
+    common::Span<FeatureType const> feature_types, bool use_group,
+    int32_t n_threads)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)}, max_bins_{max_bins},
       use_group_ind_{use_group}, n_threads_{n_threads} {

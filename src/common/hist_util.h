@@ -128,6 +128,7 @@ inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
     }
   }
   HostSketchContainer container(reduced, max_bins,
+                                m->Info().feature_types.ConstHostSpan(),
                                 HostSketchContainer::UseGroup(info), threads);
   for (auto const &page : m->GetBatches<SparsePage>()) {
     container.PushRowPage(page, info, hessian);

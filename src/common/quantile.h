@@ -708,7 +708,7 @@ class HostSketchContainer {
  private:
   std::vector<WQSketch> sketches_;
   std::vector<std::set<bst_cat_t>> categories_;
-  std::vector<FeatureType> feature_types_;
+  std::vector<FeatureType> const feature_types_;
 
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
@@ -724,7 +724,7 @@ class HostSketchContainer {
    * \param use_group whether is assigned to group to data instance.
    */
   HostSketchContainer(std::vector<bst_row_t> columns_size, int32_t max_bins,
-                      common::Span<FeatureType> feature_types, bool use_group,
+                      common::Span<FeatureType const> feature_types, bool use_group,
                       int32_t n_threads);
 
   static bool UseGroup(MetaInfo const &info) {
