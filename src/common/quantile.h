@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -15,6 +15,7 @@
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 #include "timer.h"
 

@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>

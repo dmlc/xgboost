@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 

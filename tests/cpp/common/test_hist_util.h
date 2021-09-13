@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
 #pragma once
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>

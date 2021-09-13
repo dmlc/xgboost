@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
