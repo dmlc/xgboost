@@ -369,13 +369,13 @@ void HostSketchContainer::MakeCuts(HistogramCuts* cuts) {
   std::vector<WQSketch::SummaryContainer> final_summaries(reduced.size());
 
   ParallelFor(reduced.size(), n_threads_, Sched::Guided(), [&](size_t fidx) {
+    if (IsCat(feature_types_, fidx)) {
+      return;
+    }
     WQSketch::SummaryContainer &a = final_summaries[fidx];
     size_t max_num_bins = std::min(num_cuts[fidx], max_bins_);
     a.Reserve(max_num_bins + 1);
     CHECK(a.data);
-    if (IsCat(feature_types_, fidx)) {
-      return;
-    }
     if (num_cuts[fidx] != 0) {
       a.SetPrune(reduced[fidx], max_num_bins + 1);
       CHECK(a.data && reduced[fidx].data);
@@ -395,13 +395,13 @@ void HostSketchContainer::MakeCuts(HistogramCuts* cuts) {
       AddCategories(categories_.at(fid), cuts);
     } else {
       AddCutPoint(a, max_num_bins, cuts);
+      // push a value that is greater than anything
+      const bst_float cpt = (a.size > 0) ? a.data[a.size - 1].value
+                                         : cuts->min_vals_.HostVector()[fid];
+      // this must be bigger than last value in a scale
+      const bst_float last = cpt + (fabs(cpt) + 1e-5f);
+      cuts->cut_values_.HostVector().push_back(last);
     }
-    // push a value that is greater than anything
-    const bst_float cpt
-      = (a.size > 0) ? a.data[a.size - 1].value : cuts->min_vals_.HostVector()[fid];
-    // this must be bigger than last value in a scale
-    const bst_float last = cpt + (fabs(cpt) + 1e-5f);
-    cuts->cut_values_.HostVector().push_back(last);
 
     // Ensure that every feature gets at least one quantile point
     CHECK_LE(cuts->cut_values_.HostVector().size(), std::numeric_limits<uint32_t>::max());
