@@ -2474,8 +2474,13 @@ class Booster(object):
 
             raise ValueError(msg.format(self.feature_names, data.feature_names))
 
-    def get_split_value_histogram(self, feature, fmap='', bins=None,
-                                  as_pandas=True):
+    def get_split_value_histogram(
+        self,
+        feature: str,
+        fmap: Union[os.PathLike, str] = '',
+        bins: Optional[int] = None,
+        as_pandas: bool = True
+    ):
         """Get split value histogram of a feature
 
         Parameters
@@ -2523,7 +2528,7 @@ class Booster(object):
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-            if feature_t == "categorical":
+            if feature_t == "c":  # categorical
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
                 )
