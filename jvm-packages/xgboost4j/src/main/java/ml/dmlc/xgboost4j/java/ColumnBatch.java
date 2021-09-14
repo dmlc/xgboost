@@ -16,21 +16,17 @@
 
 package ml.dmlc.xgboost4j.java;
 
-import java.util.Iterator;
-
 /**
- * The abstracted XGBoost ColumnBatch to get cuda array interface which is used to build
- * the DMatrix on device.
- *
+ * The abstracted XGBoost ColumnBatch to get array interface from columnar data format.
+ * For example, the cuDF dataframe which employs apache arrow specificatrion.
  */
 public abstract class ColumnBatch implements AutoCloseable {
-
   /**
    * Get the cuda array interface json string for the whole ColumnBatch including
    * the must-have feature, label columns and the optional weight, base margin columns.
    *
-   * This API will be called by {@link DMatrix#DMatrix(Iterator, float, int, int)}
-   *
+   * This function is be called by native code during iteration and can be made as private
+   * method.  We keep it as public simply to silent the linter.
    */
   public final String getArrayInterfaceJson() {
     StringBuilder builder = new StringBuilder();
