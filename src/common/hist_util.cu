@@ -156,22 +156,24 @@ void RemoveDuplicatedCategories(
   auto d_old_column_sizes_scan = dh::ToSpan(column_sizes_scan);
   dh::caching_device_vector<SketchContainer::OffsetT> new_cuts_size(
       info.num_col_ + 1);
-  auto d_new_cuts_size = dh::ToSpan(new_cuts_size);
-  auto d_new_columns_ptr = dh::ToSpan(new_column_scan);
   CHECK_EQ(new_column_scan.size(), new_cuts_size.size());
-  dh::LaunchN(new_column_scan.size(), [=] __device__(size_t idx) {
-    d_old_column_sizes_scan[idx] = d_new_columns_ptr[idx];
-    if (idx == d_new_columns_ptr.size() - 1) {
-      return;
-    }
-    if (IsCat(d_feature_types, idx)) {
-      // Cut size is the same as number of categories in input.
-      d_new_cuts_size[idx] =
-          d_new_columns_ptr[idx + 1] - d_new_columns_ptr[idx];
-    } else {
-      d_new_cuts_size[idx] = d_cuts_ptr[idx] - d_cuts_ptr[idx];
-    }
-  });
+  dh::LaunchN(
+      new_column_scan.size(),
+      [=, d_new_cuts_size = dh::ToSpan(new_cuts_size),
+       d_old_column_sizes_scan = dh::ToSpan(column_sizes_scan),
+       d_new_columns_ptr = dh::ToSpan(new_column_scan)] __device__(size_t idx) {
+        d_old_column_sizes_scan[idx] = d_new_columns_ptr[idx];
+        if (idx == d_new_columns_ptr.size() - 1) {
+          return;
+        }
+        if (IsCat(d_feature_types, idx)) {
+          // Cut size is the same as number of categories in input.
+          d_new_cuts_size[idx] =
+              d_new_columns_ptr[idx + 1] - d_new_columns_ptr[idx];
+        } else {
+          d_new_cuts_size[idx] = d_cuts_ptr[idx + 1] - d_cuts_ptr[idx];
+        }
+      });
   // Turn size into ptr.
   thrust::exclusive_scan(thrust::device, new_cuts_size.cbegin(),
                          new_cuts_size.cend(), d_cuts_ptr.data());
