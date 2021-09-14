@@ -32,7 +32,34 @@ public abstract class ColumnBatch implements AutoCloseable {
    * This API will be called by {@link DMatrix#DMatrix(Iterator, float, int, int)}
    *
    */
-  public abstract String getArrayInterfaceJson();
+  public final String getArrayInterfaceJson() {
+    StringBuilder builder = new StringBuilder();
+    builder.append("{");
+    String featureStr = this.getFeatureArrayInterface();
+    if (featureStr == null || featureStr.isEmpty()) {
+      throw new RuntimeException("Feature json must not be empty");
+    } else {
+      builder.append("\"features_str\":" + featureStr);
+    }
+
+    String labelStr = this.getLabelsArrayInterface();
+    if (labelStr != null && ! labelStr.isEmpty()) {
+      builder.append(",\"label_str\":" + labelStr);
+    }
+
+    String weightStr = getWeightsArrayInterface();
+    if (weightStr != null && ! weightStr.isEmpty()) {
+      builder.append(",\"weight_str\":" + weightStr);
+    }
+
+    String baseMarginStr = getBaseMarginsArrayInterface();
+    if (baseMarginStr != null && ! baseMarginStr.isEmpty()) {
+      builder.append(",\"basemargin_str\":" + baseMarginStr);
+    }
+
+    builder.append("}");
+    return builder.toString();
+  }
 
   /**
    * Get the cuda array interface of the feature columns.

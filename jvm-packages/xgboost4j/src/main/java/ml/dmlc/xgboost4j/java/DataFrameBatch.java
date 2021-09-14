@@ -24,18 +24,15 @@ import java.util.Iterator;
  * This class is used to support advanced creation of DMatrix from Iterator of DataFrameBatch,
  */
 class DataFrameBatch implements AutoCloseable {
-
-  private String arrayInterfaceJson;
   private ColumnBatch columnBatch;
 
-  public DataFrameBatch(ColumnBatch columnBatch, String arrayInterfaceJson) {
+  public DataFrameBatch(ColumnBatch columnBatch) {
     this.columnBatch = columnBatch;
-    this.arrayInterfaceJson = arrayInterfaceJson;
   }
 
   // Called from native
   public String getArrayInterfaceJson() {
-    return arrayInterfaceJson;
+    return this.columnBatch.getArrayInterfaceJson();
   }
 
   // Called from native
@@ -59,7 +56,7 @@ class DataFrameBatch implements AutoCloseable {
     @Override
     public DataFrameBatch next() {
       ColumnBatch columnBatch = base.next();
-      return new DataFrameBatch(columnBatch, columnBatch.getArrayInterfaceJson());
+      return new DataFrameBatch(columnBatch);
     }
   }
 }
