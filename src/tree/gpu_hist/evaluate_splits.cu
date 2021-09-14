@@ -138,7 +138,7 @@ EvaluateSplitsGenerateSplitCandidatesViaScan(
       // Right child node
       return EvaluateSplitsHistEntry{1, idx - left_hist_size, forward};
     }
-  };
+  };  // NOLINT (readability/braces)
   auto bin_iter = dh::MakeTransformIterator<EvaluateSplitsHistEntry>(count_iter, map_to_hist_bin);
   auto scan_input_iter =
       dh::MakeTransformIterator<ScanElem<GradientSumT>>(
@@ -224,7 +224,7 @@ template <typename GradientSumT>
 __device__ ScanElem<GradientSumT>
 ScanOp<GradientSumT>::operator() (ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs) {
   return DoIt(lhs, rhs);
-};
+}
 
 template <typename GradientSumT>
 ReduceElem<GradientSumT>
