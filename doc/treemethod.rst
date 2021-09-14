@@ -19,9 +19,9 @@ Exact Solution
 Exact means XGBoost considers all candidates from data for tree splitting, but underlying
 the objective is still interpreted as a Taylor expansion.
 
-1. ``exact``: Vanilla tree boosting tree algorithm described in `reference paper
+1. ``exact``: Vanilla gradient boosting tree algorithm described in `reference paper
    <http://arxiv.org/abs/1603.02754>`_.  During each split finding procedure, it iterates
-   over every entry of input data.  It's more accurate (among other greedy methods) but
+   over all entries of input data.  It's more accurate (among other greedy methods) but
    slow in computation performance.  Also it doesn't support distributed training as
    XGBoost employs row spliting data distribution while ``exact`` tree method works on a
    sorted column format.  This tree method can be used with parameter ``tree_method`` set
