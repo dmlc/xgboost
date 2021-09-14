@@ -139,7 +139,7 @@ class XGBoostJNI {
     long handle, String field, String json);
 
   public final static native int XGDeviceQuantileDMatrixCreateFromCallback(
-    java.util.Iterator<DataFrameBatch> iter, float missing, int nthread, int maxBin, long[] out);
+    java.util.Iterator<ColumnBatch> iter, float missing, int nthread, int maxBin, long[] out);
 
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
     String featureJson, float missing, int nthread, long[] out);

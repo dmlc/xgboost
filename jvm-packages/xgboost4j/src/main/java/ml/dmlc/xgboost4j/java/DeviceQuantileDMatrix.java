@@ -16,9 +16,8 @@ public class DeviceQuantileDMatrix extends DMatrix {
   ) throws XGBoostError {
     super(0);
     long[] out = new long[1];
-    Iterator<DataFrameBatch> batchIter = new DataFrameBatch.BatchIterator(iter);
     XGBoostJNI.checkCall(XGBoostJNI.XGDeviceQuantileDMatrixCreateFromCallback(
-        batchIter, missing, maxBin, nthread, out));
+        iter, missing, maxBin, nthread, out));
     handle = out[0];
   }
 
