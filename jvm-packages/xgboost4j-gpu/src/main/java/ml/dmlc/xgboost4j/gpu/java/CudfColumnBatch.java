@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.gpu.java;
 
 import java.util.Arrays;
 
-import ai.rapids.cudf.ColumnVector;
 import ai.rapids.cudf.Table;
 
 import ml.dmlc.xgboost4j.java.ColumnBatch;
@@ -37,10 +36,6 @@ public class CudfColumnBatch extends ColumnBatch {
     this.labels = labels;
     this.weights = weights;
     this.baseMargins = baseMargins;
-  }
-
-  public ColumnVector getColumnVector(int index) {
-    return table.getColumn(index);
   }
 
   private int[] buildIndices(Table val) {
