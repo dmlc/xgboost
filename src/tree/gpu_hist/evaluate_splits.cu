@@ -246,11 +246,17 @@ __noinline__ __device__ ReduceValueOp<GradientSumT>::DoIt(ScanElem<GradientSumT>
         right_sum = e.partial_sum;
       }
     }
-    bst_node_t nidx = (e.node_idx == 0) ? left.nidx : right.nidx;
-    float gain = evaluator.CalcSplitGain(left.param, nidx, e.findex, GradStats{left_sum},
-                                         GradStats{right_sum});
-    float parent_gain = evaluator.CalcGain(left.nidx, left.param, GradStats{e.parent_sum});
-    ret.loss_chg = gain - parent_gain;
+    if (left_sum.GetHess() >= left.param.min_child_weight
+        && right_sum.GetHess() >= left.param.min_child_weight) {
+      // Enforce min_child_weight constraint
+      bst_node_t nidx = (e.node_idx == 0) ? left.nidx : right.nidx;
+      float gain = evaluator.CalcSplitGain(left.param, nidx, e.findex, GradStats{left_sum},
+                                           GradStats{right_sum});
+      float parent_gain = evaluator.CalcGain(left.nidx, left.param, GradStats{e.parent_sum});
+      ret.loss_chg = gain - parent_gain;
+    } else {
+      ret.loss_chg = std::numeric_limits<float>::lowest();
+    }
   }
   ret.findex = e.findex;
   ret.node_idx = e.node_idx;
