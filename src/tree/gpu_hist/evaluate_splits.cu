@@ -159,7 +159,7 @@ EvaluateSplitsGenerateSplitCandidatesViaScan(
 }
 
 template <typename GradientSumT>
-__noinline__ __device__ ScanElem<GradientSumT>
+__device__ ScanElem<GradientSumT>
 ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
     EvaluateSplitsHistEntry entry,
     EvaluateSplitInputs<GradientSumT> split_input) {
@@ -189,14 +189,14 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
 }
 
 template <typename GradientSumT>
-__noinline__ __device__ ScanElem<GradientSumT>
+__device__ ScanElem<GradientSumT>
 ScanValueOp<GradientSumT>::operator() (EvaluateSplitsHistEntry entry) {
   return MapEvaluateSplitsHistEntryToScanElem(
       entry, (entry.node_idx == 0 ? this->left : this->right));
 }
 
 template <typename GradientSumT>
-__noinline__ __device__ ScanElem<GradientSumT>
+__device__ ScanElem<GradientSumT>
 ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs) {
   ScanElem<GradientSumT> ret;
   if (lhs.findex != rhs.findex || lhs.node_idx != rhs.node_idx || lhs.forward != rhs.forward) {
@@ -221,14 +221,14 @@ ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rh
 }
 
 template <typename GradientSumT>
-__noinline__ __device__ ScanElem<GradientSumT>
+__device__ ScanElem<GradientSumT>
 ScanOp<GradientSumT>::operator() (ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rhs) {
   return DoIt(lhs, rhs);
 };
 
 template <typename GradientSumT>
 ReduceElem<GradientSumT>
-__noinline__ __device__ ReduceValueOp<GradientSumT>::DoIt(ScanElem<GradientSumT> e) {
+__device__ ReduceValueOp<GradientSumT>::DoIt(ScanElem<GradientSumT> e) {
   ReduceElem<GradientSumT> ret;
   ret.partial_sum = e.partial_sum;
   ret.parent_sum = e.parent_sum;
@@ -268,7 +268,7 @@ __noinline__ __device__ ReduceValueOp<GradientSumT>::DoIt(ScanElem<GradientSumT>
 
 template <typename GradientSumT>
 ReduceElem<GradientSumT>
-__noinline__ __device__ ReduceValueOp<GradientSumT>::operator() (ScanElem<GradientSumT> e) {
+__device__ ReduceValueOp<GradientSumT>::operator() (ScanElem<GradientSumT> e) {
   return DoIt(e);
 }
 

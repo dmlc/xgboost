@@ -53,10 +53,10 @@ struct ScanValueOp {
 
   using ScanElemT = ScanElem<GradientSumT>;
 
-  __noinline__ __device__ ScanElemT MapEvaluateSplitsHistEntryToScanElem(
+  __device__ ScanElemT MapEvaluateSplitsHistEntryToScanElem(
       EvaluateSplitsHistEntry entry,
       EvaluateSplitInputs<GradientSumT> split_input);
-  __noinline__ __device__ ScanElemT
+  __device__ ScanElemT
   operator() (EvaluateSplitsHistEntry entry);
 };
 
@@ -67,8 +67,8 @@ struct ScanOp {
 
   using ScanElemT = ScanElem<GradientSumT>;
 
-  __noinline__ __device__ ScanElemT DoIt(ScanElemT lhs, ScanElemT rhs);
-  __noinline__ __device__ ScanElemT operator() (ScanElemT lhs, ScanElemT rhs);
+  __device__ ScanElemT DoIt(ScanElemT lhs, ScanElemT rhs);
+  __device__ ScanElemT operator() (ScanElemT lhs, ScanElemT rhs);
 };
 
 template <typename GradientSumT>
@@ -91,8 +91,8 @@ struct ReduceValueOp {
   using ScanElemT = ScanElem<GradientSumT>;
   using ReduceElemT = ReduceElem<GradientSumT>;
 
-  __noinline__ __device__ ReduceElemT DoIt(ScanElemT e);
-  __noinline__ __device__ ReduceElemT operator() (ScanElemT e);
+  __device__ ReduceElemT DoIt(ScanElemT e);
+  __device__ ReduceElemT operator() (ScanElemT e);
 };
 
 template <typename GradientSumT>
