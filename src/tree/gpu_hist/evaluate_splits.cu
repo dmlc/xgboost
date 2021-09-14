@@ -166,11 +166,11 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
   ScanElem<GradientSumT> ret;
   ret.node_idx = entry.node_idx;
   ret.hist_idx = entry.hist_idx;
-  ret.gpair = split_input.gradient_histogram[entry.hist_idx];
   ret.findex = static_cast<int32_t>(dh::SegmentId(split_input.feature_segments, entry.hist_idx));
   ret.fvalue = split_input.feature_values[entry.hist_idx];
   ret.is_cat = IsCat(split_input.feature_types, ret.findex);
   ret.forward = entry.forward;
+  ret.gpair = split_input.gradient_histogram[entry.hist_idx];
   ret.parent_sum = split_input.parent_sum;
   if (((entry.node_idx == 0) &&
        (left.feature_set.size() != left.feature_segments.size()) &&
@@ -183,13 +183,7 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
     // Column sampling
     return ret;
   }
-  if ((entry.forward && split_input.feature_segments[ret.findex] == entry.hist_idx) ||
-      (!entry.forward && split_input.feature_segments[ret.findex + 1] - 1 == entry.hist_idx)) {
-    /**
-     * For the element at the beginning of each segment, initialize partial_sum appropriately.
-     **/
-    ret.partial_sum = ret.gpair;
-  }
+  ret.partial_sum = ret.gpair;
 
   return ret;
 }
@@ -222,11 +216,7 @@ ScanOp<GradientSumT>::DoIt(ScanElem<GradientSumT> lhs, ScanElem<GradientSumT> rh
   }
 
   ret = rhs;
-  if (lhs.is_cat) {
-    ret.partial_sum = rhs.gpair;
-  } else {
-    ret.partial_sum = lhs.partial_sum + rhs.gpair;
-  }
+  ret.partial_sum = lhs.partial_sum + rhs.partial_sum;
   return ret;
 }
 
@@ -245,8 +235,8 @@ __noinline__ __device__ ReduceValueOp<GradientSumT>::DoIt(ScanElem<GradientSumT>
   {
     GradientSumT left_sum, right_sum;
     if (e.is_cat) {
-      left_sum = e.parent_sum - e.partial_sum;
-      right_sum = e.partial_sum;
+      left_sum = e.parent_sum - e.gpair;
+      right_sum = e.gpair;
     } else {
       if (e.forward) {
         left_sum = e.partial_sum;
