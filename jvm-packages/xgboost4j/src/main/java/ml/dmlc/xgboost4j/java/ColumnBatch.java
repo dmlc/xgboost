@@ -43,5 +43,4 @@ public abstract class ColumnBatch implements AutoCloseable {
 
   @Override
   public void close() throws Exception {}
-
 }
