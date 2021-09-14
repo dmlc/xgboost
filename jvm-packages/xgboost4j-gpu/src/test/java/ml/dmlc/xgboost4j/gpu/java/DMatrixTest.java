@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import ai.rapids.cudf.Table;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.DeviceQuantileDMatrix;
 import ml.dmlc.xgboost4j.java.ColumnBatch;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
@@ -42,18 +43,17 @@ public class DMatrixTest {
     Float[] labelFloats = new Float[]{2f, 4f, 6f, 8f, 10f};
 
     Throwable ex = null;
-    try (
-      Table table = new Table.TestBuilder()
-        .column(1.f, null, 5.f, 7.f, 9.f) // the feature columns
-        .column(labelFloats)              // the label column
-        .build()) {
+    try {
+      Table X = new Table.TestBuilder().column(1.f, null, 5.f, 7.f, 9.f).build();
+      Table y = new Table.TestBuilder().column(labelFloats).build();
+      Table w = new Table.TestBuilder().column(labelFloats).build();
+      Table margin = new Table.TestBuilder().column(labelFloats).build();
 
-      CudfColumnBatch cudfDataFrame = new CudfColumnBatch(table, new int[]{0}, new int[]{1}, new int[]{1},
-        new int[]{1});
+      CudfColumnBatch cudfDataFrame = new CudfColumnBatch(X, y, w, null);
 
-      CudfColumn labelColumn = CudfColumn.from(table.getColumn(1));
-      CudfColumn weightColumn = CudfColumn.from(table.getColumn(1));
-      CudfColumn baseMarginColumn = CudfColumn.from(table.getColumn(1));
+      CudfColumn labelColumn = CudfColumn.from(y.getColumn(0));
+      CudfColumn weightColumn = CudfColumn.from(w.getColumn(0));
+      CudfColumn baseMarginColumn = CudfColumn.from(margin.getColumn(0));
 
       DMatrix dMatrix = new DMatrix(cudfDataFrame, 0, 1);
       dMatrix.setLabel(labelColumn);
@@ -87,27 +87,25 @@ public class DMatrixTest {
     Float[] baseMargin2 = {0.2f, 2.5f, 3.1f, 4.4f, 2.2f};
 
     try (
-      Table table = new Table.TestBuilder()
-        .column(1.2f, null, 5.2f, 7.2f, 9.2f)
-        .column(0.2f, 0.4f, 0.6f, 2.6f, 0.10f)
-        .column(label1)
-        .column(weight1)
-        .column(baseMargin1)
-        .build();
-      Table table1 = new Table.TestBuilder()
-        .column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f)
-        .column(1.2f, 1.4f, null, 12.6f, 10.10f)
-        .column(label2)
-        .column(weight2)
-        .column(baseMargin2)
-        .build()) {
+        Table X_0 = new Table.TestBuilder().column(1.2f, null, 5.2f, 7.2f, 9.2f).column(0.2f, 0.4f, 0.6f, 2.6f, 0.10f)
+            .build();
+        Table y_0 = new Table.TestBuilder().column(label1).build();
+        Table w_0 = new Table.TestBuilder().column(weight1).build();
+        Table m_0 = new Table.TestBuilder().column(baseMargin1).build();
+
+        Table X_1 = new Table.TestBuilder().column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f)
+            .column(1.2f, 1.4f, null, 12.6f, 10.10f).build();
+        Table y_1 = new Table.TestBuilder().column(label2).build();
+        Table w_1 = new Table.TestBuilder().column(weight2).build();
+        Table m_1 = new Table.TestBuilder().column(baseMargin2).build();
+    ) {
 
       List<ColumnBatch> tables = new LinkedList<>();
 
-      tables.add(new CudfColumnBatch(table, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
-      tables.add(new CudfColumnBatch(table1, new int[]{0, 1}, new int[]{2}, new int[]{3}, new int[]{4}));
+      tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0));
+      tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1));
 
-      DMatrix dmat = new DMatrix(tables.iterator(), 0.0f, 8, 1);
+      DMatrix dmat = new DeviceQuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
 
       float[] anchorLabel = convertFloatTofloat((Float[]) ArrayUtils.addAll(label1, label2));
       float[] anchorWeight = convertFloatTofloat((Float[]) ArrayUtils.addAll(weight1, weight2));
@@ -122,5 +120,4 @@ public class DMatrixTest {
   private float[] convertFloatTofloat(Float[] in) {
     return Floats.toArray(Arrays.asList(in));
   }
-
 }

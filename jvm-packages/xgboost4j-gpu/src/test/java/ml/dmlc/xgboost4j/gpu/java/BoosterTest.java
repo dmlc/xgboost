@@ -29,10 +29,12 @@ import org.junit.Test;
 import ai.rapids.cudf.DType;
 import ai.rapids.cudf.Schema;
 import ai.rapids.cudf.Table;
+import ai.rapids.cudf.ColumnVector;
 import ai.rapids.cudf.CSVOptions;
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.ColumnBatch;
 import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.DeviceQuantileDMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
@@ -83,7 +85,16 @@ public class BoosterTest {
 
     try (Table tmpTable = Table.readCSV(schema, opts,
 					new File(trainingDataPath))) {
-      CudfColumnBatch batch = new CudfColumnBatch(tmpTable, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, new int[]{12});
+      ColumnVector[] df = new ColumnVector[12];
+      for (int i = 0; i < 12; ++i) {
+        df[i] = tmpTable.getColumn(i);
+      }
+      Table X = new Table(df);
+      ColumnVector[] labels = new ColumnVector[1];
+      labels[0] = tmpTable.getColumn(12);
+      Table y = new Table(labels);
+
+      CudfColumnBatch batch = new CudfColumnBatch(X, y, null, null);
       CudfColumn labelColumn = CudfColumn.from(tmpTable.getColumn(12));
 
       //set watchList
@@ -96,7 +107,7 @@ public class BoosterTest {
 
       List<ColumnBatch> tables = new LinkedList<>();
       tables.add(batch);
-      DMatrix incrementalDMatrix = new DMatrix(tables.iterator(), Float.NaN, maxBin, 1);
+      DMatrix incrementalDMatrix = new DeviceQuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
       //set watchList
       HashMap<String, DMatrix> watches1 = new HashMap<>();
       watches1.put("train", incrementalDMatrix);

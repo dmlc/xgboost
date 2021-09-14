@@ -54,6 +54,7 @@ public class CudfColumnBatch extends ColumnBatch {
   @Override
   public String getArrayInterfaceJson() {
     StringBuilder builder = new StringBuilder();
+    builder.append("{");
     String featureStr = getArrayInterface(this.table);
     if (featureStr == null || featureStr.isEmpty()) {
       throw new RuntimeException("Feature json must not be empty");

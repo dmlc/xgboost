@@ -11,7 +11,9 @@ public class DeviceQuantileDMatrix extends DMatrix {
    * @param nthread the parallelism
    * @throws XGBoostError
    */
-  public DeviceQuantileDMatrix(Iterator<ColumnBatch> iter, float missing, int maxBin, int nthread) throws XGBoostError {
+  public DeviceQuantileDMatrix(
+      Iterator<ColumnBatch> iter, float missing, int maxBin, int nthread
+  ) throws XGBoostError {
     super(0);
     long[] out = new long[1];
     Iterator<DataFrameBatch> batchIter = new DataFrameBatch.BatchIterator(iter);
