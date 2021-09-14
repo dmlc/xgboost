@@ -41,6 +41,12 @@ public abstract class ColumnBatch implements AutoCloseable {
    */
   public abstract String getFeatureArrayInterface();
 
+  public abstract String getLabelsArrayInterface();
+
+  public abstract String getWeightsArrayInterface();
+
+  public abstract String getBaseMarginsArrayInterface();
+
   @Override
   public void close() throws Exception {}
 }
