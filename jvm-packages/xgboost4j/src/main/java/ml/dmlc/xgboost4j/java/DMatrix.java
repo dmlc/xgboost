@@ -119,6 +119,33 @@ public class DMatrix {
 
   /**
    * create DMatrix from dense matrix
+   *
+   * @param data data values
+   * @param nrow number of rows
+   * @param ncol number of columns
+   * @throws XGBoostError native error
+   *
+   * @deprecated Please specify the missing value explicitly
+   */
+  @Deprecated
+  public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
+    long[] out = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));
+    handle = out[0];
+  }
+
+  /**
+   * create DMatrix from a BigDenseMatrix
+   *
+   * @param matrix instance of BigDenseMatrix
+   * @throws XGBoostError native error
+   */
+  public DMatrix(BigDenseMatrix matrix) throws XGBoostError {
+    this(matrix, 0.0f);
+  }
+
+  /**
+   * create DMatrix from dense matrix
    * @param data data values
    * @param nrow number of rows
    * @param ncol number of columns
