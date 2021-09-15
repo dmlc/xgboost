@@ -435,6 +435,9 @@ class XGBModel(XGBModelBase):
         '''Tags used for scikit-learn data validation.'''
         return {'allow_nan': True, 'no_validation': True}
 
+    def __sklearn_is_fitted__(self) -> bool:
+        return hasattr(self, "_Booster")
+
     def get_booster(self) -> Booster:
         """Get the underlying xgboost Booster of this model.
 
@@ -444,7 +447,7 @@ class XGBModel(XGBModelBase):
         -------
         booster : a xgboost booster of underlying model
         """
-        if not hasattr(self, '_Booster'):
+        if not self.__sklearn_is_fitted__():
             from sklearn.exceptions import NotFittedError
             raise NotFittedError('need to call fit or load_model beforehand')
         return self._Booster
@@ -538,7 +541,7 @@ class XGBModel(XGBModelBase):
             'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder',
             "enable_categorical"
         }
-        filtered = dict()
+        filtered = {}
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
                 filtered[k] = v
@@ -557,7 +560,7 @@ class XGBModel(XGBModelBase):
         return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
-        meta = dict()
+        meta = {}
         for k, v in self.__dict__.items():
             if k == '_le':
                 meta['_le'] = self._le.to_json()
@@ -596,7 +599,7 @@ class XGBModel(XGBModelBase):
             )
             return
         meta = json.loads(meta_str)
-        states = dict()
+        states = {}
         for k, v in meta.items():
             if k == '_le':
                 self._le = XGBoostLabelEncoder()
@@ -1289,7 +1292,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         X: array_like,
         ntree_limit: Optional[int] = None,
-        validate_features: bool = False,
+        validate_features: bool = True,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:

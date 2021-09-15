@@ -169,19 +169,17 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
 }
 
 #ifndef XGBOOST_USE_CUDA
-XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
-                                                     bst_float missing,
-                                                     int nthread,
-                                                     DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
+                                            char const* c_json_config,
+                                            DMatrixHandle *out) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
-                                              bst_float missing,
-                                              int nthread,
-                                              DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
+                                                  char const* c_json_config,
+                                                  DMatrixHandle *out) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();

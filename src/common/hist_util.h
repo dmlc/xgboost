@@ -111,7 +111,7 @@ class HistogramCuts {
 };
 
 inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
-                                     std::vector<float> const &hessian = {}) {
+                                     Span<float> const hessian = {}) {
   HistogramCuts out;
   auto const& info = m->Info();
   const auto threads = omp_get_max_threads();
@@ -136,7 +136,7 @@ inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
   return out;
 }
 
-enum BinTypeSize {
+enum BinTypeSize : uint32_t {
   kUint8BinsTypeSize  = 1,
   kUint16BinsTypeSize = 2,
   kUint32BinsTypeSize = 4
@@ -204,6 +204,13 @@ struct Index {
     return data_.begin();
   }
   std::vector<uint8_t>::const_iterator end() const {  // NOLINT
+    return data_.end();
+  }
+
+  std::vector<uint8_t>::iterator begin() {  // NOLINT
+    return data_.begin();
+  }
+  std::vector<uint8_t>::iterator end() {  // NOLINT
     return data_.end();
   }
 

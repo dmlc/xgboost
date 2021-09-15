@@ -94,10 +94,12 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
   if (!(batch_param_ != BatchParam{})) {
     CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
   }
-  if (!gradient_index_  || (batch_param_ != param && param != BatchParam{})) {
+  if (!gradient_index_  || (batch_param_ != param && param != BatchParam{}) || param.regen) {
     CHECK_GE(param.max_bin, 2);
-    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin));
+    CHECK_EQ(param.gpu_id, -1);
+    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin, param.hess));
     batch_param_ = param;
+    CHECK_EQ(batch_param_.hess.data(), param.hess.data());
   }
   auto begin_iter = BatchIterator<GHistIndexMatrix>(
       new SimpleBatchIteratorImpl<GHistIndexMatrix>(gradient_index_));

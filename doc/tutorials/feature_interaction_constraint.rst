@@ -61,7 +61,7 @@ Potential benefits include:
 * Less noise in predictions; better generalization
 * More control to the user on what the model can fit. For example, the user may
   want to exclude some interactions even if they perform well due to regulatory
-  constraints
+  constraints.
 
 ****************
 A Simple Example
@@ -127,11 +127,19 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
   Source(source, format='png').render('../_static/feature_interaction_illustration3', view=False)
   Source(source, format='svg').render('../_static/feature_interaction_illustration3', view=False)
 
+.. |fig1| image:: ../_static/feature_interaction_illustration2.svg
+   :scale: 7%
+   :align: middle  
 
-.. figure:: ../_static/feature_interaction_illustration2.svg
-   :align: left
+.. |fig2| image:: ../_static/feature_interaction_illustration3.svg
+   :scale: 7%
+   :align: middle
 
-.. figure:: ../_static/feature_interaction_illustration3.svg
++-----------+---------+
+| |fig1|    | |fig2|  |
++-----------+---------+
+| forbidden | allowed |
++-----------+---------+
 
 
 ****************************************************
@@ -175,15 +183,15 @@ to set the ``tree_method`` parameter to one of the following: ``exact``, ``hist`
 Advanced topic
 **************
 
-The intuition behind interaction constraint is simple.  User have prior knowledge about
+The intuition behind interaction constraints is simple.  Users may have prior knowledge about
 relations between different features, and encode it as constraints during model
 construction.  But there are also some subtleties around specifying constraints.  Take
-constraint ``[[1, 2], [2, 3, 4]]`` as an example, the second feature appears in two
-different interaction sets ``[1, 2]`` and ``[2, 3, 4]``, so the union set of features
-allowed to interact with ``2`` is ``{1, 3, 4}``.  In following diagram, root splits at
-feature ``2``.  because all its descendants should be able to interact with it, so at the
-second layer all 4 features are legitimate split candidates for further splitting,
-disregarding specified constraint sets.
+the constraint ``[[1, 2], [2, 3, 4]]`` as an example.  The second feature appears in two
+different interaction sets, ``[1, 2]`` and ``[2, 3, 4]``.  So the union set of features
+allowed to interact with ``2`` is ``{1, 3, 4}``.  In the following diagram, the root splits at
+feature ``2``.  Because all its descendants should be able to interact with it, all 4 features
+are legitimate split candidates at the second layer. At first sight, this might look like
+disregarding the specified constraint sets, but it is not.
 
 .. plot::
   :nofigs:
@@ -221,17 +229,17 @@ disregarding specified constraint sets.
 This has lead to some interesting implications of feature interaction constraints.  Take
 ``[[0, 1], [0, 1, 2], [1, 2]]`` as another example.  Assuming we have only 3 available
 features in our training datasets for presentation purpose, careful readers might have
-found out that the above constraint is same with ``[0, 1, 2]``.  Since no matter which
-feature is chosen for split in root node, all its descendants have to include every
-feature as legitimate split candidates to avoid violating interaction constraints.
+found out that the above constraint is the same as simply ``[[0, 1, 2]]``.  Since no matter which
+feature is chosen for split in the root node, all its descendants are allowd to include every
+feature as legitimate split candidates without violating interaction constraints.
 
 For one last example, we use ``[[0, 1], [1, 3, 4]]`` and choose feature ``0`` as split for
-root node.  At the second layer of built tree, ``1`` is the only legitimate split
+the root node.  At the second layer of the built tree, ``1`` is the only legitimate split
 candidate except for ``0`` itself, since they belong to the same constraint set.
-Following the grow path of our example tree below, the node at second layer splits at
+Following the grow path of our example tree below, the node at the second layer splits at
 feature ``1``.  But due to the fact that ``1`` also belongs to second constraint set ``[1,
-3, 4]``, at third layer, we need to include all features as candidates to comply with its
-ascendants.
+3, 4]``, at the third layer, we are allowed to include all features as split candidates and
+still comply with the interaction constraints of its ascendants.
 
 .. plot::
   :nofigs:

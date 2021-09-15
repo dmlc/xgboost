@@ -760,7 +760,7 @@ class HostSketchContainer {
 
   /* \brief Push a CSR matrix. */
   void PushRowPage(SparsePage const &page, MetaInfo const &info,
-                   std::vector<float> const &hessian = {});
+                   Span<float> const hessian = {});
 
   void MakeCuts(HistogramCuts* cuts);
 };

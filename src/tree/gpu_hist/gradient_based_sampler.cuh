@@ -68,7 +68,7 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
  public:
   ExternalMemoryUniformSampling(EllpackPageImpl const* page,
                                 size_t n_rows,
-                                const BatchParam& batch_param,
+                                BatchParam batch_param,
                                 float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
@@ -102,7 +102,7 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  public:
   ExternalMemoryGradientBasedSampling(EllpackPageImpl const* page,
                                       size_t n_rows,
-                                      const BatchParam& batch_param,
+                                      BatchParam batch_param,
                                       float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 

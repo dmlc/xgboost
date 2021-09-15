@@ -2197,7 +2197,8 @@ class Booster(object):
         """
         if isinstance(fout, (STRING_TYPES, os.PathLike)):
             fout = os.fspath(os.path.expanduser(fout))
-            fout = open(fout, 'w')  # pylint: disable=consider-using-with
+            # pylint: disable=consider-using-with
+            fout = open(fout, 'w', encoding="utf-8")
             need_close = True
         else:
             need_close = False

@@ -24,7 +24,7 @@ The same code runs on major distributed environment (Kubernetes, Hadoop, SGE, MP
 
 License
 -------
-© Contributors, 2019. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
+© Contributors, 2021. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
 
 Contribute to XGBoost
 ---------------------

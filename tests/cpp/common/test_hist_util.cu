@@ -165,6 +165,32 @@ TEST(HistUtil, DeviceSketchCategoricalFeatures) {
   TestCategoricalSketch(1000, 256, 32, true);
 }
 
+void TestMixedSketch() {
+  size_t n_samples = 1000, n_features = 2, n_categories = 3;
+  std::vector<float> data(n_samples * n_features);
+  SimpleLCG gen;
+  SimpleRealUniformDistribution<float> cat_d{0.0f, float(n_categories)};
+  SimpleRealUniformDistribution<float> num_d{0.0f, 3.0f};
+  for (size_t i = 0; i < n_samples * n_features; ++i) {
+    if (i % 2 == 0) {
+      data[i] = std::floor(cat_d(&gen));
+    } else {
+      data[i] = num_d(&gen);
+    }
+  }
+
+  auto m = GetDMatrixFromData(data, n_samples, n_features);
+  m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
+  m->Info().feature_types.HostVector().push_back(FeatureType::kNumerical);
+
+  auto cuts = DeviceSketch(0, m.get(), 64);
+  ASSERT_EQ(cuts.Values().size(), 64 + n_categories);
+}
+
+TEST(HistUtil, DeviceSketchMixedFeatures) {
+  TestMixedSketch();
+}
+
 TEST(HistUtil, DeviceSketchMultipleColumns) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};

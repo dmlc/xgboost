@@ -421,17 +421,17 @@ def _transform_cudf_df(data, feature_names, feature_types, enable_categorical):
 
 def _from_cudf_df(
     data, missing, nthread, feature_names, feature_types, enable_categorical
-):
+) -> Tuple[ctypes.c_void_p, Any, Any]:
     data, feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
     _, interfaces_str = _cudf_array_interfaces(data)
     handle = ctypes.c_void_p()
+    config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
-        _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
+        _LIB.XGDMatrixCreateFromCudaColumnar(
             interfaces_str,
-            ctypes.c_float(missing),
-            ctypes.c_int(nthread),
+            config,
             ctypes.byref(handle),
         )
     )
@@ -469,11 +469,11 @@ def _from_cupy_array(data, missing, nthread, feature_names, feature_types):
     data = _transform_cupy_array(data)
     interface_str = _cuda_array_interface(data)
     handle = ctypes.c_void_p()
+    config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
-        _LIB.XGDMatrixCreateFromArrayInterface(
+        _LIB.XGDMatrixCreateFromCudaArrayInterface(
             interface_str,
-            ctypes.c_float(missing),
-            ctypes.c_int(nthread),
+            config,
             ctypes.byref(handle)))
     return handle, feature_names, feature_types
 

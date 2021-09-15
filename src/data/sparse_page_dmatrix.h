@@ -8,6 +8,7 @@
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
 #include <xgboost/data.h>
+#include <xgboost/logging.h>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -16,6 +17,7 @@
 #include <map>
 
 #include "ellpack_page_source.h"
+#include "gradient_index_page_source.h"
 #include "sparse_page_source.h"
 
 namespace xgboost {
@@ -67,7 +69,7 @@ class SparsePageDMatrix : public DMatrix {
   XGDMatrixCallbackNext *next_;
 
   float missing_;
-  int nthreads_;
+  GenericParameter ctx_;
   std::string cache_prefix_;
   uint32_t n_batches_ {0};
   // sparse page is the source to other page types, we make a special member function.
@@ -118,7 +120,8 @@ class SparsePageDMatrix : public DMatrix {
   std::shared_ptr<EllpackPageSource> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
-  std::shared_ptr<GHistIndexMatrix> ghist_index_source_;
+  std::shared_ptr<GHistIndexMatrix> ghist_index_page_;  // hist
+  std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
 
   bool EllpackExists() const override {
     return static_cast<bool>(ellpack_page_source_);
@@ -143,6 +146,7 @@ MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
   auto it = cache_info.find(id);
   if (it == cache_info.cend()) {
     cache_info[id].reset(new Cache{false, name, format});
+    LOG(INFO) << "Make cache:" << name << std::endl;
   }
   return id;
 }

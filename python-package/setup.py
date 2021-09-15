@@ -302,7 +302,7 @@ if __name__ == '__main__':
 
     with open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8') as fd:
         description = fd.read()
-    with open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')) as fd:
+    with open(os.path.join(CURRENT_DIR, 'xgboost/VERSION'), encoding="ascii") as fd:
         version = fd.read().strip()
 
     setup(name='xgboost',

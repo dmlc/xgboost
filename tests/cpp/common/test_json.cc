@@ -332,6 +332,7 @@ TEST(Json, AssigningObjects) {
     auto str = JsonString("1");
     auto& k = json_object["1"];
     k  = std::move(str);
+    ASSERT_TRUE(str.GetString().empty());  // NOLINT
     auto& m = json_object["1"];
     std::string value = get<JsonString>(m);
     ASSERT_EQ(value, "1");
