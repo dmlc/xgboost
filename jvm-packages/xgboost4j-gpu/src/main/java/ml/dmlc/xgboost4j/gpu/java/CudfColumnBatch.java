@@ -17,6 +17,7 @@
 package ml.dmlc.xgboost4j.gpu.java;
 
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 import ai.rapids.cudf.Table;
 
@@ -26,65 +27,63 @@ import ml.dmlc.xgboost4j.java.ColumnBatch;
  * Class to wrap CUDF Table to generate the cuda array interface.
  */
 public class CudfColumnBatch extends ColumnBatch {
-  private final Table table;          // The CUDF Table
-  private final Table labels;
-  private final Table weights;
-  private final Table baseMargins;
+  private final Table feature;
+  private final Table label;
+  private final Table weight;
+  private final Table baseMargin;
 
-  public CudfColumnBatch(Table data, Table labels, Table weights, Table baseMargins) {
-    this.table = data;
-    this.labels = labels;
-    this.weights = weights;
-    this.baseMargins = baseMargins;
-  }
-
-  private int[] buildIndices(Table val) {
-    int[] out = new int[val.getNumberOfColumns()];
-    for (int i = 0; i < out.length; ++i) {
-      out[i] = i;
-    }
-    return out;
+  public CudfColumnBatch(Table feature, Table labels, Table weights, Table baseMargins) {
+    this.feature = feature;
+    this.label = labels;
+    this.weight = weights;
+    this.baseMargin = baseMargins;
   }
 
   @Override
   public String getFeatureArrayInterface() {
-    return getArrayInterface(this.table);
+    return getArrayInterface(this.feature);
   }
 
   @Override
   public String getLabelsArrayInterface() {
-    return getArrayInterface(this.labels);
+    return getArrayInterface(this.label);
   }
 
   @Override
   public String getWeightsArrayInterface() {
-    return getArrayInterface(this.weights);
+    return getArrayInterface(this.weight);
   }
+
   @Override
   public String getBaseMarginsArrayInterface() {
-    return getArrayInterface(this.baseMargins);
+    return getArrayInterface(this.baseMargin);
   }
 
   @Override
   public void close() {
-    if (table != null) table.close();
+    if (feature != null) feature.close();
+    if (label != null) label.close();
+    if (weight != null) weight.close();
+    if (baseMargin != null) baseMargin.close();
   }
 
-  private String getArrayInterface(Table data) {
-    if (data == null) {
+  private String getArrayInterface(Table table) {
+    if (table == null && table.getNumberOfColumns() == 0) {
       return "";
     }
-    return CudfUtils.buildArrayInterface(getAsCudfColumn(data));
+    return CudfUtils.buildArrayInterface(getAsCudfColumn(table));
   }
 
-  private CudfColumn[] getAsCudfColumn(Table data) {
-    if (data == null) {
+  private CudfColumn[] getAsCudfColumn(Table table) {
+    if (table == null || table.getNumberOfColumns() == 0) {
+      // This will never happen.
       return new CudfColumn[]{};
     }
-    int[] indices = this.buildIndices(data);
-    return Arrays.stream(indices)
-      .mapToObj((i) -> data.getColumn(i))
+
+    return IntStream.range(0, table.getNumberOfColumns())
+      .mapToObj((i) -> table.getColumn(i))
       .map(CudfColumn::from)
       .toArray(CudfColumn[]::new);
   }
+
 }

@@ -29,17 +29,20 @@ public abstract class ColumnBatch implements AutoCloseable {
    * method.  We keep it as public simply to silent the linter.
    */
   public final String getArrayInterfaceJson() {
+
     StringBuilder builder = new StringBuilder();
     builder.append("{");
     String featureStr = this.getFeatureArrayInterface();
     if (featureStr == null || featureStr.isEmpty()) {
-      throw new RuntimeException("Feature json must not be empty");
+      throw new RuntimeException("Feature array interface must not be empty");
     } else {
       builder.append("\"features_str\":" + featureStr);
     }
 
     String labelStr = this.getLabelsArrayInterface();
-    if (labelStr != null && ! labelStr.isEmpty()) {
+    if (labelStr == null || labelStr.isEmpty()) {
+      throw new RuntimeException("Label array interface must not be empty");
+    } else {
       builder.append(",\"label_str\":" + labelStr);
     }
 
@@ -59,17 +62,29 @@ public abstract class ColumnBatch implements AutoCloseable {
 
   /**
    * Get the cuda array interface of the feature columns.
-   *
-   * This API will be called by {@link DMatrix#DMatrix(ColumnBatch, float, int)}
+   * The returned value must not be null or empty
    */
   public abstract String getFeatureArrayInterface();
 
+  /**
+   * Get the cuda array interface of the label columns.
+   * The returned value must not be null or empty
+   */
   public abstract String getLabelsArrayInterface();
 
+  /**
+   * Get the cuda array interface of the weight columns.
+   * The returned value can be null or empty
+   */
   public abstract String getWeightsArrayInterface();
 
+  /**
+   * Get the cuda array interface of the base margin columns.
+   * The returned value can be null or empty
+   */
   public abstract String getBaseMarginsArrayInterface();
 
   @Override
   public void close() throws Exception {}
+
 }
