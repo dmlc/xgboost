@@ -20,6 +20,12 @@ def test_update_process_demo():
     subprocess.check_call(cmd)
 
 
+def test_categorical_demo():
+    script = os.path.join(td.PYTHON_DEMO_DIR, 'categorical.py')
+    cmd = ['python', script]
+    subprocess.check_call(cmd)
+
+
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_dask_cuda())
 @pytest.mark.skipif(**tm.no_cupy())
