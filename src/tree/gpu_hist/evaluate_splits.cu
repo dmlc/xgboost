@@ -185,7 +185,8 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
   ret.node_idx = entry.node_idx;
   ret.hist_idx = entry.hist_idx;
   ret.findex = static_cast<int32_t>(dh::SegmentId(split_input.feature_segments, entry.hist_idx));
-  if (entry.forward) {
+  const bool is_cat = IsCat(split_input.feature_types, ret.findex);
+  if (is_cat || entry.forward) {
     ret.fvalue = split_input.feature_values[entry.hist_idx];
   } else {
     if (entry.hist_idx > 0) {
@@ -194,7 +195,7 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
       ret.fvalue = split_input.min_fvalue[ret.findex];
     }
   }
-  ret.is_cat = IsCat(split_input.feature_types, ret.findex);
+  ret.is_cat = is_cat;
   ret.forward = entry.forward;
   ret.gpair = split_input.gradient_histogram[entry.hist_idx];
   ret.parent_sum = split_input.parent_sum;
