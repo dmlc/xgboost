@@ -67,7 +67,6 @@ struct ScanOp {
 
   using ScanElemT = ScanElem<GradientSumT>;
 
-  __device__ ScanElemT DoIt(ScanElemT lhs, ScanElemT rhs);
   __device__ ScanElemT operator() (ScanElemT lhs, ScanElemT rhs);
 };
 
@@ -91,7 +90,6 @@ struct ReduceValueOp {
   using ScanElemT = ScanElem<GradientSumT>;
   using ReduceElemT = ReduceElem<GradientSumT>;
 
-  __device__ ReduceElemT DoIt(ScanElemT e);
   __device__ ReduceElemT operator() (ScanElemT e);
 };
 
