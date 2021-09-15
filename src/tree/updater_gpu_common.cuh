@@ -104,7 +104,7 @@ struct DeviceSplitCandidate {
 
   friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
     os << "loss_chg:" << c.loss_chg << ", "
-       << "dir: " << static_cast<int>(c.dir) << ", "
+       << "dir: " << (c.dir == DefaultDirection::kLeftDir ? "left" : "right") << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
        << "is_cat: " << c.is_cat << ", "
