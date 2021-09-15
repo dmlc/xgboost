@@ -125,7 +125,8 @@ public class DMatrix {
    * @param ncol number of columns
    * @throws XGBoostError native error
    *
-   * @deprecated Please specify the missing value explicitly
+   * @deprecated Please specify the missing value explicitly using
+   * {@link DMatrix(float[], int, int, float)}
    */
   @Deprecated
   public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
