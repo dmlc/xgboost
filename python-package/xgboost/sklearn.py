@@ -174,8 +174,7 @@ __model_doc = f'''
         .. versionadded:: 1.5.0
 
         Experimental support for categorical data.  Do not set to true unless you are
-        interested in development. Only valid when `gpu_hist` and pandas dataframe are
-        used.
+        interested in development. Only valid when `gpu_hist` and dataframe are used.
 
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of
