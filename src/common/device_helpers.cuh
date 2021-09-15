@@ -75,6 +75,11 @@ __device__ __forceinline__ double atomicAdd(double* address, double val) {  // N
 #endif
 
 namespace dh {
+
+constexpr bool IsUsingCubSubmodule() {
+  return (CUB_VERSION) == 101100;
+}
+
 namespace detail {
 template <size_t size>
 struct AtomicDispatcher;
@@ -1369,24 +1374,27 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
                                      sorted_idx_out.data().get());
 
+  // track https://github.com/NVIDIA/cub/pull/340 for 64bit length support
+  using OffsetT = std::conditional_t<IsUsingCubSubmodule(), std::ptrdiff_t, int32_t>;
+  CHECK_LE(sorted_idx.size(), std::numeric_limits<OffsetT>::max());
   if (accending) {
     void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
     TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   } else {
     void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
     TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, std::ptrdiff_t>::Dispatch(
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   }
@@ -1396,7 +1404,7 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
 }
 
 namespace detail {
-// Wrapper around cub sort for easier `descending` sort and `size_t num_items`.
+// Wrapper around cub sort for easier `descending` sort.
 template <bool descending, typename KeyT, typename ValueT,
           typename OffsetIteratorT>
 void DeviceSegmentedRadixSortPair(
@@ -1408,7 +1416,8 @@ void DeviceSegmentedRadixSortPair(
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in),
                                      d_values_out);
-  using OffsetT = size_t;
+  using OffsetT = int32_t;  // num items in dispatch is also int32_t, no way to change.
+  CHECK_LE(num_items, std::numeric_limits<int32_t>::max());
   safe_cuda((cub::DispatchSegmentedRadixSort<
              descending, KeyT, ValueT, OffsetIteratorT,
              OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
