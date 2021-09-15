@@ -189,7 +189,7 @@ ScanValueOp<GradientSumT>::MapEvaluateSplitsHistEntryToScanElem(
   if (is_cat || entry.forward) {
     ret.fvalue = split_input.feature_values[entry.hist_idx];
   } else {
-    if (entry.hist_idx > 0) {
+    if (entry.hist_idx > split_input.feature_segments[ret.findex]) {
       ret.fvalue = split_input.feature_values[entry.hist_idx - 1];
     } else {
       ret.fvalue = split_input.min_fvalue[ret.findex];
