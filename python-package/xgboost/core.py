@@ -561,13 +561,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         feature_types :
 
             Set types for features.  When `enable_categorical` is set to `True`, string
-            "c" represents categorical data type.  For numerical data, it can be one for
-            the following:
-
-                - "q" for quantitive
-                - "float" for float
-                - "i" for indicator
-                - "int" for integer
+            "c" represents categorical data type.
 
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
@@ -586,11 +580,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
             .. versionadded:: 1.3.0
 
-            Experimental support of specializing for categorical features.  Do
-            not set to True unless you are interested in development.
-            Currently it's only available for `gpu_hist` tree method with 1 vs
-            rest (one hot) categorical split.  Also, JSON serialization format,
-            `gpu_predictor` and pandas input are required.
+            Experimental support of specializing for categorical features.  Do not set to
+            True unless you are interested in development.  Currently it's only available
+            for `gpu_hist` tree method with 1 vs rest (one hot) categorical split.  Also,
+            JSON serialization format is required.
 
         """
         if group is not None and qid is not None:

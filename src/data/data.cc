@@ -200,8 +200,6 @@ void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<Feat
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "q") {
       types->emplace_back(FeatureType::kNumerical);
-    } else if (elem == "categorical") {
-      types->emplace_back(FeatureType::kCategorical);
     } else if (elem == "c") {
       types->emplace_back(FeatureType::kCategorical);
     } else {
