@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.gpu.java;
 
 import java.util.Arrays;
 
-import ai.rapids.cudf.ColumnVector;
 import ai.rapids.cudf.Table;
 
 import ml.dmlc.xgboost4j.java.ColumnBatch;
@@ -28,130 +27,42 @@ import ml.dmlc.xgboost4j.java.ColumnBatch;
  */
 public class CudfColumnBatch extends ColumnBatch {
   private final Table table;          // The CUDF Table
-  private final int[] featureIndices; // The feature columns
-  private final int[] labelIndices;   // The label columns
-  private final int[] weightIndices;  // The weight columns
-  private final int[] baseMarginIndices; // The base margin columns
+  private final Table labels;
+  private final Table weights;
+  private final Table baseMargins;
 
-  /**
-   * CudfColumnBatch constructor
-   * @param table             the CUDF table
-   * @param featureIndices    must-have, specify the feature's indices in the table
-   */
-  public CudfColumnBatch(Table table, int[] featureIndices) {
-    this(table, featureIndices, null, null, null);
+  public CudfColumnBatch(Table data, Table labels, Table weights, Table baseMargins) {
+    this.table = data;
+    this.labels = labels;
+    this.weights = weights;
+    this.baseMargins = baseMargins;
   }
 
-  /**
-   * CudfColumnBatch constructor
-   * @param table             the CUDF table
-   * @param featureIndices    must-have, specify the feature's indices in the table
-   * @param labelIndices      optional, specify the label's indices in the table
-   */
-  public CudfColumnBatch(Table table, int[] featureIndices, int[] labelIndices) {
-    this(table, featureIndices, labelIndices, null, null);
-  }
-
-  /**
-   * CudfColumnBatch constructor
-   * @param table             the CUDF table
-   * @param featureIndices    must-have, specify the feature's indices in the table
-   * @param labelIndices      must-have, specify the label's indices in the table
-   * @param weightIndices     optional, specify the weight's indices in the table
-   * @param baseMarginIndices optional, specify the base marge's indices in the table
-   */
-  public CudfColumnBatch(Table table, int[] featureIndices, int[] labelIndices, int[] weightIndices,
-                         int[] baseMarginIndices) {
-    this.table = table;
-    this.featureIndices = featureIndices;
-    this.labelIndices = labelIndices;
-    this.weightIndices = weightIndices;
-    this.baseMarginIndices = baseMarginIndices;
-
-    validate();
-  }
-
-  private void validate() {
-    if (featureIndices == null) {
-      throw new RuntimeException("CudfColumnBatch requires feature columns");
-    } else {
-      validateArrayIndex(featureIndices, "feature");
+  private int[] buildIndices(Table val) {
+    int[] out = new int[val.getNumberOfColumns()];
+    for (int i = 0; i < out.length; ++i) {
+      out[i] = i;
     }
-
-    if (labelIndices != null) {
-      validateArrayIndex(labelIndices, "label");
-    }
-
-    if (weightIndices != null) {
-      validateArrayIndex(weightIndices, "weight");
-    }
-
-    if (baseMarginIndices != null) {
-      validateArrayIndex(baseMarginIndices, "base_margin");
-    }
-  }
-
-  private void validateArrayIndex(int[] array, String category) {
-    assert array != null;
-    int min = array[0];
-    int max = array[0];
-    for (int i = 1; i < array.length; i++) {
-      if (array[i] > max) {
-        max = array[i];
-      }
-
-      if (array[i] < min) {
-        min = array[i];
-      }
-    }
-
-    if (min < 0 || max >= table.getNumberOfColumns()) {
-      throw new IllegalArgumentException("Wrong " + category + " indices, Out of boundary");
-    }
-  }
-
-  public ColumnVector getColumnVector(int index) {
-    return table.getColumn(index);
-  }
-
-  @Override
-  public String getArrayInterfaceJson() {
-    StringBuilder builder = new StringBuilder();
-
-    builder.append("{");
-
-    String featureStr = getArrayInterface(featureIndices);
-    if (featureStr == null || featureStr.isEmpty()) {
-      throw new RuntimeException("Feature json must not be empty");
-    } else {
-      builder.append("\"features_str\":" + featureStr);
-    }
-
-    String labelStr = getArrayInterface(labelIndices);
-    if (labelStr == null || labelStr.isEmpty()) {
-      throw new RuntimeException("label json must not be empty");
-    } else {
-      builder.append(",\"label_str\":" + labelStr);
-    }
-
-    String weightStr = getArrayInterface(weightIndices);
-    if (weightStr != null && ! weightStr.isEmpty()) {
-      builder.append(",\"weight_str\":" + weightStr);
-    }
-
-    String baseMarginStr = getArrayInterface(baseMarginIndices);
-    if (baseMarginStr != null && ! baseMarginStr.isEmpty()) {
-      builder.append(",\"basemargin_str\":" + baseMarginStr);
-    }
-
-    builder.append("}");
-
-    return builder.toString();
+    return out;
   }
 
   @Override
   public String getFeatureArrayInterface() {
-    return getArrayInterface(featureIndices);
+    return getArrayInterface(this.table);
+  }
+
+  @Override
+  public String getLabelsArrayInterface() {
+    return getArrayInterface(this.labels);
+  }
+
+  @Override
+  public String getWeightsArrayInterface() {
+    return getArrayInterface(this.weights);
+  }
+  @Override
+  public String getBaseMarginsArrayInterface() {
+    return getArrayInterface(this.baseMargins);
   }
 
   @Override
@@ -159,17 +70,21 @@ public class CudfColumnBatch extends ColumnBatch {
     if (table != null) table.close();
   }
 
-  private String getArrayInterface(int... indices) {
-    if (indices == null || indices.length == 0) return "";
-    return CudfUtils.buildArrayInterface(getAsCudfColumn(indices));
+  private String getArrayInterface(Table data) {
+    if (data == null) {
+      return "";
+    }
+    return CudfUtils.buildArrayInterface(getAsCudfColumn(data));
   }
 
-  private CudfColumn[] getAsCudfColumn(int... indices) {
-    if (indices == null || indices.length == 0) return new CudfColumn[]{};
+  private CudfColumn[] getAsCudfColumn(Table data) {
+    if (data == null) {
+      return new CudfColumn[]{};
+    }
+    int[] indices = this.buildIndices(data);
     return Arrays.stream(indices)
-      .mapToObj(this::getColumnVector)
+      .mapToObj((i) -> data.getColumn(i))
       .map(CudfColumn::from)
       .toArray(CudfColumn[]::new);
   }
-
 }
