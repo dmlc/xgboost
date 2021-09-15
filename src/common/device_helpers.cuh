@@ -76,8 +76,13 @@ __device__ __forceinline__ double atomicAdd(double* address, double val) {  // N
 
 namespace dh {
 
-constexpr bool IsUsingCubSubmodule() {
-  return (CUB_VERSION) == 101100;
+// FIXME(jiamingy): Remove this once we get rid of cub submodule.
+constexpr bool BuildWithCUDACub() {
+#if defined(THRUST_IGNORE_CUB_VERSION_CHECK) && THRUST_IGNORE_CUB_VERSION_CHECK == 1
+  return false;
+#else
+  return true;
+#endif // defined(THRUST_IGNORE_CUB_VERSION_CHECK) && THRUST_IGNORE_CUB_VERSION_CHECK == 1
 }
 
 namespace detail {
@@ -693,6 +698,17 @@ typename std::iterator_traits<T>::value_type SumReduction(T in, int nVals) {
                            cudaMemcpyDeviceToHost));
   return sum;
 }
+
+#if __CUDACC_VER_MAJOR__ >= 11 && __CUDACC_VER_MINOR__ >= 4
+template <typename T>
+using TypedDiscard = thrust::discard_iterator<T>;
+#else
+template <typename T>
+class TypedDiscard : public thrust::discard_iterator<T> {
+ public:
+  using value_type = T;  // NOLINT
+};
+#endif
 
 /**
  * \class AllReducer
@@ -1375,7 +1391,7 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
                                      sorted_idx_out.data().get());
 
   // track https://github.com/NVIDIA/cub/pull/340 for 64bit length support
-  using OffsetT = std::conditional_t<IsUsingCubSubmodule(), std::ptrdiff_t, int32_t>;
+  using OffsetT = std::conditional_t<!BuildWithCUDACub(), std::ptrdiff_t, int32_t>;
   CHECK_LE(sorted_idx.size(), std::numeric_limits<OffsetT>::max());
   if (accending) {
     void *d_temp_storage = nullptr;

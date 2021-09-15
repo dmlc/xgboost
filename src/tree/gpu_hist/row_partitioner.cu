@@ -50,9 +50,6 @@ struct WriteResultsFunctor {
   }
 };
 
-// Change the value type of thrust discard iterator so we can use it with cub
-using DiscardOverload = thrust::discard_iterator<IndexFlagTuple>;
-
 // Implement partitioning via single scan operation using transform output to
 // write the result
 void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
@@ -64,7 +61,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
   WriteResultsFunctor write_results{left_nidx, position, position_out,
                                     ridx,      ridx_out, d_left_count};
   auto discard_write_iterator =
-      thrust::make_transform_output_iterator(DiscardOverload(), write_results);
+      thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, [=] __device__(size_t idx) {

@@ -521,7 +521,7 @@ GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
   dh::TemporaryArray<float> d_auc(group_ptr.size() - 1);
   auto s_d_auc = dh::ToSpan(d_auc);
   auto out = thrust::make_transform_output_iterator(
-      Discard<RankScanItem>(), [=] __device__(RankScanItem const &item) -> RankScanItem {
+      dh::TypedDiscard<RankScanItem>{}, [=] __device__(RankScanItem const &item) -> RankScanItem {
         auto group_id = item.group_id;
         assert(group_id < d_group_ptr.size());
         auto data_group_begin = d_group_ptr[group_id];

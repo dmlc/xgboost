@@ -183,10 +183,6 @@ struct TupleScanOp {
   }
 };
 
-// Change the value type of thrust discard iterator so we can use it with cub
-template <typename T>
-using TypedDiscard = thrust::discard_iterator<T>;
-
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
 template <typename AdapterBatchT>
@@ -229,7 +225,7 @@ void CopyDataToEllpack(const AdapterBatchT &batch,
   WriteCompressedEllpackFunctor<AdapterBatchT> functor(
       d_compressed_buffer, writer, batch, device_accessor, feature_types,
       is_valid);
-  TypedDiscard<Tuple> discard;
+  dh::TypedDiscard<Tuple> discard;
   thrust::transform_output_iterator<
     WriteCompressedEllpackFunctor<AdapterBatchT>, decltype(discard)>
       out(discard, functor);
