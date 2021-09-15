@@ -238,7 +238,11 @@ template <typename GradientSumT>
 ReduceElem<GradientSumT>
 __device__ ReduceValueOp<GradientSumT>::DoIt(ScanElem<GradientSumT> e) {
   ReduceElem<GradientSumT> ret;
-  ret.partial_sum = e.partial_sum;
+  if (e.is_cat) {
+    ret.partial_sum = e.gpair;
+  } else {
+    ret.partial_sum = e.partial_sum;
+  }
   ret.parent_sum = e.parent_sum;
   {
     GradientSumT left_sum, right_sum;
