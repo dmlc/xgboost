@@ -1352,25 +1352,9 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
-namespace detail {
-template <typename InputIteratorT, typename OutputIteratorT>
-bool constexpr ShouldWorkaroundCubScan() {
-  // input and output iterators have different value type, and system cub is
-  // being used.
-  return !std::is_same<
-             typename thrust::iterator_traits<InputIteratorT>::value_type,
-             typename thrust::iterator_traits<OutputIteratorT>::value_type>::
-             value &&
-         BuildWithCUDACub() &&
-         (CUDAVersion().first == 11 && CUDAVersion().second <= 2);
-}
-} // namespace detail
-
 // wrapper to avoid integer `num_items`.
 template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
-          typename OffsetT,
-          std::enable_if_t<!detail::ShouldWorkaroundCubScan<
-              InputIteratorT, OutputIteratorT>()> * = nullptr>
+          typename OffsetT>
 void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
                    OffsetT num_items) {
   size_t bytes = 0;
@@ -1385,19 +1369,6 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
                         OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
                                            d_out, scan_op, cub::NullType(),
                                            num_items, nullptr, false)));
-}
-
-// Same as inclusive scan but using thrust, this is to workaround issues caused
-// by using cub scan with thrust iterators in CTK-11.2.
-template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
-          typename OffsetT,
-          typename std::enable_if_t<detail::ShouldWorkaroundCubScan<
-              InputIteratorT, OutputIteratorT>()> * = nullptr>
-void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
-                   OffsetT num_items) {
-  XGBCachingDeviceAllocator<char> alloc;
-  thrust::inclusive_scan(thrust::cuda::par(alloc), d_in, d_in + num_items,
-                         d_out, scan_op);
 }
 
 template <typename InIt, typename OutIt, typename Predicate>
