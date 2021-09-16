@@ -64,6 +64,9 @@ XGBoost supports missing values by default.
 In tree algorithms, branch directions for missing values are learned during training.
 Note that the gblinear booster treats missing values as zeros.
 
+When the ``missing`` parameter is specifed, values in the input predictor that is equal to
+``missing`` will be treated as missing and removed.  By default it's set to ``NaN``.
+
 **************************************
 Slightly different result between runs
 **************************************
