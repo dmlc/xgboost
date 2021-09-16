@@ -1713,7 +1713,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         callbacks: Optional[List[TrainingCallback]] = None,
     ) -> "DaskXGBRegressor":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
 
@@ -1816,7 +1816,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != 'self'}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
     async def _predict_proba_async(
@@ -2004,7 +2004,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRanker":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and qid.
@@ -2069,7 +2069,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRFRegressor":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != 'self'}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
@@ -2133,7 +2133,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRFClassifier":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != 'self'}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self

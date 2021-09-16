@@ -1451,7 +1451,7 @@ class XGBRFClassifier(XGBClassifier):
         feature_weights: Optional[array_like] = None,
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "XGBRFClassifier":
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
@@ -1522,7 +1522,7 @@ class XGBRFRegressor(XGBRegressor):
         feature_weights: Optional[array_like] = None,
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "XGBRFRegressor":
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
