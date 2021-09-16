@@ -32,10 +32,9 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
 fi
 
 if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
-    sudo snap install cmake --channel=3.17/beta --classic
-    export PATH=/snap/bin:${PATH}
     cmake --version
     sudo apt-get update
+    sudo apt install cmake
     sudo apt-get install -y --no-install-recommends tar unzip wget git build-essential ninja-build \
       time python3 python3-pip python3-numpy python3-scipy python3-sklearn r-base
 fi
