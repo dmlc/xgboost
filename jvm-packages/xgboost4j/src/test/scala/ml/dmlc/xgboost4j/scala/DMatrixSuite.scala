@@ -130,7 +130,7 @@ class DMatrixSuite extends FunSuite {
     for (i <- label0.indices) {
       label0(i) = Random.nextFloat()
     }
-    val dmat0 = new DMatrix(data0, nrow, ncol)
+    val dmat0 = new DMatrix(data0, nrow, ncol, Float.NaN)
     dmat0.setLabel(label0)
     // check
     assert(dmat0.rowNum === 10)

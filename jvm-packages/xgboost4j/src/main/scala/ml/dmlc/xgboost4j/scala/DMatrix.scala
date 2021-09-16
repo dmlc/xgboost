@@ -79,6 +79,7 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
    * @param nrow number of rows
    * @param ncol number of columns
    */
+  @deprecated("Please specify the missing value explicitly", "XGBoost 1.5")
   @throws(classOf[XGBoostError])
   def this(data: Array[Float], nrow: Int, ncol: Int) {
     this(new JDMatrix(data, nrow, ncol))
