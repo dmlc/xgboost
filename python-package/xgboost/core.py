@@ -7,7 +7,7 @@ import collections
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar
 # pylint: enable=no-name-in-module,import-error
-from typing import Callable, Tuple
+from typing import Callable, Tuple, cast
 import ctypes
 import os
 import re
@@ -2274,7 +2274,7 @@ class Booster(object):
         return self.get_score(fmap, importance_type='weight')
 
     def get_score(
-        self, fmap: os.PathLike = '', importance_type: str = 'weight'
+        self, fmap: Union[str, os.PathLike] = '', importance_type: str = 'weight'
     ) -> Dict[str, float]:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
@@ -2481,7 +2481,7 @@ class Booster(object):
         fmap: Union[os.PathLike, str] = '',
         bins: Optional[int] = None,
         as_pandas: bool = True
-    ):
+    ) -> Union[np.ndarray, DataFrame]:
         """Get split value histogram of a feature
 
         Parameters
@@ -2526,7 +2526,7 @@ class Booster(object):
                 fn = [f"f{i}" for i in range(self.num_features())]
             try:
                 index = fn.index(feature)
-                feature_t = ft[index]
+                feature_t: Optional[str] = cast(List[str], ft)[index]
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
