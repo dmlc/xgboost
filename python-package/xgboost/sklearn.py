@@ -40,17 +40,15 @@ class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     _estimator_type = "ranker"
 
 
-class XGBRFMixIn:
-    def _check_callback(
-        self,
-        early_stopping_rounds: Optional[int],
-        callbacks: Optional[List[TrainingCallback]],
-    ) -> None:
-        if early_stopping_rounds is not None or callbacks is not None:
-            raise NotImplementedError(
-                "`early_stopping_rounds` and `callbacks` are not implemented for"
-                " random forest."
-            )
+def _check_rf_callback(
+    early_stopping_rounds: Optional[int],
+    callbacks: Optional[List[TrainingCallback]],
+) -> None:
+    if early_stopping_rounds is not None or callbacks is not None:
+        raise NotImplementedError(
+            "`early_stopping_rounds` and `callbacks` are not implemented for"
+            " random forest."
+        )
 
 
 _SklObjective = Optional[
@@ -1407,7 +1405,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
         code, we recommend that you set this parameter to False.
 ''')
-class XGBRFClassifier(XGBClassifier, XGBRFMixIn):
+class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -1454,7 +1452,7 @@ class XGBRFClassifier(XGBClassifier, XGBRFMixIn):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "XGBRFClassifier":
         args = {k: v for k, v in locals().items() if k != "self"}
-        self._check_callback(early_stopping_rounds, callbacks)
+        _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
 
@@ -1477,7 +1475,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
     n_estimators : int
         Number of trees in random forest to fit.
 ''')
-class XGBRFRegressor(XGBRegressor, XGBRFMixIn):
+class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -1525,7 +1523,7 @@ class XGBRFRegressor(XGBRegressor, XGBRFMixIn):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "XGBRFRegressor":
         args = {k: v for k, v in locals().items() if k != "self"}
-        self._check_callback(early_stopping_rounds, callbacks)
+        _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
 

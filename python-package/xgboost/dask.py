@@ -42,8 +42,8 @@ from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
-from .sklearn import _wrap_evaluation_matrices, _objective_decorator
-from .sklearn import XGBRankerMixIn, XGBRFMixIn
+from .sklearn import _wrap_evaluation_matrices, _objective_decorator, _check_rf_callback
+from .sklearn import XGBRankerMixIn
 from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
 from .sklearn import XGBRanker
@@ -2023,7 +2023,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         Number of trees in random forest to fit.
 """,
 )
-class DaskXGBRFRegressor(DaskXGBRegressor, XGBRFMixIn):
+class DaskXGBRFRegressor(DaskXGBRegressor):
     @_deprecate_positional_args
     def __init__(
         self,
@@ -2070,7 +2070,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor, XGBRFMixIn):
     ) -> "DaskXGBRFRegressor":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k != 'self'}
-        self._check_callback(early_stopping_rounds, callbacks)
+        _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
 
@@ -2087,7 +2087,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor, XGBRFMixIn):
         Number of trees in random forest to fit.
 """,
 )
-class DaskXGBRFClassifier(DaskXGBClassifier, XGBRFMixIn):
+class DaskXGBRFClassifier(DaskXGBClassifier):
     @_deprecate_positional_args
     def __init__(
         self,
@@ -2134,6 +2134,6 @@ class DaskXGBRFClassifier(DaskXGBClassifier, XGBRFMixIn):
     ) -> "DaskXGBRFClassifier":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k != 'self'}
-        self._check_callback(early_stopping_rounds, callbacks)
+        _check_rf_callback(early_stopping_rounds, callbacks)
         super().fit(**args)
         return self
