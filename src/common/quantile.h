@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -15,6 +15,7 @@
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 #include "timer.h"
 
@@ -707,6 +708,9 @@ class HostSketchContainer {
 
  private:
   std::vector<WQSketch> sketches_;
+  std::vector<std::set<bst_cat_t>> categories_;
+  std::vector<FeatureType> const feature_types_;
+
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
   bool use_group_ind_{false};
@@ -721,7 +725,8 @@ class HostSketchContainer {
    * \param use_group whether is assigned to group to data instance.
    */
   HostSketchContainer(std::vector<bst_row_t> columns_size, int32_t max_bins,
-                      bool use_group, int32_t n_threads);
+                      common::Span<FeatureType const> feature_types, bool use_group,
+                      int32_t n_threads);
 
   static bool UseGroup(MetaInfo const &info) {
     size_t const num_groups =

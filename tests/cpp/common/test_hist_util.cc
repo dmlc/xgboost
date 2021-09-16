@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
@@ -387,6 +390,17 @@ void TestSketchFromWeights(bool with_group) {
 TEST(HistUtil, SketchFromWeights) {
   TestSketchFromWeights(true);
   TestSketchFromWeights(false);
+}
+
+TEST(HistUtil, SketchCategoricalFeatures) {
+  TestCategoricalSketch(1000, 256, 32, false,
+                        [](DMatrix *p_fmat, int32_t num_bins) {
+                          return SketchOnDMatrix(p_fmat, num_bins);
+                        });
+  TestCategoricalSketch(1000, 256, 32, true,
+                        [](DMatrix *p_fmat, int32_t num_bins) {
+                          return SketchOnDMatrix(p_fmat, num_bins);
+                        });
 }
 }  // namespace common
 }  // namespace xgboost
