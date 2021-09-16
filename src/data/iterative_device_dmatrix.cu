@@ -158,11 +158,6 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   iter.Reset();
   // Synchronise worker columns
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
-  // sanity check
-  CHECK(!this->Info().labels_.Empty() ||
-        !this->Info().labels_lower_bound_.Empty() ||
-        !this->Info().labels_upper_bound_.Empty())
-      << "Quantilized DMatrix can only be used with training dataset.";
 }
 
 BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
