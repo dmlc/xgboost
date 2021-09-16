@@ -294,7 +294,7 @@ class RabitTracker(object):
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
-                logging.debug(f"Received {s.cmd} signal from {s.rank}")
+                logging.debug('Received %s signal from %d', s.cmd, s.rank)
                 continue
             assert s.cmd in ("start", "recover")
             # lazily initialize the slaves

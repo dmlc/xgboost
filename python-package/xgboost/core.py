@@ -495,6 +495,7 @@ def _deprecate_positional_args(f):
                     kwonly_args[:extra_args], args[-extra_args:]
                 )
             ]
+            # pylint: disable=consider-using-f-string
             warnings.warn(
                 "Pass `{}` as keyword args.  Passing these as positional "
                 "arguments will be considered as error in future releases.".
@@ -1752,10 +1753,10 @@ class Booster(object):
                                                output_margin=True), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
-                        res += '\t%s-%s:%f' % (evname, name, val)
+                        res += f"\t{evname}-{name}:{val}"
                 else:
                     name, val = feval_ret
-                    res += '\t%s-%s:%f' % (evname, name, val)
+                    res += f"\t{evname}-{name}:{val}"
         return res
 
     def eval(self, data, name='eval', iteration=0):

@@ -28,11 +28,11 @@ def _get_callback_context(env):
 def _fmt_metric(value, show_stdv=True):
     """format metric string"""
     if len(value) == 2:
-        return '{0}:{1:.5f}'.format(value[0], value[1])
+        return f"{value[0]}:{value[1]:.5f}"
     if len(value) == 3:
         if show_stdv:
-            return '{0}:{1:.5f}+{2:.5f}'.format(value[0], value[1], value[2])
-        return '{0}:{1:.5f}'.format(value[0], value[1])
+            return f"{value[0]}:{value[1]:.5f}+{value[2]:.5f}"
+        return f"{value[0]}:{value[1]:.5f}"
     raise ValueError("wrong metric value", value)
 
 
@@ -62,7 +62,7 @@ def print_evaluation(period=1, show_stdv=True):
         i = env.iteration
         if i % period == 0 or i + 1 == env.begin_iteration or i + 1 == env.end_iteration:
             msg = '\t'.join([_fmt_metric(x, show_stdv) for x in env.evaluation_result_list])
-            rabit.tracker_print('[%d]\t%s\n' % (i, msg))
+            rabit.tracker_print(f"{i}\t{msg}\n")
     return callback
 
 
@@ -217,9 +217,11 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             state['best_score'] = float('-inf')
         else:
             state['best_score'] = float('inf')
+        # pylint: disable=consider-using-f-string
         msg = '[%d]\t%s' % (
             env.iteration,
-            '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
+            '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list])
+        )
         state['best_msg'] = msg
 
         if bst is not None:
@@ -243,6 +245,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         maximize_score = state['maximize_score']
         if (maximize_score and score > best_score) or \
                 (not maximize_score and score < best_score):
+            # pylint: disable=consider-using-f-string
             msg = '[%d]\t%s' % (
                 env.iteration,
                 '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
@@ -653,11 +656,13 @@ class EvaluationMonitor(TrainingCallback):
         self._latest: Optional[str] = None
         super().__init__()
 
-    def _fmt_metric(self, data, metric, score, std) -> str:
+    def _fmt_metric(
+        self, data: str, metric: str, score: float, std: Optional[float]
+    ) -> str:
         if std is not None and self.show_stdv:
-            msg = '\t{0}:{1:.5f}+{2:.5f}'.format(data + '-' + metric, score, std)
+            msg = f"\t{data + '-' + metric}:{score:.5f}+{std:.5f}"
         else:
-            msg = '\t{0}:{1:.5f}'.format(data + '-' + metric, score)
+            msg = f"\t{data + '-' + metric}:{score:.5f}"
         return msg
 
     def after_iteration(self, model, epoch: int,
