@@ -200,10 +200,10 @@ void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<Feat
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "q") {
       types->emplace_back(FeatureType::kNumerical);
-    } else if (elem == "categorical") {
+    } else if (elem == "c") {
       types->emplace_back(FeatureType::kCategorical);
     } else {
-      LOG(FATAL) << "All feature_types must be one of {int, float, i, q, categorical}.";
+      LOG(FATAL) << "All feature_types must be one of {int, float, i, q, c}.";
     }
   }
 }

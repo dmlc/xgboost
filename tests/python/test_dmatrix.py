@@ -339,3 +339,44 @@ class TestDMatrix:
         Xy = xgb.DMatrix(X, y)
         assert Xy.num_row() == 10
         assert Xy.num_col() == 10
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_np_categorical(self):
+        n_features = 10
+        X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
+        X = X.values.astype(np.float32)
+        feature_types = ['c'] * n_features
+
+        assert isinstance(X, np.ndarray)
+        Xy = xgb.DMatrix(X, y, feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+    def test_scipy_categorical(self):
+        from scipy import sparse
+        n_features = 10
+        X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
+        X = X.values.astype(np.float32)
+        feature_types = ['c'] * n_features
+
+        X[1, 3] = np.NAN
+        X[2, 4] = np.NAN
+        X = sparse.csr_matrix(X)
+
+        Xy = xgb.DMatrix(X, y, feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+        X = sparse.csc_matrix(X)
+
+        Xy = xgb.DMatrix(X, y, feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+        X = sparse.coo_matrix(X)
+
+        Xy = xgb.DMatrix(X, y, feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+    def test_uri_categorical(self):
+        path = os.path.join(dpath, 'agaricus.txt.train')
+        feature_types = ["q"] * 5 + ["c"] + ["q"] * 120
+        Xy = xgb.DMatrix(path + "?indexing_mode=1", feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))

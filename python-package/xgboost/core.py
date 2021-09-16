@@ -518,8 +518,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin=None,
         missing: Optional[float] = None,
         silent=False,
-        feature_names=None,
-        feature_types=None,
+        feature_names: Optional[List[str]] = None,
+        feature_types: Optional[List[str]] = None,
         nthread: Optional[int] = None,
         group=None,
         qid=None,
@@ -558,8 +558,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             Whether print messages during construction
         feature_names : list, optional
             Set names for features.
-        feature_types : list, optional
-            Set types for features.
+        feature_types :
+
+            Set types for features.  When `enable_categorical` is set to `True`, string
+            "c" represents categorical data type.
+
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
@@ -577,11 +580,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
             .. versionadded:: 1.3.0
 
-            Experimental support of specializing for categorical features.  Do
-            not set to True unless you are interested in development.
-            Currently it's only available for `gpu_hist` tree method with 1 vs
-            rest (one hot) categorical split.  Also, JSON serialization format,
-            `gpu_predictor` and pandas input are required.
+            Experimental support of specializing for categorical features.  Do not set to
+            True unless you are interested in development.  Currently it's only available
+            for `gpu_hist` tree method with 1 vs rest (one hot) categorical split.  Also,
+            JSON serialization format is required.
 
         """
         if group is not None and qid is not None:
@@ -673,8 +675,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
-        feature_names=None,
-        feature_types=None,
+        feature_names: Optional[List[str]] = None,
+        feature_types: Optional[List[str]] = None,
         feature_weights=None
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
@@ -945,7 +947,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> Optional[List[str]]:
         """Get feature names (column labels).
 
         Returns
@@ -1033,17 +1035,21 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @feature_types.setter
-    def feature_types(self, feature_types: Optional[Union[List[Any], Any]]) -> None:
+    def feature_types(self, feature_types: Optional[Union[List[str], str]]) -> None:
         """Set feature types (column types).
 
-        This is for displaying the results and unrelated
-        to the learning process.
+        This is for displaying the results and categorical data support.  See doc string
+        of :py:obj:`xgboost.DMatrix` for details.
 
         Parameters
         ----------
         feature_types : list or None
             Labels for features. None will reset existing feature names
+
         """
+        # For compatibility reason this function wraps single str input into a list.  But
+        # we should not promote such usage since other than visualization, the field is
+        # also used for specifying categorical data type.
         if feature_types is not None:
             if not isinstance(feature_types, (list, str)):
                 raise TypeError(
@@ -2461,8 +2467,13 @@ class Booster(object):
 
             raise ValueError(msg.format(self.feature_names, data.feature_names))
 
-    def get_split_value_histogram(self, feature, fmap='', bins=None,
-                                  as_pandas=True):
+    def get_split_value_histogram(
+        self,
+        feature: str,
+        fmap: Union[os.PathLike, str] = '',
+        bins: Optional[int] = None,
+        as_pandas: bool = True
+    ):
         """Get split value histogram of a feature
 
         Parameters
@@ -2510,7 +2521,7 @@ class Booster(object):
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-            if feature_t == "categorical":
+            if feature_t == "c":  # categorical
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
                 )
