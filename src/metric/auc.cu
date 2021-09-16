@@ -230,6 +230,14 @@ float ScaleClasses(common::Span<float> results, common::Span<float> local_area,
   return auc_sum;
 }
 
+namespace {
+struct Triple2Pair {
+  auto __device__ operator()(thrust::tuple<uint32_t, float, float> const &t) {
+    return thrust::make_pair(thrust::get<1>(t), thrust::get<2>(t));
+  }
+};
+}  // anonymous namespace
+
 /**
  * MultiClass implementation is similar to binary classification, except we need to split
  * up each class in all kernels.
@@ -335,10 +343,8 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
         return thrust::make_tuple(class_id, d_fptp[i].first, d_fptp[i].second);
       });
   // shrink down to pair
-  auto fptp_it_out = thrust::make_transform_output_iterator(
-      dh::tbegin(d_fptp), [=] __device__(Triple const &t) {
-        return thrust::make_pair(thrust::get<1>(t), thrust::get<2>(t));
-      });
+  auto fptp_it_out =
+      thrust::make_transform_output_iterator(dh::tbegin(d_fptp), Triple2Pair{});
   dh::InclusiveScan(
       fptp_it_in, fptp_it_out,
       [=] __device__(Triple const &l, Triple const &r) {

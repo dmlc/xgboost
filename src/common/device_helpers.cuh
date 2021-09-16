@@ -1336,9 +1336,23 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
+namespace detail {
+template <typename InputIteratorT, typename OutputIteratorT>
+bool constexpr ShouldWorkaroundCubScan() {
+  // input and output iterators have different value type, and system cub is being used.
+  return !std::is_same<
+             typename thrust::iterator_traits<InputIteratorT>::value_type,
+             typename thrust::iterator_traits<OutputIteratorT>::value_type>::
+             value &&
+         BuildWithCUDACub();
+}
+} // namespace detail
+
 // wrapper to avoid integer `num_items`.
 template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
-          typename OffsetT>
+          typename OffsetT,
+          std::enable_if_t<!detail::ShouldWorkaroundCubScan<
+              InputIteratorT, OutputIteratorT>()> * = nullptr>
 void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
                    OffsetT num_items) {
   size_t bytes = 0;
@@ -1347,12 +1361,32 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
                         OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
                                            cub::NullType(), num_items, nullptr,
                                            false)));
-  dh::TemporaryArray<char> storage(bytes);
+  TemporaryArray<char> storage(bytes);
   safe_cuda((
       cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
                         OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
                                            d_out, scan_op, cub::NullType(),
                                            num_items, nullptr, false)));
+}
+
+// Same as inclusive scan but using thrust, this is to workaround issues caused
+// by using cub scan with thrust iterators in CTK-11.2.
+template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
+          typename OffsetT,
+          typename std::enable_if_t<detail::ShouldWorkaroundCubScan<
+              InputIteratorT, OutputIteratorT>()> * = nullptr>
+void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
+                   OffsetT num_items) {
+  XGBCachingDeviceAllocator<char> alloc;
+  thrust::inclusive_scan(thrust::cuda::par(alloc), d_in, d_in + num_items,
+                         d_out, scan_op);
+  static_assert(
+      BuildWithCUDACub(),
+      "This function should not be invoked when using cub submodule.");
+  static_assert(!std::is_same<typename InputIteratorT::value_type,
+                              typename OutputIteratorT::value_type>::value,
+                "This function should not be invoked when input and output "
+                "have same type.");
 }
 
 template <typename InIt, typename OutIt, typename Predicate>
