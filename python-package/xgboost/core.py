@@ -140,9 +140,9 @@ def _expect(expectations, got):
     return msg
 
 
-def _log_callback(msg):
+def _log_callback(msg: bytes) -> None:
     """Redirect logs from native library into Python console"""
-    print("{0:s}".format(py_str(msg)))
+    print(py_str(msg))
 
 
 def _get_log_callback_func():
@@ -179,14 +179,19 @@ def _load_lib():
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
-            'XGBoost Library ({}) could not be loaded.\n'.format(libname) +
-            'Likely causes:\n' +
-            '  * OpenMP runtime is not installed ' +
-            '(vcomp140.dll or libgomp-1.dll for Windows, libomp.dylib for Mac OSX, ' +
-            'libgomp.so for Linux and other UNIX-like OSes). Mac OSX users: Run ' +
-            '`brew install libomp` to install OpenMP runtime.\n' +
-            '  * You are running 32-bit Python on a 64-bit OS\n' +
-            'Error message(s): {}\n'.format(os_error_list))
+            f"""
+XGBoost Library ({libname}) could not be loaded.
+Likely causes:
+  * OpenMP runtime is not installed
+    - vcomp140.dll or libgomp-1.dll for Windows
+    - libomp.dylib for Mac OSX
+    - libgomp.so for Linux and other UNIX-like OSes
+    Mac OSX users: Run `brew install libomp` to install OpenMP runtime.
+
+  * You are running 32-bit Python on a 64-bit OS
+
+Error message(s): {os_error_list}
+""")
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
@@ -246,7 +251,7 @@ def ctypes2numpy(cptr, length, dtype):
     """Convert a ctypes pointer array to a numpy array."""
     ctype = _numpy2ctypes_type(dtype)
     if not isinstance(cptr, ctypes.POINTER(ctype)):
-        raise RuntimeError("expected {} pointer".format(ctype))
+        raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError("memmove failed")
@@ -262,7 +267,7 @@ def ctypes2cupy(cptr, length, dtype):
 
     CUPY_TO_CTYPES_MAPPING = {cupy.float32: ctypes.c_float, cupy.uint32: ctypes.c_uint}
     if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
-        raise RuntimeError("Supported types: {}".format(CUPY_TO_CTYPES_MAPPING.keys()))
+        raise RuntimeError(f"Supported types: {CUPY_TO_CTYPES_MAPPING.keys()}")
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
     device = cupy.cuda.runtime.pointerGetAttributes(addr).device
@@ -486,13 +491,15 @@ def _deprecate_positional_args(f):
         if extra_args > 0:
             # ignore first 'self' argument for instance methods
             args_msg = [
-                '{}'.format(name) for name, _ in zip(
-                    kwonly_args[:extra_args], args[-extra_args:])
+                f"{name}" for name, _ in zip(
+                    kwonly_args[:extra_args], args[-extra_args:]
+                )
             ]
             warnings.warn(
                 "Pass `{}` as keyword args.  Passing these as positional "
                 "arguments will be considered as error in future releases.".
-                format(", ".join(args_msg)), FutureWarning)
+                format(", ".join(args_msg)), FutureWarning
+            )
         for k, arg in zip(sig.parameters, args):
             kwargs[k] = arg
         return f(**kwargs)
@@ -1292,7 +1299,7 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
+                raise TypeError(f'invalid cache item: {type(d).__name__}', cache)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
@@ -1665,8 +1672,7 @@ class Booster(object):
 
         """
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(
-                type(dtrain).__name__))
+            raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
         self._validate_features(dtrain)
 
         if fobj is None:
@@ -1695,10 +1701,10 @@ class Booster(object):
         """
         if len(grad) != len(hess):
             raise ValueError(
-                'grad / hess length mismatch: {} / {}'.format(len(grad), len(hess))
+                f"grad / hess length mismatch: {len(grad)} / {len(hess)}"
             )
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
+            raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
         self._validate_features(dtrain)
 
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
@@ -1726,11 +1732,9 @@ class Booster(object):
         """
         for d in evals:
             if not isinstance(d[0], DMatrix):
-                raise TypeError('expected DMatrix, got {}'.format(
-                    type(d[0]).__name__))
+                raise TypeError(f"expected DMatrix, got {type(d[0]).__name__}")
             if not isinstance(d[1], STRING_TYPES):
-                raise TypeError('expected string, got {}'.format(
-                    type(d[1]).__name__))
+                raise TypeError(f"expected string, got {type(d[1]).__name__}")
             self._validate_features(d[0])
 
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
@@ -2218,7 +2222,7 @@ class Booster(object):
             fout.write('\n]')
         else:
             for i, _ in enumerate(ret):
-                fout.write('booster[{}]:\n'.format(i))
+                fout.write(f"booster[{i}]:\n")
                 fout.write(ret[i])
         if need_close:
             fout.close()
@@ -2353,8 +2357,9 @@ class Booster(object):
                                'Install pandas before calling again.'))
 
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
-            raise ValueError('This method is not defined for Booster type {}'
-                             .format(self.booster))
+            raise ValueError(
+                f"This method is not defined for Booster type {self.booster}"
+            )
 
         tree_ids = []
         node_ids = []
@@ -2497,6 +2502,7 @@ class Booster(object):
         """
         xgdump = self.get_dump(fmap=fmap)
         values = []
+        # pylint: disable=consider-using-f-string
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
         for i, _ in enumerate(xgdump):
             m = re.findall(regexp, xgdump[i])
@@ -2514,7 +2520,7 @@ class Booster(object):
             fn = self.feature_names
             if fn is None:
                 # Let xgboost generate the feature names.
-                fn = ["f{0}".format(i) for i in range(self.num_features())]
+                fn = [f"f{i}" for i in range(self.num_features())]
             try:
                 index = fn.index(feature)
                 feature_t = ft[index]

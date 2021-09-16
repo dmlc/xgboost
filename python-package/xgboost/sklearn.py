@@ -335,7 +335,7 @@ def _wrap_evaluation_matrices(
                 )
                 evals.append(m)
         nevals = len(evals)
-        eval_names = ["validation_{}".format(i) for i in range(nevals)]
+        eval_names = [f"validation_{i}" for i in range(nevals)]
         evals = list(zip(evals, eval_names))
     else:
         if any(
@@ -526,7 +526,7 @@ class XGBModel(XGBModelBase):
                         stack.append(v)
 
             for k, v in internal.items():
-                if k in params.keys() and params[k] is None:
+                if params.get(k, None) is None:
                     params[k] = parse_parameter(v)
         except ValueError:
             pass
@@ -1016,7 +1016,7 @@ class XGBModel(XGBModelBase):
             importance_type=self.importance_type if self.importance_type else dft()
         )
         if b.feature_names is None:
-            feature_names = ["f{0}".format(i) for i in range(self.n_features_in_)]
+            feature_names = [f"f{i}" for i in range(self.n_features_in_)]
         else:
             feature_names = b.feature_names
         # gblinear returns all features so the `get` in next line is only for gbtree.
@@ -1044,8 +1044,8 @@ class XGBModel(XGBModelBase):
         """
         if self.get_params()['booster'] != 'gblinear':
             raise AttributeError(
-                'Coefficients are not defined for Booster type {}'
-                .format(self.booster))
+                f"Coefficients are not defined for Booster type {self.booster}"
+            )
         b = self.get_booster()
         coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
         # Logic for multiclass classification
@@ -1074,8 +1074,8 @@ class XGBModel(XGBModelBase):
         """
         if self.get_params()['booster'] != 'gblinear':
             raise AttributeError(
-                'Intercept (bias) is not defined for Booster type {}'
-                .format(self.booster))
+                f"Intercept (bias) is not defined for Booster type {self.booster}"
+            )
         b = self.get_booster()
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 

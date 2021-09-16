@@ -363,7 +363,7 @@ class CallbackContainer:
                 ' will invoke monitor automatically.'
             assert callable(metric), msg
         self.metric = metric
-        self.history: CallbackContainer.EvalsLog = collections.OrderedDict()
+        self.history: TrainingCallback.EvalsLog = collections.OrderedDict()
         self.is_cv = is_cv
 
         if self.is_cv:
@@ -519,7 +519,7 @@ class EarlyStopping(TrainingCallback):
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
-        self.stopping_history: CallbackContainer.EvalsLog = {}
+        self.stopping_history: TrainingCallback.EvalsLog = {}
         self._min_delta = min_delta
         if self._min_delta < 0:
             raise ValueError("min_delta must be greater or equal to 0.")
@@ -589,7 +589,7 @@ class EarlyStopping(TrainingCallback):
         return False
 
     def after_iteration(self, model, epoch: int,
-                        evals_log: CallbackContainer.EvalsLog) -> bool:
+                        evals_log: TrainingCallback.EvalsLog) -> bool:
         epoch += self.starting_round  # training continuation
         msg = 'Must have at least 1 validation dataset for early stopping.'
         assert len(evals_log.keys()) >= 1, msg
@@ -661,7 +661,7 @@ class EvaluationMonitor(TrainingCallback):
         return msg
 
     def after_iteration(self, model, epoch: int,
-                        evals_log: CallbackContainer.EvalsLog) -> bool:
+                        evals_log: TrainingCallback.EvalsLog) -> bool:
         if not evals_log:
             return False
 
@@ -723,7 +723,7 @@ class TrainingCheckPoint(TrainingCallback):
         super().__init__()
 
     def after_iteration(self, model, epoch: int,
-                        evals_log: CallbackContainer.EvalsLog) -> bool:
+                        evals_log: TrainingCallback.EvalsLog) -> bool:
         if self._epoch == self._iterations:
             path = os.path.join(self._path, self._name + '_' + str(epoch) +
                                 ('.pkl' if self._as_pickle else '.json'))
