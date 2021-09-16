@@ -43,7 +43,7 @@ from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
 from .sklearn import _wrap_evaluation_matrices, _objective_decorator
-from .sklearn import XGBRankerMixIn
+from .sklearn import XGBRankerMixIn, XGBRFMixIn
 from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
 from .sklearn import XGBRanker
@@ -2023,7 +2023,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         Number of trees in random forest to fit.
 """,
 )
-class DaskXGBRFRegressor(DaskXGBRegressor):
+class DaskXGBRFRegressor(DaskXGBRegressor, XGBRFMixIn):
     @_deprecate_positional_args
     def __init__(
         self,
@@ -2049,6 +2049,30 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
 
     def get_num_boosting_rounds(self) -> int:
         return 1
+
+    # pylint: disable=unused-argument
+    def fit(
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: bool = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "DaskXGBRFRegressor":
+        _assert_dask_support()
+        args = {k: v for k, v in locals().items() if k != 'self'}
+        self._check_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self
 
 
 @xgboost_model_doc(
@@ -2063,7 +2087,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         Number of trees in random forest to fit.
 """,
 )
-class DaskXGBRFClassifier(DaskXGBClassifier):
+class DaskXGBRFClassifier(DaskXGBClassifier, XGBRFMixIn):
     @_deprecate_positional_args
     def __init__(
         self,
@@ -2089,3 +2113,27 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
 
     def get_num_boosting_rounds(self) -> int:
         return 1
+
+    # pylint: disable=unused-argument
+    def fit(
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: bool = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "DaskXGBRFClassifier":
+        _assert_dask_support()
+        args = {k: v for k, v in locals().items() if k != 'self'}
+        self._check_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self

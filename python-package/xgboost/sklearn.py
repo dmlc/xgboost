@@ -40,6 +40,19 @@ class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     _estimator_type = "ranker"
 
 
+class XGBRFMixIn:
+    def _check_callback(
+        self,
+        early_stopping_rounds: Optional[int],
+        callbacks: Optional[List[TrainingCallback]],
+    ) -> None:
+        if early_stopping_rounds is not None or callbacks is not None:
+            raise NotImplementedError(
+                "`early_stopping_rounds` and `callbacks` are not implemented for"
+                " random forest."
+            )
+
+
 _SklObjective = Optional[
     Union[
         str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
@@ -1394,7 +1407,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
         code, we recommend that you set this parameter to False.
 ''')
-class XGBRFClassifier(XGBClassifier):
+class XGBRFClassifier(XGBClassifier, XGBRFMixIn):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -1421,6 +1434,30 @@ class XGBRFClassifier(XGBClassifier):
     def get_num_boosting_rounds(self) -> int:
         return 1
 
+    # pylint: disable=unused-argument
+    @_deprecate_positional_args
+    def fit(
+        self,
+        X: array_like,
+        y: array_like,
+        *,
+        sample_weight: Optional[array_like] = None,
+        base_margin: Optional[array_like] = None,
+        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: Optional[bool] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[array_like]] = None,
+        base_margin_eval_set: Optional[List[array_like]] = None,
+        feature_weights: Optional[array_like] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "XGBRFClassifier":
+        args = {k: v for k, v in locals().items() if k != "self"}
+        self._check_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self
+
 
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost regression.",
@@ -1440,7 +1477,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
     n_estimators : int
         Number of trees in random forest to fit.
 ''')
-class XGBRFRegressor(XGBRegressor):
+class XGBRFRegressor(XGBRegressor, XGBRFMixIn):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -1452,17 +1489,45 @@ class XGBRFRegressor(XGBRegressor):
         reg_lambda: float = 1e-5,
         **kwargs: Any
     ) -> None:
-        super().__init__(learning_rate=learning_rate, subsample=subsample,
-                         colsample_bynode=colsample_bynode,
-                         reg_lambda=reg_lambda, **kwargs)
+        super().__init__(
+            learning_rate=learning_rate,
+            subsample=subsample,
+            colsample_bynode=colsample_bynode,
+            reg_lambda=reg_lambda,
+            **kwargs
+        )
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
-        params['num_parallel_tree'] = self.n_estimators
+        params["num_parallel_tree"] = self.n_estimators
         return params
 
     def get_num_boosting_rounds(self) -> int:
         return 1
+
+    # pylint: disable=unused-argument
+    @_deprecate_positional_args
+    def fit(
+        self,
+        X: array_like,
+        y: array_like,
+        *,
+        sample_weight: Optional[array_like] = None,
+        base_margin: Optional[array_like] = None,
+        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: Optional[bool] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[array_like]] = None,
+        base_margin_eval_set: Optional[List[array_like]] = None,
+        feature_weights: Optional[array_like] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "XGBRFRegressor":
+        args = {k: v for k, v in locals().items() if k != "self"}
+        self._check_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self
 
 
 @xgboost_model_doc(
