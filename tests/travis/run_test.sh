@@ -102,6 +102,6 @@ if [ ${TASK} == "s390x_test" ]; then
 
     # Run model compatibility tests
     cd ..
-    python3 -m pip install --user pytest hypothesis
+    python3 -m pip install --user pytest hypothesis cmake
     PYTHONPATH=./python-package python3 -m pytest --fulltrace -v -rxXs tests/python/test_basic.py
 fi
