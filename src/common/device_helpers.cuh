@@ -699,16 +699,32 @@ typename std::iterator_traits<T>::value_type SumReduction(T in, int nVals) {
   return sum;
 }
 
-#if __CUDACC_VER_MAJOR__ >= 11 && __CUDACC_VER_MINOR__ >= 4
-template <typename T>
-using TypedDiscard = thrust::discard_iterator<T>;
+constexpr std::pair<int, int> CUDAVersion() {
+#if defined(__CUDACC_VER_MAJOR__)
+  return std::make_pair(__CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
 #else
+  // clang/clang-tidy
+  return std::make_pair((CUDA_VERSION) / 1000, (CUDA_VERSION) % 100 / 10);
+#endif  // defined(__CUDACC_VER_MAJOR__)
+}
+
+namespace detail {
+template <typename T>
+using TypedDiscardCTK114 = thrust::discard_iterator<T>;
+
 template <typename T>
 class TypedDiscard : public thrust::discard_iterator<T> {
  public:
   using value_type = T;  // NOLINT
 };
-#endif
+} // namespace detail
+
+template <typename T>
+using TypedDiscard =
+    std::conditional_t<((CUDAVersion().first == 11 &&
+                         CUDAVersion().second >= 4) ||
+                        CUDAVersion().first > 11),
+                       detail::TypedDiscardCTK114<T>, detail::TypedDiscard<T>>;
 
 /**
  * \class AllReducer
@@ -1339,12 +1355,14 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
 namespace detail {
 template <typename InputIteratorT, typename OutputIteratorT>
 bool constexpr ShouldWorkaroundCubScan() {
-  // input and output iterators have different value type, and system cub is being used.
+  // input and output iterators have different value type, and system cub is
+  // being used.
   return !std::is_same<
              typename thrust::iterator_traits<InputIteratorT>::value_type,
              typename thrust::iterator_traits<OutputIteratorT>::value_type>::
              value &&
-         BuildWithCUDACub();
+         BuildWithCUDACub() &&
+         (CUDAVersion().first == 11 && CUDAVersion().second <= 2);
 }
 } // namespace detail
 
@@ -1380,13 +1398,6 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
   XGBCachingDeviceAllocator<char> alloc;
   thrust::inclusive_scan(thrust::cuda::par(alloc), d_in, d_in + num_items,
                          d_out, scan_op);
-  static_assert(
-      BuildWithCUDACub(),
-      "This function should not be invoked when using cub submodule.");
-  static_assert(!std::is_same<typename InputIteratorT::value_type,
-                              typename OutputIteratorT::value_type>::value,
-                "This function should not be invoked when input and output "
-                "have same type.");
 }
 
 template <typename InIt, typename OutIt, typename Predicate>
