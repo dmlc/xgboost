@@ -1753,10 +1753,12 @@ class Booster(object):
                                                output_margin=True), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
-                        res += f"\t{evname}-{name}:{val}"
+                        # pylint: disable=consider-using-f-string
+                        res += '\t%s-%s:%f' % (evname, name, val)
                 else:
                     name, val = feval_ret
-                    res += f"\t{evname}-{name}:{val}"
+                    # pylint: disable=consider-using-f-string
+                    res += '\t%s-%s:%f' % (evname, name, val)
         return res
 
     def eval(self, data, name='eval', iteration=0):

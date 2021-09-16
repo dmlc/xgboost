@@ -803,7 +803,7 @@ def _dmatrix_from_list_of_parts(
 async def _get_rabit_args(n_workers: int, client: "distributed.Client") -> List[bytes]:
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
     env = await client.run_on_scheduler(_start_tracker, n_workers)
-    rabit_args = ["{k}={v}".encode() for k, v in env.items()]
+    rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args
 
 # train and predict methods are supposed to be "functional", which meets the
