@@ -154,8 +154,13 @@ function(xgboost_set_cuda_flags target)
     enable_nvtx(${target})
   endif (USE_NVTX)
 
-  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1 -DTHRUST_IGNORE_CUB_VERSION_CHECK=1)
-  target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/ ${xgboost_SOURCE_DIR}/gputreeshap)
+  if (NOT BUILD_WITH_CUDA_CUB)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1 -DTHRUST_IGNORE_CUB_VERSION_CHECK=1)
+    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/ ${xgboost_SOURCE_DIR}/gputreeshap)
+  else ()
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
+    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/gputreeshap)
+  endif (NOT BUILD_WITH_CUDA_CUB)
 
   if (MSVC)
     target_compile_options(${target} PRIVATE
