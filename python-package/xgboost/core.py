@@ -2008,7 +2008,8 @@ class Booster(object):
         dims = c_bst_ulong()
 
         if base_margin is not None:
-            proxy = _ProxyDMatrix()
+            proxy: Optional[_ProxyDMatrix] = _ProxyDMatrix()
+            assert proxy is not None
             proxy.set_info(base_margin=base_margin)
             p_handle = proxy.handle
         else:
