@@ -220,49 +220,60 @@ _pandas_dtype_mapper = {
 
 def _transform_pandas_df(
     data,
-    enable_categorical,
+    enable_categorical: bool,
     feature_names: Optional[List[str]] = None,
     feature_types: Optional[List[str]] = None,
     meta=None,
     meta_type=None,
 ):
-    from pandas import MultiIndex, Int64Index, RangeIndex
+    import pandas as pd
     from pandas.api.types import is_sparse, is_categorical_dtype
 
-    data_dtypes = data.dtypes
     if not all(dtype.name in _pandas_dtype_mapper or is_sparse(dtype) or
                (is_categorical_dtype(dtype) and enable_categorical)
-               for dtype in data_dtypes):
+               for dtype in data.dtypes):
         bad_fields = [
-            str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
+            str(data.columns[i]) for i, dtype in enumerate(data.dtypes)
             if dtype.name not in _pandas_dtype_mapper
         ]
 
-        msg = """DataFrame.dtypes for data must be int, float, bool or categorical.  When
-                categorical type is supplied, DMatrix parameter
-                `enable_categorical` must be set to `True`."""
+        msg = """DataFrame.dtypes for data must be int, float, bool or category.  When
+                categorical type is supplied, DMatrix parameter `enable_categorical` must
+                be set to `True`."""
         raise ValueError(msg + ', '.join(bad_fields))
 
+    # handle feature names
     if feature_names is None and meta is None:
-        if isinstance(data.columns, MultiIndex):
+        if isinstance(data.columns, pd.MultiIndex):
             feature_names = [
                 ' '.join([str(x) for x in i]) for i in data.columns
             ]
-        elif isinstance(data.columns, (Int64Index, RangeIndex)):
+        elif isinstance(data.columns, (pd.Int64Index, pd.RangeIndex)):
             feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
 
+    # handle feature types
     if feature_types is None and meta is None:
         feature_types = []
-        for dtype in data_dtypes:
+        for i, dtype in enumerate(data.dtypes):
             if is_sparse(dtype):
-                feature_types.append(_pandas_dtype_mapper[
-                    dtype.subtype.name])
+                feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
             elif is_categorical_dtype(dtype) and enable_categorical:
                 feature_types.append(CAT_T)
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
+
+    # handle categorical codes.
+    transformed = pd.DataFrame()
+    if enable_categorical:
+        for i, dtype in enumerate(data.dtypes):
+            if is_categorical_dtype(dtype):
+                transformed[data.columns[i]] = data[data.columns[i]].cat.codes
+            else:
+                transformed[data.columns[i]] = data[data.columns[i]]
+    else:
+        transformed = data
 
     if meta and len(data.columns) > 1:
         raise ValueError(
@@ -271,10 +282,10 @@ def _transform_pandas_df(
         )
 
     dtype = meta_type if meta_type else np.float32
-    data = data.values
+    arr = transformed.values
     if meta_type:
-        data = data.astype(meta_type)
-    return data, feature_names, feature_types
+        arr = arr.astype(meta_type)
+    return arr, feature_names, feature_types
 
 
 def _from_pandas_df(
