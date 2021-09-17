@@ -2275,7 +2275,7 @@ class Booster(object):
 
     def get_score(
         self, fmap: Union[str, os.PathLike] = '', importance_type: str = 'weight'
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Union[float, List[float]]]:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
 
@@ -2332,7 +2332,7 @@ class Booster(object):
         features_arr = from_cstr_to_pystr(features, n_out_features)
         scores_arr = _prediction_output(shape, out_dim, scores, False)
 
-        results = {}
+        results: Dict[str, Union[float, List[float]]] = {}
         if len(scores_arr.shape) > 1 and scores_arr.shape[1] > 1:
             for feat, score in zip(features_arr, scores_arr):
                 results[feat] = [float(s) for s in score]
