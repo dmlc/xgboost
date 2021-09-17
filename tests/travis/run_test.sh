@@ -92,6 +92,7 @@ fi
 
 if [ ${TASK} == "s390x_test" ]; then
     set -e
+    python3 -m pip install --user pytest hypothesis cmake
 
     # Build and run C++ tests
     rm -rf build
@@ -102,6 +103,5 @@ if [ ${TASK} == "s390x_test" ]; then
 
     # Run model compatibility tests
     cd ..
-    python3 -m pip install --user pytest hypothesis
     PYTHONPATH=./python-package python3 -m pytest --fulltrace -v -rxXs tests/python/test_basic.py
 fi
