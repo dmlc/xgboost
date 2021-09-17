@@ -3,8 +3,9 @@
 """Distributed XGBoost Rabit related API."""
 import ctypes
 import pickle
-import numpy as np
 from typing import Any, TypeVar, Callable, Optional, cast, List, Union
+
+import numpy as np
 
 from .core import _LIB, c_str, STRING_TYPES, _check_call
 
