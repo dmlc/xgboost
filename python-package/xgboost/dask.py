@@ -42,7 +42,7 @@ from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
-from .sklearn import _wrap_evaluation_matrices, _objective_decorator
+from .sklearn import _wrap_evaluation_matrices, _objective_decorator, _check_rf_callback
 from .sklearn import XGBRankerMixIn
 from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
@@ -1710,7 +1710,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         callbacks: Optional[List[TrainingCallback]] = None,
     ) -> "DaskXGBRegressor":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
 
@@ -1813,7 +1813,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != 'self'}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
     async def _predict_proba_async(
@@ -2001,7 +2001,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRanker":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and qid.
@@ -2047,6 +2047,30 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
     def get_num_boosting_rounds(self) -> int:
         return 1
 
+    # pylint: disable=unused-argument
+    def fit(
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: bool = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "DaskXGBRFRegressor":
+        _assert_dask_support()
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
+        _check_rf_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self
+
 
 @xgboost_model_doc(
     """Implementation of the Scikit-Learn API for XGBoost Random Forest Classifier.
@@ -2086,3 +2110,27 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
 
     def get_num_boosting_rounds(self) -> int:
         return 1
+
+    # pylint: disable=unused-argument
+    def fit(
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: bool = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "DaskXGBRFClassifier":
+        _assert_dask_support()
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
+        _check_rf_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self

@@ -402,6 +402,10 @@ def run_boston_housing_rf_regression(tree_method):
         labels = y[test_index]
         assert mean_squared_error(preds, labels) < 35
 
+    rfreg = xgb.XGBRFRegressor()
+    with pytest.raises(NotImplementedError):
+        rfreg.fit(X, y, early_stopping_rounds=10)
+
 
 def test_boston_housing_rf_regression():
     run_boston_housing_rf_regression("hist")
