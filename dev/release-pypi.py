@@ -36,10 +36,10 @@ def retrieve(url, filename=None):
     return urlretrieve(url, filename, reporthook=show_progress)
 
 
-def lastest_hash() -> str:
+def latest_hash() -> str:
     "Get latest commit hash."
     ret = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
-    assert ret.returncode == 0, "Failed to get lastest commit hash."
+    assert ret.returncode == 0, "Failed to get latest commit hash."
     commit_hash = ret.stdout.decode("utf-8").strip()
     return commit_hash
 
@@ -96,7 +96,7 @@ def main(args: argparse.Namespace) -> None:
     git.checkout(branch)
     git.pull("origin", branch)
     git.submodule("update")
-    commit_hash = lastest_hash()
+    commit_hash = latest_hash()
 
     dir_URL = PREFIX + str(major) + "." + str(minor) + ".0" + "/"
     src_filename_prefix = "xgboost-" + args.release + "%2B" + commit_hash + "-py3-none-"
