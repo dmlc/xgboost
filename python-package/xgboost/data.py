@@ -69,7 +69,7 @@ def _from_scipy_csr(
     """Initialize data from a CSR matrix."""
     if len(data.indices) != len(data.data):
         raise ValueError(
-            "length mismatch: {} vs {}".format(len(data.indices), len(data.data))
+            f"length mismatch: {len(data.indices)} vs {len(data.data)}"
         )
     handle = ctypes.c_void_p()
     args = {
@@ -106,8 +106,7 @@ def _from_scipy_csc(
     feature_types: Optional[List[str]],
 ):
     if len(data.indices) != len(data.data):
-        raise ValueError('length mismatch: {} vs {}'.format(
-            len(data.indices), len(data.data)))
+        raise ValueError(f"length mismatch: {len(data.indices)} vs {len(data.data)}")
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
     _check_call(_LIB.XGDMatrixCreateFromCSCEx(
@@ -277,8 +276,7 @@ def _transform_pandas_df(
 
     if meta and len(data.columns) > 1:
         raise ValueError(
-            'DataFrame for {meta} cannot have multiple columns'.format(
-                meta=meta)
+            f"DataFrame for {meta} cannot have multiple columns"
         )
 
     dtype = meta_type if meta_type else np.float32

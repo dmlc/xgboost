@@ -282,7 +282,7 @@ class DaskDMatrix:
 
         if len(data.shape) != 2:
             raise ValueError(
-                "Expecting 2 dimensional input, got: {shape}".format(shape=data.shape)
+                f"Expecting 2 dimensional input, got: {data.shape}"
             )
 
         if not isinstance(data, (dd.DataFrame, da.Array)):
@@ -328,12 +328,9 @@ class DaskDMatrix:
         def inconsistent(
             left: List[Any], left_name: str, right: List[Any], right_name: str
         ) -> str:
-            msg = 'Partitions between {a_name} and {b_name} are not ' \
-                'consistent: {a_len} != {b_len}.  ' \
-                'Please try to repartition/rechunk your data.'.format(
-                    a_name=left_name, b_name=right_name, a_len=len(left),
-                    b_len=len(right)
-                )
+            msg = (f"Partitions between {left_name} and {right_name} are not "
+                   f"consistent: {len(left)} != {len(right)}.  "
+                   f"Please try to repartition/rechunk your data.")
             return msg
 
         def check_columns(parts: Any) -> None:
@@ -683,7 +680,7 @@ def _create_device_quantile_dmatrix(
 ) -> DeviceQuantileDMatrix:
     worker = distributed.get_worker()
     if parts is None:
-        msg = "worker {address} has an empty DMatrix.".format(address=worker.address)
+        msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         import cupy
 
@@ -747,7 +744,7 @@ def _create_dmatrix(
     worker = distributed.get_worker()
     list_of_parts = parts
     if list_of_parts is None:
-        msg = 'worker {address} has an empty DMatrix.  '.format(address=worker.address)
+        msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         d = DMatrix(
             numpy.empty((0, 0)),
@@ -806,7 +803,7 @@ def _dmatrix_from_list_of_parts(
 async def _get_rabit_args(n_workers: int, client: "distributed.Client") -> List[bytes]:
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
     env = await client.run_on_scheduler(_start_tracker, n_workers)
-    rabit_args = [('%s=%s' % item).encode() for item in env.items()]
+    rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args
 
 # train and predict methods are supposed to be "functional", which meets the

@@ -184,7 +184,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
         kwargs['graph_attrs'] = {}
         kwargs['graph_attrs']['rankdir'] = rankdir
     for key, value in extra.items():
-        if 'graph_attrs' in kwargs.keys():
+        if kwargs.get("graph_attrs", None) is not None:
             kwargs['graph_attrs'][key] = value
         else:
             kwargs['graph_attrs'] = {}
