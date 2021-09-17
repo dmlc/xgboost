@@ -23,14 +23,9 @@ from .compat import (
     XGBClassifierBase,
     XGBRegressorBase,
     XGBoostLabelEncoder,
-    DataFrame,
-    scipy_csr,
 )
 
-# Actually XGBoost supports a lot more data types including `scipy.sparse.csr_matrix` and
-# many others.  See `data.py` for a complete list.  The `array_like` here is just for
-# easier type checks.
-array_like = TypeVar("array_like", bound=Union[np.ndarray, DataFrame, scipy_csr])
+array_like = Any
 
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods

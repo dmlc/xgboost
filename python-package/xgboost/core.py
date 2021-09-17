@@ -7,7 +7,7 @@ import collections
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar
 # pylint: enable=no-name-in-module,import-error
-from typing import Callable, Tuple
+from typing import Callable, Tuple, cast
 import ctypes
 import os
 import re
@@ -2008,7 +2008,8 @@ class Booster(object):
         dims = c_bst_ulong()
 
         if base_margin is not None:
-            proxy = _ProxyDMatrix()
+            proxy: Optional[_ProxyDMatrix] = _ProxyDMatrix()
+            assert proxy is not None
             proxy.set_info(base_margin=base_margin)
             p_handle = proxy.handle
         else:
@@ -2274,8 +2275,8 @@ class Booster(object):
         return self.get_score(fmap, importance_type='weight')
 
     def get_score(
-        self, fmap: os.PathLike = '', importance_type: str = 'weight'
-    ) -> Dict[str, float]:
+        self, fmap: Union[str, os.PathLike] = '', importance_type: str = 'weight'
+    ) -> Dict[str, Union[float, List[float]]]:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
 
@@ -2332,7 +2333,7 @@ class Booster(object):
         features_arr = from_cstr_to_pystr(features, n_out_features)
         scores_arr = _prediction_output(shape, out_dim, scores, False)
 
-        results = {}
+        results: Dict[str, Union[float, List[float]]] = {}
         if len(scores_arr.shape) > 1 and scores_arr.shape[1] > 1:
             for feat, score in zip(features_arr, scores_arr):
                 results[feat] = [float(s) for s in score]
@@ -2481,7 +2482,7 @@ class Booster(object):
         fmap: Union[os.PathLike, str] = '',
         bins: Optional[int] = None,
         as_pandas: bool = True
-    ):
+    ) -> Union[np.ndarray, DataFrame]:
         """Get split value histogram of a feature
 
         Parameters
@@ -2526,7 +2527,7 @@ class Booster(object):
                 fn = [f"f{i}" for i in range(self.num_features())]
             try:
                 index = fn.index(feature)
-                feature_t = ft[index]
+                feature_t: Optional[str] = cast(List[str], ft)[index]
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
