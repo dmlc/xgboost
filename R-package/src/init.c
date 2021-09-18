@@ -9,7 +9,7 @@
 #include <Rinternals.h>
 #include <stdlib.h>
 #include <R_ext/Rdynload.h>
-#include <R_ext/Visibility.h.h>
+#include <R_ext/Visibility.h>
 
 /* FIXME:
 Check these declarations against the C/Fortran source code.
