@@ -1,0 +1,3 @@
+LIBRARY xgboost.dll
+EXPORTS
+ R_init_xgboost
