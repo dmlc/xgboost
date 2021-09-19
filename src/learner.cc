@@ -568,9 +568,9 @@ class LearnerConfiguration : public Learner {
       ss << "\"" << diff.back() << "\"";
       ss << R"W( } might not be used.
 
-  This may not be accurate due to some parameters are only used in language bindings but
-  passed down to XGBoost core.  Or some parameters are not used but slip through this
-  verification. Please open an issue if you find above cases.
+  This could be a false alarm, with some parameters getting used by language bindings but
+  then being mistakenly passed down to XGBoost core, or some parameter actually being used
+  but getting flagged wrongly here. Please open an issue if you find any such cases.
 
 )W";
       LOG(WARNING) << ss.str();
