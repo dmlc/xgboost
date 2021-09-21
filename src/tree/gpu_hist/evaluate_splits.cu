@@ -68,7 +68,7 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
       reduce_val, thrust::make_discard_iterator(), out_reduce.data(),
       thrust::equal_to<int>{},
       [param] __device__(DeviceSplitCandidate l, DeviceSplitCandidate r) {
-        if (l.loss_chg == r.loss_chg
+        if (fabs(l.loss_chg - r.loss_chg) < kRtEps
             && l.left_sum.GetHess() >= param.min_child_weight
             && l.right_sum.GetHess() >= param.min_child_weight
             && r.left_sum.GetHess() >= param.min_child_weight
