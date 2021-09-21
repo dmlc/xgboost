@@ -128,7 +128,18 @@ class TestPandas:
         X = pd.DataFrame({'f0': X})
         y = rng.randn(rows)
         m = xgb.DMatrix(X, y, enable_categorical=True)
-        assert m.feature_types[0] == 'categorical'
+        assert m.feature_types[0] == 'c'
+
+        X_0 = ["f", "o", "o"]
+        X_1 = [4, 3, 2]
+        X = pd.DataFrame({"feat_0": X_0, "feat_1": X_1})
+        X["feat_0"] = X["feat_0"].astype("category")
+        transformed, _, feature_types = xgb.data._transform_pandas_df(
+            X, enable_categorical=True
+        )
+
+        assert np.issubdtype(transformed[:, 0].dtype, np.integer)
+        assert transformed[:, 0].min() == 0
 
     def test_pandas_sparse(self):
         import pandas as pd

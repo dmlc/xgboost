@@ -64,7 +64,7 @@ class SlaveEntry(object):
         self.sock = slave
         self.host = get_some_ip(s_addr[0])
         magic = slave.recvint()
-        assert magic == kMagic, 'invalid magic number=%d from %s' % (magic, self.host)
+        assert magic == kMagic, f"invalid magic number={magic} from {self.host}"
         slave.sendint(kMagic)
         self.rank = slave.recvint()
         self.world_size = slave.recvint()
@@ -296,7 +296,7 @@ class RabitTracker(object):
                 shutdown[s.rank] = s
                 logging.debug('Received %s signal from %d', s.cmd, s.rank)
                 continue
-            assert s.cmd == 'start' or s.cmd == 'recover'
+            assert s.cmd in ("start", "recover")
             # lazily initialize the slaves
             if tree_map is None:
                 assert s.cmd == 'start'
@@ -306,7 +306,7 @@ class RabitTracker(object):
                 # set of nodes that is pending for getting up
                 todo_nodes = list(range(nslave))
             else:
-                assert s.world_size == -1 or s.world_size == nslave
+                assert s.world_size in (-1, nslave)
             if s.cmd == 'recover':
                 assert s.rank >= 0
 
@@ -392,7 +392,7 @@ def start_rabit_tracker(args):
     sys.stdout.write('DMLC_TRACKER_ENV_START\n')
     # simply write configuration to stdout
     for k, v in envs.items():
-        sys.stdout.write('%s=%s\n' % (k, str(v)))
+        sys.stdout.write(f"{k}={v}\n")
     sys.stdout.write('DMLC_TRACKER_ENV_END\n')
     sys.stdout.flush()
     rabit.join()
@@ -419,7 +419,7 @@ def main():
     elif args.log_level == 'DEBUG':
         level = logging.DEBUG
     else:
-        raise RuntimeError("Unknown logging level %s" % args.log_level)
+        raise RuntimeError(f"Unknown logging level {args.log_level}")
 
     logging.basicConfig(format=fmt, level=level)
 

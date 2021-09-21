@@ -19,9 +19,9 @@ Exact Solution
 Exact means XGBoost considers all candidates from data for tree splitting, but underlying
 the objective is still interpreted as a Taylor expansion.
 
-1. ``exact``: Vanilla tree boosting tree algorithm described in `reference paper
+1. ``exact``: Vanilla gradient boosting tree algorithm described in `reference paper
    <http://arxiv.org/abs/1603.02754>`_.  During each split finding procedure, it iterates
-   over every entry of input data.  It's more accurate (among other greedy methods) but
+   over all entries of input data.  It's more accurate (among other greedy methods) but
    slow in computation performance.  Also it doesn't support distributed training as
    XGBoost employs row spliting data distribution while ``exact`` tree method works on a
    sorted column format.  This tree method can be used with parameter ``tree_method`` set
@@ -85,16 +85,16 @@ Other Updaters
    ``min_split_loss (gamma)`` and ``max_depth``.
 
 2. ``Refresh``: Refresh the statistic of built trees on a new training dataset.  Like the
-  pruner, To use refresh independently, one needs to set the process type to update:
-  ``{"process_type": "update", "updater": "refresh"}``.  During training, the updater will
-  change statistics like ``cover`` and ``weight`` according to the new training dataset.
-  When ``refresh_leaf`` is also set to true (default), XGBoost will update the leaf value
-  according to the new leaf weight, but the tree structure (split condition) itself
-  doesn't change.
+   pruner, To use refresh independently, one needs to set the process type to update:
+   ``{"process_type": "update", "updater": "refresh"}``.  During training, the updater
+   will change statistics like ``cover`` and ``weight`` according to the new training
+   dataset.  When ``refresh_leaf`` is also set to true (default), XGBoost will update the
+   leaf value according to the new leaf weight, but the tree structure (split condition)
+   itself doesn't change.
 
-  There are examples on both training continuation (adding new trees) and using update
-  process on ``demo/guide-python``.  Also checkout the ``process_type`` parameter in
-  :doc:`parameter`.
+   There are examples on both training continuation (adding new trees) and using update
+   process on ``demo/guide-python``.  Also checkout the ``process_type`` parameter in
+   :doc:`parameter`.
 
 3. ``Sync``: Synchronize the tree among workers when running distributed training.
 

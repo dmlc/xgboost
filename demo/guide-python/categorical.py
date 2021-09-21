@@ -44,7 +44,8 @@ def make_categorical(
 
 def main() -> None:
     # Use builtin categorical data support
-    # Must be pandas DataFrame or cudf DataFrame with categorical data
+    # For scikit-learn interface, the input data must be pandas DataFrame or cudf
+    # DataFrame with categorical features
     X, y = make_categorical(100, 10, 4, False)
     # Specify `enable_categorical` to True.
     reg = xgb.XGBRegressor(tree_method="gpu_hist", enable_categorical=True)

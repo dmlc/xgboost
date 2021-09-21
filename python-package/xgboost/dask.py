@@ -42,7 +42,7 @@ from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
-from .sklearn import _wrap_evaluation_matrices, _objective_decorator
+from .sklearn import _wrap_evaluation_matrices, _objective_decorator, _check_rf_callback
 from .sklearn import XGBRankerMixIn
 from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
@@ -282,7 +282,7 @@ class DaskDMatrix:
 
         if len(data.shape) != 2:
             raise ValueError(
-                "Expecting 2 dimensional input, got: {shape}".format(shape=data.shape)
+                f"Expecting 2 dimensional input, got: {data.shape}"
             )
 
         if not isinstance(data, (dd.DataFrame, da.Array)):
@@ -328,12 +328,9 @@ class DaskDMatrix:
         def inconsistent(
             left: List[Any], left_name: str, right: List[Any], right_name: str
         ) -> str:
-            msg = 'Partitions between {a_name} and {b_name} are not ' \
-                'consistent: {a_len} != {b_len}.  ' \
-                'Please try to repartition/rechunk your data.'.format(
-                    a_name=left_name, b_name=right_name, a_len=len(left),
-                    b_len=len(right)
-                )
+            msg = (f"Partitions between {left_name} and {right_name} are not "
+                   f"consistent: {len(left)} != {len(right)}.  "
+                   f"Please try to repartition/rechunk your data.")
             return msg
 
         def check_columns(parts: Any) -> None:
@@ -683,7 +680,7 @@ def _create_device_quantile_dmatrix(
 ) -> DeviceQuantileDMatrix:
     worker = distributed.get_worker()
     if parts is None:
-        msg = "worker {address} has an empty DMatrix.".format(address=worker.address)
+        msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         import cupy
 
@@ -747,7 +744,7 @@ def _create_dmatrix(
     worker = distributed.get_worker()
     list_of_parts = parts
     if list_of_parts is None:
-        msg = 'worker {address} has an empty DMatrix.  '.format(address=worker.address)
+        msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         d = DMatrix(
             numpy.empty((0, 0)),
@@ -806,7 +803,7 @@ def _dmatrix_from_list_of_parts(
 async def _get_rabit_args(n_workers: int, client: "distributed.Client") -> List[bytes]:
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
     env = await client.run_on_scheduler(_start_tracker, n_workers)
-    rabit_args = [('%s=%s' % item).encode() for item in env.items()]
+    rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args
 
 # train and predict methods are supposed to be "functional", which meets the
@@ -1713,7 +1710,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         callbacks: Optional[List[TrainingCallback]] = None,
     ) -> "DaskXGBRegressor":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
 
@@ -1816,7 +1813,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != 'self'}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
     async def _predict_proba_async(
@@ -2004,7 +2001,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRanker":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k != "self"}
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and qid.
@@ -2050,6 +2047,30 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
     def get_num_boosting_rounds(self) -> int:
         return 1
 
+    # pylint: disable=unused-argument
+    def fit(
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: bool = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "DaskXGBRFRegressor":
+        _assert_dask_support()
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
+        _check_rf_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self
+
 
 @xgboost_model_doc(
     """Implementation of the Scikit-Learn API for XGBoost Random Forest Classifier.
@@ -2089,3 +2110,27 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
 
     def get_num_boosting_rounds(self) -> int:
         return 1
+
+    # pylint: disable=unused-argument
+    def fit(
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: bool = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "DaskXGBRFClassifier":
+        _assert_dask_support()
+        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
+        _check_rf_callback(early_stopping_rounds, callbacks)
+        super().fit(**args)
+        return self

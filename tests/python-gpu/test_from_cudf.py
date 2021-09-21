@@ -172,7 +172,7 @@ Arrow specification.'''
         _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_categorical(self):
+    def test_cudf_categorical(self):
         import cudf
         _X, _y = tm.make_categorical(100, 30, 17, False)
         X = cudf.from_pandas(_X)
@@ -180,11 +180,11 @@ Arrow specification.'''
 
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         assert len(Xy.feature_types) == X.shape[1]
-        assert all(t == "categorical" for t in Xy.feature_types)
+        assert all(t == "c" for t in Xy.feature_types)
 
         Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
         assert len(Xy.feature_types) == X.shape[1]
-        assert all(t == "categorical" for t in Xy.feature_types)
+        assert all(t == "c" for t in Xy.feature_types)
 
 
 @pytest.mark.skipif(**tm.no_cudf())

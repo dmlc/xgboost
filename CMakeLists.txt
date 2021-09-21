@@ -49,6 +49,7 @@ option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
+option(BUILD_WITH_CUDA_CUB "Build with cub in CUDA installation" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
 ## Copied From dmlc

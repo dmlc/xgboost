@@ -285,7 +285,7 @@ void TestCategoricalTreeDump(std::string format, std::string sep) {
   pos = str.find(cond_str, pos + 1);
   ASSERT_NE(pos, std::string::npos);
 
-  fmap.PushBack(0, "feat_0", "categorical");
+  fmap.PushBack(0, "feat_0", "c");
   fmap.PushBack(1, "feat_1", "q");
   fmap.PushBack(2, "feat_2", "int");
 

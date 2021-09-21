@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -128,6 +128,7 @@ inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins,
     }
   }
   HostSketchContainer container(reduced, max_bins,
+                                m->Info().feature_types.ConstHostSpan(),
                                 HostSketchContainer::UseGroup(info), threads);
   for (auto const &page : m->GetBatches<SparsePage>()) {
     container.PushRowPage(page, info, hessian);

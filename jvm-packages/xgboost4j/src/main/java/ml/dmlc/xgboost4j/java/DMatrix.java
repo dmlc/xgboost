@@ -124,7 +124,11 @@ public class DMatrix {
    * @param nrow number of rows
    * @param ncol number of columns
    * @throws XGBoostError native error
+   *
+   * @deprecated Please specify the missing value explicitly using
+   * {@link DMatrix(float[], int, int, float)}
    */
+  @Deprecated
   public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));

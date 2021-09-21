@@ -7,7 +7,7 @@ import collections
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar
 # pylint: enable=no-name-in-module,import-error
-from typing import Callable, Tuple
+from typing import Callable, Tuple, cast
 import ctypes
 import os
 import re
@@ -140,9 +140,9 @@ def _expect(expectations, got):
     return msg
 
 
-def _log_callback(msg):
+def _log_callback(msg: bytes) -> None:
     """Redirect logs from native library into Python console"""
-    print("{0:s}".format(py_str(msg)))
+    print(py_str(msg))
 
 
 def _get_log_callback_func():
@@ -179,14 +179,19 @@ def _load_lib():
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
-            'XGBoost Library ({}) could not be loaded.\n'.format(libname) +
-            'Likely causes:\n' +
-            '  * OpenMP runtime is not installed ' +
-            '(vcomp140.dll or libgomp-1.dll for Windows, libomp.dylib for Mac OSX, ' +
-            'libgomp.so for Linux and other UNIX-like OSes). Mac OSX users: Run ' +
-            '`brew install libomp` to install OpenMP runtime.\n' +
-            '  * You are running 32-bit Python on a 64-bit OS\n' +
-            'Error message(s): {}\n'.format(os_error_list))
+            f"""
+XGBoost Library ({libname}) could not be loaded.
+Likely causes:
+  * OpenMP runtime is not installed
+    - vcomp140.dll or libgomp-1.dll for Windows
+    - libomp.dylib for Mac OSX
+    - libgomp.so for Linux and other UNIX-like OSes
+    Mac OSX users: Run `brew install libomp` to install OpenMP runtime.
+
+  * You are running 32-bit Python on a 64-bit OS
+
+Error message(s): {os_error_list}
+""")
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
@@ -246,7 +251,7 @@ def ctypes2numpy(cptr, length, dtype):
     """Convert a ctypes pointer array to a numpy array."""
     ctype = _numpy2ctypes_type(dtype)
     if not isinstance(cptr, ctypes.POINTER(ctype)):
-        raise RuntimeError("expected {} pointer".format(ctype))
+        raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError("memmove failed")
@@ -262,7 +267,7 @@ def ctypes2cupy(cptr, length, dtype):
 
     CUPY_TO_CTYPES_MAPPING = {cupy.float32: ctypes.c_float, cupy.uint32: ctypes.c_uint}
     if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
-        raise RuntimeError("Supported types: {}".format(CUPY_TO_CTYPES_MAPPING.keys()))
+        raise RuntimeError(f"Supported types: {CUPY_TO_CTYPES_MAPPING.keys()}")
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
     device = cupy.cuda.runtime.pointerGetAttributes(addr).device
@@ -486,13 +491,16 @@ def _deprecate_positional_args(f):
         if extra_args > 0:
             # ignore first 'self' argument for instance methods
             args_msg = [
-                '{}'.format(name) for name, _ in zip(
-                    kwonly_args[:extra_args], args[-extra_args:])
+                f"{name}" for name, _ in zip(
+                    kwonly_args[:extra_args], args[-extra_args:]
+                )
             ]
+            # pylint: disable=consider-using-f-string
             warnings.warn(
                 "Pass `{}` as keyword args.  Passing these as positional "
                 "arguments will be considered as error in future releases.".
-                format(", ".join(args_msg)), FutureWarning)
+                format(", ".join(args_msg)), FutureWarning
+            )
         for k, arg in zip(sig.parameters, args):
             kwargs[k] = arg
         return f(**kwargs)
@@ -518,8 +526,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin=None,
         missing: Optional[float] = None,
         silent=False,
-        feature_names=None,
-        feature_types=None,
+        feature_names: Optional[List[str]] = None,
+        feature_types: Optional[List[str]] = None,
         nthread: Optional[int] = None,
         group=None,
         qid=None,
@@ -558,8 +566,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             Whether print messages during construction
         feature_names : list, optional
             Set names for features.
-        feature_types : list, optional
-            Set types for features.
+        feature_types :
+
+            Set types for features.  When `enable_categorical` is set to `True`, string
+            "c" represents categorical data type.
+
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
@@ -577,11 +588,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
             .. versionadded:: 1.3.0
 
-            Experimental support of specializing for categorical features.  Do
-            not set to True unless you are interested in development.
-            Currently it's only available for `gpu_hist` tree method with 1 vs
-            rest (one hot) categorical split.  Also, JSON serialization format,
-            `gpu_predictor` and pandas input are required.
+            Experimental support of specializing for categorical features.  Do not set to
+            True unless you are interested in development.  Currently it's only available
+            for `gpu_hist` tree method with 1 vs rest (one hot) categorical split.  Also,
+            JSON serialization format is required.
 
         """
         if group is not None and qid is not None:
@@ -673,8 +683,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
-        feature_names=None,
-        feature_types=None,
+        feature_names: Optional[List[str]] = None,
+        feature_types: Optional[List[str]] = None,
         feature_weights=None
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
@@ -945,7 +955,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @property
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> Optional[List[str]]:
         """Get feature names (column labels).
 
         Returns
@@ -1033,17 +1043,21 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @feature_types.setter
-    def feature_types(self, feature_types: Optional[Union[List[Any], Any]]) -> None:
+    def feature_types(self, feature_types: Optional[Union[List[str], str]]) -> None:
         """Set feature types (column types).
 
-        This is for displaying the results and unrelated
-        to the learning process.
+        This is for displaying the results and categorical data support.  See doc string
+        of :py:obj:`xgboost.DMatrix` for details.
 
         Parameters
         ----------
         feature_types : list or None
             Labels for features. None will reset existing feature names
+
         """
+        # For compatibility reason this function wraps single str input into a list.  But
+        # we should not promote such usage since other than visualization, the field is
+        # also used for specifying categorical data type.
         if feature_types is not None:
             if not isinstance(feature_types, (list, str)):
                 raise TypeError(
@@ -1286,7 +1300,7 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
+                raise TypeError(f'invalid cache item: {type(d).__name__}', cache)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
@@ -1659,8 +1673,7 @@ class Booster(object):
 
         """
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(
-                type(dtrain).__name__))
+            raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
         self._validate_features(dtrain)
 
         if fobj is None:
@@ -1689,10 +1702,10 @@ class Booster(object):
         """
         if len(grad) != len(hess):
             raise ValueError(
-                'grad / hess length mismatch: {} / {}'.format(len(grad), len(hess))
+                f"grad / hess length mismatch: {len(grad)} / {len(hess)}"
             )
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
+            raise TypeError(f"invalid training matrix: {type(dtrain).__name__}")
         self._validate_features(dtrain)
 
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
@@ -1720,11 +1733,9 @@ class Booster(object):
         """
         for d in evals:
             if not isinstance(d[0], DMatrix):
-                raise TypeError('expected DMatrix, got {}'.format(
-                    type(d[0]).__name__))
+                raise TypeError(f"expected DMatrix, got {type(d[0]).__name__}")
             if not isinstance(d[1], STRING_TYPES):
-                raise TypeError('expected string, got {}'.format(
-                    type(d[1]).__name__))
+                raise TypeError(f"expected string, got {type(d[1]).__name__}")
             self._validate_features(d[0])
 
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
@@ -1742,9 +1753,11 @@ class Booster(object):
                                                output_margin=True), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
+                        # pylint: disable=consider-using-f-string
                         res += '\t%s-%s:%f' % (evname, name, val)
                 else:
                     name, val = feval_ret
+                    # pylint: disable=consider-using-f-string
                     res += '\t%s-%s:%f' % (evname, name, val)
         return res
 
@@ -1995,7 +2008,8 @@ class Booster(object):
         dims = c_bst_ulong()
 
         if base_margin is not None:
-            proxy = _ProxyDMatrix()
+            proxy: Optional[_ProxyDMatrix] = _ProxyDMatrix()
+            assert proxy is not None
             proxy.set_info(base_margin=base_margin)
             p_handle = proxy.handle
         else:
@@ -2212,7 +2226,7 @@ class Booster(object):
             fout.write('\n]')
         else:
             for i, _ in enumerate(ret):
-                fout.write('booster[{}]:\n'.format(i))
+                fout.write(f"booster[{i}]:\n")
                 fout.write(ret[i])
         if need_close:
             fout.close()
@@ -2261,8 +2275,8 @@ class Booster(object):
         return self.get_score(fmap, importance_type='weight')
 
     def get_score(
-        self, fmap: os.PathLike = '', importance_type: str = 'weight'
-    ) -> Dict[str, float]:
+        self, fmap: Union[str, os.PathLike] = '', importance_type: str = 'weight'
+    ) -> Dict[str, Union[float, List[float]]]:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
 
@@ -2319,7 +2333,7 @@ class Booster(object):
         features_arr = from_cstr_to_pystr(features, n_out_features)
         scores_arr = _prediction_output(shape, out_dim, scores, False)
 
-        results = {}
+        results: Dict[str, Union[float, List[float]]] = {}
         if len(scores_arr.shape) > 1 and scores_arr.shape[1] > 1:
             for feat, score in zip(features_arr, scores_arr):
                 results[feat] = [float(s) for s in score]
@@ -2347,8 +2361,9 @@ class Booster(object):
                                'Install pandas before calling again.'))
 
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
-            raise ValueError('This method is not defined for Booster type {}'
-                             .format(self.booster))
+            raise ValueError(
+                f"This method is not defined for Booster type {self.booster}"
+            )
 
         tree_ids = []
         node_ids = []
@@ -2461,8 +2476,13 @@ class Booster(object):
 
             raise ValueError(msg.format(self.feature_names, data.feature_names))
 
-    def get_split_value_histogram(self, feature, fmap='', bins=None,
-                                  as_pandas=True):
+    def get_split_value_histogram(
+        self,
+        feature: str,
+        fmap: Union[os.PathLike, str] = '',
+        bins: Optional[int] = None,
+        as_pandas: bool = True
+    ) -> Union[np.ndarray, DataFrame]:
         """Get split value histogram of a feature
 
         Parameters
@@ -2486,6 +2506,7 @@ class Booster(object):
         """
         xgdump = self.get_dump(fmap=fmap)
         values = []
+        # pylint: disable=consider-using-f-string
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
         for i, _ in enumerate(xgdump):
             m = re.findall(regexp, xgdump[i])
@@ -2503,14 +2524,14 @@ class Booster(object):
             fn = self.feature_names
             if fn is None:
                 # Let xgboost generate the feature names.
-                fn = ["f{0}".format(i) for i in range(self.num_features())]
+                fn = [f"f{i}" for i in range(self.num_features())]
             try:
                 index = fn.index(feature)
-                feature_t = ft[index]
+                feature_t: Optional[str] = cast(List[str], ft)[index]
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-            if feature_t == "categorical":
+            if feature_t == "c":  # categorical
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
                 )

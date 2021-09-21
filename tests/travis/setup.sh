@@ -1,11 +1,14 @@
 #!/bin/bash
 
-# https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/27
-# Use libomp 11.1.0: https://github.com/dmlc/xgboost/issues/7039
-brew update  # Force update, so that update doesn't overwrite our version of libomp.rb
-wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
-brew install cmake libomp
-brew pin libomp
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+    # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/27
+    # Use libomp 11.1.0: https://github.com/dmlc/xgboost/issues/7039
+    brew update  # Force update, so that update doesn't overwrite our version of libomp.rb
+    wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
+    brew install cmake libomp
+    brew pin libomp
+fi
+
 
 
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
@@ -29,10 +32,7 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
 fi
 
 if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
-    sudo snap install cmake --channel=3.17/beta --classic
-    export PATH=/snap/bin:${PATH}
-    cmake --version
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends tar unzip wget git build-essential ninja-build \
-      time python3 python3-pip python3-numpy python3-scipy python3-sklearn r-base
+	 time python3 python3-pip python3-numpy python3-scipy python3-sklearn r-base
 fi

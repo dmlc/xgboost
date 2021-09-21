@@ -5,7 +5,7 @@ This document gives a basic walkthrough of the xgboost package for Python.
 
 **List of other Helpful Links**
 
-* `Python walkthrough code collections <https://github.com/tqchen/xgboost/blob/master/demo/guide-python>`_
+* `Python walkthrough code collections <https://github.com/dmlc/xgboost/blob/master/demo/guide-python>`_
 * :doc:`Python API Reference <python_api>`
 
 Install XGBoost
@@ -22,44 +22,22 @@ To verify your installation, run the following in Python:
 
 Data Interface
 --------------
-The XGBoost python module is able to load data from:
+The XGBoost python module is able to load data from many types of different formats, including:
 
-- LIBSVM text format file
-- Comma-separated values (CSV) file
 - NumPy 2D array
 - SciPy 2D sparse array
+- Pandas data frame
 - cuDF DataFrame
-- Pandas data frame, and
+- cupy 2D array
+- dlpack
+- datatable
 - XGBoost binary buffer file.
+- LIBSVM text format file
+- Comma-separated values (CSV) file
 
 (See :doc:`/tutorials/input_format` for detailed description of text input format.)
 
 The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
-
-* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    dtrain = xgb.DMatrix('train.svm.txt')
-    dtest = xgb.DMatrix('test.svm.buffer')
-
-* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    # label_column specifies the index of the column containing the true label
-    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
-    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
-
-  .. note:: Categorical features not supported
-
-    Note that XGBoost does not provide specialization for categorical features; if your data contains
-    categorical features, load it as a NumPy array first and then perform corresponding preprocessing steps like
-    `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.
-
-  .. note:: Use Pandas to load CSV files with headers
-
-    Currently, the DMLC data parser cannot parse CSV files with headers. Use Pandas (see below) to read CSV files with headers.
 
 * To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
@@ -95,17 +73,40 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
   .. code-block:: python
 
-    dtrain = xgb.DMatrix(data, label=label, missing=-999.0)
+    dtrain = xgb.DMatrix(data, label=label, missing=np.NaN)
 
 * Weights can be set when needed:
 
   .. code-block:: python
 
     w = np.random.rand(5, 1)
-    dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
+    dtrain = xgb.DMatrix(data, label=label, missing=np.NaN, weight=w)
 
 When performing ranking tasks, the number of weights should be equal
 to number of groups.
+
+* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
+
+  .. code-block:: python
+
+    dtrain = xgb.DMatrix('train.svm.txt')
+    dtest = xgb.DMatrix('test.svm.buffer')
+
+  The parser in XGBoost has limited functionality. When using Python interface, it's
+  recommended to use sklearn ``load_svmlight_file`` or other similar utilites than
+  XGBoost's builtin parser.
+
+* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
+
+  .. code-block:: python
+
+    # label_column specifies the index of the column containing the true label
+    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
+    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
+
+  The parser in XGBoost has limited functionality. When using Python interface, it's
+  recommended to use pandas ``read_csv`` or other similar utilites than XGBoost's builtin
+  parser.
 
 
 Setting Parameters
@@ -226,3 +227,25 @@ When you use ``IPython``, you can use the :py:meth:`xgboost.to_graphviz` functio
 .. code-block:: python
 
   xgb.to_graphviz(bst, num_trees=2)
+
+
+Scikit-Learn interface
+----------------------
+
+XGBoost provides an easy to use scikit-learn interface for some pre-defined models
+including regression, classification and ranking.
+
+.. code-block:: python
+
+  # Use "gpu_hist" for training the model.
+  reg = xgb.XGBRegressor(tree_method="gpu_hist")
+  # Fit the model using predictor X and response y.
+  reg.fit(X, y)
+  # Save model into JSON format.
+  reg.save_model("regressor.json")
+
+User can still access the underlying booster model when needed:
+
+.. code-block:: python
+
+   booster: xgb.Booster = reg.get_booster()

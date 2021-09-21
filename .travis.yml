@@ -28,7 +28,6 @@ addons:
     update: false
   apt:
     packages:
-      - snapd
       - unzip
 
 before_install:
