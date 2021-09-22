@@ -320,8 +320,8 @@ def _from_pandas_series(
     data,
     missing,
     nthread,
-    feature_types: Optional[List[str]],
     feature_names: Optional[List[str]],
+    feature_types: Optional[List[str]],
 ):
     return _from_numpy_array(
         data.values.astype("float"), missing, nthread, feature_names, feature_types
