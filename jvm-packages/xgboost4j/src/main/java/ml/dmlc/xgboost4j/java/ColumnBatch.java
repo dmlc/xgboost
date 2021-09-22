@@ -16,9 +16,11 @@
 
 package ml.dmlc.xgboost4j.java;
 
+import java.util.Iterator;
+
 /**
  * The abstracted XGBoost ColumnBatch to get array interface from columnar data format.
- * For example, the cuDF dataframe which employs apache arrow specificatrion.
+ * For example, the cuDF dataframe which employs apache arrow specification.
  */
 public abstract class ColumnBatch implements AutoCloseable {
   /**
@@ -28,7 +30,7 @@ public abstract class ColumnBatch implements AutoCloseable {
    * This function is be called by native code during iteration and can be made as private
    * method.  We keep it as public simply to silent the linter.
    */
-  public final String getArrayInterfaceJson() {
+  private final String getArrayInterfaceJson() {
 
     StringBuilder builder = new StringBuilder();
     builder.append("{");
@@ -68,7 +70,8 @@ public abstract class ColumnBatch implements AutoCloseable {
 
   /**
    * Get the cuda array interface of the label columns.
-   * The returned value must not be null or empty
+   * The returned value must not be null or empty if we're creating
+   *  {@link DeviceQuantileDMatrix#DeviceQuantileDMatrix(Iterator, float, int, int)}
    */
   public abstract String getLabelsArrayInterface();
 

@@ -83,41 +83,43 @@ public class BoosterTest {
       }
     };
 
-    try (Table tmpTable = Table.readCSV(schema, opts,
-					new File(trainingDataPath))) {
+    try (Table tmpTable = Table.readCSV(schema, opts, new File(trainingDataPath))) {
       ColumnVector[] df = new ColumnVector[12];
       for (int i = 0; i < 12; ++i) {
         df[i] = tmpTable.getColumn(i);
       }
-      Table X = new Table(df);
-      ColumnVector[] labels = new ColumnVector[1];
-      labels[0] = tmpTable.getColumn(12);
-      Table y = new Table(labels);
+      try (Table X = new Table(df);) {
+        ColumnVector[] labels = new ColumnVector[1];
+        labels[0] = tmpTable.getColumn(12);
 
-      CudfColumnBatch batch = new CudfColumnBatch(X, y, null, null);
-      CudfColumn labelColumn = CudfColumn.from(tmpTable.getColumn(12));
+        try (Table y = new Table(labels);) {
 
-      //set watchList
-      HashMap<String, DMatrix> watches = new HashMap<>();
+          CudfColumnBatch batch = new CudfColumnBatch(X, y, null, null);
+          CudfColumn labelColumn = CudfColumn.from(tmpTable.getColumn(12));
 
-      DMatrix dMatrix1 = new DMatrix(batch, Float.NaN, 1);
-      dMatrix1.setLabel(labelColumn);
-      watches.put("train", dMatrix1);
-      Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
+          //set watchList
+          HashMap<String, DMatrix> watches = new HashMap<>();
 
-      List<ColumnBatch> tables = new LinkedList<>();
-      tables.add(batch);
-      DMatrix incrementalDMatrix = new DeviceQuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
-      //set watchList
-      HashMap<String, DMatrix> watches1 = new HashMap<>();
-      watches1.put("train", incrementalDMatrix);
-      Booster model2 = XGBoost.train(incrementalDMatrix, paramMap, round, watches1, null, null);
+          DMatrix dMatrix1 = new DMatrix(batch, Float.NaN, 1);
+          dMatrix1.setLabel(labelColumn);
+          watches.put("train", dMatrix1);
+          Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
 
-      float[][] predicat1 = model1.predict(dMatrix1);
-      float[][] predicat2 = model2.predict(dMatrix1);
+          List<ColumnBatch> tables = new LinkedList<>();
+          tables.add(batch);
+          DMatrix incrementalDMatrix = new DeviceQuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
+          //set watchList
+          HashMap<String, DMatrix> watches1 = new HashMap<>();
+          watches1.put("train", incrementalDMatrix);
+          Booster model2 = XGBoost.train(incrementalDMatrix, paramMap, round, watches1, null, null);
 
-      for (int i = 0; i < tmpTable.getRowCount(); i++) {
-        TestCase.assertTrue(predicat1[i][0] - predicat2[i][0] < 1e-6);
+          float[][] predicat1 = model1.predict(dMatrix1);
+          float[][] predicat2 = model2.predict(dMatrix1);
+
+          for (int i = 0; i < tmpTable.getRowCount(); i++) {
+            TestCase.assertTrue(predicat1[i][0] - predicat2[i][0] < 1e-6);
+          }
+        }
       }
     }
   }

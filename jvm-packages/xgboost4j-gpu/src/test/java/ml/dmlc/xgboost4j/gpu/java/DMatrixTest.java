@@ -43,11 +43,11 @@ public class DMatrixTest {
     Float[] labelFloats = new Float[]{2f, 4f, 6f, 8f, 10f};
 
     Throwable ex = null;
-    try {
+    try (
       Table X = new Table.TestBuilder().column(1.f, null, 5.f, 7.f, 9.f).build();
       Table y = new Table.TestBuilder().column(labelFloats).build();
       Table w = new Table.TestBuilder().column(labelFloats).build();
-      Table margin = new Table.TestBuilder().column(labelFloats).build();
+      Table margin = new Table.TestBuilder().column(labelFloats).build();) {
 
       CudfColumnBatch cudfDataFrame = new CudfColumnBatch(X, y, w, null);
 
@@ -87,18 +87,18 @@ public class DMatrixTest {
     Float[] baseMargin2 = {0.2f, 2.5f, 3.1f, 4.4f, 2.2f};
 
     try (
-        Table X_0 = new Table.TestBuilder().column(1.2f, null, 5.2f, 7.2f, 9.2f).column(0.2f, 0.4f, 0.6f, 2.6f, 0.10f)
-            .build();
-        Table y_0 = new Table.TestBuilder().column(label1).build();
-        Table w_0 = new Table.TestBuilder().column(weight1).build();
-        Table m_0 = new Table.TestBuilder().column(baseMargin1).build();
-
-        Table X_1 = new Table.TestBuilder().column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f)
-            .column(1.2f, 1.4f, null, 12.6f, 10.10f).build();
-        Table y_1 = new Table.TestBuilder().column(label2).build();
-        Table w_1 = new Table.TestBuilder().column(weight2).build();
-        Table m_1 = new Table.TestBuilder().column(baseMargin2).build();
-    ) {
+      Table X_0 = new Table.TestBuilder()
+        .column(1.2f, null, 5.2f, 7.2f, 9.2f)
+        .column(0.2f, 0.4f, 0.6f, 2.6f, 0.10f)
+        .build();
+      Table y_0 = new Table.TestBuilder().column(label1).build();
+      Table w_0 = new Table.TestBuilder().column(weight1).build();
+      Table m_0 = new Table.TestBuilder().column(baseMargin1).build();
+      Table X_1 = new Table.TestBuilder().column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f)
+        .column(1.2f, 1.4f, null, 12.6f, 10.10f).build();
+      Table y_1 = new Table.TestBuilder().column(label2).build();
+      Table w_1 = new Table.TestBuilder().column(weight2).build();
+      Table m_1 = new Table.TestBuilder().column(baseMargin2).build();) {
 
       List<ColumnBatch> tables = new LinkedList<>();
 

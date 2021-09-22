@@ -16,7 +16,6 @@
 
 package ml.dmlc.xgboost4j.gpu.java;
 
-import java.util.Arrays;
 import java.util.stream.IntStream;
 
 import ai.rapids.cudf.Table;
@@ -68,7 +67,7 @@ public class CudfColumnBatch extends ColumnBatch {
   }
 
   private String getArrayInterface(Table table) {
-    if (table == null && table.getNumberOfColumns() == 0) {
+    if (table == null || table.getNumberOfColumns() == 0) {
       return "";
     }
     return CudfUtils.buildArrayInterface(getAsCudfColumn(table));
