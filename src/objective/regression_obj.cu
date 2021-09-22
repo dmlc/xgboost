@@ -73,18 +73,20 @@ class RegLossObj : public ObjFunction {
     additional_input_.HostVector().begin()[1] = scale_pos_weight;
     additional_input_.HostVector().begin()[2] = is_null_weight;
 
-    const size_t nthreads = omp_get_max_threads();
+    const size_t nthreads = tparam_->Threads();
     bool on_device = device >= 0;
-    const size_t n_data_blocks = std::max(static_cast<size_t>(1),
-                                          (on_device ? ndata : nthreads));
-    const size_t block_size = ndata/n_data_blocks + !!(ndata%n_data_blocks);
-    common::Transform<>::Init([block_size, ndata] XGBOOST_DEVICE(
-                           size_t data_block_idx,
-                           common::Span<float> _additional_input,
-                           common::Span<GradientPair> _out_gpair,
-                           common::Span<const bst_float> _preds,
-                           common::Span<const bst_float> _labels,
-                           common::Span<const bst_float> _weights) {
+    // On CPU we run the transformation each thread processing a contigious block of data
+    // for better performance.
+    const size_t n_data_blocks =
+        std::max(static_cast<size_t>(1), (on_device ? ndata : nthreads));
+    const size_t block_size = ndata / n_data_blocks + !!(ndata % n_data_blocks);
+    common::Transform<>::Init(
+        [block_size, ndata] XGBOOST_DEVICE(
+            size_t data_block_idx, common::Span<float> _additional_input,
+            common::Span<GradientPair> _out_gpair,
+            common::Span<const bst_float> _preds,
+            common::Span<const bst_float> _labels,
+            common::Span<const bst_float> _weights) {
           const bst_float* preds_ptr = _preds.data();
           const bst_float* labels_ptr = _labels.data();
           const bst_float* weights_ptr = _weights.data();
@@ -107,13 +109,11 @@ class RegLossObj : public ObjFunction {
             }
             out_gpair_ptr[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                               Loss::SecondOrderGradient(p, label) * w);
-            if (out_gpair_ptr[idx].GetHess() < 0.0f) {
-              out_gpair_ptr[idx] = GradientPair(0);
-            }
           }
         },
-        common::Range{0, static_cast<int64_t>(n_data_blocks)}, device).Eval(
-            &additional_input_, out_gpair, &preds, &info.labels_, &info.weights_);
+        common::Range{0, static_cast<int64_t>(n_data_blocks)}, device)
+        .Eval(&additional_input_, out_gpair, &preds, &info.labels_,
+              &info.weights_);
 
     auto const flag = additional_input_.HostVector().begin()[0];
     if (flag == 0) {
