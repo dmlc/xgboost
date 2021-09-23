@@ -28,8 +28,10 @@ import ml.dmlc.xgboost4j.java.example.util.DataLoader;
 
 public class EarlyStopping {
   public static void main(String[] args) throws IOException, XGBoostError {
-    DataLoader.CSRSparseData trainCSR = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train");
-    DataLoader.CSRSparseData testCSR = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.test");
+    DataLoader.CSRSparseData trainCSR =
+      DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train");
+    DataLoader.CSRSparseData testCSR =
+      DataLoader.loadSVMFile("../../demo/data/agaricus.txt.test");
 
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
@@ -40,10 +42,10 @@ public class EarlyStopping {
     };
 
     DMatrix trainXy = new DMatrix(trainCSR.rowHeaders, trainCSR.colIndex, trainCSR.data,
-				  DMatrix.SparseType.CSR, 126);
+                                  DMatrix.SparseType.CSR, 126);
     trainXy.setLabel(trainCSR.labels);
     DMatrix testXy = new DMatrix(testCSR.rowHeaders, testCSR.colIndex, testCSR.data,
-				 DMatrix.SparseType.CSR, 126);
+                                 DMatrix.SparseType.CSR, 126);
 
     int nRounds = 128;
     int nEarlyStoppingRounds = 4;
@@ -54,7 +56,7 @@ public class EarlyStopping {
 
     float[][] metrics = new float[watches.size()][nRounds];
     Booster booster = XGBoost.train(trainXy, paramMap, nRounds,
-				    watches, metrics, null, null, nEarlyStoppingRounds);
+                                    watches, metrics, null, null, nEarlyStoppingRounds);
 
     int bestIter = Integer.valueOf(booster.getAttr("best_iteration"));
     float bestScore = Float.valueOf(booster.getAttr("best_score"));
