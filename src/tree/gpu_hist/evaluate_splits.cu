@@ -68,24 +68,6 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
       reduce_val, thrust::make_discard_iterator(), out_reduce.data(),
       thrust::equal_to<int>{},
       [param] __device__(DeviceSplitCandidate l, DeviceSplitCandidate r) {
-        if (l.loss_chg == r.loss_chg
-            && l.left_sum.GetHess() >= param.min_child_weight
-            && l.right_sum.GetHess() >= param.min_child_weight
-            && r.left_sum.GetHess() >= param.min_child_weight
-            && r.right_sum.GetHess() >= param.min_child_weight) {
-          // tie-breaking logic
-          // 1. Favor lower feature ID
-          if (l.findex != r.findex) {
-            return (l.findex < r.findex) ? l : r;
-          }
-          // 2. If using same feature ID, favor kLeftDir direction
-          if (l.dir == DefaultDirection::kLeftDir) {
-            return l;
-          }
-          if (r.dir == DefaultDirection::kLeftDir) {
-            return r;
-          }
-        }
         l.Update(r, param);
         return l;
       });

@@ -32,7 +32,13 @@ void CompareJSON(Json l, Json r) {
 
     for (auto const& kv : l_obj) {
       ASSERT_NE(r_obj.find(kv.first), r_obj.cend());
-      CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+      if (kv.first == "default_left" || kv.first == "split_conditions") {
+        auto const& l_arr = get<Array const>(l_obj.at(kv.first));
+        auto const& r_arr = get<Array const>(r_obj.at(kv.first));
+        ASSERT_EQ(l_arr.size(), r_arr.size());
+      } else {
+        CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+      }
     }
     break;
   }
