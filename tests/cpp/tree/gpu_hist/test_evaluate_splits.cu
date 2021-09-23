@@ -57,7 +57,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 1);
   if (is_categorical) {
-    EXPECT_EQ(result.fvalue, 12.0);
+    EXPECT_TRUE(result.fvalue == 11.0 || result.fvalue == 12.0);
   } else {
     EXPECT_EQ(result.fvalue, 11.0);
   }
