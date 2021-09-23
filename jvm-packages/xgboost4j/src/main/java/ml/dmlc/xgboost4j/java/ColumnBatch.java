@@ -30,7 +30,7 @@ public abstract class ColumnBatch implements AutoCloseable {
    * This function is be called by native code during iteration and can be made as private
    * method.  We keep it as public simply to silent the linter.
    */
-  private final String getArrayInterfaceJson() {
+  public final String getArrayInterfaceJson() {
 
     StringBuilder builder = new StringBuilder();
     builder.append("{");
