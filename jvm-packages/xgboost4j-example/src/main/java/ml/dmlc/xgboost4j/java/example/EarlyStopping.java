@@ -34,7 +34,6 @@ public class EarlyStopping {
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
-        put("silent", 1);
         put("objective", "binary:logistic");
         put("maximize_evaluation_metrics", "false");
       }
