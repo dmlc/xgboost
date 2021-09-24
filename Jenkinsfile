@@ -64,7 +64,7 @@ pipeline {
             // The build-gpu-* builds below use Ubuntu image
             'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
             'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.1') },
-            'build-jvm-packages-gpu-cuda10.1': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.1') },
+            'build-jvm-packages-gpu-cuda10.1': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '11.0') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])

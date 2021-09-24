@@ -177,6 +177,64 @@ public class DMatrix {
     this.handle = handle;
   }
 
+  /**
+   * Create the normal DMatrix from column array interface
+   * @param columnBatch the XGBoost ColumnBatch to provide the cuda array interface
+   *                    of feature columns
+   * @param missing missing value
+   * @param nthread threads number
+   * @throws XGBoostError
+   */
+  public DMatrix(ColumnBatch columnBatch, float missing, int nthread) throws XGBoostError {
+    long[] out = new long[1];
+    String json = columnBatch.getFeatureArrayInterface();
+    if (json == null || json.isEmpty()) {
+      throw new XGBoostError("Expecting non-empty feature columns' array interface");
+    }
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromArrayInterfaceColumns(
+        json, missing, nthread, out));
+    handle = out[0];
+  }
+
+  /**
+   * Set label of DMatrix from cuda array interface
+   *
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of label column
+   * @throws XGBoostError native error
+   */
+  public void setLabel(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("label", column.getArrayInterfaceJson());
+  }
+
+  /**
+   * Set weight of DMatrix from cuda array interface
+   *
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of weight column
+   * @throws XGBoostError native error
+   */
+  public void setWeight(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("weight", column.getArrayInterfaceJson());
+  }
+
+  /**
+   * Set base margin of DMatrix from cuda array interface
+   *
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of base margin column
+   * @throws XGBoostError native error
+   */
+  public void setBaseMargin(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("base_margin", column.getArrayInterfaceJson());
+  }
+
+  private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {
+    if (json == null || json.isEmpty()) {
+      throw new XGBoostError("Empty " + type + " columns' array interface");
+    }
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, type, json));
+  }
 
   /**
    * set label of dmatrix
