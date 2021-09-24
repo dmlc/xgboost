@@ -435,7 +435,11 @@ def _cudf_array_interfaces(data) -> Tuple[list, bytes]:
     interface is finished.
 
     """
-    from cudf.utils.dtypes import is_categorical_dtype
+    try:
+        from cudf.api.types import is_categorical_dtype
+    except ImportError:
+        from cudf.utils.dtypes import is_categorical_dtype
+
     cat_codes = []
     interfaces = []
     if _is_cudf_ser(data):
@@ -461,7 +465,10 @@ def _transform_cudf_df(
     feature_types: Optional[List[str]],
     enable_categorical: bool,
 ):
-    from cudf.utils.dtypes import is_categorical_dtype
+    try:
+        from cudf.api.types import is_categorical_dtype
+    except ImportError:
+        from cudf.utils.dtypes import is_categorical_dtype
 
     if feature_names is None:
         if _is_cudf_ser(data):
