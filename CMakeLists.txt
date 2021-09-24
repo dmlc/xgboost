@@ -113,7 +113,7 @@ if (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
   message(SEND_ERROR "Cannot build a static library libxgboost.a when R or JVM packages are enabled.")
 endif (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
 if (PLUGIN_RMM AND (NOT BUILD_WITH_CUDA_CUB))
-  message(SEND_ERROR "Cannot build with RMM using cub cubmodule.")
+  message(SEND_ERROR "Cannot build with RMM using cub submodule.")
 endif (PLUGIN_RMM AND (NOT BUILD_WITH_CUDA_CUB))
 
 #-- Sanitizer
