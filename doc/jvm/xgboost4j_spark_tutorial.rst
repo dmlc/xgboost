@@ -162,17 +162,17 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
   doing this with missing values encoded as NaN, you will want to set ``setHandleInvalid = "keep"`` on VectorAssembler
   in order to keep the NaN values in the dataset. You would then set the "missing" parameter to whatever you want to be
   treated as missing. However this may cause a large amount of memory use if your dataset is very sparse. For example:
-  
+
   .. code-block:: scala
 
   val assembler = new VectorAssembler().setInputCols(feature_names.toArray).setOutputCol("features").setHandleInvalid("keep")
 
   // conversion to dense vector using Array()
-  
+
   val featurePipeline = new Pipeline().setStages(Array(assembler))
   val featureModel = featurePipeline.fit(df_training)
   val featureDf = featureModel.transform(df_training)
-  
+
   val xgbParam = Map("eta" -> 0.1f,
         "max_depth" -> 2,
         "objective" -> "multi:softprob",
@@ -181,10 +181,10 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
         "num_workers" -> 2,
         "allow_non_zero_for_missing" -> "true",
         "missing" -> -999)
-        
+
   val xgb = new XGBoostClassifier(xgbParam)
   val xgbclassifier = xgb.fit(featureDf)
-  
+
 
   2. Before calling VectorAssembler you can transform the values you want to represent missing into an irregular value
   that is not 0, NaN, or Null and set the "missing" parameter to 0. The irregular value should ideally be chosen to be

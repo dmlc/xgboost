@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ public class BasicWalkThrough {
     DataLoader.CSRSparseData spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train");
 
     DMatrix trainMat2 = new DMatrix(spData.rowHeaders, spData.colIndex, spData.data,
-            DMatrix.SparseType.CSR);
+                                    DMatrix.SparseType.CSR, 127);
     trainMat2.setLabel(spData.labels);
 
     //specify watchList
