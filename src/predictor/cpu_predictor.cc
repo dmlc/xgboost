@@ -254,9 +254,9 @@ class CPUPredictor : public Predictor {
                       int32_t tree_end) const {
     const int threads = omp_get_max_threads();
     constexpr double kDensityThresh = .5;
-    double density =
-        static_cast<double>(p_fmat->Info().num_nonzero_) /
-        static_cast<double>(p_fmat->Info().num_row_ * p_fmat->Info().num_col_);
+    size_t total = std::max(p_fmat->Info().num_row_ * p_fmat->Info().num_col_, 1ul);
+    double density = static_cast<double>(p_fmat->Info().num_nonzero_) /
+                     static_cast<double>(total);
     bool blocked = density > kDensityThresh;
 
     std::vector<RegTree::FVec> feat_vecs;
