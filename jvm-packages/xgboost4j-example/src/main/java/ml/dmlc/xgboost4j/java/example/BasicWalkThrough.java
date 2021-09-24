@@ -115,7 +115,7 @@ public class BasicWalkThrough {
     DataLoader.CSRSparseData spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train");
 
     DMatrix trainMat2 = new DMatrix(spData.rowHeaders, spData.colIndex, spData.data,
-                                    DMatrix.SparseType.CSR, 126);
+                                    DMatrix.SparseType.CSR, 127);
     trainMat2.setLabel(spData.labels);
 
     //specify watchList

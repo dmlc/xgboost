@@ -42,10 +42,11 @@ public class EarlyStopping {
     };
 
     DMatrix trainXy = new DMatrix(trainCSR.rowHeaders, trainCSR.colIndex, trainCSR.data,
-                                  DMatrix.SparseType.CSR, 126);
+                                  DMatrix.SparseType.CSR, 127);
     trainXy.setLabel(trainCSR.labels);
     DMatrix testXy = new DMatrix(testCSR.rowHeaders, testCSR.colIndex, testCSR.data,
-                                 DMatrix.SparseType.CSR, 126);
+                                 DMatrix.SparseType.CSR, 127);
+    testXy.setLabel(testCSR.labels);
 
     int nRounds = 128;
     int nEarlyStoppingRounds = 4;
