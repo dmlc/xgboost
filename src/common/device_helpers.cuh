@@ -708,6 +708,10 @@ constexpr std::pair<int, int> CUDAVersion() {
 #endif  // defined(__CUDACC_VER_MAJOR__)
 }
 
+constexpr std::pair<int32_t, int32_t> ThrustVersion() {
+  return std::make_pair(THRUST_MAJOR_VERSION, THRUST_MINOR_VERSION);
+}
+
 namespace detail {
 template <typename T>
 using TypedDiscardCTK114 = thrust::discard_iterator<T>;
@@ -721,9 +725,9 @@ class TypedDiscard : public thrust::discard_iterator<T> {
 
 template <typename T>
 using TypedDiscard =
-    std::conditional_t<((CUDAVersion().first == 11 &&
-                         CUDAVersion().second >= 4) ||
-                        CUDAVersion().first > 11),
+    std::conditional_t<((ThrustVersion().first == 1 &&
+                         ThrustVersion().second >= 12) ||
+                        ThrustVersion().first > 1),
                        detail::TypedDiscardCTK114<T>, detail::TypedDiscard<T>>;
 
 /**
