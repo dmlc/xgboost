@@ -256,5 +256,10 @@ TEST(GPUPredictor, PredictLeafBasic) {
     ASSERT_EQ(v, 0);
   }
 }
+
+TEST(GPUPredictor, Sparse) {
+  TestSparsePrediction(0.2, "gpu_predictor");
+  TestSparsePrediction(0.8, "gpu_predictor");
+}
 }  // namespace predictor
 }  // namespace xgboost

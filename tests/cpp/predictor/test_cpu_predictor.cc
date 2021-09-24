@@ -247,4 +247,9 @@ TEST(CpuPredictor, UpdatePredictionCache) {
 TEST(CpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures("cpu_predictor");
 }
+
+TEST(CpuPredictor, Sparse) {
+  TestSparsePrediction(0.2, "cpu_predictor");
+  TestSparsePrediction(0.8, "cpu_predictor");
+}
 }  // namespace xgboost

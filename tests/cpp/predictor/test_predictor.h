@@ -70,6 +70,8 @@ void TestCategoricalPrediction(std::string name);
 void TestCategoricalPredictLeaf(StringView name);
 
 void TestIterationRange(std::string name);
+
+void TestSparsePrediction(float sparsity, std::string predictor);
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_PREDICTOR_H_
