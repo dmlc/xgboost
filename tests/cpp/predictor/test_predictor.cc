@@ -389,7 +389,9 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
   }
 
   learner->SetParam("predictor", "cpu_predictor");
-  auto dense = std::make_shared<data::DenseAdapter>(with_nan.data(), kRows, kCols);
+  // Xcode_12.4 doesn't compile with `std::make_shared`.
+  auto dense = std::shared_ptr<data::DenseAdapter>(
+      new data::DenseAdapter(with_nan.data(), kRows, kCols));
   HostDeviceVector<float> *p_dense_predt;
   learner->InplacePredict(dmlc::any(dense), nullptr, PredictionType::kValue,
                           std::numeric_limits<float>::quiet_NaN(), &p_dense_predt,
