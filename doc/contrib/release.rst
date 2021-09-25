@@ -18,7 +18,7 @@ Making a Release
 
 1. Create an issue for the release, noting the estimated date and expected features or major fixes, pin that issue.
 2. Bump release version.
-   1. Modify ``CMakeLists.txt`` source tree, run CMake.
+   1. Modify ``CMakeLists.txt`` in source tree and ``cmake/Python_version.in`` if needed, run CMake.
    2. Modify ``DESCRIPTION`` in R-package.
    3. Run ``change_version.sh`` in ``jvm-packages/dev``
 3. Commit the change, create a PR on GitHub on release branch.  Port the bumped version to default branch, optionally with the postfix ``SNAPSHOT``.
