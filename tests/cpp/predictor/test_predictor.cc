@@ -11,6 +11,7 @@
 #include "test_predictor.h"
 
 #include "../helpers.h"
+#include "../../../src/data/adapter.h"
 #include "../../../src/common/io.h"
 #include "../../../src/common/categorical.h"
 #include "../../../src/common/bitfield.h"
@@ -353,6 +354,59 @@ void TestIterationRange(std::string name) {
     auto const &h_range = out_predt_ranged.HostVector();
     ASSERT_EQ(h_sliced.size(), h_range.size());
     ASSERT_EQ(h_sliced, h_range);
+  }
+}
+
+void TestSparsePrediction(float sparsity, std::string predictor) {
+  size_t constexpr kRows = 512, kCols = 128;
+  auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
+  std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+  learner->Configure();
+  for (size_t i = 0; i < 4; ++i) {
+    learner->UpdateOneIter(i, Xy);
+  }
+
+  HostDeviceVector<float> sparse_predt;
+
+  Json model{Object{}};
+  learner->SaveModel(&model);
+
+  learner.reset(Learner::Create({Xy}));
+  learner->LoadModel(model);
+
+  learner->SetParam("predictor", predictor);
+  learner->Predict(Xy, false, &sparse_predt, 0, 0);
+
+  std::vector<float> with_nan(kRows * kCols, std::numeric_limits<float>::quiet_NaN());
+  for (auto const& page : Xy->GetBatches<SparsePage>()) {
+    auto batch = page.GetView();
+    for (size_t i = 0; i < batch.Size(); ++i) {
+      auto row = batch[i];
+      for (auto e : row) {
+        with_nan[i * kCols + e.index] = e.fvalue;
+      }
+    }
+  }
+
+  learner->SetParam("predictor", "cpu_predictor");
+  // Xcode_12.4 doesn't compile with `std::make_shared`.
+  auto dense = std::shared_ptr<data::DenseAdapter>(
+      new data::DenseAdapter(with_nan.data(), kRows, kCols));
+  HostDeviceVector<float> *p_dense_predt;
+  learner->InplacePredict(dmlc::any(dense), nullptr, PredictionType::kValue,
+                          std::numeric_limits<float>::quiet_NaN(), &p_dense_predt,
+                          0, 0);
+
+  auto const& dense_predt = *p_dense_predt;
+  if (predictor == "cpu_predictor") {
+    ASSERT_EQ(dense_predt.HostVector(), sparse_predt.HostVector());
+  } else {
+    auto const &h_dense = dense_predt.HostVector();
+    auto const &h_sparse = sparse_predt.HostVector();
+    ASSERT_EQ(h_dense.size(), h_sparse.size());
+    for (size_t i = 0; i < h_dense.size(); ++i) {
+      ASSERT_FLOAT_EQ(h_dense[i], h_sparse[i]);
+    }
   }
 }
 }  // namespace xgboost

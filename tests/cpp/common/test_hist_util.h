@@ -247,7 +247,7 @@ void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins,
   ASSERT_TRUE(is_unique);
 
   x.resize(n_uniques);
-  for (size_t i = 0; i < n_uniques; ++i) {
+  for (decltype(n_uniques) i = 0; i < n_uniques; ++i) {
     ASSERT_EQ(x[i], values[i]);
   }
 }
