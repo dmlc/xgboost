@@ -178,8 +178,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
     // determine the correct number of rows, as offset_vec may be too short
     if (std::is_same<AdapterT, IteratorAdapterT>::value
-        || std::is_same<AdapterT, FileAdapter>::value
-        || std::is_same<AdapterT, RecordBatchIterAdapter>::value) {
+        || std::is_same<AdapterT, FileAdapter>::value) {
       info_.num_row_ = total_batch_size;
       // Ensure offset_vec.size() - 1 == [number of rows]
       while (offset_vec.size() - 1 < total_batch_size) {
@@ -239,8 +238,121 @@ template SimpleDMatrix::SimpleDMatrix(
     float missing, int nthread);
 
 #if defined(XGBOOST_BUILD_ARROW_SUPPORT)
-template SimpleDMatrix::SimpleDMatrix(RecordBatchIterAdapter* adapter, float missing,
-                                    int nthread);
+template<>
+SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
+                            float missing, int nthread) {
+  constexpr uint64_t default_max = std::numeric_limits<uint64_t>::max();
+  uint64_t last_group_id = default_max;
+  bst_uint group_size = 0;
+  auto& offset_vec = sparse_page_->offset.HostVector();
+  auto& data_vec = sparse_page_->data.HostVector();
+  auto& labels = info_.labels_.HostVector();
+  auto& weights = info_.weights_.HostVector();
+  auto& base_margin = info_.base_margin_.HostVector();
+  uint64_t total_batch_size = 0;
+  uint64_t total_elements = 0;
+  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
+
+  adapter->BeforeFirst();
+  // Iterate over batches of input data
+  while (adapter->Next()) {
+    auto& batches = adapter->Value();
+    size_t num_elements = 0;
+    size_t num_rows = 0;
+    // Import Arrow RecordBatches
+#pragma omp parallel for reduction(+:num_elements,num_rows) num_threads(nthread)
+    for (int i = 0; i < batches.size(); ++i) {
+      num_elements += batches[i]->Import(missing);
+      num_rows += batches[i]->Size();
+    }
+    total_elements += num_elements;
+    total_batch_size += num_rows;
+    // Compute global offset for every row and starting row for every batch
+    std::vector<uint64_t> batch_offsets(batches.size());
+    for (int i = 0; i < batches.size(); ++i) {
+      if (i == 0) {
+        batch_offsets[i] = total_batch_size - num_rows;
+        batches[i]->ShiftRowOffsets(total_elements - num_elements);
+      } else {
+        batch_offsets[i] = batch_offsets[i-1] + batches[i-1]->Size();
+        batches[i]->ShiftRowOffsets(batches[i-1]->RowOffsets().back());
+      }
+    }
+    // Pre-allocate DMatrix memory
+    data_vec.resize(total_elements);
+    offset_vec.resize(total_batch_size + 1);
+    if (adapter->HasLabelColumn()) {
+      labels.resize(total_batch_size);
+    }
+    if (adapter->HasWeightColumn()) {
+      weights.resize(total_batch_size);
+    }
+    if (adapter->HasBaseMarginColumn()) {
+      base_margin.resize(total_batch_size);
+    }
+    // Copy data into DMatrix
+#pragma omp parallel num_threads(nthread) 
+    {
+#pragma omp for nowait
+    for (int i = 0; i < batches.size(); ++i) {
+      size_t begin = batches[i]->RowOffsets()[0];
+      for (size_t k = 0; k < batches[i]->Size(); ++k) {
+        for (size_t j = 0; j < batches[i]->NumColumns(); ++j) {
+          auto element = batches[i]->GetColumn(j).GetElement(k);
+          if (!std::isnan(element.value)) {
+            data_vec[begin++] = Entry(element.column_idx, element.value);
+          }
+        }
+      }
+    }
+#pragma omp for nowait
+    for (int i = 0; i < batches.size(); ++i) {
+      auto& offsets = batches[i]->RowOffsets();
+      std::copy(offsets.begin() + 1, offsets.end(),
+          offset_vec.begin() + batch_offsets[i] + 1);
+      // Append meta information if available
+      if (batches[i]->Labels() != nullptr) {
+        std::copy(batches[i]->Labels(), batches[i]->Labels() + batches[i]->Size(),
+            labels.begin() + batch_offsets[i]);
+      }
+      if (batches[i]->Weights() != nullptr) {
+        std::copy(batches[i]->Weights(), batches[i]->Weights() + batches[i]->Size(),
+            weights.begin() + batch_offsets[i]); 
+      }
+      if (batches[i]->BaseMargin() != nullptr) {
+        std::copy(batches[i]->BaseMargin(), batches[i]->BaseMargin() + batches[i]->Size(),
+            base_margin.begin() + batch_offsets[i]); 
+      }
+    }
+    }
+    // Compute group ids
+    for (int i = 0; i < batches.size(); ++i) {
+      if (batches[i]->Qid() != nullptr) {
+        // get group
+        for (size_t i = 0; i < batches[i]->Size(); ++i) {
+          const uint64_t cur_group_id = batches[i]->Qid()[i];
+          if (last_group_id == default_max || last_group_id != cur_group_id) {
+            info_.group_ptr_.push_back(group_size);
+          }
+          last_group_id = cur_group_id;
+          ++group_size;
+        }
+      }
+    }
+  }
+  if (last_group_id != default_max) {
+    if (group_size > info_.group_ptr_.back()) {
+      info_.group_ptr_.push_back(group_size);
+    }
+  }
+  // Synchronise worker columns
+  info_.num_col_ = adapter->NumColumns();
+  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  info_.num_row_ = total_batch_size;
+  info_.num_nonzero_ = data_vec.size();
+  CHECK_EQ(offset_vec.back(), info_.num_nonzero_);
+  omp_set_num_threads(nthread_original);
+}
 #endif
 
 bool SimpleDMatrix::operator==(const SimpleDMatrix& rhs) const {

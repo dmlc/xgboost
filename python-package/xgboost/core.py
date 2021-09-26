@@ -434,8 +434,8 @@ class RecordBatchDataIter:
 
     def __init__(self, data_iter):
         self.data_iter = data_iter      # an iterator for Arrow record batches
-        self.c_schema = ffi.new("struct ArrowSchema*")
-        self.c_array = ffi.new("struct ArrowArray*")
+        self.c_schemas = []
+        self.c_arrays = []
 
     def reset(self): # pylint: disable=missing-function-docstring
         raise NotImplementedError()
@@ -443,8 +443,10 @@ class RecordBatchDataIter:
     def next(self, data_handle): # pylint: disable=missing-function-docstring
         try:
             batch = next(self.data_iter)
-            ptr_schema = int(ffi.cast("uintptr_t", self.c_schema))
-            ptr_array = int(ffi.cast("uintptr_t", self.c_array))
+            self.c_schemas.append(ffi.new("struct ArrowSchema*"))
+            self.c_arrays.append(ffi.new("struct ArrowArray*"))
+            ptr_schema = int(ffi.cast("uintptr_t", self.c_schemas[-1]))
+            ptr_array = int(ffi.cast("uintptr_t", self.c_arrays[-1]))
             # pylint: disable=protected-access
             batch._export_to_c(ptr_array, ptr_schema)
             _check_call(_LIB.XGImportRecordBatch(

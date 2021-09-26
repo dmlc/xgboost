@@ -365,7 +365,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
 #if defined(XGBOOST_BUILD_ARROW_SUPPORT)
 XGB_DLL int XGImportRecordBatch(DataIterHandle data_handle, void* ptr_array, void* ptr_schema) {
   API_BEGIN();
-  static_cast<data::RecordBatchIterAdapter *>(data_handle)->SetData(
+  static_cast<data::RecordBatchesIterAdapter *>(data_handle)->SetData(
       static_cast<struct ArrowArray *>(ptr_array),
       static_cast<struct ArrowSchema *>(ptr_schema));
   API_END();
@@ -381,7 +381,7 @@ XGB_DLL int XGDMatrixCreateFromArrowCallback(
     const char* qid_col_name,
     DMatrixHandle *out) {
   API_BEGIN();
-  data::RecordBatchIterAdapter adapter(next,
+  data::RecordBatchesIterAdapter adapter(next,
                                       label_col_name,
                                       weight_col_name,
                                       base_margin_col_name,

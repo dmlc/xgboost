@@ -809,6 +809,8 @@ class Column {
 
   virtual COOTuple GetElement(size_t row_idx) const = 0;
 
+  virtual bool IsValidElement(size_t row_idx) const = 0;
+
   virtual std::vector<float> AsFloatVector() const = 0;
 
   virtual std::vector<uint64_t> AsUint64Vector() const = 0;
@@ -829,13 +831,19 @@ class PrimitiveColumn : public Column {
 
  public:
   PrimitiveColumn(size_t idx, size_t length, size_t null_count,
-                  const uint8_t* bitmap, const T* data)
-    : Column{idx, length, null_count, bitmap}, data_{data} {}
+                  const uint8_t* bitmap, const T* data, float missing)
+    : Column{idx, length, null_count, bitmap}, data_{data}, missing_{missing} {}
 
   COOTuple GetElement(size_t row_idx) const override {
     CHECK(data_ && row_idx < length_) << "Column is empty or out-of-bound index of the column";
-    return { row_idx, col_idx_, (IsValid(row_idx) && std::isfinite(data_[row_idx])) ?
+    return { row_idx, col_idx_, IsValidElement(row_idx) ?
                   static_cast<float>(data_[row_idx]) : nan };
+  }
+
+  bool IsValidElement(size_t row_idx) const override {
+    return IsValid(row_idx)
+            && std::isfinite(data_[row_idx])
+            && static_cast<float>(data_[row_idx]) != missing_;
   }
 
   std::vector<float> AsFloatVector() const override {
@@ -856,6 +864,7 @@ class PrimitiveColumn : public Column {
 
  private:
   const T* data_;
+  float missing_; // user specified missing value
 };
 
 struct ColumnarMetaInfo {
@@ -944,7 +953,59 @@ struct ArrowSchemaImporter {
 
 class ArrowColumnarBatch {
  public:
-  void Clear() {
+  ArrowColumnarBatch(struct ArrowArray *rb, struct ArrowSchemaImporter* schema)
+    : rb_{rb}, schema_{schema} {
+    CHECK(rb_) << "Cannot import non-existent record batch";
+    CHECK(!schema_->columns_.empty()) << "Cannot import record batch without a schema";
+  }
+
+  size_t Import(float missing) {
+    auto& infov = schema_->columns_;
+    for (auto i = 0; i < infov.size(); ++i) {
+      columns_.push_back(CreateColumn(i, infov[i], missing));
+    }
+    if (schema_->label_info_.type != ColumnDType::UNKNOWN) {
+      auto col = CreateColumn(std::numeric_limits<size_t>::max(),
+          schema_->label_info_, missing);
+      label_col_ = col->AsFloatVector();
+    }
+    if (schema_->weight_info_.type != ColumnDType::UNKNOWN) {
+      auto col = CreateColumn(std::numeric_limits<size_t>::max(),
+          schema_->weight_info_, missing);
+      weight_col_ = col->AsFloatVector();
+    }
+    if (schema_->base_margin_info_.type != ColumnDType::UNKNOWN) {
+      auto col = CreateColumn(std::numeric_limits<size_t>::max(),
+          schema_->base_margin_info_, missing);
+      base_margin_col_ = col->AsFloatVector();
+    }
+    if (schema_->qid_info_.type != ColumnDType::UNKNOWN) {
+      auto col = CreateColumn(std::numeric_limits<size_t>::max(),
+          schema_->qid_info_, missing);
+      qid_col_ = col->AsUint64Vector();
+    }
+    // Compute the starting location for every row in this batch
+    auto batch_size = rb_->length;
+    auto num_columns = columns_.size();
+    row_offsets_.resize(batch_size + 1, 0);
+    for (size_t i = 0; i < batch_size; ++i) {
+      row_offsets_[i+1] = row_offsets_[i];
+      for (size_t j = 0; j < num_columns; ++j) {
+        if (GetColumn(j).IsValidElement(i)) {
+          row_offsets_[i+1]++;
+        }
+      }
+    }
+    // return number of elements in the batch
+    return row_offsets_.back();
+  }
+
+  ArrowColumnarBatch(const ArrowColumnarBatch&) = delete;
+  ArrowColumnarBatch& operator=(const ArrowColumnarBatch&) = delete;
+  ArrowColumnarBatch(ArrowColumnarBatch&&) = delete;
+  ArrowColumnarBatch& operator=(ArrowColumnarBatch&&) = delete;
+
+  virtual ~ArrowColumnarBatch() {
     if (rb_ && rb_->release) {
       rb_->release(rb_);
       rb_ = nullptr;
@@ -956,40 +1017,22 @@ class ArrowColumnarBatch {
     qid_col_.clear();
   }
 
-  void Build(struct ArrowArray *rb, const struct ArrowSchemaImporter& schema) {
-    CHECK(rb) << "Cannot import non-existent record batch";
-    CHECK(!schema.columns_.empty()) << "Cannot import record batch without a schema";
-
-    rb_ = rb;
-    auto& infov = schema.columns_;
-    for (auto i = 0; i < infov.size(); ++i) {
-      columns_.push_back(CreateColumn(i, infov[i]));
-    }
-    if (schema.label_info_.type != ColumnDType::UNKNOWN) {
-      auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.label_info_);
-      label_col_ = col->AsFloatVector();
-    }
-    if (schema.weight_info_.type != ColumnDType::UNKNOWN) {
-      auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.weight_info_);
-      weight_col_ = col->AsFloatVector();
-    }
-    if (schema.base_margin_info_.type != ColumnDType::UNKNOWN) {
-      auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.base_margin_info_);
-      base_margin_col_ = col->AsFloatVector();
-    }
-    if (schema.qid_info_.type != ColumnDType::UNKNOWN) {
-      auto col = CreateColumn(std::numeric_limits<size_t>::max(), schema.qid_info_);
-      qid_col_ = col->AsUint64Vector();
-    }
-  }
-
   size_t Size() const { return rb_ ? rb_->length : 0; }
 
   size_t NumColumns() const { return columns_.size(); }
 
+  size_t NumElements() const { return row_offsets_.back(); }
+
   const Column& GetColumn(size_t col_idx) const {
     return *columns_[col_idx];
   }
+
+  void ShiftRowOffsets(size_t batch_offset) {
+    std::transform(row_offsets_.begin(), row_offsets_.end(), row_offsets_.begin(),
+        [=](size_t c) { return c + batch_offset; });
+  }
+
+  const std::vector<size_t>& RowOffsets() const { return row_offsets_; }
 
   const float* Labels() const {
     if (!label_col_.empty()) {
@@ -1024,7 +1067,9 @@ class ArrowColumnarBatch {
   }
 
  private:
-  std::shared_ptr<Column> CreateColumn(size_t idx, ColumnarMetaInfo info) const {
+  std::shared_ptr<Column> CreateColumn(size_t idx,
+                                      ColumnarMetaInfo info,
+                                      float missing) const {
     if (info.loc < 0) {
       return nullptr;
     }
@@ -1054,77 +1099,89 @@ class ArrowColumnarBatch {
     switch (info.type) {
       case ColumnDType::INT8:
         return std::make_shared<PrimitiveColumn<int8_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const int8_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const int8_t*>(data), missing);
       case ColumnDType::UINT8:
         return std::make_shared<PrimitiveColumn<uint8_t>>(
-            idx, length, null_count, bitmap, data);
+            idx, length, null_count, bitmap, data, missing);
       case ColumnDType::INT16:
         return std::make_shared<PrimitiveColumn<int16_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const int16_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const int16_t*>(data), missing);
       case ColumnDType::UINT16:
         return std::make_shared<PrimitiveColumn<uint16_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const uint16_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const uint16_t*>(data), missing);
       case ColumnDType::INT32:
         return std::make_shared<PrimitiveColumn<int32_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const int32_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const int32_t*>(data), missing);
       case ColumnDType::UINT32:
         return std::make_shared<PrimitiveColumn<uint32_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const uint32_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const uint32_t*>(data), missing);
       case ColumnDType::INT64:
         return std::make_shared<PrimitiveColumn<int64_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const int64_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const int64_t*>(data), missing);
       case ColumnDType::UINT64:
         return std::make_shared<PrimitiveColumn<uint64_t>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const uint64_t*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const uint64_t*>(data), missing);
       case ColumnDType::FLOAT:
         return std::make_shared<PrimitiveColumn<float>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const float*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const float*>(data), missing);
       case ColumnDType::DOUBLE:
         return std::make_shared<PrimitiveColumn<double>>(
-            idx, length, null_count, bitmap, reinterpret_cast<const double*>(data));
+            idx, length, null_count, bitmap,
+            reinterpret_cast<const double*>(data), missing);
       default:
         return nullptr;
     }
   }
 
-  struct ArrowArray* rb_{nullptr};
+  struct ArrowArray* rb_;
+  struct ArrowSchemaImporter* schema_;
   std::vector<std::shared_ptr<Column>> columns_;
+  std::vector<size_t> row_offsets_;
   std::vector<float> label_col_;
   std::vector<float> weight_col_;
   std::vector<float> base_margin_col_;
   std::vector<uint64_t> qid_col_;
 };
 
-class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
+using ArrowColumnarBatchVec = std::vector<std::unique_ptr<ArrowColumnarBatch>>;
+class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
  public:
-  RecordBatchIterAdapter(XGDMatrixCallbackNext *next_callback,
-                        const char* label_col_name,
-                        const char* weight_col_name,
-                        const char* base_margin_col_name,
-                        const char* qid_col_name)
+  RecordBatchesIterAdapter(XGDMatrixCallbackNext *next_callback,
+                          const char* label_col_name,
+                          const char* weight_col_name,
+                          const char* base_margin_col_name,
+                          const char* qid_col_name)
     : next_callback_{next_callback},
       label_col_name_{label_col_name},
       weight_col_name_{weight_col_name},
       base_margin_col_name_{base_margin_col_name},
       qid_col_name_{qid_col_name},
-      at_first_{true} {}
+      at_first_{true},
+      nbatches_{omp_get_num_procs()} {}
 
   void BeforeFirst() override {
-    CHECK(at_first_) << "Cannot reset RecordBatchIterAdapter";
+    CHECK(at_first_) << "Cannot reset RecordBatchesIterAdapter";
   }
 
   bool Next() override {
-    batch_.Clear();
-    if ((*next_callback_)(this) != 0) {
+    batches_.clear();
+    while (batches_.size() < nbatches_ && (*next_callback_)(this) != 0) {
       at_first_ = false;
+    }
+
+    if (batches_.size() > 0) {
       return true;
     } else {
       return false;
     }
-  }
-
-  const ArrowColumnarBatch& Value() const override {
-    return batch_;
   }
 
   void SetData(struct ArrowArray* rb, struct ArrowSchema* schema) {
@@ -1144,12 +1201,32 @@ class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
       }
     }
     if (rb) {
-      batch_.Build(rb, schema_);
+      batches_.push_back(std::make_unique<ArrowColumnarBatch>(rb, &schema_));
     }
+  }
+
+  const ArrowColumnarBatchVec& Value() const override {
+    return batches_;
   }
 
   size_t NumColumns() const { return schema_.columns_.size(); }
   size_t NumRows() const { return kAdapterUnknownSize; }
+
+  bool HasLabelColumn() const {
+    return schema_.label_info_.type != ColumnDType::UNKNOWN;
+  }
+
+  bool HasWeightColumn() const {
+    return schema_.weight_info_.type != ColumnDType::UNKNOWN;
+  }
+
+  bool HasBaseMarginColumn() const {
+    return schema_.base_margin_info_.type != ColumnDType::UNKNOWN;
+  }
+
+  bool HasQidColumn() const {
+    return schema_.qid_info_.type != ColumnDType::UNKNOWN;
+  }
 
  private:
   XGDMatrixCallbackNext *next_callback_;
@@ -1158,8 +1235,9 @@ class RecordBatchIterAdapter: public dmlc::DataIter<ArrowColumnarBatch> {
   const char* base_margin_col_name_;
   const char* qid_col_name_;
   bool at_first_;
+  int nbatches_;
   struct ArrowSchemaImporter schema_;
-  ArrowColumnarBatch batch_;
+  ArrowColumnarBatchVec batches_;
 };
 #endif
 
