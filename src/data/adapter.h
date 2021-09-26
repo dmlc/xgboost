@@ -167,7 +167,11 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
         num_rows_(num_rows),
         num_columns_(num_features) {}
   const CSRAdapterBatch& Value() const override { return batch_; }
-  size_t NumRows() const { return num_rows_; }
+
+  // JVM package sends 0 as unknown
+  size_t NumRows() const {
+    return num_rows_ == 0 ? kAdapterUnknownSize : num_rows_;
+  }
   size_t NumColumns() const { return num_columns_; }
 
  private:
