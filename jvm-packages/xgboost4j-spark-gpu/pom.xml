@@ -9,6 +9,11 @@
         <version>1.5.0-SNAPSHOT</version>
     </parent>
     <artifactId>xgboost4j-spark-gpu_2.12</artifactId>
+    <properties>
+      <rapidsPluginVersion>21.08.0</rapidsPluginVersion>
+      <cudf.version>21.08.2</cudf.version>
+      <cudf.classifier>cuda11</cudf.classifier>
+    </properties>
     <build>
         <plugins>
             <plugin>
@@ -42,6 +47,19 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-mllib_${scala.binary.version}</artifactId>
             <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.nvidia</groupId>
+            <artifactId>rapids-4-spark_${scala.binary.version}</artifactId>
+            <version>${rapidsPluginVersion}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>ai.rapids</groupId>
+            <artifactId>cudf</artifactId>
+            <version>${cudf.version}</version>
+            <classifier>${cudf.classifier}</classifier>
             <scope>provided</scope>
         </dependency>
     </dependencies>

@@ -61,7 +61,7 @@ private[this] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRou
 
 private[this] case class XGBoostExecutionInputParams(trainTestRatio: Double, seed: Long)
 
-private[this] case class XGBoostExecutionParams(
+private[spark] case class XGBoostExecutionParams(
     numWorkers: Int,
     numRounds: Int,
     useExternalMemory: Boolean,
@@ -90,7 +90,7 @@ private[this] case class XGBoostExecutionParams(
   }
 }
 
-private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], sc: SparkContext){
+private[spark] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], sc: SparkContext){
 
   private val logger = LogFactory.getLog("XGBoostSpark")
 
@@ -337,7 +337,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def getCacheDirName(useExternalMemory: Boolean): Option[String] = {
+  private[ml] def getCacheDirName(useExternalMemory: Boolean): Option[String] = {
     val taskId = TaskContext.getPartitionId().toString
     if (useExternalMemory) {
       val dir = Files.createTempDirectory(s"${TaskContext.get().stageId()}-cache-$taskId")
@@ -426,7 +426,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def startTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
+  private[spark] def startTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
     val tracker: IRabitTracker = trackerConf.trackerImpl match {
       case "scala" => new RabitTracker(nWorkers)
       case "python" => new PyRabitTracker(nWorkers)
@@ -724,7 +724,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def postTrackerReturnProcessing(
+  private[spark] def postTrackerReturnProcessing(
       trackerReturnVal: Int,
       distributedBoostersAndMetrics: RDD[(Booster, Map[String, Array[Float]])],
       sparkJobThread: Thread): (Booster, Map[String, Array[Float]]) = {
@@ -753,7 +753,7 @@ object XGBoost extends Serializable {
 
 }
 
-private class Watches private(
+private class Watches (
     val datasets: Array[DMatrix],
     val names: Array[String],
     val cacheDirName: Option[String]) {

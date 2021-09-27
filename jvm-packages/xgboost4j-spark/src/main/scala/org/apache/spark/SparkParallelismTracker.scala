@@ -36,14 +36,14 @@ class SparkParallelismTracker(
     numWorkers: Int,
     killSparkContextOnWorkerFailure: Boolean = true) {
 
-  private[this] val requestedCores = numWorkers * sc.conf.getInt("spark.task.cpus", 1)
+  protected[this] val requestedCores = numWorkers * sc.conf.getInt("spark.task.cpus", 1)
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
 
-  private[this] def numAliveCores: Int = {
+  protected[this] def numAliveCores: Int = {
     sc.statusStore.executorList(true).map(_.totalCores).sum
   }
 
-  private[this] def waitForCondition(
+  protected[this] def waitForCondition(
       condition: => Boolean,
       timeout: Long,
       checkInterval: Long = 100L) = {
@@ -61,7 +61,7 @@ class SparkParallelismTracker(
     waitImpl(0L, condition)
   }
 
-  private[this] def safeExecute[T](body: => T): T = {
+  protected[this] def safeExecute[T](body: => T): T = {
     val listener = new TaskFailedListener(killSparkContextOnWorkerFailure)
     sc.addSparkListener(listener)
     try {
