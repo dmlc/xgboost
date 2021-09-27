@@ -566,24 +566,6 @@ XGB_DLL int XGDMatrixNumCol(const DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatricesEqual(DMatrixHandle lmat, DMatrixHandle rmat, bst_ulong *out) {
-  API_BEGIN();
-  DMatrixHandle handle = lmat;
-  CHECK_HANDLE();
-  handle = rmat;
-  CHECK_HANDLE();
-  auto ldmat = static_cast<std::shared_ptr<DMatrix>*>(lmat)->get();
-  auto rdmat = static_cast<std::shared_ptr<DMatrix>*>(rmat)->get();
-  data::SimpleDMatrix *lhs, *rhs;
-  if ((lhs = dynamic_cast<data::SimpleDMatrix*>(ldmat)) &&
-      (rhs = dynamic_cast<data::SimpleDMatrix*>(rdmat))) {
-    *out = (*lhs == *rhs);
-  } else {
-    LOG(FATAL) << "equality comparison only supported by SimpleDMatrix";
-  }
-  API_END();
-}
-
 // xgboost implementation
 XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
                             xgboost::bst_ulong len,

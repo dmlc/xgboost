@@ -1149,13 +1149,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 None,
                 c_bst_ulong(0)))
 
-    def __eq__(self, other):
-        ret = c_bst_ulong()
-        _check_call(_LIB.XGDMatricesEqual(self.handle, other.handle,
-                                        ctypes.byref(ret)))
-        return bool(ret.value)
-
-
 
 class _ProxyDMatrix(DMatrix):
     """A placeholder class when DMatrix cannot be constructed (DeviceQuantileDMatrix,

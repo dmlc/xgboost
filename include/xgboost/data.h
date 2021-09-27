@@ -178,22 +178,6 @@ class MetaInfo {
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
-  bool operator==(const MetaInfo& rhs) const {
-    return (num_row_ == rhs.num_row_ &&
-            num_col_ == rhs.num_col_ &&
-            num_nonzero_ == rhs.num_nonzero_ &&
-            labels_.HostVector() == rhs.labels_.HostVector() &&
-            group_ptr_ == rhs.group_ptr_ &&
-            weights_.HostVector() == rhs.weights_.HostVector() &&
-            base_margin_.HostVector() == rhs.base_margin_.HostVector() &&
-            labels_lower_bound_.HostVector() == rhs.labels_lower_bound_.HostVector() &&
-            labels_upper_bound_.HostVector() == rhs.labels_upper_bound_.HostVector() &&
-            // feature_type_names == rhs.feature_type_names &&
-            // feature_names == rhs.feature_names &&
-            // feature_types.HostVector() == rhs.feature_types.HostVector() &&
-            feature_weigths.HostVector() == rhs.feature_weigths.HostVector());
-  }
-
  private:
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;

@@ -735,9 +735,6 @@ XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
                             bst_ulong *out);
-
-XGB_DLL int XGDMatricesEqual(DMatrixHandle lmat, DMatrixHandle rmat, bst_ulong *out);
-
 // --- start XGBoost class
 /*!
  * \brief create xgboost learner

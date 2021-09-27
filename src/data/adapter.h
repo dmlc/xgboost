@@ -1201,6 +1201,7 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
       }
     }
     if (rb) {
+      std::cout << "";
       batches_.push_back(std::make_unique<ArrowColumnarBatch>(rb, &schema_));
     }
   }
