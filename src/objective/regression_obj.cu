@@ -189,23 +189,12 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     return new RegLossObj<LinearSquareLoss>(); });
 // End deprecated
 
-// declare parameter
-struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
-  float max_delta_step;
-  DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
-    DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
-        .describe("Maximum delta step we allow each weight estimation to be." \
-                  " This parameter is required for possion regression.");
-  }
-};
-
 // poisson regression for count
 class PoissonRegression : public ObjFunction {
  public:
   // declare functions
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
+  void Configure(
+      const std::vector<std::pair<std::string, std::string>> &_) override {}
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -223,7 +212,6 @@ class PoissonRegression : public ObjFunction {
       CHECK_EQ(info.weights_.Size(), ndata)
           << "Number of weights should be equal to number of data points.";
     }
-    bst_float max_delta_step = param_.max_delta_step;
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
                            common::Span<int> _label_correct,
@@ -238,7 +226,7 @@ class PoissonRegression : public ObjFunction {
             _label_correct[0] = 0;
           }
           _out_gpair[_idx] = GradientPair{(expf(p) - y) * w,
-                                          expf(p + max_delta_step) * w};
+            expf(p) * w};
         },
         common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
@@ -269,28 +257,16 @@ class PoissonRegression : public ObjFunction {
     return "poisson-nloglik";
   }
 
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("count:poisson");
-    out["poisson_regression_param"] = ToJson(param_);
-  }
-
-  void LoadConfig(Json const& in) override {
-    FromJson(in["poisson_regression_param"], &param_);
-  }
+  void SaveConfig(Json* p_out) const override {}
+  void LoadConfig(Json const& in) override {}
 
  private:
-  PoissonRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };
-
-// register the objective functions
-DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 .describe("Poisson regression for count data.")
 .set_body([]() { return new PoissonRegression(); });
-
 
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public ObjFunction {

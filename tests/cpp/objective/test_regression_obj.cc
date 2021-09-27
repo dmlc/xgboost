@@ -151,19 +151,22 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
 
   args.emplace_back(std::make_pair("max_delta_step", "0.1f"));
   obj->Configure(args);
+  std::vector<float> predt {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1};
+  std::vector<float> hess (predt.size());
+  std::transform(predt.cbegin(), predt.cend(), hess.begin(), expf);
 
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
+                   predt,
                    {   0,    0,    0,    0,    1,    1,    1,    1},
                    {   1,    1,    1,    1,    1,    1,    1,    1},
                    {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
-                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+                   hess);
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
+                   predt,
                    {   0,    0,    0,    0,    1,    1,    1,    1},
                    {},  // Empty weight
                    {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
-                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+                   hess);
 }
 
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
