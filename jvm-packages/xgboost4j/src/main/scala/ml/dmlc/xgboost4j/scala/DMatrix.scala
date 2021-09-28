@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala
 import _root_.scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.LabeledPoint
-import ml.dmlc.xgboost4j.java.{Column, DataBatch, XGBoostError, DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, DataBatch, XGBoostError, DMatrix => JDMatrix}
 
 class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   /**
@@ -71,6 +71,18 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType,
            shapeParam: Int) {
     this(new JDMatrix(headers, indices, data, st, shapeParam))
+  }
+
+  /**
+   * Create the normal DMatrix from column array interface
+   * @param columnBatch the XGBoost ColumnBatch to provide the cuda array interface
+   *                    of feature columns
+   * @param missing missing value
+   * @param nthread threads number
+   */
+  @throws(classOf[XGBoostError])
+  def this(columnBatch: ColumnBatch, missing: Float, nthread: Int) {
+    this(new JDMatrix(columnBatch, missing, nthread))
   }
 
   /**
