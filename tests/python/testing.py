@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from io import StringIO
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
+from xgboost.compat import PYARROW_INSTALLED
 import pytest
 import gc
 import xgboost as xgb
@@ -447,3 +448,7 @@ except ImportError:
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(
     os.path.join(CURDIR, os.path.pardir, os.path.pardir))
+
+def no_arrow():
+    return {'condition': not PYARROW_INSTALLED,
+            'reason': 'pyarrow is not installed'}
