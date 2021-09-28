@@ -18,7 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
-import org.json4s.{DefaultFormats, Extraction, NoTypeHints}
+
+import org.json4s.{DefaultFormats, Extraction, NoTypeHints, ShortTypeHints, TypeHints}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
 
 import org.apache.spark.ml.param.{Param, ParamPair, Params}
@@ -32,14 +33,25 @@ class CustomEvalParam(
   override def w(value: EvalTrait): ParamPair[EvalTrait] = super.w(value)
 
   override def jsonEncode(value: EvalTrait): String = {
-    import org.json4s.jackson.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
+    implicit val formats = DefaultFormats.withHints(CustomEvalParam.typeHints)
     compact(render(Extraction.decompose(value)))
   }
 
   override def jsonDecode(json: String): EvalTrait = {
-    implicit val formats = DefaultFormats
+    implicit val formats = DefaultFormats.withHints(CustomEvalParam.typeHints)
     parse(json).extract[EvalTrait]
+  }
+}
+
+object CustomEvalParam {
+  var typeHints: TypeHints = NoTypeHints
+
+  final def addTypeHints(value: TypeHints): Unit = {
+    typeHints = typeHints + value
+  }
+
+  final def addShortTypeHint(value: Class[_]): Unit = {
+    typeHints = typeHints + ShortTypeHints(List(value))
   }
 }
 
@@ -52,14 +64,25 @@ class CustomObjParam(
   override def w(value: ObjectiveTrait): ParamPair[ObjectiveTrait] = super.w(value)
 
   override def jsonEncode(value: ObjectiveTrait): String = {
-    import org.json4s.jackson.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
+    implicit val formats = DefaultFormats.withHints(CustomObjParam.typeHints)
     compact(render(Extraction.decompose(value)))
   }
 
   override def jsonDecode(json: String): ObjectiveTrait = {
-    implicit val formats = DefaultFormats
+    implicit val formats = DefaultFormats.withHints(CustomObjParam.typeHints)
     parse(json).extract[ObjectiveTrait]
+  }
+}
+
+object CustomObjParam {
+  var typeHints: TypeHints = NoTypeHints
+
+  final def addTypeHints(value: TypeHints): Unit = {
+    typeHints = typeHints + value
+  }
+
+  final def addShortTypeHint(value: Class[_]): Unit = {
+    typeHints = typeHints + ShortTypeHints(List(value))
   }
 }
 

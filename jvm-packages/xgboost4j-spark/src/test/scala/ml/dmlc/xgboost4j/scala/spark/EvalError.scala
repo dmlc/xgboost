@@ -18,11 +18,15 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
+import ml.dmlc.xgboost4j.scala.spark.params.CustomEvalParam.addShortTypeHint
 import org.apache.commons.logging.LogFactory
+import org.json4s.ShortTypeHints
 
-class EvalError extends EvalTrait {
+case class EvalError() extends EvalTrait {
 
   val logger = LogFactory.getLog(classOf[EvalError])
+
+  addShortTypeHint(classOf[EvalError])
 
   private[xgboost4j] var evalMetric: String = "custom_error"
 
