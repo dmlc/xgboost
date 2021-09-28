@@ -4,7 +4,14 @@
 \alias{xgb.DMatrix}
 \title{Construct xgb.DMatrix object}
 \usage{
-xgb.DMatrix(data, info = list(), missing = NA, silent = FALSE, ...)
+xgb.DMatrix(
+  data,
+  info = list(),
+  missing = NA,
+  silent = FALSE,
+  nthread = NULL,
+  ...
+)
 }
 \arguments{
 \item{data}{a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character
@@ -17,6 +24,8 @@ See \code{\link{setinfo}} for the specific allowed kinds of}
 It is useful when a 0 or some other extreme value represents missing values in data.}
 
 \item{silent}{whether to suppress printing an informational message after loading from a file.}
+
+\item{nthread}{Number of threads used for creating DMatrix.}
 
 \item{...}{the \code{info} data could be passed directly as parameters, without creating an \code{info} list.}
 }
