@@ -27,7 +27,7 @@ import ml.dmlc.xgboost4j.java.Column;
  * This class is composing of base data with Apache Arrow format from Cudf ColumnVector.
  * It will be used to generate the cuda array interface.
  */
-class CudfColumn extends Column {
+public class CudfColumn extends Column {
 
   private final long dataPtr; //  gpu data buffer address
   private final long shape;   // row count
