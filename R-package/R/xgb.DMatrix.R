@@ -11,6 +11,7 @@
 #' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
 #'        It is useful when a 0 or some other extreme value represents missing values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
+#' @param nthread Number of threads used for creating DMatrix.
 #' @param ... the \code{info} data could be passed directly as parameters, without creating an \code{info} list.
 #'
 #' @examples
