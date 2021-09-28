@@ -149,7 +149,6 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
     ObjFunction::Create("count:poisson", &lparam)
   };
 
-  args.emplace_back(std::make_pair("max_delta_step", "0.1f"));
   obj->Configure(args);
   std::vector<float> predt {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1};
   std::vector<float> hess (predt.size());

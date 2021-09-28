@@ -257,7 +257,10 @@ class PoissonRegression : public ObjFunction {
     return "poisson-nloglik";
   }
 
-  void SaveConfig(Json* p_out) const override {}
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("count:poisson");
+  }
   void LoadConfig(Json const& in) override {}
 
  private:
