@@ -17,8 +17,9 @@
 package ml.dmlc.xgboost4j.scala
 
 import _root_.scala.collection.JavaConverters._
+
 import ml.dmlc.xgboost4j.LabeledPoint
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, DataBatch, XGBoostError}
+import ml.dmlc.xgboost4j.java.{Column, DataBatch, XGBoostError, DMatrix => JDMatrix}
 
 class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   /**
@@ -148,6 +149,30 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   def setGroup(group: Array[Int]): Unit = {
     jDMatrix.setGroup(group)
+  }
+
+  /**
+   * Set label of DMatrix from cuda array interface
+   */
+  @throws(classOf[XGBoostError])
+  def setLabel(column: Column): Unit = {
+    jDMatrix.setLabel(column)
+  }
+
+  /**
+   * set weight of dmatrix from column array interface
+   */
+  @throws(classOf[XGBoostError])
+  def setWeight(column: Column): Unit = {
+    jDMatrix.setWeight(column)
+  }
+
+  /**
+   * set base margin of dmatrix from column array interface
+   */
+  @throws(classOf[XGBoostError])
+  def setBaseMargin(column: Column): Unit = {
+    jDMatrix.setBaseMargin(column)
   }
 
   /**
