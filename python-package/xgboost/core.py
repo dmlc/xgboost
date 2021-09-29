@@ -636,7 +636,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
             rb_iter = iter(data.to_batches())
             it = RecordBatchDataIter(rb_iter)
-            self._init_from_arrow(it, label, weight, base_margin, qid)
+            self._init_from_arrow(it, label, label_lower_bound,
+                    label_upper_bound, weight, base_margin, qid)
             assert self.handle is not None
             return
 
@@ -671,6 +672,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self,
             iterator: RecordBatchDataIter,
             label: str,
+            label_lower_bound: str,
+            label_upper_bound: str,
             weight: str,
             base_margin: str,
             qid: str):
@@ -678,17 +681,23 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(iterator.next)
         plabel = (ctypes.POINTER(ctypes.c_char_p)() if label is None else
                 bytes(label, "utf-8"))
+        plabel_lb = (ctypes.POINTER(ctypes.c_char_p)() if label_lower_bound is None else
+                bytes(label_lower_bound, "utf-8"))
+        plabel_ub = (ctypes.POINTER(ctypes.c_char_p)() if label_upper_bound is None else
+                bytes(label_upper_bound, "utf-8"))
         pweight = (ctypes.POINTER(ctypes.c_char_p)() if weight is None else
-                bytes(label, "utf-8"))
+                bytes(weight, "utf-8"))
         pbase_margin = (ctypes.POINTER(ctypes.c_char_p)() if base_margin is None else
-                bytes(label, "utf-8"))
+                bytes(base_margin, "utf-8"))
         pqid = (ctypes.POINTER(ctypes.c_char_p)() if qid is None else
-                bytes(label, "utf-8"))
+                bytes(qid, "utf-8"))
         ret = _LIB.XGDMatrixCreateFromArrowCallback(
             next_callback,
             ctypes.c_float(self.missing),
             ctypes.c_int(self.nthread),
             plabel,
+            plabel_lb,
+            plabel_ub,
             pweight,
             pbase_margin,
             pqid,

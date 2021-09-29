@@ -502,6 +502,8 @@ XGB_DLL int XGDMatrixCreateFromArrowCallback(
     float missing,
     int nthread,
     const char* label_col_name,
+    const char* label_lb_col_name,
+    const char* label_ub_col_name,
     const char* weight_col_name,
     const char* base_margin_col_name,
     const char* qid_col_name,

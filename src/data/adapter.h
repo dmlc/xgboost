@@ -877,6 +877,8 @@ struct ColumnarMetaInfo {
 struct ArrowSchemaImporter {
   std::vector<ColumnarMetaInfo> columns_;
   ColumnarMetaInfo label_info_;
+  ColumnarMetaInfo label_lb_info_;
+  ColumnarMetaInfo label_ub_info_;
   ColumnarMetaInfo weight_info_;
   ColumnarMetaInfo base_margin_info_;
   ColumnarMetaInfo qid_info_;
@@ -913,6 +915,8 @@ struct ArrowSchemaImporter {
 
   void Import(struct ArrowSchema *schema,
               const char* label_col_name = nullptr,
+              const char* label_lb_col_name = nullptr,
+              const char* label_ub_col_name = nullptr,
               const char* weight_col_name = nullptr,
               const char* base_margin_col_name = nullptr,
               const char* qid_col_name = nullptr) {
@@ -925,6 +929,10 @@ struct ArrowSchemaImporter {
         ColumnarMetaInfo col_info{type, i};
         if (label_col_name && name == label_col_name) {
           label_info_ = col_info;
+        } else if (label_lb_col_name && name == label_lb_col_name) {
+          label_lb_info_ = col_info;
+        } else if (label_ub_col_name && name == label_ub_col_name) {
+          label_ub_info_ = col_info;
         } else if (weight_col_name && name == weight_col_name) {
           weight_info_ = col_info;
         } else if (base_margin_col_name && name == base_margin_col_name) {
@@ -942,6 +950,10 @@ struct ArrowSchemaImporter {
 
     CHECK(!label_col_name || label_info_.type != ColumnDType::UNKNOWN)
       << "Column " << label_col_name << " doesn't exist";
+    CHECK(!label_lb_col_name || label_lb_info_.type != ColumnDType::UNKNOWN)
+      << "Column " << label_lb_col_name << " doesn't exist";
+    CHECK(!label_ub_col_name || label_ub_info_.type != ColumnDType::UNKNOWN)
+      << "Column " << label_ub_col_name << " doesn't exist";
     CHECK(!weight_col_name || weight_info_.type != ColumnDType::UNKNOWN)
       << "Column " << weight_col_name << " doesn't exist";
     CHECK(!base_margin_col_name || base_margin_info_.type != ColumnDType::UNKNOWN)
@@ -968,6 +980,16 @@ class ArrowColumnarBatch {
       auto col = CreateColumn(std::numeric_limits<size_t>::max(),
           schema_->label_info_, missing);
       label_col_ = col->AsFloatVector();
+    }
+    if (schema_->label_lb_info_.type != ColumnDType::UNKNOWN) {
+      auto col = CreateColumn(std::numeric_limits<size_t>::max(),
+          schema_->label_lb_info_, missing);
+      label_lb_col_ = col->AsFloatVector();
+    }
+    if (schema_->label_ub_info_.type != ColumnDType::UNKNOWN) {
+      auto col = CreateColumn(std::numeric_limits<size_t>::max(),
+          schema_->label_ub_info_, missing);
+      label_ub_col_ = col->AsFloatVector();
     }
     if (schema_->weight_info_.type != ColumnDType::UNKNOWN) {
       auto col = CreateColumn(std::numeric_limits<size_t>::max(),
@@ -1012,6 +1034,8 @@ class ArrowColumnarBatch {
     }
     columns_.clear();
     label_col_.clear();
+    label_lb_col_.clear();
+    label_ub_col_.clear();
     weight_col_.clear();
     base_margin_col_.clear();
     qid_col_.clear();
@@ -1037,6 +1061,22 @@ class ArrowColumnarBatch {
   const float* Labels() const {
     if (!label_col_.empty()) {
       return label_col_.data();
+    } else {
+      return nullptr;
+    }
+  }
+
+  const float* LabelsLowerBound() const {
+    if (!label_lb_col_.empty()) {
+      return label_lb_col_.data();
+    } else {
+      return nullptr;
+    }
+  }
+
+  const float* LabelsUpperBound() const {
+    if (!label_ub_col_.empty()) {
+      return label_ub_col_.data();
     } else {
       return nullptr;
     }
@@ -1146,6 +1186,8 @@ class ArrowColumnarBatch {
   std::vector<std::shared_ptr<Column>> columns_;
   std::vector<size_t> row_offsets_;
   std::vector<float> label_col_;
+  std::vector<float> label_lb_col_;
+  std::vector<float> label_ub_col_;
   std::vector<float> weight_col_;
   std::vector<float> base_margin_col_;
   std::vector<uint64_t> qid_col_;
@@ -1156,11 +1198,15 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
  public:
   RecordBatchesIterAdapter(XGDMatrixCallbackNext *next_callback,
                           const char* label_col_name,
+                          const char* label_lb_col_name,
+                          const char* label_ub_col_name,
                           const char* weight_col_name,
                           const char* base_margin_col_name,
                           const char* qid_col_name)
     : next_callback_{next_callback},
       label_col_name_{label_col_name},
+      label_lb_col_name_{label_lb_col_name},
+      label_ub_col_name_{label_ub_col_name},
       weight_col_name_{weight_col_name},
       base_margin_col_name_{base_margin_col_name},
       qid_col_name_{qid_col_name},
@@ -1192,6 +1238,8 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
     if (at_first_ && schema) {
       schema_.Import(schema,
                     label_col_name_,
+                    label_lb_col_name_,
+                    label_ub_col_name_,
                     weight_col_name_,
                     base_margin_col_name_,
                     qid_col_name_);
@@ -1201,7 +1249,6 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
       }
     }
     if (rb) {
-      std::cout << "";
       batches_.push_back(std::make_unique<ArrowColumnarBatch>(rb, &schema_));
     }
   }
@@ -1215,6 +1262,14 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
 
   bool HasLabelColumn() const {
     return schema_.label_info_.type != ColumnDType::UNKNOWN;
+  }
+
+  bool HasLabelLBColumn() const {
+    return schema_.label_lb_info_.type != ColumnDType::UNKNOWN;
+  }
+
+  bool HasLabelUBColumn() const {
+    return schema_.label_ub_info_.type != ColumnDType::UNKNOWN;
   }
 
   bool HasWeightColumn() const {
@@ -1232,6 +1287,8 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
  private:
   XGDMatrixCallbackNext *next_callback_;
   const char* label_col_name_;
+  const char* label_lb_col_name_;
+  const char* label_ub_col_name_;
   const char* weight_col_name_;
   const char* base_margin_col_name_;
   const char* qid_col_name_;

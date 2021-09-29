@@ -247,6 +247,8 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
   auto& offset_vec = sparse_page_->offset.HostVector();
   auto& data_vec = sparse_page_->data.HostVector();
   auto& labels = info_.labels_.HostVector();
+  auto& labels_lb = info_.labels_lower_bound_.HostVector();
+  auto& labels_ub = info_.labels_upper_bound_.HostVector();
   auto& weights = info_.weights_.HostVector();
   auto& base_margin = info_.base_margin_.HostVector();
   uint64_t total_batch_size = 0;
@@ -284,6 +286,12 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
     if (adapter->HasLabelColumn()) {
       labels.resize(total_batch_size);
     }
+    if (adapter->HasLabelLBColumn()) {
+      labels_lb.resize(total_batch_size);
+    }
+    if (adapter->HasLabelUBColumn()) {
+      labels_ub.resize(total_batch_size);
+    }
     if (adapter->HasWeightColumn()) {
       weights.resize(total_batch_size);
     }
@@ -314,6 +322,16 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
       if (batches[i]->Labels() != nullptr) {
         std::copy(batches[i]->Labels(), batches[i]->Labels() + batches[i]->Size(),
             labels.begin() + batch_offsets[i]);
+      }
+      if (batches[i]->LabelsLowerBound() != nullptr) {
+        std::copy(batches[i]->LabelsLowerBound(),
+            batches[i]->LabelsLowerBound() + batches[i]->Size(),
+            labels_lb.begin() + batch_offsets[i]);
+      }
+      if (batches[i]->LabelsUpperBound() != nullptr) {
+        std::copy(batches[i]->LabelsUpperBound(),
+            batches[i]->LabelsUpperBound() + batches[i]->Size(),
+            labels_ub.begin() + batch_offsets[i]);
       }
       if (batches[i]->Weights() != nullptr) {
         std::copy(batches[i]->Weights(), batches[i]->Weights() + batches[i]->Size(),
