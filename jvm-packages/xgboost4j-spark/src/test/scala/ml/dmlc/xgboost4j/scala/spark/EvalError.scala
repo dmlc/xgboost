@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
-import ml.dmlc.xgboost4j.scala.spark.params.CustomEvalParam.addShortTypeHint
+import ml.dmlc.xgboost4j.scala.spark.params.CustomEvalParam._
 import org.apache.commons.logging.LogFactory
 import org.json4s.ShortTypeHints
 
@@ -26,7 +26,7 @@ case class EvalError() extends EvalTrait {
 
   val logger = LogFactory.getLog(classOf[EvalError])
 
-  addShortTypeHint(classOf[EvalError])
+  EvalError.addTypeHint()
 
   private[xgboost4j] var evalMetric: String = "custom_error"
 
@@ -65,5 +65,15 @@ case class EvalError() extends EvalTrait {
       }
     }
     error / labels.length
+  }
+}
+
+object EvalError {
+  private var typeHintAdded = false
+  def addTypeHint(): Unit = {
+    if (!typeHintAdded) {
+      addTypeHintForClass(classOf[EvalError])
+      typeHintAdded = true
+    }
   }
 }

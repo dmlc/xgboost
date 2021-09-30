@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, ObjectiveTrait}
-import ml.dmlc.xgboost4j.scala.spark.params.CustomObjParam.addShortTypeHint
+import ml.dmlc.xgboost4j.scala.spark.params.CustomObjParam._
 import org.apache.commons.logging.LogFactory
 import org.json4s.ShortTypeHints
 import scala.collection.mutable.ListBuffer
@@ -31,7 +31,7 @@ case class CustomObj() extends ObjectiveTrait {
 
   val logger = LogFactory.getLog(classOf[CustomObj])
 
-  addShortTypeHint(classOf[CustomObj])
+  CustomObj.addTypeHint()
 
   /**
    * user define objective function, return gradient and second order gradient
@@ -85,5 +85,15 @@ case class CustomObj() extends ObjectiveTrait {
       transPredicts(i)(0) = sigmoid(predicts(i)(0))
     }
     transPredicts
+  }
+}
+
+object CustomObj {
+  private var typeHintAdded = false
+  def addTypeHint(): Unit = {
+    if (!typeHintAdded) {
+      addTypeHintForClass(classOf[CustomObj])
+      typeHintAdded = true
+    }
   }
 }
