@@ -15,7 +15,7 @@ endfunction(auto_source_group)
 
 # Force static runtime for MSVC
 function(msvc_use_static_runtime)
-  if(MSVC)
+  if(MSVC AND (NOT BUILD_SHARED_LIBS) AND (NOT FORCE_SHARED_CRT))
       set(variables
           CMAKE_C_FLAGS_DEBUG
           CMAKE_C_FLAGS_MINSIZEREL

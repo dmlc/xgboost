@@ -28,6 +28,7 @@ set_default_configuration_release()
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
+option(FORCE_SHARED_CRT "Build with dynamic CRT on Windows (/MD)" OFF)
 option(RABIT_BUILD_MPI "Build MPI" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
@@ -160,6 +161,9 @@ endif (USE_NCCL)
 
 # dmlc-core
 msvc_use_static_runtime()
+if (FORCE_SHARED_CRT)
+  set(DMLC_FORCE_SHARED_CRT ON)
+endif ()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 
 if (MSVC)
