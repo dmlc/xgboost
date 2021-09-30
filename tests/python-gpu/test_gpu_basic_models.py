@@ -41,8 +41,7 @@ class TestGPUBasicModels:
         self.cpu_test_bm.run_custom_objective("gpu_hist")
 
     def test_eta_decay_gpu_hist(self):
-        self.cpu_test_cb.run_eta_decay('gpu_hist', True)
-        self.cpu_test_cb.run_eta_decay('gpu_hist', False)
+        self.cpu_test_cb.run_eta_decay('gpu_hist')
 
     def test_deterministic_gpu_hist(self):
         kRows = 1000

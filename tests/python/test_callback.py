@@ -249,12 +249,9 @@ class TestCallbacks:
             assert booster.num_boosted_rounds() == \
                 booster.best_iteration + early_stopping_rounds + 1
 
-    def run_eta_decay(self, tree_method, deprecated_callback):
+    def run_eta_decay(self, tree_method):
         """Test learning rate scheduler, used by both CPU and GPU tests."""
-        if deprecated_callback:
-            scheduler = xgb.callback.reset_learning_rate
-        else:
-            scheduler = xgb.callback.LearningRateScheduler
+        scheduler = xgb.callback.LearningRateScheduler
 
         dpath = os.path.join(tm.PROJECT_ROOT, 'demo/data/')
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -262,10 +259,7 @@ class TestCallbacks:
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
 
-        if deprecated_callback:
-            warning_check = pytest.warns(UserWarning)
-        else:
-            warning_check = tm.noop_context()
+        warning_check = tm.noop_context()
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
@@ -339,19 +333,9 @@ class TestCallbacks:
         with warning_check:
             xgb.cv(param, dtrain, num_round, callbacks=[scheduler(eta_decay)])
 
-    @pytest.mark.parametrize(
-        "tree_method, deprecated_callback",
-        [
-            ("hist", True),
-            ("hist", False),
-            ("approx", True),
-            ("approx", False),
-            ("exact", True),
-            ("exact", False),
-        ],
-    )
-    def test_eta_decay(self, tree_method, deprecated_callback):
-        self.run_eta_decay(tree_method, deprecated_callback)
+    @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
+    def test_eta_decay(self, tree_method):
+        self.run_eta_decay(tree_method)
 
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer
