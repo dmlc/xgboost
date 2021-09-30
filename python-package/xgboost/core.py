@@ -623,16 +623,23 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 raise ValueError(
                     'Features in dataset can only be integers or floating point number')
 
+            if feature_names is not None:
+                raise ValueError(
+                    'feature_names must be set separately using DMatrix.set_info()')
+
             if feature_types is not None:
                 raise ValueError(
-                    'Arrow dataset has own feature types, cannot pass them in')
+                    'feature_types must be set separately using DMatrix.set_info()')
 
             if not all((label is None or isinstance(label, str),
+                label_lower_bound is None or isinstance(label_lower_bound, str),
+                label_upper_bound is None or isinstance(label_upper_bound, str),
                 weight is None or isinstance(weight, str),
                 base_margin is None or isinstance(base_margin, str),
                 qid is None or isinstance(qid, str))):
                 raise ValueError(
-                    'label, weight, base_margin, and qid must be column names in string')
+                    'label, label_lower_bound, label_upper_bound, weight, ' + 
+                    'base_margin, and qid must be column names in string')
 
             rb_iter = iter(data.to_batches())
             it = RecordBatchDataIter(rb_iter)
