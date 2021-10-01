@@ -1117,12 +1117,8 @@ class LearnerImpl : public LearnerIO {
                      << before << "' to '" << after << "'. Explicitly set eval_metric if you'd "
                      << "like to restore the old behavior.";
       };
-      if (tparam_.objective == "binary:logistic") {
-        warn_default_eval_metric(tparam_.objective, "error", "logloss", "1.3.0");
-      } else if (tparam_.objective == "binary:logitraw") {
+      if (tparam_.objective == "binary:logitraw") {
         warn_default_eval_metric(tparam_.objective, "auc", "logloss", "1.4.0");
-      } else if ((tparam_.objective == "multi:softmax" || tparam_.objective == "multi:softprob")) {
-        warn_default_eval_metric(tparam_.objective, "merror", "mlogloss", "1.3.0");
       }
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
