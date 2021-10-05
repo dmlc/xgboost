@@ -33,8 +33,9 @@ import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import scala.collection.Iterator
 
+import com.nvidia.spark.rapids.GpuColumnVector
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
-import ml.dmlc.xgboost4j.java.spark.{GpuColumnBatch, GpuColumnVector}
+import ml.dmlc.xgboost4j.java.spark.{GpuColumnBatch}
 
 private[spark] object GpuTransform {
 
