@@ -20,7 +20,6 @@ import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.params.CustomObjParam._
 import org.apache.commons.logging.LogFactory
-import org.json4s.ShortTypeHints
 import scala.collection.mutable.ListBuffer
 
 

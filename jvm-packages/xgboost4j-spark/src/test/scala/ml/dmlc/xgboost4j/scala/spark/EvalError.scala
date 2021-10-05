@@ -20,7 +20,6 @@ import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
 import ml.dmlc.xgboost4j.scala.spark.params.CustomEvalParam._
 import org.apache.commons.logging.LogFactory
-import org.json4s.ShortTypeHints
 
 case class EvalError() extends EvalTrait {
 
