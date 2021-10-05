@@ -124,6 +124,35 @@ class TestEvalMetrics:
         skl_gamma_dev = mean_gamma_deviance(y, score)
         np.testing.assert_allclose(gamma_dev, skl_gamma_dev, rtol=1e-6)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_gamma_lik(self) -> None:
+        import scipy.stats as stats
+        rng = np.random.default_rng(1994)
+        n_samples = 32
+        n_features = 10
+
+        X = rng.normal(0, 1, size=n_samples * n_features).reshape((n_samples, n_features))
+
+        alpha, loc, beta = 5.0, 11.1, 22
+        y = stats.gamma.rvs(alpha, loc=loc, scale=beta, size=n_samples, random_state=rng)
+        reg = xgb.XGBRegressor(tree_method="hist", objective="reg:gamma", n_estimators=64)
+        reg.fit(X, y, eval_metric="gamma-nloglik", eval_set=[(X, y)])
+
+        score = reg.predict(X)
+
+        booster = reg.get_booster()
+        nloglik = float(booster.eval(xgb.DMatrix(X, y)).split(":")[1].split(":")[0])
+
+        # \beta_i = - (1 / \theta_i a)
+        # where \theta_i is the canonical parameter
+        # XGBoost uses the canonical link function of gamma in evaluation function.
+        # so \theta = - (1.0 / y)
+        # dispersion is hardcoded as 1.0, so shape (a in scipy parameter) is also 1.0
+        beta = - (1.0 / (- (1.0 / y)))  # == y
+        nloglik_stats = -stats.gamma.logpdf(score, a=1.0, scale=beta)
+
+        np.testing.assert_allclose(nloglik, np.mean(nloglik_stats), rtol=1e-3)
+
     def run_roc_auc_binary(self, tree_method, n_samples):
         import numpy as np
         from sklearn.datasets import make_classification
