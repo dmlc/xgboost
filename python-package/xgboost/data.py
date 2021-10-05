@@ -799,9 +799,6 @@ def dispatch_data_backend(
         return _from_dt_df(
             data, missing, threads, feature_names, feature_types, enable_categorical
         )
-    if _is_arrow(data):
-        return _from_arrow(data, missing, threads, feature_names,
-                            feature_types)
     if _is_modin_df(data):
         return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)

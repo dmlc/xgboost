@@ -262,7 +262,7 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
     size_t num_elements = 0;
     size_t num_rows = 0;
     // Import Arrow RecordBatches
-#pragma omp parallel for reduction(+:num_elements,num_rows) num_threads(nthread)
+#pragma omp parallel for reduction(+:num_elements, num_rows) num_threads(nthread)
     for (int i = 0; i < batches.size(); ++i) {
       num_elements += batches[i]->Import(missing);
       num_rows += batches[i]->Size();
@@ -299,7 +299,7 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
       base_margin.resize(total_batch_size);
     }
     // Copy data into DMatrix
-#pragma omp parallel num_threads(nthread) 
+#pragma omp parallel num_threads(nthread)
     {
 #pragma omp for nowait
     for (int i = 0; i < batches.size(); ++i) {
@@ -335,11 +335,11 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter,
       }
       if (batches[i]->Weights() != nullptr) {
         std::copy(batches[i]->Weights(), batches[i]->Weights() + batches[i]->Size(),
-            weights.begin() + batch_offsets[i]); 
+            weights.begin() + batch_offsets[i]);
       }
       if (batches[i]->BaseMargin() != nullptr) {
         std::copy(batches[i]->BaseMargin(), batches[i]->BaseMargin() + batches[i]->Size(),
-            base_margin.begin() + batch_offsets[i]); 
+            base_margin.begin() + batch_offsets[i]);
       }
     }
     }

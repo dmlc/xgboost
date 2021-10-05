@@ -864,7 +864,7 @@ class PrimitiveColumn : public Column {
 
  private:
   const T* data_;
-  float missing_; // user specified missing value
+  float missing_;  // user specified missing value
 };
 
 struct ColumnarMetaInfo {

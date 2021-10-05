@@ -638,7 +638,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 base_margin is None or isinstance(base_margin, str),
                 qid is None or isinstance(qid, str))):
                 raise ValueError(
-                    'label, label_lower_bound, label_upper_bound, weight, ' + 
+                    'label, label_lower_bound, label_upper_bound, weight, ' +
                     'base_margin, and qid must be column names in string')
 
             rb_iter = iter(data.to_batches())
