@@ -9,6 +9,15 @@
 #include <iostream>
 #include <map>
 
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+
 #include "xgboost/parameter.h"
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
@@ -16,10 +25,15 @@
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 // Override logging mechanism for non-R interfaces
 void dmlc::CustomLogMessage::Log(const std::string& msg) {
-  const xgboost::LogCallbackRegistry *registry =
-      xgboost::LogCallbackRegistryStore::Get();
-  auto callback = registry->Get();
-  callback(msg.c_str());
+  if (getenv("DAI_XGBOOST_AVOID_LOGGER")) {
+        printf("[XGBoost] [%s]\n", msg.c_str());
+        fflush(stdout);
+  } else {
+    const xgboost::LogCallbackRegistry *registry =
+        xgboost::LogCallbackRegistryStore::Get();
+    auto callback = registry->Get();
+    callback(msg.c_str());
+  }
 }
 
 namespace xgboost {
