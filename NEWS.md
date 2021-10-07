@@ -10,11 +10,11 @@ fixes.  We will describe categorical data support and the external memory interf
 independently. Package-specific new features will be listed in respective sections.
 
 ### Development on categorical data support
-XGBoost has introduced experimental support for categorical data in 1.3.  The development
+In version 1.3, XGBoost introduced an experimental feature for handling categorical data natively, without one-hot encoding. The development
 is continued in this release.  In 1.5, when ``tree_method`` is specified as ``gpu_hist``,
 XGBoost can perform one-hot encoding based categorical tree splits during model
 training. All the other features including prediction, SHAP value computation, feature
-importance, and model plotting have support for categorical splits on both CPU and GPU.
+importance, and model plotting were revised to natively handle categorical splits.
 Also, all Python interfaces including native interface with and without quantized
 ``DMatrix``, scikit-learn interface, and Dask interface now accepts categorical data with
 a wide range of data structures support including numpy/cupy array and cuDF/pandas/modin
@@ -38,18 +38,18 @@ Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #70
 	split. (#7081)
 
 ### External memory
-A new Python interface for external memory based on iterator is introduced in this release
-(#6901, #7064, #7088, #7089, #7087, #7092, #7070, #7216).  The new interface is similar to
-the one used for ``DeviceQuantileDMatrix`` with ``DataIter``. For a quick introduction,
+This release features a brand-new interface and implementation for external memory (also known as out-of-core training).
+(#6901, #7064, #7088, #7089, #7087, #7092, #7070, #7216). The new implementation leverages the data iterator interface, which is currently used
+to create `DeviceQuantileDMatrix``. For a quick introduction,
 see https://xgboost.readthedocs.io/en/latest/tutorials/external_memory.html#data-iterator
 . During the development of this new interface, ``lz4`` compression is removed. (#7076).
 Please note that external memory support is still experimental and not ready for
 production use yet.  All future development will focus on this new interface and users are
-advised to migrate from the old data parser in XGBoost.
+advised to migrate. (You are using the old interface if you are using a URL suffix to use external memory.)
 
 ### New features in Python package
-* Support numpy array interface and all numeric types from numpy in ```DMatrix``
-  construction and ``inplace_predict`` (#6998, #7003).  Now XGBoost no longer makes data
+* Support numpy array interface and all numeric types from numpy in `DMatrix`
+  construction and `inplace_predict` (#6998, #7003).  Now XGBoost no longer makes data
   copy when input is numpy array.
 * The early stopping callback in Python has a new ``min_delta`` parameter to control the
   stopping behavior (#7137)
@@ -62,8 +62,8 @@ advised to migrate from the old data parser in XGBoost.
 Add tutorial for XGBoost-Ray (#6884)
 
 ### New features in R package
-* In 1.4 we have a new prediction C API and is used in Python.  This release adds support
-  for the R package.  A new parameter ``iteration_range`` for the predict function is
+* In 1.4 we have a new prediction function in the C API which is used by the Python package.  This release revises
+  the R package to use the new prediction function as well.  A new parameter ``iteration_range`` for the predict function is
   available, which can be used for specifying the range of trees for running
   prediction. (#6819, #7126)
 * R package now supports the ``nthread`` parameter in ``DMatrix`` construction. (#7127)
@@ -85,11 +85,11 @@ Add tutorial for XGBoost-Ray (#6884)
 The performance for both ``hist`` and ``gpu_hist`` has been significantly improved in 1.5
 with the following optimizations:
 * GPU multi-class model training now supports prediction cache. (#6860)
-* GPU histogram building is speedup and the overall training time is 2~3 times faster on
-  large datasets (#7180, #7198).  During development ``deterministic_histogram`` is remove
-  and the GPU algorithm is always deterministic.
+* GPU histogram building is sped up and the overall training time is 2-3 times faster on
+  large datasets (#7180, #7198).  In addition, we removed the parameter `deterministic_histogram` and now
+  the GPU algorithm is always deterministic.
 * CPU hist has an optimized procedure for data sampling (#6922)
-* More performance is extracted from regression and binary classification objectives on
+* More performance optimization in regression and binary classification objectives on
   CPU (#7206)
 * Tree model dump is now performed in parallel (#7040)
 
