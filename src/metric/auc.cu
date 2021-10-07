@@ -19,9 +19,6 @@
 namespace xgboost {
 namespace metric {
 namespace {
-template <typename T>
-using Discard = thrust::discard_iterator<T>;
-
 struct GetWeightOp {
   common::Span<float const> weights;
   common::Span<size_t const> sorted_idx;
