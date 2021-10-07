@@ -3,6 +3,7 @@
 tqdm, sh are required to run this script.
 """
 from urllib.request import urlretrieve
+from typing import cast, Tuple
 import argparse
 from typing import List
 from sh.contrib import git
@@ -33,6 +34,7 @@ def show_progress(block_num, block_size, total_size):
 
 
 def retrieve(url, filename=None):
+    print(f"{url} -> {filename}")
     return urlretrieve(url, filename, reporthook=show_progress)
 
 
@@ -49,7 +51,7 @@ def download_wheels(
     dir_URL: str,
     src_filename_prefix: str,
     target_filename_prefix: str,
-) -> List:
+) -> List[str]:
     """Download all binary wheels. dir_URL is the URL for remote directory storing the release
     wheels
 
@@ -63,7 +65,6 @@ def download_wheels(
         target_wheel = target_filename_prefix + platform + ".whl"
         filename = os.path.join(DIST, target_wheel)
         filenames.append(filename)
-        print("Downloading from:", url, "to:", filename)
         retrieve(url=url, filename=filename)
         ret = subprocess.run(["twine", "check", filename], capture_output=True)
         assert ret.returncode == 0, "Failed twine check"
@@ -74,29 +75,13 @@ def download_wheels(
     return filenames
 
 
-def check_path():
-    root = os.path.abspath(os.path.curdir)
-    assert os.path.basename(root) == "xgboost", "Must be run on project root."
-
-
-def main(args: argparse.Namespace) -> None:
-    check_path()
-
-    rel = version.StrictVersion(args.release)
+def download_py_packages(major: int, minor: int, commit_hash: str):
     platforms = [
         "win_amd64",
         "manylinux2014_x86_64",
         "manylinux2014_aarch64",
         "macosx_10_14_x86_64.macosx_10_15_x86_64.macosx_11_0_x86_64",
     ]
-    print("Release:", rel)
-    major, minor, patch = rel.version
-    branch = "release_" + str(major) + "." + str(minor) + ".0"
-    git.clean("-xdf")
-    git.checkout(branch)
-    git.pull("origin", branch)
-    git.submodule("update")
-    commit_hash = latest_hash()
 
     dir_URL = PREFIX + str(major) + "." + str(minor) + ".0" + "/"
     src_filename_prefix = "xgboost-" + args.release + "%2B" + commit_hash + "-py3-none-"
@@ -119,10 +104,70 @@ Following steps should be done manually:
     )
 
 
+def download_r_packages(release: str, rc: str, commit: str) -> None:
+    platforms = ["linux", "win64"]
+    dirname = "./r-packages"
+    if not os.path.exists(dirname):
+        os.mkdir(dirname)
+
+    filenames = []
+
+    for plat in platforms:
+        url = f"{PREFIX}{release}/xgboost_r_gpu_linux_{commit}.tar.gz"
+
+        filename = f"xgboost_r_gpu_linux_{release}-{rc}.tar.gz"
+        target = os.path.join(dirname, filename)
+        retrieve(url=url, filename=target)
+        filenames.append(target)
+
+    print("Finished downloading R packages:", filenames)
+
+
+def check_path():
+    root = os.path.abspath(os.path.curdir)
+    assert os.path.basename(root) == "xgboost", "Must be run on project root."
+
+
+def main(args: argparse.Namespace) -> None:
+    check_path()
+
+    rel = version.LooseVersion(args.release)
+
+    print("Release:", rel)
+    if len(rel.version) == 3:
+        # Major release
+        major, minor, patch = version.StrictVersion(args.release).version
+        rc = None
+        rc_ver = None
+    else:
+        # RC release
+        major, minor, patch, rc, rc_ver = cast(
+            Tuple[int, int, int, str, int], rel.version
+        )
+        assert rc == "rc"
+
+    release = str(major) + "." + str(minor) + "." + str(patch)
+    branch = "release_" + release
+    git.clean("-xdf")
+    git.checkout(branch)
+    git.pull("origin", branch)
+    git.submodule("update")
+    commit_hash = latest_hash()
+
+    download_r_packages(
+        release, "" if rc is None else rc + str(rc_ver), commit_hash
+    )
+
+    download_py_packages(major, minor, commit_hash)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--release", type=str, required=True, help="Version tag, e.g. '1.3.2'."
+        "--release",
+        type=str,
+        required=True,
+        help="Version tag, e.g. '1.3.2', or '1.5.0rc1'"
     )
     args = parser.parse_args()
     main(args)
