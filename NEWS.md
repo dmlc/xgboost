@@ -11,9 +11,9 @@ independently. Package-specific new features will be listed in respective sectio
 
 ### Development on categorical data support
 In version 1.3, XGBoost introduced an experimental feature for handling categorical data natively, without one-hot encoding. The development
-is continued in this release.  In 1.5, when ``tree_method`` is specified as ``gpu_hist``,
-XGBoost can perform one-hot encoding based categorical tree splits during model
-training. All the other features including prediction, SHAP value computation, feature
+is continued in this release. 
+XGBoost can fit categorical splits in decision trees. (Currently, the generated splits will be of form `x \in {v}`, where the input is compared to a single category value. A future version of XGBoost will generate splits that compare the input against a list of multiple category values.)
+All the other features, including prediction, SHAP value computation, feature
 importance, and model plotting were revised to natively handle categorical splits.
 Also, all Python interfaces including native interface with and without quantized
 ``DMatrix``, scikit-learn interface, and Dask interface now accepts categorical data with
@@ -33,8 +33,8 @@ Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #70
 
 * Next steps
 
-	For the coming releases, we will focus on CPU training with categorical data and work
-	on supporting partition-based tree split instead of one-hot encoding based
+	- Revise the CPU training algorithm to handle categorical data and natively and generate categorical splits
+	- Extend the CPU and GPU algorithms to generate categorical splits of form `x \in S` where the input is compared with multiple category values.
 	split. (#7081)
 
 ### External memory
