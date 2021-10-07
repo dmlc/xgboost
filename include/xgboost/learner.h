@@ -259,6 +259,11 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
                          bool *out_of_bound) = 0;
   /*!
+   * \brief Copy the learner.
+   */
+  virtual Learner* Copy() const = 0;
+
+  /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
    * \param with_stats extra statistics while dumping model

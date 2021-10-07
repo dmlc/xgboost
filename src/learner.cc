@@ -1049,6 +1049,12 @@ class LearnerImpl : public LearnerIO {
     return out_impl;
   }
 
+  Learner* Copy() const override {
+    auto *out_impl = new LearnerImpl({});
+    CHECK(!this->need_configuration_);
+    return out_impl;
+  }
+
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);

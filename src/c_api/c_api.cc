@@ -556,6 +556,25 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle) {
   API_END();
 }
 
+XGB_DLL int XGBoosterCopy(BoosterHandle in, BoosterHandle* out) {
+  API_BEGIN();
+  if (!in) {
+    LOG(FATAL) << "Booster has not been initialized or has already been disposed.";
+  }
+  if (!out) {
+    LOG(FATAL) << "Invalid input for `out`.";
+  }
+  auto in_learner = static_cast<Learner*>(in);
+  Json config{Object{}};
+  in_learner->SaveConfig(&config);
+  bool out_of_bound = false;
+  CHECK(!out_of_bound);
+  auto out_learner = in_learner->Slice(0, 0, 1, &out_of_bound);
+  out_learner->LoadConfig(config);
+  *out = out_learner;
+  API_END();
+}
+
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *name,
                               const char *value) {
