@@ -24,11 +24,12 @@ abstract class SparkCustomEval extends EvalTrait {
 }
 
 object SparkCustomEval {
-  private var typeHintAdded = false
+  private var typeHintsAdded = Set[String]()
   def addTypeHint(thiz: SparkCustomEval): Unit = {
-    if (!typeHintAdded) {
+    val className = thiz.getClass().getSimpleName()
+    if (!typeHintsAdded.contains(className)) {
       addTypeHintForClass(thiz.getClass())
-      typeHintAdded = true
+      typeHintsAdded += className
     }
   }
 }
