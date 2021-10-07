@@ -103,6 +103,8 @@ with the following optimizations:
 ### Notable general bug fixes
 * XGBoost no long changes global CUDA device ordinal when `gpu_id` is specified (#6891,
   #6987)
+* Fix `gamma` negative likelihood evaluation metric. (#7275)
+* Fix integer value of `verbose_eal` for `xgboost.cv` function in Python. (#7291)
 * Remove extra sync in CPU hist for dense data, which can lead to incorrect tree node
   statistics. (#7120, #7128)
 * Fixed a bug in GPU hist when data size is larger than `UINT32_MAX` with missing
