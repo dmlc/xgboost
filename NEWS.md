@@ -11,18 +11,18 @@ independently. Package-specific new features will be listed in respective sectio
 
 ### Development on categorical data support
 In version 1.3, XGBoost introduced an experimental feature for handling categorical data natively, without one-hot encoding. The development
-is continued in this release. 
+is continued in this release.
 XGBoost can fit categorical splits in decision trees. (Currently, the generated splits will be of form `x \in {v}`, where the input is compared to a single category value. A future version of XGBoost will generate splits that compare the input against a list of multiple category values.)
 All the other features, including prediction, SHAP value computation, feature
 importance, and model plotting were revised to natively handle categorical splits.
 Also, all Python interfaces including native interface with and without quantized
-``DMatrix``, scikit-learn interface, and Dask interface now accepts categorical data with
+`DMatrix`, scikit-learn interface, and Dask interface now accepts categorical data with
 a wide range of data structures support including numpy/cupy array and cuDF/pandas/modin
 dataframe.  In practice, the following are required for enabling categorical data support
 during training:
 
   - Use Python package.
-  - Use ``gpu_hist`` to train the model.
+  - Use `gpu_hist` to train the model.
   - Use JSON model file format for saving the model.
 
 Once the model is trained, it can be used with all features that are available on the
@@ -40,9 +40,9 @@ Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #70
 ### External memory
 This release features a brand-new interface and implementation for external memory (also known as out-of-core training).
 (#6901, #7064, #7088, #7089, #7087, #7092, #7070, #7216). The new implementation leverages the data iterator interface, which is currently used
-to create `DeviceQuantileDMatrix``. For a quick introduction,
+to create `DeviceQuantileDMatrix`. For a quick introduction,
 see https://xgboost.readthedocs.io/en/latest/tutorials/external_memory.html#data-iterator
-. During the development of this new interface, ``lz4`` compression is removed. (#7076).
+. During the development of this new interface, `lz4` compression is removed. (#7076).
 Please note that external memory support is still experimental and not ready for
 production use yet.  All future development will focus on this new interface and users are
 advised to migrate. (You are using the old interface if you are using a URL suffix to use external memory.)
@@ -51,7 +51,7 @@ advised to migrate. (You are using the old interface if you are using a URL suff
 * Support numpy array interface and all numeric types from numpy in `DMatrix`
   construction and `inplace_predict` (#6998, #7003).  Now XGBoost no longer makes data
   copy when input is numpy array.
-* The early stopping callback in Python has a new ``min_delta`` parameter to control the
+* The early stopping callback in Python has a new `min_delta` parameter to control the
   stopping behavior (#7137)
 * Python package now supports calculating feature scores for the linear model, which is
   also available on R package. (#7048)
@@ -63,14 +63,14 @@ Add tutorial for XGBoost-Ray (#6884)
 
 ### New features in R package
 * In 1.4 we have a new prediction function in the C API which is used by the Python package.  This release revises
-  the R package to use the new prediction function as well.  A new parameter ``iteration_range`` for the predict function is
+  the R package to use the new prediction function as well.  A new parameter `iteration_range` for the predict function is
   available, which can be used for specifying the range of trees for running
   prediction. (#6819, #7126)
-* R package now supports the ``nthread`` parameter in ``DMatrix`` construction. (#7127)
+* R package now supports the `nthread` parameter in `DMatrix` construction. (#7127)
 
 ### New features in JVM packages
-* Support GPU dataframe and ``DeviceQuantileDMatrix`` (#7195).  Constructing ``DMatrix``
-  with GPU data structures and the interface for quantized ``DMatrix`` were first
+* Support GPU dataframe and `DeviceQuantileDMatrix` (#7195).  Constructing `DMatrix`
+  with GPU data structures and the interface for quantized `DMatrix` were first
   introduced in the Python package and are now available in the xgboost4j package.
 * JVM packages now support saving and getting early stopping attributes. (#7095) Here is a
   quick [example](https://github.com/dmlc/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/EarlyStopping.java "example") in JAVA (#7252).
@@ -82,7 +82,7 @@ Add tutorial for XGBoost-Ray (#6884)
 * XGBoost can be compiled using system CUB provided by CUDA 11.x installation. (#7232)
 
 ### Optimizations
-The performance for both ``hist`` and ``gpu_hist`` has been significantly improved in 1.5
+The performance for both `hist` and `gpu_hist` has been significantly improved in 1.5
 with the following optimizations:
 * GPU multi-class model training now supports prediction cache. (#6860)
 * GPU histogram building is sped up and the overall training time is 2-3 times faster on
@@ -94,20 +94,20 @@ with the following optimizations:
 * Tree model dump is now performed in parallel (#7040)
 
 ### Breaking changes
-* ``n_gpus`` was deprecated in 1.0 release and is now removed.
+* `n_gpus` was deprecated in 1.0 release and is now removed.
 * Feature grouping in CPU hist tree method is removed, which was disabled long
   ago. (#7018)
 * C API for Quantile DMatrix is changed to be consistent with the new external memory
   implementation. (#7082)
 
 ### Notable general bug fixes
-* XGBoost no long changes global CUDA device ordinal when ``gpu_id`` is specified (#6891,
+* XGBoost no long changes global CUDA device ordinal when `gpu_id` is specified (#6891,
   #6987)
 * Remove extra sync in CPU hist for dense data, which can lead to incorrect tree node
   statistics. (#7120, #7128)
-* Fixed a bug in GPU hist when data size is larger than ``UINT32_MAX`` with missing
+* Fixed a bug in GPU hist when data size is larger than `UINT32_MAX` with missing
   values. (#7026)
-* Fixed a thread safety issue in prediction with the ``softmax`` objective. (#7104)
+* Fixed a thread safety issue in prediction with the `softmax` objective. (#7104)
 * Fixed a thread safety issue in CPU SHAP value computation. (#7050) Please note that all
   prediction functions in Python are thread-safe.
 * Fixed model slicing. (#7149, #7078)
@@ -133,7 +133,7 @@ improvements.
 * Fixed early stopping behavior with MAPE metric (#7061)
 * Re-enable feature validation in predict proba. (#7177)
 * scikit learn interface regression estimator now can pass the scikit-learn estimator
-  check and is fully compatible with scikit-learn utilities.  ``__sklearn_is_fitted__`` is
+  check and is fully compatible with scikit-learn utilities.  `__sklearn_is_fitted__` is
   implemented as part of the changes (#7130, #7230)
 * Conform the latest pylint. (#7071, #7241)
 * Support latest panda range index in DMatrix construction. (#7074)
@@ -165,7 +165,7 @@ Improvements other than new features on JVM packages:
 ### General document improvements
 * Overhaul the installation documents. (#6877)
 * A few demos are added for AFT with dask (#6853), callback with dask (#6995), inference
-  in C (#7151), ``process_type``. (#7135)
+  in C (#7151), `process_type`. (#7135)
 * Fix PDF format of document. (#7143)
 * Clarify the behavior of `use_rmm`. (#6808)
 * Clarify prediction function. (#6813)
