@@ -587,7 +587,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     cls = xgb.dask.DaskXGBClassifier(
         tree_method=tree_method, n_estimators=2, use_label_encoder=False
     )
-    cls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+    cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
     # multiclass
     X_, y_ = make_classification(
@@ -618,7 +618,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     cls = xgb.dask.DaskXGBClassifier(
         tree_method=tree_method, n_estimators=2, use_label_encoder=False
     )
-    cls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+    cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
 
 def test_empty_dmatrix_auc() -> None:

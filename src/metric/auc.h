@@ -3,7 +3,9 @@
  */
 #ifndef XGBOOST_METRIC_AUC_H_
 #define XGBOOST_METRIC_AUC_H_
+#include <array>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -12,32 +14,115 @@
 #include "xgboost/base.h"
 #include "xgboost/span.h"
 #include "xgboost/data.h"
+#include "xgboost/metric.h"
+#include "../common/common.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace metric {
-XGBOOST_DEVICE inline float TrapesoidArea(float x0, float x1, float y0, float y1) {
+/***********
+ * ROC AUC *
+ ***********/
+XGBOOST_DEVICE inline float TrapezoidArea(float x0, float x1, float y0, float y1) {
   return std::abs(x0 - x1) * (y0 + y1) * 0.5f;
 }
 
 struct DeviceAUCCache;
 
 std::tuple<float, float, float>
-GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
-             int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
+GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
+                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
 
-float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info,
-                          int32_t device, std::shared_ptr<DeviceAUCCache>* cache,
+float GPUMultiClassROCAUC(common::Span<float const> predts,
+                          MetaInfo const &info, int32_t device,
+                          std::shared_ptr<DeviceAUCCache> *cache,
                           size_t n_classes);
 
 std::pair<float, uint32_t>
 GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
               int32_t device, std::shared_ptr<DeviceAUCCache> *cache);
 
+/**********
+ * PR AUC *
+ **********/
+std::tuple<float, float, float>
+GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
+               int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
+
+float GPUMultiClassPRAUC(common::Span<float const> predts, MetaInfo const &info,
+                         int32_t device, std::shared_ptr<DeviceAUCCache> *cache,
+                         size_t n_classes);
+
+std::pair<float, uint32_t>
+GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
+                int32_t device, std::shared_ptr<DeviceAUCCache> *cache);
+
+namespace detail {
+XGBOOST_DEVICE inline float CalcH(float fp_a, float fp_b, float tp_a,
+                                  float tp_b) {
+  return (fp_b - fp_a) / (tp_b - tp_a);
+}
+
+XGBOOST_DEVICE inline float CalcB(float fp_a, float h, float tp_a, float total_pos) {
+  return (fp_a - h * tp_a) / total_pos;
+}
+
+XGBOOST_DEVICE inline float CalcA(float h) { return h + 1; }
+
+XGBOOST_DEVICE inline float CalcDeltaPRAUC(float fp_prev, float fp,
+                                           float tp_prev, float tp,
+                                           float total_pos) {
+  float pr_prev = tp_prev / total_pos;
+  float pr = tp / total_pos;
+
+  float h{0}, a{0}, b{0};
+
+  if (tp == tp_prev) {
+    a = 1.0;
+    b = 0.0;
+  } else {
+    h = detail::CalcH(fp_prev, fp, tp_prev, tp);
+    a = detail::CalcA(h);
+    b = detail::CalcB(fp_prev, h, tp_prev, total_pos);
+  }
+
+  float area = 0;
+  if (b != 0.0) {
+    area = (pr - pr_prev -
+            b / a * (std::log(a * pr + b) - std::log(a * pr_prev + b))) /
+           a;
+  } else {
+    area = (pr - pr_prev) / a;
+  }
+  return area;
+}
+}  // namespace detail
+
 inline void InvalidGroupAUC() {
   LOG(INFO) << "Invalid group with less than 3 samples is found on worker "
             << rabit::GetRank() << ".  Calculating AUC value requires at "
             << "least 2 pairs of samples.";
 }
+
+struct PRAUCLabelInvalid {
+  XGBOOST_DEVICE bool operator()(float y) { return y < 0.0f || y > 1.0f; }
+};
+
+inline void InvalidLabels() {
+  LOG(FATAL) << "PR-AUC supports only binary relevance for learning to rank.";
+}
+
+struct OptionalWeights {
+  common::Span<float const> weights;
+  float dft { 1.0f };
+
+  explicit OptionalWeights(common::Span<float const> w) : weights{w} {}
+  explicit OptionalWeights(float w) : dft{w} {}
+
+  XGBOOST_DEVICE float operator[](size_t i) const {
+    return weights.empty() ? dft : weights[i];
+  }
+};
 }      // namespace metric
 }      // namespace xgboost
 #endif  // XGBOOST_METRIC_AUC_H_

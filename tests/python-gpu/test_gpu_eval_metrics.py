@@ -47,3 +47,12 @@ class TestGPUEvalMetrics:
         gpu_auc = float(gpu.eval(Xy).split(":")[1])
 
         np.testing.assert_allclose(cpu_auc, gpu_auc)
+
+    def test_pr_auc_binary(self):
+        self.cpu_test.run_pr_auc_binary("gpu_hist")
+
+    def test_pr_auc_multi(self):
+        self.cpu_test.run_pr_auc_multi("gpu_hist")
+
+    def test_pr_auc_ltr(self):
+        self.cpu_test.run_pr_auc_ltr("gpu_hist")
