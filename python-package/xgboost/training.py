@@ -472,13 +472,15 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     if is_new_callback:
         assert all(isinstance(c, callback.TrainingCallback)
                    for c in callbacks), "You can't mix new and old callback styles."
-        if isinstance(verbose_eval, bool) and verbose_eval:
+        if verbose_eval:
             verbose_eval = 1 if verbose_eval is True else verbose_eval
-            callbacks.append(callback.EvaluationMonitor(period=verbose_eval,
-                                                        show_stdv=show_stdv))
+            callbacks.append(
+                callback.EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
+            )
         if early_stopping_rounds:
-            callbacks.append(callback.EarlyStopping(
-                rounds=early_stopping_rounds, maximize=maximize))
+            callbacks.append(
+                callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
+            )
         callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
     else:
         callbacks = _configure_deprecated_callbacks(
