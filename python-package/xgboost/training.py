@@ -2,40 +2,24 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
-import warnings
 import copy
+from typing import Optional, List
+
 import numpy as np
 from .core import Booster, XGBoostError, _get_booster_layer_trees
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
 
 
-def _configure_deprecated_callbacks(
-        verbose_eval, early_stopping_rounds, maximize, start_iteration,
-        num_boost_round, feval, evals_result, callbacks, show_stdv, cvfolds):
-    link = 'https://xgboost.readthedocs.io/en/latest/python/callbacks.html'
-    warnings.warn(f'Old style callback is deprecated.  See: {link}', UserWarning)
-    # Most of legacy advanced options becomes callbacks
-    if early_stopping_rounds is not None:
-        callbacks.append(callback.early_stop(early_stopping_rounds,
-                                             maximize=maximize,
-                                             verbose=bool(verbose_eval)))
-    if isinstance(verbose_eval, bool) and verbose_eval:
-        callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
-    else:
-        if isinstance(verbose_eval, int):
-            callbacks.append(callback.print_evaluation(verbose_eval,
-                                                       show_stdv=show_stdv))
-    if evals_result is not None:
-        callbacks.append(callback.record_evaluation(evals_result))
-    callbacks = callback.LegacyCallbacks(
-        callbacks, start_iteration, num_boost_round, feval, cvfolds=cvfolds)
-    return callbacks
-
-
-def _is_new_callback(callbacks):
-    return any(isinstance(c, callback.TrainingCallback)
-               for c in callbacks) or not callbacks
+def _assert_new_callback(callbacks: Optional[List[callback.TrainingCallback]]) -> None:
+    is_new_callback: bool = not callbacks or all(
+        isinstance(c, callback.TrainingCallback) for c in callbacks
+    )
+    if not is_new_callback:
+        link = "https://xgboost.readthedocs.io/en/latest/python/callbacks.html"
+        raise ValueError(
+            f"Old style callback was removed in version 1.6.  See: {link}."
+        )
 
 
 def _train_internal(params, dtrain,
@@ -56,22 +40,15 @@ def _train_internal(params, dtrain,
 
     start_iteration = 0
 
-    is_new_callback = _is_new_callback(callbacks)
-    if is_new_callback:
-        assert all(isinstance(c, callback.TrainingCallback)
-                   for c in callbacks), "You can't mix new and old callback styles."
-        if verbose_eval:
-            verbose_eval = 1 if verbose_eval is True else verbose_eval
-            callbacks.append(callback.EvaluationMonitor(period=verbose_eval))
-        if early_stopping_rounds:
-            callbacks.append(callback.EarlyStopping(
-                rounds=early_stopping_rounds, maximize=maximize))
-        callbacks = callback.CallbackContainer(callbacks, metric=feval)
-    else:
-        callbacks = _configure_deprecated_callbacks(
-            verbose_eval, early_stopping_rounds, maximize, start_iteration,
-            num_boost_round, feval, evals_result, callbacks,
-            show_stdv=False, cvfolds=None)
+    _assert_new_callback(callbacks)
+    if verbose_eval:
+        verbose_eval = 1 if verbose_eval is True else verbose_eval
+        callbacks.append(callback.EvaluationMonitor(period=verbose_eval))
+    if early_stopping_rounds:
+        callbacks.append(
+            callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
+        )
+    callbacks = callback.CallbackContainer(callbacks, metric=feval)
 
     bst = callbacks.before_training(bst)
 
@@ -84,7 +61,7 @@ def _train_internal(params, dtrain,
 
     bst = callbacks.after_training(bst)
 
-    if evals_result is not None and is_new_callback:
+    if evals_result is not None:
         evals_result.update(callbacks.history)
 
     # These should be moved into callback functions `after_training`, but until old
@@ -468,25 +445,19 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
-    is_new_callback = _is_new_callback(callbacks)
-    if is_new_callback:
-        assert all(isinstance(c, callback.TrainingCallback)
-                   for c in callbacks), "You can't mix new and old callback styles."
-        if verbose_eval:
-            verbose_eval = 1 if verbose_eval is True else verbose_eval
-            callbacks.append(
-                callback.EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
-            )
-        if early_stopping_rounds:
-            callbacks.append(
-                callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
-            )
-        callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
-    else:
-        callbacks = _configure_deprecated_callbacks(
-            verbose_eval, early_stopping_rounds, maximize, 0,
-            num_boost_round, feval, None, callbacks,
-            show_stdv=show_stdv, cvfolds=cvfolds)
+    _assert_new_callback(callbacks)
+
+    if verbose_eval:
+        verbose_eval = 1 if verbose_eval is True else verbose_eval
+        callbacks.append(
+            callback.EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
+        )
+    if early_stopping_rounds:
+        callbacks.append(
+            callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
+        )
+    callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
+
     booster = _PackedBooster(cvfolds)
     callbacks.before_training(booster)
 

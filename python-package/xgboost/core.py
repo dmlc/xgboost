@@ -2,7 +2,6 @@
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals, no-self-use
 """Core XGBoost Library."""
-import collections
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar
@@ -44,18 +43,6 @@ class EarlyStopException(Exception):
     def __init__(self, best_iteration):
         super().__init__()
         self.best_iteration = best_iteration
-
-
-# Callback environment used by callbacks
-CallbackEnv = collections.namedtuple(
-    "XGBoostCallbackEnv",
-    ["model",
-     "cvfolds",
-     "iteration",
-     "begin_iteration",
-     "end_iteration",
-     "rank",
-     "evaluation_result_list"])
 
 
 def from_pystr_to_cstr(data: Union[str, List[str]]):
