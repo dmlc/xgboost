@@ -10,6 +10,14 @@
     </parent>
     <artifactId>xgboost4j-spark_2.12</artifactId>
     <build>
+        <testResources>
+            <testResource>
+                <directory>../../demo/data</directory>
+            </testResource>
+            <testResource>
+                <directory>../../demo/CLI/regression</directory>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
