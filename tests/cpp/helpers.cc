@@ -143,7 +143,7 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
 }
 
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
-                                 xgboost::HostDeviceVector<xgboost::bst_float> preds,
+                                 xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights,
                                  std::vector<xgboost::bst_uint> groups) {
