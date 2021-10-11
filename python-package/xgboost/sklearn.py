@@ -10,7 +10,7 @@ import numpy as np
 
 from .core import Booster, DMatrix, XGBoostError
 from .core import _deprecate_positional_args, _convert_ntree_limit
-from .core import Metric
+from .core import Metric, Objective
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
@@ -55,7 +55,7 @@ _SklObjective = Optional[
 
 def _objective_decorator(
     func: Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
-) -> Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]:
+) -> Objective:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -888,9 +888,7 @@ class XGBModel(XGBModelBase):
         params = self.get_xgb_params()
 
         if callable(self.objective):
-            obj: Optional[
-                Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-            ] = _objective_decorator(self.objective)
+            obj: Optional[Objective] = _objective_decorator(self.objective)
             params["objective"] = "reg:squarederror"
         else:
             obj = None
@@ -1276,9 +1274,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         params = self.get_xgb_params()
 
         if callable(self.objective):
-            obj: Optional[
-                Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-            ] = _objective_decorator(self.objective)
+            obj: Optional[Objective] = _objective_decorator(self.objective)
             # Use default value. Is it really not used ?
             params["objective"] = "binary:logistic"
         else:
@@ -1498,6 +1494,88 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
         self, *, objective: _SklObjective = "reg:squarederror", **kwargs: Any
     ) -> None:
         super().__init__(objective=objective, **kwargs)
+
+
+@xgboost_model_doc(
+    "Implementation of the scikit-learn API for XGBoost multi-output regression.",
+    ['estimators', 'model', 'objective'])
+class XGBMultiOutputRegressor(XGBModel, XGBRegressorBase):
+    # pylint: disable=missing-docstring
+    @_deprecate_positional_args
+    def __init__(
+        self, *, objective: _SklObjective = "reg:squarederror", **kwargs: Any
+    ) -> None:
+        super().__init__(objective=objective, **kwargs)
+
+    @_deprecate_positional_args
+    def fit(
+        self,
+        X: array_like,
+        y: array_like,
+        *,
+        sample_weight: Optional[array_like] = None,
+        base_margin: Optional[array_like] = None,
+        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: Optional[bool] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[array_like]] = None,
+        base_margin_eval_set: Optional[List[array_like]] = None,
+        feature_weights: Optional[array_like] = None,
+        callbacks: Optional[List[TrainingCallback]] = None,
+    ) -> "XGBMultiOutputRegressor":
+        if not hasattr(y, "shape"):
+            raise TypeError(
+                "`shape` attribute of input y is required for multi-output regression"
+            )
+        self.n_targets_ = y.shape[1]
+
+        evals_result: TrainingCallback.EvalsLog = {}
+        train_dmatrix, evals = _wrap_evaluation_matrices(
+            missing=self.missing,
+            X=X,
+            y=y,
+            group=None,
+            qid=None,
+            sample_weight=sample_weight,
+            base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=None,
+            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+            enable_categorical=self.enable_categorical,
+        )
+        params = self.get_xgb_params()
+        params["num_target"] = self.n_targets_
+
+        if callable(self.objective):
+            obj: Optional[Objective] = _objective_decorator(self.objective)
+            params["objective"] = "reg:squarederror"
+        else:
+            obj = None
+
+        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
+        self._Booster = train(
+            params,
+            train_dmatrix,
+            self.get_num_boosting_rounds(),
+            evals=evals,
+            early_stopping_rounds=early_stopping_rounds,
+            evals_result=evals_result,
+            obj=obj,
+            feval=feval,
+            verbose_eval=verbose,
+            xgb_model=model,
+            callbacks=callbacks,
+        )
+
+        self._set_evaluation_result(evals_result)
+
+        return self
 
 
 @xgboost_model_doc(

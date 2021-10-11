@@ -601,8 +601,8 @@ void MetaInfo::Validate(int32_t device) const {
     return;
   }
   if (labels_.Size() != 0) {
-    CHECK_EQ(labels_.Size(), num_row_)
-        << "Size of labels must equal to number of rows.";
+    CHECK_EQ(labels_.Size() % num_row_, 0)
+        << "Size of labels must be multiple to the number of rows.";
     check_device(labels_);
     return;
   }

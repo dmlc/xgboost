@@ -1227,6 +1227,38 @@ def test_data_initialization():
     run_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
 
 
+def run_multi_output_reg(X, y) -> None:
+    from sklearn.multioutput import MultiOutputRegressor
+    reg = xgb.XGBRegressor(tree_method="hist", n_estimators=32)
+    skl_mreg = MultiOutputRegressor(reg)
+    skl_mreg.fit(X, y)
+
+    mreg = xgb.XGBMultiOutputRegressor(tree_method="hist", n_estimators=32)
+    mreg.fit(X, y)
+
+    y_score_skl = skl_mreg.predict(X)
+    y_score = mreg.predict(X)
+
+    np.testing.assert_allclose(y_score, y_score_skl, rtol=1e-6)
+
+    booster = mreg.get_booster()
+    contribs = booster.predict(xgb.DMatrix(X, y), pred_contribs=True)
+    margin = booster.predict(xgb.DMatrix(X, y), output_margin=True)
+    assert np.allclose(np.sum(contribs, axis=len(contribs.shape) - 1), margin, 1e-3, 1e-3)
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+def test_multi_output_reg():
+    from sklearn.datasets import make_regression
+    import pandas as pd
+
+    X, y = make_regression(n_targets=4)
+    run_multi_output_reg(X, y)
+
+    y = pd.DataFrame(y)
+    run_multi_output_reg(X, y)
+
+
 @parametrize_with_checks([xgb.XGBRegressor()])
 def test_estimator_reg(estimator, check):
     if os.environ["PYTEST_CURRENT_TEST"].find("check_supervised_y_no_nan") != -1:

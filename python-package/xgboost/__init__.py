@@ -16,19 +16,36 @@ from . import dask
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
     from .sklearn import XGBRFClassifier, XGBRFRegressor
+    from .sklearn import XGBMultiOutputRegressor
     from .plotting import plot_importance, plot_tree, to_graphviz
     from .config import set_config, get_config, config_context
 except ImportError:
     pass
 
-VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
+VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION")
 with open(VERSION_FILE, encoding="ascii") as f:
     __version__ = f.read().strip()
 
-__all__ = ['DMatrix', 'DeviceQuantileDMatrix', 'Booster', 'DataIter',
-           'train', 'cv',
-           'RabitTracker',
-           'XGBModel', 'XGBClassifier', 'XGBRegressor', 'XGBRanker',
-           'XGBRFClassifier', 'XGBRFRegressor',
-           'plot_importance', 'plot_tree', 'to_graphviz', 'dask',
-           'set_config', 'get_config', 'config_context']
+__all__ = [
+    "DMatrix",
+    "DeviceQuantileDMatrix",
+    "Booster",
+    "DataIter",
+    "train",
+    "cv",
+    "RabitTracker",
+    "XGBModel",
+    "XGBClassifier",
+    "XGBRegressor",
+    "XGBMultiOutputRegressor",
+    "XGBRanker",
+    "XGBRFClassifier",
+    "XGBRFRegressor",
+    "plot_importance",
+    "plot_tree",
+    "to_graphviz",
+    "dask",
+    "set_config",
+    "get_config",
+    "config_context",
+]

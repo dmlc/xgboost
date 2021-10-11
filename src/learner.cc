@@ -88,8 +88,10 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief the version of XGBoost. */
   uint32_t major_version;
   uint32_t minor_version;
+  /*! \brief Number of target variables */
+  int32_t num_target;
   /*! \brief reserved field */
-  int reserved[27];
+  int reserved[26];
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
@@ -114,11 +116,18 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     CHECK(ret.ec == std::errc());
     obj["num_feature"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                    static_cast<int64_t>(num_class));
     CHECK(ret.ec == std::errc());
     obj["num_class"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+
+    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                   static_cast<int64_t>(num_target));
+    CHECK(ret.ec == std::errc());
+    obj["num_target"] = std::string{
+        integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
     return Json(std::move(obj));
   }
   void FromJson(Json const& obj) {
@@ -126,6 +135,12 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     std::map<std::string, std::string> m;
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
     m["num_class"] = get<String const>(j_param.at("num_class"));
+    // Introduced in 1.6
+    auto nt_it = j_param.find("num_target");
+    if (nt_it != j_param.cend()) {
+      m["num_target"] = get<String const>(nt_it->second);
+    }
+
     this->Init(m);
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
@@ -139,6 +154,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
     dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
     dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
+    dmlc::ByteSwap(&x.num_target, sizeof(x.num_target), 1);
     dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
@@ -156,16 +172,20 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     DMLC_DECLARE_FIELD(num_class).set_default(0).set_lower_bound(0).describe(
         "Number of class option for multi-class classifier. "
         " By default equals 0 and corresponds to binary classifier.");
+    DMLC_DECLARE_FIELD(num_target)
+        .set_default(0)
+        .set_lower_bound(0)
+        .describe("Number of target for multi-output regression.");
   }
 };
 
-LearnerModelParam::LearnerModelParam(
-    LearnerModelParamLegacy const &user_param, float base_margin)
-    : base_score{base_margin}, num_feature{user_param.num_feature},
-      num_output_group{user_param.num_class == 0
-                       ? 1
-                       : static_cast<uint32_t>(user_param.num_class)}
-{}
+LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const &user_param,
+                                     float base_margin)
+    : base_score{base_margin}, num_feature{user_param.num_feature} {
+  CHECK(user_param.num_class == 0 || user_param.num_target == 0)
+      << "multi-output is not yet supported for classification.";
+  num_output_group = std::max(user_param.num_class + user_param.num_target, 1);
+}
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.

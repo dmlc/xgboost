@@ -138,7 +138,8 @@ class GBLinear : public GradientBooster {
                HostDeviceVector<GradientPair> *in_gpair,
                PredictionCacheEntry*) override {
     monitor_.Start("DoBoost");
-
+    auto y_size = p_fmat->Info().labels_.Size();
+    CHECK_EQ(y_size, p_fmat->Info().num_row_) << "Invalid size of labels";
     model_.LazyInitModel();
     this->LazySumWeights(p_fmat);
 

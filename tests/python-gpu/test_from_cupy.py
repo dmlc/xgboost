@@ -49,9 +49,10 @@ def _test_from_cupy(DMatrixT):
     dmatrix_from_cupy(np.int32, DMatrixT, -2)
     dmatrix_from_cupy(np.int64, DMatrixT, -3)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         X = cp.random.randn(2, 2, dtype="float32")
-        DMatrixT(X, label=X)
+        y = cp.random.randn(2, 2, 3, dtype="float32")
+        DMatrixT(X, label=y)
 
 
 def _test_cupy_training(DMatrixT):
@@ -75,7 +76,9 @@ def _test_cupy_training(DMatrixT):
                             base_margin=base_margin)
     xgb.train(params, dtrain_np, evals=[(dtrain_np, "train")],
               evals_result=evals_result_np)
-    assert np.array_equal(evals_result_cupy["train"]["rmse"], evals_result_np["train"]["rmse"])
+    assert np.array_equal(
+        evals_result_cupy["train"]["rmse"], evals_result_np["train"]["rmse"]
+    )
 
 
 def _test_cupy_metainfo(DMatrixT):

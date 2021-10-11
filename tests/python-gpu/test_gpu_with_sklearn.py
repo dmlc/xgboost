@@ -43,6 +43,30 @@ def test_num_parallel_tree():
     twskl.run_boston_housing_rf_regression("gpu_hist")
 
 
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_cudf())
+def test_multi_output_reg():
+    from sklearn.datasets import make_regression
+    import cupy as cp
+    import cudf
+
+    X, y = make_regression(n_targets=4)
+    reg = xgb.XGBRegressor(tree_method="hist", n_estimators=32)
+    reg.fit(X, y)
+    predt_0 = reg.predict(X)
+
+    X, y = cp.array(X), cp.array(y)
+    reg = xgb.XGBRegressor(tree_method="gpu_hist", n_estimators=32)
+    reg.fit(X, y)
+
+    eps = 1e-5
+    np.testing.assert_allclose(reg.predict(X), predt_0, rtol=eps)
+
+    y = cudf.DataFrame(y)
+    reg.fit(X, y)
+    np.testing.assert_allclose(reg.predict(X), predt_0, rtol=eps)
+
+
 @pytest.mark.skipif(**tm.no_pandas())
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_sklearn())
