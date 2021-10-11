@@ -174,7 +174,9 @@ __model_doc = f'''
         Device ordinal.
     validate_parameters : Optional[bool]
         Give warnings for unknown parameter.
-
+    predictor : Optional[str]
+        Force XGBoost to use specific predictor, available choices are [cpu_predictor,
+        gpu_predictor].
     enable_categorical : bool
 
         .. versionadded:: 1.5.0
