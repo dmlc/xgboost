@@ -99,7 +99,6 @@ TEST(Metric, DeclareUnifiedTest(MultiAUC)) {
   };
   std::vector<float> labels {1.0f, 0.0f, 2.0f, 1.0f};
   auc = GetMetricEval(metric, predts, labels, {1.0f, 2.0f, 3.0f, 4.0f});
-  std::cout << "auc:" << auc << std::endl;
   ASSERT_GT(auc, 0.714);
 }
 
