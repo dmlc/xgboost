@@ -840,7 +840,9 @@ class XGBModel(XGBModelBase):
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
-        is used automatically.
+        is used automatically.  For tree models, when data is on GPU, like cupy array or
+        cuDF dataframe and `predictor` is not specified, the prediction is run on GPU
+        automatically, otherwise it will run on CPU.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
@@ -868,6 +870,7 @@ class XGBModel(XGBModelBase):
         Returns
         -------
         prediction
+
         """
         iteration_range = _convert_ntree_limit(
             self.get_booster(), ntree_limit, iteration_range
