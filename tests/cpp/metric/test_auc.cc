@@ -90,6 +90,16 @@ TEST(Metric, DeclareUnifiedTest(MultiAUC)) {
                             },
                             {0, 1, 1});  // no class 2.
   EXPECT_TRUE(std::isnan(auc)) << auc;
+
+  HostDeviceVector<float> predts{
+    0.0f, 1.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f,
+    0.0f, 0.0f, 1.0f,
+  };
+  std::vector<float> labels {1.0f, 0.0f, 2.0f, 1.0f};
+  auc = GetMetricEval(metric, predts, labels, {1.0f, 2.0f, 3.0f, 4.0f});
+  ASSERT_GT(auc, 0.714);
 }
 
 TEST(Metric, DeclareUnifiedTest(RankingAUC)) {

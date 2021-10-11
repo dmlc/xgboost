@@ -13,9 +13,11 @@ class TestGPUEvalMetrics:
     def test_roc_auc_binary(self, n_samples):
         self.cpu_test.run_roc_auc_binary("gpu_hist", n_samples)
 
-    @pytest.mark.parametrize("n_samples", [4, 100, 1000])
-    def test_roc_auc_multi(self, n_samples):
-        self.cpu_test.run_roc_auc_multi("gpu_hist", n_samples)
+    @pytest.mark.parametrize(
+        "n_samples,weighted", [(4, False), (100, False), (1000, False), (1000, True)]
+    )
+    def test_roc_auc_multi(self, n_samples, weighted):
+        self.cpu_test.run_roc_auc_multi("gpu_hist", n_samples, weighted)
 
     @pytest.mark.parametrize("n_samples", [4, 100, 1000])
     def test_roc_auc_ltr(self, n_samples):

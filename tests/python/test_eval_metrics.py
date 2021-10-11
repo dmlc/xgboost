@@ -191,11 +191,11 @@ class TestEvalMetrics:
         np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize("n_samples", [4, 100, 1000])
+    @pytest.mark.parametrize("n_samples", [100, 1000])
     def test_roc_auc(self, n_samples):
         self.run_roc_auc_binary("hist", n_samples)
 
-    def run_roc_auc_multi(self, tree_method, n_samples):
+    def run_roc_auc_multi(self, tree_method, n_samples, weighted):
         import numpy as np
         from sklearn.datasets import make_classification
         from sklearn.metrics import roc_auc_score
@@ -213,8 +213,14 @@ class TestEvalMetrics:
             n_classes=n_classes,
             random_state=rng
         )
+        if weighted:
+            weights = rng.randn(n_samples)
+            weights -= weights.min()
+            weights /= weights.max()
+        else:
+            weights = None
 
-        Xy = xgb.DMatrix(X, y)
+        Xy = xgb.DMatrix(X, y, weight=weights)
         booster = xgb.train(
             {
                 "tree_method": tree_method,
@@ -226,16 +232,22 @@ class TestEvalMetrics:
             num_boost_round=8,
         )
         score = booster.predict(Xy)
-        skl_auc = roc_auc_score(y, score, average="weighted", multi_class="ovr")
+        skl_auc = roc_auc_score(
+            y, score, average="weighted", sample_weight=weights, multi_class="ovr"
+        )
         auc = float(booster.eval(Xy).split(":")[1])
         np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
 
         X = rng.randn(*X.shape)
-        score = booster.predict(xgb.DMatrix(X))
-        skl_auc = roc_auc_score(y, score, average="weighted", multi_class="ovr")
-        auc = float(booster.eval(xgb.DMatrix(X, y)).split(":")[1])
-        np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
+        score = booster.predict(xgb.DMatrix(X, weight=weights))
+        skl_auc = roc_auc_score(
+            y, score, average="weighted", sample_weight=weights, multi_class="ovr"
+        )
+        auc = float(booster.eval(xgb.DMatrix(X, y, weight=weights)).split(":")[1])
+        np.testing.assert_allclose(skl_auc, auc, rtol=1e-5)
 
-    @pytest.mark.parametrize("n_samples", [4, 100, 1000])
-    def test_roc_auc_multi(self, n_samples):
-        self.run_roc_auc_multi("hist", n_samples)
+    @pytest.mark.parametrize(
+        "n_samples,weighted", [(4, False), (100, False), (1000, False), (1000, True)]
+    )
+    def test_roc_auc_multi(self, n_samples, weighted):
+        self.run_roc_auc_multi("hist", n_samples, weighted)
