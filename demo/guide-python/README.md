@@ -16,3 +16,5 @@ XGBoost Python Feature Walkthrough
 * [External Memory](external_memory.py)
 * [Training continuation](continuation.py)
 * [Feature weights for column sampling](feature_weights.py)
+* [Basic Categorical data support](categorical.py)
+* [Compare builtin categorical data support with one-hot encoding](cat_in_the_dat.py)

@@ -807,7 +807,11 @@ class XGBModel(XGBModelBase):
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
         predictor = self.get_params().get("predictor", None)
-        if predictor in ("auto", None) and self.booster != "gblinear":
+        if (
+            not self.enable_categorical
+            and predictor in ("auto", None)
+            and self.booster != "gblinear"
+        ):
             return True
         return False
 
@@ -886,7 +890,10 @@ class XGBModel(XGBModelBase):
                 pass
 
         test = DMatrix(
-            X, base_margin=base_margin, missing=self.missing, nthread=self.n_jobs
+            X, base_margin=base_margin,
+            missing=self.missing,
+            nthread=self.n_jobs,
+            enable_categorical=self.enable_categorical
         )
         return self.get_booster().predict(
             data=test,
