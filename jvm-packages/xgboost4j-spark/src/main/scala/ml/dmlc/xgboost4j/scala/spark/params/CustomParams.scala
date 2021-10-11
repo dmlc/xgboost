@@ -45,13 +45,29 @@ class CustomEvalParam(
 
 object CustomEvalParam {
   var typeHints: TypeHints = NoTypeHints
+  private var typeHintsAdded = Set[String]()
 
-  final def addTypeHints(value: TypeHints): Unit = {
-    typeHints = typeHints + value
+  def addTypeHint(customEval: Any): Unit = {
+    if (!customEval.isInstanceOf[EvalTrait]) {
+      throw new IllegalArgumentException(
+        s"you specified $customEval as custom_eval," +
+        " but it does not implement EvalTrait."
+      )
+    }
+    val clazz = customEval.getClass()
+    val className = clazz.getSimpleName()
+    if (!typeHintsAdded.contains(className)) {
+      addTypeHintForClass(clazz)
+      typeHintsAdded += className
+    }
   }
 
   final def addTypeHintForClass(value: Class[_]): Unit = {
-    typeHints = typeHints + ShortTypeHints(List(value))
+    addTypeHints(ShortTypeHints(List(value)))
+  }
+
+  final def addTypeHints(value: TypeHints): Unit = {
+    typeHints = typeHints + value
   }
 }
 
@@ -76,13 +92,29 @@ class CustomObjParam(
 
 object CustomObjParam {
   var typeHints: TypeHints = NoTypeHints
+  private var typeHintsAdded = Set[String]()
 
-  final def addTypeHints(value: TypeHints): Unit = {
-    typeHints = typeHints + value
+  def addTypeHint(customObj: Any): Unit = {
+    if (!customObj.isInstanceOf[ObjectiveTrait]) {
+      throw new IllegalArgumentException(
+        s"you specified $customObj as custom_obj," +
+        " but it does not implement ObjectiveTrait."
+      )
+    }
+    val clazz = customObj.getClass()
+    val className = clazz.getSimpleName()
+    if (!typeHintsAdded.contains(className)) {
+      addTypeHintForClass(clazz)
+      typeHintsAdded += className
+    }
   }
 
   final def addTypeHintForClass(value: Class[_]): Unit = {
-    typeHints = typeHints + ShortTypeHints(List(value))
+    addTypeHints(ShortTypeHints(List(value)))
+  }
+
+  final def addTypeHints(value: TypeHints): Unit = {
+    typeHints = typeHints + value
   }
 }
 

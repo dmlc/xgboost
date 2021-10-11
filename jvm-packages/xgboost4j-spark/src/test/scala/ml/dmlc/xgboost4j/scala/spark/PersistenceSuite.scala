@@ -134,13 +134,12 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
   }
 
   test("test persistence of XGBoostClassifier and XGBoostClassificationModel " +
-    "using custom Obj and Eval") {
+    "using custom Eval and Obj") {
     val eval = new EvalError()
     val trainingDF = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "custom_obj" -> new CustomObj, "custom_eval" -> new EvalError,
+      "custom_eval" -> new EvalError, "custom_obj" -> new CustomObj(1),
       "num_round" -> "10", "num_workers" -> numWorkers)
     
     val xgbc = new XGBoostClassifier(paramMap)
@@ -149,6 +148,14 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val xgbc2 = XGBoostClassifier.load(xgbcPath)
     val paramMap2 = xgbc2.MLlib2XGBoostParams
     paramMap.foreach {
+      case ("custom_eval", v) => {
+        assert(v.isInstanceOf[EvalError])
+      }
+      case ("custom_obj", v) => {
+        assert(v.isInstanceOf[CustomObj])
+        assert(v.asInstanceOf[CustomObj].customParameter ==
+          paramMap2("custom_obj").asInstanceOf[CustomObj].customParameter)
+      }
       case (k, v) => assert(v.toString == paramMap2(k).toString)
     }
 

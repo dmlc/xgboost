@@ -17,10 +17,10 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
-import ml.dmlc.xgboost4j.scala.{DMatrix}
+import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
 import org.apache.commons.logging.LogFactory
 
-case class EvalError() extends SparkCustomEval {
+class EvalError() extends EvalTrait {
 
   val logger = LogFactory.getLog(classOf[EvalError])
 
