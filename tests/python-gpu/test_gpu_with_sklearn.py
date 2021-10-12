@@ -59,6 +59,7 @@ def test_categorical():
     )
     X = pd.DataFrame(X.todense()).astype("category")
     clf.fit(X, y)
+    assert not clf._can_use_inplace_predict()
 
     with tempfile.TemporaryDirectory() as tempdir:
         model = os.path.join(tempdir, "categorial.json")
