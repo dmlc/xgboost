@@ -174,7 +174,9 @@ __model_doc = f'''
         Device ordinal.
     validate_parameters : Optional[bool]
         Give warnings for unknown parameter.
-
+    predictor : Optional[str]
+        Force XGBoost to use specific predictor, available choices are [cpu_predictor,
+        gpu_predictor].
     enable_categorical : bool
 
         .. versionadded:: 1.5.0
@@ -807,7 +809,11 @@ class XGBModel(XGBModelBase):
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
         predictor = self.get_params().get("predictor", None)
-        if predictor in ("auto", None) and self.booster != "gblinear":
+        if (
+            not self.enable_categorical
+            and predictor in ("auto", None)
+            and self.booster != "gblinear"
+        ):
             return True
         return False
 
@@ -834,7 +840,9 @@ class XGBModel(XGBModelBase):
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
-        is used automatically.
+        is used automatically.  For tree models, when data is on GPU, like cupy array or
+        cuDF dataframe and `predictor` is not specified, the prediction is run on GPU
+        automatically, otherwise it will run on CPU.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
@@ -862,6 +870,7 @@ class XGBModel(XGBModelBase):
         Returns
         -------
         prediction
+
         """
         iteration_range = _convert_ntree_limit(
             self.get_booster(), ntree_limit, iteration_range
@@ -886,7 +895,10 @@ class XGBModel(XGBModelBase):
                 pass
 
         test = DMatrix(
-            X, base_margin=base_margin, missing=self.missing, nthread=self.n_jobs
+            X, base_margin=base_margin,
+            missing=self.missing,
+            nthread=self.n_jobs,
+            enable_categorical=self.enable_categorical
         )
         return self.get_booster().predict(
             data=test,
