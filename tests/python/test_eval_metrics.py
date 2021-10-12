@@ -253,10 +253,6 @@ class TestEvalMetrics:
     def test_roc_auc_multi(self, n_samples, weighted):
         self.run_roc_auc_multi("hist", n_samples, weighted)
 
-    @pytest.mark.parametrize("n_samples", [4, 100, 1000])
-    def test_roc_auc_multi(self, n_samples):
-        self.run_roc_auc_multi("hist", n_samples)
-
     def run_pr_auc_binary(self, tree_method):
         from sklearn.metrics import precision_recall_curve, auc
         from sklearn.datasets import make_classification
