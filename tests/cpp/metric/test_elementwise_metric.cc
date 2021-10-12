@@ -5,6 +5,35 @@
 #include <map>
 #include "../helpers.h"
 
+namespace xgboost {
+inline void CheckDeterministicMetric(xgboost::StringView name, int32_t device) {
+  auto lparam = CreateEmptyGenericParam(device);
+  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
+
+  HostDeviceVector<float> predts;
+  MetaInfo info;
+  auto &h_labels = info.labels_.HostVector();
+  auto &h_predts = predts.HostVector();
+
+  SimpleLCG lcg;
+  SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
+
+  size_t n_samples = 2048;
+  h_labels.resize(n_samples);
+  h_predts.resize(n_samples);
+
+  for (size_t i = 0; i < n_samples; ++i) {
+    h_predts[i] = dist(&lcg);
+    h_labels[i] = dist(&lcg);
+  }
+
+  auto result = metric->Eval(predts, info, false);
+  for (size_t i = 0; i < 8; ++i) {
+    ASSERT_EQ(metric->Eval(predts, info, false), result);
+  }
+}
+}  // namespace xgboost
+
 TEST(Metric, DeclareUnifiedTest(RMSE)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
@@ -26,6 +55,8 @@ TEST(Metric, DeclareUnifiedTest(RMSE)) {
                             {  1,   2,   9,   8}),
               0.6708f, 0.001f);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"rmse"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(RMSLE)) {
@@ -49,6 +80,8 @@ TEST(Metric, DeclareUnifiedTest(RMSLE)) {
                             {   0,    1,    2,    9,    8}),
               0.2415f, 1e-4);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"rmsle"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MAE)) {
@@ -72,6 +105,8 @@ TEST(Metric, DeclareUnifiedTest(MAE)) {
                             {  1,   2,   9,   8}),
               0.54f, 0.001f);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"mae"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MAPE)) {
@@ -95,6 +130,8 @@ TEST(Metric, DeclareUnifiedTest(MAPE)) {
                             {  1,   2,   9,   8}),
               1.3250f, 0.001f);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"mape"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MPHE)) {
@@ -118,6 +155,8 @@ TEST(Metric, DeclareUnifiedTest(MPHE)) {
                             {  1,   2,   9,   8}),
               0.1922f, 1e-4);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"mphe"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(LogLoss)) {
@@ -145,6 +184,8 @@ TEST(Metric, DeclareUnifiedTest(LogLoss)) {
                             {  1,   2,   9,   8}),
               1.3138f, 0.001f);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"logloss"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(Error)) {
@@ -197,6 +238,8 @@ TEST(Metric, DeclareUnifiedTest(Error)) {
                             {  1,   2,   9,   8}),
               0.45f, 0.001f);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"error@0.5"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
@@ -224,4 +267,6 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
                             {  1,   2,   9,   8}),
               1.5783f, 0.001f);
   delete metric;
+
+  xgboost::CheckDeterministicMetric(xgboost::StringView{"mphe"}, GPUIDX);
 }
