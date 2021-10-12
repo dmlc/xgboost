@@ -114,5 +114,5 @@ Next Steps
 **********
 
 As of XGBoost 1.5, the feature is highly experimental and have limited features like CPU
-training is not yet supported.  Please see `<this issue>
-https://github.com/dmlc/xgboost/issues/6503`_ for progress.
+training is not yet supported.  Please see `this issue
+<https://github.com/dmlc/xgboost/issues/6503>`_ for progress.
