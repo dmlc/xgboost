@@ -181,8 +181,6 @@ struct GPUHistMakerDevice {
 
   dh::PinnedMemory pinned;
 
-  std::vector<cudaStream_t> streams{};
-
   common::Monitor monitor;
   TreeEvaluator tree_evaluator;
   common::ColumnSampler column_sampler;
@@ -228,9 +226,6 @@ struct GPUHistMakerDevice {
 
   ~GPUHistMakerDevice() {  // NOLINT
     dh::safe_cuda(cudaSetDevice(device_id));
-    for (auto& stream : streams) {
-      dh::safe_cuda(cudaStreamDestroy(stream));
-    }
   }
 
   // Reset values for each update iteration
