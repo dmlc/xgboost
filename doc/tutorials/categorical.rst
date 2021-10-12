@@ -50,7 +50,7 @@ can plot the model and calculate the global feature importance:
   # Get a graph
   graph = xgb.to_graphviz(clf, num_trees=1)
   # Or get a matplotlib axis
-  ax = xgb.plot_tree(reg, num_trees=1)
+  ax = xgb.plot_tree(clf, num_trees=1)
   # Get feature importances
   clf.feature_importances_
 
@@ -60,8 +60,8 @@ idea is create dataframe with category feature type, and tell XGBoost to use ``g
 with parameter ``enable_categorical``.  See `this demo
 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/categorical.py>`_ for a
 worked example using categorical data with ``scikit-learn`` interface.  For using it with
-the Kaggle tutorial dataset, see `<this demo
-https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cat_in_the_dat.py>`_
+the Kaggle tutorial dataset, see `this demo
+<https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cat_in_the_dat.py>`_
 
 
 **********************
