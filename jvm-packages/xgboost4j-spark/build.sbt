@@ -1,6 +1,6 @@
 version := "1.4.1-spark3.2"
 
-scalaVersion := "2.12.10"
+scalaVersion := "2.12.15"
 
 resolvers += "Apache Spark RC Repository" at "https://repository.apache.org/content/repositories/orgapachespark-1392"
 
