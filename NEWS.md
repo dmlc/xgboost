@@ -29,7 +29,7 @@ Once the model is trained, it can be used with all features that are available o
 Python package.  For a quick demo using the sciki-learn interface, see
 https://github.com/dmlc/xgboost/blob/master/demo/guide-python/categorical.py
 
-Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #7065, #7213, #7228, #7220, #7221, #7231)
+Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #7065, #7213, #7228, #7220, #7221, #7231, #7306)
 
 * Next steps
 
@@ -107,23 +107,24 @@ with the following optimizations:
 * Fix integer value of `verbose_eal` for `xgboost.cv` function in Python. (#7291)
 * Remove extra sync in CPU hist for dense data, which can lead to incorrect tree node
   statistics. (#7120, #7128)
-* Fixed a bug in GPU hist when data size is larger than `UINT32_MAX` with missing
+* Fix a bug in GPU hist when data size is larger than `UINT32_MAX` with missing
   values. (#7026)
-* Fixed a thread safety issue in prediction with the `softmax` objective. (#7104)
-* Fixed a thread safety issue in CPU SHAP value computation. (#7050) Please note that all
+* Fix a thread safety issue in prediction with the `softmax` objective. (#7104)
+* Fix a thread safety issue in CPU SHAP value computation. (#7050) Please note that all
   prediction functions in Python are thread-safe.
-* Fixed model slicing. (#7149, #7078)
+* Fix model slicing. (#7149, #7078)
 * Workaround a bug in old GCC which can lead to segfault during construction of
   DMatrix. (#7161)
 * Fix histogram truncation in GPU hist, which can lead to slightly-off results. (#7181)
 * Fix loading GPU linear model pickle files on CPU-only machine. (#7154)
 * Check input value is duplicated when CPU quantile queue is full (#7091)
 * Fix parameter loading with training continuation. (#7121)
-* Fixes CMake interface for exposing C library by specifying dependencies. (#7099)
+* Fix CMake interface for exposing C library by specifying dependencies. (#7099)
 * Callback and early stopping are explicitly disabled for the scikit-learn interface
   random forest estimator. (#7236)
 * Fix compilation error on x86 (32-bit machine) (#6964)
 * Fix CPU memory usage with extremely sparse datasets (#7255)
+* Fix a bug in GPU multi-class AUC implementation with weighted data (#7300)
 
 ### Python package
 Other than the items mentioned in the previous sections, there are some Python-specific
