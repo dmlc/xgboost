@@ -33,41 +33,13 @@ class CustomEvalParam(
   override def w(value: EvalTrait): ParamPair[EvalTrait] = super.w(value)
 
   override def jsonEncode(value: EvalTrait): String = {
-    implicit val formats = DefaultFormats.withHints(CustomEvalParam.typeHints)
+    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
     compact(render(Extraction.decompose(value)))
   }
 
   override def jsonDecode(json: String): EvalTrait = {
-    implicit val formats = DefaultFormats.withHints(CustomEvalParam.typeHints)
+    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
     parse(json).extract[EvalTrait]
-  }
-}
-
-object CustomEvalParam {
-  var typeHints: TypeHints = NoTypeHints
-  private var typeHintsAdded = Set[String]()
-
-  def addTypeHint(customEval: Any): Unit = {
-    if (!customEval.isInstanceOf[EvalTrait]) {
-      throw new IllegalArgumentException(
-        s"you specified $customEval as custom_eval," +
-        " but it does not implement EvalTrait."
-      )
-    }
-    val clazz = customEval.getClass()
-    val className = clazz.getSimpleName()
-    if (!typeHintsAdded.contains(className)) {
-      addTypeHintForClass(clazz)
-      typeHintsAdded += className
-    }
-  }
-
-  final def addTypeHintForClass(value: Class[_]): Unit = {
-    addTypeHints(ShortTypeHints(List(value)))
-  }
-
-  final def addTypeHints(value: TypeHints): Unit = {
-    typeHints = typeHints + value
   }
 }
 
@@ -80,40 +52,34 @@ class CustomObjParam(
   override def w(value: ObjectiveTrait): ParamPair[ObjectiveTrait] = super.w(value)
 
   override def jsonEncode(value: ObjectiveTrait): String = {
-    implicit val formats = DefaultFormats.withHints(CustomObjParam.typeHints)
+    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
     compact(render(Extraction.decompose(value)))
   }
 
   override def jsonDecode(json: String): ObjectiveTrait = {
-    implicit val formats = DefaultFormats.withHints(CustomObjParam.typeHints)
+    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
     parse(json).extract[ObjectiveTrait]
   }
 }
 
-object CustomObjParam {
+object SavedTypeHints {
   var typeHints: TypeHints = NoTypeHints
   private var typeHintsAdded = Set[String]()
 
-  def addTypeHint(customObj: Any): Unit = {
-    if (!customObj.isInstanceOf[ObjectiveTrait]) {
-      throw new IllegalArgumentException(
-        s"you specified $customObj as custom_obj," +
-        " but it does not implement ObjectiveTrait."
-      )
-    }
-    val clazz = customObj.getClass()
-    val className = clazz.getSimpleName()
+  def addClass(customEval: Any): Unit = {
+    val clazz = customEval.getClass()
+    val className = clazz.getName()
     if (!typeHintsAdded.contains(className)) {
-      addTypeHintForClass(clazz)
+      addClassForClass(clazz)
       typeHintsAdded += className
     }
   }
 
-  final def addTypeHintForClass(value: Class[_]): Unit = {
-    addTypeHints(ShortTypeHints(List(value)))
+  final def addClassForClass(value: Class[_]): Unit = {
+    addClasss(ShortTypeHints(List(value)))
   }
 
-  final def addTypeHints(value: TypeHints): Unit = {
+  final def addClasss(value: TypeHints): Unit = {
     typeHints = typeHints + value
   }
 }

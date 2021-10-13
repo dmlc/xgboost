@@ -271,10 +271,10 @@ private[spark] trait ParamMapFuncs extends Params {
         case _: LongParam =>
           set(name, paramValue.toString.toLong)
         case _: CustomObjParam =>
-          CustomObjParam.addTypeHint(paramValue)
+          SavedTypeHints.addClass(paramValue)
           set(name, paramValue)
         case _: CustomEvalParam =>
-          CustomEvalParam.addTypeHint(paramValue)
+          SavedTypeHints.addClass(paramValue)
           set(name, paramValue)
         case _: Param[_] =>
           set(name, paramValue)
