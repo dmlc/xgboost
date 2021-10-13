@@ -18,6 +18,7 @@
 #include "metric_common.h"
 #include "../common/math.h"
 #include "../common/survival_util.h"
+#include  "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
@@ -42,11 +43,12 @@ class ElementWiseSurvivalMetricsReduction {
     policy_ = policy;
   }
 
-  PackedReduceResult CpuReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels_lower_bound,
-      const HostDeviceVector<bst_float>& labels_upper_bound,
-      const HostDeviceVector<bst_float>& preds) const {
+  PackedReduceResult
+  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
+                   const HostDeviceVector<bst_float> &labels_lower_bound,
+                   const HostDeviceVector<bst_float> &labels_upper_bound,
+                   const HostDeviceVector<bst_float> &preds,
+                   int32_t n_threads) const {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
@@ -55,22 +57,24 @@ class ElementWiseSurvivalMetricsReduction {
     const auto& h_weights = weights.HostVector();
     const auto& h_preds = preds.HostVector();
 
-    double residue_sum = 0;
-    double weights_sum = 0;
+    std::vector<double> score_tloc(n_threads, 0.0);
+    std::vector<double> weight_tloc(n_threads, 0.0);
 
-    dmlc::OMPException exc;
-#pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
-    for (omp_ulong i = 0; i < ndata; ++i) {
-      exc.Run([&]() {
-        const double wt = h_weights.empty() ? 1.0 : static_cast<double>(h_weights[i]);
-        residue_sum += policy_.EvalRow(
-          static_cast<double>(h_labels_lower_bound[i]),
-          static_cast<double>(h_labels_upper_bound[i]),
-          static_cast<double>(h_preds[i])) * wt;
-        weights_sum += wt;
-      });
-    }
-    exc.Rethrow();
+    common::ParallelFor(ndata, n_threads, [&](size_t i) {
+      const double wt =
+          h_weights.empty() ? 1.0 : static_cast<double>(h_weights[i]);
+      auto t_idx = omp_get_thread_num();
+      score_tloc[t_idx] +=
+          policy_.EvalRow(static_cast<double>(h_labels_lower_bound[i]),
+                          static_cast<double>(h_labels_upper_bound[i]),
+                          static_cast<double>(h_preds[i])) *
+          wt;
+      weight_tloc[t_idx] += wt;
+    });
+
+    double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
+    double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
+
     PackedReduceResult res{residue_sum, weights_sum};
     return res;
   }
@@ -119,25 +123,25 @@ class ElementWiseSurvivalMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
-      int device,
+      const GenericParameter &ctx,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels_lower_bound,
       const HostDeviceVector<bst_float>& labels_upper_bound,
       const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (device < 0) {
-      result = CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds);
+    if (ctx.gpu_id < 0) {
+      result = CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound,
+                                preds, ctx.Threads());
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      device_ = device;
-      preds.SetDevice(device_);
-      labels_lower_bound.SetDevice(device_);
-      labels_upper_bound.SetDevice(device_);
-      weights.SetDevice(device_);
+      preds.SetDevice(ctx.gpu_id);
+      labels_lower_bound.SetDevice(ctx.gpu_id);
+      labels_upper_bound.SetDevice(ctx.gpu_id);
+      weights.SetDevice(ctx.gpu_id);
 
-      dh::safe_cuda(cudaSetDevice(device_));
+      dh::safe_cuda(cudaSetDevice(ctx.gpu_id));
       result = DeviceReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -146,9 +150,6 @@ class ElementWiseSurvivalMetricsReduction {
 
  private:
   EvalRow policy_;
-#if defined(XGBOOST_USE_CUDA)
-  int device_{-1};
-#endif  // defined(XGBOOST_USE_CUDA)
 };
 
 struct EvalIntervalRegressionAccuracy {
@@ -199,11 +200,6 @@ struct EvalEWiseSurvivalBase : public Metric {
 
   void Configure(const Args& args) override {
     policy_.Configure(args);
-    for (const auto& e : args) {
-      if (e.first == "gpu_id") {
-        device_ = dmlc::ParseSignedInt<int>(e.second.c_str(), nullptr, 10);
-      }
-    }
     reducer_.Configure(policy_);
   }
 
@@ -213,8 +209,9 @@ struct EvalEWiseSurvivalBase : public Metric {
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
-    auto result = reducer_.Reduce(
-        device_, info.weights_, info.labels_lower_bound_, info.labels_upper_bound_, preds);
+    auto result =
+        reducer_.Reduce(*tparam_, info.weights_, info.labels_lower_bound_,
+                        info.labels_upper_bound_, preds);
 
     double dat[2] {result.Residue(), result.Weights()};
 
