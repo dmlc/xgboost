@@ -194,13 +194,16 @@ struct EvalAFTNLogLik {
   AFTParam param_;
 };
 
-template<typename Policy>
-struct EvalEWiseSurvivalBase : public Metric {
+template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
+  explicit EvalEWiseSurvivalBase(GenericParameter const *ctx) {
+    tparam_ = ctx;
+  };
   EvalEWiseSurvivalBase() = default;
 
   void Configure(const Args& args) override {
     policy_.Configure(args);
     reducer_.Configure(policy_);
+    CHECK(tparam_);
   }
 
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
@@ -208,7 +211,7 @@ struct EvalEWiseSurvivalBase : public Metric {
                  bool distributed) override {
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
-
+    CHECK(tparam_);
     auto result =
         reducer_.Reduce(*tparam_, info.weights_, info.labels_lower_bound_,
                         info.labels_upper_bound_, preds);
@@ -249,13 +252,13 @@ struct AFTNLogLikDispatcher : public Metric {
     param_.UpdateAllowUnknown(args);
     switch (param_.aft_loss_distribution) {
     case common::ProbabilityDistributionType::kNormal:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>());
+      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(tparam_));
       break;
     case common::ProbabilityDistributionType::kLogistic:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>());
+      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(tparam_));
       break;
     case common::ProbabilityDistributionType::kExtreme:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>());
+      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(tparam_));
       break;
     default:
       LOG(FATAL) << "Unknown probability distribution";
