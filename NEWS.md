@@ -16,7 +16,7 @@ XGBoost can fit categorical splits in decision trees. (Currently, the generated 
 All the other features, including prediction, SHAP value computation, feature
 importance, and model plotting were revised to natively handle categorical splits.
 Also, all Python interfaces including native interface with and without quantized
-`DMatrix`, scikit-learn interface, and Dask interface now accepts categorical data with
+`DMatrix`, scikit-learn interface, and Dask interface now accept categorical data with
 a wide range of data structures support including numpy/cupy array and cuDF/pandas/modin
 dataframe.  In practice, the following are required for enabling categorical data support
 during training:
@@ -33,7 +33,7 @@ Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #70
 
 * Next steps
 
-	- Revise the CPU training algorithm to handle categorical data and natively and generate categorical splits
+	- Revise the CPU training algorithm to handle categorical data natively and generate categorical splits
 	- Extend the CPU and GPU algorithms to generate categorical splits of form `x \in S` where the input is compared with multiple category values.
 	split. (#7081)
 
@@ -50,7 +50,7 @@ advised to migrate. (You are using the old interface if you are using a URL suff
 ### New features in Python package
 * Support numpy array interface and all numeric types from numpy in `DMatrix`
   construction and `inplace_predict` (#6998, #7003).  Now XGBoost no longer makes data
-  copy when input is numpy array.
+  copy when input is numpy array view.
 * The early stopping callback in Python has a new `min_delta` parameter to control the
   stopping behavior (#7137)
 * Python package now supports calculating feature scores for the linear model, which is
@@ -59,7 +59,7 @@ advised to migrate. (You are using the old interface if you are using a URL suff
   feature indices.
 * Typehint support for more Python code including scikit-learn interface and rabit
   module. (#6799, #7240)
-Add tutorial for XGBoost-Ray (#6884)
+* Add tutorial for XGBoost-Ray (#6884)
 
 ### New features in R package
 * In 1.4 we have a new prediction function in the C API which is used by the Python package.  This release revises
@@ -132,7 +132,6 @@ improvements.
 * Fix early stopping behavior with MAPE metric (#7061)
 * Fixed incorrect feature mismatch error message (#6949)
 * Add predictor to skl constructor. (#7000, #7159)
-* Fixed early stopping behavior with MAPE metric (#7061)
 * Re-enable feature validation in predict proba. (#7177)
 * scikit learn interface regression estimator now can pass the scikit-learn estimator
   check and is fully compatible with scikit-learn utilities.  `__sklearn_is_fitted__` is
@@ -173,7 +172,7 @@ Improvements other than new features on JVM packages:
 * Clarify prediction function. (#6813)
 * Improve tutorial on feature interactions (#7219)
 * Add small example for dask sklearn interface. (#6970)
-* Update Python intro. [skip ci] (#7235)
+* Update Python intro.  (#7235)
 * Some fixes/updates (#6810, #6856, #6935, #6948, #6976, #7084, #7097, #7170, #7173, #7174, #7226, #6979, #6809, #6796, #6979)
 
 ### Maintenance
