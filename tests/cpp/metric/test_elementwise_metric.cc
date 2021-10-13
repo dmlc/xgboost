@@ -32,7 +32,7 @@ TEST(Metric, DeclareUnifiedTest(RMSE)) {
               0.6708f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"rmse"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"rmse"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(RMSLE)) {
@@ -57,7 +57,7 @@ TEST(Metric, DeclareUnifiedTest(RMSLE)) {
               0.2415f, 1e-4);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"rmsle"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"rmsle"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MAE)) {
@@ -82,7 +82,7 @@ TEST(Metric, DeclareUnifiedTest(MAE)) {
               0.54f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mae"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"mae"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MAPE)) {
@@ -107,7 +107,7 @@ TEST(Metric, DeclareUnifiedTest(MAPE)) {
               1.3250f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mape"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"mape"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MPHE)) {
@@ -132,7 +132,7 @@ TEST(Metric, DeclareUnifiedTest(MPHE)) {
               0.1922f, 1e-4);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mphe"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"mphe"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(LogLoss)) {
@@ -161,7 +161,7 @@ TEST(Metric, DeclareUnifiedTest(LogLoss)) {
               1.3138f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"logloss"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"logloss"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(Error)) {
@@ -215,7 +215,7 @@ TEST(Metric, DeclareUnifiedTest(Error)) {
               0.45f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"error@0.5"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"error@0.5"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
@@ -244,5 +244,5 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
               1.5783f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mphe"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise<false>(xgboost::StringView{"mphe"}, GPUIDX);
 }

@@ -63,7 +63,7 @@ TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
   info.labels_lower_bound_.HostVector()[0] = 70.0f;
   EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.25f);
 
-  CheckDeterministicMetricElementWise(StringView{"interval-regression-accuracy"}, GPUIDX);
+  CheckDeterministicMetricElementWise<true>(StringView{"interval-regression-accuracy"}, GPUIDX);
 }
 
 // Test configuration of AFT metric
@@ -79,7 +79,7 @@ TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution_scale"]), "10");
 
-  CheckDeterministicMetricElementWise(StringView{"aft-nloglik"}, GPUIDX);
+  CheckDeterministicMetricElementWise<true>(StringView{"aft-nloglik"}, GPUIDX);
 }
 
 }  // namespace common
