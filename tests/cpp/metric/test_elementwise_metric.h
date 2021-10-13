@@ -11,6 +11,7 @@ namespace xgboost {
 inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
   auto lparam = CreateEmptyGenericParam(device);
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
+  metric->Configure(Args{});
 
   HostDeviceVector<float> predts;
   MetaInfo info;
