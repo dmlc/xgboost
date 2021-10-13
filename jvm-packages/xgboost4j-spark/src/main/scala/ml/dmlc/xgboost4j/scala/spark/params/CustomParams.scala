@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
-
 import org.json4s.{DefaultFormats, Extraction, NoTypeHints, ShortTypeHints, TypeHints}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
 
@@ -66,7 +65,7 @@ object SavedTypeHints {
   var typeHints: TypeHints = NoTypeHints
   private var typeHintsAdded = Set[String]()
 
-  def addClassOf(instance: Any): Boolean = {
+  final def addClassOf(instance: Any): Boolean = {
     val clazz = instance.getClass()
     val className = clazz.getName()
     if (!typeHintsAdded.contains(className)) {
