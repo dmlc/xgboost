@@ -252,13 +252,17 @@ struct AFTNLogLikDispatcher : public Metric {
     param_.UpdateAllowUnknown(args);
     switch (param_.aft_loss_distribution) {
     case common::ProbabilityDistributionType::kNormal:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(tparam_));
+      metric_.reset(
+          new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(
+              tparam_));
       break;
     case common::ProbabilityDistributionType::kLogistic:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(tparam_));
+      metric_.reset(new EvalEWiseSurvivalBase<
+                    EvalAFTNLogLik<common::LogisticDistribution>>(tparam_));
       break;
     case common::ProbabilityDistributionType::kExtreme:
-      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(tparam_));
+      metric_.reset(new EvalEWiseSurvivalBase<
+                    EvalAFTNLogLik<common::ExtremeDistribution>>(tparam_));
       break;
     default:
       LOG(FATAL) << "Unknown probability distribution";
