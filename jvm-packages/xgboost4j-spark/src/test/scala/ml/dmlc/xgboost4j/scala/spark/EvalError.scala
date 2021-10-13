@@ -18,9 +18,10 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
+import ml.dmlc.xgboost4j.scala.spark.params.AddTypeHints
 import org.apache.commons.logging.LogFactory
 
-class EvalError extends EvalTrait {
+class EvalError extends EvalTrait with AddTypeHints {
 
   val logger = LogFactory.getLog(classOf[EvalError])
 

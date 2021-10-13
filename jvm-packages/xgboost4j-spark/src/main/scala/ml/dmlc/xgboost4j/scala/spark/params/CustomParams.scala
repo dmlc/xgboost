@@ -66,16 +66,19 @@ object SavedTypeHints {
   var typeHints: TypeHints = NoTypeHints
   private var typeHintsAdded = Set[String]()
 
-  def addClass(customEval: Any): Unit = {
-    val clazz = customEval.getClass()
+  def addClassOf(instance: Any): Boolean = {
+    val clazz = instance.getClass()
     val className = clazz.getName()
     if (!typeHintsAdded.contains(className)) {
-      addClassForClass(clazz)
+      addClass(clazz)
       typeHintsAdded += className
+      true
+    } else {
+      false
     }
   }
 
-  final def addClassForClass(value: Class[_]): Unit = {
+  final def addClass(value: Class[_]): Unit = {
     addClasss(ShortTypeHints(List(value)))
   }
 
