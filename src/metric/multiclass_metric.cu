@@ -6,11 +6,14 @@
  */
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
+
+#include <atomic>
 #include <cmath>
 
 #include "metric_common.h"
 #include "../common/math.h"
 #include "../common/common.h"
+#include "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
@@ -37,38 +40,41 @@ class MultiClassMetricsReduction {
  public:
   MultiClassMetricsReduction() = default;
 
-  PackedReduceResult CpuReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds,
-      const size_t n_class) const {
+  PackedReduceResult
+  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
+                   const HostDeviceVector<bst_float> &labels,
+                   const HostDeviceVector<bst_float> &preds,
+                   const size_t n_class, int32_t n_threads) const {
     size_t ndata = labels.Size();
 
     const auto& h_labels = labels.HostVector();
     const auto& h_weights = weights.HostVector();
     const auto& h_preds = preds.HostVector();
 
-    bst_float residue_sum = 0;
-    bst_float weights_sum = 0;
-    int label_error = 0;
+    std::atomic<int> label_error {0};
     bool const is_null_weight = weights.Size() == 0;
 
-    dmlc::OMPException exc;
-#pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
-    for (omp_ulong idx = 0; idx < ndata; ++idx) {
-      exc.Run([&]() {
+    std::vector<double> scores_tloc(n_threads, 0);
+    std::vector<double> weights_tloc(n_threads, 0);
+    common::ParallelFor(ndata, n_threads, [&](size_t idx) {
         bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
         auto label = static_cast<int>(h_labels[idx]);
         if (label >= 0 && label < static_cast<int>(n_class)) {
-          residue_sum += EvalRowPolicy::EvalRow(
-              label, h_preds.data() + idx * n_class, n_class) * weight;
-          weights_sum += weight;
+          auto t_idx = omp_get_thread_num();
+          scores_tloc[t_idx] +=
+              EvalRowPolicy::EvalRow(label, h_preds.data() + idx * n_class,
+                                     n_class) *
+              weight;
+          weights_tloc[t_idx] += weight;
         } else {
           label_error = label;
         }
-      });
-    }
-    exc.Rethrow();
+    });
+
+    double residue_sum =
+        std::accumulate(scores_tloc.cbegin(), scores_tloc.cend(), 0.0);
+    double weights_sum =
+        std::accumulate(weights_tloc.cbegin(), weights_tloc.cend(), 0.0);
 
     CheckLabelError(label_error, n_class);
     PackedReduceResult res { residue_sum, weights_sum };
@@ -131,7 +137,8 @@ class MultiClassMetricsReduction {
     PackedReduceResult result;
 
     if (device < 0) {
-      result = CpuReduceMetrics(weights, labels, preds, n_class);
+      result =
+          CpuReduceMetrics(weights, labels, preds, n_class, tparam.Threads());
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT

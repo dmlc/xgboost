@@ -14,6 +14,7 @@
 #include "metric_common.h"
 #include "../common/math.h"
 #include "../common/common.h"
+#include "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
@@ -34,29 +35,29 @@ class ElementWiseMetricsReduction {
  public:
   explicit ElementWiseMetricsReduction(EvalRow policy) : policy_(std::move(policy)) {}
 
-  PackedReduceResult CpuReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds) const {
+  PackedReduceResult
+  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
+                   const HostDeviceVector<bst_float> &labels,
+                   const HostDeviceVector<bst_float> &preds,
+                   int32_t n_threads) const {
     size_t ndata = labels.Size();
 
     const auto& h_labels = labels.HostVector();
     const auto& h_weights = weights.HostVector();
     const auto& h_preds = preds.HostVector();
 
-    bst_float residue_sum = 0;
-    bst_float weights_sum = 0;
+    std::vector<double> score_tloc(n_threads, 0.0);
+    std::vector<double> weight_tloc(n_threads, 0.0);
 
-    dmlc::OMPException exc;
-#pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
-    for (omp_ulong i = 0; i < ndata; ++i) {
-      exc.Run([&]() {
-        const bst_float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
-        residue_sum += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
-        weights_sum += wt;
-      });
-    }
-    exc.Rethrow();
+    common::ParallelFor(ndata, n_threads, [&](size_t i) {
+      float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
+      auto t_idx = omp_get_thread_num();
+      score_tloc[t_idx] += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
+      weight_tloc[t_idx] += wt;
+    });
+    double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
+    double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
+
     PackedReduceResult res { residue_sum, weights_sum };
     return res;
   }
@@ -100,19 +101,19 @@ class ElementWiseMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
-      const GenericParameter &tparam,
-      int device,
+      const GenericParameter &ctx,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (device < 0) {
-      result = CpuReduceMetrics(weights, labels, preds);
+    if (ctx.gpu_id < 0) {
+      auto n_threads = ctx.Threads();
+      result = CpuReduceMetrics(weights, labels, preds, n_threads);
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      device_ = device;
+      device_ = ctx.gpu_id;
       preds.SetDevice(device_);
       labels.SetDevice(device_);
       weights.SetDevice(device_);
@@ -365,10 +366,7 @@ struct EvalEWiseBase : public Metric {
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    int device = tparam_->gpu_id;
-
-    auto result =
-        reducer_.Reduce(*tparam_, device, info.weights_, info.labels_, preds);
+    auto result = reducer_.Reduce(*tparam_, info.weights_, info.labels_, preds);
 
     double dat[2] { result.Residue(), result.Weights() };
 
