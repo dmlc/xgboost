@@ -18,6 +18,7 @@
 
 namespace xgboost {
 namespace common {
+
 /** Tests for Survival metrics that should run only on CPU **/
 
 /**
