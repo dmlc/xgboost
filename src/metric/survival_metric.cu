@@ -197,7 +197,7 @@ struct EvalAFTNLogLik {
 template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
   explicit EvalEWiseSurvivalBase(GenericParameter const *ctx) {
     tparam_ = ctx;
-  };
+  }
   EvalEWiseSurvivalBase() = default;
 
   void Configure(const Args& args) override {
