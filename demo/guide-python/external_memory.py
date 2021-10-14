@@ -8,23 +8,24 @@ feature is not ready for production use yet.
 import os
 import xgboost
 from typing import Callable, List, Tuple
+from sklearn.datasets import make_regression
 import tempfile
 import numpy as np
 
 
 def make_batches(
-    n_samples_per_batch: int, n_features: int, n_batches: int
-) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """Generate random batches."""
-    X = []
-    y = []
+    n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str,
+) -> List[Tuple[str, str]]:
+    files: List[Tuple[str, str]] = []
     rng = np.random.RandomState(1994)
     for i in range(n_batches):
-        _X = rng.randn(n_samples_per_batch, n_features)
-        _y = rng.randn(n_samples_per_batch)
-        X.append(_X)
-        y.append(_y)
-    return X, y
+        X, y = make_regression(n_samples_per_batch, n_features, random_state=rng)
+        X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
+        y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
+        np.save(X_path, X)
+        np.save(y_path, y)
+        files.append((X_path, y_path))
+    return files
 
 
 class Iterator(xgboost.DataIter):
@@ -38,8 +39,8 @@ class Iterator(xgboost.DataIter):
 
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
         X_path, y_path = self._file_paths[self._it]
-        X = np.loadtxt(X_path)
-        y = np.loadtxt(y_path)
+        X = np.load(X_path)
+        y = np.load(y_path)
         assert X.shape[0] == y.shape[0]
         return X, y
 
@@ -66,15 +67,7 @@ class Iterator(xgboost.DataIter):
 
 def main(tmpdir: str) -> xgboost.Booster:
     # generate some random data for demo
-    batches = make_batches(1024, 17, 31)
-    files = []
-    for i, (X, y) in enumerate(zip(*batches)):
-        X_path = os.path.join(tmpdir, "X-" + str(i) + ".txt")
-        np.savetxt(X_path, X)
-        y_path = os.path.join(tmpdir, "y-" + str(i) + ".txt")
-        np.savetxt(y_path, y)
-        files.append((X_path, y_path))
-
+    files = make_batches(1024, 17, 31, tmpdir)
     it = Iterator(files)
     # For non-data arguments, specify it here once instead of passing them by the `next`
     # method.
@@ -83,7 +76,7 @@ def main(tmpdir: str) -> xgboost.Booster:
 
     # Other tree methods including ``hist`` and ``gpu_hist`` also work, but has some
     # caveats.  This is still an experimental feature.
-    booster = xgboost.train({"tree_method": "approx"}, Xy)
+    booster = xgboost.train({"tree_method": "approx"}, Xy, evals=[(Xy, "Train")])
     return booster
 
 
