@@ -255,9 +255,12 @@ public class XGBoost {
         }
         if (earlyStoppingRounds > 0) {
           if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
-            Rabit.trackerPrint(String.format(
-                    "early stopping after %d rounds away from the best iteration",
-                    earlyStoppingRounds));
+            if (shouldPrint(params, iter)) {
+              Rabit.trackerPrint(String.format(
+                "early stopping after %d rounds away from the best iteration",
+                earlyStoppingRounds
+              ));
+            }
             break;
           }
         }
