@@ -59,7 +59,6 @@ def test_categorical():
     )
     X = pd.DataFrame(X.todense()).astype("category")
     clf.fit(X, y)
-    assert not clf._can_use_inplace_predict()
 
     with tempfile.TemporaryDirectory() as tempdir:
         model = os.path.join(tempdir, "categorial.json")
@@ -74,3 +73,18 @@ def test_categorical():
             )
             assert categories_sizes.shape[0] != 0
             np.testing.assert_allclose(categories_sizes, 1)
+
+    X = pd.DataFrame({"f0": ["a", "b", "c"]})
+    X["f0"] = X["f0"].astype("category")
+
+    y = [1, 2, 3]
+    reg = xgb.XGBRegressor(
+        tree_method="gpu_hist", enable_categorical=True, n_estimators=64
+    )
+    reg.fit(X, y)
+    predts = reg.predict(X)
+    booster = reg.get_booster()
+    assert "c" in booster.feature_types
+    assert len(booster.feature_types) == 1
+    inp_predts = booster.inplace_predict(X)
+    np.testing.assert_allclose(predts, inp_predts)

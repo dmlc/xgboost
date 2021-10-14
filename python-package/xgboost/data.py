@@ -289,16 +289,15 @@ def _transform_pandas_df(
 def _from_pandas_df(
     data,
     enable_categorical: bool,
-    missing,
-    nthread,
+    missing: float,
+    nthread: int,
     feature_names: Optional[List[str]],
     feature_types: Optional[List[str]],
-):
+) -> Tuple[ctypes.c_void_p, Optional[List[str]], Optional[List[str]]]:
     data, feature_names, feature_types = _transform_pandas_df(
-        data, enable_categorical, feature_names, feature_types)
-    return _from_numpy_array(data, missing, nthread, feature_names,
-                             feature_types)
-
+        data, enable_categorical, feature_names, feature_types
+    )
+    return _from_numpy_array(data, missing, nthread, feature_names, feature_types)
 
 def _is_pandas_series(data):
     try:

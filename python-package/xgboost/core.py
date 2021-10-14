@@ -1973,13 +1973,6 @@ class Booster(object):
         preds = ctypes.POINTER(ctypes.c_float)()
 
         # once caching is supported, we can pass id(data) as cache id.
-        try:
-            import pandas as pd
-
-            if isinstance(data, pd.DataFrame):
-                data = data.values
-        except ImportError:
-            pass
         args = {
             "type": 0,
             "training": False,
@@ -2014,7 +2007,15 @@ class Booster(object):
                     f"got {data.shape[1]}"
                 )
 
+        from .data import _is_pandas_df, _transform_pandas_df
         from .data import _array_interface
+        if _is_pandas_df(data):
+            ft = self.feature_types
+            if ft is None:
+                enable_categorical = False
+            else:
+                enable_categorical = any(f == "c" for f in ft)
+            data, _, _ = _transform_pandas_df(data, enable_categorical)
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
             data, _ = _ensure_np_dtype(data, data.dtype)
@@ -2068,7 +2069,6 @@ class Booster(object):
             return _prediction_output(shape, dims, preds, True)
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             from .data import _cudf_array_interfaces
-
             _, interfaces_str = _cudf_array_interfaces(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
