@@ -203,7 +203,7 @@ If early stopping is enabled during training, you can get predictions from the b
 
 .. code-block:: python
 
-  ypred = bst.predict(dtest, iteration_range=(0, bst.best_iteration))
+  ypred = bst.predict(dtest, iteration_range=(0, bst.best_iteration + 1))
 
 Plotting
 --------
