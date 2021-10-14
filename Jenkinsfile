@@ -291,6 +291,8 @@ def BuildJVMPackagesWithCUDA(args) {
     if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
       arch_flag = "-DGPU_COMPUTE_VER=75"
     }
+    // Reload NVIDIA drivers
+    sh "tests/ci_build/reload_nvidia_drivers.sh"
     // Use only 4 CPU cores
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--cpuset-cpus 0-3'"
     sh """
@@ -378,6 +380,8 @@ def TestPythonGPU(args) {
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
     def mgpu_indicator = (args.multi_gpu) ? 'mgpu' : 'gpu'
+    // Reload NVIDIA drivers
+    sh "tests/ci_build/reload_nvidia_drivers.sh"
     // Allocate extra space in /dev/shm to enable NCCL
     def docker_extra_params = (args.multi_gpu) ? "CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'" : ''
     sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
@@ -401,6 +405,8 @@ def TestCppGPU(args) {
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
+    // Reload NVIDIA drivers
+    sh "tests/ci_build/reload_nvidia_drivers.sh"
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
     if (args.test_rmm) {
       sh "rm -rfv build/"
