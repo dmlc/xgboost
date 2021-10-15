@@ -140,7 +140,7 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "custom_eval" -> new EvalError, "custom_obj" -> new CustomObj(1),
       "num_round" -> "10", "num_workers" -> numWorkers)
-    
+
     val xgbc = new XGBoostClassifier(paramMap)
     val xgbcPath = new File(tempDir.toFile, "xgbc").getPath
     xgbc.write.overwrite().save(xgbcPath)
