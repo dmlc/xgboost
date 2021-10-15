@@ -62,6 +62,9 @@ class CustomObjParam(
 }
 
 object SavedTypeHints {
+  /**
+   * Stores type hints for (de)serialization of custom objective and eval params.
+   */
   var typeHints: TypeHints = NoTypeHints
   private var typeHintsAdded = Set[String]()
 

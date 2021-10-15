@@ -25,7 +25,6 @@ import scala.util.Random
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.functions._
-import org.json4s.ShortTypeHints
 import org.scalatest.FunSuite
 
 class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
@@ -156,7 +155,7 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
         assert(v.asInstanceOf[CustomObj].customParameter ==
           paramMap2("custom_obj").asInstanceOf[CustomObj].customParameter)
       }
-      case (k, v) => assert(v.toString == paramMap2(k).toString)
+      case (_, _) =>
     }
 
     val model = xgbc.fit(trainingDF)

@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, ObjectiveTrait}
-import ml.dmlc.xgboost4j.scala.spark.params.AddTypeHints
+import ml.dmlc.xgboost4j.scala.spark.params.TypeHintsTrait
 import org.apache.commons.logging.LogFactory
 import scala.collection.mutable.ListBuffer
 
@@ -26,7 +26,7 @@ import scala.collection.mutable.ListBuffer
 /**
  * loglikelihood loss obj function
  */
-class CustomObj(val customParameter: Int = 0) extends ObjectiveTrait with AddTypeHints {
+class CustomObj(val customParameter: Int = 0) extends ObjectiveTrait with TypeHintsTrait {
 
   val logger = LogFactory.getLog(classOf[CustomObj])
 
