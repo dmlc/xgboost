@@ -18,8 +18,10 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
-import org.json4s.{DefaultFormats, Extraction, NoTypeHints, ShortTypeHints, TypeHints}
+import org.json4s.JsonAST.JField
+import org.json4s.{DefaultFormats, Extraction, FullTypeHints, JValue, NoTypeHints, TypeHints}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
+import org.json4s.jackson.Serialization
 
 import org.apache.spark.ml.param.{Param, ParamPair, Params}
 
@@ -32,13 +34,14 @@ class CustomEvalParam(
   override def w(value: EvalTrait): ParamPair[EvalTrait] = super.w(value)
 
   override def jsonEncode(value: EvalTrait): String = {
-    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
+    implicit val format = Serialization.formats(TypeHintsUtil.getTypeHints(value))
     compact(render(Extraction.decompose(value)))
   }
 
   override def jsonDecode(json: String): EvalTrait = {
-    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
-    parse(json).extract[EvalTrait]
+    val js = parse(json)
+    implicit val formats = DefaultFormats.withHints(TypeHintsUtil.extractTypeHint(js))
+    js.extract[EvalTrait]
   }
 }
 
@@ -51,42 +54,16 @@ class CustomObjParam(
   override def w(value: ObjectiveTrait): ParamPair[ObjectiveTrait] = super.w(value)
 
   override def jsonEncode(value: ObjectiveTrait): String = {
-    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
+    implicit val format = Serialization.formats(TypeHintsUtil.getTypeHints(value))
     compact(render(Extraction.decompose(value)))
   }
 
   override def jsonDecode(json: String): ObjectiveTrait = {
-    implicit val formats = DefaultFormats.withHints(SavedTypeHints.typeHints)
-    parse(json).extract[ObjectiveTrait]
-  }
-}
-
-object SavedTypeHints {
-  /**
-   * Stores type hints for (de)serialization of custom objective and eval params.
-   */
-  var typeHints: TypeHints = NoTypeHints
-  private var typeHintsAdded = Set[String]()
-
-  final def addClassOf(instance: Any): Boolean = {
-    val clazz = instance.getClass()
-    val className = clazz.getName()
-    if (!typeHintsAdded.contains(className)) {
-      addClass(clazz)
-      typeHintsAdded += className
-      true
-    } else {
-      false
-    }
+    val js = parse(json)
+    implicit val formats = DefaultFormats.withHints(TypeHintsUtil.extractTypeHint(js))
+    js.extract[ObjectiveTrait]
   }
 
-  final def addClass(value: Class[_]): Unit = {
-    addClasss(ShortTypeHints(List(value)))
-  }
-
-  final def addClasss(value: TypeHints): Unit = {
-    typeHints = typeHints + value
-  }
 }
 
 class TrackerConfParam(
