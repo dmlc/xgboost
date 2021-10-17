@@ -225,8 +225,8 @@ def _invalid_dataframe_dtype(data) -> None:
     ]
 
     msg = """DataFrame.dtypes for data must be int, float, bool or category.  When
-            categorical type is supplied, DMatrix parameter `enable_categorical` must
-            be set to `True`."""
+categorical type is supplied, DMatrix parameter `enable_categorical` must
+be set to `True`."""
     raise ValueError(msg + ", ".join(bad_fields))
 
 
@@ -275,8 +275,10 @@ def _transform_pandas_df(
         for i, dtype in enumerate(data.dtypes):
             if is_categorical_dtype(dtype):
                 # pandas uses -1 as default missing value for categorical data
-                transformed[data.columns[i]] = data[data.columns[i]].cat.codes.replace(
-                    -1, np.NaN
+                transformed[data.columns[i]] = (
+                    data[data.columns[i]]
+                    .cat.codes.astype(np.float32)
+                    .replace(-1.0, np.NaN)
                 )
             else:
                 transformed[data.columns[i]] = data[data.columns[i]]
@@ -454,7 +456,7 @@ def _cudf_array_interfaces(data, enable_categorical: bool) -> Tuple[list, bytes]
     else:
         for col in data:
             if is_categorical_dtype(data[col].dtype) and enable_categorical:
-                codes = data[col].cat.codes.replace(-1, np.NaN)
+                codes = data[col].cat.codes.astype(np.float32).replace(-1.0, np.NaN)
                 interface = codes.__cuda_array_interface__
                 cat_codes.append(codes)
             else:
