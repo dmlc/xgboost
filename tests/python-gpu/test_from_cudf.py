@@ -186,6 +186,12 @@ Arrow specification.'''
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
 
+        # test missing value
+        X = cudf.DataFrame({"f0": ["a", "b", np.NaN]})
+        X["f0"] = X["f0"].astype("category")
+        arr, _, _ = xgb.data._cudf_array_interfaces(X, enable_categorical=True)
+        assert not np.any(arr == -1)
+
 
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_cupy())

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2021 by XGBoost Contributors
  * \file categorical.h
  */
 #ifndef XGBOOST_COMMON_CATEGORICAL_H_
@@ -40,6 +40,11 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, bst_cat_t
   }
   CLBitField32 const s_cats(cats);
   return !s_cats.Check(cat);
+}
+
+inline void CheckCat(bst_cat_t cat) {
+  CHECK_GE(cat, 0) << "Invalid categorical value detected.  Categorical value "
+                      "should be non-negative.";
 }
 
 struct IsCatOp {

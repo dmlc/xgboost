@@ -141,6 +141,12 @@ class TestPandas:
         assert np.issubdtype(transformed[:, 0].dtype, np.integer)
         assert transformed[:, 0].min() == 0
 
+        # test missing value
+        X = pd.DataFrame({"f0": ["a", "b", np.NaN]})
+        X["f0"] = X["f0"].astype("category")
+        arr, _, _ = xgb.data._transform_pandas_df(X, enable_categorical=True)
+        assert not np.any(arr == -1)
+
     def test_pandas_sparse(self):
         import pandas as pd
         rows = 100

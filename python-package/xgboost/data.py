@@ -12,7 +12,7 @@ import numpy as np
 from .core import c_array, _LIB, _check_call, c_str
 from .core import _cuda_array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix
-from .compat import lazy_isinstance
+from .compat import lazy_isinstance, DataFrame
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
@@ -217,36 +217,42 @@ _pandas_dtype_mapper = {
 }
 
 
+def _invalid_dataframe_dtype(data) -> None:
+    bad_fields = [
+        str(data.columns[i])
+        for i, dtype in enumerate(data.dtypes)
+        if dtype.name not in _pandas_dtype_mapper
+    ]
+
+    msg = """DataFrame.dtypes for data must be int, float, bool or category.  When
+            categorical type is supplied, DMatrix parameter `enable_categorical` must
+            be set to `True`."""
+    raise ValueError(msg + ", ".join(bad_fields))
+
+
 def _transform_pandas_df(
-    data,
+    data: DataFrame,
     enable_categorical: bool,
     feature_names: Optional[List[str]] = None,
     feature_types: Optional[List[str]] = None,
-    meta=None,
-    meta_type=None,
-):
+    meta: Optional[str] = None,
+    meta_type: Optional[str] = None,
+) -> Tuple[np.ndarray, Optional[List[str]], Optional[List[str]]]:
     import pandas as pd
     from pandas.api.types import is_sparse, is_categorical_dtype
 
-    if not all(dtype.name in _pandas_dtype_mapper or is_sparse(dtype) or
-               (is_categorical_dtype(dtype) and enable_categorical)
-               for dtype in data.dtypes):
-        bad_fields = [
-            str(data.columns[i]) for i, dtype in enumerate(data.dtypes)
-            if dtype.name not in _pandas_dtype_mapper
-        ]
-
-        msg = """DataFrame.dtypes for data must be int, float, bool or category.  When
-                categorical type is supplied, DMatrix parameter `enable_categorical` must
-                be set to `True`."""
-        raise ValueError(msg + ', '.join(bad_fields))
+    if not all(
+        dtype.name in _pandas_dtype_mapper
+        or is_sparse(dtype)
+        or (is_categorical_dtype(dtype) and enable_categorical)
+        for dtype in data.dtypes
+    ):
+        _invalid_dataframe_dtype(data)
 
     # handle feature names
     if feature_names is None and meta is None:
         if isinstance(data.columns, pd.MultiIndex):
-            feature_names = [
-                ' '.join([str(x) for x in i]) for i in data.columns
-            ]
+            feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
         elif isinstance(data.columns, (pd.Int64Index, pd.RangeIndex)):
             feature_names = list(map(str, data.columns))
         else:
@@ -263,21 +269,22 @@ def _transform_pandas_df(
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 
-    # handle categorical codes.
+    # handle category codes.
     transformed = pd.DataFrame()
     if enable_categorical:
         for i, dtype in enumerate(data.dtypes):
             if is_categorical_dtype(dtype):
-                transformed[data.columns[i]] = data[data.columns[i]].cat.codes
+                # pandas uses -1 as default missing value for categorical data
+                transformed[data.columns[i]] = data[data.columns[i]].cat.codes.replace(
+                    -1, np.NaN
+                )
             else:
                 transformed[data.columns[i]] = data[data.columns[i]]
     else:
         transformed = data
 
     if meta and len(data.columns) > 1:
-        raise ValueError(
-            f"DataFrame for {meta} cannot have multiple columns"
-        )
+        raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
     dtype = meta_type if meta_type else np.float32
     arr = transformed.values
@@ -287,7 +294,7 @@ def _transform_pandas_df(
 
 
 def _from_pandas_df(
-    data,
+    data: DataFrame,
     enable_categorical: bool,
     missing: float,
     nthread: int,
@@ -298,6 +305,7 @@ def _from_pandas_df(
         data, enable_categorical, feature_names, feature_types
     )
     return _from_numpy_array(data, missing, nthread, feature_names, feature_types)
+
 
 def _is_pandas_series(data):
     try:
@@ -427,7 +435,7 @@ def _is_cudf_df(data):
     return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
-def _cudf_array_interfaces(data) -> Tuple[list, bytes]:
+def _cudf_array_interfaces(data, enable_categorical: bool) -> Tuple[list, bytes]:
     """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
     data and a list of array interfaces.  The data is list of categorical codes that
     caller can safely ignore, but have to keep their reference alive until usage of array
@@ -445,8 +453,8 @@ def _cudf_array_interfaces(data) -> Tuple[list, bytes]:
         interfaces.append(data.__cuda_array_interface__)
     else:
         for col in data:
-            if is_categorical_dtype(data[col].dtype):
-                codes = data[col].cat.codes
+            if is_categorical_dtype(data[col].dtype) and enable_categorical:
+                codes = data[col].cat.codes.replace(-1, np.NaN)
                 interface = codes.__cuda_array_interface__
                 cat_codes.append(codes)
             else:
@@ -469,13 +477,31 @@ def _transform_cudf_df(
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
 
+    # FIXME(jiamingy): Handle `is_sparse` once we have support for sparse DF.
+    if not all(
+        dtype.name in _pandas_dtype_mapper
+        or (is_categorical_dtype(dtype) and enable_categorical)
+        for dtype in data.dtypes
+    ):
+        _invalid_dataframe_dtype(data)
+
+    # handle feature names
     if feature_names is None:
         if _is_cudf_ser(data):
             feature_names = [data.name]
         elif lazy_isinstance(data.columns, "cudf.core.multiindex", "MultiIndex"):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
+        elif (
+            lazy_isinstance(data.columns, "cudf.core.index", "RangeIndex")
+            or lazy_isinstance(data.columns, "cudf.core.index", "Int64Index")
+            # Unique to cuDF, no equivalence in pandas 1.3.3
+            or lazy_isinstance(data.columns, "cudf.core.index", "Int32Index")
+        ):
+            feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
+
+    # handle feature types
     if feature_types is None:
         feature_types = []
         if _is_cudf_ser(data):
@@ -487,6 +513,7 @@ def _transform_cudf_df(
                 feature_types.append(CAT_T)
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
+
     return data, feature_names, feature_types
 
 
@@ -501,7 +528,7 @@ def _from_cudf_df(
     data, feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
-    _, interfaces_str = _cudf_array_interfaces(data)
+    _, interfaces_str = _cudf_array_interfaces(data, enable_categorical)
     handle = ctypes.c_void_p()
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
@@ -931,7 +958,9 @@ def _proxy_transform(
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
 
-def dispatch_proxy_set_data(proxy: _ProxyDMatrix, data: Any, allow_host: bool) -> None:
+def dispatch_proxy_set_data(
+    proxy: _ProxyDMatrix, data: Any, allow_host: bool, enable_categorical: bool
+) -> None:
     """Dispatch for DeviceQuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)

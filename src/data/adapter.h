@@ -21,6 +21,7 @@
 
 #include "array_interface.h"
 #include "../c_api/c_api_error.h"
+#include "../common/math.h"
 
 namespace xgboost {
 namespace data {
@@ -78,6 +79,24 @@ struct COOTuple {
   size_t row_idx{0};
   size_t column_idx{0};
   float value{0};
+};
+
+struct IsValidFunctor {
+  float missing;
+
+  XGBOOST_DEVICE explicit IsValidFunctor(float missing) : missing(missing) {}
+
+  XGBOOST_DEVICE bool operator()(float value) const {
+    return !(common::CheckNAN(value) || value == missing);
+  }
+
+  XGBOOST_DEVICE bool operator()(const data::COOTuple& e) const {
+    return !(common::CheckNAN(e.value) || e.value == missing);
+  }
+
+  XGBOOST_DEVICE bool operator()(const Entry& e) const {
+    return !(common::CheckNAN(e.fvalue) || e.fvalue == missing);
+  }
 };
 
 namespace detail {
