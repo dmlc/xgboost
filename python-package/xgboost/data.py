@@ -479,7 +479,6 @@ def _transform_cudf_df(
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
 
-    # FIXME(jiamingy): Handle `is_sparse` once we have support for sparse DF.
     if not all(
         dtype.name in _pandas_dtype_mapper
         or (is_categorical_dtype(dtype) and enable_categorical)
@@ -967,10 +966,12 @@ def dispatch_proxy_set_data(
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
     if _is_cudf_df(data):
-        proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212
+        # pylint: disable=W0212
+        proxy._set_data_from_cuda_columnar(data, enable_categorical)
         return
     if _is_cudf_ser(data):
-        proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212
+        # pylint: disable=W0212
+        proxy._set_data_from_cuda_columnar(data, enable_categorical)
         return
     if _is_cupy_array(data):
         proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
