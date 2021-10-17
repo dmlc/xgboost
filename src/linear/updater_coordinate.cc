@@ -80,8 +80,8 @@ class CoordinateUpdater : public LinearUpdater {
                             DMatrix *p_fmat, gbm::GBLinearModel *model) {
     const int ngroup = model->learner_model_param->num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
-    auto gradient =
-        GetGradientParallel(group_idx, ngroup, fidx, *in_gpair, p_fmat);
+    auto gradient = GetGradientParallel(learner_param_, group_idx, ngroup, fidx,
+                                        *in_gpair, p_fmat);
     auto dw = static_cast<float>(
         tparam_.learning_rate *
         CoordinateDelta(gradient.first, gradient.second, w, tparam_.reg_alpha_denorm,

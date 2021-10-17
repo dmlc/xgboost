@@ -11,6 +11,41 @@
 
 namespace xgboost {
 namespace common {
+namespace {
+inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
+  auto lparam = CreateEmptyGenericParam(device);
+  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
+  metric->Configure(Args{});
+
+  HostDeviceVector<float> predts;
+  MetaInfo info;
+  auto &h_predts = predts.HostVector();
+
+  SimpleLCG lcg;
+  SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
+
+  size_t n_samples = 2048;
+  h_predts.resize(n_samples);
+
+  for (size_t i = 0; i < n_samples; ++i) {
+    h_predts[i] = dist(&lcg);
+  }
+
+  auto &h_upper = info.labels_upper_bound_.HostVector();
+  auto &h_lower = info.labels_lower_bound_.HostVector();
+  h_lower.resize(n_samples);
+  h_upper.resize(n_samples);
+  for (size_t i = 0; i < n_samples; ++i) {
+    h_lower[i] = 1;
+    h_upper[i] = 10;
+  }
+
+  auto result = metric->Eval(predts, info, false);
+  for (size_t i = 0; i < 8; ++i) {
+    ASSERT_EQ(metric->Eval(predts, info, false), result);
+  }
+}
+}  // anonymous namespace
 
 TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
@@ -61,6 +96,8 @@ TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
   EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
   info.labels_lower_bound_.HostVector()[0] = 70.0f;
   EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.25f);
+
+  CheckDeterministicMetricElementWise(StringView{"interval-regression-accuracy"}, GPUIDX);
 }
 
 // Test configuration of AFT metric
@@ -75,6 +112,8 @@ TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   auto aft_param_json = j_obj["aft_loss_param"];
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");
   EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution_scale"]), "10");
+
+  CheckDeterministicMetricElementWise(StringView{"aft-nloglik"}, GPUIDX);
 }
 
 }  // namespace common
