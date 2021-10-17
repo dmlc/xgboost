@@ -6,32 +6,31 @@ This file records the changes in xgboost library in reverse chronological order.
 ## v1.5.0 (2021 Oct 11)
 
 This release comes with many exciting new features and optimizations, along with some bug
-fixes.  We will describe categorical data support and the external memory interface
-independently. Package-specific new features will be listed in respective sections.
+fixes.  We will describe the experimental categorical data support and the external memory
+interface independently. Package-specific new features will be listed in respective
+sections.
 
 ### Development on categorical data support
 In version 1.3, XGBoost introduced an experimental feature for handling categorical data
-natively, without one-hot encoding. The development is continued in this release.
+natively, without one-hot encoding. XGBoost can fit categorical splits in decision
+trees. (Currently, the generated splits will be of form `x \in {v}`, where the input is
+compared to a single category value. A future version of XGBoost will generate splits that
+compare the input against a list of multiple category values.)
 
-XGBoost can fit categorical splits in decision trees. (Currently, the generated splits
-will be of form `x \in {v}`, where the input is compared to a single category value. A
-future version of XGBoost will generate splits that compare the input against a list of
-multiple category values.)
-
-All the other features, including prediction, SHAP value computation, feature
-importance, and model plotting were revised to natively handle categorical splits.
-Also, all Python interfaces including native interface with and without quantized
-`DMatrix`, scikit-learn interface, and Dask interface now accept categorical data with
-a wide range of data structures support including numpy/cupy array and cuDF/pandas/modin
-dataframe.  In practice, the following are required for enabling categorical data support
-during training:
+Most of the other features, including prediction, SHAP value computation, feature
+importance, and model plotting were revised to natively handle categorical splits.  Also,
+all Python interfaces including native interface with and without quantized `DMatrix`,
+scikit-learn interface, and Dask interface now accept categorical data with a wide range
+of data structures support including numpy/cupy array and cuDF/pandas/modin dataframe.  In
+practice, the following are required for enabling categorical data support during
+training:
 
   - Use Python package.
   - Use `gpu_hist` to train the model.
   - Use JSON model file format for saving the model.
 
-Once the model is trained, it can be used with all features that are available on the
-Python package.  For a quick introduction, see
+Once the model is trained, it can be used with most of the features that are available on
+the Python package.  For a quick introduction, see
 https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
 
 Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #7065, #7213, #7228, #7220, #7221, #7231, #7306)
