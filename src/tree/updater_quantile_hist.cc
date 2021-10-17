@@ -124,7 +124,7 @@ template <bool any_missing>
 void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h,
     int *num_leaves, std::vector<CPUExpandEntry> *expand) {
-  CPUExpandEntry node(CPUExpandEntry::kRootNid, p_tree->GetDepth(0), 0.0f);
+  CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
 
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
@@ -135,7 +135,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
                                       nodes_for_subtraction_trick_, gpair_h);
 
   {
-    auto nid = CPUExpandEntry::kRootNid;
+    auto nid = RegTree::kRoot;
     GHistRowT hist = this->histogram_builder_->Histogram()[nid];
     GradientPairT grad_stat;
     if (data_layout_ == DataLayout::kDenseDataZeroBased ||

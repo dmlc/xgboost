@@ -258,7 +258,7 @@ void TestBuildHistogram(bool is_distributed) {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection_.Init();
 
-  CPUExpandEntry node(CPUExpandEntry::kRootNid, tree.GetDepth(0), 0.0f);
+  CPUExpandEntry node(RegTree::kRoot, tree.GetDepth(0), 0.0f);
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
   nodes_for_explicit_hist_build_.push_back(node);
   histogram.BuildHist(p_fmat.get(), &tree, row_set_collection_,

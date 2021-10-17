@@ -23,6 +23,9 @@
 
 #include "hist/evaluate_splits.h"
 #include "hist/histogram.h"
+#include "hist/expand_entry.h"
+#include "hist/param.h"
+
 #include "constraints.h"
 #include "./param.h"
 #include "./driver.h"
@@ -88,51 +91,6 @@ using xgboost::common::GHistRow;
 using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
-
-// training parameters specific to this algorithm
-struct CPUHistMakerTrainParam
-    : public XGBoostParameter<CPUHistMakerTrainParam> {
-  bool single_precision_histogram = false;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(CPUHistMakerTrainParam) {
-    DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
-        "Use single precision to build histograms.");
-  }
-};
-
-/* tree growing policies */
-struct CPUExpandEntry {
-  static const int kRootNid  = 0;
-  static const int kEmptyNid = -1;
-  int nid;
-  int depth;
-  SplitEntry split;
-
-  CPUExpandEntry() = default;
-  CPUExpandEntry(int nid, int depth, bst_float loss_chg)
-      : nid(nid), depth(depth) {
-    split.loss_chg = loss_chg;
-  }
-
-  bool IsValid(TrainParam const &param, int32_t num_leaves) const {
-    bool invalid = split.loss_chg <= kRtEps ||
-                   (param.max_depth > 0 && this->depth == param.max_depth) ||
-                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
-    return !invalid;
-  }
-
-  bst_float GetLossChange() const {
-    return split.loss_chg;
-  }
-
-  int GetNodeId() const {
-    return nid;
-  }
-
-  int GetDepth() const {
-    return depth;
-  }
-};
 
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
