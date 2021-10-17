@@ -10,9 +10,14 @@ fixes.  We will describe categorical data support and the external memory interf
 independently. Package-specific new features will be listed in respective sections.
 
 ### Development on categorical data support
-In version 1.3, XGBoost introduced an experimental feature for handling categorical data natively, without one-hot encoding. The development
-is continued in this release.
-XGBoost can fit categorical splits in decision trees. (Currently, the generated splits will be of form `x \in {v}`, where the input is compared to a single category value. A future version of XGBoost will generate splits that compare the input against a list of multiple category values.)
+In version 1.3, XGBoost introduced an experimental feature for handling categorical data
+natively, without one-hot encoding. The development is continued in this release.
+
+XGBoost can fit categorical splits in decision trees. (Currently, the generated splits
+will be of form `x \in {v}`, where the input is compared to a single category value. A
+future version of XGBoost will generate splits that compare the input against a list of
+multiple category values.)
+
 All the other features, including prediction, SHAP value computation, feature
 importance, and model plotting were revised to natively handle categorical splits.
 Also, all Python interfaces including native interface with and without quantized
@@ -26,26 +31,28 @@ during training:
   - Use JSON model file format for saving the model.
 
 Once the model is trained, it can be used with all features that are available on the
-Python package.  For a quick demo using the sciki-learn interface, see
-https://github.com/dmlc/xgboost/blob/master/demo/guide-python/categorical.py
+Python package.  For a quick introduction, see
+https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
 
 Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #7065, #7213, #7228, #7220, #7221, #7231, #7306)
 
 * Next steps
 
 	- Revise the CPU training algorithm to handle categorical data natively and generate categorical splits
-	- Extend the CPU and GPU algorithms to generate categorical splits of form `x \in S` where the input is compared with multiple category values.
-	split. (#7081)
+	- Extend the CPU and GPU algorithms to generate categorical splits of form `x \in S`
+	where the input is compared with multiple category values.  split. (#7081)
 
 ### External memory
-This release features a brand-new interface and implementation for external memory (also known as out-of-core training).
-(#6901, #7064, #7088, #7089, #7087, #7092, #7070, #7216). The new implementation leverages the data iterator interface, which is currently used
-to create `DeviceQuantileDMatrix`. For a quick introduction,
-see https://xgboost.readthedocs.io/en/latest/tutorials/external_memory.html#data-iterator
+This release features a brand-new interface and implementation for external memory (also
+known as out-of-core training).  (#6901, #7064, #7088, #7089, #7087, #7092, #7070,
+#7216). The new implementation leverages the data iterator interface, which is currently
+used to create `DeviceQuantileDMatrix`. For a quick introduction, see
+https://xgboost.readthedocs.io/en/latest/tutorials/external_memory.html#data-iterator
 . During the development of this new interface, `lz4` compression is removed. (#7076).
 Please note that external memory support is still experimental and not ready for
 production use yet.  All future development will focus on this new interface and users are
-advised to migrate. (You are using the old interface if you are using a URL suffix to use external memory.)
+advised to migrate. (You are using the old interface if you are using a URL suffix to use
+external memory.)
 
 ### New features in Python package
 * Support numpy array interface and all numeric types from numpy in `DMatrix`
@@ -62,10 +69,10 @@ advised to migrate. (You are using the old interface if you are using a URL suff
 * Add tutorial for XGBoost-Ray (#6884)
 
 ### New features in R package
-* In 1.4 we have a new prediction function in the C API which is used by the Python package.  This release revises
-  the R package to use the new prediction function as well.  A new parameter `iteration_range` for the predict function is
-  available, which can be used for specifying the range of trees for running
-  prediction. (#6819, #7126)
+* In 1.4 we have a new prediction function in the C API which is used by the Python
+  package.  This release revises the R package to use the new prediction function as well.
+  A new parameter `iteration_range` for the predict function is available, which can be
+  used for specifying the range of trees for running prediction. (#6819, #7126)
 * R package now supports the `nthread` parameter in `DMatrix` construction. (#7127)
 
 ### New features in JVM packages
