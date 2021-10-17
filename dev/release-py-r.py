@@ -105,7 +105,7 @@ Following steps should be done manually:
 
 
 def download_r_packages(release: str, rc: str, commit: str) -> None:
-    platforms = ["linux", "win64"]
+    platforms = ["win64", "linux"]
     dirname = "./r-packages"
     if not os.path.exists(dirname):
         os.mkdir(dirname)
@@ -113,9 +113,13 @@ def download_r_packages(release: str, rc: str, commit: str) -> None:
     filenames = []
 
     for plat in platforms:
-        url = f"{PREFIX}{release}/xgboost_r_gpu_linux_{commit}.tar.gz"
+        url = f"{PREFIX}{release}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
 
-        filename = f"xgboost_r_gpu_linux_{release}-{rc}.tar.gz"
+        if not rc:
+            filename = f"xgboost_r_gpu_{plat}_{release}.tar.gz"
+        else:
+            filename = f"xgboost_r_gpu_{plat}_{release}-{rc}.tar.gz"
+
         target = os.path.join(dirname, filename)
         retrieve(url=url, filename=target)
         filenames.append(target)
