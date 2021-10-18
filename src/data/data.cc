@@ -135,6 +135,7 @@ void MetaInfo::Clear() {
   labels_.HostVector().clear();
   group_ptr_.clear();
   weights_.HostVector().clear();
+  sensitive_features_.HostVector().clear();
   base_margin_.HostVector().clear();
 }
 
@@ -149,6 +150,7 @@ void MetaInfo::Clear() {
  * | labels             | kFloat32 | False     | ${size} |       1 | ${labels_}              |
  * | group_ptr          | kUInt32  | False     | ${size} |       1 | ${group_ptr_}           |
  * | weights            | kFloat32 | False     | ${size} |       1 | ${weights_}             |
+ * | sensitive_features | kFloat32 | False     | ${size} |       1 | ${sensitive_features_}  |
  * | base_margin        | kFloat32 | False     | ${size} |       1 | ${base_margin_}         |
  * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound_}  |
  * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound_}  |
@@ -174,6 +176,8 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
                   {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
   SaveVectorField(fo, u8"weights", DataType::kFloat32,
                   {weights_.Size(), 1}, weights_); ++field_cnt;
+  SaveVectorField(fo, u8"sensitive_features", DataType::kFloat32,
+                  {sensitive_features_.Size(), 1}, sensitive_features_); ++field_cnt;
   SaveVectorField(fo, u8"base_margin", DataType::kFloat32,
                   {base_margin_.Size(), 1}, base_margin_); ++field_cnt;
   SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
@@ -243,6 +247,7 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"labels", DataType::kFloat32, &labels_);
   LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
   LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
+  LoadVectorField(fi, u8"sensitive_features", DataType::kFloat32, &sensitive_features_);
   LoadVectorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
@@ -287,6 +292,8 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   } else {
     out.weights_.HostVector() = Gather(this->weights_.HostVector(), ridxs);
   }
+  // sensitive feature
+  out.sensitive_features_.HostVector() = Gather(this->sensitive_features_.HostVector(), ridxs);
 
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
@@ -374,6 +381,15 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
       return w < 0 || std::isinf(w) || std::isnan(w);
     });
     CHECK(valid) << "Weights must be positive values.";
+  } else if (!std::strcmp(key, "sensitive_feature")) {
+    auto& sensitive_features = sensitive_features_.HostVector();
+    sensitive_features.resize(num);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, sensitive_features.begin()));
+    auto valid = std::none_of(sensitive_features.cbegin(), sensitive_features.cend(), [](float s) {
+      return std::isinf(s) || std::isnan(s);
+    });
+    CHECK(valid) << "Sensitive feature contains NaN, infinity or a value too large.";
   } else if (!std::strcmp(key, "base_margin")) {
     auto& base_margin = base_margin_.HostVector();
     base_margin.resize(num);
@@ -441,6 +457,8 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
       vec = &this->labels_.HostVector();
     } else if (!std::strcmp(key, "weight")) {
       vec = &this->weights_.HostVector();
+    } else if (!std::strcmp(key, "sensitive_feature")) {
+      vec = &this->sensitive_features_.HostVector();
     } else if (!std::strcmp(key, "base_margin")) {
       vec = &this->base_margin_.HostVector();
     } else if (!std::strcmp(key, "label_lower_bound")) {
@@ -525,6 +543,9 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   this->weights_.SetDevice(that.weights_.DeviceIdx());
   this->weights_.Extend(that.weights_);
 
+  this->sensitive_features_.SetDevice(that.sensitive_features_.DeviceIdx());
+  this->sensitive_features_.Extend(that.sensitive_features_);
+
   this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
   this->labels_lower_bound_.Extend(that.labels_lower_bound_);
 
@@ -586,6 +607,12 @@ void MetaInfo::Validate(int32_t device) const {
     CHECK_EQ(weights_.Size(), num_row_)
         << "Size of weights must equal to number of rows.";
     check_device(weights_);
+    return;
+  }
+  if (sensitive_features_.Size() != 0) {
+    CHECK_EQ(sensitive_features_.Size(), num_row_)
+        << "Size of sensitive feature must equal to number of rows.";
+    check_device(sensitive_features_);
     return;
   }
   if (labels_.Size() != 0) {
