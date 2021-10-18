@@ -170,7 +170,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     builder_monitor_.Start("EvaluateSplits");
     for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(
              BatchParam{GenericParameter::kCpuId, param_.max_bin})) {
-      evaluator_->EvaluateSplits(histogram_builder_->Histogram(), gmat, *p_tree, &entries);
+      evaluator_->EvaluateSplits(histogram_builder_->Histogram(), gmat.cut, *p_tree, &entries);
+      break;
     }
     builder_monitor_.Stop("EvaluateSplits");
     node = entries.front();
@@ -271,7 +272,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       }
 
       builder_monitor_.Start("EvaluateSplits");
-      evaluator_->EvaluateSplits(this->histogram_builder_->Histogram(), gmat,
+      evaluator_->EvaluateSplits(this->histogram_builder_->Histogram(), gmat.cut,
                                  *p_tree, &nodes_to_evaluate);
       builder_monitor_.Stop("EvaluateSplits");
 
