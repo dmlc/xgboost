@@ -138,10 +138,10 @@ def _multi_lock() -> Any:
 
 def _start_tracker(n_workers: int) -> Dict[str, Any]:
     """Start Rabit tracker """
-    env = {'DMLC_NUM_WORKER': n_workers}
+    env: Dict[str, Union[int, str]] = {'DMLC_NUM_WORKER': n_workers}
     host = get_host_ip('auto')
-    rabit_context = RabitTracker(hostIP=host, nslave=n_workers, use_logger=False)
-    env.update(rabit_context.slave_envs())
+    rabit_context = RabitTracker(hostIP=host, n_workers=n_workers, use_logger=False)
+    env.update(rabit_context.worker_envs())
 
     rabit_context.start(n_workers)
     thread = Thread(target=rabit_context.join)
