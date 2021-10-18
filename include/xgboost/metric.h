@@ -48,7 +48,10 @@ class Metric : public Configurable {
    * override this function to maintain internal configuration
    * \param out pointer to output JSON object
    */
-  void SaveConfig(Json*) const override {}
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(this->Name());
+  }
 
   /*!
    * \brief evaluate a specific metric

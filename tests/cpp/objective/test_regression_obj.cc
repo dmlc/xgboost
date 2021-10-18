@@ -131,7 +131,6 @@ TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
   std::unique_ptr<ObjFunction>  obj {
     ObjFunction::Create("binary:logitraw", &lparam)
   };
-
   obj->Configure(args);
 
   CheckObjFunction(obj,
@@ -355,6 +354,64 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
   }
 }
 
+TEST(Objective, DeclareUnifiedTest(RegularizedClassification)) {
+  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+  Args args{{"fairness", "0.0"}};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:regularized", &lparam)};
+
+  obj->Configure(args);
+  CheckConfigReload(obj, "binary:regularized");
+
+  MetaInfo info;
+  info.num_row_ = 16;
+  info.sensitive_features = linalg::Tensor<float, 1>{{info.num_row_}, GPUIDX};
+  auto& h_sf = info.sensitive_features.Data()->HostVector();
+  for (size_t i = 0; i < h_sf.size(); ++i) {
+    h_sf[i] = i % 2 == 0;
+  }
+
+  info.labels = linalg::Tensor<float, 2>{{info.num_row_, static_cast<size_t>(1)}, GPUIDX};
+  auto& h_y = info.labels.Data()->HostVector();
+  for (size_t i = 0; i < h_y.size(); ++i) {
+    h_y[i] = i % 2 != 0;
+  }
+
+  HostDeviceVector<float> predts;
+  predts.SetDevice(GPUIDX);
+  predts.Resize(info.num_row_);
+  auto& h_predts = predts.HostVector();
+  for (size_t i = 0; i < h_y.size(); ++i) {
+    h_predts[i] = i % 2 != 0;
+  }
+
+  HostDeviceVector<GradientPair> reg_gpair;
+  obj->GetGradient(predts, info, 0, &reg_gpair);
+  auto const& h_reg = reg_gpair.ConstHostVector();
+
+  // fairness == 0 means unbiased
+  std::unique_ptr<ObjFunction> logistic{ObjFunction::Create("binary:logistic", &lparam)};
+  logistic->Configure({});
+  HostDeviceVector<GradientPair> logistic_gpair;
+  obj->GetGradient(predts, info, 0, &logistic_gpair);
+  auto const& h_logistic = logistic_gpair.ConstHostVector();
+  for (size_t i = 0; i < h_reg.size(); ++i) {
+    ASSERT_EQ(h_logistic[i], h_reg[i]);
+  }
+
+  auto test_regularized = [&]() {
+    obj->Configure({{"fairness", "1.0"}});
+    obj->GetGradient(predts, info, 0, &reg_gpair);
+    auto const& h_reg = reg_gpair.ConstHostVector();
+    for (size_t i = 0; i < h_reg.size(); ++i) {
+      ASSERT_EQ(h_reg[i].GetHess(), 0.0f);
+      ASSERT_EQ(h_reg[i].GetGrad(), i % 2 == 0 ? 1.0 : -1.0);
+    }
+  };
+  test_regularized();
+  info.weights_.Resize(info.num_row_, 1.0);
+  test_regularized();
+}
+
 // CoxRegression not implemented in GPU code, no need for testing.
 #if !defined(__CUDACC__)
 TEST(Objective, CoxRegressionGPair) {
@@ -373,5 +430,4 @@ TEST(Objective, CoxRegressionGPair) {
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
 }
 #endif
-
 }  // namespace xgboost

@@ -112,18 +112,6 @@ struct PRAUCLabelInvalid {
 inline void InvalidLabels() {
   LOG(FATAL) << "PR-AUC supports only binary relevance for learning to rank.";
 }
-
-struct OptionalWeights {
-  common::Span<float const> weights;
-  float dft { 1.0f };
-
-  explicit OptionalWeights(common::Span<float const> w) : weights{w} {}
-  explicit OptionalWeights(float w) : dft{w} {}
-
-  XGBOOST_DEVICE float operator[](size_t i) const {
-    return weights.empty() ? dft : weights[i];
-  }
-};
 }      // namespace metric
 }      // namespace xgboost
 #endif  // XGBOOST_METRIC_AUC_H_

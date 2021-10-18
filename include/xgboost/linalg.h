@@ -545,8 +545,7 @@ using VectorView = TensorView<T, 1>;
  */
 template <typename T>
 auto MakeVec(T *ptr, size_t s, int32_t device = -1) {
-  using U = std::remove_const_t<std::remove_pointer_t<decltype(ptr)>> const;
-  return linalg::TensorView<U, 1>{{ptr, s}, {s}, device};
+  return linalg::TensorView<T, 1>{{ptr, s}, {s}, device};
 }
 
 /**

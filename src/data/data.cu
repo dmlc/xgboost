@@ -49,7 +49,7 @@ void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   }
   p_out->Reshape(array.shape);
   auto t = p_out->View(ptr_device);
-  linalg::ElementWiseKernelDevice(t, [=] __device__(size_t i, T) {
+  linalg::ElementWiseTransformDevice(t, [=] __device__(size_t i, T) {
     return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
   });
 }

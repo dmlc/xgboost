@@ -8,20 +8,25 @@
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+
 #include <cmath>
 #include <memory>
 #include <vector>
 
+#include "../common/common.h"
+#include "../common/fair_param.h"
+#include "../common/linalg_op.h"
+#include "../common/threading_utils.h"
+#include "../common/transform.h"
+#include "./regression_loss.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
-#include "../common/transform.h"
-#include "../common/common.h"
-#include "../common/threading_utils.h"
-#include "./regression_loss.h"
-
+#if defined(XGBOOST_USE_CUDA)
+#include "../common/linalg_op.cuh"
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost {
 namespace obj {
@@ -199,6 +204,104 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
     return new RegLossObj<LinearSquareLoss>(); });
 // End deprecated
+
+/**
+ * \brief Implementation of https://arxiv.org/abs/2009.01442
+ */
+class RegularizedClassification : public ObjFunction {
+  BinaryRegularizationParam param_;
+
+ public:
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kBinary, false};
+  }
+
+  uint32_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
+
+  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CHECK_EQ(info.sensitive_features.Size(), info.num_row_)
+        << "Incorrect shape of sensitive features, Expecting: (" << info.num_row_ << "), got: ("
+        << info.sensitive_features.Size() << ")";
+    CHECK_EQ(info.labels.Shape(0), info.num_row_);
+    CHECK_EQ(info.labels.Shape(1), 1);
+
+    auto fairness = param_.fairness;
+    if (!info.weights_.Empty()) {
+      CHECK_EQ(info.weights_.Size(), info.num_row_)
+          << "Number of weights should be equal to number of data points.";
+    }
+
+    auto fn = [fairness] XGBOOST_DEVICE(
+                  size_t i, float y, linalg::TensorView<float const, 1> predt_t,
+                  common::OptionalWeights weight, linalg::TensorView<float const, 1> sensitive,
+                  linalg::TensorView<GradientPair, 1> gpair) {
+      auto predt = common::Sigmoid(predt_t(i));
+      auto sf = sensitive(i);
+      auto grad = (predt - y) + (fairness * (sf - predt));
+      auto hess = (1.0f - fairness) * predt * (1.0f - predt);
+      auto w = weight[i];
+      gpair(i) = {grad * w, hess * w};
+    };
+
+    auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.num_row_);
+    preds.SetDevice(ctx_->gpu_id);
+    info.weights_.SetDevice(ctx_->gpu_id);
+    if (ctx_->gpu_id != GenericParameter::kCpuId) {
+#if defined(XGBOOST_USE_CUDA)
+      auto gpair = linalg::MakeVec(out_gpair->DevicePointer(), info.num_row_, ctx_->gpu_id);
+      auto predt = linalg::MakeVec(preds.ConstDevicePointer(), preds.Size(), ctx_->gpu_id);
+      common::OptionalWeights weight{info.weights_.ConstDeviceSpan()};
+      linalg::ElementWiseKernelDevice(
+          info.labels.View(ctx_->gpu_id),
+          [=] XGBOOST_DEVICE(size_t i, float y) { fn(i, y, predt, weight, sensitive, gpair); });
+#else
+      common::AssertGPUSupport();
+#endif  // defined(XGBOOST_USE_CUDA)
+    } else {
+      auto gpair = linalg::MakeVec(out_gpair->HostPointer(), info.num_row_);
+      auto predt = linalg::MakeVec(preds.ConstHostPointer(), preds.Size(), ctx_->gpu_id);
+      common::OptionalWeights weight{info.weights_.ConstHostSpan()};
+      linalg::ElementWiseKernelHost(
+          info.labels.HostView(), ctx_->Threads(),
+          [=] XGBOOST_DEVICE(size_t i, float y) { fn(i, y, predt, weight, sensitive, gpair); });
+    }
+  }
+
+  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+    auto eps = kRtEps;  // undefined in device code.
+    common::Transform<>::Init(
+        [eps] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
+          _preds[_idx] = common::Sigmoid(_preds[_idx]);
+        },
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
+        io_preds->DeviceIdx())
+        .Eval(io_preds);
+  }
+
+  float ProbToMargin(float base_score) const override {
+    return LogisticClassification::ProbToMargin(base_score);
+  }
+
+  const char* DefaultEvalMetric() const override { return "regularized-logloss"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("binary:regularized");
+    out["binary_regularized_param"] = ToJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override { FromJson(in["binary_regularized_param"], &param_); }
+};
+
+XGBOOST_REGISTER_OBJECTIVE(FairClassification, "binary:regularized")
+    .describe("binary classification with fairness.")
+    .set_body([]() { return new RegularizedClassification(); });
 
 // declare parameter
 struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
@@ -608,4 +711,6 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .set_body([]() { return new TweedieRegression(); });
 
 }  // namespace obj
+
+DMLC_REGISTER_PARAMETER(BinaryRegularizationParam);
 }  // namespace xgboost

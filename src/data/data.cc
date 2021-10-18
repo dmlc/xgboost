@@ -197,6 +197,7 @@ void MetaInfo::Clear() {
  * | base_margin        | kFloat32 | False     | ${Shape(0)} | ${Shape(1)} | ${base_margin_}        |
  * | labels_lower_bound | kFloat32 | False     | ${size}     |           1 | ${labels_lower_bound_} |
  * | labels_upper_bound | kFloat32 | False     | ${size}     |           1 | ${labels_upper_bound_} |
+ * | sensitive_features | kFloat32 | False     | ${Shape(0)} |           1 | ${sensitive_features_} |
  * | feature_names      | kStr     | False     | ${size}     |           1 | ${feature_names}       |
  * | feature_types      | kStr     | False     | ${size}     |           1 | ${feature_types}       |
  * | feature_weights    | kFloat32 | False     | ${size}     |           1 | ${feature_weights}     |
@@ -224,7 +225,7 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
                   {labels_lower_bound_.Size(), 1}, labels_lower_bound_); ++field_cnt;
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
-
+  SaveTensorField(fo, u8"sensitive_features", DataType::kFloat32, sensitive_features), ++field_cnt;
   SaveVectorField(fo, u8"feature_names", DataType::kStr,
                   {feature_names.size(), 1}, feature_names); ++field_cnt;
   SaveVectorField(fo, u8"feature_types", DataType::kStr,
@@ -297,7 +298,7 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadTensorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
-
+  LoadTensorField(fi, u8"sensitive_features", DataType::kFloat32, &sensitive_features);
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
@@ -351,6 +352,12 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   } else {
     out.weights_.HostVector() = Gather(this->weights_.HostVector(), ridxs);
   }
+
+  // sensitive feature
+  auto t_sf = this->sensitive_features.View(this->sensitive_features.Data()->DeviceIdx());
+  out.sensitive_features.Reshape(ridxs.size());
+  out.sensitive_features.Data()->HostVector() =
+      Gather(this->sensitive_features.Data()->HostVector(), ridxs, t_sf.Stride(0));
 
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
@@ -431,7 +438,7 @@ void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   auto t = p_out->View(GenericParameter::kCpuId);
   CHECK(t.CContiguous());
   // FIXME(jiamingy): Remove the use of this default thread.
-  linalg::ElementWiseKernelHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
+  linalg::ElementWiseTransformHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
     return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, t.Shape()));
   });
 }
@@ -487,7 +494,11 @@ void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
     auto valid = std::none_of(h_labels.cbegin(), h_labels.cend(), data::LabelsCheck{});
     CHECK(valid) << "Label contains NaN, infinity or a value too large.";
     return;
+  } else if (key == "sensitive_feature") {
+    CopyTensorInfoImpl(arr, &this->sensitive_features);
+    return;
   }
+
   // uint info
   if (key == "group") {
     linalg::Tensor<bst_group_t, 1> t;
@@ -593,6 +604,8 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
       vec = &this->labels.Data()->HostVector();
     } else if (!std::strcmp(key, "weight")) {
       vec = &this->weights_.HostVector();
+    } else if (!std::strcmp(key, "sensitive_feature")) {
+      vec = &this->sensitive_features.Data()->HostVector();
     } else if (!std::strcmp(key, "base_margin")) {
       vec = &this->base_margin_.Data()->HostVector();
     } else if (!std::strcmp(key, "label_lower_bound")) {
@@ -675,6 +688,8 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
 
   this->weights_.SetDevice(that.weights_.DeviceIdx());
   this->weights_.Extend(that.weights_);
+
+  linalg::Stack(&this->sensitive_features, that.sensitive_features);
 
   this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
   this->labels_lower_bound_.Extend(that.labels_lower_bound_);
@@ -877,7 +892,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
       dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
                              1, cache_file);
     } else {
-      data::FileIterator iter{fname, uint32_t(partid), uint32_t(npart),
+      data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
                               file_format};
       dmat = new data::SparsePageDMatrix{
           &iter,

@@ -46,7 +46,7 @@ enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 12;
+  static constexpr uint64_t kNumField = 13;
 
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};  // NOLINT
@@ -63,6 +63,8 @@ class MetaInfo {
   std::vector<bst_group_t> group_ptr_;  // NOLINT
   /*! \brief weights of each instance, optional */
   HostDeviceVector<bst_float> weights_;  // NOLINT
+  /*! \brief sensitive feature of each instance, optional */
+  linalg::Tensor<float, 1> sensitive_features;  // NOLINT
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
