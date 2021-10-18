@@ -1,7 +1,5 @@
 package ml.dmlc.xgboost4j.java;
 
-
-
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -80,7 +78,7 @@ public class RabitTracker implements IRabitTracker {
   }
 
   public RabitTracker(int numWorkers)
-    throws XGBoostError {
+      throws XGBoostError {
     if (numWorkers < 1) {
       throw new XGBoostError("numWorkers must be greater equal to one");
     }

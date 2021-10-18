@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.{AbstractIterator, Iterator, mutable}
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.java.{Rabit, XGBoost => JXGBoost}
+import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
@@ -27,8 +27,7 @@ import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.TaskContext
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
-import org.apache.spark.ml.param.shared.HasWeightCol
+import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.ml.util._
 import org.apache.spark.ml._
 import org.apache.spark.ml.param._
@@ -37,7 +36,6 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.json4s.DefaultFormats
-import scala.collection.mutable.ListBuffer
 
 import org.apache.spark.broadcast.Broadcast
 
