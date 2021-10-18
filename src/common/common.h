@@ -188,6 +188,16 @@ std::vector<Idx> ArgSort(Container const &array, Comp comp = std::less<V>{}) {
   XGBOOST_PARALLEL_STABLE_SORT(result.begin(), result.end(), op);
   return result;
 }
+
+struct OptionalWeights {
+  Span<float const> weights;
+  float dft{1.0f};
+
+  explicit OptionalWeights(Span<float const> w) : weights{w} {}
+  explicit OptionalWeights(float w) : dft{w} {}
+
+  XGBOOST_DEVICE float operator[](size_t i) const { return weights.empty() ? dft : weights[i]; }
+};
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_

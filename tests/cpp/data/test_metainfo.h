@@ -29,14 +29,13 @@ inline void TestMetaInfoStridedData(int32_t device) {
     auto const& h_result = info.labels.View(-1);
     ASSERT_EQ(h_result.Shape().size(), 2);
     auto in_labels = labels.View(-1);
-    linalg::ElementWiseKernelHost(h_result, omp_get_max_threads(), [&](size_t i, float v_0) {
+    linalg::ElementWiseKernelHost(h_result, omp_get_max_threads(), [&](size_t i, float& v_0) {
       auto tup = linalg::UnravelIndex(i, h_result.Shape());
       auto i0 = std::get<0>(tup);
       auto i1 = std::get<1>(tup);
       // Sliced at second dimension.
       auto v_1 = in_labels(i0, 0, i1);
       CHECK_EQ(v_0, v_1);
-      return v_0;
     });
   }
   {
@@ -71,7 +70,6 @@ inline void TestMetaInfoStridedData(int32_t device) {
       // Sliced at second dimension.
       auto v_1 = in_margin(i0, 0, i1);
       CHECK_EQ(v_0, v_1);
-      return v_0;
     });
   }
 }

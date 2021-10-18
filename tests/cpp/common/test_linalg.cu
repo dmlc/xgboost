@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -19,7 +19,7 @@ void TestElementWiseKernel() {
     // GPU view
     auto t = l.View(0).Slice(linalg::All(), 1, linalg::All());
     ASSERT_FALSE(t.CContiguous());
-    ElementWiseKernelDevice(t, [] __device__(size_t i, float) { return i; });
+    ElementWiseTransformDevice(t, [] __device__(size_t i, float) { return i; });
     // CPU view
     t = l.View(GenericParameter::kCpuId).Slice(linalg::All(), 1, linalg::All());
     size_t k = 0;
@@ -30,10 +30,7 @@ void TestElementWiseKernel() {
     }
 
     t = l.View(0).Slice(linalg::All(), 1, linalg::All());
-    ElementWiseKernelDevice(t, [] __device__(size_t i, float v) {
-      SPAN_CHECK(v == i);
-      return v;
-    });
+    ElementWiseKernelDevice(t, [] XGBOOST_DEVICE(size_t i, float v) { SPAN_CHECK(v == i); });
   }
 
   {
@@ -41,7 +38,7 @@ void TestElementWiseKernel() {
      * Contiguous
      */
     auto t = l.View(0);
-    ElementWiseKernelDevice(t, [] __device__(size_t i, float) { return i; });
+    ElementWiseTransformDevice(t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
     // CPU view
     t = l.View(GenericParameter::kCpuId);
