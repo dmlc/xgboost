@@ -90,9 +90,9 @@ class CudfUtils {
       shapeNode.add(shape);
       ArrayNode dataNode = objNode.putArray("data");
       dataNode.add(ptr)
-        .add(false);
+          .add(false);
       objNode.put("typestr", typeStr)
-        .put("version", 1);
+          .put("version", 1);
       return objNode;
     }
   }

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -436,7 +436,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   public String[] getModelDump(String[] featureNames, boolean withStats, String format)
-    throws XGBoostError {
+      throws XGBoostError {
     int statsFlag = 0;
     if (withStats) {
       statsFlag = 1;
