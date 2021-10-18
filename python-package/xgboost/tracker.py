@@ -152,7 +152,7 @@ class WorkerEntry:
             return rmset
 
 
-class RabitTracker(object):
+class RabitTracker:
     """
     tracker for rabit
     """
