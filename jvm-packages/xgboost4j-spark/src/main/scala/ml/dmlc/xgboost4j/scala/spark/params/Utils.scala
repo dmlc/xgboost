@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ private[spark] object Utils {
 
   /**
    * Get the TypeHints according to the value
-   * @param value the instance of customized obj/eval
+   * @param value the instance of class to be serialized
    * @return if value is null,
    *            return NoTypeHints
    *         else return the FullTypeHints.
@@ -44,9 +44,9 @@ private[spark] object Utils {
    *         so we can find the jsonClass and turn it to FullTypeHints when deserializing.
    */
   def getTypeHintsFromClass(value: Any): TypeHints = {
-    if (value == null) {
+    if (value == null) { // XGBoost will save the default value (null)
       NoTypeHints
-    } else { // XGBoost will save the default values
+    } else { // XGBoost will save the full instance
       FullTypeHints(List(value.getClass))
     }
   }
