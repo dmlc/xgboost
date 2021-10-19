@@ -46,7 +46,7 @@ private[spark] object Utils {
   def getTypeHintsFromClass(value: Any): TypeHints = {
     if (value == null) { // XGBoost will save the default value (null)
       NoTypeHints
-    } else { // XGBoost will save the full instance
+    } else {
       FullTypeHints(List(value.getClass))
     }
   }
