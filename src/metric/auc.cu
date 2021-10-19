@@ -541,6 +541,7 @@ GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
   // Use max to represent triangle
   auto n_threads = common::SegmentedTrapezoidThreads(
       d_group_ptr, d_threads_group_ptr, std::numeric_limits<size_t>::max());
+  CHECK_LT(n_threads, std::numeric_limits<int32_t>::max());
   // get the coordinate in nested summation
   auto get_i_j = [=]XGBOOST_DEVICE(size_t idx, size_t query_group_idx) {
     auto data_group_begin = d_group_ptr[query_group_idx];
