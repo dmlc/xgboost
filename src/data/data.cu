@@ -122,6 +122,8 @@ struct WeightsCheck {
 };
 }  // anonymous namespace
 
+void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_);
+
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
   auto const& j_arr = get<Array>(j_interface);
@@ -157,6 +159,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {
     CopyGroupInfoImpl(array_interface, &group_ptr_);
+    ValidateQueryGroup(group_ptr_);
     return;
   } else if (key == "qid") {
     CopyQidImpl(array_interface, &group_ptr_);
