@@ -227,15 +227,15 @@ XGBoost has a function called ``dump_model`` in Booster object, which lets you t
 the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The primary
 use case for it is for model interpretation or visualization, and is not supposed to be
 loaded back to XGBoost.  The JSON version has a `schema
-<https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`_.  See next section for
+<https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`__.  See next section for
 more info.
 
 ***********
 JSON Schema
 ***********
 
-Another important feature of JSON format is a documented `Schema
-<https://json-schema.org/>`_, based on which one can easily reuse the output model from
+Another important feature of JSON format is a documented `schema
+<https://json-schema.org/>`__, based on which one can easily reuse the output model from
 XGBoost.  Here is the initial draft of JSON schema for the output model (not
 serialization, which will not be stable as noted above).  It's subject to change due to
 the beta status.  For an example of parsing XGBoost tree model, see ``/demo/json-model``.
