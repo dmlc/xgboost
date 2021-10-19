@@ -10,6 +10,6 @@ dependencies:
   - matplotlib
   - pip:
     - breathe
-    - guzzle_sphinx_theme
+    - sphinx_rtd_theme
     - pydot-ng
     - graphviz

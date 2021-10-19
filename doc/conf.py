@@ -19,7 +19,6 @@ import sys
 import re
 import os
 import subprocess
-import guzzle_sphinx_theme
 
 git_branch = os.getenv('SPHINX_GIT_BRANCH', default=None)
 if not git_branch:
@@ -33,6 +32,7 @@ if not git_branch:
 else:
     git_branch = [git_branch]
 print('git_branch = {}'.format(git_branch[0]))
+
 try:
     filename, _ = urllib.request.urlretrieve(
         'https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(
@@ -169,17 +169,13 @@ todo_include_todos = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme_path = guzzle_sphinx_theme.html_theme_path()
-html_theme = 'guzzle_sphinx_theme'
+html_theme = "sphinx_rtd_theme"
+html_theme_options = {"logo_only": True}
 
-# Register the theme as an extension to generate a sitemap.xml
-extensions.append("guzzle_sphinx_theme")
 
-# Guzzle theme options (see theme.conf for more information)
-html_theme_options = {
-    # Set the name of the project to appear in the sidebar
-    "project_nav_name": "XGBoost"
-}
+html_logo = "https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png"
+
+html_css_files = ["css/custom.css"]
 
 html_sidebars = {
   '**': ['logo-text.html', 'globaltoc.html', 'searchbox.html']
@@ -201,8 +197,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, '%s.tex' % project, project,
-   author, 'manual'),
+  (master_doc, '%s.tex' % project, project, author, 'manual'),
 ]
 
 intersphinx_mapping = {

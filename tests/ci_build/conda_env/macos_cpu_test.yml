@@ -32,5 +32,5 @@ dependencies:
 - boto3
 - awscli
 - pip:
-  - guzzle_sphinx_theme
+  - sphinx_rtd_theme
   - datatable
