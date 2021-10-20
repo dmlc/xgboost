@@ -1275,7 +1275,9 @@ class TestWithDask:
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
                     with xgb.dask.RabitContext(rabit_args):
-                        local_dtrain = xgb.dask._dmatrix_from_list_of_parts(**data_ref)
+                        local_dtrain = xgb.dask._dmatrix_from_list_of_parts(
+                            **data_ref, nthread=7
+                        )
                         total = np.array([local_dtrain.num_row()])
                         total = xgb.rabit.allreduce(total, xgb.rabit.Op.SUM)
                         assert total[0] == kRows

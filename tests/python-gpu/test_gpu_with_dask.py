@@ -434,7 +434,7 @@ class TestDistributedGPU:
 
             def worker_fn(worker_addr: str, data_ref: Dict) -> None:
                 with dxgb.RabitContext(rabit_args):
-                    local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref)
+                    local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref, nthread=7)
                     fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
                     assert fw_rows == local_dtrain.num_col()
 
