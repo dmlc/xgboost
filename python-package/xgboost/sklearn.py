@@ -4,7 +4,8 @@ import copy
 import warnings
 import json
 import os
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type
+from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type, cast
+from typing import Sequence
 import numpy as np
 
 from .core import Booster, DMatrix, XGBoostError
@@ -36,7 +37,7 @@ class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
 
 def _check_rf_callback(
     early_stopping_rounds: Optional[int],
-    callbacks: Optional[List[TrainingCallback]],
+    callbacks: Optional[Sequence[TrainingCallback]],
 ) -> None:
     if early_stopping_rounds is not None or callbacks is not None:
         raise NotImplementedError(
@@ -343,14 +344,14 @@ def _wrap_evaluation_matrices(
     sample_weight: Optional[Any],
     base_margin: Optional[Any],
     feature_weights: Optional[Any],
-    eval_set: Optional[List[Tuple[Any, Any]]],
-    sample_weight_eval_set: Optional[List[Any]],
-    base_margin_eval_set: Optional[List[Any]],
-    eval_group: Optional[List[Any]],
-    eval_qid: Optional[List[Any]],
+    eval_set: Optional[Sequence[Tuple[Any, Any]]],
+    sample_weight_eval_set: Optional[Sequence[Any]],
+    base_margin_eval_set: Optional[Sequence[Any]],
+    eval_group: Optional[Sequence[Any]],
+    eval_qid: Optional[Sequence[Any]],
     create_dmatrix: Callable,
     enable_categorical: bool,
-) -> Tuple[Any, Optional[List[Tuple[Any, str]]]]:
+) -> Tuple[Any, List[Tuple[Any, str]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
 
     """
@@ -368,7 +369,7 @@ def _wrap_evaluation_matrices(
 
     n_validation = 0 if eval_set is None else len(eval_set)
 
-    def validate_or_none(meta: Optional[List], name: str) -> List:
+    def validate_or_none(meta: Optional[Sequence], name: str) -> Sequence:
         if meta is None:
             return [None] * n_validation
         if len(meta) != n_validation:
@@ -464,7 +465,7 @@ class XGBModel(XGBModelBase):
         missing: float = np.nan,
         num_parallel_tree: Optional[int] = None,
         monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
-        interaction_constraints: Optional[Union[str, List[Tuple[str]]]] = None,
+        interaction_constraints: Optional[Union[str, Sequence[Sequence[str]]]] = None,
         importance_type: Optional[str] = None,
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
@@ -715,7 +716,7 @@ class XGBModel(XGBModelBase):
     def _configure_fit(
         self,
         booster: Optional[Union[Booster, "XGBModel", str]],
-        eval_metric: Optional[Union[Callable, str, List[str]]],
+        eval_metric: Optional[Union[Callable, str, Sequence[str]]],
         params: Dict[str, Any],
         early_stopping_rounds: Optional[int],
     ) -> Tuple[
@@ -788,10 +789,7 @@ class XGBModel(XGBModelBase):
 
     def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
         if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
-            self.evals_result_ = evals_result
+            self.evals_result_ = cast(Dict[str, Dict[str, List[float]]], evals_result)
 
     @_deprecate_positional_args
     def fit(
@@ -801,15 +799,15 @@ class XGBModel(XGBModelBase):
         *,
         sample_weight: Optional[array_like] = None,
         base_margin: Optional[array_like] = None,
-        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
-        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, "XGBModel"]] = None,
-        sample_weight_eval_set: Optional[List[array_like]] = None,
-        base_margin_eval_set: Optional[List[array_like]] = None,
+        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
+        base_margin_eval_set: Optional[Sequence[array_like]] = None,
         feature_weights: Optional[array_like] = None,
-        callbacks: Optional[List[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBModel":
         # pylint: disable=invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model.
@@ -1031,7 +1029,7 @@ class XGBModel(XGBModelBase):
             Input features matrix.
 
         iteration_range :
-            See :py:meth:`xgboost.XGBRegressor.predict`.
+            See :py:meth:`predict`.
 
         ntree_limit :
             Deprecated, use ``iteration_range`` instead.
@@ -1055,40 +1053,26 @@ class XGBModel(XGBModelBase):
             iteration_range=iteration_range
         )
 
-    def evals_result(self) -> TrainingCallback.EvalsLog:
+    def evals_result(self) -> Dict[str, Dict[str, List[float]]]:
         """Return the evaluation results.
 
-        If **eval_set** is passed to the `fit` function, you can call
-        ``evals_result()`` to get evaluation results for all passed **eval_sets**.
-        When **eval_metric** is also passed to the `fit` function, the
-        **evals_result** will contain the **eval_metrics** passed to the `fit` function.
+        If **eval_set** is passed to the :py:meth:`fit` function, you can call
+        ``evals_result()`` to get evaluation results for all passed **eval_sets**.  When
+        **eval_metric** is also passed to the :py:meth:`fit` function, the
+        **evals_result** will contain the **eval_metrics** passed to the :py:meth:`fit`
+        function.
 
-        Returns
-        -------
-        evals_result : dictionary
-
-        Example
-        -------
-
-        .. code-block:: python
-
-            param_dist = {'objective':'binary:logistic', 'n_estimators':2}
-
-            clf = xgb.XGBModel(**param_dist)
-
-            clf.fit(X_train, y_train,
-                    eval_set=[(X_train, y_train), (X_test, y_test)],
-                    eval_metric='logloss',
-                    verbose=True)
-
-            evals_result = clf.evals_result()
-
-        The variable **evals_result** will contain:
+        The returned evaluation result is a dictionary:
 
         .. code-block:: python
 
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
              'validation_1': {'logloss': ['0.41965', '0.17686']}}
+
+        Returns
+        -------
+        evals_result
+
         """
         if getattr(self, "evals_result_", None) is not None:
             evals_result = self.evals_result_
@@ -1193,8 +1177,8 @@ class XGBModel(XGBModelBase):
         .. note:: Intercept is defined only for linear learners
 
             Intercept (bias) is only defined when the linear model is chosen as base
-            learner (`booster=gblinear`). It is not defined for other base learner types, such
-            as tree learners (`booster=gbtree`).
+            learner (`booster=gblinear`). It is not defined for other base learner types,
+            such as tree learners (`booster=gbtree`).
 
         Returns
         -------
@@ -1251,15 +1235,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         *,
         sample_weight: Optional[array_like] = None,
         base_margin: Optional[array_like] = None,
-        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
-        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[List[array_like]] = None,
-        base_margin_eval_set: Optional[List[array_like]] = None,
+        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
+        base_margin_eval_set: Optional[Sequence[array_like]] = None,
         feature_weights: Optional[array_like] = None,
-        callbacks: Optional[List[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
         evals_result: TrainingCallback.EvalsLog = {}
@@ -1445,51 +1429,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             getattr(self, "n_classes_", None), class_probs, np.vstack
         )
 
-    def evals_result(self) -> TrainingCallback.EvalsLog:
-        """Return the evaluation results.
-
-        If **eval_set** is passed to the `fit` function, you can call
-        ``evals_result()`` to get evaluation results for all passed **eval_sets**.
-
-        When **eval_metric** is also passed as a parameter, the **evals_result** will
-        contain the **eval_metric** passed to the `fit` function.
-
-        Returns
-        -------
-        evals_result : dictionary
-
-        Example
-        -------
-
-        .. code-block:: python
-
-            param_dist = {
-                'objective':'binary:logistic', 'n_estimators':2, eval_metric="logloss"
-            }
-
-            clf = xgb.XGBClassifier(**param_dist)
-
-            clf.fit(X_train, y_train,
-                    eval_set=[(X_train, y_train), (X_test, y_test)],
-                    verbose=True)
-
-            evals_result = clf.evals_result()
-
-        The variable **evals_result** will contain
-
-        .. code-block:: python
-
-            {'validation_0': {'logloss': ['0.604835', '0.531479']},
-            'validation_1': {'logloss': ['0.41965', '0.17686']}}
-
-        """
-        if self.evals_result_:
-            evals_result = self.evals_result_
-        else:
-            raise XGBoostError('No results.')
-
-        return evals_result
-
 
 @xgboost_model_doc(
     "scikit-learn API for XGBoost random forest classification.",
@@ -1533,15 +1472,15 @@ class XGBRFClassifier(XGBClassifier):
         *,
         sample_weight: Optional[array_like] = None,
         base_margin: Optional[array_like] = None,
-        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
-        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[List[array_like]] = None,
-        base_margin_eval_set: Optional[List[array_like]] = None,
+        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
+        base_margin_eval_set: Optional[Sequence[array_like]] = None,
         feature_weights: Optional[array_like] = None,
-        callbacks: Optional[List[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRFClassifier":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(early_stopping_rounds, callbacks)
@@ -1605,15 +1544,15 @@ class XGBRFRegressor(XGBRegressor):
         *,
         sample_weight: Optional[array_like] = None,
         base_margin: Optional[array_like] = None,
-        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
-        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[List[array_like]] = None,
-        base_margin_eval_set: Optional[List[array_like]] = None,
+        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
+        base_margin_eval_set: Optional[Sequence[array_like]] = None,
         feature_weights: Optional[array_like] = None,
-        callbacks: Optional[List[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRFRegressor":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(early_stopping_rounds, callbacks)
@@ -1682,17 +1621,17 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         qid: Optional[array_like] = None,
         sample_weight: Optional[array_like] = None,
         base_margin: Optional[array_like] = None,
-        eval_set: Optional[List[Tuple[array_like, array_like]]] = None,
-        eval_group: Optional[List[array_like]] = None,
-        eval_qid: Optional[List[array_like]] = None,
-        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        eval_group: Optional[Sequence[array_like]] = None,
+        eval_qid: Optional[Sequence[array_like]] = None,
+        eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = False,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[List[array_like]] = None,
-        base_margin_eval_set: Optional[List[array_like]] = None,
+        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
+        base_margin_eval_set: Optional[Sequence[array_like]] = None,
         feature_weights: Optional[array_like] = None,
-        callbacks: Optional[List[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
