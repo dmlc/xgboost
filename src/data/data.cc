@@ -341,6 +341,9 @@ void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_) {
   bool valid_query_group = true;
   for (size_t i = 1; i < group_ptr_.size(); ++i) {
     valid_query_group = valid_query_group && group_ptr_[i] >= group_ptr_[i - 1];
+    if (!valid_query_group) {
+      break;
+    }
   }
   CHECK(valid_query_group) << "Invalid group structure.";
 }
