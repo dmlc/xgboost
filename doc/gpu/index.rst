@@ -95,13 +95,13 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 
 See examples `here
-<https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`_.
+<https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`__.
 
 Multi-node Multi-GPU Training
 =============================
 XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_. For
 getting started see our tutorial :doc:`/tutorials/dask` and worked examples `here
-<https://github.com/dmlc/xgboost/tree/master/demo/dask>`_, also Python documentation
+<https://github.com/dmlc/xgboost/tree/master/demo/dask>`__, also Python documentation
 :ref:`dask_api` for complete reference.
 
 
@@ -238,7 +238,7 @@ Working memory is allocated inside the algorithm proportional to the number of r
 
 The quantile finding algorithm also uses some amount of working device memory. It is able to operate in batches, but is not currently well optimised for sparse data.
 
-If you are getting out-of-memory errors on a big dataset, try the `external memory version <../tutorials/external_memory.html>`_.
+If you are getting out-of-memory errors on a big dataset, try the :doc:`external memory version </tutorials/external_memory>`.
 
 Developer notes
 ===============
