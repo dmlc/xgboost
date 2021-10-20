@@ -7,6 +7,9 @@ https://www.kaggle.com/shahules/an-overview-of-encoding-techniques
 And the data can be found at:
 https://www.kaggle.com/shahules/an-overview-of-encoding-techniques/data
 
+Also, see the tutorial for using XGBoost with categorical data:
+https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
+
     .. versionadded 1.6.0
 
 """
@@ -48,8 +51,6 @@ def load_cat_in_the_dat() -> tuple[pd.DataFrame, pd.Series]:
     for i in range(0, 6):
         X["ord_" + str(i)] = X["ord_" + str(i)].astype("category")
 
-    print(X.shape)
-
     print(
         "train data set has got {} rows and {} columns".format(X.shape[0], X.shape[1])
     )
@@ -64,7 +65,7 @@ def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=1994, test_size=0.2
     )
-
+    # Specify `enable_categorical`.
     clf = xgb.XGBClassifier(**params, enable_categorical=True)
     clf.fit(
         X_train,
@@ -72,7 +73,6 @@ def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
         eval_set=[(X_test, y_test), (X_train, y_train)],
         eval_metric="auc",
     )
-    print(clf.n_classes_)
     clf.save_model(os.path.join(output_dir, "categorical.json"))
 
     y_score = clf.predict_proba(X_test)[:, 1]  # proba of positive samples
@@ -82,12 +82,10 @@ def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
 
 def onehot_encoding_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
     """Train using one-hot encoded data."""
-
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=42, test_size=0.2
     )
-    print(X_train.shape, y_train.shape)
-
+    # Specify `enable_categorical`.
     clf = xgb.XGBClassifier(**params, enable_categorical=False)
     clf.fit(
         X_train,

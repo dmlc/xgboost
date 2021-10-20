@@ -5,6 +5,9 @@ In before, users need to run an encoder themselves before passing the data into 
 which creates a sparse matrix and potentially increase memory usage.  This demo showcases
 the experimental categorical data support, more advanced features are planned.
 
+Also, see the tutorial for using XGBoost with categorical data:
+https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
+
     .. versionadded:: 1.5.0
 
 """
