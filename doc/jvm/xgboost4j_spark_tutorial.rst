@@ -79,7 +79,7 @@ The first thing in data transformation is to load the dataset as Spark's structu
     StructField("class", StringType, true)))
   val rawInput = spark.read.schema(schema).csv("input_path")
 
-At the first line, we create a instance of `SparkSession <http://spark.apache.org/docs/latest/sql-programming-guide.html#starting-point-sparksession>`_ which is the entry of any Spark program working with DataFrame. The ``schema`` variable defines the schema of DataFrame wrapping Iris data. With this explicitly set schema, we can define the columns' name as well as their types; otherwise the column name would be the default ones derived by Spark, such as ``_col0``, etc. Finally, we can use Spark's built-in csv reader to load Iris csv file as a DataFrame named ``rawInput``.
+At the first line, we create a instance of `SparkSession <https://spark.apache.org/docs/latest/sql-getting-started.html#starting-point-sparksession>`_ which is the entry of any Spark program working with DataFrame. The ``schema`` variable defines the schema of DataFrame wrapping Iris data. With this explicitly set schema, we can define the columns' name as well as their types; otherwise the column name would be the default ones derived by Spark, such as ``_col0``, etc. Finally, we can use Spark's built-in csv reader to load Iris csv file as a DataFrame named ``rawInput``.
 
 Spark also contains many built-in readers for other format. The latest version of Spark supports CSV, JSON, Parquet, and LIBSVM.
 
@@ -130,7 +130,7 @@ labels. A DataFrame like this (containing vector-represented features and numeri
 Dealing with missing values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-XGBoost supports missing values by default (`as desribed here <https://xgboost.readthedocs.io/en/latest/faq.html#how-to-deal-with-missing-value>`_).
+XGBoost supports missing values by default (`as desribed here <https://xgboost.readthedocs.io/en/latest/faq.html#how-to-deal-with-missing-values>`_).
 If given a SparseVector, XGBoost will treat any values absent from the SparseVector as missing. You are also able to
 specify to XGBoost to treat a specific value in your Dataset as if it was a missing value. By default XGBoost will treat NaN as the value representing missing.
 
@@ -369,7 +369,7 @@ Then we can load this model with single node Python XGBoost:
 
   When interacting with other language bindings, XGBoost also supports saving-models-to and loading-models-from file systems other than the local one. You can use HDFS and S3 by prefixing the path with ``hdfs://`` and ``s3://`` respectively. However, for this capability, you must do **one** of the following:
 
-  1. Build XGBoost4J-Spark with the steps described in `here <https://xgboost.readthedocs.io/en/latest/jvm/index.html#installation-from-source>`_, but turning `USE_HDFS <https://github.com/dmlc/xgboost/blob/e939192978a0c152ad7b49b744630e99d54cffa8/jvm-packages/create_jni.py#L18>`_ (or USE_S3, etc. in the same place) switch on. With this approach, you can reuse the above code example by replacing "nativeModelPath" with a HDFS path.
+  1. Build XGBoost4J-Spark with the steps described in :ref:`here <install_jvm_packages>`, but turning `USE_HDFS <https://github.com/dmlc/xgboost/blob/e939192978a0c152ad7b49b744630e99d54cffa8/jvm-packages/create_jni.py#L18>`_ (or USE_S3, etc. in the same place) switch on. With this approach, you can reuse the above code example by replacing "nativeModelPath" with a HDFS path.
 
      - However, if you build with USE_HDFS, etc. you have to ensure that the involved shared object file, e.g. libhdfs.so, is put in the LIBRARY_PATH of your cluster. To avoid the complicated cluster environment configuration, choose the other option.
 
