@@ -10,7 +10,7 @@ if sys.platform.startswith("win"):
 
 
 def test_rabit_tracker():
-    tracker = RabitTracker(hostIP='127.0.0.1', nslave=1)
+    tracker = RabitTracker(hostIP='127.0.0.1', n_workers=1)
     tracker.start(1)
     rabit_env = [
         str.encode('DMLC_TRACKER_URI=127.0.0.1'),
