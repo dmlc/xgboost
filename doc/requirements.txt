@@ -1,6 +1,6 @@
-sphinx>=2.1
+sphinx>=4.2.0
 mock
-sphinx_rtd_theme
+sphinx_rtd_theme>=1.0.0
 breathe
 sh>=1.12.14
 matplotlib>=2.1
