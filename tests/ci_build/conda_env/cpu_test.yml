@@ -35,6 +35,6 @@ dependencies:
 - pip:
   - shap
   - ipython                     # required by shap at import time.
-  - guzzle_sphinx_theme
+  - sphinx_rtd_theme
   - datatable
   - modin[all]

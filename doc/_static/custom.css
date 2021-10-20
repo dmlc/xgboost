@@ -1,23 +1,31 @@
-div.breathe-sectiondef.container {
-  width: 100%;
+@import url('theme.css');
+
+/* Logo background */
+.wy-side-nav-search, .wy-side-nav-search img {
+    background-color: #ffffff !important;
 }
 
-div.literal-block-wrapper.container {
-  width: 100%;
+.highlight {
+  background: #f1f3f4;
 }
 
-.red {
-  color: red;
+.navbar {
+  background: #ffffff;
 }
 
-table {
-  border: 0;
+.navbar-nav {
+  background: #ffffff;
 }
 
-td, th {
-  padding: 1px 8px 1px 5px;
-  border-top: 0;
-  border-bottom: 1px solid #aaa;
-  border-left: 0;
-  border-right: 0;
+/* side bar */
+.wy-nav-side {
+  background: #f1f3f4;
+}
+
+.wy-menu-vertical a {
+  color: #707070;
+}
+
+.wy-side-nav-search div.version {
+  color: #404040;
 }

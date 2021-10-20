@@ -522,14 +522,7 @@ XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation
 
 * Python dependencies
 
-  - sphinx
-  - breathe
-  - guzzle_sphinx_theme
-  - recommonmark
-  - mock
-  - sh
-  - graphviz
-  - matplotlib
+  Checkout the ``requirements.txt`` file under ``doc/``
 
 Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the format you want.  For a list of supported formats, run ``make help`` under the same directory.
 
