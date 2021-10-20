@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.spark.ml.linalg.Vectors
 import org.scalatest.FunSuite
+import ml.dmlc.xgboost4j.scala.spark.DataUtils.PackedParams
 
 import org.apache.spark.sql.functions._
 
@@ -55,13 +56,13 @@ class DeterministicPartitioningSuite extends FunSuite with TmpFolderPerSuite wit
       resultDF
     })
     val transformedRDDs = transformedDFs.map(df => DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col("label"),
-      col("features"),
-      lit(1.0),
-      lit(Float.NaN),
-      None,
-      numWorkers,
-      deterministicPartition = true,
+      PackedParams(col("label"),
+        col("features"),
+        lit(1.0),
+        lit(Float.NaN),
+        None,
+        numWorkers,
+        deterministicPartition = true),
       df
     ).head)
     val resultsMaps = transformedRDDs.map(rdd => rdd.mapPartitionsWithIndex {
@@ -90,14 +91,13 @@ class DeterministicPartitioningSuite extends FunSuite with TmpFolderPerSuite wit
     val df = ss.createDataFrame(sc.parallelize(dataset)).toDF("id", "label", "features")
 
     val dfRepartitioned = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col("label"),
-      col("features"),
-      lit(1.0),
-      lit(Float.NaN),
-      None,
-      10,
-      deterministicPartition = true,
-      df
+      PackedParams(col("label"),
+        col("features"),
+        lit(1.0),
+        lit(Float.NaN),
+        None,
+        10,
+        deterministicPartition = true), df
     ).head
 
     val partitionsSizes = dfRepartitioned
