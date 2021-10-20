@@ -192,30 +192,35 @@ struct EvalRank : public Metric, public EvalRankConfig {
       }
     }
 
+    CHECK(tparam_);
+    std::vector<double> sum_tloc(tparam_->Threads(), 0.0);
+
     if (!rank_gpu_ || tparam_->gpu_id < 0) {
       const auto &labels = info.labels_.ConstHostVector();
       const auto &h_preds = preds.ConstHostVector();
 
       dmlc::OMPException exc;
-      #pragma omp parallel reduction(+:sum_metric)
+#pragma omp parallel num_threads(tparam_->Threads())
       {
         exc.Run([&]() {
           // each thread takes a local rec
           PredIndPairContainer rec;
-          #pragma omp for schedule(static)
+#pragma omp for schedule(static)
           for (bst_omp_uint k = 0; k < ngroups; ++k) {
             exc.Run([&]() {
               rec.clear();
               for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
                 rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
               }
-              sum_metric += this->EvalGroup(&rec);
+              sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
             });
           }
         });
       }
       exc.Rethrow();
     }
+
+    sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
 
     if (distributed) {
       bst_float dat[2];
