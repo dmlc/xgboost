@@ -171,27 +171,16 @@ class XGBoostRegressor (
       set(objectiveType, "regression")
     }
 
-    val weight = if (!isDefined(weightCol) || $(weightCol).isEmpty) lit(1.0) else col($(weightCol))
-    val baseMargin = if (!isDefined(baseMarginCol) || $(baseMarginCol).isEmpty) {
-      lit(Float.NaN)
-    } else {
-      col($(baseMarginCol))
-    }
-    val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
-    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
-      $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
-    val evalRDDMap = getEvalSets(xgboostParams).map {
-      case (name, dataFrame) => (name,
-        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
-          dataFrame).head)
-    }
     transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = MLlib2XGBoostParams
+
+    // Packing with all params plus params user defined
+    val derivedXGBParamMap = xgboostParams ++ MLlib2XGBoostParams
+    val buildTrainingData = PreXGBoost.buildDatasetToRDD(this, dataset, derivedXGBParamMap)
+
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
-      hasGroup = group != lit(-1), evalRDDMap)
+    val (_booster, _metrics) = XGBoost.trainDistributed(dataset.sparkSession.sparkContext,
+      buildTrainingData, derivedXGBParamMap)
+
     val model = new XGBoostRegressionModel(uid, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
@@ -260,7 +249,7 @@ class XGBoostRegressionModel private[ml] (
    */
   override def predict(features: Vector): Double = {
     import DataUtils._
-    val dm = new DMatrix(XGBoost.processMissingValues(
+    val dm = new DMatrix(processMissingValues(
       Iterator(features.asXGB),
       $(missing),
       $(allowNonZeroForMissing)
@@ -301,7 +290,7 @@ class XGBoostRegressionModel private[ml] (
           }
 
           val dm = new DMatrix(
-            XGBoost.processMissingValues(
+            processMissingValues(
               features.map(_.asXGB),
               $(missing),
               $(allowNonZeroForMissing)
