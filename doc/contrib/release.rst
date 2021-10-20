@@ -18,13 +18,20 @@ Making a Release
 
 1. Create an issue for the release, noting the estimated date and expected features or major fixes, pin that issue.
 2. Bump release version.
+
    1. Modify ``CMakeLists.txt`` in source tree and ``cmake/Python_version.in`` if needed, run CMake.
+
    2. Modify ``DESCRIPTION`` in R-package.
+
    3. Run ``change_version.sh`` in ``jvm-packages/dev``
+
 3. Commit the change, create a PR on GitHub on release branch.  Port the bumped version to default branch, optionally with the postfix ``SNAPSHOT``.
 4. Create a tag on release branch, either on GitHub or locally.
 5. Make a release on GitHub tag page, which might be done with previous step if the tag is created on GitHub.
 6. Submit pip, CRAN, and Maven packages.
-   - The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`_ and `Jiaming Yuan <https://github.com/trivialfis>`_.  There's a helper script for downloading pre-built wheels  and R packages ``xgboost/dev/release-pypi-r.py`` along with simple instructions for using ``twine``.
-   - The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_.
-   - The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_ and `Hyunsu Cho <https://github.com/hcho3>`_.
+
+   + The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`_ and `Jiaming Yuan <https://github.com/trivialfis>`_.  There's a helper script for downloading pre-built wheels  and R packages ``xgboost/dev/release-pypi-r.py`` along with simple instructions for using ``twine``.
+
+   + The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_.
+
+   + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_ and `Hyunsu Cho <https://github.com/hcho3>`_.
