@@ -53,10 +53,6 @@ General Parameters
 
   - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
-* ``num_pbuffer`` [set automatically by XGBoost, no need to be set by user]
-
-  - Size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step.
-
 * ``num_feature`` [set automatically by XGBoost, no need to be set by user]
 
   - Feature dimension used in boosting, set to maximum dimension of the feature
