@@ -235,6 +235,12 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
 
   detail::SortByWeight(&temp_weights, &sorted_entries);
 
+  if (sketch_container->HasCategorical()) {
+    auto d_cuts_ptr = cuts_ptr.DeviceSpan();
+    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
+                                       &sorted_entries, &column_sizes_scan);
+  }
+
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
