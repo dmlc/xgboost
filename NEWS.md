@@ -3,6 +3,241 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.5.0 (2021 Oct 11)
+
+This release comes with many exciting new features and optimizations, along with some bug
+fixes.  We will describe the experimental categorical data support and the external memory
+interface independently. Package-specific new features will be listed in respective
+sections.
+
+### Development on categorical data support
+In version 1.3, XGBoost introduced an experimental feature for handling categorical data
+natively, without one-hot encoding. XGBoost can fit categorical splits in decision
+trees. (Currently, the generated splits will be of form `x \in {v}`, where the input is
+compared to a single category value. A future version of XGBoost will generate splits that
+compare the input against a list of multiple category values.)
+
+Most of the other features, including prediction, SHAP value computation, feature
+importance, and model plotting were revised to natively handle categorical splits.  Also,
+all Python interfaces including native interface with and without quantized `DMatrix`,
+scikit-learn interface, and Dask interface now accept categorical data with a wide range
+of data structures support including numpy/cupy array and cuDF/pandas/modin dataframe.  In
+practice, the following are required for enabling categorical data support during
+training:
+
+  - Use Python package.
+  - Use `gpu_hist` to train the model.
+  - Use JSON model file format for saving the model.
+
+Once the model is trained, it can be used with most of the features that are available on
+the Python package.  For a quick introduction, see
+https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
+
+Related PRs: (#7011, #7001, #7042, #7041, #7047, #7043, #7036, #7054, #7053, #7065, #7213, #7228, #7220, #7221, #7231, #7306)
+
+* Next steps
+
+	- Revise the CPU training algorithm to handle categorical data natively and generate categorical splits
+	- Extend the CPU and GPU algorithms to generate categorical splits of form `x \in S`
+	where the input is compared with multiple category values.  split. (#7081)
+
+### External memory
+This release features a brand-new interface and implementation for external memory (also
+known as out-of-core training).  (#6901, #7064, #7088, #7089, #7087, #7092, #7070,
+#7216). The new implementation leverages the data iterator interface, which is currently
+used to create `DeviceQuantileDMatrix`. For a quick introduction, see
+https://xgboost.readthedocs.io/en/latest/tutorials/external_memory.html#data-iterator
+. During the development of this new interface, `lz4` compression is removed. (#7076).
+Please note that external memory support is still experimental and not ready for
+production use yet.  All future development will focus on this new interface and users are
+advised to migrate. (You are using the old interface if you are using a URL suffix to use
+external memory.)
+
+### New features in Python package
+* Support numpy array interface and all numeric types from numpy in `DMatrix`
+  construction and `inplace_predict` (#6998, #7003).  Now XGBoost no longer makes data
+  copy when input is numpy array view.
+* The early stopping callback in Python has a new `min_delta` parameter to control the
+  stopping behavior (#7137)
+* Python package now supports calculating feature scores for the linear model, which is
+  also available on R package. (#7048)
+* Python interface now supports configuring constraints using feature names instead of
+  feature indices.
+* Typehint support for more Python code including scikit-learn interface and rabit
+  module. (#6799, #7240)
+* Add tutorial for XGBoost-Ray (#6884)
+
+### New features in R package
+* In 1.4 we have a new prediction function in the C API which is used by the Python
+  package.  This release revises the R package to use the new prediction function as well.
+  A new parameter `iteration_range` for the predict function is available, which can be
+  used for specifying the range of trees for running prediction. (#6819, #7126)
+* R package now supports the `nthread` parameter in `DMatrix` construction. (#7127)
+
+### New features in JVM packages
+* Support GPU dataframe and `DeviceQuantileDMatrix` (#7195).  Constructing `DMatrix`
+  with GPU data structures and the interface for quantized `DMatrix` were first
+  introduced in the Python package and are now available in the xgboost4j package.
+* JVM packages now support saving and getting early stopping attributes. (#7095) Here is a
+  quick [example](https://github.com/dmlc/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/EarlyStopping.java "example") in JAVA (#7252).
+
+### General new features
+* We now have a pre-built binary package for R on Windows with GPU support. (#7185)
+* CUDA compute capability 86 is now part of the default CMake build configuration with
+  newly added support for CUDA 11.4. (#7131, #7182, #7254)
+* XGBoost can be compiled using system CUB provided by CUDA 11.x installation. (#7232)
+
+### Optimizations
+The performance for both `hist` and `gpu_hist` has been significantly improved in 1.5
+with the following optimizations:
+* GPU multi-class model training now supports prediction cache. (#6860)
+* GPU histogram building is sped up and the overall training time is 2-3 times faster on
+  large datasets (#7180, #7198).  In addition, we removed the parameter `deterministic_histogram` and now
+  the GPU algorithm is always deterministic.
+* CPU hist has an optimized procedure for data sampling (#6922)
+* More performance optimization in regression and binary classification objectives on
+  CPU (#7206)
+* Tree model dump is now performed in parallel (#7040)
+
+### Breaking changes
+* `n_gpus` was deprecated in 1.0 release and is now removed.
+* Feature grouping in CPU hist tree method is removed, which was disabled long
+  ago. (#7018)
+* C API for Quantile DMatrix is changed to be consistent with the new external memory
+  implementation. (#7082)
+
+### Notable general bug fixes
+* XGBoost no long changes global CUDA device ordinal when `gpu_id` is specified (#6891,
+  #6987)
+* Fix `gamma` negative likelihood evaluation metric. (#7275)
+* Fix integer value of `verbose_eal` for `xgboost.cv` function in Python. (#7291)
+* Remove extra sync in CPU hist for dense data, which can lead to incorrect tree node
+  statistics. (#7120, #7128)
+* Fix a bug in GPU hist when data size is larger than `UINT32_MAX` with missing
+  values. (#7026)
+* Fix a thread safety issue in prediction with the `softmax` objective. (#7104)
+* Fix a thread safety issue in CPU SHAP value computation. (#7050) Please note that all
+  prediction functions in Python are thread-safe.
+* Fix model slicing. (#7149, #7078)
+* Workaround a bug in old GCC which can lead to segfault during construction of
+  DMatrix. (#7161)
+* Fix histogram truncation in GPU hist, which can lead to slightly-off results. (#7181)
+* Fix loading GPU linear model pickle files on CPU-only machine. (#7154)
+* Check input value is duplicated when CPU quantile queue is full (#7091)
+* Fix parameter loading with training continuation. (#7121)
+* Fix CMake interface for exposing C library by specifying dependencies. (#7099)
+* Callback and early stopping are explicitly disabled for the scikit-learn interface
+  random forest estimator. (#7236)
+* Fix compilation error on x86 (32-bit machine) (#6964)
+* Fix CPU memory usage with extremely sparse datasets (#7255)
+* Fix a bug in GPU multi-class AUC implementation with weighted data (#7300)
+
+### Python package
+Other than the items mentioned in the previous sections, there are some Python-specific
+improvements.
+* Change development release postfix to `dev` (#6988)
+* Fix early stopping behavior with MAPE metric (#7061)
+* Fixed incorrect feature mismatch error message (#6949)
+* Add predictor to skl constructor. (#7000, #7159)
+* Re-enable feature validation in predict proba. (#7177)
+* scikit learn interface regression estimator now can pass the scikit-learn estimator
+  check and is fully compatible with scikit-learn utilities.  `__sklearn_is_fitted__` is
+  implemented as part of the changes (#7130, #7230)
+* Conform the latest pylint. (#7071, #7241)
+* Support latest panda range index in DMatrix construction. (#7074)
+* Fix DMatrix construction from pandas series. (#7243)
+* Fix typo and grammatical mistake in error message (#7134)
+* [dask] disable work stealing explicitly for training tasks (#6794)
+* [dask] Set dataframe index in predict. (#6944)
+* [dask] Fix prediction on df with latest dask. (#6969)
+* [dask] Fix dask predict on `DaskDMatrix` with `iteration_range`. (#7005)
+* [dask] Disallow importing non-dask estimators from xgboost.dask (#7133)
+
+### R package
+Improvements other than new features on R package:
+* Optimization for updating R handles in-place (#6903)
+* Removed the magrittr dependency. (#6855, #6906, #6928)
+* The R package now hides all C++ symbols to avoid conflicts. (#7245)
+* Other maintenance including code cleanups, document updates. (#6863, #6915, #6930, #6966, #6967)
+
+### JVM packages
+Improvements other than new features on JVM packages:
+* Constructors with implicit missing value are deprecated due to confusing behaviors. (#7225)
+* Reduce scala-compiler, scalatest dependency scopes (#6730)
+* Making the Java library loader emit helpful error messages on missing dependencies. (#6926)
+* JVM packages now use the Python tracker in XGBoost instead of dmlc.  The one in XGBoost
+  is shared between JVM packages and Python Dask and enjoys better maintenance (#7132)
+* Fix "key not found: train" error (#6842)
+* Fix model loading from stream (#7067)
+
+### General document improvements
+* Overhaul the installation documents. (#6877)
+* A few demos are added for AFT with dask (#6853), callback with dask (#6995), inference
+  in C (#7151), `process_type`. (#7135)
+* Fix PDF format of document. (#7143)
+* Clarify the behavior of `use_rmm`. (#6808)
+* Clarify prediction function. (#6813)
+* Improve tutorial on feature interactions (#7219)
+* Add small example for dask sklearn interface. (#6970)
+* Update Python intro.  (#7235)
+* Some fixes/updates (#6810, #6856, #6935, #6948, #6976, #7084, #7097, #7170, #7173, #7174, #7226, #6979, #6809, #6796, #6979)
+
+### Maintenance
+* Some refactoring around CPU hist, which lead to better performance but are listed under general maintenance tasks:
+  - Extract evaluate splits from CPU hist. (#7079)
+  - Merge lossgude and depthwise strategies for CPU hist (#7007)
+  - Simplify sparse and dense CPU hist kernels (#7029)
+  - Extract histogram builder from CPU Hist. (#7152)
+
+* Others
+  - Fix `gpu_id` with custom objective. (#7015)
+  - Fix typos in AUC. (#6795)
+  - Use constexpr in `dh::CopyIf`. (#6828)
+  - Update dmlc-core. (#6862)
+  - Bump version to 1.5.0 snapshot in master. (#6875)
+  - Relax shotgun test. (#6900)
+  - Guard against index error in prediction. (#6982)
+  - Hide symbols in CI build + hide symbols for C and CUDA (#6798)
+  - Persist data in dask test. (#7077)
+  - Fix typo in arguments of PartitionBuilder::Init (#7113)
+  - Fix typo in src/common/hist.cc BuildHistKernel (#7116)
+  - Use upstream URI in distributed quantile tests. (#7129)
+  - Include cpack (#7160)
+  - Remove synchronization in monitor. (#7164)
+  - Remove unused code. (#7175)
+  - Fix building on CUDA 11.0. (#7187)
+  - Better error message for `ncclUnhandledCudaError`. (#7190)
+  - Add noexcept to JSON objects. (#7205)
+  - Improve wording for warning (#7248)
+  - Fix typo in release script. [skip ci] (#7238)
+  - Relax shotgun test. (#6918)
+  - Relax test for decision stump in distributed environment. (#6919)
+  -	[dask] speed up tests (#7020)
+
+### CI
+* [CI] Rotate access keys for uploading MacOS artifacts from Travis CI (#7253)
+* Reduce Travis environment setup time. (#6912)
+* Restore R cache on github action. (#6985)
+* [CI] Remove stray build artifact to avoid error in artifact packaging (#6994)
+* [CI] Move appveyor tests to action (#6986)
+* Remove appveyor badge. [skip ci] (#7035)
+* [CI] Configure RAPIDS, dask, modin (#7033)
+* Test on s390x. (#7038)
+* [CI] Upgrade to CMake 3.14 (#7060)
+* [CI] Update R cache. (#7102)
+* [CI] Pin libomp to 11.1.0  (#7107)
+* [CI] Upgrade build image to CentOS 7 + GCC 8; require CUDA 10.1 and later (#7141)
+* [dask] Work around segfault in prediction. (#7112)
+* [dask] Remove the workaround for segfault. (#7146)
+* [CI] Fix hanging Python setup in Windows CI (#7186)
+* [CI] Clean up in beginning of each task in Win CI (#7189)
+* Fix travis. (#7237)
+
+### Acknowledgement
+* **Contributors**: Adam Pocock (@Craigacp), Jeff H (@JeffHCross), Johan Hansson (@JohanWork), Jose Manuel Llorens (@JoseLlorensRipolles), Benjamin Szőke (@Livius90), @ReeceGoding, @ShvetsKS, Robert Zabel (@ZabelTech), Ali (@ali5h), Andrew Ziem (@az0), Andy Adinets (@canonizer), @david-cortes, Daniel Saxton (@dsaxton), Emil Sadek (@esadek), @farfarawayzyt, Gil Forsyth (@gforsyth), @giladmaya, @graue70, Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), José Morales (@jmoralez), Kai Fricke (@krfricke), Christian Lorentzen (@lorentzenchr), Mads R. B. Kristensen (@madsbk), Anton Kostin (@masguit42), Martin Petříček (@mpetricek-corp), @naveenkb, Taewoo Kim (@oOTWK), Viktor Szathmáry (@phraktle), Robert Maynard (@robertmaynard), TP Boudreau (@tpboudreau), Jiaming Yuan (@trivialfis), Paul Taylor (@trxcllnt), @vslaykovsky, Bobby Wang (@wbo4958),
+* **Reviewers**: Nan Zhu (@CodingCat), Adam Pocock (@Craigacp), Jose Manuel Llorens (@JoseLlorensRipolles), Kodi Arfer (@Kodiologist), Benjamin Szőke (@Livius90), Mark Guryanov (@MarkGuryanov), Rory Mitchell (@RAMitchell), @ReeceGoding, @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Andrew Ziem (@az0), @candalfigomoro, Andy Adinets (@canonizer), Dante Gama Dessavre (@dantegd), @david-cortes, Daniel Saxton (@dsaxton), @farfarawayzyt, Gil Forsyth (@gforsyth), Harutaka Kawamura (@harupy), Philip Hyunsu Cho (@hcho3), @jakirkham, James Lamb (@jameslamb), José Morales (@jmoralez), James Bourbeau (@jrbourbeau), Christian Lorentzen (@lorentzenchr), Martin Petříček (@mpetricek-corp), Nikolay Petrov (@napetrov), @naveenkb, Viktor Szathmáry (@phraktle), Robin Teuwens (@rteuwens), Yuan Tang (@terrytangyuan), TP Boudreau (@tpboudreau), Jiaming Yuan (@trivialfis), @vkuzmin-uber, Bobby Wang (@wbo4958), William Hicks (@wphicks)
+
+
 ## v1.4.2 (2021.05.13)
 This is a patch release for Python package with following fixes:
 
