@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -92,7 +92,6 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
   }
 
   test("test persistence of MLlib pipeline with XGBoostClassificationModel") {
-
     val r = new Random(0)
     // maybe move to shared context, but requires session to import implicits
     val df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
@@ -131,6 +130,45 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     assert(xgbModel.getEta === xgbModel2.getEta)
     assert(xgbModel.getNumRound === xgbModel2.getNumRound)
     assert(xgbModel.getRawPredictionCol === xgbModel2.getRawPredictionCol)
+  }
+
+  test("test persistence of XGBoostClassifier and XGBoostClassificationModel " +
+      "using custom Eval and Obj") {
+    val trainingDF = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "custom_eval" -> new EvalError, "custom_obj" -> new CustomObj(1),
+      "num_round" -> "10", "num_workers" -> numWorkers)
+
+    val xgbc = new XGBoostClassifier(paramMap)
+    val xgbcPath = new File(tempDir.toFile, "xgbc").getPath
+    xgbc.write.overwrite().save(xgbcPath)
+    val xgbc2 = XGBoostClassifier.load(xgbcPath)
+    val paramMap2 = xgbc2.MLlib2XGBoostParams
+    paramMap.foreach {
+      case ("custom_eval", v) => assert(v.isInstanceOf[EvalError])
+      case ("custom_obj", v) =>
+        assert(v.isInstanceOf[CustomObj])
+        assert(v.asInstanceOf[CustomObj].customParameter ==
+          paramMap2("custom_obj").asInstanceOf[CustomObj].customParameter)
+      case (_, _) =>
+    }
+
+    val eval = new EvalError()
+
+    val model = xgbc.fit(trainingDF)
+    val evalResults = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
+    assert(evalResults < 0.1)
+    val xgbcModelPath = new File(tempDir.toFile, "xgbcModel").getPath
+    model.write.overwrite.save(xgbcModelPath)
+    val model2 = XGBoostClassificationModel.load(xgbcModelPath)
+    assert(Arrays.equals(model._booster.toByteArray, model2._booster.toByteArray))
+
+    assert(model.getEta === model2.getEta)
+    assert(model.getNumRound === model2.getNumRound)
+    assert(model.getRawPredictionCol === model2.getRawPredictionCol)
+    val evalResults2 = eval.eval(model2._booster.predict(testDM, outPutMargin = true), testDM)
+    assert(evalResults === evalResults2)
   }
 
   test("cross-version model loading (0.82)") {

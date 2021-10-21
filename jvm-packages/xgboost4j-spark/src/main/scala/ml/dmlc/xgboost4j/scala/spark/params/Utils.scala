@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
+import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, TypeHints}
+
 // based on org.apache.spark.util copy /paste
 private[spark] object Utils {
 
@@ -29,5 +31,41 @@ private[spark] object Utils {
   def classForName(className: String): Class[_] = {
     Class.forName(className, true, getContextOrSparkClassLoader)
     // scalastyle:on classforname
+  }
+
+  /**
+   * Get the TypeHints according to the value
+   * @param value the instance of class to be serialized
+   * @return if value is null,
+   *            return NoTypeHints
+   *         else return the FullTypeHints.
+   *
+   *         The FullTypeHints will save the full class name into the "jsonClass" of the json,
+   *         so we can find the jsonClass and turn it to FullTypeHints when deserializing.
+   */
+  def getTypeHintsFromClass(value: Any): TypeHints = {
+    if (value == null) { // XGBoost will save the default value (null)
+      NoTypeHints
+    } else {
+      FullTypeHints(List(value.getClass))
+    }
+  }
+
+  /**
+   * Get the TypeHints according to the saved jsonClass field
+   * @param json
+   * @return TypeHints
+   */
+  def getTypeHintsFromJsonClass(json: JValue): TypeHints = {
+    val jsonClassField = json findField {
+      case JField("jsonClass", _) => true
+      case _ => false
+    }
+
+    jsonClassField.map { field =>
+      implicit val formats = DefaultFormats
+      val className = field._2.extract[String]
+      FullTypeHints(List(Utils.classForName(className)))
+    }.getOrElse(NoTypeHints)
   }
 }
