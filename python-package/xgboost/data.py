@@ -218,16 +218,22 @@ _pandas_dtype_mapper = {
 
 
 def _invalid_dataframe_dtype(data) -> None:
-    bad_fields = [
-        str(data.columns[i])
-        for i, dtype in enumerate(data.dtypes)
-        if dtype.name not in _pandas_dtype_mapper
-    ]
+    # pandas series has `dtypes` but it's just a single object
+    # cudf series doesn't have `dtypes`.
+    if hasattr(data, "dtypes") and hasattr(data.dtypes, "__iter__"):
+        bad_fields = [
+            str(data.columns[i])
+            for i, dtype in enumerate(data.dtypes)
+            if dtype.name not in _pandas_dtype_mapper
+        ]
+        err = " Invalid columns:" + ", ".join(bad_fields)
+    else:
+        err = ""
 
     msg = """DataFrame.dtypes for data must be int, float, bool or category.  When
 categorical type is supplied, DMatrix parameter `enable_categorical` must
-be set to `True`.  Bad fields: """
-    raise ValueError(msg + ", ".join(bad_fields))
+be set to `True`.""" + err
+    raise ValueError(msg)
 
 
 def _transform_pandas_df(
@@ -327,13 +333,26 @@ def _is_modin_series(data):
 
 def _from_pandas_series(
     data,
-    missing,
-    nthread,
+    missing: float,
+    nthread: int,
+    enable_categorical: bool,
     feature_names: Optional[List[str]],
     feature_types: Optional[List[str]],
 ):
+    from pandas.api.types import is_categorical_dtype
+
+    if (data.dtype.name not in _pandas_dtype_mapper) and not (
+        is_categorical_dtype(data.dtype) and enable_categorical
+    ):
+        _invalid_dataframe_dtype(data)
+    if enable_categorical and is_categorical_dtype(data.dtype):
+        data = data.cat.codes
     return _from_numpy_array(
-        data.values.astype("float"), missing, nthread, feature_names, feature_types
+        data.values.reshape(data.shape[0], 1).astype("float"),
+        missing,
+        nthread,
+        feature_names,
+        feature_types,
     )
 
 
@@ -523,8 +542,9 @@ def _transform_cudf_df(
     # handle categorical data
     cat_codes = []
     if _is_cudf_ser(data):
+        # unlike pandas, cuDF uses NA for missing data.
         if is_categorical_dtype(data.dtype) and enable_categorical:
-            codes = data.cat.codes.astype(np.float32).replace(-1.0, np.NaN)
+            codes = data.cat.codes
             cat_codes.append(codes)
     else:
         for col in data:
@@ -751,8 +771,9 @@ def dispatch_data_backend(
         return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)
     if _is_pandas_series(data):
-        return _from_pandas_series(data, missing, threads, feature_names,
-                                   feature_types)
+        return _from_pandas_series(
+            data, missing, threads, enable_categorical, feature_names, feature_types
+        )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(
             data, missing, threads, feature_names, feature_types, enable_categorical
@@ -776,8 +797,9 @@ def dispatch_data_backend(
         return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)
     if _is_modin_series(data):
-        return _from_pandas_series(data, missing, threads, feature_names,
-                                   feature_types)
+        return _from_pandas_series(
+            data, missing, threads, enable_categorical, feature_names, feature_types
+        )
     if _has_array_protocol(data):
         array = np.asarray(data)
         return _from_numpy_array(array, missing, threads, feature_names, feature_types)

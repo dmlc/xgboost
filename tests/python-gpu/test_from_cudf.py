@@ -209,6 +209,14 @@ Arrow specification.'''
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
+        X = X["f0"]
+        with pytest.raises(ValueError):
+            xgb.DMatrix(X, y)
+
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        assert Xy.num_row() == 3
+        assert Xy.num_col() == 1
+
 
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_cupy())
