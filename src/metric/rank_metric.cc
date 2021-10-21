@@ -217,10 +217,9 @@ struct EvalRank : public Metric, public EvalRankConfig {
           }
         });
       }
+      sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
       exc.Rethrow();
     }
-
-    sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
 
     if (distributed) {
       bst_float dat[2];
