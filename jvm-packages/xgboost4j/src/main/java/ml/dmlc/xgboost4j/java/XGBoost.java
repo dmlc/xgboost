@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import java.util.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 
 /**
  * trainer for xgboost
@@ -253,13 +252,14 @@ public class XGBoost {
             booster.setAttr("best_score", String.valueOf(bestScore));
           }
         }
-        if (earlyStoppingRounds > 0) {
-          if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
+        if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
+          if (shouldPrint(params, iter)) {
             Rabit.trackerPrint(String.format(
-                    "early stopping after %d rounds away from the best iteration",
-                    earlyStoppingRounds));
-            break;
+                "early stopping after %d rounds away from the best iteration",
+                earlyStoppingRounds
+            ));
           }
+          break;
         }
         if (Rabit.getRank() == 0 && shouldPrint(params, iter)) {
           if (shouldPrint(params, iter)){
@@ -352,6 +352,9 @@ public class XGBoost {
   }
 
   static boolean shouldEarlyStop(int earlyStoppingRounds, int iter, int bestIteration) {
+    if (earlyStoppingRounds <= 0) {
+      return false;
+    }
     return iter - bestIteration >= earlyStoppingRounds;
   }
 
