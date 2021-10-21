@@ -479,10 +479,15 @@ def _transform_cudf_df(
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
 
+    if _is_cudf_ser(data):
+        dtypes = [data.dtype]
+    else:
+        dtypes = data.dtypes
+
     if not all(
         dtype.name in _pandas_dtype_mapper
         or (is_categorical_dtype(dtype) and enable_categorical)
-        for dtype in data.dtypes
+        for dtype in dtypes
     ):
         _invalid_dataframe_dtype(data)
 
@@ -505,10 +510,6 @@ def _transform_cudf_df(
     # handle feature types
     if feature_types is None:
         feature_types = []
-        if _is_cudf_ser(data):
-            dtypes = [data.dtype]
-        else:
-            dtypes = data.dtypes
         for dtype in dtypes:
             if is_categorical_dtype(dtype) and enable_categorical:
                 feature_types.append(CAT_T)
