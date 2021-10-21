@@ -988,7 +988,7 @@ def _proxy_transform(
     if _is_numpy_array(data):
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
-        return data, feature_names, feature_types
+        return data, None, feature_names, feature_types
     if _is_pandas_df(data):
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
