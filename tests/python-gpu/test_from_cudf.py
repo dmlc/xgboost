@@ -205,6 +205,10 @@ Arrow specification.'''
         with pytest.raises(ValueError):
             xgb.DeviceQuantileDMatrix(X, y)
 
+        Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
+        assert Xy.num_row() == 3
+        assert Xy.num_col() == 1
+
 
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_cupy())
