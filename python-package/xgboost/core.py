@@ -1109,7 +1109,7 @@ class _ProxyDMatrix(DMatrix):
         """Set data from CUDA columnar format."""
         from .data import _cudf_array_interfaces
 
-        _, interfaces_str = _cudf_array_interfaces(data, enable_categorical)
+        self.codes, interfaces_str = _cudf_array_interfaces(data, enable_categorical)
         _check_call(_LIB.XGProxyDMatrixSetDataCudaColumnar(self.handle, interfaces_str))
 
     def _set_data_from_array(self, data: np.ndarray):
