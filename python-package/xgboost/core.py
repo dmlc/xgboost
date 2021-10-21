@@ -400,11 +400,6 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         ) -> None:
             from .data import dispatch_proxy_set_data
             from .data import _proxy_transform
-            ec = kwargs.get("enable_categorical", None)
-            if ec is not None and ec != self._enable_categorical:
-                raise ValueError(
-                    "`enable_categorical` should be specifed in DMatrix constructor"
-                )
 
             new, cat_codes, feature_names, feature_types = _proxy_transform(
                 data,
