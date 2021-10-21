@@ -437,7 +437,7 @@ def _is_cudf_df(data):
     return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
-def _cudf_array_interfaces(data, enable_categorical: bool) -> Tuple[list, bytes]:
+def _cudf_array_interfaces(data, cat_codes: list) -> Tuple[list, bytes]:
     """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
     data and a list of array interfaces.  The data is list of categorical codes that
     caller can safely ignore, but have to keep their reference alive until usage of array
@@ -449,25 +449,20 @@ def _cudf_array_interfaces(data, enable_categorical: bool) -> Tuple[list, bytes]
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
 
-    cat_codes = []
     interfaces = []
     if _is_cudf_ser(data):
-        if is_categorical_dtype(data.dtype) and enable_categorical:
-            codes = data.cat.codes.astype(np.float32).replace(-1.0, np.NaN)
-            cat_codes.append(codes)
-            interface = codes.__cuda_array_interface__
+        if is_categorical_dtype(data.dtype):
+            interface = cat_codes[0].__cuda_array_interface__
         else:
             interface = data.__cuda_array_interface__
         if "mask" in interface:
             interface["mask"] = interface["mask"].__cuda_array_interface__
         interfaces.append(interface)
     else:
-        for col in data:
-            if is_categorical_dtype(data[col].dtype) and enable_categorical:
-                codes = data[col].cat.codes.astype(np.float32).replace(-1.0, np.NaN)
-                print(codes, codes.shape)
+        for i, col in enumerate(data):
+            if is_categorical_dtype(data[col].dtype):
+                codes = cat_codes[i]
                 interface = codes.__cuda_array_interface__
-                cat_codes.append(codes)
             else:
                 interface = data[col].__cuda_array_interface__
             if "mask" in interface:
@@ -525,7 +520,19 @@ def _transform_cudf_df(
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 
-    return data, feature_names, feature_types
+    # handle categorical data
+    cat_codes = []
+    if _is_cudf_ser(data):
+        if is_categorical_dtype(data.dtype) and enable_categorical:
+            codes = data.cat.codes.astype(np.float32).replace(-1.0, np.NaN)
+            cat_codes.append(codes)
+    else:
+        for col in data:
+            if is_categorical_dtype(data[col].dtype) and enable_categorical:
+                codes = data[col].cat.codes.astype(np.float32).replace(-1.0, np.NaN)
+                cat_codes.append(codes)
+
+    return (data, cat_codes), feature_names, feature_types
 
 
 def _from_cudf_df(
@@ -536,10 +543,10 @@ def _from_cudf_df(
     feature_types: Optional[List[str]],
     enable_categorical: bool,
 ) -> Tuple[ctypes.c_void_p, Any, Any]:
-    data, feature_names, feature_types = _transform_cudf_df(
+    (data, cat_codes), feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
-    _, interfaces_str = _cudf_array_interfaces(data, enable_categorical)
+    _, interfaces_str = _cudf_array_interfaces(data, cat_codes)
     handle = ctypes.c_void_p()
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
@@ -970,11 +977,16 @@ def _proxy_transform(
 
 
 def dispatch_proxy_set_data(
-    proxy: _ProxyDMatrix, data: Any, allow_host: bool, enable_categorical: bool
+    proxy: _ProxyDMatrix,
+    data: Any,
+    cat_codes: list,
+    allow_host: bool,
+    enable_categorical: bool
 ) -> None:
     """Dispatch for DeviceQuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
+
     if _is_cudf_df(data):
         # pylint: disable=W0212
         proxy._set_data_from_cuda_columnar(data, enable_categorical)
