@@ -189,8 +189,21 @@ Arrow specification.'''
         # test missing value
         X = cudf.DataFrame({"f0": ["a", "b", np.NaN]})
         X["f0"] = X["f0"].astype("category")
-        arr, _, _ = xgb.data._cudf_array_interfaces(X, enable_categorical=True)
-        assert not np.any(arr == -1)
+        df, cat_codes, _, _ = xgb.data._transform_cudf_df(
+            X, None, None, enable_categorical=True
+        )
+        for col in cat_codes:
+            assert col.has_nulls
+
+        y = [0, 1, 2]
+        with pytest.raises(ValueError):
+            xgb.DMatrix(X, y)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        assert Xy.num_row() == 3
+        assert Xy.num_col() == 1
+
+        with pytest.raises(ValueError):
+            xgb.DeviceQuantileDMatrix(X, y)
 
 
 @pytest.mark.skipif(**tm.no_cudf())

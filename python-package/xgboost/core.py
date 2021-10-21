@@ -373,7 +373,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
             raise exc  # pylint: disable=raising-bad-type
 
     def __del__(self) -> None:
-        assert self._temporary_data is None, self._temporary_data
+        assert self._temporary_data is None
         assert self._exception is None
 
     def _reset_wrapper(self, this: None) -> None:  # pylint: disable=unused-argument
@@ -406,17 +406,15 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
                     "`enable_categorical` should be specifed in DMatrix constructor"
                 )
 
-            transformed, feature_names, feature_types = _proxy_transform(
+            new, cat_codes, feature_names, feature_types = _proxy_transform(
                 data,
                 feature_names,
                 feature_types,
                 self._enable_categorical,
             )
             # Stage the data, meta info are copied inside C++ MetaInfo.
-            self._temporary_data = transformed
-            dispatch_proxy_set_data(
-                self.proxy, transformed, self._allow_host, self._enable_categorical
-            )
+            self._temporary_data = (new, cat_codes)
+            dispatch_proxy_set_data(self.proxy, new, cat_codes, self._allow_host)
             self.proxy.set_info(
                 feature_names=feature_names,
                 feature_types=feature_types,
@@ -1105,11 +1103,11 @@ class _ProxyDMatrix(DMatrix):
             _LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, interface_str)
         )
 
-    def _set_data_from_cuda_columnar(self, data, enable_categorical: bool) -> None:
+    def _set_data_from_cuda_columnar(self, data, cat_codes: list) -> None:
         """Set data from CUDA columnar format."""
         from .data import _cudf_array_interfaces
 
-        self.codes, interfaces_str = _cudf_array_interfaces(data, enable_categorical)
+        interfaces_str = _cudf_array_interfaces(data, cat_codes)
         _check_call(_LIB.XGProxyDMatrixSetDataCudaColumnar(self.handle, interfaces_str))
 
     def _set_data_from_array(self, data: np.ndarray):
@@ -2080,8 +2078,11 @@ class Booster(object):
             )
             return _prediction_output(shape, dims, preds, True)
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
-            from .data import _cudf_array_interfaces
-            _, interfaces_str = _cudf_array_interfaces(data, enable_categorical)
+            from .data import _cudf_array_interfaces, _transform_cudf_df
+            _data, cat_codes, _, _ = _transform_cudf_df(
+                data, None, None, enable_categorical
+            )
+            interfaces_str = _cudf_array_interfaces(data, cat_codes)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,

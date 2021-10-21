@@ -226,7 +226,7 @@ def _invalid_dataframe_dtype(data) -> None:
 
     msg = """DataFrame.dtypes for data must be int, float, bool or category.  When
 categorical type is supplied, DMatrix parameter `enable_categorical` must
-be set to `True`."""
+be set to `True`.  Bad fields: """
     raise ValueError(msg + ", ".join(bad_fields))
 
 
@@ -469,7 +469,7 @@ def _cudf_array_interfaces(data, cat_codes: list) -> Tuple[list, bytes]:
                 interface["mask"] = interface["mask"].__cuda_array_interface__
             interfaces.append(interface)
     interfaces_str = bytes(json.dumps(interfaces, indent=2), "utf-8")
-    return cat_codes, interfaces_str
+    return interfaces_str
 
 
 def _transform_cudf_df(
@@ -529,10 +529,10 @@ def _transform_cudf_df(
     else:
         for col in data:
             if is_categorical_dtype(data[col].dtype) and enable_categorical:
-                codes = data[col].cat.codes.astype(np.float32).replace(-1.0, np.NaN)
+                codes = data[col].cat.codes
                 cat_codes.append(codes)
 
-    return (data, cat_codes), feature_names, feature_types
+    return data, cat_codes, feature_names, feature_types
 
 
 def _from_cudf_df(
@@ -543,10 +543,10 @@ def _from_cudf_df(
     feature_types: Optional[List[str]],
     enable_categorical: bool,
 ) -> Tuple[ctypes.c_void_p, Any, Any]:
-    (data, cat_codes), feature_names, feature_types = _transform_cudf_df(
+    data, cat_codes, feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
-    _, interfaces_str = _cudf_array_interfaces(data, cat_codes)
+    interfaces_str = _cudf_array_interfaces(data, cat_codes)
     handle = ctypes.c_void_p()
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
@@ -910,8 +910,7 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_dt(data, name, dtype, handle)
         return
     if _is_modin_df(data):
-        data, _, _ = _transform_pandas_df(
-            data, False, meta=name, meta_type=dtype)
+        data, _, _ = _transform_pandas_df(data, False, meta=name, meta_type=dtype)
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_modin_series(data):
@@ -961,27 +960,26 @@ def _proxy_transform(
         )
     if _is_cupy_array(data):
         data = _transform_cupy_array(data)
-        return data, feature_names, feature_types
+        return data, None, feature_names, feature_types
     if _is_dlpack(data):
-        return _transform_dlpack(data), feature_names, feature_types
+        return _transform_dlpack(data), None, feature_names, feature_types
     if _is_numpy_array(data):
-        return data, feature_names, feature_types
+        return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
         return data, feature_names, feature_types
     if _is_pandas_df(data):
         arr, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
         )
-        return arr, feature_names, feature_types
+        return arr, None, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
 
 def dispatch_proxy_set_data(
     proxy: _ProxyDMatrix,
     data: Any,
-    cat_codes: list,
+    cat_codes: Optional[list],
     allow_host: bool,
-    enable_categorical: bool
 ) -> None:
     """Dispatch for DeviceQuantileDMatrix."""
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
@@ -989,11 +987,11 @@ def dispatch_proxy_set_data(
 
     if _is_cudf_df(data):
         # pylint: disable=W0212
-        proxy._set_data_from_cuda_columnar(data, enable_categorical)
+        proxy._set_data_from_cuda_columnar(data, cat_codes)
         return
     if _is_cudf_ser(data):
         # pylint: disable=W0212
-        proxy._set_data_from_cuda_columnar(data, enable_categorical)
+        proxy._set_data_from_cuda_columnar(data, cat_codes)
         return
     if _is_cupy_array(data):
         proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
