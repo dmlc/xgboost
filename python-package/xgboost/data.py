@@ -452,11 +452,20 @@ def _cudf_array_interfaces(data, enable_categorical: bool) -> Tuple[list, bytes]
     cat_codes = []
     interfaces = []
     if _is_cudf_ser(data):
-        interfaces.append(data.__cuda_array_interface__)
+        if is_categorical_dtype(data.dtype) and enable_categorical:
+            codes = data.cat.codes.astype(np.float32).replace(-1.0, np.NaN)
+            cat_codes.append(codes)
+            interface = codes.__cuda_array_interface__
+        else:
+            interface = data.__cuda_array_interface__
+        if "mask" in interface:
+            interface["mask"] = interface["mask"].__cuda_array_interface__
+        interfaces.append(interface)
     else:
         for col in data:
             if is_categorical_dtype(data[col].dtype) and enable_categorical:
                 codes = data[col].cat.codes.astype(np.float32).replace(-1.0, np.NaN)
+                print(codes, codes.shape)
                 interface = codes.__cuda_array_interface__
                 cat_codes.append(codes)
             else:
