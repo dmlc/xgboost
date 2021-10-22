@@ -1122,6 +1122,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         use_label_encoder: bool = False,
         **kwargs: Any
     ) -> None:
+        # must match the parameters for `get_params`
+        self.use_label_encoder = use_label_encoder
         if use_label_encoder is True:
             raise ValueError("Label encoder was removed in 1.6.")
         super().__init__(objective=objective, **kwargs)
