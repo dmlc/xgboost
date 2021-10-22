@@ -419,8 +419,8 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
   HistogramCuts cuts;
   container.MakeCuts(&cuts);
 
-  std::sort(x.begin(), x.end());
-  auto n_uniques = std::unique(x.begin(), x.end()) - x.begin();
+  thrust::sort(x.begin(), x.end());
+  auto n_uniques = thrust::unique(x.begin(), x.end()) - x.begin();
   ASSERT_NE(n_uniques, x.size());
   ASSERT_EQ(cuts.TotalBins(), n_uniques);
   ASSERT_EQ(n_uniques, num_categories);
@@ -431,8 +431,10 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
   ASSERT_TRUE(is_unique);
 
   x.resize(n_uniques);
+  h_x.resize(n_uniques);
+  thrust::copy(x.begin(), x.end(), h_x.begin());
   for (decltype(n_uniques) i = 0; i < n_uniques; ++i) {
-    ASSERT_EQ(x[i], values[i]);
+    ASSERT_EQ(h_x[i], values[i]);
   }
 }
 

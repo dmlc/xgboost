@@ -456,7 +456,7 @@ def _is_cudf_df(data):
     return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
-def _cudf_array_interfaces(data, cat_codes: list) -> Tuple[list, bytes]:
+def _cudf_array_interfaces(data, cat_codes: list) -> bytes:
     """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
     data and a list of array interfaces.  The data is list of categorical codes that
     caller can safely ignore, but have to keep their reference alive until usage of array

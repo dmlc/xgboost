@@ -2074,7 +2074,7 @@ class Booster(object):
             return _prediction_output(shape, dims, preds, True)
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             from .data import _cudf_array_interfaces, _transform_cudf_df
-            _data, cat_codes, _, _ = _transform_cudf_df(
+            data, cat_codes, _, _ = _transform_cudf_df(
                 data, None, None, enable_categorical
             )
             interfaces_str = _cudf_array_interfaces(data, cat_codes)
