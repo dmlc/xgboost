@@ -18,23 +18,30 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
 
-import scala.collection.{AbstractIterator, mutable}
+import scala.collection.JavaConverters._
+import scala.collection.{AbstractIterator, Iterator, mutable}
 
+import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import ml.dmlc.xgboost4j.scala.spark.DataUtils.PackedParams
+import ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel._originalPredictionCol
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset}
+import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.apache.spark.sql.functions.{col, lit}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.TaskContext
-import org.apache.spark.ml.Estimator
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.ml.{Estimator, Model}
+import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
 
 /**
- * PreXGBoost converts Dataset[_] to RDD[[Watches]]
+ * PreXGBoost serves preparing data before training and transform
  */
 object PreXGBoost {
 
@@ -116,6 +123,131 @@ object PreXGBoost {
       }
 
   }
+
+  /**
+   * Transform Dataset
+   *
+   * @param model supporting [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
+   * @param dataset the input Dataset to transform
+   * @return the transformed DataFrame
+   */
+  def transformDataFrame(model: Model[_], dataset: Dataset[_]): DataFrame = {
+
+    /** get the necessary parameters */
+    val (booster, inferBatchSize, featuresCol, useExternalMemory, missing, allowNonZeroForMissing,
+    predictFunc, schema) =
+      model match {
+        case m: XGBoostClassificationModel =>
+
+          // predict and turn to Row
+          val predictFunc =
+            (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+              val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
+                m.producePredictionItrs(broadcastBooster, dm)
+              m.produceResultIterator(originalRowItr, rawPredictionItr, probabilityItr,
+                predLeafItr, predContribItr)
+            }
+
+          // prepare the final Schema
+          var schema = StructType(dataset.schema.fields ++
+            Seq(StructField(name = XGBoostClassificationModel._rawPredictionCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false)) ++
+            Seq(StructField(name = XGBoostClassificationModel._probabilityCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false)))
+
+          if (m.isDefined(m.leafPredictionCol)) {
+            schema = schema.add(StructField(name = m.getLeafPredictionCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false))
+          }
+          if (m.isDefined(m.contribPredictionCol)) {
+            schema = schema.add(StructField(name = m.getContribPredictionCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false))
+          }
+
+          (m._booster, m.getInferBatchSize, m.getFeaturesCol, m.getUseExternalMemory, m.getMissing,
+            m.getAllowNonZeroForMissingValue, predictFunc, schema)
+
+        case m: XGBoostRegressionModel =>
+          // predict and turn to Row
+          val predictFunc =
+            (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+              val Array(rawPredictionItr, predLeafItr, predContribItr) =
+                m.producePredictionItrs(broadcastBooster, dm)
+              m.produceResultIterator(originalRowItr, rawPredictionItr, predLeafItr, predContribItr)
+            }
+
+          // prepare the final Schema
+          var schema = StructType(dataset.schema.fields ++
+            Seq(StructField(name = XGBoostRegressionModel._originalPredictionCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false)))
+
+          if (m.isDefined(m.leafPredictionCol)) {
+            schema = schema.add(StructField(name = m.getLeafPredictionCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false))
+          }
+          if (m.isDefined(m.contribPredictionCol)) {
+            schema = schema.add(StructField(name = m.getContribPredictionCol, dataType =
+              ArrayType(FloatType, containsNull = false), nullable = false))
+          }
+
+          (m._booster, m.getInferBatchSize, m.getFeaturesCol, m.getUseExternalMemory, m.getMissing,
+            m.getAllowNonZeroForMissingValue, predictFunc, schema)
+      }
+
+    val bBooster = dataset.sparkSession.sparkContext.broadcast(booster)
+    val appName = dataset.sparkSession.sparkContext.appName
+
+    val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
+      new AbstractIterator[Row] {
+        private var batchCnt = 0
+
+        private val batchIterImpl = rowIterator.grouped(inferBatchSize).flatMap { batchRow =>
+          if (batchCnt == 0) {
+            val rabitEnv = Array(
+              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+            Rabit.init(rabitEnv.asJava)
+          }
+
+          val features = batchRow.iterator.map(row => row.getAs[Vector](featuresCol))
+
+          import DataUtils._
+          val cacheInfo = {
+            if (useExternalMemory) {
+              s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
+                s"${TaskContext.getPartitionId()}-batch-$batchCnt"
+            } else {
+              null
+            }
+          }
+
+          val dm = new DMatrix(
+            processMissingValues(features.map(_.asXGB), missing, allowNonZeroForMissing),
+            cacheInfo)
+
+          try {
+            predictFunc(bBooster, dm, batchRow.iterator)
+          } finally {
+            batchCnt += 1
+            dm.delete()
+          }
+        }
+
+        override def hasNext: Boolean = batchIterImpl.hasNext
+
+        override def next(): Row = {
+          val ret = batchIterImpl.next()
+          if (!batchIterImpl.hasNext) {
+            Rabit.shutdown()
+          }
+          ret
+        }
+      }
+    }
+
+    bBooster.unpersist(blocking = false)
+    dataset.sparkSession.createDataFrame(resultRDD, schema)
+  }
+
 
   /**
    * Converting the RDD[XGBLabeledPoint] to the function to build RDD[Watches]

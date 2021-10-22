@@ -16,25 +16,19 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait, ObjectiveTrait, XGBoost => SXGBoost}
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.hadoop.fs.Path
-import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
 import org.json4s.DefaultFormats
 
-import scala.collection.JavaConverters._
-import scala.collection.{AbstractIterator, Iterator, mutable}
+import scala.collection.{Iterator, mutable}
 
 class XGBoostClassifier (
     override val uid: String,
@@ -277,76 +271,7 @@ class XGBoostClassificationModel private[ml](
     throw new Exception("XGBoost-Spark does not support \'raw2probabilityInPlace\'")
   }
 
-  // Generate raw prediction and probability prediction.
-  private def transformInternal(dataset: Dataset[_]): DataFrame = {
-
-    val schema = StructType(dataset.schema.fields ++
-      Seq(StructField(name = _rawPredictionCol, dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false)) ++
-      Seq(StructField(name = _probabilityCol, dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false)))
-
-    val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
-    val appName = dataset.sparkSession.sparkContext.appName
-
-    val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
-      new AbstractIterator[Row] {
-        private var batchCnt = 0
-
-        private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
-          if (batchCnt == 0) {
-            val rabitEnv = Array(
-              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
-            Rabit.init(rabitEnv.asJava)
-          }
-
-          val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))
-
-          import DataUtils._
-          val cacheInfo = {
-            if ($(useExternalMemory)) {
-              s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
-                  s"${TaskContext.getPartitionId()}-batch-$batchCnt"
-            } else {
-              null
-            }
-          }
-
-          val dm = new DMatrix(
-            processMissingValues(
-              features.map(_.asXGB),
-              $(missing),
-              $(allowNonZeroForMissing)
-            ),
-            cacheInfo)
-          try {
-            val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
-              producePredictionItrs(bBooster, dm)
-            produceResultIterator(batchRow.iterator,
-              rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
-          } finally {
-            batchCnt += 1
-            dm.delete()
-          }
-        }
-
-        override def hasNext: Boolean = batchIterImpl.hasNext
-
-        override def next(): Row = {
-          val ret = batchIterImpl.next()
-          if (!batchIterImpl.hasNext) {
-            Rabit.shutdown()
-          }
-          ret
-        }
-      }
-    }
-
-    bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
-  }
-
-  private def produceResultIterator(
+  private[spark] def produceResultIterator(
       originalRowItr: Iterator[Row],
       rawPredictionItr: Iterator[Row],
       probabilityItr: Iterator[Row],
@@ -381,20 +306,7 @@ class XGBoostClassificationModel private[ml](
     }
   }
 
-  private def generateResultSchema(fixedSchema: StructType): StructType = {
-    var resultSchema = fixedSchema
-    if (isDefined(leafPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
-    }
-    if (isDefined(contribPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
-    }
-    resultSchema
-  }
-
-  private def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+  private[spark] def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
       Array[Iterator[Row]] = {
     val rawPredictionItr = {
       broadcastBooster.value.predict(dm, outPutMargin = true, $(treeLimit)).
@@ -431,7 +343,7 @@ class XGBoostClassificationModel private[ml](
 
     // Output selected columns only.
     // This is a bit complicated since it tries to avoid repeated computation.
-    var outputData = transformInternal(dataset)
+    var outputData = PreXGBoost.transformDataFrame(this, dataset)
     var numColsOutput = 0
 
     val rawPredictionUDF = udf { rawPrediction: mutable.WrappedArray[Float] =>
@@ -492,8 +404,8 @@ class XGBoostClassificationModel private[ml](
 
 object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel] {
 
-  private val _rawPredictionCol = "_rawPrediction"
-  private val _probabilityCol = "_probability"
+  private[spark] val _rawPredictionCol = "_rawPrediction"
+  private[spark] val _probabilityCol = "_probability"
 
   override def read: MLReader[XGBoostClassificationModel] = new XGBoostClassificationModelReader
 
