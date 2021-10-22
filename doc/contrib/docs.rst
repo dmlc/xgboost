@@ -19,7 +19,7 @@ Documents
 
   make html
 
-inside the ``doc/`` directory.
+inside the ``doc/`` directory.  The online document is hosted by `Read the Docs <https://readthedocs.org/>`__ where the imported project is managed by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
 ********
 Examples
