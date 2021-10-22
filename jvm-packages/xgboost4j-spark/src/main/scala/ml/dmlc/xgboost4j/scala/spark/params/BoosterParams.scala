@@ -289,7 +289,7 @@ private[spark] trait BoosterParams extends Params {
     rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0)
 }
 
-private[spark] object BoosterParams {
+private[scala] object BoosterParams {
 
   val supportedBoosters = HashSet("gbtree", "gblinear", "dart")
 

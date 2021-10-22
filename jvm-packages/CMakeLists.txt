@@ -6,6 +6,8 @@ list(APPEND JVM_SOURCES
 
 if (USE_CUDA)
   list(APPEND JVM_SOURCES
+    ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-spark-gpu/src/native/xgboost4j_spark.cpp
+    ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-spark-gpu/src/native/xgboost4j_spark_gpu.cu
     ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j-gpu/src/native/xgboost4j-gpu.cu)
 endif (USE_CUDA)
 
@@ -18,6 +20,7 @@ endif (ENABLE_ALL_WARNINGS)
 target_link_libraries(xgboost4j PRIVATE objxgboost)
 target_include_directories(xgboost4j
   PRIVATE
+  ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
   ${JNI_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j/src/native
   ${PROJECT_SOURCE_DIR}/include

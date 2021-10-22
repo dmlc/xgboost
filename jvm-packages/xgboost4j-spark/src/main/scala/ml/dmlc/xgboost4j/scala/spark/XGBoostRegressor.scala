@@ -32,6 +32,7 @@ import org.apache.spark.sql.functions._
 import org.json4s.DefaultFormats
 
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.types.StructType
 
 class XGBoostRegressor (
     override val uid: String,
@@ -145,6 +146,13 @@ class XGBoostRegressor (
   def setSinglePrecisionHistogram(value: Boolean): this.type =
     set(singlePrecisionHistogram, value)
 
+  /**
+   *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
+   *  all feature columns must be numeric types.
+   */
+  def setFeaturesCols(value: Seq[String]): this.type =
+    set(featuresCols, value)
+
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -153,6 +161,14 @@ class XGBoostRegressor (
     } else {
       "rmse"
     }
+  }
+
+  private[spark] def transformSchemaInternal(schema: StructType): StructType = {
+    super.transformSchema(schema)
+  }
+
+  override def transformSchema(schema: StructType): StructType = {
+    PreXGBoost.transformSchema(this, schema)
   }
 
   override protected def train(dataset: Dataset[_]): XGBoostRegressionModel = {
@@ -191,7 +207,7 @@ object XGBoostRegressor extends DefaultParamsReadable[XGBoostRegressor] {
 
 class XGBoostRegressionModel private[ml] (
     override val uid: String,
-    private[spark] val _booster: Booster)
+    private[scala] val _booster: Booster)
   extends PredictionModel[Vector, XGBoostRegressionModel]
     with XGBoostRegressorParams with InferenceParams
     with MLWritable with Serializable {
@@ -238,6 +254,13 @@ class XGBoostRegressionModel private[ml] (
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
+   *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
+   *  all feature columns must be numeric types.
+   */
+  def setFeaturesCols(value: Seq[String]): this.type =
+    set(featuresCols, value)
+
+  /**
    * Single instance prediction.
    * Note: The performance is not ideal, use it carefully!
    */
@@ -251,7 +274,7 @@ class XGBoostRegressionModel private[ml] (
     _booster.predict(data = dm)(0)(0)
   }
 
-  private[spark] def produceResultIterator(
+  private[scala] def produceResultIterator(
       originalRowItr: Iterator[Row],
       predictionItr: Iterator[Row],
       predLeafItr: Iterator[Row],
@@ -283,7 +306,7 @@ class XGBoostRegressionModel private[ml] (
     }
   }
 
-  private[spark] def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
+  private[scala] def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
       Array[Iterator[Row]] = {
     val originalPredictionItr = {
       booster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
@@ -307,11 +330,19 @@ class XGBoostRegressionModel private[ml] (
     Array(originalPredictionItr, predLeafItr, predContribItr)
   }
 
+  private[spark] def transformSchemaInternal(schema: StructType): StructType = {
+    super.transformSchema(schema)
+  }
+
+  override def transformSchema(schema: StructType): StructType = {
+    PreXGBoost.transformSchema(this, schema)
+  }
+
   override def transform(dataset: Dataset[_]): DataFrame = {
     transformSchema(dataset.schema, logging = true)
     // Output selected columns only.
     // This is a bit complicated since it tries to avoid repeated computation.
-    var outputData = PreXGBoost.transformDataFrame(this, dataset)
+    var outputData = PreXGBoost.transformDataset(this, dataset)
     var numColsOutput = 0
 
     val predictUDF = udf { (originalPrediction: mutable.WrappedArray[Float]) =>
@@ -342,7 +373,7 @@ class XGBoostRegressionModel private[ml] (
 
 object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
 
-  private[spark] val _originalPredictionCol = "_originalPrediction"
+  private[scala] val _originalPredictionCol = "_originalPrediction"
 
   override def read: MLReader[XGBoostRegressionModel] = new XGBoostRegressionModelReader
 

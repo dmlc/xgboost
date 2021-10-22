@@ -18,16 +18,16 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.param.shared.{HasFeaturesCol, HasLabelCol, HasWeightCol}
 
-private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with LearningTaskParams
+private[scala] sealed trait XGBoostEstimatorCommon extends GeneralParams with LearningTaskParams
   with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables with HasWeightCol
   with HasBaseMarginCol with HasLeafPredictionCol with HasContribPredictionCol with HasFeaturesCol
-  with HasLabelCol {
+  with HasLabelCol with GpuParams {
 
   def needDeterministicRepartitioning: Boolean = {
     getCheckpointPath != null && getCheckpointPath.nonEmpty && getCheckpointInterval > 0
   }
 }
 
-private[spark] trait XGBoostClassifierParams extends XGBoostEstimatorCommon with HasNumClass
+private[scala] trait XGBoostClassifierParams extends XGBoostEstimatorCommon with HasNumClass
 
-private[spark] trait XGBoostRegressorParams extends XGBoostEstimatorCommon with HasGroupCol
+private[scala] trait XGBoostRegressorParams extends XGBoostEstimatorCommon with HasGroupCol

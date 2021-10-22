@@ -53,12 +53,12 @@ object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
 }
 
-private[this] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
+private[scala] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
                                                              maximizeEvalMetrics: Boolean)
 
-private[this] case class XGBoostExecutionInputParams(trainTestRatio: Double, seed: Long)
+private[scala] case class XGBoostExecutionInputParams(trainTestRatio: Double, seed: Long)
 
-private[spark] case class XGBoostExecutionParams(
+private[scala] case class XGBoostExecutionParams(
     numWorkers: Int,
     numRounds: Int,
     useExternalMemory: Boolean,
@@ -473,7 +473,7 @@ object XGBoost extends Serializable {
 
 }
 
-class Watches private(
+class Watches private[scala] (
     val datasets: Array[DMatrix],
     val names: Array[String],
     val cacheDirName: Option[String]) {
