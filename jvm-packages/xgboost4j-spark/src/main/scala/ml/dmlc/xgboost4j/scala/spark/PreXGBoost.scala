@@ -17,6 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
+import java.util.ServiceLoader
 
 import scala.collection.JavaConverters._
 import scala.collection.{AbstractIterator, Iterator, mutable}
@@ -24,7 +25,6 @@ import scala.collection.{AbstractIterator, Iterator, mutable}
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import ml.dmlc.xgboost4j.scala.spark.DataUtils.PackedParams
-import ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel._originalPredictionCol
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
 
 import org.apache.spark.rdd.RDD
@@ -35,7 +35,7 @@ import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.ml.{Estimator, Model}
+import org.apache.spark.ml.{Estimator, Model, PipelineStage}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
@@ -43,13 +43,55 @@ import org.apache.spark.storage.StorageLevel
 /**
  * PreXGBoost serves preparing data before training and transform
  */
-object PreXGBoost {
+object PreXGBoost extends PreXGBoostProvider {
 
   private val logger = LogFactory.getLog("XGBoostSpark")
 
   private lazy val defaultBaseMarginColumn = lit(Float.NaN)
   private lazy val defaultWeightColumn = lit(1.0)
   private lazy val defaultGroupColumn = lit(-1)
+
+  // Find the correct PreXGBoostProvider by ServiceLoader
+  private val optionProvider: Option[PreXGBoostProvider] = {
+    val classLoader = Option(Thread.currentThread().getContextClassLoader)
+      .getOrElse(getClass.getClassLoader)
+
+    val serviceLoader = ServiceLoader.load(classOf[PreXGBoostProvider], classLoader)
+
+    // For now, we only trust GpuPreXGBoost.
+    serviceLoader.asScala.filter(x => x.getClass.getName.equals(
+      "ml.dmlc.xgboost4j.scala.rapids.spark.GpuPreXGBoost")).toList match {
+      case Nil => None
+      case head::Nil =>
+        Some(head)
+      case _ => None
+    }
+  }
+
+  /**
+   * Transform schema
+   *
+   * @param xgboostEstimator supporting XGBoostClassifier/XGBoostClassificationModel and
+   *                 XGBoostRegressor/XGBoostRegressionModel
+   * @param schema   the input schema
+   * @return the transformed schema
+   */
+  override def transformSchema(
+      xgboostEstimator: XGBoostEstimatorCommon,
+      schema: StructType): StructType = {
+
+    if (optionProvider.isDefined && optionProvider.get.providerEnabled(None)) {
+      return optionProvider.get.transformSchema(xgboostEstimator, schema)
+    }
+
+    xgboostEstimator match {
+      case est: XGBoostClassifier => est.transformSchemaInternal(schema)
+      case model: XGBoostClassificationModel => model.transformSchemaInternal(schema)
+      case reg: XGBoostRegressor => reg.transformSchemaInternal(schema)
+      case model: XGBoostRegressionModel => model.transformSchemaInternal(schema)
+      case _ => throw new RuntimeException("Unsupporting " + xgboostEstimator)
+    }
+  }
 
   /**
    * Convert the Dataset[_] to RDD[Watches] which will be fed to XGBoost
@@ -61,10 +103,14 @@ object PreXGBoost {
    *         RDD[Watches] will be used as the training input
    *         Option[RDD[_]\] is the optional cached RDD
    */
-  def buildDatasetToRDD(
+  override def buildDatasetToRDD(
       estimator: Estimator[_],
       dataset: Dataset[_],
       params: Map[String, Any]): XGBoostExecutionParams => (RDD[Watches], Option[RDD[_]]) = {
+
+    if (optionProvider.isDefined && optionProvider.get.providerEnabled(Some(dataset))) {
+      return optionProvider.get.buildDatasetToRDD(estimator, dataset, params)
+    }
 
     val (packedParams, evalSet) = estimator match {
       case est: XGBoostEstimatorCommon =>
@@ -131,7 +177,11 @@ object PreXGBoost {
    * @param dataset the input Dataset to transform
    * @return the transformed DataFrame
    */
-  def transformDataFrame(model: Model[_], dataset: Dataset[_]): DataFrame = {
+  override def transformDataset(model: Model[_], dataset: Dataset[_]): DataFrame = {
+
+    if (optionProvider.isDefined && optionProvider.get.providerEnabled(Some(dataset))) {
+      return optionProvider.get.transformDataset(model, dataset)
+    }
 
     /** get the necessary parameters */
     val (booster, inferBatchSize, featuresCol, useExternalMemory, missing, allowNonZeroForMissing,
@@ -467,7 +517,7 @@ object PreXGBoost {
     }
   }
 
-  private def getCacheDirName(useExternalMemory: Boolean): Option[String] = {
+  private[scala] def getCacheDirName(useExternalMemory: Boolean): Option[String] = {
     val taskId = TaskContext.getPartitionId().toString
     if (useExternalMemory) {
       val dir = Files.createTempDirectory(s"${TaskContext.get().stageId()}-cache-$taskId")

@@ -12,11 +12,6 @@
     <version>1.6.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <properties>
-      <cudf.version>21.08.2</cudf.version>
-      <cudf.classifier>cuda11</cudf.classifier>
-    </properties>
-
     <dependencies>
         <dependency>
           <groupId>ai.rapids</groupId>

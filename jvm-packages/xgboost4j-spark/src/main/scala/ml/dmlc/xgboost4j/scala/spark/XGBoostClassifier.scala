@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait, ObjectiveTrait, XGBoost => SXGBoost}
 import org.apache.hadoop.fs.Path
+
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
@@ -27,8 +28,9 @@ import org.apache.spark.ml.util._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.json4s.DefaultFormats
-
 import scala.collection.{Iterator, mutable}
+
+import org.apache.spark.sql.types.StructType
 
 class XGBoostClassifier (
     override val uid: String,
@@ -142,6 +144,13 @@ class XGBoostClassifier (
   def setSinglePrecisionHistogram(value: Boolean): this.type =
     set(singlePrecisionHistogram, value)
 
+  /**
+   *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
+   *  all feature columns must be numeric types.
+   */
+  def setFeaturesCols(value: Seq[String]): this.type =
+    set(featuresCols, value)
+
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -152,6 +161,15 @@ class XGBoostClassifier (
       // binary
       "logloss"
     }
+  }
+
+  // Callback from PreXGBoost
+  private[spark] def transformSchemaInternal(schema: StructType): StructType = {
+    super.transformSchema(schema)
+  }
+
+  override def transformSchema(schema: StructType): StructType = {
+    PreXGBoost.transformSchema(this, schema)
   }
 
   override protected def train(dataset: Dataset[_]): XGBoostClassificationModel = {
@@ -196,7 +214,7 @@ object XGBoostClassifier extends DefaultParamsReadable[XGBoostClassifier] {
 class XGBoostClassificationModel private[ml](
     override val uid: String,
     override val numClasses: Int,
-    private[spark] val _booster: Booster)
+    private[scala] val _booster: Booster)
   extends ProbabilisticClassificationModel[Vector, XGBoostClassificationModel]
     with XGBoostClassifierParams with InferenceParams
     with MLWritable with Serializable {
@@ -243,6 +261,13 @@ class XGBoostClassificationModel private[ml](
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
+   *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
+   *  all feature columns must be numeric types.
+   */
+  def setFeaturesCols(value: Seq[String]): this.type =
+    set(featuresCols, value)
+
+  /**
    * Single instance prediction.
    * Note: The performance is not ideal, use it carefully!
    */
@@ -271,7 +296,7 @@ class XGBoostClassificationModel private[ml](
     throw new Exception("XGBoost-Spark does not support \'raw2probabilityInPlace\'")
   }
 
-  private[spark] def produceResultIterator(
+  private[scala] def produceResultIterator(
       originalRowItr: Iterator[Row],
       rawPredictionItr: Iterator[Row],
       probabilityItr: Iterator[Row],
@@ -306,7 +331,7 @@ class XGBoostClassificationModel private[ml](
     }
   }
 
-  private[spark] def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+  private[scala] def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
       Array[Iterator[Row]] = {
     val rawPredictionItr = {
       broadcastBooster.value.predict(dm, outPutMargin = true, $(treeLimit)).
@@ -333,6 +358,14 @@ class XGBoostClassificationModel private[ml](
     Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
   }
 
+  private[spark] def transformSchemaInternal(schema: StructType): StructType = {
+    super.transformSchema(schema)
+  }
+
+  override def transformSchema(schema: StructType): StructType = {
+    PreXGBoost.transformSchema(this, schema)
+  }
+
   override def transform(dataset: Dataset[_]): DataFrame = {
     transformSchema(dataset.schema, logging = true)
     if (isDefined(thresholds)) {
@@ -343,7 +376,7 @@ class XGBoostClassificationModel private[ml](
 
     // Output selected columns only.
     // This is a bit complicated since it tries to avoid repeated computation.
-    var outputData = PreXGBoost.transformDataFrame(this, dataset)
+    var outputData = PreXGBoost.transformDataset(this, dataset)
     var numColsOutput = 0
 
     val rawPredictionUDF = udf { rawPrediction: mutable.WrappedArray[Float] =>
@@ -404,8 +437,8 @@ class XGBoostClassificationModel private[ml](
 
 object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel] {
 
-  private[spark] val _rawPredictionCol = "_rawPrediction"
-  private[spark] val _probabilityCol = "_probability"
+  private[scala] val _rawPredictionCol = "_rawPrediction"
+  private[scala] val _probabilityCol = "_probability"
 
   override def read: MLReader[XGBoostClassificationModel] = new XGBoostClassificationModelReader
 
