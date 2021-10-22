@@ -1171,9 +1171,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             self.classes_ = np.unique(np.asarray(y))
             self.n_classes_ = len(self.classes_)
-            if not self.use_label_encoder and (
-                not np.array_equal(self.classes_, np.arange(self.n_classes_))
-            ):
+            if not np.array_equal(self.classes_, np.arange(self.n_classes_)):
                 raise ValueError("Invalid classes")
 
         params = self.get_xgb_params()
@@ -1372,9 +1370,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     extra_parameters='''
     n_estimators : int
         Number of trees in random forest to fit.
-    use_label_encoder : bool
-        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
-        code, we recommend that you set this parameter to False.
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
@@ -1385,14 +1380,12 @@ class XGBRFClassifier(XGBClassifier):
         subsample: float = 0.8,
         colsample_bynode: float = 0.8,
         reg_lambda: float = 1e-5,
-        use_label_encoder: bool = True,
         **kwargs: Any
     ):
         super().__init__(learning_rate=learning_rate,
                          subsample=subsample,
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda,
-                         use_label_encoder=use_label_encoder,
                          **kwargs)
 
     def get_xgb_params(self) -> Dict[str, Any]:
