@@ -545,7 +545,7 @@ class XGBModel(XGBModelBase):
         # Parameters that should not go into native learner.
         wrapper_specific = {
             'importance_type', 'kwargs', 'missing', 'n_estimators',
-            "enable_categorical"
+            "enable_categorical", "use_label_encoder",
         }
         filtered = {}
         for k, v in params.items():
