@@ -122,7 +122,7 @@ def test_cupy_training_with_sklearn():
     base_margin = np.random.random(50)
     cupy_base_margin = cp.array(base_margin)
 
-    clf = xgb.XGBClassifier(gpu_id=0, tree_method="gpu_hist", use_label_encoder=False)
+    clf = xgb.XGBClassifier(gpu_id=0, tree_method="gpu_hist")
     clf.fit(
         X,
         y,

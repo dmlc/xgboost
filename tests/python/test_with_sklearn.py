@@ -283,7 +283,6 @@ def test_feature_importances_gain():
         random_state=0, tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
-        use_label_encoder=False,
     ).fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -306,7 +305,6 @@ def test_feature_importances_gain():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
-        use_label_encoder=False,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -315,14 +313,11 @@ def test_feature_importances_gain():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
-        use_label_encoder=False,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     # no split can be found
-    cls = xgb.XGBClassifier(
-        min_child_weight=1000, tree_method="hist", n_estimators=1, use_label_encoder=False
-    )
+    cls = xgb.XGBClassifier(min_child_weight=1000, tree_method="hist", n_estimators=1)
     cls.fit(X, y)
     assert np.all(cls.feature_importances_ == 0)
 
@@ -497,7 +492,7 @@ def test_classification_with_custom_objective():
         X, y
     )
 
-    cls = xgb.XGBClassifier(use_label_encoder=False, n_estimators=1)
+    cls = xgb.XGBClassifier(n_estimators=1)
     cls.fit(X, y)
 
     is_called = [False]
@@ -923,7 +918,7 @@ def test_RFECV():
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
                             n_estimators=10,
                             objective='binary:logistic',
-                            random_state=0, verbosity=0, use_label_encoder=False)
+                            random_state=0, verbosity=0)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
     rfecv.fit(X, y)
 
@@ -934,7 +929,7 @@ def test_RFECV():
                             n_estimators=10,
                             objective='multi:softprob',
                             random_state=0, reg_alpha=0.001, reg_lambda=0.01,
-                            scale_pos_weight=0.5, verbosity=0, use_label_encoder=False)
+                            scale_pos_weight=0.5, verbosity=0)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
@@ -943,7 +938,7 @@ def test_RFECV():
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
 
-    cls = xgb.XGBClassifier(use_label_encoder=False)
+    cls = xgb.XGBClassifier()
     rfecv = RFECV(estimator=cls, step=1, cv=3,
                   scoring='neg_mean_squared_error')
     rfecv.fit(X, y)

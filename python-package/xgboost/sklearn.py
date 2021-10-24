@@ -1,5 +1,4 @@
-# coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, R0912, C0302
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
 import copy
 import warnings
@@ -544,8 +543,8 @@ class XGBModel(XGBModelBase):
         params = self.get_params()
         # Parameters that should not go into native learner.
         wrapper_specific = {
-            'importance_type', 'kwargs', 'missing', 'n_estimators',
-            "enable_categorical", "use_label_encoder",
+            'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder',
+            "enable_categorical"
         }
         filtered = {}
         for k, v in params.items():
@@ -1148,33 +1147,31 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
         evals_result: TrainingCallback.EvalsLog = {}
+
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
 
             self.classes_ = cp.unique(y.values)
             self.n_classes_ = len(self.classes_)
             expected_classes = cp.arange(self.n_classes_)
-            if (
-                self.classes_.shape != expected_classes.shape
-                or not (self.classes_ == expected_classes).all()
-            ):
-                raise ValueError("Invalid classes")
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
 
             self.classes_ = cp.unique(y)
             self.n_classes_ = len(self.classes_)
             expected_classes = cp.arange(self.n_classes_)
-            if (
-                self.classes_.shape != expected_classes.shape
-                or not (self.classes_ == expected_classes).all()
-            ):
-                raise ValueError("Invalid classes")
         else:
             self.classes_ = np.unique(np.asarray(y))
             self.n_classes_ = len(self.classes_)
-            if not np.array_equal(self.classes_, np.arange(self.n_classes_)):
-                raise ValueError("Invalid classes")
+            expected_classes = np.arange(self.n_classes_)
+        if (
+            self.classes_.shape != expected_classes.shape
+            or not (self.classes_ == expected_classes).all()
+        ):
+            raise ValueError(
+                f"Invalid classes inferred from unique values of `y`.  "
+                f"Expected: {expected_classes}, got {self.classes_}"
+            )
 
         params = self.get_xgb_params()
 
