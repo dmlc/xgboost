@@ -63,6 +63,7 @@ nb-configuration*
 # Eclipse
 .project
 .cproject
+.classpath
 .pydevproject
 .settings/
 build
@@ -125,3 +126,11 @@ credentials.csv
 *.pub
 *.rdp
 *_rsa
+
+# Visual Studio code + extensions
+.vscode
+.metals
+.bloop
+
+# Demo
+demo

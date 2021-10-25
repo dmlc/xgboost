@@ -122,8 +122,8 @@ if __name__ == "__main__":
             run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/CLI/regression"):
-            run(sys.executable + " mapfeat.py")
-            run(sys.executable + " mknfold.py machine.txt 1")
+            run(f'"{sys.executable}" mapfeat.py')
+            run(f'"{sys.executable}" mknfold.py machine.txt 1')
 
     xgboost4j = 'xgboost4j-gpu' if cli_args.use_cuda == 'ON' else 'xgboost4j'
     xgboost4j_spark = 'xgboost4j-spark-gpu' if cli_args.use_cuda == 'ON' else 'xgboost4j-spark'
@@ -153,8 +153,8 @@ if __name__ == "__main__":
     print("copying train/test files")
     maybe_makedirs("{}/src/test/resources".format(xgboost4j_spark))
     with cd("../demo/CLI/regression"):
-        run("{} mapfeat.py".format(sys.executable))
-        run("{} mknfold.py machine.txt 1".format(sys.executable))
+        run(f'"{sys.executable}" mapfeat.py')
+        run(f'"{sys.executable}" mknfold.py machine.txt 1')
 
     for file in glob.glob("../demo/CLI/regression/machine.txt.t*"):
         cp(file, "{}/src/test/resources".format(xgboost4j_spark))
