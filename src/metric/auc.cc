@@ -30,7 +30,7 @@ namespace metric {
  * handle the normalization.
  */
 template <typename Fn>
-std::tuple<float, float, float>
+std::tuple<double, double, double>
 BinaryAUC(common::Span<float const> predts, common::Span<float const> labels,
           OptionalWeights weights,
           std::vector<size_t> const &sorted_idx, Fn &&area_fn) {
@@ -39,12 +39,12 @@ BinaryAUC(common::Span<float const> predts, common::Span<float const> labels,
   auto p_predts = predts.data();
   auto p_labels = labels.data();
 
-  float auc{0};
+  double auc{0};
 
   float label = p_labels[sorted_idx.front()];
   float w = weights[sorted_idx[0]];
-  float fp = (1.0 - label) * w, tp = label * w;
-  float tp_prev = 0, fp_prev = 0;
+  double fp = (1.0 - label) * w, tp = label * w;
+  double tp_prev = 0, fp_prev = 0;
   // TODO(jiaming): We can parallize this if we have a parallel scan for CPU.
   for (size_t i = 1; i < sorted_idx.size(); ++i) {
     if (p_predts[sorted_idx[i]] != p_predts[sorted_idx[i - 1]]) {
@@ -77,17 +77,19 @@ BinaryAUC(common::Span<float const> predts, common::Span<float const> labels,
  *   Machine Learning Models
  */
 template <typename BinaryAUC>
-float MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
-                    size_t n_classes, int32_t n_threads,
-                    BinaryAUC &&binary_auc) {
+double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
+                     size_t n_classes, int32_t n_threads,
+                     BinaryAUC &&binary_auc) {
   CHECK_NE(n_classes, 0);
   auto const &labels = info.labels_.ConstHostVector();
 
-  std::vector<float> results(n_classes * 3, 0);
-  auto s_results = common::Span<float>(results);
+  std::vector<double> results(n_classes * 3, 0);
+  auto s_results = common::Span<double>(results);
+
   auto local_area = s_results.subspan(0, n_classes);
   auto tp = s_results.subspan(n_classes, n_classes);
   auto auc = s_results.subspan(2 * n_classes, n_classes);
+
   auto weights = OptionalWeights{info.weights_.ConstHostSpan()};
 
   if (!info.labels_.Empty()) {
@@ -98,7 +100,7 @@ float MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
         proba[i] = predts[i * n_classes + c];
         response[i] = labels[i] == c ? 1.0f : 0.0;
       }
-      float fp;
+      double fp;
       std::tie(fp, tp[c], auc[c]) = binary_auc(proba, response, weights);
       local_area[c] = fp * tp[c];
     });
@@ -107,8 +109,8 @@ float MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
   // we have 2 averages going in here, first is among workers, second is among
   // classes. allreduce sums up fp/tp auc for each class.
   rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
-  float auc_sum{0};
-  float tp_sum{0};
+  double auc_sum{0};
+  double tp_sum{0};
   for (size_t c = 0; c < n_classes; ++c) {
     if (local_area[c] != 0) {
       // normalize and weight it by prevalence.  After allreduce, `local_area`
@@ -117,21 +119,21 @@ float MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
       auc_sum += auc[c] / local_area[c] * tp[c];
       tp_sum += tp[c];
     } else {
-      auc_sum = std::numeric_limits<float>::quiet_NaN();
+      auc_sum = std::numeric_limits<double>::quiet_NaN();
       break;
     }
   }
   if (tp_sum == 0 || std::isnan(auc_sum)) {
-    auc_sum = std::numeric_limits<float>::quiet_NaN();
+    auc_sum = std::numeric_limits<double>::quiet_NaN();
   } else {
     auc_sum /= tp_sum;
   }
   return auc_sum;
 }
 
-std::tuple<float, float, float> BinaryROCAUC(common::Span<float const> predts,
-                                             common::Span<float const> labels,
-                                             OptionalWeights weights) {
+std::tuple<double, double, double>
+BinaryROCAUC(common::Span<float const> predts, common::Span<float const> labels,
+             OptionalWeights weights) {
   auto const sorted_idx = common::ArgSort<size_t>(predts, std::greater<>{});
   return BinaryAUC(predts, labels, weights, sorted_idx, TrapezoidArea);
 }
@@ -173,11 +175,11 @@ float GroupRankingROC(common::Span<float const> predts,
  *
  *   https://doi.org/10.1371/journal.pone.0092209
  */
-std::tuple<float, float, float> BinaryPRAUC(common::Span<float const> predts,
-                                            common::Span<float const> labels,
-                                            OptionalWeights weights) {
+std::tuple<double, double, double> BinaryPRAUC(common::Span<float const> predts,
+                                               common::Span<float const> labels,
+                                               OptionalWeights weights) {
   auto const sorted_idx = common::ArgSort<size_t>(predts, std::greater<>{});
-  float total_pos{0}, total_neg{0};
+  double total_pos{0}, total_neg{0};
   for (size_t i = 0; i < labels.size(); ++i) {
     auto w = weights[i];
     total_pos += w * labels[i];
@@ -190,18 +192,18 @@ std::tuple<float, float, float> BinaryPRAUC(common::Span<float const> predts,
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp, total_pos);
   };
 
-  float tp{0}, fp{0}, auc{0};
+  double tp{0}, fp{0}, auc{0};
   std::tie(fp, tp, auc) = BinaryAUC(predts, labels, weights, sorted_idx, fn);
   return std::make_tuple(1.0, 1.0, auc);
 }
-
 
 /**
  * Cast LTR problem to binary classification problem by comparing pairs.
  */
 template <bool is_roc>
-std::pair<float, uint32_t> RankingAUC(std::vector<float> const &predts,
-                                      MetaInfo const &info, int32_t n_threads) {
+std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
+                                       MetaInfo const &info,
+                                       int32_t n_threads) {
   CHECK_GE(info.group_ptr_.size(), 2);
   uint32_t n_groups = info.group_ptr_.size() - 1;
   auto s_predts = common::Span<float const>{predts};
@@ -236,15 +238,15 @@ std::pair<float, uint32_t> RankingAUC(std::vector<float> const &predts,
     }
     auc_tloc[omp_get_thread_num()] += auc;
   });
-  float sum_auc = std::accumulate(auc_tloc.cbegin(), auc_tloc.cend(), 0.0);
+  double sum_auc = std::accumulate(auc_tloc.cbegin(), auc_tloc.cend(), 0.0);
 
   return std::make_pair(sum_auc, n_groups - invalid_groups);
 }
 
 template <typename Curve>
 class EvalAUC : public Metric {
-  float Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-             bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+              bool distributed) override {
     float auc {0};
     if (tparam_->gpu_id != GenericParameter::kCpuId) {
       preds.SetDevice(tparam_->gpu_id);
@@ -326,9 +328,9 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   std::shared_ptr<DeviceAUCCache> d_cache_;
 
  public:
-  std::pair<float, uint32_t> EvalRanking(HostDeviceVector<float> const &predts,
-                                         MetaInfo const &info) {
-    float auc{0};
+  std::pair<double, uint32_t> EvalRanking(HostDeviceVector<float> const &predts,
+                                          MetaInfo const &info) {
+    double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = tparam_->Threads();
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
@@ -343,7 +345,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
 
   float EvalMultiClass(HostDeviceVector<float> const &predts,
                        MetaInfo const &info, size_t n_classes) {
-    float auc{0};
+    double auc{0};
     auto n_threads = tparam_->Threads();
     CHECK_NE(n_classes, 0);
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
@@ -358,7 +360,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
 
   std::tuple<float, float, float>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
-    float fp, tp, auc;
+    double fp, tp, auc;
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       std::tie(fp, tp, auc) =
           BinaryROCAUC(predts.ConstHostVector(), info.labels_.ConstHostVector(),
@@ -409,9 +411,9 @@ class EvalAUCPR : public EvalAUC<EvalAUCPR> {
   std::shared_ptr<DeviceAUCCache> d_cache_;
 
  public:
-  std::tuple<float, float, float>
+  std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
-    float pr, re, auc;
+    double pr, re, auc;
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       std::tie(pr, re, auc) =
           BinaryPRAUC(predts.ConstHostSpan(), info.labels_.ConstHostSpan(),
@@ -463,21 +465,22 @@ XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .set_body([](char const *) { return new EvalAUCPR{}; });
 
 #if !defined(XGBOOST_USE_CUDA)
-std::tuple<float, float, float>
+std::tuple<double, double, double>
 GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
   common::AssertGPUSupport();
   return {};
 }
 
-float GPUMultiClassPRAUC(common::Span<float const> predts, MetaInfo const &info,
-                         int32_t device, std::shared_ptr<DeviceAUCCache> *cache,
-                         size_t n_classes) {
+double GPUMultiClassPRAUC(common::Span<float const> predts,
+                          MetaInfo const &info, int32_t device,
+                          std::shared_ptr<DeviceAUCCache> *cache,
+                          size_t n_classes) {
   common::AssertGPUSupport();
   return {};
 }
 
-std::pair<float, uint32_t>
+std::pair<double, uint32_t>
 GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
                 int32_t device, std::shared_ptr<DeviceAUCCache> *cache) {
   common::AssertGPUSupport();
