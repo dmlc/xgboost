@@ -190,7 +190,7 @@ struct Entry {
   /*! \brief feature value */
   bst_float fvalue;
   /*! \brief default constructor */
-#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT) && !defined(__CUDA__) && !defined(__CUDACC__)
   Entry() {} // NOLINT: Allow empty default constructor for performance reasons
 #else
   Entry() = default;

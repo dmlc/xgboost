@@ -22,9 +22,11 @@
 #include "xgboost/span.h"
 
 #include "array_interface.h"
-#include "arrow-cdi.h"
 #include "../c_api/c_api_error.h"
 #include "../common/math.h"
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+#include "arrow-cdi.h"
+#endif
 
 namespace xgboost {
 namespace data {
