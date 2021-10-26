@@ -114,14 +114,10 @@ void CopyQidImpl(ArrayInterface<1> array_interface, std::vector<bst_group_t>* p_
 }
 }  // namespace
 
-void MetaInfo::SetInfo(StringView key, std::string const& interface_str) {
-  Json array = Json::Load(StringView{interface_str});
+void MetaInfo::SetInfoFromCUDA(StringView key, Json array) {
   // multi-dim float info
   if (key == "base_margin") {
-    // FIXME(jiamingy): This is temporary until #7405 can be fully merged
-    linalg::Tensor<float, 3> t;
-    CopyTensorInfoImpl(array, &t);
-    base_margin_ = std::move(*t.Data());
+    CopyTensorInfoImpl(array, &base_margin_);
     return;
   }
   // uint info

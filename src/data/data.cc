@@ -3,6 +3,7 @@
  * \file data.cc
  */
 #include <dmlc/registry.h>
+#include <array>
 #include <cstring>
 
 #include "dmlc/io.h"
@@ -12,10 +13,13 @@
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
 #include "xgboost/learner.h"
+#include "xgboost/string_view.h"
+
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
 
 #include "../common/io.h"
+#include "../common/linalg_op.h"
 #include "../common/math.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
@@ -66,10 +70,22 @@ void SaveVectorField(dmlc::Stream* strm, const std::string& name,
   SaveVectorField(strm, name, type, shape, field.ConstHostVector());
 }
 
+template <typename T, int32_t D>
+void SaveTensorField(dmlc::Stream* strm, const std::string& name, xgboost::DataType type,
+                     const xgboost::linalg::Tensor<T, D>& field) {
+  strm->Write(name);
+  strm->Write(static_cast<uint8_t>(type));
+  strm->Write(false);  // is_scalar=False
+  for (size_t i = 0; i < D; ++i) {
+    strm->Write(field.Shape(i));
+  }
+  strm->Write(field.Data()->HostVector());
+}
+
 template <typename T>
 void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
                      xgboost::DataType expected_type, T* field) {
-  const std::string invalid {"MetaInfo: Invalid format. "};
+  const std::string invalid{"MetaInfo: Invalid format for " + expected_name};
   std::string name;
   xgboost::DataType type;
   bool is_scalar;
@@ -91,7 +107,7 @@ void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
 template <typename T>
 void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
                      xgboost::DataType expected_type, std::vector<T>* field) {
-  const std::string invalid {"MetaInfo: Invalid format. "};
+  const std::string invalid{"MetaInfo: Invalid format for " + expected_name};
   std::string name;
   xgboost::DataType type;
   bool is_scalar;
@@ -124,6 +140,33 @@ void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
   LoadVectorField(strm, expected_name, expected_type, &field->HostVector());
 }
 
+template <typename T, int32_t D>
+void LoadTensorField(dmlc::Stream* strm, std::string const& expected_name,
+                     xgboost::DataType expected_type, xgboost::linalg::Tensor<T, D>* p_out) {
+  const std::string invalid{"MetaInfo: Invalid format for " + expected_name};
+  std::string name;
+  xgboost::DataType type;
+  bool is_scalar;
+  CHECK(strm->Read(&name)) << invalid;
+  CHECK_EQ(name, expected_name) << invalid << " Expected field: " << expected_name
+                                << ", got: " << name;
+  uint8_t type_val;
+  CHECK(strm->Read(&type_val)) << invalid;
+  type = static_cast<xgboost::DataType>(type_val);
+  CHECK(type == expected_type) << invalid
+                               << "Expected field of type: " << static_cast<int>(expected_type)
+                               << ", "
+                               << "got field type: " << static_cast<int>(type);
+  CHECK(strm->Read(&is_scalar)) << invalid;
+  CHECK(!is_scalar) << invalid << "Expected field " << expected_name
+                    << " to be a tensor; got a scalar";
+  std::array<size_t, D> shape;
+  for (size_t i = 0; i < D; ++i) {
+    CHECK(strm->Read(&(shape[i])));
+  }
+  auto& field = p_out->Data()->HostVector();
+  CHECK(strm->Read(&field)) << invalid;
+}
 }  // anonymous namespace
 
 namespace xgboost {
@@ -136,25 +179,26 @@ void MetaInfo::Clear() {
   labels_.HostVector().clear();
   group_ptr_.clear();
   weights_.HostVector().clear();
-  base_margin_.HostVector().clear();
+  base_margin_ = decltype(base_margin_){};
 }
 
 /*
  * Binary serialization format for MetaInfo:
  *
- * | name               | type     | is_scalar | num_row | num_col | value                   |
- * |--------------------+----------+-----------+---------+---------+-------------------------|
- * | num_row            | kUInt64  | True      | NA      |      NA | ${num_row_}             |
- * | num_col            | kUInt64  | True      | NA      |      NA | ${num_col_}             |
- * | num_nonzero        | kUInt64  | True      | NA      |      NA | ${num_nonzero_}         |
- * | labels             | kFloat32 | False     | ${size} |       1 | ${labels_}              |
- * | group_ptr          | kUInt32  | False     | ${size} |       1 | ${group_ptr_}           |
- * | weights            | kFloat32 | False     | ${size} |       1 | ${weights_}             |
- * | base_margin        | kFloat32 | False     | ${size} |       1 | ${base_margin_}         |
- * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound_}  |
- * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound_}  |
- * | feature_names      | kStr     | False     | ${size} |       1 | ${feature_names}        |
- * | feature_types      | kStr     | False     | ${size} |       1 | ${feature_types}        |
+ * | name               | type     | is_scalar | num_row     |     num_col | dim3        | value                  |
+ * |--------------------+----------+-----------+-------------+-------------+-------------+------------------------|
+ * | num_row            | kUInt64  | True      | NA          |          NA | NA          | ${num_row_}            |
+ * | num_col            | kUInt64  | True      | NA          |          NA | NA          | ${num_col_}            |
+ * | num_nonzero        | kUInt64  | True      | NA          |          NA | NA          | ${num_nonzero_}        |
+ * | labels             | kFloat32 | False     | ${size}     |           1 | NA          | ${labels_}             |
+ * | group_ptr          | kUInt32  | False     | ${size}     |           1 | NA          | ${group_ptr_}          |
+ * | weights            | kFloat32 | False     | ${size}     |           1 | NA          | ${weights_}            |
+ * | base_margin        | kFloat32 | False     | ${Shape(0)} | ${Shape(1)} | ${Shape(2)} | ${base_margin_}        |
+ * | labels_lower_bound | kFloat32 | False     | ${size}     |           1 | NA          | ${labels_lower_bound_} |
+ * | labels_upper_bound | kFloat32 | False     | ${size}     |           1 | NA          | ${labels_upper_bound_} |
+ * | feature_names      | kStr     | False     | ${size}     |           1 | NA          | ${feature_names}       |
+ * | feature_types      | kStr     | False     | ${size}     |           1 | NA          | ${feature_types}       |
+ * | feature_types      | kFloat32 | False     | ${size}     |           1 | NA          | ${feature_weights}     |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -175,8 +219,7 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
                   {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
   SaveVectorField(fo, u8"weights", DataType::kFloat32,
                   {weights_.Size(), 1}, weights_); ++field_cnt;
-  SaveVectorField(fo, u8"base_margin", DataType::kFloat32,
-                  {base_margin_.Size(), 1}, base_margin_); ++field_cnt;
+  SaveTensorField(fo, u8"base_margin", DataType::kFloat32, base_margin_); ++field_cnt;
   SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
                   {labels_lower_bound_.Size(), 1}, labels_lower_bound_); ++field_cnt;
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
@@ -186,6 +229,9 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
                   {feature_names.size(), 1}, feature_names); ++field_cnt;
   SaveVectorField(fo, u8"feature_types", DataType::kStr,
                   {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+  SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
+                  feature_weights);
+  ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
@@ -214,10 +260,14 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   auto major = std::get<0>(version);
   // MetaInfo is saved in `SparsePageSource'.  So the version in MetaInfo represents the
   // version of DMatrix.
-  CHECK_EQ(major, 1) << "Binary DMatrix generated by XGBoost: "
-                     << Version::String(version) << " is no longer supported. "
-                     << "Please process and save your data in current version: "
-                     << Version::String(Version::Self()) << " again.";
+  std::stringstream msg;
+  msg << "Binary DMatrix generated by XGBoost: " << Version::String(version)
+      << " is no longer supported. "
+      << "Please process and save your data in current version: "
+      << Version::String(Version::Self()) << " again.";
+  CHECK_EQ(major, 1) << msg.str();
+  auto minor = std::get<1>(version);
+  CHECK_GE(minor, 6) << msg.str();
 
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
@@ -244,12 +294,13 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"labels", DataType::kFloat32, &labels_);
   LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
   LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
-  LoadVectorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
+  LoadTensorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
 
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
+  LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
   LoadFeatureType(feature_type_names, &feature_types.HostVector());
 }
 
@@ -292,10 +343,13 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
         << "Incorrect size of base margin vector.";
-    size_t stride = this->base_margin_.Size() / this->num_row_;
-    out.base_margin_.HostVector() = Gather(this->base_margin_.HostVector(), ridxs, stride);
+    auto margin = this->base_margin_.View(this->base_margin_.Data()->DeviceIdx());
+    out.base_margin_.Reshape(ridxs.size(), margin.Shape()[1], margin.Shape()[2]);
+    size_t stride = margin.Stride(0);
+    out.base_margin_.Data()->HostVector() =
+        Gather(this->base_margin_.Data()->HostVector(), ridxs, stride);
   } else {
-    out.base_margin_.HostVector() = Gather(this->base_margin_.HostVector(), ridxs);
+    out.base_margin_.Data()->HostVector() = Gather(this->base_margin_.Data()->HostVector(), ridxs);
   }
 
   out.feature_weights.Resize(this->feature_weights.Size());
@@ -338,105 +392,179 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
   return true;
 }
 
-// macro to dispatch according to specified pointer types
-#define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
-  switch (dtype) {                                                      \
-    case xgboost::DataType::kFloat32: {                                 \
-      auto cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
-    }                                                                   \
-    case xgboost::DataType::kDouble: {                                  \
-      auto cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
-    }                                                                   \
-    case xgboost::DataType::kUInt32: {                                  \
-      auto cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
-    }                                                                   \
-    case xgboost::DataType::kUInt64: {                                  \
-      auto cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
-    }                                                                   \
-    default: LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype); \
-  }                                                                     \
+namespace {
+template <int32_t D, typename T>
+void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
+  ArrayInterface<D> array{arr_interface};
+  if (array.n == 0) {
+    return;
+  }
+  CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
+  if (array.is_contiguous && array.type == ToDType<T>::kType) {
+    // Handle contigious
+    p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
+      // set shape
+      std::copy(array.shape, array.shape + D, shape.data());
+      // set data
+      data->Resize(array.n);
+      std::memcpy(data->HostPointer(), array.data, array.n * sizeof(T));
+    });
+    return;
+  }
+  p_out->Reshape(array.shape);
+  auto t = p_out->View(GenericParameter::kCpuId);
+  CHECK(t.Contiguous());
+  // FIXME(jiamingy): Remove the use of this default thread.
+  linalg::ElementWiseKernelHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
+    return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, t.Shape()));
+  });
+}
+}  // namespace
 
-void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
-  if (!std::strcmp(key, "label")) {
-    auto& labels = labels_.HostVector();
-    labels.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
-    auto valid = std::none_of(labels.cbegin(), labels.cend(), [](auto y) {
-      return std::isnan(y) || std::isinf(y);
-    });
-    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
-  } else if (!std::strcmp(key, "weight")) {
-    auto& weights = weights_.HostVector();
-    weights.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, weights.begin()));
-    auto valid = std::none_of(weights.cbegin(), weights.cend(), [](float w) {
-      return w < 0 || std::isinf(w) || std::isnan(w);
-    });
-    CHECK(valid) << "Weights must be positive values.";
-  } else if (!std::strcmp(key, "base_margin")) {
-    auto& base_margin = base_margin_.HostVector();
-    base_margin.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, base_margin.begin()));
-  } else if (!std::strcmp(key, "group")) {
-    group_ptr_.clear(); group_ptr_.resize(num + 1, 0);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, group_ptr_.begin() + 1));
-    group_ptr_[0] = 0;
-    for (size_t i = 1; i < group_ptr_.size(); ++i) {
-      group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
+void MetaInfo::SetInfo(StringView key, StringView interface_str) {
+  Json j_interface = Json::Load(interface_str);
+  bool is_cuda{false};
+  if (IsA<Array>(j_interface)) {
+    auto const& array = get<Array const>(j_interface);
+    CHECK_GE(array.size(), 0) << "Invalid " << key
+                              << ", must have at least 1 column even if it's empty.";
+    auto const& first = get<Object const>(array.front());
+    auto ptr = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(first);
+    is_cuda = ArrayInterfaceHandler::IsCudaPtr(ptr);
+  } else {
+    auto const& first = get<Object const>(j_interface);
+    auto ptr = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(first);
+    is_cuda = ArrayInterfaceHandler::IsCudaPtr(ptr);
+  }
+
+  if (is_cuda) {
+    this->SetInfoFromCUDA(key, j_interface);
+  } else {
+    this->SetInfoFromHost(key, j_interface);
+  }
+}
+
+void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
+  // multi-dim float info
+  if (key == "base_margin") {
+    CopyTensorInfoImpl<3>(arr, &this->base_margin_);
+    // FIXME(jiamingy): Remove the deprecated API and let all language bindings aware of
+    // input shape.  This issue is CPU only since CUDA uses array interface from day 1.
+    //
+    // Python binding always understand the shape, so this condition should not occur for
+    // it.
+    if (this->num_row_ != 0 && this->base_margin_.Shape(0) != this->num_row_) {
+      // API functions that don't use array interface don't understand shape.
+      CHECK(this->base_margin_.Size() % this->num_row_ == 0) << "Incorrect size for base margin.";
+      size_t n_groups = this->base_margin_.Size() / this->num_row_;
+      this->base_margin_.Reshape(this->num_row_, n_groups);
     }
+    return;
+  }
+  // uint info
+  if (key == "group") {
+    linalg::Tensor<bst_group_t, 1> t;
+    CopyTensorInfoImpl(arr, &t);
+    auto const& h_groups = t.Data()->HostVector();
+    group_ptr_.clear();
+    group_ptr_.resize(h_groups.size() + 1, 0);
+    group_ptr_[0] = 0;
+    std::partial_sum(h_groups.cbegin(), h_groups.cend(), group_ptr_.begin() + 1);
     data::ValidateQueryGroup(group_ptr_);
-  } else if (!std::strcmp(key, "qid")) {
-    std::vector<uint32_t> query_ids(num, 0);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, query_ids.begin()));
+    return;
+  } else if (key == "qid") {
+    linalg::Tensor<bst_group_t, 1> t;
+    CopyTensorInfoImpl(arr, &t);
     bool non_dec = true;
+    auto const& query_ids = t.Data()->HostVector();
     for (size_t i = 1; i < query_ids.size(); ++i) {
-      if (query_ids[i] < query_ids[i-1]) {
+      if (query_ids[i] < query_ids[i - 1]) {
         non_dec = false;
         break;
       }
     }
     CHECK(non_dec) << "`qid` must be sorted in non-decreasing order along with data.";
-    group_ptr_.clear(); group_ptr_.push_back(0);
+    group_ptr_.clear();
+    group_ptr_.push_back(0);
     for (size_t i = 1; i < query_ids.size(); ++i) {
-      if (query_ids[i] != query_ids[i-1]) {
+      if (query_ids[i] != query_ids[i - 1]) {
         group_ptr_.push_back(i);
       }
     }
     if (group_ptr_.back() != query_ids.size()) {
       group_ptr_.push_back(query_ids.size());
     }
-  } else if (!std::strcmp(key, "label_lower_bound")) {
-    auto& labels = labels_lower_bound_.HostVector();
-    labels.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
-  } else if (!std::strcmp(key, "label_upper_bound")) {
-    auto& labels = labels_upper_bound_.HostVector();
-    labels.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
-  } else if (!std::strcmp(key, "feature_weights")) {
-    auto &h_feature_weights = feature_weights.HostVector();
-    h_feature_weights.resize(num);
-    DISPATCH_CONST_PTR(
-        dtype, dptr, cast_dptr,
-        std::copy(cast_dptr, cast_dptr + num, h_feature_weights.begin()));
+    data::ValidateQueryGroup(group_ptr_);
+    return;
+  }
+  // float info
+  linalg::Tensor<float, 1> t;
+  CopyTensorInfoImpl<1>(arr, &t);
+  if (key == "label") {
+    this->labels_ = std::move(*t.Data());
+    auto const& h_labels = labels_.ConstHostVector();
+    auto valid = std::none_of(h_labels.cbegin(), h_labels.cend(), data::LabelsCheck{});
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
+  } else if (key == "weight") {
+    this->weights_ = std::move(*t.Data());
+    auto const& h_weights = this->weights_.ConstHostVector();
+    auto valid = std::none_of(h_weights.cbegin(), h_weights.cend(),
+                              [](float w) { return w < 0 || std::isinf(w) || std::isnan(w); });
+    CHECK(valid) << "Weights must be positive values.";
+  } else if (key == "label_lower_bound") {
+    this->labels_lower_bound_ = std::move(*t.Data());
+  } else if (key == "label_upper_bound") {
+    this->labels_upper_bound_ = std::move(*t.Data());
+  } else if (key == "feature_weights") {
+    this->feature_weights = std::move(*t.Data());
+    auto const& h_feature_weights = feature_weights.ConstHostVector();
     bool valid =
-        std::none_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
-                     [](float w) { return w < 0; });
+        std::none_of(h_feature_weights.cbegin(), h_feature_weights.cend(), data::WeightsCheck{});
     CHECK(valid) << "Feature weight must be greater than 0.";
   } else {
     LOG(FATAL) << "Unknown key for MetaInfo: " << key;
   }
 }
 
-void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
-                       const void **out_dptr) const {
+void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
+  auto proc = [&](auto cast_d_ptr) {
+    using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
+    auto t =
+        linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, GenericParameter::kCpuId);
+    CHECK(t.Contiguous());
+    Json interface { t.ArrayInterface() };
+    assert(ArrayInterface<1>{interface}.is_contiguous);
+    return interface;
+  };
+  // Legacy code using XGBoost dtype, which is a small subset of array interface types.
+  switch (dtype) {
+    case xgboost::DataType::kFloat32: {
+      auto cast_ptr = reinterpret_cast<const float*>(dptr);
+      this->SetInfoFromHost(key, proc(cast_ptr));
+      break;
+    }
+    case xgboost::DataType::kDouble: {
+      auto cast_ptr = reinterpret_cast<const double*>(dptr);
+      this->SetInfoFromHost(key, proc(cast_ptr));
+      break;
+    }
+    case xgboost::DataType::kUInt32: {
+      auto cast_ptr = reinterpret_cast<const uint32_t*>(dptr);
+      this->SetInfoFromHost(key, proc(cast_ptr));
+      break;
+    }
+    case xgboost::DataType::kUInt64: {
+      auto cast_ptr = reinterpret_cast<const uint64_t*>(dptr);
+      this->SetInfoFromHost(key, proc(cast_ptr));
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
+  }
+}
+
+void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
+                       const void** out_dptr) const {
   if (dtype == DataType::kFloat32) {
     const std::vector<bst_float>* vec = nullptr;
     if (!std::strcmp(key, "label")) {
@@ -444,7 +572,7 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
     } else if (!std::strcmp(key, "weight")) {
       vec = &this->weights_.HostVector();
     } else if (!std::strcmp(key, "base_margin")) {
-      vec = &this->base_margin_.HostVector();
+      vec = &this->base_margin_.Data()->HostVector();
     } else if (!std::strcmp(key, "label_lower_bound")) {
       vec = &this->labels_lower_bound_.HostVector();
     } else if (!std::strcmp(key, "label_upper_bound")) {
@@ -533,8 +661,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.DeviceIdx());
   this->labels_upper_bound_.Extend(that.labels_upper_bound_);
 
-  this->base_margin_.SetDevice(that.base_margin_.DeviceIdx());
-  this->base_margin_.Extend(that.base_margin_);
+  linalg::Stack(&this->base_margin_, that.base_margin_);
 
   if (this->group_ptr_.size() == 0) {
     this->group_ptr_ = that.group_ptr_;
@@ -617,14 +744,12 @@ void MetaInfo::Validate(int32_t device) const {
   if (base_margin_.Size() != 0) {
     CHECK_EQ(base_margin_.Size() % num_row_, 0)
         << "Size of base margin must be a multiple of number of rows.";
-    check_device(base_margin_);
+    check_device(*base_margin_.Data());
   }
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfo(StringView key, std::string const& interface_str) {
-  common::AssertGPUSupport();
-}
+void MetaInfo::SetInfoFromCUDA(StringView key, Json arr) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 using DMatrixThreadLocal =
@@ -778,10 +903,10 @@ DMatrix* DMatrix::Load(const std::string& uri,
       LOG(CONSOLE) << info.group_ptr_.size() - 1
                    << " groups are loaded from " << fname << ".group";
     }
-    if (MetaTryLoadFloatInfo
-        (fname + ".base_margin", &info.base_margin_.HostVector()) && !silent) {
-      LOG(CONSOLE) << info.base_margin_.Size()
-                   << " base_margin are loaded from " << fname << ".base_margin";
+    if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin_.Data()->HostVector()) &&
+        !silent) {
+      LOG(CONSOLE) << info.base_margin_.Size() << " base_margin are loaded from " << fname
+                   << ".base_margin";
     }
     if (MetaTryLoadFloatInfo
         (fname + ".weight", &info.weights_.HostVector()) && !silent) {

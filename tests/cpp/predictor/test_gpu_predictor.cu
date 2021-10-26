@@ -108,7 +108,9 @@ TEST(GPUPredictor, ExternalMemoryTest) {
   dmats.push_back(CreateSparsePageDMatrix(8000));
 
   for (const auto& dmat: dmats) {
-    dmat->Info().base_margin_.Resize(dmat->Info().num_row_ * n_classes, 0.5);
+    dmat->Info().base_margin_ =
+        linalg::Tensor<float, 3>{{dmat->Info().num_row_, static_cast<size_t>(n_classes)}, 0};
+    dmat->Info().base_margin_.Data()->Fill(0.5);
     PredictionCacheEntry out_predictions;
     gpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
     gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);

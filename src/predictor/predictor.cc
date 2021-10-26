@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  */
 #include <dmlc/registry.h>
 #include <mutex>
@@ -7,6 +7,8 @@
 #include "xgboost/predictor.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
+
+#include "../gbm/gbtree.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
@@ -57,6 +59,33 @@ Predictor* Predictor::Create(
   }
   auto p_predictor = (e->body)(generic_param);
   return p_predictor;
+}
+
+void ValidateBaseMarginShape(linalg::Tensor<float, 3> const& margin, bst_row_t n_samples,
+                             bst_group_t n_groups) {
+  // FIXME: Bindings other than Python doesn't have shape.
+  std::string expected{"Invalid shape of base_margin. Expected: (" + std::to_string(n_samples) +
+                       ", " + std::to_string(n_groups) + ")"};
+  CHECK_EQ(margin.Shape(0), n_samples) << expected;
+  CHECK_EQ(margin.Shape(1), n_groups) << expected;
+}
+
+void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_preds,
+                                   const gbm::GBTreeModel& model) const {
+  CHECK_NE(model.learner_model_param->num_output_group, 0);
+  size_t n_classes = model.learner_model_param->num_output_group;
+  size_t n = n_classes * info.num_row_;
+  const HostDeviceVector<bst_float>* base_margin = info.base_margin_.Data();
+  if (generic_param_->gpu_id >= 0) {
+    out_preds->SetDevice(generic_param_->gpu_id);
+  }
+  out_preds->Resize(n);
+  if (base_margin->Size() != 0) {
+    ValidateBaseMarginShape(info.base_margin_, info.num_row_, n_classes);
+    out_preds->Copy(*base_margin);
+  } else {
+    out_preds->Fill(model.learner_model_param->base_score);
+  }
 }
 }  // namespace xgboost
 

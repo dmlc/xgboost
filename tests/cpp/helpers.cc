@@ -228,6 +228,7 @@ RandomDataGenerator::GenerateArrayInterfaceBatch(
     if (device_ >= 0) {
       array_interface["data"][0] =
           Integer(reinterpret_cast<int64_t>(storage->DevicePointer() + offset));
+      array_interface["stream"] = Null{};
     } else {
       array_interface["data"][0] =
           Integer(reinterpret_cast<int64_t>(storage->HostPointer() + offset));
@@ -240,7 +241,7 @@ RandomDataGenerator::GenerateArrayInterfaceBatch(
     array_interface["shape"][1] = cols_;
 
     array_interface["typestr"] = String("<f4");
-    array_interface["version"] = 1;
+    array_interface["version"] = 3;
     return array_interface;
   };
 

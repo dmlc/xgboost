@@ -12,7 +12,8 @@ int AllVisibleGPUs() {
     // When compiled with CUDA but running on CPU only device,
     // cudaGetDeviceCount will fail.
     dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
-  } catch(const dmlc::Error &except) {
+  } catch (const dmlc::Error &) {
+    cudaGetLastError();  // reset error.
     return 0;
   }
   return n_visgpus;

@@ -178,7 +178,7 @@ class GBLinear : public GradientBooster {
                            unsigned layer_begin, unsigned layer_end, bool, int, unsigned) override {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin, layer_end);
-    const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
+    auto base_margin = p_fmat->Info().base_margin_.View(GenericParameter::kCpuId);
     const int ngroup = model_.learner_model_param->num_output_group;
     const size_t ncolumns = model_.learner_model_param->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
@@ -203,9 +203,9 @@ class GBLinear : public GradientBooster {
             p_contribs[ins.index] = ins.fvalue * model_[ins.index][gid];
           }
           // add base margin to BIAS
-          p_contribs[ncolumns - 1] = model_.Bias()[gid] +
-            ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] :
-                                         learner_model_param_->base_score);
+          p_contribs[ncolumns - 1] =
+              model_.Bias()[gid] + ((base_margin.Size() != 0) ? base_margin(row_idx, gid)
+                                                              : learner_model_param_->base_score);
         }
       });
     }
@@ -270,7 +270,7 @@ class GBLinear : public GradientBooster {
     monitor_.Start("PredictBatchInternal");
     model_.LazyInitModel();
     std::vector<bst_float> &preds = *out_preds;
-    const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
+    auto base_margin = p_fmat->Info().base_margin_.View(GenericParameter::kCpuId);
     // start collecting the prediction
     const int ngroup = model_.learner_model_param->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
@@ -280,16 +280,15 @@ class GBLinear : public GradientBooster {
       // k is number of group
       // parallel over local batch
       const auto nsize = static_cast<omp_ulong>(batch.Size());
-      if (base_margin.size() != 0) {
-        CHECK_EQ(base_margin.size(), nsize * ngroup);
+      if (base_margin.Size() != 0) {
+        CHECK_EQ(base_margin.Size(), nsize * ngroup);
       }
       common::ParallelFor(nsize, [&](omp_ulong i) {
         const size_t ridx = page.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float margin =
-              (base_margin.size() != 0) ?
-              base_margin[ridx * ngroup + gid] : learner_model_param_->base_score;
+          float margin =
+              (base_margin.Size() != 0) ? base_margin(ridx, gid) : learner_model_param_->base_score;
           this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
         }
       });

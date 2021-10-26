@@ -137,9 +137,10 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
                      batch.Weights() + batch.Size());
     }
     if (batch.BaseMargin() != nullptr) {
-      auto& base_margin = info_.base_margin_.HostVector();
-      base_margin.insert(base_margin.end(), batch.BaseMargin(),
-                     batch.BaseMargin() + batch.Size());
+      info_.base_margin_ = linalg::Tensor<float, 3>{batch.BaseMargin(),
+                                                    batch.BaseMargin() + batch.Size(),
+                                                    {batch.Size()},
+                                                    GenericParameter::kCpuId};
     }
     if (batch.Qid() != nullptr) {
       qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());

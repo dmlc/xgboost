@@ -3,9 +3,12 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include <xgboost/json.h>
+#include <xgboost/generic_parameters.h>
 #include <thrust/device_vector.h>
 #include "test_array_interface.h"
 #include "../../../src/common/device_helpers.cuh"
+
+#include "test_metainfo.h"
 
 namespace xgboost {
 
@@ -23,7 +26,7 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
   column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(sizeof(T))))});
-  column["version"] = Integer(static_cast<Integer::Int>(1));
+  column["version"] = 3;
   column["typestr"] = String(typestr);
 
   auto p_d_data = d_data.data().get();
@@ -31,6 +34,7 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
         Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
         Json(Boolean(false))};
   column["data"] = j_data;
+  column["stream"] = nullptr;
   Json array(std::vector<Json>{column});
 
   std::string str;
@@ -49,6 +53,7 @@ TEST(MetaInfo, FromInterface) {
   info.SetInfo("label", str.c_str());
 
   auto const& h_label = info.labels_.HostVector();
+  ASSERT_EQ(h_label.size(), d_data.size());
   for (size_t i = 0; i < d_data.size(); ++i) {
     ASSERT_EQ(h_label[i], d_data[i]);
   }
@@ -60,9 +65,10 @@ TEST(MetaInfo, FromInterface) {
   }
 
   info.SetInfo("base_margin", str.c_str());
-  auto const& h_base_margin = info.base_margin_.HostVector();
+  auto const h_base_margin = info.base_margin_.View(GenericParameter::kCpuId);
+  ASSERT_EQ(h_base_margin.Size(), d_data.size());
   for (size_t i = 0; i < d_data.size(); ++i) {
-    ASSERT_EQ(h_base_margin[i], d_data[i]);
+    ASSERT_EQ(h_base_margin(i), d_data[i]);
   }
 
   thrust::device_vector<int> d_group_data;
@@ -74,6 +80,10 @@ TEST(MetaInfo, FromInterface) {
   info.SetInfo("group", group_str.c_str());
   std::vector<bst_group_t> expected_group_ptr = {0, 4, 7, 9, 10};
   EXPECT_EQ(info.group_ptr_, expected_group_ptr);
+}
+
+TEST(MetaInfo, GPUStridedData) {
+  TestMetaInfoStridedData(0);
 }
 
 TEST(MetaInfo, Group) {
