@@ -12,15 +12,14 @@ namespace gbm {
 void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
                      bst_group_t n_groups, bst_group_t group_id,
                      HostDeviceVector<GradientPair> *out_gpair) {
-  MatrixView<GradientPair const> in{
-      in_gpair,
-      {n_groups, 1ul},
+  auto mat = linalg::TensorView<GradientPair const, 2>(
+      in_gpair->ConstDeviceSpan(),
       {in_gpair->Size() / n_groups, static_cast<size_t>(n_groups)},
-      in_gpair->DeviceIdx()};
-  auto v_in = VectorView<GradientPair const>{in, group_id};
+      in_gpair->DeviceIdx());
+  auto v_in = mat.Slice(linalg::All(), group_id);
   out_gpair->Resize(v_in.Size());
   auto d_out = out_gpair->DeviceSpan();
-  dh::LaunchN(v_in.Size(), [=] __device__(size_t i) { d_out[i] = v_in[i]; });
+  dh::LaunchN(v_in.Size(), [=] __device__(size_t i) { d_out[i] = v_in(i); });
 }
 
 void GPUDartPredictInc(common::Span<float> out_predts,

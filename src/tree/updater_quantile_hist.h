@@ -105,7 +105,7 @@ class QuantileHistMaker: public TreeUpdater {
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix *data,
-                             VectorView<float> out_preds) override;
+                             linalg::VectorView<float> out_preds) override;
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
@@ -171,7 +171,7 @@ class QuantileHistMaker: public TreeUpdater {
                         RegTree* p_tree);
 
     bool UpdatePredictionCache(const DMatrix* data,
-                               VectorView<float> out_preds);
+                               linalg::VectorView<float> out_preds);
 
    protected:
     // initialize temp data structure

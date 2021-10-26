@@ -399,10 +399,8 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
   hist_maker.Configure(args, &generic_param);
 
   hist_maker.Update(gpair, dmat, {tree});
-  hist_maker.UpdatePredictionCache(
-      dmat,
-      VectorView<float>{
-          MatrixView<float>(preds, {preds->Size(), 1}, preds->DeviceIdx()), 0});
+  auto cache = linalg::VectorView<float>{preds->DeviceSpan(), {preds->Size()}, 0};
+  hist_maker.UpdatePredictionCache(dmat, cache);
 }
 
 TEST(GpuHist, UniformSampling) {
