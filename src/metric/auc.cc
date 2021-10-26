@@ -212,7 +212,7 @@ std::pair<float, uint32_t> RankingAUC(std::vector<float> const &predts,
 
   std::vector<double> auc_tloc(n_threads, 0);
   common::ParallelFor(n_groups, n_threads, [&](size_t g) {
-    g += 1; // indexing needs to start from 1
+    g += 1;  // indexing needs to start from 1
     size_t cnt = info.group_ptr_[g] - info.group_ptr_[g - 1];
     float w = s_weights.empty() ? 1.0f : s_weights[g - 1];
     auto g_predts = s_predts.subspan(info.group_ptr_[g - 1], cnt);
