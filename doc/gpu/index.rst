@@ -179,7 +179,7 @@ Following table shows current support status for evaluation metrics on the GPU.
 +------------------------------+-------------+
 | auc                          | |tick|      |
 +------------------------------+-------------+
-| aucpr                        | |cross|     |
+| aucpr                        | |tick|      |
 +------------------------------+-------------+
 | ndcg                         | |tick|      |
 +------------------------------+-------------+
