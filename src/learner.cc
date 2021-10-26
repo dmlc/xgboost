@@ -1110,6 +1110,7 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
 
     std::ostringstream os;
+    os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
       auto warn_default_eval_metric = [](const std::string& objective, const std::string& before,
