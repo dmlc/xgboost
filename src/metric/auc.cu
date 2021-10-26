@@ -38,9 +38,9 @@ struct PairPlus : public thrust::binary_function<P, P, P> {
 struct DeviceAUCCache {
   // index sorted by prediction value
   dh::device_vector<size_t> sorted_idx;
-  // track FP/TP for computation on trapesoid area
+  // track FP/TP for computation on trapezoid area
   dh::device_vector<Pair> fptp;
-  // track FP_PREV/TP_PREV for computation on trapesoid area
+  // track FP_PREV/TP_PREV for computation on trapezoid area
   dh::device_vector<Pair> neg_pos;
   // index of unique prediction values.
   dh::device_vector<size_t> unique_idx;
@@ -79,9 +79,9 @@ void InitCacheOnce(common::Span<float const> predts, int32_t device,
  * The GPU implementation uses same calculation as CPU with a few more steps to distribute
  * work across threads:
  *
- * - Run scan to obtain TP/FP values, which are right coordinates of trapesoid.
+ * - Run scan to obtain TP/FP values, which are right coordinates of trapezoid.
  * - Find distinct prediction values and get the corresponding FP_PREV/TP_PREV value,
- *   which are left coordinates of trapesoids.
+ *   which are left coordinates of trapezoids.
  * - Reduce the scan array into 1 AUC value.
  */
 template <typename Fn>
@@ -183,7 +183,7 @@ GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
   // Create lambda to avoid pass function pointer.
   return GPUBinaryAUC(
       predts, info, device, d_sorted_idx,
-      [] XGBOOST_DEVICE(float x0, float x1, float y0, float y1) {
+      [] XGBOOST_DEVICE(double x0, double x1, double y0, double y1) -> double {
         return TrapezoidArea(x0, x1, y0, y1);
       },
       cache);
@@ -230,7 +230,7 @@ double ScaleClasses(common::Span<double> results,
   double auc_sum;
   thrust::tie(auc_sum, tp_sum) =
       thrust::reduce(thrust::cuda::par(alloc), reduce_in, reduce_in + n_classes,
-                     Pair{0.0f, 0.0f}, PairPlus<double, double>{});
+                     Pair{0.0, 0.0}, PairPlus<double, double>{});
   if (tp_sum != 0 && !std::isnan(auc_sum)) {
     auc_sum /= tp_sum;
   } else {
@@ -293,7 +293,7 @@ void SegmentedReduceAUC(common::Span<size_t const> d_unique_idx,
         size_t class_id = segment_id(d_unique_idx[i]);
         return class_id;
       });
-  auto val_in = dh::MakeTransformIterator<float>(
+  auto val_in = dh::MakeTransformIterator<double>(
       thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {
         size_t class_id = segment_id(d_unique_idx[i]);
 
@@ -641,7 +641,7 @@ GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
                                  (1.0f - labels[d_sorted_idx[i]]) * w);
       });
   dh::XGBCachingDeviceAllocator<char> alloc;
-  float total_pos, total_neg;
+  double total_pos, total_neg;
   thrust::tie(total_pos, total_neg) =
       thrust::reduce(thrust::cuda::par(alloc), it, it + labels.size(),
                      Pair{0.0, 0.0}, PairPlus<double, double>{});
@@ -818,7 +818,7 @@ GPURankingPRAUCImpl(common::Span<float const> predts, MetaInfo const &info,
   double auc;
   uint32_t invalid_groups;
   {
-    auto it = dh::MakeTransformIterator<thrust::pair<float, uint32_t>>(
+    auto it = dh::MakeTransformIterator<thrust::pair<double, uint32_t>>(
         thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t g) {
           double fp, tp;
           thrust::tie(fp, tp) = d_fptp[LastOf(g, d_group_ptr)];
@@ -869,7 +869,7 @@ GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
    * Get total positive/negative for each group.
    */
   auto d_weights = info.weights_.ConstDeviceSpan();
-  dh::caching_device_vector<thrust::pair<float, float>> totals(n_groups);
+  dh::caching_device_vector<thrust::pair<double, double>> totals(n_groups);
   auto key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t i) { return dh::SegmentId(d_group_ptr, i); });
