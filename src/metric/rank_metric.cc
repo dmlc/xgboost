@@ -102,9 +102,8 @@ struct EvalAMS : public Metric {
     name_ = os.str();
   }
 
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+              bool distributed) override {
     CHECK(!distributed) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
@@ -163,9 +162,8 @@ struct EvalRank : public Metric, public EvalRankConfig {
   std::unique_ptr<xgboost::Metric> rank_gpu_;
 
  public:
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+              bool distributed) override {
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
 
@@ -222,14 +220,12 @@ struct EvalRank : public Metric, public EvalRankConfig {
     }
 
     if (distributed) {
-      bst_float dat[2];
-      dat[0] = static_cast<bst_float>(sum_metric);
-      dat[1] = static_cast<bst_float>(ngroups);
+      double dat[2]{sum_metric, static_cast<double>(ngroups)};
       // approximately estimate the metric using mean
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
       return dat[0] / dat[1];
     } else {
-      return static_cast<bst_float>(sum_metric) / ngroups;
+      return sum_metric / ngroups;
     }
   }
 
@@ -335,9 +331,9 @@ struct EvalMAP : public EvalRank {
       return sumap;
     } else {
       if (this->minus) {
-        return 0.0f;
+        return 0.0;
       } else {
-        return 1.0f;
+        return 1.0;
       }
     }
   }
@@ -347,9 +343,8 @@ struct EvalMAP : public EvalRank {
 struct EvalCox : public Metric {
  public:
   EvalCox() = default;
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+              bool distributed) override {
     CHECK(!distributed) << "Cox metric does not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 

@@ -167,9 +167,8 @@ class MultiClassMetricsReduction {
  */
 template<typename Derived>
 struct EvalMClassBase : public Metric {
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
+  double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info,
+              bool distributed) override {
     if (info.labels_.Size() == 0) {
       CHECK_EQ(preds.Size(), 0);
     } else {
@@ -206,7 +205,7 @@ struct EvalMClassBase : public Metric {
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
-  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  inline static double GetFinal(double esum, double wsum) {
     return esum / wsum;
   }
 
