@@ -407,7 +407,7 @@ GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
 struct DeviceAUCCache {};
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-class EvalAUCPR : public EvalAUC<EvalAUCPR> {
+class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   std::shared_ptr<DeviceAUCCache> d_cache_;
 
  public:
@@ -462,7 +462,7 @@ class EvalAUCPR : public EvalAUC<EvalAUCPR> {
 
 XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .describe("Area under PR curve for both classification and rank.")
-    .set_body([](char const *) { return new EvalAUCPR{}; });
+    .set_body([](char const *) { return new EvalPRAUC{}; });
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<double, double, double>
