@@ -48,7 +48,7 @@ TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
               0.5, 1e-10);
 }
 
-TEST(Metric, DeclareUnifiedTest(MultiAUC)) {
+TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) {
   auto tparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{
       Metric::Create("auc", &tparam)};
@@ -64,6 +64,17 @@ TEST(Metric, DeclareUnifiedTest(MultiAUC)) {
                             },
                             {0, 1, 2}),
               1.0f, 1e-10);
+
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {
+                                1.0f, 0.0f, 0.0f, // p_0
+                                0.0f, 1.0f, 0.0f, // p_1
+                                0.0f, 0.0f, 1.0f  // p_2
+                            },
+                            {0, 1, 2},
+                            {1.0f, 1.0f, 1.0f}),
+              1.0f, 1e-10);
+
   EXPECT_NEAR(GetMetricEval(metric,
                             {
                                 1.0f, 0.0f, 0.0f, // p_0
@@ -72,6 +83,7 @@ TEST(Metric, DeclareUnifiedTest(MultiAUC)) {
                             },
                             {2, 1, 0}),
               0.5f, 1e-10);
+
   EXPECT_NEAR(GetMetricEval(metric,
                             {
                                 1.0f, 0.0f, 0.0f, // p_0
@@ -138,6 +150,111 @@ TEST(Metric, DeclareUnifiedTest(RankingAUC)) {
   EXPECT_NEAR(GetMetricEval(metric.get(), std::move(predt), labels,
                             /*weights=*/{}, groups),
               0.769841f, 1e-6);
+}
+
+TEST(Metric, DeclareUnifiedTest(PRAUC)) {
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
+  ASSERT_STREQ(metric->Name(), "aucpr");
+  EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}), 1, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}),
+              0.5f, 0.001f);
+  EXPECT_NEAR(GetMetricEval(
+                  metric,
+                  {0.4f, 0.2f, 0.9f, 0.1f, 0.2f, 0.4f, 0.1f, 0.1f, 0.2f, 0.1f},
+                  {0, 0, 0, 0, 0, 1, 0, 0, 1, 1}),
+              0.2908445f, 0.001f);
+  EXPECT_NEAR(GetMetricEval(
+                  metric, {0.87f, 0.31f, 0.40f, 0.42f, 0.25f, 0.66f, 0.95f,
+                           0.09f, 0.10f, 0.97f, 0.76f, 0.69f, 0.15f, 0.20f,
+                           0.30f, 0.14f, 0.07f, 0.58f, 0.61f, 0.08f},
+                  {0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1}),
+              0.2769199f, 0.001f);
+  auto auc = GetMetricEval(metric, {0, 1}, {});
+  ASSERT_TRUE(std::isnan(auc));
+
+  // AUCPR with instance weights
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.29f, 0.52f, 0.11f, 0.21f, 0.219f, 0.93f, 0.493f,
+                             0.17f, 0.47f, 0.13f, 0.43f, 0.59f, 0.87f, 0.007f},
+                            {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0},
+                            {1, 2, 7, 4, 5, 2.2f, 3.2f, 5, 6, 1, 2, 1.1f, 3.2f,
+                             4.5f}), // weights
+              0.694435f, 0.001f);
+
+  // Both groups contain only pos or neg samples.
+  auc = GetMetricEval(metric,
+                      {0, 0.1f, 0.3f, 0.5f, 0.7f},
+                      {1, 1, 0, 0, 0},
+                      {},
+                      {0, 2, 5});
+  ASSERT_TRUE(std::isnan(auc));
+  delete metric;
+}
+
+TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) {
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam)};
+
+  float auc = 0;
+  std::vector<float> labels {1.0f, 0.0f, 2.0f};
+  HostDeviceVector<float> predts{
+    0.0f, 1.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f,
+  };
+  auc = GetMetricEval(metric.get(), predts, labels, {});
+  EXPECT_EQ(auc, 1.0f);
+
+  auc = GetMetricEval(metric.get(), predts, labels, {1.0f, 1.0f, 1.0f});
+  EXPECT_EQ(auc, 1.0f);
+
+  predts.HostVector() =  {
+    0.0f, 1.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f,
+    0.0f, 0.0f, 1.0f,
+  };
+  labels = {1.0f, 0.0f, 2.0f, 1.0f};
+  auc = GetMetricEval(metric.get(), predts, labels, {1.0f, 2.0f, 3.0f, 4.0f});
+  ASSERT_GT(auc, 0.699);
+}
+
+TEST(Metric, DeclareUnifiedTest(RankingPRAUC)) {
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam)};
+
+  std::vector<float> labels {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
+  std::vector<uint32_t> groups {0, 2, 6};
+
+  float auc = 0;
+  auc = GetMetricEval(metric.get(), {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f}, labels, {}, groups);
+  EXPECT_EQ(auc, 1.0f);
+
+  auc = GetMetricEval(metric.get(), {1.0f, 0.5f, 0.8f, 0.3f, 0.2f, 1.0f}, labels, {}, groups);
+  EXPECT_EQ(auc, 1.0f);
+
+  auc = GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+                      {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}, {}, groups);
+  ASSERT_TRUE(std::isnan(auc));
+
+  // Incorrect label
+  ASSERT_THROW(GetMetricEval(metric.get(), {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+                             {1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 3.0f}, {}, groups),
+               dmlc::Error);
+
+  // AUCPR with groups and no weights
+  EXPECT_NEAR(GetMetricEval(
+      metric.get(), {0.87f, 0.31f, 0.40f, 0.42f, 0.25f, 0.66f, 0.95f,
+                     0.09f, 0.10f, 0.97f, 0.76f, 0.69f, 0.15f, 0.20f,
+                     0.30f, 0.14f, 0.07f, 0.58f, 0.61f, 0.08f},
+                  {0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1},
+                  {},  // weights
+                  {0, 2, 5, 9, 14, 20}),  // group info
+              0.556021f, 0.001f);
 }
 }  // namespace metric
 }  // namespace xgboost
