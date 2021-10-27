@@ -87,12 +87,6 @@ def test_generalized_linear_model_demo():
     subprocess.check_call(cmd)
 
 
-def test_custom_objective_demo():
-    script = os.path.join(PYTHON_DEMO_DIR, 'custom_objective.py')
-    cmd = ['python', script]
-    subprocess.check_call(cmd)
-
-
 def test_cross_validation_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'cross_validation.py')
     cmd = ['python', script]
