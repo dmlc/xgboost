@@ -16,16 +16,18 @@ class GradientIndexPageSource : public PageSourceIncMixIn<GHistIndexMatrix> {
   common::HistogramCuts cuts_;
   bool is_dense_;
   int32_t max_bin_per_feat_;
+  common::Span<FeatureType const> feature_types_;
 
  public:
   GradientIndexPageSource(float missing, int nthreads, bst_feature_t n_features,
                           size_t n_batches, std::shared_ptr<Cache> cache,
                           BatchParam param, common::HistogramCuts cuts,
                           bool is_dense, int32_t max_bin_per_feat,
+                          common::Span<FeatureType const> feature_types,
                           std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache),
-        cuts_{std::move(cuts)}, is_dense_{is_dense}, max_bin_per_feat_{
-                                                         max_bin_per_feat} {
+        cuts_{std::move(cuts)}, is_dense_{is_dense},
+        max_bin_per_feat_{max_bin_per_feat}, feature_types_{feature_types} {
     this->source_ = source;
     this->Fetch();
   }
