@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by XGBoost Contributors
+ * Copyright 2019-2021 by XGBoost Contributors
  */
 #include <thrust/functional.h>
 #include <thrust/random.h>
