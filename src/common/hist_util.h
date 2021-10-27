@@ -105,8 +105,26 @@ class HistogramCuts {
     return idx;
   }
 
+  /**
+   * \brief Search the bin index for numerical feature.
+   */
   BinIdx SearchBin(Entry const& e) const {
     return SearchBin(e.fvalue, e.index);
+  }
+
+  /**
+   * \brief Search the bin index for categorical feature.
+   */
+  BinIdx SearchCatBin(Entry const &e) const {
+    auto const &ptrs = this->Ptrs();
+    auto const &vals = this->Values();
+    auto end = ptrs.at(e.index + 1) + vals.cbegin();
+    auto beg = ptrs[e.index] + vals.cbegin();
+    auto bin_idx = std::lower_bound(beg, end, e.fvalue) - vals.cbegin();
+    if (bin_idx == ptrs.at(e.index + 1)) {
+      bin_idx -= 1;
+    }
+    return bin_idx;
   }
 };
 

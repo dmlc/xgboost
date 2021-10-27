@@ -67,14 +67,7 @@ class GHistIndexMatrix {
       for (bst_uint j = 0; j < inst.size(); ++j) {
         auto e = inst[j];
         if (common::IsCat(ft, e.index)) {
-          auto const& cut_ptrs_ = cut.Ptrs();
-          auto const& cut_values_ = cut.Values();
-          auto beg = cut_ptrs_.at(e.index) + cut_values_.cbegin();
-          auto end = cut_ptrs_.at(e.index + 1) + cut_values_.cbegin();
-          auto bin_idx = std::lower_bound(beg, end, e.fvalue) - cut_values_.cbegin();
-          if (bin_idx == cut_ptrs_.at(e.index + 1)) {
-            bin_idx -= 1;
-          }
+          auto bin_idx = cut.SearchCatBin(e);
           index_data[ibegin + j] = get_offset(bin_idx, j);
           ++hit_count_tloc_[tid * nbins + bin_idx];
         } else {
