@@ -1,7 +1,11 @@
+/*!
+ * Copyright 2020-2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
+#include "../../../../src/tree/param.h"
 #include "../../helpers.h"
 #include "dmlc/filesystem.h"
 

@@ -3,6 +3,8 @@
  */
 #include <limits>
 #include <utility>
+
+#include "rabit/rabit.h"
 #include "quantile.h"
 #include "hist_util.h"
 #include "categorical.h"
