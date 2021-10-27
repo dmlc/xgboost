@@ -133,6 +133,7 @@ void RemoveDuplicatedCategories(
     int32_t device, MetaInfo const &info, Span<bst_row_t> d_cuts_ptr,
     dh::device_vector<Entry> *p_sorted_entries,
     dh::caching_device_vector<size_t> *p_column_sizes_scan) {
+  info.feature_types.SetDevice(device);
   auto d_feature_types = info.feature_types.ConstDeviceSpan();
   CHECK(!d_feature_types.empty());
   auto &column_sizes_scan = *p_column_sizes_scan;

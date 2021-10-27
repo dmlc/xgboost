@@ -15,29 +15,6 @@
 namespace xgboost {
 namespace data {
 
-struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
-  float missing;
-
-  XGBOOST_DEVICE explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  __device__ bool operator()(float value) const {
-    return !(common::CheckNAN(value) || value == missing);
-  }
-
-  __device__ bool operator()(const data::COOTuple& e) const {
-    if (common::CheckNAN(e.value) || e.value == missing) {
-      return false;
-    }
-    return true;
-  }
-  __device__ bool operator()(const Entry& e) const {
-    if (common::CheckNAN(e.fvalue) || e.fvalue == missing) {
-      return false;
-    }
-    return true;
-  }
-};
-
 class CudfAdapterBatch : public detail::NoMetaInfo {
   friend class CudfAdapter;
 

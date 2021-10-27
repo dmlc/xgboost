@@ -987,18 +987,19 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
   // Second pass over batch, placing elements in correct position
 
+  auto is_valid = data::IsValidFunctor{missing};
 #pragma omp parallel num_threads(nthread)
   {
     exec.Run([&]() {
       int tid = omp_get_thread_num();
-      size_t begin = tid*thread_size;
-      size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+      size_t begin = tid * thread_size;
+      size_t end = tid != (nthread - 1) ? (tid + 1) * thread_size : batch_size;
       for (size_t i = begin; i < end; ++i) {
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
           auto element = line.GetElement(j);
           const size_t key = (element.row_idx - base_rowid);
-          if (!common::CheckNAN(element.value) && element.value != missing) {
+          if (is_valid(element)) {
             builder.Push(key, Entry(element.column_idx, element.value), tid);
           }
         }

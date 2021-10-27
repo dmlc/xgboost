@@ -186,6 +186,37 @@ Arrow specification.'''
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
 
+        # test missing value
+        X = cudf.DataFrame({"f0": ["a", "b", np.NaN]})
+        X["f0"] = X["f0"].astype("category")
+        df, cat_codes, _, _ = xgb.data._transform_cudf_df(
+            X, None, None, enable_categorical=True
+        )
+        for col in cat_codes:
+            assert col.has_nulls
+
+        y = [0, 1, 2]
+        with pytest.raises(ValueError):
+            xgb.DMatrix(X, y)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        assert Xy.num_row() == 3
+        assert Xy.num_col() == 1
+
+        with pytest.raises(ValueError):
+            xgb.DeviceQuantileDMatrix(X, y)
+
+        Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
+        assert Xy.num_row() == 3
+        assert Xy.num_col() == 1
+
+        X = X["f0"]
+        with pytest.raises(ValueError):
+            xgb.DMatrix(X, y)
+
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        assert Xy.num_row() == 3
+        assert Xy.num_col() == 1
+
 
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_cupy())
