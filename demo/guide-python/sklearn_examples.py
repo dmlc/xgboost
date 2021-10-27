@@ -48,8 +48,6 @@ for train_index, test_index in kf.split(X):
     print(mean_squared_error(actuals, predictions))
 
 print("Parameter optimization")
-y = boston['target']
-X = boston['data']
 xgb_model = xgb.XGBRegressor(n_jobs=1)
 clf = GridSearchCV(xgb_model,
                    {'max_depth': [2, 4, 6],
@@ -61,8 +59,8 @@ print(clf.best_params_)
 # The sklearn API models are picklable
 print("Pickling sklearn API models")
 # must open in binary format to pickle
-pickle.dump(clf, open("best_boston.pkl", "wb"))
-clf2 = pickle.load(open("best_boston.pkl", "rb"))
+pickle.dump(clf, open("best_calif.pkl", "wb"))
+clf2 = pickle.load(open("best_calif.pkl", "rb"))
 print(np.allclose(clf.predict(X), clf2.predict(X)))
 
 # Early-stopping

@@ -336,7 +336,7 @@ def test_num_parallel_tree():
     assert len(dump) == 16
 
     reg = xgb.XGBRFRegressor(n_estimators=4)
-    bst = reg.fit(X=boston['data'], y=boston['target'])
+    bst = reg.fit(X=X, y=y)
     dump = bst.get_booster().get_dump(dump_format='json')
     assert len(dump) == 4
 
@@ -394,8 +394,8 @@ def run_calif_housing_rf_regression(tree_method):
         rfreg.fit(X, y, early_stopping_rounds=10)
 
 
-def test_boston_housing_rf_regression():
-    run_boston_housing_rf_regression("hist")
+def test_calif_housing_rf_regression():
+    run_calif_housing_rf_regression("hist")
 
 
 def test_parameter_tuning():

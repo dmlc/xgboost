@@ -14,7 +14,8 @@ pytestmark = pytest.mark.skipif(shap is None, reason="Requires shap package")
 # Check integration is not broken from xgboost side
 # Changes in binary format may cause problems
 def test_with_shap():
-    X, y = shap.datasets.boston()
+    from sklearn.datasets import fetch_california_housing
+    X, y = fetch_california_housing(return_X_y=True)
     dtrain = xgb.DMatrix(X, label=y)
     model = xgb.train({"learning_rate": 0.01}, dtrain, 10)
     explainer = shap.TreeExplainer(model)

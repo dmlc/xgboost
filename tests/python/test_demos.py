@@ -45,8 +45,8 @@ def test_sklearn_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'sklearn_examples.py')
     cmd = ['python', script]
     subprocess.check_call(cmd)
-    assert os.path.exists('best_boston.pkl')
-    os.remove('best_boston.pkl')
+    assert os.path.exists('best_calif.pkl')
+    os.remove('best_calif.pkl')
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
