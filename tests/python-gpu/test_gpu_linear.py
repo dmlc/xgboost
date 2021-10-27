@@ -63,7 +63,7 @@ class TestGPULinear:
         import cupy
         params = {'booster': 'gblinear', 'updater': 'gpu_coord_descent',
                   'n_estimators': 100}
-        X, y = tm.get_boston()
+        X, y = tm.get_california_housing()
         cpu_model = xgb.XGBRegressor(**params)
         cpu_model.fit(X, y)
         cpu_predt = cpu_model.predict(X)

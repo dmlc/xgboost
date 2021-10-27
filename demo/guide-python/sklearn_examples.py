@@ -12,7 +12,7 @@ import xgboost as xgb
 import numpy as np
 from sklearn.model_selection import KFold, train_test_split, GridSearchCV
 from sklearn.metrics import confusion_matrix, mean_squared_error
-from sklearn.datasets import load_iris, load_digits, load_boston
+from sklearn.datasets import load_iris, load_digits, fetch_california_housing
 
 rng = np.random.RandomState(31337)
 
@@ -38,10 +38,8 @@ for train_index, test_index in kf.split(X):
     actuals = y[test_index]
     print(confusion_matrix(actuals, predictions))
 
-print("Boston Housing: regression")
-boston = load_boston()
-y = boston['target']
-X = boston['data']
+print("California Housing: regression")
+X, y = fetch_california_housing(return_X_y=True)
 kf = KFold(n_splits=2, shuffle=True, random_state=rng)
 for train_index, test_index in kf.split(X):
     xgb_model = xgb.XGBRegressor(n_jobs=1).fit(X[train_index], y[train_index])
