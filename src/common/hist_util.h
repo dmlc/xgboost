@@ -119,7 +119,9 @@ class HistogramCuts {
     auto const &vals = this->Values();
     auto end = ptrs.at(e.index + 1) + vals.cbegin();
     auto beg = ptrs[e.index] + vals.cbegin();
-    auto bin_idx = std::lower_bound(beg, end, common::AsCat(e.fvalue)) - vals.cbegin();
+    // Truncates the value in case it's not perfectly rounded.
+    auto v  = static_cast<float>(common::AsCat(e.fvalue));
+    auto bin_idx = std::lower_bound(beg, end, v) - vals.cbegin();
     if (bin_idx == ptrs.at(e.index + 1)) {
       bin_idx -= 1;
     }
