@@ -732,13 +732,13 @@ class XGBModel(XGBModelBase):
         eval_metric: Optional[Union[Callable, str, Sequence[str]]],
         params: Dict[str, Any],
         early_stopping_rounds: Optional[int],
-        callbacks: Optional[List[TrainingCallback]],
+        callbacks: Optional[Sequence[TrainingCallback]],
     ) -> Tuple[
         Optional[Union[Booster, str, "XGBModel"]],
         Optional[Metric],
         Dict[str, Any],
         Optional[int],
-        Optional[List[TrainingCallback]],
+        Optional[Sequence[TrainingCallback]],
     ]:
         """Configure parameters for :py:meth:`fit`."""
         if isinstance(booster, XGBModel):
