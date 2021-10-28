@@ -1682,8 +1682,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params, early_stopping_rounds = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds
+        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
         )
         results = await self.client.sync(
             _train_async,
@@ -1785,8 +1785,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params, early_stopping_rounds = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds
+        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
         )
         results = await self.client.sync(
             _train_async,
@@ -1976,8 +1976,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
                 raise ValueError(
                     "Custom evaluation metric is not yet supported for XGBRanker."
                 )
-        model, metric, params, early_stopping_rounds = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds
+        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
         )
         results = await self.client.sync(
             _train_async,

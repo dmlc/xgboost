@@ -185,10 +185,12 @@ class TestCallbacks:
     def test_early_stopping_custom_eval_skl(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        cls = xgb.XGBClassifier(eval_metric=tm.eval_error_metric_skl)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
-        cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
+        cls = xgb.XGBClassifier(
+            eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop]
+        )
+        cls.fit(X, y, eval_set=[(X, y)])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
@@ -197,13 +199,15 @@ class TestCallbacks:
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
         n_estimators = 100
-        cls = xgb.XGBClassifier(
-            n_estimators=n_estimators, eval_metric=tm.eval_error_metric_skl
-        )
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
-        cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
+        cls = xgb.XGBClassifier(
+            n_estimators=n_estimators,
+            eval_metric=tm.eval_error_metric_skl,
+            callbacks=[early_stop]
+        )
+        cls.fit(X, y, eval_set=[(X, y)])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) == booster.best_iteration + 1
@@ -228,9 +232,12 @@ class TestCallbacks:
         X, y = load_breast_cancer(return_X_y=True)
         cls = xgb.XGBClassifier(eval_metric=tm.eval_error_metric_skl)
         early_stopping_rounds = 5
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                                save_best=True)
-        cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, save_best=True
+        )
+        with pytest.warns(UserWarning):
+            cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
+
         booster = cls.get_booster()
         assert booster.num_boosted_rounds() == booster.best_iteration + 1
 
@@ -246,6 +253,19 @@ class TestCallbacks:
             booster = cls.get_booster()
             assert booster.num_boosted_rounds() == \
                 booster.best_iteration + early_stopping_rounds + 1
+
+    def test_deprecated(self):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        early_stopping_rounds = 5
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds, save_best=True
+        )
+        clf = xgb.XGBClassifier(
+            eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop]
+        )
+        with pytest.raises(ValueError, match=r".*set_params.*"):
+            clf.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
 
     def run_eta_decay(self, tree_method):
         """Test learning rate scheduler, used by both CPU and GPU tests."""
