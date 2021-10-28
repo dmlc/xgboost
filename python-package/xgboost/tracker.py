@@ -13,7 +13,7 @@ from threading import Thread
 import argparse
 import sys
 
-from typing import Dict, List,  Tuple, Union, Optional
+from typing import Dict, List, Tuple, Union, Optional
 
 _RingMap = Dict[int, Tuple[int, int]]
 _TreeMap = Dict[int, List[int]]

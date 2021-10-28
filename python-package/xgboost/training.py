@@ -3,18 +3,20 @@
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import copy
-from typing import Optional, List
+import os
 import warnings
+from typing import Optional, Dict, Any, Union, Tuple, cast, Sequence
 
 import numpy as np
-from .core import Booster, XGBoostError, _get_booster_layer_trees
-from .core import _deprecate_positional_args
-from .core import Objective, Metric
+from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
+from .core import Metric, Objective
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
 
 
-def _assert_new_callback(callbacks: Optional[List[callback.TrainingCallback]]) -> None:
+def _assert_new_callback(
+    callbacks: Optional[Sequence[callback.TrainingCallback]]
+) -> None:
     is_new_callback: bool = not callbacks or all(
         isinstance(c, callback.TrainingCallback) for c in callbacks
     )
@@ -44,24 +46,24 @@ def _configure_custom_metric(
 
 
 def _train_internal(
-    params,
-    dtrain,
-    num_boost_round=10,
-    evals=(),
-    obj=None,
-    feval=None,
-    custom_metric=None,
-    xgb_model=None,
-    callbacks=None,
-    evals_result=None,
-    maximize=None,
-    verbose_eval=None,
-    early_stopping_rounds=None,
-):
+    params: Dict[str, Any],
+    dtrain: DMatrix,
+    num_boost_round: int = 10,
+    evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
+    obj: Optional[Objective] = None,
+    feval: Optional[Metric] = None,
+    custom_metric: Optional[Metric] = None,
+    xgb_model: Optional[Union[str, os.PathLike, Booster, bytearray]] = None,
+    callbacks: Optional[Sequence[callback.TrainingCallback]] = None,
+    evals_result: callback.TrainingCallback.EvalsLog = None,
+    maximize: Optional[bool] = None,
+    verbose_eval: Optional[Union[bool, int]] = True,
+    early_stopping_rounds: Optional[int] = None,
+) -> Booster:
     """internal training function"""
-    callbacks = [] if callbacks is None else copy.copy(callbacks)
+    callbacks = [] if callbacks is None else copy.copy(list(callbacks))
     metric_fn = _configure_custom_metric(feval, custom_metric)
-    evals = list(evals)
+    evals = list(evals) if evals else []
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
 
@@ -78,7 +80,7 @@ def _train_internal(
         callbacks.append(
             callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
         )
-    callbacks = callback.CallbackContainer(
+    cb_container = callback.CallbackContainer(
         callbacks,
         metric=metric_fn,
         # For old `feval` parameter, the behavior is unchanged.  For the new
@@ -87,32 +89,32 @@ def _train_internal(
         output_margin=callable(obj) or metric_fn is feval,
     )
 
-    bst = callbacks.before_training(bst)
+    bst = cb_container.before_training(bst)
 
     for i in range(start_iteration, num_boost_round):
-        if callbacks.before_iteration(bst, i, dtrain, evals):
+        if cb_container.before_iteration(bst, i, dtrain, evals):
             break
         bst.update(dtrain, i, obj)
-        if callbacks.after_iteration(bst, i, dtrain, evals):
+        if cb_container.after_iteration(bst, i, dtrain, evals):
             break
 
-    bst = callbacks.after_training(bst)
+    bst = cb_container.after_training(bst)
 
     if evals_result is not None:
-        evals_result.update(callbacks.history)
+        evals_result.update(cb_container.history)
 
     # These should be moved into callback functions `after_training`, but until old
     # callbacks are removed, the train function is the only place for setting the
     # attributes.
     num_parallel_tree, _ = _get_booster_layer_trees(bst)
     if bst.attr('best_score') is not None:
-        bst.best_score = float(bst.attr('best_score'))
-        bst.best_iteration = int(bst.attr('best_iteration'))
+        bst.best_score = float(cast(str, bst.attr('best_score')))
+        bst.best_iteration = int(cast(str, bst.attr('best_iteration')))
         # num_class is handled internally
         bst.set_attr(
             best_ntree_limit=str((bst.best_iteration + 1) * num_parallel_tree)
         )
-        bst.best_ntree_limit = int(bst.attr("best_ntree_limit"))
+        bst.best_ntree_limit = int(cast(str, bst.attr("best_ntree_limit")))
     else:
         # Due to compatibility with version older than 1.4, these attributes are added
         # to Python object even if early stopping is not used.
@@ -126,35 +128,32 @@ def _train_internal(
     return bst.copy()
 
 
-@_deprecate_positional_args
 def train(
-    params,
-    dtrain,
-    num_boost_round=10,
-    *,
-    evals=(),
+    params: Dict[str, Any],
+    dtrain: DMatrix,
+    num_boost_round: int = 10,
+    evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
     obj: Optional[Objective] = None,
-    feval=None,
-    maximize=None,
-    early_stopping_rounds=None,
-    evals_result=None,
-    verbose_eval=True,
-    xgb_model=None,
-    callbacks=None,
+    feval: Optional[Metric] = None,
+    maximize: Optional[bool] = None,
+    early_stopping_rounds: Optional[int] = None,
+    evals_result: callback.TrainingCallback.EvalsLog = None,
+    verbose_eval: Optional[Union[bool, int]] = True,
+    xgb_model: Optional[Union[str, os.PathLike, Booster, bytearray]] = None,
+    callbacks: Optional[Sequence[callback.TrainingCallback]] = None,
     custom_metric: Optional[Metric] = None,
-):
-    # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
+) -> Booster:
     """Train a booster with given parameters.
 
     Parameters
     ----------
-    params : dict
+    params :
         Booster params.
-    dtrain : DMatrix
+    dtrain :
         Data to be trained.
-    num_boost_round: int
+    num_boost_round :
         Number of boosting iterations.
-    evals: list of pairs (DMatrix, string)
+    evals :
         List of validation sets for which metrics will evaluated during training.
         Validation metrics will help us track the performance of the model.
     obj
@@ -166,7 +165,7 @@ def train(
             Use `custom_metric` instead.
     maximize : bool
         Whether to maximize feval.
-    early_stopping_rounds: int
+    early_stopping_rounds :
         Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.
         Requires at least one item in **evals**.
@@ -178,7 +177,7 @@ def train(
         **params**, the last metric will be used for early stopping.
         If early stopping occurs, the model will have two additional fields:
         ``bst.best_score``, ``bst.best_iteration``.
-    evals_result: dict
+    evals_result :
         This dictionary stores the evaluation results of all the items in watchlist.
 
         Example: with a watchlist containing
@@ -191,7 +190,7 @@ def train(
             {'train': {'logloss': ['0.48253', '0.35953']},
              'eval': {'logloss': ['0.480385', '0.357756']}}
 
-    verbose_eval : bool or int
+    verbose_eval :
         Requires at least one item in **evals**.
         If **verbose_eval** is True then the evaluation metric on the validation set is
         printed at each boosting stage.
@@ -200,9 +199,9 @@ def train(
         / the boosting stage found by using **early_stopping_rounds** is also printed.
         Example: with ``verbose_eval=4`` and at least one item in **evals**, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
-    xgb_model : file name of stored xgb model or 'Booster' instance
+    xgb_model :
         Xgb model to be loaded before training (allows training continuation).
-    callbacks : list of callback functions
+    callbacks :
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using
         :ref:`Callback API <callback_api>`.
