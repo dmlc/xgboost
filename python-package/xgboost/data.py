@@ -18,6 +18,11 @@ c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
 CAT_T = "c"
 
+# meta info that can be a matrix instead of vector.
+# For now it's base_margin for multi-class, but it can be extended to label once we have
+# multi-output.
+_matrix_meta = {"base_margin"}
+
 
 def _warn_unused_missing(data, missing):
     if (missing is not None) and (not np.isnan(missing)):
@@ -291,7 +296,7 @@ def _transform_pandas_df(
     else:
         transformed = data
 
-    if meta and len(data.columns) > 1 and meta != "base_margin":
+    if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
     dtype = meta_type if meta_type else np.float32
@@ -823,7 +828,7 @@ def _to_data_type(dtype: str, name: str):
 def _validate_meta_shape(data: Any, name: str) -> None:
     msg = f"Invalid shape: {data.shape} for {name}"
     if hasattr(data, "shape"):
-        if name == "base_margin":
+        if name in _matrix_meta:
             if len(data.shape) > 2:
                 raise ValueError(msg)
             return
@@ -834,7 +839,9 @@ def _validate_meta_shape(data: Any, name: str) -> None:
             raise ValueError(f"Invalid shape: {data.shape} for {name}")
 
 
-def _meta_from_numpy(data, field, dtype, handle):
+def _meta_from_numpy(
+    data: np.ndarray, field: str, dtype, handle: ctypes.c_void_p
+) -> None:
     data = _maybe_np_slice(data, dtype)
     interface = data.__array_interface__
     assert interface.get('mask', None) is None, 'Masked array is not supported'
@@ -899,6 +906,7 @@ def _meta_from_dt(data, field, dtype, handle):
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
+    assert handle is not None
     _validate_meta_shape(data, name)
     if data is None:
         return
