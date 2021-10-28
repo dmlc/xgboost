@@ -1661,11 +1661,16 @@ class TestDaskCallbacks:
 
         valid_X, valid_y = load_breast_cancer(return_X_y=True)
         valid_X, valid_y = da.from_array(valid_X), da.from_array(valid_y)
-        cls = xgb.dask.DaskXGBClassifier(objective='binary:logistic', tree_method='hist',
-                                         n_estimators=1000)
+        cls = xgb.dask.DaskXGBClassifier(
+            objective='binary:logistic',
+            tree_method='hist',
+            n_estimators=1000,
+            eval_metric=tm.eval_error_metric_skl
+        )
         cls.client = client
-        cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
-                eval_set=[(valid_X, valid_y)], eval_metric=tm.eval_error_metric)
+        cls.fit(
+            X, y, early_stopping_rounds=early_stopping_rounds, eval_set=[(valid_X, valid_y)]
+        )
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1

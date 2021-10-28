@@ -144,7 +144,7 @@ def py_rmsle(dtrain: xgb.DMatrix, dtest: xgb.DMatrix) -> Dict:
               dtrain=dtrain,
               num_boost_round=kBoostRound,
               obj=squared_log,
-              feval=rmsle,
+              custom_metric=rmsle,
               evals=[(dtrain, 'dtrain'), (dtest, 'dtest')],
               evals_result=results)
 

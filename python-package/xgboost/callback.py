@@ -355,10 +355,13 @@ class CallbackContainer:
 
     EvalsLog = TrainingCallback.EvalsLog
 
-    def __init__(self,
-                 callbacks: List[TrainingCallback],
-                 metric: Callable = None,
-                 is_cv: bool = False):
+    def __init__(
+        self,
+        callbacks: List[TrainingCallback],
+        metric: Callable = None,
+        output_margin: bool = True,
+        is_cv: bool = False
+    ) -> None:
         self.callbacks = set(callbacks)
         if metric is not None:
             msg = 'metric must be callable object for monitoring.  For ' + \
@@ -367,6 +370,7 @@ class CallbackContainer:
             assert callable(metric), msg
         self.metric = metric
         self.history: TrainingCallback.EvalsLog = collections.OrderedDict()
+        self._output_margin = output_margin
         self.is_cv = is_cv
 
         if self.is_cv:
@@ -423,7 +427,7 @@ class CallbackContainer:
     def after_iteration(self, model, epoch, dtrain, evals) -> bool:
         '''Function called after training iteration.'''
         if self.is_cv:
-            scores = model.eval(epoch, self.metric)
+            scores = model.eval(epoch, self.metric, self._output_margin)
             scores = _aggcv(scores)
             self.aggregated_cv = scores
             self._update_history(scores, epoch)
@@ -431,7 +435,7 @@ class CallbackContainer:
             evals = [] if evals is None else evals
             for _, name in evals:
                 assert name.find('-') == -1, 'Dataset name should not contain `-`'
-            score = model.eval_set(evals, epoch, self.metric)
+            score = model.eval_set(evals, epoch, self.metric, self._output_margin)
             score = score.split()[1:]  # into datasets
             # split up `test-error:0.1234`
             score = [tuple(s.split(':')) for s in score]

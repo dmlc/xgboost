@@ -7,7 +7,6 @@ rng = np.random.RandomState(1994)
 
 
 class TestEarlyStopping:
-
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_early_stopping_nonparallel(self):
         from sklearn.datasets import load_digits
