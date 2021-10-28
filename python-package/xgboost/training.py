@@ -147,11 +147,7 @@ def train(
     metric_fn = _configure_custom_metric(feval, custom_metric)
     evals = list(evals) if evals else []
 
-    bst = Booster(params, [dtrain] + [d[0] for d in evals])
-
-    if xgb_model is not None:
-        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
-
+    bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
 
     _assert_new_callback(callbacks)
