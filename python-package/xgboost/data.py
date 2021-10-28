@@ -217,7 +217,7 @@ _pandas_dtype_mapper = {
 }
 
 
-def _invalid_dataframe_dtype(data) -> None:
+def _invalid_dataframe_dtype(data: Any) -> None:
     # pandas series has `dtypes` but it's just a single object
     # cudf series doesn't have `dtypes`.
     if hasattr(data, "dtypes") and hasattr(data.dtypes, "__iter__"):
@@ -291,7 +291,7 @@ def _transform_pandas_df(
     else:
         transformed = data
 
-    if meta and len(data.columns) > 1:
+    if meta and len(data.columns) > 1 and meta != "base_margin":
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
     dtype = meta_type if meta_type else np.float32
@@ -820,8 +820,14 @@ def _to_data_type(dtype: str, name: str):
     return dtype_map[dtype]
 
 
-def _validate_meta_shape(data, name: str) -> None:
+def _validate_meta_shape(data: Any, name: str) -> None:
+    msg = f"Invalid shape: {data.shape} for {name}"
     if hasattr(data, "shape"):
+        if name == "base_margin":
+            if len(data.shape) > 2:
+                raise ValueError(msg)
+            return
+
         if len(data.shape) > 2 or (
             len(data.shape) == 2 and (data.shape[1] != 0 and data.shape[1] != 1)
         ):
@@ -832,7 +838,7 @@ def _meta_from_numpy(data, field, dtype, handle):
     data = _maybe_np_slice(data, dtype)
     interface = data.__array_interface__
     assert interface.get('mask', None) is None, 'Masked array is not supported'
-    size = data.shape[0]
+    size = data.size
 
     c_type = _to_data_type(str(data.dtype), field)
     ptr = interface['data'][0]

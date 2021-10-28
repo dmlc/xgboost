@@ -1147,32 +1147,61 @@ def test_feature_weights():
     assert poly_decreasing[0] < -0.08
 
 
-def run_boost_from_prediction(tree_method):
-    from sklearn.datasets import load_breast_cancer
+def run_boost_from_prediction(tree_method, as_frame):
+    from sklearn.datasets import load_breast_cancer, load_digits
+    import pandas as pd
+
+    # binary-class
     X, y = load_breast_cancer(return_X_y=True)
     model_0 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
     model_0.fit(X=X, y=y)
     margin = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = model_1.predict(X, base_margin=margin)
 
     cls_2 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8,
-        tree_method=tree_method)
+        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+    )
     cls_2.fit(X=X, y=y)
     predictions_2 = cls_2.predict(X)
-    assert np.all(predictions_1 == predictions_2)
+    np.testing.assert_allclose(predictions_1, predictions_2)
+
+    # Multi-class
+    X, y = load_digits(return_X_y=True)
+    model_0 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
+    model_0.fit(X=X, y=y)
+    margin = model_0.get_booster().inplace_predict(X, predict_type="margin")
+    if as_frame:
+        margin = pd.DataFrame(margin)
+
+    model_1 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
+    model_1.fit(X=X, y=y, base_margin=margin)
+    predictions_1 = model_1.get_booster().predict(
+        xgb.DMatrix(X, base_margin=margin), output_margin=True
+    )
+
+    cls_2 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+    )
+    cls_2.fit(X=X, y=y)
+    predictions_2 = cls_2.get_booster().inplace_predict(X, predict_type="margin")
+    np.testing.assert_allclose(predictions_1, predictions_2)
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
 def test_boost_from_prediction(tree_method):
-    run_boost_from_prediction(tree_method)
+    run_boost_from_prediction(tree_method, False)
+    run_boost_from_prediction(tree_method, True)
 
 
 def test_estimator_type():
