@@ -1470,7 +1470,7 @@ class XGBRFClassifier(XGBClassifier):
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda,
                          **kwargs)
-        _check_rf_callback(self.early_stopping_rounds, None)
+        _check_rf_callback(self.early_stopping_rounds, self.callbacks)
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
@@ -1542,7 +1542,7 @@ class XGBRFRegressor(XGBRegressor):
             reg_lambda=reg_lambda,
             **kwargs
         )
-        _check_rf_callback(self.early_stopping_rounds, None)
+        _check_rf_callback(self.early_stopping_rounds, self.callbacks)
 
     def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
