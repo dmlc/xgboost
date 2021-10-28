@@ -3,6 +3,9 @@ only applicable after (excluding) XGBoost 1.0.0, as before this version XGBoost
 returns transformed prediction for multi-class objective function.  More
 details in comments.
 
+See https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html for detailed
+tutorial and notes.
+
 '''
 
 import numpy as np
@@ -95,7 +98,12 @@ def predict(booster: xgb.Booster, X):
 
 def merror(predt: np.ndarray, dtrain: xgb.DMatrix):
     y = dtrain.get_label()
-    # Like custom objective, the predt is untransformed leaf weight
+    # Like custom objective, the predt is untransformed leaf weight when custom objective
+    # is provided.
+
+    # With the use of `custom_metric` parameter in train function, custom metric receives
+    # raw input only when custom objective is also being used.  Otherwise custom metric
+    # will receive transformed prediction.
     assert predt.shape == (kRows, kClasses)
     out = np.zeros(kRows)
     for r in range(predt.shape[0]):
@@ -134,7 +142,7 @@ def main(args):
                                m,
                                num_boost_round=kRounds,
                                obj=softprob_obj,
-                               feval=merror,
+                               custom_metric=merror,
                                evals_result=custom_results,
                                evals=[(m, 'train')])
 
@@ -143,6 +151,7 @@ def main(args):
     native_results = {}
     # Use the same objective function defined in XGBoost.
     booster_native = xgb.train({'num_class': kClasses,
+                                "objective": "multi:softmax",
                                 'eval_metric': 'merror'},
                                m,
                                num_boost_round=kRounds,

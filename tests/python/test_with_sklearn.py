@@ -1271,3 +1271,76 @@ def test_prediction_config():
 
     reg.set_params(booster="gblinear")
     assert reg._can_use_inplace_predict() is False
+
+
+def test_evaluation_metric():
+    from sklearn.datasets import load_diabetes, load_digits
+    from sklearn.metrics import mean_absolute_error
+    X, y = load_diabetes(return_X_y=True)
+    n_estimators = 16
+
+    with tm.captured_output() as (out, err):
+        reg = xgb.XGBRegressor(
+            tree_method="hist",
+            eval_metric=mean_absolute_error,
+            n_estimators=n_estimators,
+        )
+        reg.fit(X, y, eval_set=[(X, y)])
+        lines = out.getvalue().strip().split('\n')
+
+    assert len(lines) == n_estimators
+    for line in lines:
+        assert line.find("mean_absolute_error") != -1
+
+    def metric(predt: np.ndarray, Xy: xgb.DMatrix):
+        y = Xy.get_label()
+        return "m", np.abs(predt - y).sum()
+
+    with pytest.warns(UserWarning):
+        reg = xgb.XGBRegressor(
+            tree_method="hist",
+            n_estimators=1,
+        )
+        reg.fit(X, y, eval_set=[(X, y)], eval_metric=metric)
+
+    def merror(y_true: np.ndarray, predt: np.ndarray):
+        n_samples = y_true.shape[0]
+        assert n_samples == predt.size
+        errors = np.zeros(y_true.shape[0])
+        errors[y != predt] = 1.0
+        return np.sum(errors) / n_samples
+
+    X, y = load_digits(n_class=10, return_X_y=True)
+
+    clf = xgb.XGBClassifier(
+        use_label_encoder=False,
+        tree_method="hist",
+        eval_metric=merror,
+        n_estimators=16,
+        objective="multi:softmax"
+    )
+    clf.fit(X, y, eval_set=[(X, y)])
+    custom = clf.evals_result()
+
+    clf = xgb.XGBClassifier(
+        use_label_encoder=False,
+        tree_method="hist",
+        eval_metric="merror",
+        n_estimators=16,
+        objective="multi:softmax"
+    )
+    clf.fit(X, y, eval_set=[(X, y)])
+    internal = clf.evals_result()
+    np.testing.assert_allclose(
+        custom["validation_0"]["merror"], internal["validation_0"]["merror"]
+    )
+
+    clf = xgb.XGBRFClassifier(
+        use_label_encoder=False,
+        tree_method="hist", n_estimators=16,
+        objective=tm.softprob_obj(10),
+        eval_metric=merror,
+    )
+    with pytest.raises(AssertionError):
+        # shape check inside the `merror` function
+        clf.fit(X, y, eval_set=[(X, y)])

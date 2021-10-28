@@ -1700,7 +1700,7 @@ class Booster(object):
                                                c_array(ctypes.c_float, hess),
                                                c_bst_ulong(len(grad))))
 
-    def eval_set(self, evals, iteration=0, feval=None):
+    def eval_set(self, evals, iteration=0, feval=None, output_margin=True):
         # pylint: disable=invalid-name
         """Evaluate a set of data.
 
@@ -1728,24 +1728,30 @@ class Booster(object):
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
         evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
         msg = ctypes.c_char_p()
-        _check_call(_LIB.XGBoosterEvalOneIter(self.handle,
-                                              ctypes.c_int(iteration),
-                                              dmats, evnames,
-                                              c_bst_ulong(len(evals)),
-                                              ctypes.byref(msg)))
+        _check_call(
+            _LIB.XGBoosterEvalOneIter(
+                self.handle,
+                ctypes.c_int(iteration),
+                dmats,
+                evnames,
+                c_bst_ulong(len(evals)),
+                ctypes.byref(msg),
+            )
+        )
         res = msg.value.decode()  # pylint: disable=no-member
         if feval is not None:
             for dmat, evname in evals:
-                feval_ret = feval(self.predict(dmat, training=False,
-                                               output_margin=True), dmat)
+                feval_ret = feval(
+                    self.predict(dmat, training=False, output_margin=output_margin), dmat
+                )
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
                         # pylint: disable=consider-using-f-string
-                        res += '\t%s-%s:%f' % (evname, name, val)
+                        res += "\t%s-%s:%f" % (evname, name, val)
                 else:
                     name, val = feval_ret
                     # pylint: disable=consider-using-f-string
-                    res += '\t%s-%s:%f' % (evname, name, val)
+                    res += "\t%s-%s:%f" % (evname, name, val)
         return res
 
     def eval(self, data, name='eval', iteration=0):
