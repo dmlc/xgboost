@@ -146,8 +146,10 @@ class TestPickling:
 
         os.remove(model_path)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_predict_sklearn_pickle(self):
-        x, y = build_dataset()
+        from sklearn.datasets import load_digits
+        x, y = load_digits(return_X_y=True)
 
         kwargs = {'tree_method': 'gpu_hist',
                   'predictor': 'gpu_predictor',

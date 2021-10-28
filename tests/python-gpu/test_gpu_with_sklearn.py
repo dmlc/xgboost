@@ -56,7 +56,6 @@ def test_categorical():
     X, y = load_svmlight_file(os.path.join(data_dir, "agaricus.txt.train"))
     clf = xgb.XGBClassifier(
         tree_method="gpu_hist",
-        use_label_encoder=False,
         enable_categorical=True,
         n_estimators=10,
     )
@@ -98,3 +97,36 @@ def test_categorical():
 
     X = cudf.DataFrame(X)
     check_predt(X, y)
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_cudf())
+def test_classififer():
+    from sklearn.datasets import load_digits
+    import cupy as cp
+    import cudf
+
+    X, y = load_digits(return_X_y=True)
+    y *= 10
+
+    clf = xgb.XGBClassifier(tree_method="gpu_hist", n_estimators=1)
+
+    # numpy
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+    # cupy
+    X, y = cp.array(X), cp.array(y)
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+    # cudf
+    X, y = cudf.DataFrame(X), cudf.DataFrame(y)
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+    # pandas
+    X, y = load_digits(return_X_y=True, as_frame=True)
+    y *= 10
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)

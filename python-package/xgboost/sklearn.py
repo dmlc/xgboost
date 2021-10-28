@@ -1,5 +1,4 @@
-# coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, R0912, C0302
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
 import copy
 import warnings
@@ -278,14 +277,13 @@ def _wrap_evaluation_matrices(
     eval_qid: Optional[List[Any]],
     create_dmatrix: Callable,
     enable_categorical: bool,
-    label_transform: Callable = lambda x: x,
 ) -> Tuple[Any, Optional[List[Tuple[Any, str]]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
 
     """
     train_dmatrix = create_dmatrix(
         data=X,
-        label=label_transform(y),
+        label=y,
         group=group,
         qid=qid,
         weight=sample_weight,
@@ -333,7 +331,7 @@ def _wrap_evaluation_matrices(
             else:
                 m = create_dmatrix(
                     data=valid_X,
-                    label=label_transform(valid_y),
+                    label=valid_y,
                     weight=sample_weight_eval_set[i],
                     group=eval_group[i],
                     qid=eval_qid[i],
@@ -1112,9 +1110,6 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
     ['model', 'objective'], extra_parameters='''
     n_estimators : int
         Number of boosting rounds.
-    use_label_encoder : bool
-        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
-        code, we recommend that you set this parameter to False.
 ''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
@@ -1123,10 +1118,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         *,
         objective: _SklObjective = "binary:logistic",
-        use_label_encoder: bool = True,
+        use_label_encoder: bool = False,
         **kwargs: Any
     ) -> None:
+        # must match the parameters for `get_params`
         self.use_label_encoder = use_label_encoder
+        if use_label_encoder is True:
+            raise ValueError("Label encoder was removed in 1.6.")
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
@@ -1148,51 +1146,32 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
-        can_use_label_encoder = True
-        label_encoding_check_error = (
-            "The label must consist of integer "
-            "labels of form 0, 1, 2, ..., [num_class - 1]."
-        )
-        label_encoder_deprecation_msg = (
-            "The use of label encoder in XGBClassifier is deprecated and will be "
-            "removed in a future release. To remove this warning, do the "
-            "following: 1) Pass option use_label_encoder=False when constructing "
-            "XGBClassifier object; and 2) Encode your labels (y) as integers "
-            "starting with 0, i.e. 0, 1, 2, ..., [num_class - 1]."
-        )
-
         evals_result: TrainingCallback.EvalsLog = {}
+
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
 
             self.classes_ = cp.unique(y.values)
             self.n_classes_ = len(self.classes_)
-            can_use_label_encoder = False
             expected_classes = cp.arange(self.n_classes_)
-            if (
-                self.classes_.shape != expected_classes.shape
-                or not (self.classes_ == expected_classes).all()
-            ):
-                raise ValueError(label_encoding_check_error)
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
 
             self.classes_ = cp.unique(y)
             self.n_classes_ = len(self.classes_)
-            can_use_label_encoder = False
             expected_classes = cp.arange(self.n_classes_)
-            if (
-                self.classes_.shape != expected_classes.shape
-                or not (self.classes_ == expected_classes).all()
-            ):
-                raise ValueError(label_encoding_check_error)
         else:
             self.classes_ = np.unique(np.asarray(y))
             self.n_classes_ = len(self.classes_)
-            if not self.use_label_encoder and (
-                not np.array_equal(self.classes_, np.arange(self.n_classes_))
-            ):
-                raise ValueError(label_encoding_check_error)
+            expected_classes = np.arange(self.n_classes_)
+        if (
+            self.classes_.shape != expected_classes.shape
+            or not (self.classes_ == expected_classes).all()
+        ):
+            raise ValueError(
+                f"Invalid classes inferred from unique values of `y`.  "
+                f"Expected: {expected_classes}, got {self.classes_}"
+            )
 
         params = self.get_xgb_params()
 
@@ -1211,18 +1190,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             params["objective"] = "multi:softprob"
             params["num_class"] = self.n_classes_
 
-        if self.use_label_encoder:
-            if not can_use_label_encoder:
-                raise ValueError('The option use_label_encoder=True is incompatible with inputs ' +
-                                 'of type cuDF or cuPy. Please set use_label_encoder=False when ' +
-                                 'constructing XGBClassifier object. NOTE: ' +
-                                 label_encoder_deprecation_msg)
-            warnings.warn(label_encoder_deprecation_msg, UserWarning)
-            self._le = XGBoostLabelEncoder().fit(y)
-            label_transform = self._le.transform
-        else:
-            label_transform = lambda x: x
-
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
@@ -1240,7 +1207,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             eval_qid=None,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
             enable_categorical=self.enable_categorical,
-            label_transform=label_transform,
         )
 
         self._Booster = train(
@@ -1403,9 +1369,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     extra_parameters='''
     n_estimators : int
         Number of trees in random forest to fit.
-    use_label_encoder : bool
-        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
-        code, we recommend that you set this parameter to False.
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
@@ -1416,14 +1379,12 @@ class XGBRFClassifier(XGBClassifier):
         subsample: float = 0.8,
         colsample_bynode: float = 0.8,
         reg_lambda: float = 1e-5,
-        use_label_encoder: bool = True,
         **kwargs: Any
     ):
         super().__init__(learning_rate=learning_rate,
                          subsample=subsample,
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda,
-                         use_label_encoder=use_label_encoder,
                          **kwargs)
 
     def get_xgb_params(self) -> Dict[str, Any]:
