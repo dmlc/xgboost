@@ -92,8 +92,8 @@ def _objective_decorator(
 def _metric_decorator(func: Callable) -> Metric:
     """Decorate a metric function from sklearn.
 
-    Converts an objective function using the typical sklearn metrics signature so that it
-    is compatible with ``xgboost.training.train``
+    Converts an metric function that uses the typical sklearn metric signature so that it
+    is compatible with :py:func:`train`
 
     """
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
@@ -711,6 +711,7 @@ class XGBModel(XGBModelBase):
 
     load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
 
+    # pylint: disable=too-many-branches
     def _configure_fit(
         self,
         booster: Optional[Union[Booster, "XGBModel", str]],
