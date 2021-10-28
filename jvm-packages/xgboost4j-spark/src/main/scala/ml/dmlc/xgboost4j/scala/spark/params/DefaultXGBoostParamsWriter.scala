@@ -17,11 +17,13 @@
 package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.hadoop.fs.Path
+
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.param.{ParamPair, Params}
-import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.{JObject, _}
+import org.json4s.{JArray, JBool, JDouble, JField, JInt, JNothing, JObject, JString, JValue}
+
+import JsonDSLXGBoost._
 
 // This originates from apache-spark DefaultPramsWriter copy paste
 private[spark] object DefaultXGBoostParamsWriter {
@@ -86,4 +88,63 @@ private[spark] object DefaultXGBoostParamsWriter {
     val metadataJson: String = compact(render(metadata))
     metadataJson
   }
+}
+
+// Fix json4s bin-incompatible issue.
+// This originates from org.json4s.JsonDSL of 3.6.6
+object JsonDSLXGBoost {
+
+  implicit def seq2jvalue[A](s: Iterable[A])(implicit ev: A => JValue): JArray =
+    JArray(s.toList.map(ev))
+
+  implicit def map2jvalue[A](m: Map[String, A])(implicit ev: A => JValue): JObject =
+    JObject(m.toList.map { case (k, v) => JField(k, ev(v)) })
+
+  implicit def option2jvalue[A](opt: Option[A])(implicit ev: A => JValue): JValue = opt match {
+    case Some(x) => ev(x)
+    case None => JNothing
+  }
+
+  implicit def short2jvalue(x: Short): JValue = JInt(x)
+  implicit def byte2jvalue(x: Byte): JValue = JInt(x)
+  implicit def char2jvalue(x: Char): JValue = JInt(x)
+  implicit def int2jvalue(x: Int): JValue = JInt(x)
+  implicit def long2jvalue(x: Long): JValue = JInt(x)
+  implicit def bigint2jvalue(x: BigInt): JValue = JInt(x)
+  implicit def double2jvalue(x: Double): JValue = JDouble(x)
+  implicit def float2jvalue(x: Float): JValue = JDouble(x.toDouble)
+  implicit def bigdecimal2jvalue(x: BigDecimal): JValue = JDouble(x.doubleValue)
+  implicit def boolean2jvalue(x: Boolean): JValue = JBool(x)
+  implicit def string2jvalue(x: String): JValue = JString(x)
+
+  implicit def symbol2jvalue(x: Symbol): JString = JString(x.name)
+  implicit def pair2jvalue[A](t: (String, A))(implicit ev: A => JValue): JObject =
+    JObject(List(JField(t._1, ev(t._2))))
+  implicit def list2jvalue(l: List[JField]): JObject = JObject(l)
+  implicit def jobject2assoc(o: JObject): JsonListAssoc = new JsonListAssoc(o.obj)
+  implicit def pair2Assoc[A](t: (String, A))(implicit ev: A => JValue): JsonAssoc[A] =
+    new JsonAssoc(t)
+}
+
+final class JsonAssoc[A](private val left: (String, A)) extends AnyVal {
+  def ~[B](right: (String, B))(implicit ev1: A => JValue, ev2: B => JValue): JObject = {
+    val l: JValue = ev1(left._2)
+    val r: JValue = ev2(right._2)
+    JObject(JField(left._1, l) :: JField(right._1, r) :: Nil)
+  }
+
+  def ~(right: JObject)(implicit ev: A => JValue): JObject = {
+    val l: JValue = ev(left._2)
+    JObject(JField(left._1, l) :: right.obj)
+  }
+  def ~~[B](right: (String, B))(implicit ev1: A => JValue, ev2: B => JValue): JObject =
+    this.~(right)
+  def ~~(right: JObject)(implicit ev: A => JValue): JObject = this.~(right)
+}
+
+final class JsonListAssoc(private val left: List[JField]) extends AnyVal {
+  def ~(right: (String, JValue)): JObject = JObject(left ::: List(JField(right._1, right._2)))
+  def ~(right: JObject): JObject = JObject(left ::: right.obj)
+  def ~~(right: (String, JValue)): JObject = this.~(right)
+  def ~~(right: JObject): JObject = this.~(right)
 }
