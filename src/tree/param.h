@@ -384,6 +384,7 @@ struct SplitEntryContainer {
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
+  bool is_cat{false};
 
   GradientT left_sum;
   GradientT right_sum;
@@ -433,6 +434,7 @@ struct SplitEntryContainer {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
       this->split_value = e.split_value;
+      this->is_cat = e.is_cat;
       this->left_sum = e.left_sum;
       this->right_sum = e.right_sum;
       return true;
@@ -449,9 +451,8 @@ struct SplitEntryContainer {
    * \return whether the proposed split is better and can replace current split
    */
   bool Update(bst_float new_loss_chg, unsigned split_index,
-              bst_float new_split_value, bool default_left,
-              const GradientT &left_sum,
-              const GradientT &right_sum) {
+              bst_float new_split_value, bool default_left, bool is_cat,
+              const GradientT &left_sum, const GradientT &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -459,6 +460,7 @@ struct SplitEntryContainer {
       }
       this->sindex = split_index;
       this->split_value = new_split_value;
+      this->is_cat = is_cat;
       this->left_sum = left_sum;
       this->right_sum = right_sum;
       return true;

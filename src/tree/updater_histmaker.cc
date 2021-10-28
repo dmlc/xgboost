@@ -173,7 +173,8 @@ class HistMaker: public BaseMaker {
         if (c.sum_hess >= param_.min_child_weight) {
           double loss_chg = CalcGain(param_, s.GetGrad(), s.GetHess()) +
                             CalcGain(param_, c.GetGrad(), c.GetHess()) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i], false, s, c)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i],
+                           false, false, s, c)) {
             *left_sum = s;
           }
         }
@@ -187,7 +188,8 @@ class HistMaker: public BaseMaker {
         if (c.sum_hess >= param_.min_child_weight) {
           double loss_chg = CalcGain(param_, s.GetGrad(), s.GetHess()) +
                             CalcGain(param_, c.GetGrad(), c.GetHess()) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true, c, s)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid,
+                           hist.cut[i - 1], true, false, c, s)) {
             *left_sum = c;
           }
         }

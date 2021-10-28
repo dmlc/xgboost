@@ -13,6 +13,7 @@
 #include "../param.h"
 #include "../constraints.h"
 #include "../split_evaluator.h"
+#include "../../common/categorical.h"
 #include "../../common/random.h"
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
@@ -54,11 +55,11 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   // Enumerate/Scan the split values of specific feature
   // Returns the sum of gradients corresponding to the data points that contains
   // a non-missing value for the particular feature fid.
-  template <int d_step>
+  template <int d_step, bool is_cat>
   GradStats EnumerateSplit(
-      common::HistogramCuts const &cut, const common::GHistRow<GradientSumT> &hist,
-      const NodeEntry &snode, SplitEntry *p_best, bst_feature_t fidx,
-      bst_node_t nidx,
+      common::HistogramCuts const &cut,
+      const common::GHistRow<GradientSumT> &hist, const NodeEntry &snode,
+      SplitEntry *p_best, bst_feature_t fidx, bst_node_t nidx,
       TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
 
@@ -71,6 +72,22 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     GradStats e;
     // best split so far
     SplitEntry best;
+
+    auto scan_bin = [&](auto i) {
+      if (is_cat) {
+        // not-chosen categories go to left
+        e.SetSubstract(snode.stats, GradStats{hist[i]});
+      } else {
+        e.Add(hist[i].GetGrad(), hist[i].GetHess());
+      }
+    };
+    auto rest_bin = [&](auto i) {
+      if (is_cat) {
+        c = GradStats{hist[i]};
+      } else {
+        c.SetSubstract(snode.stats, e);
+      }
+    };
 
     // bin boundaries
     CHECK_LE(cut_ptr[fidx],
@@ -94,33 +111,33 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     for (int32_t i = ibegin; i != iend; i += d_step) {
       // start working
       // try to find a split
-      e.Add(hist[i].GetGrad(), hist[i].GetHess());
+      scan_bin(i);
       if (e.GetHess() >= param_.min_child_weight) {
-        c.SetSubstract(snode.stats, e);
+        rest_bin(i);
         if (c.GetHess() >= param_.min_child_weight) {
           bst_float loss_chg;
           bst_float split_pt;
           if (d_step > 0) {
             // forward enumeration: split at right bound of each bin
-            loss_chg = static_cast<bst_float>(
+            loss_chg = static_cast<float>(
                 evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{e},
                                         GradStats{c}) -
                 snode.root_gain);
             split_pt = cut_val[i];
-            best.Update(loss_chg, fidx, split_pt, d_step == -1, e, c);
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, is_cat, e, c);
           } else {
             // backward enumeration: split at left bound of each bin
-            loss_chg = static_cast<bst_float>(
+            loss_chg = static_cast<float>(
                 evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{c},
                                         GradStats{e}) -
                 snode.root_gain);
-            if (i == imin) {
+            if (i == imin && !is_cat) {
               // for leftmost bin, left bound is the smallest feature value
               split_pt = cut.MinValues()[fidx];
             } else {
               split_pt = cut_val[i - 1];
             }
-            best.Update(loss_chg, fidx, split_pt, d_step == -1, c, e);
+            best.Update(loss_chg, fidx, split_pt, d_step == -1, is_cat, c, e);
           }
         }
       }
@@ -132,8 +149,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
 
  public:
   void EvaluateSplits(const common::HistCollection<GradientSumT> &hist,
-                      common::HistogramCuts const &cut, const RegTree &tree,
-                      std::vector<ExpandEntry>* p_entries) {
+                      common::HistogramCuts const &cut,
+                      common::Span<FeatureType const> feature_types,
+                      const RegTree &tree,
+                      std::vector<ExpandEntry> *p_entries) {
     auto& entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
     std::vector<std::shared_ptr<HostDeviceVector<bst_feature_t>>> features(
@@ -167,12 +186,21 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       auto features_set = features[nidx_in_set]->ConstHostSpan();
       for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
         auto fidx = features_set[fidx_in_set];
-        if (interaction_constraints_.Query(nidx, fidx)) {
-          auto grad_stats = EnumerateSplit<+1>(cut, histogram, snode_[nidx],
-                                               best, fidx, nidx, evaluator);
+        bool is_cat = common::IsCat(feature_types, fidx);
+        if (!interaction_constraints_.Query(nidx, fidx)) {
+          continue;
+        }
+        if (is_cat) {
+          EnumerateSplit<+1, true>(cut, histogram, snode_[nidx], best, fidx,
+                                   nidx, evaluator);
+          EnumerateSplit<-1, true>(cut, histogram, snode_[nidx], best, fidx,
+                                   nidx, evaluator);
+        } else {
+          auto grad_stats = EnumerateSplit<+1, false>(
+              cut, histogram, snode_[nidx], best, fidx, nidx, evaluator);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1>(cut, histogram, snode_[nidx], best, fidx, nidx,
-                               evaluator);
+            EnumerateSplit<-1, false>(cut, histogram, snode_[nidx], best, fidx,
+                                      nidx, evaluator);
           }
         }
       }
@@ -201,13 +229,29 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     auto right_weight = evaluator.CalcWeight(
         candidate.nid, param_, GradStats{candidate.split.right_sum});
 
-    tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(),
-                    candidate.split.split_value, candidate.split.DefaultLeft(),
-                    base_weight, left_weight * param_.learning_rate,
-                    right_weight * param_.learning_rate,
-                    candidate.split.loss_chg, parent_sum.GetHess(),
-                    candidate.split.left_sum.GetHess(),
-                    candidate.split.right_sum.GetHess());
+    if (candidate.split.is_cat) {
+      CHECK_LT(candidate.split.split_value,
+               std::numeric_limits<bst_cat_t>::max())
+          << "Categorical feature value too large.";
+      auto cat = common::AsCat(candidate.split.split_value);
+      std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(std::max(cat+1, 1)), 0);
+      LBitField32 cats_bits(split_cats);
+      cats_bits.Set(cat);
+      tree.ExpandCategorical(candidate.nid, candidate.split.SplitIndex(), split_cats,
+                             candidate.split.DefaultLeft(), base_weight,
+                             left_weight, right_weight,
+                             candidate.split.loss_chg, parent_sum.GetHess(),
+                             candidate.split.left_sum.GetHess(),
+                             candidate.split.right_sum.GetHess());
+    } else {
+      tree.ExpandNode(
+          candidate.nid, candidate.split.SplitIndex(),
+          candidate.split.split_value, candidate.split.DefaultLeft(),
+          base_weight, left_weight * param_.learning_rate,
+          right_weight * param_.learning_rate, candidate.split.loss_chg,
+          parent_sum.GetHess(), candidate.split.left_sum.GetHess(),
+          candidate.split.right_sum.GetHess());
+    }
 
     // Set up child constraints
     auto left_child = tree[candidate.nid].LeftChild();
