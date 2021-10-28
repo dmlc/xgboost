@@ -253,6 +253,7 @@ class DaskDMatrix:
         label: Optional[_DaskCollection] = None,
         *,
         weight: Optional[_DaskCollection] = None,
+        sensitive_feature: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
         silent: bool = False,   # pylint: disable=unused-argument
@@ -301,6 +302,7 @@ class DaskDMatrix:
             data,
             label=label,
             weights=weight,
+            sensitive_features=sensitive_feature,
             base_margin=base_margin,
             qid=qid,
             feature_weights=feature_weights,
@@ -317,6 +319,7 @@ class DaskDMatrix:
         data: _DaskCollection,
         label: Optional[_DaskCollection] = None,
         weights: Optional[_DaskCollection] = None,
+        sensitive_features: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
@@ -341,7 +344,7 @@ class DaskDMatrix:
                 ' chunks=(partition_size, X.shape[1])'
 
         data = client.persist(data)
-        for meta in [label, weights, base_margin, label_lower_bound,
+        for meta in [label, weights, sensitive_features, base_margin, label_lower_bound,
                      label_upper_bound]:
             if meta is not None:
                 meta = client.persist(meta)
@@ -367,6 +370,7 @@ class DaskDMatrix:
 
         y_parts = flatten_meta(label)
         w_parts = flatten_meta(weights)
+        s_parts = flatten_meta(sensitive_features)
         margin_parts = flatten_meta(base_margin)
         qid_parts = flatten_meta(qid)
         ll_parts = flatten_meta(label_lower_bound)
@@ -386,6 +390,7 @@ class DaskDMatrix:
 
         append_meta(y_parts, 'labels')
         append_meta(w_parts, 'weights')
+        append_meta(s_parts, 'sensitive_features')
         append_meta(margin_parts, 'base_margin')
         append_meta(qid_parts, 'qid')
         append_meta(ll_parts, 'label_lower_bound')
@@ -461,6 +466,7 @@ def _get_worker_parts_ordered(
         data = list_of_parts[i][0]
         labels = None
         weights = None
+        sensitive_features = None
         base_margin = None
         qid = None
         label_lower_bound = None
@@ -472,6 +478,8 @@ def _get_worker_parts_ordered(
                 labels = blob
             elif meta_names[j] == 'weights':
                 weights = blob
+            elif meta_names[j] == 'sensitive_features':
+                sensitive_features = blob
             elif meta_names[j] == 'base_margin':
                 base_margin = blob
             elif meta_names[j] == 'qid':
@@ -482,7 +490,7 @@ def _get_worker_parts_ordered(
                 label_upper_bound = blob
             else:
                 raise ValueError('Unknown metainfo:', meta_names[j])
-        result.append((data, labels, weights, base_margin, qid, label_lower_bound,
+        result.append((data, labels, weights, sensitive_features, base_margin, qid, label_lower_bound,
                        label_upper_bound))
     return result
 
@@ -763,11 +771,12 @@ def _create_dmatrix(
             return None
         return concat(data)
 
-    (data, labels, weights, base_margin, qid,
+    (data, labels, weights, sensitive_features, base_margin, qid,
      label_lower_bound, label_upper_bound) = _get_worker_parts(list_of_parts, meta_names)
 
     _labels = concat_or_none(labels)
     _weights = concat_or_none(weights)
+    _sensitive_features = concat_or_none(sensitive_features)
     _base_margin = concat_or_none(base_margin)
     _qid = concat_or_none(qid)
     _label_lower_bound = concat_or_none(label_lower_bound)
@@ -787,6 +796,7 @@ def _create_dmatrix(
         base_margin=_base_margin,
         qid=_qid,
         weight=_weights,
+        sensitive_feature=_sensitive_features,
         label_lower_bound=_label_lower_bound,
         label_upper_bound=_label_upper_bound,
         feature_weights=feature_weights,

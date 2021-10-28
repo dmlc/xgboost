@@ -155,6 +155,12 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(),
                                  WeightsCheck{});
     CHECK(valid) << "Weights must be positive values.";
+  } else if (key == "sensitive_feature") {
+    CopyInfoImpl(array_interface, &sensitive_features_);
+    auto ptr = sensitive_features_.ConstDevicePointer();
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + sensitive_features_.Size(),
+                                 LabelsCheck{});
+    CHECK(valid) << "Sensitive feature contains NaN, infinity or a value too large.";
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {

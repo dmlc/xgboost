@@ -510,6 +510,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         label=None,
         *,
         weight=None,
+        sensitive_feature=None,
         base_margin=None,
         missing: Optional[float] = None,
         silent=False,
@@ -544,6 +545,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 ordering of data points within each group, so it doesn't make
                 sense to assign weights to individual data points.
 
+        sensitive_feature: array_like
+            Sensitive feature of the training data.
         base_margin: array_like
             Base margin used for boosting from existing model.
         missing : float, optional
@@ -614,6 +617,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         self.set_info(
             label=label,
             weight=weight,
+            sensitive_feature=sensitive_feature,
             base_margin=base_margin,
             group=group,
             qid=qid,
@@ -665,6 +669,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         *,
         label=None,
         weight=None,
+        sensitive_feature=None,
         base_margin=None,
         group=None,
         qid=None,
@@ -681,6 +686,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.set_label(label)
         if weight is not None:
             self.set_weight(weight)
+        if sensitive_feature is not None:
+            self.set_sensitive_feature(sensitive_feature)
         if base_margin is not None:
             self.set_base_margin(base_margin)
         if group is not None:
@@ -830,6 +837,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, weight, 'weight', 'float')
 
+    def set_sensitive_feature(self, sensitive_feature):
+        """Set sensitive_feature of each instance.
+        Parameters
+        ----------
+        sensitive_feature : array like
+            Sensitive feature for each data point
+        """
+        from .data import dispatch_meta_backend
+        dispatch_meta_backend(self, sensitive_feature, 'sensitive_feature', 'float')
+
     def set_base_margin(self, margin):
         """Set base margin of booster to start from.
 
@@ -875,6 +892,14 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         weight : array
         """
         return self.get_float_info('weight')
+
+    def get_sensitive_feature(self):
+        """Get the sensitive feature of the DMatrix.
+        Returns
+        -------
+        sensitive_feature : array
+        """
+        return self.get_float_info('sensitive_feature')
 
     def get_base_margin(self):
         """Get the base margin of the DMatrix.
