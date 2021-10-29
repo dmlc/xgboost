@@ -30,12 +30,16 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
     return;
   }
   out->SetDevice(ptr_device);
-  out->Resize(column.num_rows);
+
+  size_t size = column.num_rows * column.num_cols;
+  CHECK_NE(size, 0);
+  out->Resize(size);
 
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
-
-  dh::LaunchN(column.num_rows, [=] __device__(size_t idx) {
-    p_dst[idx] = column.GetElement(idx, 0);
+  dh::LaunchN(size, [=] __device__(size_t idx) {
+    size_t ridx = idx / column.num_cols;
+    size_t cidx = idx - (ridx * column.num_cols);
+    p_dst[idx] = column.GetElement(ridx, cidx);
   });
 }
 
@@ -131,11 +135,6 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
       << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
   ArrayInterface array_interface(interface_str);
   std::string key{c_key};
-  if (!((array_interface.num_cols == 1 && array_interface.num_rows == 0) ||
-        (array_interface.num_cols == 0 && array_interface.num_rows == 1))) {
-    // Not an empty column, transform it.
-    array_interface.AsColumnVector();
-  }
 
   CHECK(!array_interface.valid.Data())
       << "Meta info " << key << " should be dense, found validity mask";
@@ -143,6 +142,16 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     return;
   }
 
+  if (key == "base_margin") {
+    CopyInfoImpl(array_interface, &base_margin_);
+    return;
+  }
+
+  if (!((array_interface.num_cols == 1 && array_interface.num_rows == 0) ||
+        (array_interface.num_cols == 0 && array_interface.num_rows == 1))) {
+    // Not an empty column, transform it.
+    array_interface.AsColumnVector();
+  }
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);
     auto ptr = labels_.ConstDevicePointer();
@@ -155,8 +164,6 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(),
                                  WeightsCheck{});
     CHECK(valid) << "Weights must be positive values.";
-  } else if (key == "base_margin") {
-    CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {
     CopyGroupInfoImpl(array_interface, &group_ptr_);
     ValidateQueryGroup(group_ptr_);

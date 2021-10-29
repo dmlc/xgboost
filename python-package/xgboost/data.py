@@ -328,6 +328,18 @@ def _is_pandas_series(data):
     return isinstance(data, pd.Series)
 
 
+def _meta_from_pandas_series(
+    data, name: str, dtype: Optional[str], handle: ctypes.c_void_p
+) -> None:
+    """Help transform pandas series for meta data like labels"""
+    data = data.values.astype('float')
+    from pandas.api.types import is_sparse
+    if is_sparse(data):
+        data = data.to_dense()
+    assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
+    _meta_from_numpy(data, name, dtype, handle)
+
+
 def _is_modin_series(data):
     try:
         import modin.pandas as pd
@@ -382,6 +394,7 @@ def _transform_dt_df(
         raise ValueError(
             'DataTable for label or weight cannot have multiple columns')
     if meta:
+        meta_type = "float" if meta_type is None else meta_type
         # below requires new dt version
         # extract first column
         data = data.to_numpy()[:, 0].astype(meta_type)
@@ -868,17 +881,12 @@ def _meta_from_tuple(data, field, dtype, handle):
     return _meta_from_list(data, field, dtype, handle)
 
 
-def _meta_from_cudf_df(data, field, handle):
-    if len(data.columns) != 1:
-        raise ValueError(
-            'Expecting meta-info to contain a single column')
-    data = data[data.columns[0]]
+def _meta_from_cudf_df(data, field: str, handle: ctypes.c_void_p) -> None:
+    if field not in _matrix_meta:
+        data = data[data.columns[0]]
 
-    interface = bytes(json.dumps([data.__cuda_array_interface__],
-                                 indent=2), 'utf-8')
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
-                                                   c_str(field),
-                                                   interface))
+    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
 def _meta_from_cudf_series(data, field, handle):
@@ -925,9 +933,7 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_series(data):
-        data = data.values.astype('float')
-        assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
-        _meta_from_numpy(data, name, dtype, handle)
+        _meta_from_pandas_series(data, name, dtype, handle)
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)
