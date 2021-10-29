@@ -17,9 +17,12 @@ rng = np.random.RandomState(1994)
 
 def set_base_margin_info(DType, DMatrixT, tm: str):
     rng = np.random.default_rng()
-    X = rng.normal(0, 1.0, size=100).reshape(10, 10)
-    y = X[:, 0]
-    base_margin = DType(X)
+    X = DType(rng.normal(0, 1.0, size=100).reshape(50, 2))
+    if hasattr(X, "iloc"):
+        y = X.iloc[:, 0]
+    else:
+        y = X[:, 0]
+    base_margin = X
     # no error at set
     Xy = DMatrixT(X, y, base_margin=base_margin)
     # Error at train, caused by check in predictor.
