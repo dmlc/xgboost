@@ -74,7 +74,7 @@ jobs:
 
     - name: Build XGBoost on Windows
       shell: bash -l {0}
-      if: matrix.os == 'windows-2016'
+      if: matrix.config.os == 'windows-2016'
       run: |
         mkdir build_msvc
         cd build_msvc
@@ -82,7 +82,7 @@ jobs:
         cmake --build . --config Release --parallel $(nproc)
 
     - name: Build XGBoost on macos
-      if: matrix.os == 'macos-10.15'
+      if: matrix.config.os == 'macos-10.15'
       run: |
         wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
         brew install ninja libomp
