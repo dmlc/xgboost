@@ -51,7 +51,8 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: windows-2016, compiler: 'msvc', python-version: '3.8'}
+          - {os: windows-2016, python-version: '3.8'}
+          - {os: macos-10.15, python-version "3.8" }
 
     steps:
     - uses: actions/checkout@v2
@@ -71,14 +72,26 @@ jobs:
         conda info
         conda list
 
-    - name: Build XGBoost with msvc
+    - name: Build XGBoost on Windows
       shell: bash -l {0}
-      if: matrix.config.compiler == 'msvc'
+      if: matrix.os == 'windows-2016'
       run: |
         mkdir build_msvc
         cd build_msvc
         cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
         cmake --build . --config Release --parallel $(nproc)
+
+    - name: Build XGboost on macos
+      if: matrix.os == "macos-10.15"
+      run: |
+        wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
+        brew install ninja libomp
+        brew pin libomp
+
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
+        ninja -j$(nproc)
 
     - name: Install Python package
       shell: bash -l {0}

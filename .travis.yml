@@ -10,14 +10,6 @@ env:
 
 jobs:
   include:
-    - os: osx
-      arch: amd64
-      osx_image: xcode10.2
-      env: TASK=python_test
-    - os: osx
-      arch: amd64
-      osx_image: xcode10.2
-      env: TASK=java_test
     - os: linux
       arch: s390x
       env: TASK=s390x_test
@@ -33,8 +25,6 @@ addons:
 
 before_install:
   - source tests/travis/travis_setup_env.sh
-  - if [ "${TASK}" != "python_sdist_test" ]; then export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package; fi
-  - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
 
 install:
   - source tests/travis/setup.sh
