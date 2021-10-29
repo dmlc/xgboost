@@ -101,6 +101,7 @@ class TestGPUUpdaters:
         X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)
         y = rng.normal(loc=0, scale=1, size=100)
 
+        # Check is performe during sketching.
         Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
         with pytest.raises(ValueError):
             xgb.train({"tree_method": "gpu_hist"}, Xy)
@@ -108,7 +109,6 @@ class TestGPUUpdaters:
         X, y = cp.array(X), cp.array(y)
         with pytest.raises(ValueError):
             Xy = xgb.DeviceQuantileDMatrix(X, y, feature_types=["c"] * 10)
-        xgb.train({"tree_method": "gpu_hist"}, Xy)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @given(parameter_strategy, strategies.integers(1, 20),
