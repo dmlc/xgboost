@@ -214,7 +214,16 @@ def run_boost_from_prediction_multi_clasas(
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
     )
-    np.testing.assert_allclose(predictions_1.compute(), predictions_2.compute())
+    a = predictions_1.compute()
+    b = predictions_2.compute()
+    # cupy/cudf
+    if hasattr(a, "get"):
+        a = a.get()
+    if hasattr(b, "values"):
+        b = b.values
+    if hasattr(b, "get"):
+        b = b.get()
+    np.testing.assert_allclose(a, b, atol=1e-5)
 
 
 def run_boost_from_prediction(
