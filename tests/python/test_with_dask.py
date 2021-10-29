@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import scipy
 import json
-from typing import List, Tuple, Dict, Optional, Type, Any
+from typing import List, Tuple, Dict, Optional, Type, Any, Callable
 import asyncio
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
@@ -182,6 +182,45 @@ def test_dask_predict_shape_infer(client: "Client") -> None:
     assert prediction.shape[1] == 3
 
 
+def run_boost_from_prediction_multi_clasas(
+    X: xgb.dask._DaskCollection,
+    y: xgb.dask._DaskCollection,
+    tree_method: str,
+    as_frame: Optional[Callable],
+    client: "Client"
+) -> None:
+    model_0 = xgb.dask.DaskXGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
+    model_0.fit(X=X, y=y)
+    margin = xgb.dask.inplace_predict(
+        client, model_0.get_booster(), X, predict_type="margin"
+    )
+
+    if as_frame is not None:
+        margin = as_frame(margin)
+
+    model_1 = xgb.dask.DaskXGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
+    model_1.fit(X=X, y=y, base_margin=margin)
+    predictions_1 = xgb.dask.predict(
+        client,
+        model_1.get_booster(),
+        xgb.dask.DaskDMatrix(X, base_margin=margin),
+        output_margin=True
+    )
+
+    model_2 = xgb.dask.DaskXGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+    )
+    model_2.fit(X=X, y=y)
+    predictions_2 = xgb.dask.inplace_predict(
+        client, model_2.get_booster(), X, predict_type="margin"
+    )
+    np.testing.assert_allclose(predictions_1.compute(), predictions_2.compute())
+
+
 def run_boost_from_prediction(
     X: xgb.dask._DaskCollection, y: xgb.dask._DaskCollection, tree_method: str, client: "Client"
 ) -> None:
@@ -227,10 +266,17 @@ def run_boost_from_prediction(
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
-    from sklearn.datasets import load_breast_cancer
+    from sklearn.datasets import load_breast_cancer, load_digits
     X_, y_ = load_breast_cancer(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
     run_boost_from_prediction(X, y, tree_method, client)
+
+    X_, y_ = load_digits(return_X_y=True)
+    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+    run_boost_from_prediction_multi_clasas(
+        X, y, tree_method, client, lambda margin: dd.from_dask_array(margin)
+    )
+    run_boost_from_prediction_multi_clasas(X, y, tree_method, client, None)
 
 
 def test_inplace_predict(client: "Client") -> None:

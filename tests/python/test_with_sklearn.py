@@ -1199,11 +1199,11 @@ def run_boost_from_prediction_multi_clasas(
         xgb.DMatrix(X, base_margin=margin), output_margin=True
     )
 
-    cls_2 = xgb.XGBClassifier(
+    model_2 = xgb.XGBClassifier(
         learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
     )
-    cls_2.fit(X=X, y=y)
-    predictions_2 = cls_2.get_booster().inplace_predict(X, predict_type="margin")
+    model_2.fit(X=X, y=y)
+    predictions_2 = model_2.get_booster().inplace_predict(X, predict_type="margin")
     np.testing.assert_allclose(predictions_1, predictions_2)
 
 

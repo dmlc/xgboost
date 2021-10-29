@@ -22,6 +22,7 @@ from test_with_dask import run_empty_dmatrix_reg      # noqa
 from test_with_dask import run_empty_dmatrix_auc      # noqa
 from test_with_dask import run_auc                    # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
+from test_with_dask import run_boost_from_prediction_multi_clasas  # noqa
 from test_with_dask import run_dask_classifier        # noqa
 from test_with_dask import run_empty_dmatrix_cls      # noqa
 from test_with_dask import _get_client_workers        # noqa
@@ -297,12 +298,22 @@ def run_gpu_hist(
 @pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
     import cudf
-    from sklearn.datasets import load_breast_cancer
+    import dask_cudf
+    from sklearn.datasets import load_breast_cancer, load_digits
     with Client(local_cuda_cluster) as client:
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
         run_boost_from_prediction(X, y, "gpu_hist", client)
+
+        X_, y_ = load_digits(return_X_y=True)
+        X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
+        y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
+
+        run_boost_from_prediction_multi_clasas(
+            X, y, "gpu_hist", client, lambda margin: dask_cudf.from_dask_array(margin)
+        )
+        run_boost_from_prediction_multi_clasas(X, y, "gpu_hist", client, None)
 
 
 class TestDistributedGPU:
