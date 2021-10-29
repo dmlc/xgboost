@@ -118,7 +118,8 @@ jobs:
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
         matrix.os == 'macos-latest'
-      python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
+      run: |
+        python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
