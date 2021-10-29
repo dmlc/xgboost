@@ -81,8 +81,8 @@ jobs:
         cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
         cmake --build . --config Release --parallel $(nproc)
 
-    - name: Build XGboost on macos
-      if: matrix.os == "macos-10.15"
+    - name: Build XGBoost on macos
+      if: matrix.os == 'macos-10.15'
       run: |
         wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
         brew install ninja libomp
