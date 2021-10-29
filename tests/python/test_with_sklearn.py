@@ -1204,7 +1204,12 @@ def run_boost_from_prediction_multi_clasas(
     )
     model_2.fit(X=X, y=y)
     predictions_2 = model_2.get_booster().inplace_predict(X, predict_type="margin")
-    np.testing.assert_allclose(predictions_1, predictions_2)
+
+    if hasattr(predictions_1, "get"):
+        predictions_1 = predictions_1.get()
+    if hasattr(predictions_2, "get"):
+        predictions_2 = predictions_2.get()
+    np.testing.assert_allclose(predictions_1, predictions_2, atol=1e-6)
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])

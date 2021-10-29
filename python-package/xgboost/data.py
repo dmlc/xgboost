@@ -839,8 +839,8 @@ def _to_data_type(dtype: str, name: str):
 
 
 def _validate_meta_shape(data: Any, name: str) -> None:
-    msg = f"Invalid shape: {data.shape} for {name}"
     if hasattr(data, "shape"):
+        msg = f"Invalid shape: {data.shape} for {name}"
         if name in _matrix_meta:
             if len(data.shape) > 2:
                 raise ValueError(msg)
@@ -883,10 +883,11 @@ def _meta_from_tuple(data, field, dtype, handle):
 
 def _meta_from_cudf_df(data, field: str, handle: ctypes.c_void_p) -> None:
     if field not in _matrix_meta:
-        data = data[data.columns[0]]
-
-    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
+        _meta_from_cudf_series(data.iloc[:, 0], field, handle)
+    else:
+        data = data.values
+        interface = _cuda_array_interface(data)
+        _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
 def _meta_from_cudf_series(data, field, handle):

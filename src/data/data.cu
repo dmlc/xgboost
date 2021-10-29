@@ -130,9 +130,6 @@ void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_);
 
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
-  auto const& j_arr = get<Array>(j_interface);
-  CHECK_EQ(j_arr.size(), 1)
-      << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
   ArrayInterface array_interface(interface_str);
   std::string key{c_key};
 
@@ -147,6 +144,8 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     return;
   }
 
+  CHECK(array_interface.num_cols == 1 || array_interface.num_rows == 1)
+      << "MetaInfo: " << c_key << " has invalid shape";
   if (!((array_interface.num_cols == 1 && array_interface.num_rows == 0) ||
         (array_interface.num_cols == 0 && array_interface.num_rows == 1))) {
     // Not an empty column, transform it.
