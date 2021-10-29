@@ -186,7 +186,6 @@ def run_boost_from_prediction_multi_clasas(
     X: xgb.dask._DaskCollection,
     y: xgb.dask._DaskCollection,
     tree_method: str,
-    as_frame: Optional[Callable],
     client: "Client"
 ) -> None:
     model_0 = xgb.dask.DaskXGBClassifier(
@@ -197,9 +196,6 @@ def run_boost_from_prediction_multi_clasas(
         client, model_0.get_booster(), X, predict_type="margin"
     )
 
-    if as_frame is not None:
-        margin = as_frame(margin)
-
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
     )
@@ -207,7 +203,7 @@ def run_boost_from_prediction_multi_clasas(
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
-        xgb.dask.DaskDMatrix(X, base_margin=margin),
+        xgb.dask.DaskDMatrix(client, X, base_margin=margin),
         output_margin=True
     )
 
@@ -273,10 +269,7 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
 
     X_, y_ = load_digits(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    run_boost_from_prediction_multi_clasas(
-        X, y, tree_method, client, lambda margin: dd.from_dask_array(margin)
-    )
-    run_boost_from_prediction_multi_clasas(X, y, tree_method, client, None)
+    run_boost_from_prediction_multi_clasas(X, y, tree_method, client)
 
 
 def test_inplace_predict(client: "Client") -> None:

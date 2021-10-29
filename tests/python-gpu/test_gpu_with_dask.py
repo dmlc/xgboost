@@ -298,7 +298,6 @@ def run_gpu_hist(
 @pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
     import cudf
-    import dask_cudf
     from sklearn.datasets import load_breast_cancer, load_digits
     with Client(local_cuda_cluster) as client:
         X_, y_ = load_breast_cancer(return_X_y=True)
@@ -309,11 +308,7 @@ def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
         X_, y_ = load_digits(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-
-        run_boost_from_prediction_multi_clasas(
-            X, y, "gpu_hist", client, lambda margin: dask_cudf.from_dask_array(margin)
-        )
-        run_boost_from_prediction_multi_clasas(X, y, "gpu_hist", client, None)
+        run_boost_from_prediction_multi_clasas(X, y, "gpu_hist", client)
 
 
 class TestDistributedGPU:
