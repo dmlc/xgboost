@@ -29,6 +29,9 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
     with pytest.raises(ValueError, match=r".*base_margin.*"):
         xgb.train({"tree_method": tm}, Xy)
 
+    # FIXME(jiamingy): Currently the metainfo has no concept of shape.  If you pass a
+    # base_margin with shape (n_classes, n_samples) to XGBoost the result is undefined.
+
 
 class TestDMatrix:
     def test_warn_missing(self):
