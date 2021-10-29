@@ -91,7 +91,7 @@ jobs:
         mkdir build
         cd build
         cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
-        ninja -j$(nproc)
+        ninja
 
     - name: Install Python package
       shell: bash -l {0}
