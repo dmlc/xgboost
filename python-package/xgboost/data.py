@@ -391,8 +391,7 @@ def _transform_dt_df(
 ):
     """Validate feature names and types if data table"""
     if meta and data.shape[1] > 1:
-        raise ValueError(
-            'DataTable for label or weight cannot have multiple columns')
+        raise ValueError('DataTable for meta info cannot have multiple columns')
     if meta:
         meta_type = "float" if meta_type is None else meta_type
         # below requires new dt version
@@ -907,8 +906,8 @@ def _meta_from_cupy_array(data, field, handle):
                                                    interface))
 
 
-def _meta_from_dt(data, field, dtype, handle):
-    data, _, _ = _transform_dt_df(data, None, None)
+def _meta_from_dt(data, field: str, dtype, handle: ctypes.c_void_p):
+    data, _, _ = _transform_dt_df(data, None, None, field, dtype)
     _meta_from_numpy(data, field, dtype, handle)
 
 

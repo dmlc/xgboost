@@ -5,6 +5,7 @@ import pytest
 
 sys.path.append("tests/python")
 import testing as tm
+from test_dmatrix import set_base_margin_info
 
 
 def dmatrix_from_cudf(input_type, DMatrixT, missing=np.NAN):
@@ -142,10 +143,7 @@ def _test_cudf_metainfo(DMatrixT):
                           dmat_cudf.get_float_info('base_margin'))
     assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
 
-    # Invalid shape for base margin
-    Xy = xgb.DMatrix(X, floats, base_margin=X)
-    with pytest.raises(ValueError):
-        xgb.train({}, Xy)
+    set_base_margin_info(df, DMatrixT, "gpu_hist")
 
 
 class TestFromColumnar:
