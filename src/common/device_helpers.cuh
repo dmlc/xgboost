@@ -1462,15 +1462,23 @@ void DeviceSegmentedRadixSortPair(
                          int32_t>;
   CHECK_LE(num_items, std::numeric_limits<OffsetT>::max());
   // For Thrust >= 1.12 or CUDA >= 11.4, we require system cub installation
-  safe_cuda((cub::DispatchSegmentedRadixSort<
-             descending, KeyT, ValueT, BeginOffsetIteratorT,
+
 #if (THRUST_MAJOR_VERSION == 1 && THRUST_MINOR_VERSION >= 13) || THRUST_MAJOR_VERSION > 1
-             EndOffsetIteratorT,
-#endif
+  safe_cuda((cub::DispatchSegmentedRadixSort<
+             descending, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
              OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
                                 d_values, num_items, num_segments,
                                 d_begin_offsets, d_end_offsets, begin_bit,
                                 end_bit, false, nullptr, false)));
+#else
+  safe_cuda((cub::DispatchSegmentedRadixSort<
+             descending, KeyT, ValueT, BeginOffsetIteratorT,
+             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
+                                d_values, num_items, num_segments,
+                                d_begin_offsets, d_end_offsets, begin_bit,
+                                end_bit, false, nullptr, false)));
+#endif
+
 }
 }  // namespace detail
 
