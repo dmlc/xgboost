@@ -107,6 +107,11 @@ def _test_cupy_metainfo(DMatrixT):
     assert np.array_equal(dmat.get_uint_info('group_ptr'),
                           dmat_cupy.get_uint_info('group_ptr'))
 
+    # Invalid shape for base margin
+    Xy = xgb.DMatrix(X, floats, base_margin=X)
+    with pytest.raises(ValueError):
+        xgb.train({}, Xy)
+
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_sklearn())

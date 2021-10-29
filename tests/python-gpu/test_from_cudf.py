@@ -142,6 +142,11 @@ def _test_cudf_metainfo(DMatrixT):
                           dmat_cudf.get_float_info('base_margin'))
     assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
 
+    # Invalid shape for base margin
+    Xy = xgb.DMatrix(X, floats, base_margin=X)
+    with pytest.raises(ValueError):
+        xgb.train({}, Xy)
+
 
 class TestFromColumnar:
     '''Tests for constructing DMatrix from data structure conforming Apache
