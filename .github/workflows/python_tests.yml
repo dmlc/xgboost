@@ -51,7 +51,8 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: windows-2016, compiler: 'msvc', python-version: '3.8'}
+          - {os: windows-2016, python-version: '3.8'}
+          - {os: macos-10.15, python-version "3.8" }
 
     steps:
     - uses: actions/checkout@v2
@@ -71,14 +72,26 @@ jobs:
         conda info
         conda list
 
-    - name: Build XGBoost with msvc
+    - name: Build XGBoost on Windows
       shell: bash -l {0}
-      if: matrix.config.compiler == 'msvc'
+      if: matrix.config.os == 'windows-2016'
       run: |
         mkdir build_msvc
         cd build_msvc
         cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
         cmake --build . --config Release --parallel $(nproc)
+
+    - name: Build XGBoost on macos
+      if: matrix.config.os == 'macos-10.15'
+      run: |
+        wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
+        brew install ninja libomp
+        brew pin libomp
+
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
+        ninja
 
     - name: Install Python package
       shell: bash -l {0}
@@ -92,3 +105,21 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v ./tests/python
+
+    - name: Rename Python wheel
+      shell: bash -l {0}
+      if: matrix.config.os == 'macos-10.15'
+      run: |
+        TAG=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
+        python tests/ci_build/rename_whl.py python-package/dist/*.whl ${{ github.sha }} ${TAG}
+
+    - name: Upload Python wheel
+      shell: bash -l {0}
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        matrix.os == 'macos-latest'
+      run: |
+        python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

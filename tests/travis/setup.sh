@@ -1,16 +1,5 @@
 #!/bin/bash
 
-if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-    # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/27
-    # Use libomp 11.1.0: https://github.com/dmlc/xgboost/issues/7039
-    brew update  # Force update, so that update doesn't overwrite our version of libomp.rb
-    wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
-    brew install cmake libomp
-    brew pin libomp
-fi
-
-
-
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         wget --no-verbose -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
