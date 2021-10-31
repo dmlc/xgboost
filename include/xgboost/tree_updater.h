@@ -11,16 +11,17 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
-#include <xgboost/model.h>
 #include <xgboost/linalg.h>
+#include <xgboost/model.h>
+#include <xgboost/task.h>
+#include <xgboost/tree_model.h>
 
 #include <functional>
-#include <vector>
-#include <utility>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 
@@ -83,7 +84,7 @@ class TreeUpdater : public Configurable {
    * \param name Name of the tree updater.
    * \param tparam A global runtime parameter
    */
-  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam, ObjInfo task);
 };
 
 /*!
@@ -91,8 +92,7 @@ class TreeUpdater : public Configurable {
  */
 struct TreeUpdaterReg
     : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
-                                        std::function<TreeUpdater* ()> > {
-};
+                                        std::function<TreeUpdater*(ObjInfo task)> > {};
 
 /*!
  * \brief Macro to register tree updater.

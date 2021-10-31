@@ -276,14 +276,14 @@ struct EvalMAPGpu {
 
 XGBOOST_REGISTER_GPU_METRIC(PrecisionGpu, "pre")
 .describe("precision@k for rank computed on GPU.")
-.set_body([](const char* param) { return new EvalRankGpu<EvalPrecisionGpu>("pre", param); });
+.set_body([](const char* param, ObjInfo) { return new EvalRankGpu<EvalPrecisionGpu>("pre", param); });
 
 XGBOOST_REGISTER_GPU_METRIC(NDCGGpu, "ndcg")
 .describe("ndcg@k for rank computed on GPU.")
-.set_body([](const char* param) { return new EvalRankGpu<EvalNDCGGpu>("ndcg", param); });
+.set_body([](const char* param, ObjInfo) { return new EvalRankGpu<EvalNDCGGpu>("ndcg", param); });
 
 XGBOOST_REGISTER_GPU_METRIC(MAPGpu, "map")
 .describe("map@k for rank computed on GPU.")
-.set_body([](const char* param) { return new EvalRankGpu<EvalMAPGpu>("map", param); });
+.set_body([](const char* param, ObjInfo) { return new EvalRankGpu<EvalMAPGpu>("map", param); });
 }  // namespace metric
 }  // namespace xgboost

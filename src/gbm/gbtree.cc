@@ -306,7 +306,8 @@ void GBTree::InitUpdater(Args const& cfg) {
 
   // create new updaters
   for (const std::string& pstr : ups) {
-    std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), generic_param_));
+    std::unique_ptr<TreeUpdater> up(
+        TreeUpdater::Create(pstr.c_str(), generic_param_, model_.learner_model_param->task));
     up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
@@ -391,7 +392,8 @@ void GBTree::LoadConfig(Json const& in) {
   auto const& j_updaters = get<Object const>(in["updater"]);
   updaters_.clear();
   for (auto const& kv : j_updaters) {
-    std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(kv.first, generic_param_));
+    std::unique_ptr<TreeUpdater> up(
+        TreeUpdater::Create(kv.first, generic_param_, model_.learner_model_param->task));
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
   }

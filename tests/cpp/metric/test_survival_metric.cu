@@ -14,7 +14,7 @@ namespace common {
 namespace {
 inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
   auto lparam = CreateEmptyGenericParam(device);
-  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
+  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam, {ObjInfo::kSurvival, true})};
   metric->Configure(Args{});
 
   HostDeviceVector<float> predts;
@@ -69,7 +69,8 @@ TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) {
   };
   for (const auto& test_case : std::vector<TestCase>{ {"normal", 2.1508f}, {"logistic", 2.1804f},
                                                       {"extreme", 2.0706f} }) {
-    std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
+    std::unique_ptr<Metric> metric(
+        Metric::Create("aft-nloglik", &lparam, {ObjInfo::kSurvival, true}));
     metric->Configure({ {"aft_loss_distribution", test_case.dist_type},
                         {"aft_loss_distribution_scale", "1.0"} });
     EXPECT_NEAR(metric->Eval(preds, info, false), test_case.reference_value, 1e-4);
@@ -86,7 +87,8 @@ TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
   info.weights_.HostVector() = std::vector<bst_float>();
   HostDeviceVector<bst_float> preds(4, std::log(60.0f));
 
-  std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &lparam));
+  std::unique_ptr<Metric> metric(
+      Metric::Create("interval-regression-accuracy", &lparam, {ObjInfo::kSurvival, true}));
   EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.75f);
   info.labels_lower_bound_.HostVector()[2] = 70.0f;
   EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
@@ -103,7 +105,8 @@ TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
 // Test configuration of AFT metric
 TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
+  std::unique_ptr<Metric> metric(
+      Metric::Create("aft-nloglik", &lparam, {ObjInfo::kSurvival, true}));
   metric->Configure({{"aft_loss_distribution", "normal"}, {"aft_loss_distribution_scale", "10"}});
 
   // Configuration round-trip test

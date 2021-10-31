@@ -178,9 +178,7 @@ struct EvalMClassBase : public Metric {
     double dat[2] { 0.0, 0.0 };
     if (info.labels_.Size() != 0) {
       const size_t nclass = preds.Size() / info.labels_.Size();
-      CHECK_GE(nclass, 1U)
-          << "mlogloss and merror are only used for multi-class classification,"
-          << " use logloss for binary classification";
+      CHECK_GE(nclass, 1U);
       int device = tparam_->gpu_id;
       auto result = reducer_.Reduce(*tparam_, device, nclass, info.weights_, info.labels_, preds);
       dat[0] = result.Residue();
@@ -246,12 +244,25 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   }
 };
 
+void ValidateTask(ObjInfo task, char const* name) {
+  if (task.task != ObjInfo::kClassification) {
+    LOG(FATAL) << "`" << name << "` is only used for multi-class classification,"
+               << " use logloss for binary classification";
+  }
+}
+
 XGBOOST_REGISTER_METRIC(MatchError, "merror")
-.describe("Multiclass classification error.")
-.set_body([](const char* param) { return new EvalMatchError(); });
+    .describe("Multiclass classification error.")
+    .set_body([](const char* param, ObjInfo task) {
+      ValidateTask(task, "merror");
+      return new EvalMatchError();
+    });
 
 XGBOOST_REGISTER_METRIC(MultiLogLoss, "mlogloss")
-.describe("Multiclass negative loglikelihood.")
-.set_body([](const char* param) { return new EvalMultiLogLoss(); });
+    .describe("Multiclass negative loglikelihood.")
+    .set_body([](const char* param, ObjInfo task) {
+      ValidateTask(task, "mlogloss");
+      return new EvalMultiLogLoss();
+    });
 }  // namespace metric
 }  // namespace xgboost

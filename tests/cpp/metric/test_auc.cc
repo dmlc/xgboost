@@ -6,7 +6,7 @@ namespace metric {
 
 TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> uni_ptr {Metric::Create("auc", &tparam)};
+  std::unique_ptr<Metric> uni_ptr {Metric::Create("auc", &tparam, {ObjInfo::kBinary, true})};
   Metric * metric = uni_ptr.get();
   ASSERT_STREQ(metric->Name(), "auc");
 
@@ -50,8 +50,7 @@ TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
 
 TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) {
   auto tparam = CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> uni_ptr{
-      Metric::Create("auc", &tparam)};
+  std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &tparam, {ObjInfo::kClassification, true})};
   auto metric = uni_ptr.get();
 
   // MultiClass
@@ -116,7 +115,7 @@ TEST(Metric, DeclareUnifiedTest(MultiClassAUC)) {
 
 TEST(Metric, DeclareUnifiedTest(RankingAUC)) {
   auto tparam = CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric{Metric::Create("auc", &tparam)};
+  std::unique_ptr<Metric> metric{Metric::Create("auc", &tparam, {ObjInfo::kRanking, true})};
 
   // single group
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.7f, 0.2f, 0.3f, 0.6f},
@@ -152,10 +151,10 @@ TEST(Metric, DeclareUnifiedTest(RankingAUC)) {
               0.769841f, 1e-6);
 }
 
-TEST(Metric, DeclareUnifiedTest(PRAUC)) {
+TEST(Metric, DeclareUnifiedTest(BinaryPRAUC)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
+  xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam, {ObjInfo::kBinary, true});
   ASSERT_STREQ(metric->Name(), "aucpr");
   EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}),
@@ -182,21 +181,14 @@ TEST(Metric, DeclareUnifiedTest(PRAUC)) {
                             {1, 2, 7, 4, 5, 2.2f, 3.2f, 5, 6, 1, 2, 1.1f, 3.2f,
                              4.5f}), // weights
               0.694435f, 0.001f);
-
-  // Both groups contain only pos or neg samples.
-  auc = GetMetricEval(metric,
-                      {0, 0.1f, 0.3f, 0.5f, 0.7f},
-                      {1, 1, 0, 0, 0},
-                      {},
-                      {0, 2, 5});
-  ASSERT_TRUE(std::isnan(auc));
   delete metric;
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam)};
+  std::unique_ptr<Metric> metric{
+      Metric::Create("aucpr", &tparam, {ObjInfo::kClassification, true})};
 
   float auc = 0;
   std::vector<float> labels {1.0f, 0.0f, 2.0f};
@@ -225,7 +217,7 @@ TEST(Metric, DeclareUnifiedTest(MultiClassPRAUC)) {
 TEST(Metric, DeclareUnifiedTest(RankingPRAUC)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
-  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam)};
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &tparam, {ObjInfo::kRanking, true})};
 
   std::vector<float> labels {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
   std::vector<uint32_t> groups {0, 2, 6};
@@ -255,6 +247,10 @@ TEST(Metric, DeclareUnifiedTest(RankingPRAUC)) {
                   {},  // weights
                   {0, 2, 5, 9, 14, 20}),  // group info
               0.556021f, 0.001f);
+
+  // Both groups contain only pos or neg samples.
+  auc = GetMetricEval(metric.get(), {0, 0.1f, 0.3f, 0.5f, 0.7f}, {1, 1, 0, 0, 0}, {}, {0, 2, 5});
+  ASSERT_TRUE(std::isnan(auc));
 }
 }  // namespace metric
 }  // namespace xgboost

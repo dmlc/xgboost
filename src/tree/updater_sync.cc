@@ -53,7 +53,7 @@ class TreeSyncher: public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeSyncher, "sync")
 .describe("Syncher that synchronize the tree in all distributed nodes.")
-.set_body([]() {
+.set_body([](ObjInfo) {
     return new TreeSyncher();
   });
 }  // namespace tree

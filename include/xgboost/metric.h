@@ -13,6 +13,7 @@
 #include <xgboost/data.h>
 #include <xgboost/base.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/task.h>
 
 #include <vector>
 #include <string>
@@ -73,7 +74,7 @@ class Metric : public Configurable {
    * \param tparam A global generic parameter
    * \return the created metric.
    */
-  static Metric* Create(const std::string& name, GenericParameter const* tparam);
+  static Metric* Create(const std::string& name, GenericParameter const* tparam, ObjInfo task);
 };
 
 /*!
@@ -83,7 +84,7 @@ class Metric : public Configurable {
  */
 struct MetricReg
     : public dmlc::FunctionRegEntryBase<MetricReg,
-                                        std::function<Metric* (const char*)> > {
+                                        std::function<Metric* (const char*, ObjInfo task)> > {
 };
 
 /*!

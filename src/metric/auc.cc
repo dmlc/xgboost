@@ -243,6 +243,10 @@ std::pair<float, uint32_t> RankingAUC(std::vector<float> const &predts,
 
 template <typename Curve>
 class EvalAUC : public Metric {
+  ObjInfo task_;
+
+ public:
+  explicit EvalAUC(ObjInfo task) : task_{task} {}
   float Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
              bool distributed) override {
     float auc {0};
@@ -257,10 +261,11 @@ class EvalAUC : public Metric {
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.
       auc = std::numeric_limits<float>::quiet_NaN();
-    } else if (!info.group_ptr_.empty()) {
+    } else if (task_.task == ObjInfo::kRanking) {
       /**
        * learning to rank
        */
+      CHECK(!info.group_ptr_.empty()) << "Group or QID is required for ranking.";
       if (!info.weights_.Empty()) {
         CHECK_EQ(info.weights_.Size(), info.group_ptr_.size() - 1);
       }
@@ -286,14 +291,14 @@ class EvalAUC : public Metric {
         CHECK_LE(auc, 1) << "Total AUC across groups: " << auc * valid_groups
                          << ", valid groups: " << valid_groups;
       }
-    } else if (meta[0] != meta[1] && meta[1] % meta[0] == 0) {
+    } else if (task_.task == ObjInfo::kClassification) {
       /**
        * multi class
        */
       size_t n_classes = meta[1] / meta[0];
       CHECK_NE(n_classes, 0);
       auc = static_cast<Curve *>(this)->EvalMultiClass(preds, info, n_classes);
-    } else {
+    } else if (task_.task == ObjInfo::kBinary) {
       /**
        * binary classification
        */
@@ -314,6 +319,8 @@ class EvalAUC : public Metric {
         // normalization
         auc = auc / local_area;
       }
+    } else {
+      LOG(FATAL) << "Can not calculate AUC for " << task_.TaskStr() << " task.";
     }
     if (std::isnan(auc)) {
       LOG(WARNING) << "Dataset is empty, or contains only positive or negative samples.";
@@ -326,6 +333,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   std::shared_ptr<DeviceAUCCache> d_cache_;
 
  public:
+  using EvalAUC<EvalROCAUC>::EvalAUC;
   std::pair<float, uint32_t> EvalRanking(HostDeviceVector<float> const &predts,
                                          MetaInfo const &info) {
     float auc{0};
@@ -378,7 +386,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
 
 XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
 .describe("Receiver Operating Characteristic Area Under the Curve.")
-.set_body([](const char*) { return new EvalROCAUC(); });
+.set_body([](const char*, ObjInfo task) { return new EvalROCAUC(task); });
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<float, float, float>
@@ -409,6 +417,8 @@ class EvalAUCPR : public EvalAUC<EvalAUCPR> {
   std::shared_ptr<DeviceAUCCache> d_cache_;
 
  public:
+  using EvalAUC<EvalAUCPR>::EvalAUC;
+
   std::tuple<float, float, float>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     float pr, re, auc;
@@ -460,7 +470,7 @@ class EvalAUCPR : public EvalAUC<EvalAUCPR> {
 
 XGBOOST_REGISTER_METRIC(AUCPR, "aucpr")
     .describe("Area under PR curve for both classification and rank.")
-    .set_body([](char const *) { return new EvalAUCPR{}; });
+    .set_body([](char const *, ObjInfo task) { return new EvalAUCPR{task}; });
 
 #if !defined(XGBOOST_USE_CUDA)
 std::tuple<float, float, float>

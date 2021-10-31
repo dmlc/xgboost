@@ -52,6 +52,10 @@ class RegLossObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
+  struct ObjInfo Task() const override {
+    return Loss::Info();
+  }
+
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
                    HostDeviceVector<GradientPair>* out_gpair) override {
@@ -207,6 +211,10 @@ class PoissonRegression : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, false};
+  }
+
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
                    HostDeviceVector<GradientPair> *out_gpair) override {
@@ -297,6 +305,10 @@ class CoxRegression : public ObjFunction {
  public:
   void Configure(
       const std::vector<std::pair<std::string, std::string> >&) override {}
+
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, false};
+  }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -395,6 +407,10 @@ class GammaRegression : public ObjFunction {
   void Configure(
       const std::vector<std::pair<std::string, std::string> >&) override {}
 
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, false};
+  }
+
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info, int,
                    HostDeviceVector<GradientPair> *out_gpair) override {
@@ -489,6 +505,10 @@ class TweedieRegression : public ObjFunction {
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     metric_ = os.str();
+  }
+
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, false};
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
