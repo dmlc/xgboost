@@ -38,7 +38,8 @@ TEST(Updater, Prune) {
   tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
-  std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune", &lparam));
+  std::unique_ptr<TreeUpdater> pruner(
+      TreeUpdater::Create("prune", &lparam, {ObjInfo::kRegression, true}));
   pruner->Configure(cfg);
 
   // loss_chg < min_split_loss;

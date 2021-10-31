@@ -750,14 +750,14 @@ class GlobalProposalHistMaker: public CQHistMaker {
 
 XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
 .describe("Tree constructor that uses approximate histogram construction.")
-.set_body([]() {
+.set_body([](ObjInfo) {
     return new CQHistMaker();
   });
 
 // The updater for approx tree method.
 XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
 .describe("Tree constructor that uses approximate global of histogram construction.")
-.set_body([]() {
+.set_body([](ObjInfo) {
     return new GlobalProposalHistMaker();
   });
 }  // namespace tree
