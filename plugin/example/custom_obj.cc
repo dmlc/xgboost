@@ -34,6 +34,11 @@ class MyLogistic : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
   }
+
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, false};
+  }
+
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,

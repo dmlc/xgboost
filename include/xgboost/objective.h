@@ -13,6 +13,7 @@
 #include <xgboost/model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/task.h>
 
 #include <vector>
 #include <utility>
@@ -72,6 +73,11 @@ class ObjFunction : public Configurable {
   virtual bst_float ProbToMargin(bst_float base_score) const {
     return base_score;
   }
+  /*!
+   * \brief Return task of this objective.
+   */
+  virtual struct ObjInfo Task() const = 0;
+
   /*!
    * \brief Create an objective function according to name.
    * \param tparam Generic parameters.
