@@ -423,10 +423,10 @@ class Span {
   using pointer = T*;                                   // NOLINT
   using reference = T&;                                 // NOLINT
 
-  using iterator = detail::SpanIterator<Span<T, Extent>, false>;             // NOLINT
-  using const_iterator = const detail::SpanIterator<Span<T, Extent>, true>;  // NOLINT
-  using reverse_iterator = detail::SpanIterator<Span<T, Extent>, false>;     // NOLINT
-  using const_reverse_iterator = const detail::SpanIterator<Span<T, Extent>, true>;  // NOLINT
+  using iterator = detail::SpanIterator<Span<T, Extent>, false>;               // NOLINT
+  using const_iterator = const detail::SpanIterator<Span<T, Extent>, true>;    // NOLINT
+  using reverse_iterator = std::reverse_iterator<iterator>;                    // NOLINT
+  using const_reverse_iterator = const std::reverse_iterator<const_iterator>;  // NOLINT
 
   // constructors
   constexpr Span() __span_noexcept = default;
@@ -504,11 +504,11 @@ class Span {
     return {this, size()};
   }
 
-  XGBOOST_DEVICE constexpr reverse_iterator rbegin() const __span_noexcept {  // NOLINT
+  constexpr reverse_iterator rbegin() const __span_noexcept {  // NOLINT
     return reverse_iterator{end()};
   }
 
-  XGBOOST_DEVICE constexpr reverse_iterator rend() const __span_noexcept {    // NOLINT
+  constexpr reverse_iterator rend() const __span_noexcept {  // NOLINT
     return reverse_iterator{begin()};
   }
 
