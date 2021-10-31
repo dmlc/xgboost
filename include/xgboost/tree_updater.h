@@ -91,7 +91,8 @@ class TreeUpdater : public Configurable {
  * \brief Registry entry for tree updater.
  */
 struct TreeUpdaterReg
-    : public dmlc::FunctionRegEntryBase<TreeUpdaterReg, std::function<TreeUpdater*(ObjInfo task)> > {};
+    : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
+                                        std::function<TreeUpdater*(ObjInfo task)> > {};
 
 /*!
  * \brief Macro to register tree updater.
