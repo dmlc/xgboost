@@ -288,13 +288,13 @@ struct AFTNLogLikDispatcher : public Metric {
 
 XGBOOST_REGISTER_METRIC(AFTNLogLik, "aft-nloglik")
 .describe("Negative log likelihood of Accelerated Failure Time model.")
-.set_body([](const char* param) {
+.set_body([](const char* param, ObjInfo) {
   return new AFTNLogLikDispatcher();
 });
 
 XGBOOST_REGISTER_METRIC(IntervalRegressionAccuracy, "interval-regression-accuracy")
 .describe("")
-.set_body([](const char* param) {
+.set_body([](const char* param, ObjInfo) {
   return new EvalEWiseSurvivalBase<EvalIntervalRegressionAccuracy>();
 });
 

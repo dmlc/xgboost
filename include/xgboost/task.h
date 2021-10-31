@@ -5,6 +5,7 @@
 #define XGBOOST_TASK_H_
 
 #include <cinttypes>
+#include <exception>
 
 namespace xgboost {
 /*!
@@ -32,6 +33,25 @@ struct ObjInfo {
   } task;
   // Does the objective have constant hessian value?
   bool const_hess{false};
+
+  char const* TaskStr() const {
+    switch (task) {
+      case kRegression:
+        return "regression";
+      case kBinary:
+        return "binary classification";
+      case kClassification:
+        return "multi-class classification";
+      case kSurvival:
+        return "survival";
+      case kRanking:
+        return "learning to rank";
+      case kOther:
+        return "unknown";
+      default:
+        std::terminate();
+    }
+  }
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_

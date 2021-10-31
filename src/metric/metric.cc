@@ -4,14 +4,15 @@
  * \brief Registry of objective functions.
  */
 #include <dmlc/registry.h>
-#include <xgboost/metric.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/metric.h>
 
 #include "metric_common.h"
+#include "xgboost/task.h"
 
 namespace xgboost {
 template <typename MetricRegistry>
-Metric* CreateMetricImpl(const std::string& name) {
+Metric* CreateMetricImpl(const std::string& name, ObjInfo task) {
   std::string buf = name;
   std::string prefix = name;
   const char* param;
@@ -29,7 +30,7 @@ Metric* CreateMetricImpl(const std::string& name) {
     if (e == nullptr) {
       return nullptr;
     }
-    auto p_metric = (e->body)(param);
+    auto p_metric = (e->body)(param, task);
     return p_metric;
   } else {
     std::string prefix = buf.substr(0, pos);
@@ -37,14 +38,14 @@ Metric* CreateMetricImpl(const std::string& name) {
     if (e == nullptr) {
       return nullptr;
     }
-    auto p_metric = (e->body)(buf.substr(pos + 1, buf.length()).c_str());
+    auto p_metric = (e->body)(buf.substr(pos + 1, buf.length()).c_str(), task);
     return p_metric;
   }
 }
 
 Metric *
-Metric::Create(const std::string& name, GenericParameter const* tparam) {
-  auto metric = CreateMetricImpl<MetricReg>(name);
+Metric::Create(const std::string& name, GenericParameter const* tparam, ObjInfo task) {
+  auto metric = CreateMetricImpl<MetricReg>(name, task);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;
   }
@@ -54,8 +55,8 @@ Metric::Create(const std::string& name, GenericParameter const* tparam) {
 }
 
 Metric *
-GPUMetric::CreateGPUMetric(const std::string& name, GenericParameter const* tparam) {
-  auto metric = CreateMetricImpl<MetricGPUReg>(name);
+GPUMetric::CreateGPUMetric(const std::string& name, GenericParameter const* tparam, ObjInfo task) {
+  auto metric = CreateMetricImpl<MetricGPUReg>(name, task);
   if (metric == nullptr) {
     LOG(WARNING) << "Cannot find a GPU metric builder for metric " << name
                  << ". Resorting to the CPU builder";

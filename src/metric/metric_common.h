@@ -9,6 +9,8 @@
 #include <string>
 
 #include "../common/common.h"
+#include "xgboost/metric.h"
+#include "xgboost/task.h"
 
 namespace xgboost {
 
@@ -16,7 +18,8 @@ namespace xgboost {
 // present already. This is created when there is a device ordinal present and if xgboost
 // is compiled with CUDA support
 struct GPUMetric : Metric {
-  static Metric *CreateGPUMetric(const std::string& name, GenericParameter const* tparam);
+  static Metric *CreateGPUMetric(const std::string &name, GenericParameter const *tparam,
+                                 ObjInfo task);
 };
 
 /*!
@@ -25,9 +28,8 @@ struct GPUMetric : Metric {
  *  For example, metric map@3, then: param == "3".
  */
 struct MetricGPUReg
-  : public dmlc::FunctionRegEntryBase<MetricGPUReg,
-                                      std::function<Metric * (const char*)> > {
-};
+    : public dmlc::FunctionRegEntryBase<MetricGPUReg,
+                                        std::function<Metric *(const char *, ObjInfo task)> > {};
 
 /*!
  * \brief Macro to register metric computed on GPU.

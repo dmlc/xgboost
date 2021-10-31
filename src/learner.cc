@@ -389,7 +389,7 @@ class LearnerConfiguration : public Learner {
     for (size_t i = 0; i < n_metrics; ++i) {
       metric_names_[i]= get<String>(j_metrics[i]);
       metrics_[i] = std::unique_ptr<Metric>(
-          Metric::Create(metric_names_[i], &generic_parameters_));
+          Metric::Create(metric_names_[i], &generic_parameters_, obj_->Task()));
     }
 
     FromJson(learner_parameters.at("generic_param"), &generic_parameters_);
@@ -644,7 +644,8 @@ class LearnerConfiguration : public Learner {
                         return m->Name() != name;
                       };
       if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
-        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &generic_parameters_)));
+        metrics_.emplace_back(
+            std::unique_ptr<Metric>(Metric::Create(name, &generic_parameters_, obj_->Task())));
         mparam_.contain_eval_metrics = 1;
       }
     }
@@ -1121,7 +1122,8 @@ class LearnerImpl : public LearnerIO {
       if (tparam_.objective == "binary:logitraw") {
         warn_default_eval_metric(tparam_.objective, "auc", "logloss", "1.4.0");
       }
-      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
+      metrics_.emplace_back(
+          Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_, obj_->Task()));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
 

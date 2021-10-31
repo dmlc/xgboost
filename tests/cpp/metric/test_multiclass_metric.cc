@@ -7,7 +7,8 @@
 namespace xgboost {
 inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) {
   auto lparam = CreateEmptyGenericParam(device);
-  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
+  std::unique_ptr<Metric> metric{
+      Metric::Create(name.c_str(), &lparam, {ObjInfo::kClassification, true})};
 
   HostDeviceVector<float> predts;
   MetaInfo info;
@@ -41,10 +42,13 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 }
 }  // namespace xgboost
 
+using xgboost::ObjInfo;
+
 inline void TestMultiClassError(int device) {
   auto lparam = xgboost::CreateEmptyGenericParam(device);
   lparam.gpu_id = device;
-  xgboost::Metric * metric = xgboost::Metric::Create("merror", &lparam);
+  xgboost::Metric *metric =
+      xgboost::Metric::Create("merror", &lparam, {ObjInfo::kClassification, true});
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}));
@@ -65,7 +69,8 @@ TEST(Metric, DeclareUnifiedTest(MultiClassError)) {
 inline void TestMultiClassLogLoss(int device) {
   auto lparam = xgboost::CreateEmptyGenericParam(device);
   lparam.gpu_id = device;
-  xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &lparam);
+  xgboost::Metric *metric =
+      xgboost::Metric::Create("mlogloss", &lparam, {ObjInfo::kClassification, true});
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}));

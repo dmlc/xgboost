@@ -161,8 +161,8 @@ struct EvalRank : public Metric, public EvalRankConfig {
  private:
   // This is used to compute the ranking metrics on the GPU - for training jobs that run on the GPU.
   std::unique_ptr<xgboost::Metric> rank_gpu_;
+  ObjInfo task_;
 
- public:
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
@@ -185,7 +185,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
     // Check and see if we have the GPU metric registered in the internal registry
     if (tparam_->gpu_id >= 0) {
       if (!rank_gpu_) {
-        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_, task_));
       }
       if (rank_gpu_) {
         sum_metric = rank_gpu_->Eval(preds, info, distributed);
@@ -238,9 +238,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
   }
 
  protected:
-  explicit EvalRank(const char* name, const char* param) {
-    using namespace std;  // NOLINT(*)
-
+  explicit EvalRank(const char* name, const char* param, ObjInfo task) : task_{task} {
     if (param != nullptr) {
       std::ostringstream os;
       if (sscanf(param, "%u[-]?", &topn) == 1) {
@@ -264,7 +262,8 @@ struct EvalRank : public Metric, public EvalRankConfig {
 /*! \brief Precision at N, for both classification and rank */
 struct EvalPrecision : public EvalRank {
  public:
-  explicit EvalPrecision(const char* name, const char* param) : EvalRank(name, param) {}
+  explicit EvalPrecision(const char* name, const char* param, ObjInfo task)
+      : EvalRank(name, param, task) {}
 
   double EvalGroup(PredIndPairContainer *recptr) const override {
     PredIndPairContainer &rec(*recptr);
@@ -293,7 +292,8 @@ struct EvalNDCG : public EvalRank {
   }
 
  public:
-  explicit EvalNDCG(const char* name, const char* param) : EvalRank(name, param) {}
+  explicit EvalNDCG(const char* name, const char* param, ObjInfo task)
+      : EvalRank(name, param, task) {}
 
   double EvalGroup(PredIndPairContainer *recptr) const override {
     PredIndPairContainer &rec(*recptr);
@@ -315,7 +315,8 @@ struct EvalNDCG : public EvalRank {
 /*! \brief Mean Average Precision at N, for both classification and rank */
 struct EvalMAP : public EvalRank {
  public:
-  explicit EvalMAP(const char* name, const char* param) : EvalRank(name, param) {}
+  explicit EvalMAP(const char* name, const char* param, ObjInfo task)
+      : EvalRank(name, param, task) {}
 
   double EvalGroup(PredIndPairContainer *recptr) const override {
     PredIndPairContainer &rec(*recptr);
@@ -394,22 +395,22 @@ struct EvalCox : public Metric {
 
 XGBOOST_REGISTER_METRIC(AMS, "ams")
 .describe("AMS metric for higgs.")
-.set_body([](const char* param) { return new EvalAMS(param); });
+.set_body([](const char* param, ObjInfo) { return new EvalAMS(param); });
 
 XGBOOST_REGISTER_METRIC(Precision, "pre")
 .describe("precision@k for rank.")
-.set_body([](const char* param) { return new EvalPrecision("pre", param); });
+.set_body([](const char* param, ObjInfo task) { return new EvalPrecision("pre", param, task); });
 
 XGBOOST_REGISTER_METRIC(NDCG, "ndcg")
 .describe("ndcg@k for rank.")
-.set_body([](const char* param) { return new EvalNDCG("ndcg", param); });
+.set_body([](const char* param, ObjInfo task) { return new EvalNDCG("ndcg", param, task); });
 
 XGBOOST_REGISTER_METRIC(MAP, "map")
 .describe("map@k for rank.")
-.set_body([](const char* param) { return new EvalMAP("map", param); });
+.set_body([](const char* param, ObjInfo task) { return new EvalMAP("map", param, task); });
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportional hazards model.")
-.set_body([](const char*) { return new EvalCox(); });
+.set_body([](const char*, ObjInfo) { return new EvalCox(); });
 }  // namespace metric
 }  // namespace xgboost
