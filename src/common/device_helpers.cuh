@@ -959,12 +959,12 @@ thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
 
 template <typename T>
 XGBOOST_DEVICE auto trbegin(xgboost::common::Span<T> &span) {  // NOLINT
-  return thrust::make_reverse_iterator(span.end());
+  return thrust::make_reverse_iterator(span.data() + span.size());
 }
 
 template <typename T>
 XGBOOST_DEVICE auto trend(xgboost::common::Span<T> &span) {  // NOLINT
-  return thrust::make_reverse_iterator(span.begin());
+  return trbegin(span) + span.size();
 }
 
 template <typename T>
@@ -979,12 +979,12 @@ thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {  // NO
 
 template <typename T>
 XGBOOST_DEVICE auto tcrbegin(xgboost::common::Span<T> const &span) {  // NOLINT
-  return thrust::make_reverse_iterator(span.cend());
+  return thrust::make_reverse_iterator(span.data() + span.size());
 }
 
 template <typename T>
 XGBOOST_DEVICE auto tcrend(xgboost::common::Span<T> const &span) {  // NOLINT
-  return thrust::make_reverse_iterator(span.cbegin());
+  return tcrbegin(span) + span.size();
 }
 
 // This type sorts an array which is divided into multiple groups. The sorting is influenced
