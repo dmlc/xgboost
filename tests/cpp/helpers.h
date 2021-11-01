@@ -106,7 +106,7 @@ bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
  */
 class SimpleLCG {
  private:
-  using StateType = int64_t;
+  using StateType = uint64_t;
   static StateType constexpr kDefaultInit = 3;
   static StateType constexpr default_alpha_ = 61;
   static StateType constexpr max_value_ = ((StateType)1 << 32) - 1;
@@ -217,7 +217,7 @@ class RandomDataGenerator {
   float upper_;
 
   int32_t device_;
-  int32_t seed_;
+  uint64_t seed_;
   SimpleLCG lcg_;
 
   size_t bins_;
@@ -242,7 +242,7 @@ class RandomDataGenerator {
     device_ = d;
     return *this;
   }
-  RandomDataGenerator& Seed(int32_t s) {
+  RandomDataGenerator& Seed(uint64_t s) {
     seed_ = s;
     lcg_.Seed(seed_);
     return *this;
