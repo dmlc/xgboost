@@ -42,9 +42,9 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, bst_cat_t
   return !s_cats.Check(cat);
 }
 
-inline void CheckCat(bst_cat_t cat) {
-  CHECK_GE(cat, 0) << "Invalid categorical value detected.  Categorical value "
-                      "should be non-negative.";
+inline void InvalidCategory() {
+  LOG(FATAL) << "Invalid categorical value detected.  Categorical value "
+                "should be non-negative.";
 }
 
 struct IsCatOp {
