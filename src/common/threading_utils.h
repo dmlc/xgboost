@@ -222,6 +222,17 @@ void ParallelFor(Index size, Func fn) {
   ParallelFor(size, omp_get_max_threads(), Sched::Static(), fn);
 }
 
+#if !defined(_OPENMP)
+inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
+#endif                                                              // !defined(_OPENMP)
+
+
+inline int32_t OmpGetThreadLimit() {
+  int32_t limit = omp_get_thread_limit();
+  CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";
+  return limit;
+}
+
 /* \brief Configure parallel threads.
  *
  * \param p_threads Number of threads, when it's less than or equal to 0, this function
@@ -235,15 +246,18 @@ inline int32_t OmpSetNumThreads(int32_t* p_threads) {
   if (threads <= 0) {
     threads = omp_get_num_procs();
   }
+  threads = std::min(threads, OmpGetThreadLimit());
   omp_set_num_threads(threads);
   return nthread_original;
 }
+
 inline int32_t OmpSetNumThreadsWithoutHT(int32_t* p_threads) {
   auto& threads = *p_threads;
   int32_t nthread_original = omp_get_max_threads();
   if (threads <= 0) {
     threads = nthread_original;
   }
+  threads = std::min(threads, OmpGetThreadLimit());
   omp_set_num_threads(threads);
   return nthread_original;
 }
@@ -252,6 +266,7 @@ inline int32_t OmpGetNumThreads(int32_t n_threads) {
   if (n_threads <= 0) {
     n_threads = omp_get_num_procs();
   }
+  n_threads = std::min(n_threads, OmpGetThreadLimit());
   return n_threads;
 }
 }  // namespace common
