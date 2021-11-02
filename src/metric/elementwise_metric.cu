@@ -86,9 +86,9 @@ class ElementWiseMetricsReduction {
         thrust::cuda::par(alloc),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
-          bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
+          float weight = is_null_weight ? 1.0f : s_weights[idx];
 
-          bst_float residue = d_policy.EvalRow(s_label[idx], s_preds[idx]);
+          float residue = d_policy.EvalRow(s_label[idx], s_preds[idx]);
           residue *= weight;
           return PackedReduceResult{ residue, weight };
         },
@@ -141,7 +141,7 @@ struct EvalRowRMSE {
     bst_float diff = label - pred;
     return diff * diff;
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? std::sqrt(esum) : std::sqrt(esum / wsum);
   }
 };
@@ -155,7 +155,7 @@ struct EvalRowRMSLE {
     bst_float diff = std::log1p(label) - std::log1p(pred);
     return diff * diff;
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? std::sqrt(esum) : std::sqrt(esum / wsum);
   }
 };
@@ -168,7 +168,7 @@ struct EvalRowMAE {
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     return std::abs(label - pred);
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
@@ -180,7 +180,7 @@ struct EvalRowMAPE {
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     return std::abs((label - pred) / label);
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
@@ -202,7 +202,7 @@ struct EvalRowLogLoss {
     }
   }
 
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
@@ -215,7 +215,7 @@ struct EvalRowMPHE {
     bst_float diff = label - pred;
     return std::sqrt( 1 + diff * diff) - 1;
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
@@ -244,13 +244,12 @@ struct EvalError {
     }
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(
-      bst_float label, bst_float pred) const {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     // assume label is in [0,1]
     return pred > threshold_ ? 1.0f - label : label;
   }
 
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 
@@ -270,7 +269,7 @@ struct EvalPoissonNegLogLik {
     return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
   }
 
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
@@ -291,7 +290,7 @@ struct EvalGammaDeviance {
     return std::log(predt / label) + label / predt - 1;
   }
 
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     if (wsum <= 0) {
       wsum = kRtEps;
     }
@@ -317,7 +316,7 @@ struct EvalGammaNLogLik {
     // general form for exponential family.
     return -((y * theta - b) / a + c);
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
@@ -343,7 +342,7 @@ struct EvalTweedieNLogLik {
     bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
   }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 
@@ -360,9 +359,8 @@ struct EvalEWiseBase : public Metric {
   explicit EvalEWiseBase(char const* policy_param) :
     policy_{policy_param}, reducer_{policy_} {}
 
-  bst_float Eval(const HostDeviceVector<bst_float>& preds,
-                 const MetaInfo& info,
-                 bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+              bool distributed) override {
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";

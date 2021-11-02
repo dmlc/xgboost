@@ -58,9 +58,8 @@ class Metric : public Configurable {
    *        the average statistics across all the node,
    *        this is only supported by some metrics
    */
-  virtual bst_float Eval(const HostDeviceVector<bst_float>& preds,
-                         const MetaInfo& info,
-                         bool distributed) = 0;
+  virtual double Eval(const HostDeviceVector<bst_float> &preds,
+                      const MetaInfo &info, bool distributed) = 0;
   /*! \return name of metric */
   virtual const char* Name() const = 0;
   /*! \brief virtual destructor */

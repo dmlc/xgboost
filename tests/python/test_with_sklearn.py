@@ -1331,8 +1331,11 @@ def test_evaluation_metric():
     )
     clf.fit(X, y, eval_set=[(X, y)])
     internal = clf.evals_result()
+
     np.testing.assert_allclose(
-        custom["validation_0"]["merror"], internal["validation_0"]["merror"]
+        custom["validation_0"]["merror"],
+        internal["validation_0"]["merror"],
+        atol=1e-6
     )
 
     clf = xgb.XGBRFClassifier(
