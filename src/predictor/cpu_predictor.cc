@@ -290,27 +290,16 @@ class CPUPredictor : public Predictor {
     const auto& base_margin = info.base_margin_.HostVector();
     out_preds->Resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
-    if (base_margin.size() == n) {
-      CHECK_EQ(out_preds->Size(), n);
-      std::copy(base_margin.begin(), base_margin.end(), out_preds_h.begin());
-    } else {
-      if (!base_margin.empty()) {
-        std::ostringstream oss;
-        oss << "Ignoring the base margin, since it has incorrect length. "
-            << "The base margin must be an array of length ";
-        if (model.learner_model_param->num_output_group > 1) {
-          oss << "[num_class] * [number of data points], i.e. "
-              << model.learner_model_param->num_output_group << " * " << info.num_row_
-              << " = " << n << ". ";
-        } else {
-          oss << "[number of data points], i.e. " << info.num_row_ << ". ";
-        }
-        oss << "Instead, all data points will use "
-            << "base_score = " << model.learner_model_param->base_score;
-        LOG(WARNING) << oss.str();
-      }
+    if (base_margin.empty()) {
       std::fill(out_preds_h.begin(), out_preds_h.end(),
                 model.learner_model_param->base_score);
+    } else {
+      std::string expected{
+          "(" + std::to_string(info.num_row_) + ", " +
+          std::to_string(model.learner_model_param->num_output_group) + ")"};
+      CHECK_EQ(base_margin.size(), n)
+          << "Invalid shape of base_margin. Expected:" << expected;
+      std::copy(base_margin.begin(), base_margin.end(), out_preds_h.begin());
     }
   }
 

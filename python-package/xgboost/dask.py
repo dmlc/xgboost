@@ -1432,9 +1432,7 @@ def inplace_predict(  # pylint: disable=unused-argument
         Value in the input data which needs to be present as a missing
         value. If None, defaults to np.nan.
     base_margin:
-        See :py:obj:`xgboost.DMatrix` for details. Right now classifier is not well
-        supported with base_margin as it requires the size of base margin to be `n_classes
-        * n_samples`.
+        See :py:obj:`xgboost.DMatrix` for details.
 
         .. versionadded:: 1.4.0
 

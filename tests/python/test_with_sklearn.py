@@ -1,3 +1,4 @@
+from typing import Callable, Optional
 import collections
 import importlib.util
 import numpy as np
@@ -1147,32 +1148,83 @@ def test_feature_weights():
     assert poly_decreasing[0] < -0.08
 
 
-def run_boost_from_prediction(tree_method):
-    from sklearn.datasets import load_breast_cancer
-    X, y = load_breast_cancer(return_X_y=True)
+def run_boost_from_prediction_binary(tree_method, X, y, as_frame: Optional[Callable]):
+    """
+    Parameters
+    ----------
+
+    as_frame: A callable function to convert margin into DataFrame, useful for different
+    df implementations.
+    """
+
     model_0 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
     model_0.fit(X=X, y=y)
     margin = model_0.predict(X, output_margin=True)
+    if as_frame is not None:
+        margin = as_frame(margin)
 
     model_1 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = model_1.predict(X, base_margin=margin)
 
     cls_2 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8,
-        tree_method=tree_method)
+        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+    )
     cls_2.fit(X=X, y=y)
     predictions_2 = cls_2.predict(X)
-    assert np.all(predictions_1 == predictions_2)
+    np.testing.assert_allclose(predictions_1, predictions_2)
+
+
+def run_boost_from_prediction_multi_clasas(
+    tree_method, X, y, as_frame: Optional[Callable]
+):
+    # Multi-class
+    model_0 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
+    model_0.fit(X=X, y=y)
+    margin = model_0.get_booster().inplace_predict(X, predict_type="margin")
+    if as_frame is not None:
+        margin = as_frame(margin)
+
+    model_1 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+    )
+    model_1.fit(X=X, y=y, base_margin=margin)
+    predictions_1 = model_1.get_booster().predict(
+        xgb.DMatrix(X, base_margin=margin), output_margin=True
+    )
+
+    model_2 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+    )
+    model_2.fit(X=X, y=y)
+    predictions_2 = model_2.get_booster().inplace_predict(X, predict_type="margin")
+
+    if hasattr(predictions_1, "get"):
+        predictions_1 = predictions_1.get()
+    if hasattr(predictions_2, "get"):
+        predictions_2 = predictions_2.get()
+    np.testing.assert_allclose(predictions_1, predictions_2, atol=1e-6)
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
 def test_boost_from_prediction(tree_method):
-    run_boost_from_prediction(tree_method)
+    from sklearn.datasets import load_breast_cancer, load_digits
+    import pandas as pd
+    X, y = load_breast_cancer(return_X_y=True)
+
+    run_boost_from_prediction_binary(tree_method, X, y, None)
+    run_boost_from_prediction_binary(tree_method, X, y, pd.DataFrame)
+
+    X, y = load_digits(return_X_y=True)
+
+    run_boost_from_prediction_multi_clasas(tree_method, X, y, None)
+    run_boost_from_prediction_multi_clasas(tree_method, X, y, pd.DataFrame)
 
 
 def test_estimator_type():

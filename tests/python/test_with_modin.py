@@ -3,6 +3,7 @@ import numpy as np
 import xgboost as xgb
 import testing as tm
 import pytest
+from test_dmatrix import set_base_margin_info
 
 try:
     import modin.pandas as md
@@ -144,3 +145,6 @@ class TestModin:
         assert data.num_col() == kCols
 
         np.testing.assert_array_equal(data.get_weight(), w)
+
+    def test_base_margin(self):
+        set_base_margin_info(md.DataFrame, xgb.DMatrix, "hist")

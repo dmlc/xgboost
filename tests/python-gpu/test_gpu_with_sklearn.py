@@ -35,8 +35,25 @@ def test_gpu_binary_classification():
             assert err < 0.1
 
 
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction_gpu_hist():
-    twskl.run_boost_from_prediction('gpu_hist')
+    from sklearn.datasets import load_breast_cancer, load_digits
+    import cupy as cp
+    import cudf
+
+    tree_method = "gpu_hist"
+    X, y = load_breast_cancer(return_X_y=True)
+    X, y = cp.array(X), cp.array(y)
+
+    twskl.run_boost_from_prediction_binary(tree_method, X, y, None)
+    twskl.run_boost_from_prediction_binary(tree_method, X, y, cudf.DataFrame)
+
+    X, y = load_digits(return_X_y=True)
+    X, y = cp.array(X), cp.array(y)
+
+    twskl.run_boost_from_prediction_multi_clasas(tree_method, X, y, None)
+    twskl.run_boost_from_prediction_multi_clasas(tree_method, X, y, cudf.DataFrame)
 
 
 def test_num_parallel_tree():

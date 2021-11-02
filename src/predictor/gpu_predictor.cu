@@ -938,7 +938,11 @@ class GPUPredictor : public xgboost::Predictor {
     out_preds->SetDevice(generic_param_->gpu_id);
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
-      CHECK_EQ(base_margin.Size(), n);
+      std::string expected{
+          "(" + std::to_string(info.num_row_) + ", " +
+          std::to_string(model.learner_model_param->num_output_group) + ")"};
+      CHECK_EQ(base_margin.Size(), n)
+          << "Invalid shape of base_margin. Expected:" << expected;
       out_preds->Copy(base_margin);
     } else {
       out_preds->Fill(model.learner_model_param->base_score);

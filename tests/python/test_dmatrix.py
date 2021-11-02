@@ -15,6 +15,24 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
+def set_base_margin_info(DType, DMatrixT, tm: str):
+    rng = np.random.default_rng()
+    X = DType(rng.normal(0, 1.0, size=100).reshape(50, 2))
+    if hasattr(X, "iloc"):
+        y = X.iloc[:, 0]
+    else:
+        y = X[:, 0]
+    base_margin = X
+    # no error at set
+    Xy = DMatrixT(X, y, base_margin=base_margin)
+    # Error at train, caused by check in predictor.
+    with pytest.raises(ValueError, match=r".*base_margin.*"):
+        xgb.train({"tree_method": tm}, Xy)
+
+    # FIXME(jiamingy): Currently the metainfo has no concept of shape.  If you pass a
+    # base_margin with shape (n_classes, n_samples) to XGBoost the result is undefined.
+
+
 class TestDMatrix:
     def test_warn_missing(self):
         from xgboost import data
@@ -122,7 +140,7 @@ class TestDMatrix:
 
         # base margin is per-class in multi-class classifier
         base_margin = rng.randn(100, 3).astype(np.float32)
-        d.set_base_margin(base_margin.flatten())
+        d.set_base_margin(base_margin)
 
         ridxs = [1, 2, 3, 4, 5, 6]
         sliced = d.slice(ridxs)
@@ -380,3 +398,6 @@ class TestDMatrix:
         feature_types = ["q"] * 5 + ["c"] + ["q"] * 120
         Xy = xgb.DMatrix(path + "?indexing_mode=1", feature_types=feature_types)
         np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+    def test_base_margin(self):
+        set_base_margin_info(np.asarray, xgb.DMatrix, "hist")

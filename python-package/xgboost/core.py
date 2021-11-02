@@ -577,7 +577,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
         # force into void_p, mac need to pass things in as void_p
         if data is None:
-            self.handle = None
+            self.handle: Optional[ctypes.c_void_p] = None
             return
 
         from .data import dispatch_data_backend, _is_iter

@@ -18,6 +18,11 @@ c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
 CAT_T = "c"
 
+# meta info that can be a matrix instead of vector.
+# For now it's base_margin for multi-class, but it can be extended to label once we have
+# multi-output.
+_matrix_meta = {"base_margin"}
+
 
 def _warn_unused_missing(data, missing):
     if (missing is not None) and (not np.isnan(missing)):
@@ -217,7 +222,7 @@ _pandas_dtype_mapper = {
 }
 
 
-def _invalid_dataframe_dtype(data) -> None:
+def _invalid_dataframe_dtype(data: Any) -> None:
     # pandas series has `dtypes` but it's just a single object
     # cudf series doesn't have `dtypes`.
     if hasattr(data, "dtypes") and hasattr(data.dtypes, "__iter__"):
@@ -291,7 +296,7 @@ def _transform_pandas_df(
     else:
         transformed = data
 
-    if meta and len(data.columns) > 1:
+    if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
     dtype = meta_type if meta_type else np.float32
@@ -321,6 +326,18 @@ def _is_pandas_series(data):
     except ImportError:
         return False
     return isinstance(data, pd.Series)
+
+
+def _meta_from_pandas_series(
+    data, name: str, dtype: Optional[str], handle: ctypes.c_void_p
+) -> None:
+    """Help transform pandas series for meta data like labels"""
+    data = data.values.astype('float')
+    from pandas.api.types import is_sparse
+    if is_sparse(data):
+        data = data.to_dense()
+    assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
+    _meta_from_numpy(data, name, dtype, handle)
 
 
 def _is_modin_series(data):
@@ -374,9 +391,9 @@ def _transform_dt_df(
 ):
     """Validate feature names and types if data table"""
     if meta and data.shape[1] > 1:
-        raise ValueError(
-            'DataTable for label or weight cannot have multiple columns')
+        raise ValueError('DataTable for meta info cannot have multiple columns')
     if meta:
+        meta_type = "float" if meta_type is None else meta_type
         # below requires new dt version
         # extract first column
         data = data.to_numpy()[:, 0].astype(meta_type)
@@ -820,19 +837,27 @@ def _to_data_type(dtype: str, name: str):
     return dtype_map[dtype]
 
 
-def _validate_meta_shape(data, name: str) -> None:
+def _validate_meta_shape(data: Any, name: str) -> None:
     if hasattr(data, "shape"):
+        msg = f"Invalid shape: {data.shape} for {name}"
+        if name in _matrix_meta:
+            if len(data.shape) > 2:
+                raise ValueError(msg)
+            return
+
         if len(data.shape) > 2 or (
             len(data.shape) == 2 and (data.shape[1] != 0 and data.shape[1] != 1)
         ):
             raise ValueError(f"Invalid shape: {data.shape} for {name}")
 
 
-def _meta_from_numpy(data, field, dtype, handle):
+def _meta_from_numpy(
+    data: np.ndarray, field: str, dtype, handle: ctypes.c_void_p
+) -> None:
     data = _maybe_np_slice(data, dtype)
     interface = data.__array_interface__
     assert interface.get('mask', None) is None, 'Masked array is not supported'
-    size = data.shape[0]
+    size = data.size
 
     c_type = _to_data_type(str(data.dtype), field)
     ptr = interface['data'][0]
@@ -855,17 +880,13 @@ def _meta_from_tuple(data, field, dtype, handle):
     return _meta_from_list(data, field, dtype, handle)
 
 
-def _meta_from_cudf_df(data, field, handle):
-    if len(data.columns) != 1:
-        raise ValueError(
-            'Expecting meta-info to contain a single column')
-    data = data[data.columns[0]]
-
-    interface = bytes(json.dumps([data.__cuda_array_interface__],
-                                 indent=2), 'utf-8')
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
-                                                   c_str(field),
-                                                   interface))
+def _meta_from_cudf_df(data, field: str, handle: ctypes.c_void_p) -> None:
+    if field not in _matrix_meta:
+        _meta_from_cudf_series(data.iloc[:, 0], field, handle)
+    else:
+        data = data.values
+        interface = _cuda_array_interface(data)
+        _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
 def _meta_from_cudf_series(data, field, handle):
@@ -885,14 +906,15 @@ def _meta_from_cupy_array(data, field, handle):
                                                    interface))
 
 
-def _meta_from_dt(data, field, dtype, handle):
-    data, _, _ = _transform_dt_df(data, None, None)
+def _meta_from_dt(data, field: str, dtype, handle: ctypes.c_void_p):
+    data, _, _ = _transform_dt_df(data, None, None, field, dtype)
     _meta_from_numpy(data, field, dtype, handle)
 
 
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
+    assert handle is not None
     _validate_meta_shape(data, name)
     if data is None:
         return
@@ -911,9 +933,7 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_series(data):
-        data = data.values.astype('float')
-        assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
-        _meta_from_numpy(data, name, dtype, handle)
+        _meta_from_pandas_series(data, name, dtype, handle)
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)

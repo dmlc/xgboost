@@ -3,6 +3,7 @@ import os
 import urllib
 import zipfile
 import sys
+from typing import Optional
 from contextlib import contextmanager
 from io import StringIO
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
@@ -177,7 +178,7 @@ class TestDataset:
         self.metric = metric
         self.X, self.y = get_dataset()
         self.w = None
-        self.margin = None
+        self.margin: Optional[np.ndarray] = None
 
     def set_params(self, params_in):
         params_in['objective'] = self.objective
@@ -315,7 +316,7 @@ _unweighted_datasets_strategy = strategies.sampled_from(
 
 @strategies.composite
 def _dataset_weight_margin(draw):
-    data = draw(_unweighted_datasets_strategy)
+    data: TestDataset = draw(_unweighted_datasets_strategy)
     if draw(strategies.booleans()):
         data.w = draw(arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0)))
     if draw(strategies.booleans()):
@@ -324,6 +325,8 @@ def _dataset_weight_margin(draw):
             num_class = int(np.max(data.y) + 1)
         data.margin = draw(
             arrays(np.float64, (len(data.y) * num_class), elements=strategies.floats(0.5, 1.0)))
+        if num_class != 1:
+            data.margin = data.margin.reshape(data.y.shape[0], num_class)
 
     return data
 

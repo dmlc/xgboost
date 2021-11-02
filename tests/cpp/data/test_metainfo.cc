@@ -252,6 +252,8 @@ TEST(MetaInfo, Validate) {
   EXPECT_THROW(info.Validate(1), dmlc::Error);
 
   xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};
+  d_groups.SetDevice(0);
+  d_groups.DevicePointer();  // pull to device
   auto arr_interface = xgboost::GetArrayInterface(&d_groups, 64, 1);
   std::string arr_interface_str;
   xgboost::Json::Dump(arr_interface, &arr_interface_str);

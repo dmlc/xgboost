@@ -5,6 +5,7 @@ import pytest
 
 sys.path.append("tests/python")
 import testing as tm
+from test_dmatrix import set_base_margin_info
 
 
 def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):
@@ -106,6 +107,8 @@ def _test_cupy_metainfo(DMatrixT):
                           dmat_cupy.get_float_info('base_margin'))
     assert np.array_equal(dmat.get_uint_info('group_ptr'),
                           dmat_cupy.get_uint_info('group_ptr'))
+
+    set_base_margin_info(cp.asarray, DMatrixT, "gpu_hist")
 
 
 @pytest.mark.skipif(**tm.no_cupy())
