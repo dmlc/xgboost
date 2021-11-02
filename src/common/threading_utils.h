@@ -10,6 +10,7 @@
 #include <dmlc/omp.h>
 
 #include <algorithm>
+#include <limits>
 #include <type_traits>  // std::is_signed
 #include <vector>
 
@@ -24,7 +25,7 @@ inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
 // MSVC doesn't implement the thread limit.
 #if defined(_OPENMP) && defined(_MSC_VER)
 extern "C" {
-inline int32_t omp_get_thread_limit() { return std::numeric_limit<int32_t>::max(); }  // NOLINT
+inline int32_t omp_get_thread_limit() { return std::numeric_limits<int32_t>::max(); }  // NOLINT
 }
 #endif  // defined(_MSC_VER)
 
@@ -169,7 +170,7 @@ struct Sched {
 };
 
 template <typename Index, typename Func>
-void ParallelFor(Index size, size_t n_threads, Sched sched, Func fn) {
+void ParallelFor(Index size, int32_t n_threads, Sched sched, Func fn) {
 #if defined(_MSC_VER)
   // msvc doesn't support unsigned integer as openmp index.
   using OmpInd = std::conditional_t<std::is_signed<Index>::value, Index, omp_ulong>;
