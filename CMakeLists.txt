@@ -135,6 +135,10 @@ if (USE_CUDA)
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
+
+  if ((${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 11.4) AND (NOT BUILD_WITH_CUDA_CUB))
+    message(SEND_ERROR "`BUILD_WITH_CUDA_CUB` should be set to `ON` for CUDA >= 11.4")
+  endif ()
 endif (USE_CUDA)
 
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND

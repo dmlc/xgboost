@@ -711,6 +711,12 @@ constexpr std::pair<int, int> CUDAVersion() {
 constexpr std::pair<int32_t, int32_t> ThrustVersion() {
   return std::make_pair(THRUST_MAJOR_VERSION, THRUST_MINOR_VERSION);
 }
+// Whether do we have thrust 1.x with x >= minor
+template <int32_t minor>
+constexpr bool HasThrustMinorVer() {
+  return (ThrustVersion().first == 1 && ThrustVersion().second >= minor) ||
+         ThrustVersion().first > 1;
+}
 
 namespace detail {
 template <typename T>
@@ -725,10 +731,8 @@ class TypedDiscard : public thrust::discard_iterator<T> {
 
 template <typename T>
 using TypedDiscard =
-    std::conditional_t<((ThrustVersion().first == 1 &&
-                         ThrustVersion().second >= 12) ||
-                        ThrustVersion().first > 1),
-                       detail::TypedDiscardCTK114<T>, detail::TypedDiscard<T>>;
+    std::conditional_t<HasThrustMinorVer<12>(), detail::TypedDiscardCTK114<T>,
+                       detail::TypedDiscard<T>>;
 
 /**
  * \class AllReducer
@@ -1442,24 +1446,39 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
 namespace detail {
 // Wrapper around cub sort for easier `descending` sort.
 template <bool descending, typename KeyT, typename ValueT,
-          typename OffsetIteratorT>
+          typename BeginOffsetIteratorT, typename EndOffsetIteratorT>
 void DeviceSegmentedRadixSortPair(
     void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in, // NOLINT
     KeyT *d_keys_out, const ValueT *d_values_in, ValueT *d_values_out,
-    size_t num_items, size_t num_segments, OffsetIteratorT d_begin_offsets,
-    OffsetIteratorT d_end_offsets, int begin_bit = 0,
+    size_t num_items, size_t num_segments, BeginOffsetIteratorT d_begin_offsets,
+    EndOffsetIteratorT d_end_offsets, int begin_bit = 0,
     int end_bit = sizeof(KeyT) * 8) {
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in),
                                      d_values_out);
-  using OffsetT = int32_t;  // num items in dispatch is also int32_t, no way to change.
-  CHECK_LE(num_items, std::numeric_limits<int32_t>::max());
+  // In old version of cub, num_items in dispatch is also int32_t, no way to change.
+  using OffsetT =
+      std::conditional_t<BuildWithCUDACub() && HasThrustMinorVer<13>(), size_t,
+                         int32_t>;
+  CHECK_LE(num_items, std::numeric_limits<OffsetT>::max());
+  // For Thrust >= 1.12 or CUDA >= 11.4, we require system cub installation
+
+#if (THRUST_MAJOR_VERSION == 1 && THRUST_MINOR_VERSION >= 13) || THRUST_MAJOR_VERSION > 1
   safe_cuda((cub::DispatchSegmentedRadixSort<
-             descending, KeyT, ValueT, OffsetIteratorT,
+             descending, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
              OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
                                 d_values, num_items, num_segments,
                                 d_begin_offsets, d_end_offsets, begin_bit,
                                 end_bit, false, nullptr, false)));
+#else
+  safe_cuda((cub::DispatchSegmentedRadixSort<
+             descending, KeyT, ValueT, BeginOffsetIteratorT,
+             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
+                                d_values, num_items, num_segments,
+                                d_begin_offsets, d_end_offsets, begin_bit,
+                                end_bit, false, nullptr, false)));
+#endif
+
 }
 }  // namespace detail
 
