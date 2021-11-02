@@ -22,7 +22,7 @@ namespace xgboost {
  */
 struct ObjInfo {
   // What kind of problem are we trying to solve
-  enum : uint8_t {
+  enum Task : uint8_t {
     kRegression = 0,
     kBinary = 1,
     kClassification = 2,
@@ -32,6 +32,9 @@ struct ObjInfo {
   } task;
   // Does the objective have constant hessian value?
   bool const_hess{false};
+
+  explicit ObjInfo(Task t) : task{t} {}
+  ObjInfo(Task t, bool khess) : const_hess{khess} {}
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_

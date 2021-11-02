@@ -39,7 +39,7 @@ TEST(Updater, Prune) {
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(
-      TreeUpdater::Create("prune", &lparam, {ObjInfo::kRegression, true}));
+      TreeUpdater::Create("prune", &lparam, ObjInfo{ObjInfo::kRegression}));
   pruner->Configure(cfg);
 
   // loss_chg < min_split_loss;

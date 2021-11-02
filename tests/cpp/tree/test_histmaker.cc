@@ -35,7 +35,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
     tree.param.num_feature = kCols;
 
     std::unique_ptr<TreeUpdater> updater{
-        TreeUpdater::Create("grow_histmaker", &param, {ObjInfo::kRegression, true})};
+        TreeUpdater::Create("grow_histmaker", &param, ObjInfo{ObjInfo::kRegression})};
     updater->Configure(Args{
         {"interaction_constraints", "[[0, 1]]"},
         {"num_feature", std::to_string(kCols)}});
@@ -53,7 +53,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
     tree.param.num_feature = kCols;
 
     std::unique_ptr<TreeUpdater> updater{
-        TreeUpdater::Create("grow_histmaker", &param, {ObjInfo::kRegression, true})};
+        TreeUpdater::Create("grow_histmaker", &param, ObjInfo{ObjInfo::kRegression})};
     updater->Configure(Args{{"num_feature", std::to_string(kCols)}});
     updater->Update(&gradients, p_dmat.get(), {&tree});
 
