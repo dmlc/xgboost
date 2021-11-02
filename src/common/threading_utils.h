@@ -24,7 +24,7 @@ inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
 // MSVC doesn't implement the thread limit.
 #if defined(_OPENMP) && defined(_MSC_VER)
 extern "C" {
-inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return omp_get_max_threads(); }  // NOLINT
+inline int32_t omp_get_thread_limit() { return omp_get_max_threads(); }  // NOLINT
 }
 #endif  // defined(_MSC_VER)
 
