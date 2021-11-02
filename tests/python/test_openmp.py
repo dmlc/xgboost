@@ -1,5 +1,6 @@
-from multiprocessing import Process, Queue
 import os
+import tempfile
+import subprocess
 
 import xgboost as xgb
 import numpy as np
@@ -79,26 +80,28 @@ class TestOMP:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_with_omp_thread_limit(self):
-        def test_fn(q: Queue, limit: int):
-            from sklearn.datasets import load_iris
-            from sklearn.metrics import roc_auc_score
-            os.environ["OMP_THREAD_LIMIT"] = str(limit)
-            X, y = load_iris(return_X_y=True)
-            Xy = xgb.DMatrix(X, y, nthread=16)
-            booster = xgb.train({"num_class": 3, "objective": "multi:softprob"}, Xy, num_boost_round=8)
-            score = booster.predict(Xy)
-            print(y.shape, score.shape)
-            auc = roc_auc_score(y, score, average="weighted", multi_class="ovr")
-            q.put(auc)
+        args = [
+            "python", os.path.join(
+                tm.PROJECT_ROOT, "tests", "python", "with_omp_limit.py"
+            )
+        ]
+        results = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for i in (1, 2, 16):
+                path = os.path.join(tmpdir, str(i))
+                with open(path, "w") as fd:
+                    fd.write("\n")
+                cp = args.copy()
+                cp.append(path)
 
-        queue = Queue()
-        processes = []
-        for i in (1, 2, 16):
-            p = Process(target=test_fn, args=(queue, i))
-            p.start()
-            processes.append(p)
+                env = os.environ.copy()
+                env["OMP_THREAD_LIMIT"] = str(i)
 
-        for p in processes:
-            p.join()
-            score = queue.get()
-            print("score:", score)
+                status = subprocess.call(cp, env=env)
+                assert status == 0
+
+                with open(path, "r") as fd:
+                    results.append(float(fd.read()))
+
+        for auc in results:
+            np.testing.assert_allclose(auc, results[0])
