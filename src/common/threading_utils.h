@@ -7,10 +7,26 @@
 #define XGBOOST_COMMON_THREADING_UTILS_H_
 
 #include <dmlc/common.h>
-#include <vector>
+#include <dmlc/omp.h>
+
 #include <algorithm>
 #include <type_traits>  // std::is_signed
+#include <vector>
+
 #include "xgboost/logging.h"
+
+#if !defined(_OPENMP)
+extern "C" {
+inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
+}
+#endif  // !defined(_OPENMP)
+
+// MSVC doesn't implement the thread limit.
+#if defined(_OPENMP) && defined(_MSC_VER)
+extern "C" {
+inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return omp_get_max_threads(); }  // NOLINT
+}
+#endif  // defined(_MSC_VER)
 
 namespace xgboost {
 namespace common {
@@ -220,11 +236,7 @@ void ParallelFor(Index size, size_t n_threads, Func fn) {
 template <typename Index, typename Func>
 void ParallelFor(Index size, Func fn) {
   ParallelFor(size, omp_get_max_threads(), Sched::Static(), fn);
-}
-
-#if !defined(_OPENMP)
-inline int32_t omp_get_thread_limit() __GOMP_NOTHROW { return 1; }  // NOLINT
-#endif                                                              // !defined(_OPENMP)
+}                                        // !defined(_OPENMP)
 
 
 inline int32_t OmpGetThreadLimit() {
