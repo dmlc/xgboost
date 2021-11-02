@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+
 import sys
 import random
 
@@ -26,4 +27,3 @@ for l in fi:
 fi.close()
 ftr.close()
 fte.close()
-
