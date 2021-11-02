@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 fo = open('machine.txt', 'w')
 cnt = 6

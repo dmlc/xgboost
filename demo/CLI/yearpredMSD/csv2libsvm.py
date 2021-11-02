@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 fo = open(sys.argv[2], 'w')
 
