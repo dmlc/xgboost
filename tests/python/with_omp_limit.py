@@ -5,7 +5,7 @@ from sklearn.metrics import roc_auc_score
 import sys
 
 
-def test_fn(output_path: str):
+def run_omp(output_path: str):
     X, y = make_classification(
         n_samples=200, n_features=32, n_classes=3, n_informative=8
     )
@@ -23,4 +23,4 @@ def test_fn(output_path: str):
 
 if __name__ == "__main__":
     out = sys.argv[1]
-    test_fn(out)
+    run_omp(out)
