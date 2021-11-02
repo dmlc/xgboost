@@ -65,7 +65,7 @@ using IndexToTag = std::conditional_t<std::is_integral<RemoveCRType<S>>::value, 
 template <int32_t n, typename Fn>
 XGBOOST_DEVICE constexpr auto UnrollLoop(Fn fn) {
 #if defined __CUDA_ARCH__
-#pragma unroll(n)
+#pragma unroll n
 #endif  // defined __CUDA_ARCH__
   for (int32_t i = 0; i < n; ++i) {
     fn(i);
