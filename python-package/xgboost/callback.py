@@ -11,7 +11,7 @@ from typing import Sequence
 import numpy
 
 from . import rabit
-from .core import Booster, DMatrix, XGBoostError
+from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
 from .compat import STRING_TYPES
 
 
@@ -149,6 +149,25 @@ class CallbackContainer:
                 assert isinstance(model.cvfolds, list), msg
             else:
                 assert isinstance(model, Booster), msg
+
+        if not self.is_cv:
+            num_parallel_tree, _ = _get_booster_layer_trees(model)
+            if model.attr('best_score') is not None:
+                model.best_score = float(cast(str, model.attr('best_score')))
+                model.best_iteration = int(cast(str, model.attr('best_iteration')))
+                # num_class is handled internally
+                model.set_attr(
+                    best_ntree_limit=str((model.best_iteration + 1) * num_parallel_tree)
+                )
+                model.best_ntree_limit = int(cast(str, model.attr("best_ntree_limit")))
+            else:
+                # Due to compatibility with version older than 1.4, these attributes are
+                # added to Python object even if early stopping is not used.
+                model.best_iteration = model.num_boosted_rounds() - 1
+                model.set_attr(best_iteration=str(model.best_iteration))
+                model.best_ntree_limit = (model.best_iteration + 1) * num_parallel_tree
+                model.set_attr(best_ntree_limit=str(model.best_ntree_limit))
+
         return model
 
     def before_iteration(
