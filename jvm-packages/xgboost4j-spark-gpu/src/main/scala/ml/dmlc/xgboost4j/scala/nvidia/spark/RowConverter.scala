@@ -24,6 +24,10 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.catalyst.util.DateTimeConstants._
 
+/**
+ * Most the code of this class is copied from CatalystTypeConverters.StructConverter
+ * which is private class
+ */
 class RowConverter(schema: StructType, timeUnits: Seq[DType]) {
   private val converters = schema.fields.map {
     f => RowConverter.getConverterForType(f.dataType)

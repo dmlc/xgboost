@@ -16,18 +16,12 @@
 
 package ml.dmlc.xgboost4j.scala.nvidia.spark
 
-import scala.collection.JavaConverters._
-
 import ai.rapids.cudf.Table
 import com.nvidia.spark.rapids.ColumnarRdd
-import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
-import ml.dmlc.xgboost4j.java.nvidia.spark.GpuColumnBatch
-import ml.dmlc.xgboost4j.scala.DMatrix
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset}
+import org.apache.spark.sql.{DataFrame}
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.types.StructType
 
 private[spark] object GpuUtils {
 
@@ -63,53 +57,6 @@ private[spark] object GpuUtils {
     val colsIndices = ColumnIndices(featureNameSet.map(schema.fieldIndex),
       schema.fieldIndex(labelName), weightId, marginId, groupId)
     ColumnDataBatch(dataFrame, colsIndices, opGroup)
-  }
-
-  // For transform
-  def buildDMatrixAndColumnToRowIncrementally(missing: Float,
-      iter: Iterator[GpuColumnBatch],
-      featureIds: Seq[Int],
-      rowSchema: StructType): (DMatrix, ColumnBatchToRow) = {
-    // Create a convert first
-    val columnToRow: ColumnBatchToRow = new ColumnBatchToRow(rowSchema)
-    var dm: DMatrix = null
-
-    while (iter.hasNext) {
-      val colBatch = iter.next
-      val cudfColumnBatch = new CudfColumnBatch(
-        colBatch.slice(seqIntToSeqInteger(featureIds).asJava), null, null, null)
-      if (dm == null) {
-        // nthread now is useless, so assign it to 1
-        dm = new DMatrix(cudfColumnBatch, missing, 1)
-      } else {
-        // TODO pending by native support, append data into a DMatrix
-      }
-      columnToRow.appendColumnBatch(colBatch)
-      colBatch.close()
-    }
-    (dm, columnToRow)
-  }
-
-  // FIXME This is a WAR before native supports building DMatrix incrementally
-  def buildDMatrixAndColumnToRow(missing: Float,
-      iter: Iterator[GpuColumnBatch],
-      featureIds: Seq[Int],
-      rowSchema: StructType): (DMatrix, ColumnBatchToRow) = {
-    // Merge all GpuColumnBatches
-    if (iter.isEmpty) {
-      (null, null)
-    } else {
-      val singleColBatch = GpuColumnBatch.merge(iter.toArray: _*)
-      // Create ColumnBatchToRow
-      val columnToRow = new ColumnBatchToRow(rowSchema)
-        .appendColumnBatch(singleColBatch)
-      // Create DMatrix
-      val cudfColumnBatch = new CudfColumnBatch(
-        singleColBatch.slice(seqIntToSeqInteger(featureIds).asJava), null, null, null)
-      val dm = new DMatrix(cudfColumnBatch, missing, 1)
-      singleColBatch.close()
-      (dm, columnToRow)
-    }
   }
 
   // This method should be called on executor side

@@ -224,12 +224,11 @@ object GpuPreXGBoost extends PreXGBoostProvider {
         (m._booster, predictFunc, schema, m.getFeaturesCols, m.getMissing)
     }
 
-    val rowSchema = ColumnBatchToRow.buildRowSchema(schema, Seq.empty)
     val sc = dataset.sparkSession.sparkContext
 
     // Prepare some vars will be passed to executors.
     val bOrigSchema = sc.broadcast(dataset.schema)
-    val bRowSchema = sc.broadcast(rowSchema)
+    val bRowSchema = sc.broadcast(schema)
     val bBooster = sc.broadcast(booster)
 
     // Small vars so don't need to broadcast them
@@ -355,7 +354,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
     bOrigSchema.unpersist(blocking = false)
     bRowSchema.unpersist(blocking = false)
     bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(rowRDD, rowSchema)
+    dataset.sparkSession.createDataFrame(rowRDD, schema)
   }
 
   /**
