@@ -38,6 +38,8 @@ class AFTObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
+  ObjInfo Task() const override { return {ObjInfo::kSurvival, false}; }
+
   template <typename Distribution>
   void GetGradientImpl(const HostDeviceVector<bst_float> &preds,
                        const MetaInfo &info,

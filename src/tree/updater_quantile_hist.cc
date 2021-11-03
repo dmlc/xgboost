@@ -40,7 +40,7 @@ DMLC_REGISTER_PARAMETER(CPUHistMakerTrainParam);
 void QuantileHistMaker::Configure(const Args& args) {
   // initialize pruner
   if (!pruner_) {
-    pruner_.reset(TreeUpdater::Create("prune", tparam_));
+    pruner_.reset(TreeUpdater::Create("prune", tparam_, task_));
   }
   pruner_->Configure(args);
   param_.UpdateAllowUnknown(args);
@@ -52,7 +52,7 @@ void QuantileHistMaker::SetBuilder(const size_t n_trees,
                                    std::unique_ptr<Builder<GradientSumT>>* builder,
                                    DMatrix *dmat) {
   builder->reset(
-      new Builder<GradientSumT>(n_trees, param_, std::move(pruner_), dmat));
+      new Builder<GradientSumT>(n_trees, param_, std::move(pruner_), dmat, task_));
 }
 
 template<typename GradientSumT>
@@ -529,11 +529,11 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
   // store a pointer to the tree
   p_last_tree_ = &tree;
   if (data_layout_ == DataLayout::kDenseDataOneBased) {
-    evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
-        param_, info, this->nthread_, column_sampler_, true});
+    evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{param_, info, this->nthread_,
+                                                                     column_sampler_, true});
   } else {
-    evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
-        param_, info, this->nthread_, column_sampler_, false});
+    evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{param_, info, this->nthread_,
+                                                                     column_sampler_, false});
   }
 
   if (data_layout_ == DataLayout::kDenseDataZeroBased
@@ -677,17 +677,17 @@ XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")
 .describe("(Deprecated, use grow_quantile_histmaker instead.)"
           " Grow tree using quantized histogram.")
 .set_body(
-    []() {
+    [](ObjInfo task) {
       LOG(WARNING) << "grow_fast_histmaker is deprecated, "
                    << "use grow_quantile_histmaker instead.";
-      return new QuantileHistMaker();
+      return new QuantileHistMaker(task);
     });
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
 .describe("Grow tree using quantized histogram.")
 .set_body(
-    []() {
-      return new QuantileHistMaker();
+    [](ObjInfo task) {
+      return new QuantileHistMaker(task);
     });
 }  // namespace tree
 }  // namespace xgboost

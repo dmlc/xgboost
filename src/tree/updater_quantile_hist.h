@@ -95,7 +95,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() {
+  explicit QuantileHistMaker(ObjInfo task) : task_{task} {
     updater_monitor_.Init("QuantileHistMaker");
   }
   void Configure(const Args& args) override;
@@ -154,12 +154,15 @@ class QuantileHistMaker: public TreeUpdater {
     using GHistRowT = GHistRow<GradientSumT>;
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
-    explicit Builder(const size_t n_trees, const TrainParam &param,
-                     std::unique_ptr<TreeUpdater> pruner, DMatrix const *fmat)
-        : n_trees_(n_trees), param_(param), pruner_(std::move(pruner)),
-          p_last_tree_(nullptr), p_last_fmat_(fmat),
-          histogram_builder_{
-              new HistogramBuilder<GradientSumT, CPUExpandEntry>} {
+    explicit Builder(const size_t n_trees, const TrainParam& param,
+                     std::unique_ptr<TreeUpdater> pruner, DMatrix const* fmat, ObjInfo task)
+        : n_trees_(n_trees),
+          param_(param),
+          pruner_(std::move(pruner)),
+          p_last_tree_(nullptr),
+          p_last_fmat_(fmat),
+          histogram_builder_{new HistogramBuilder<GradientSumT, CPUExpandEntry>},
+          task_{task} {
       builder_monitor_.Init("Quantile::Builder");
     }
     ~Builder();
@@ -261,6 +264,7 @@ class QuantileHistMaker: public TreeUpdater {
     DataLayout data_layout_;
     std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>>
         histogram_builder_;
+    ObjInfo task_;
 
     common::Monitor builder_monitor_;
   };
@@ -281,6 +285,7 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder<double>> double_builder_;
 
   std::unique_ptr<TreeUpdater> pruner_;
+  ObjInfo task_;
 };
 }  // namespace tree
 }  // namespace xgboost

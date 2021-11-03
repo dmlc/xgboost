@@ -28,7 +28,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
     BuilderMock(const TrainParam &param, std::unique_ptr<TreeUpdater> pruner,
                 DMatrix const *fmat)
-        : RealImpl(1, param, std::move(pruner), fmat) {}
+        : RealImpl(1, param, std::move(pruner), fmat, ObjInfo{ObjInfo::kRegression}) {}
 
    public:
     void TestInitData(const GHistIndexMatrix& gmat,
@@ -230,7 +230,7 @@ class QuantileHistMock : public QuantileHistMaker {
   explicit QuantileHistMock(
       const std::vector<std::pair<std::string, std::string> >& args,
       const bool single_precision_histogram = false, bool batch = true) :
-      cfg_{args} {
+      QuantileHistMaker{ObjInfo{ObjInfo::kRegression}}, cfg_{args} {
     QuantileHistMaker::Configure(args);
     dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
     if (single_precision_histogram) {

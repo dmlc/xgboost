@@ -161,7 +161,7 @@ class TreeRefresher: public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeRefresher, "refresh")
 .describe("Refresher that refreshes the weight and statistics according to data.")
-.set_body([]() {
+.set_body([](ObjInfo) {
     return new TreeRefresher();
   });
 }  // namespace tree

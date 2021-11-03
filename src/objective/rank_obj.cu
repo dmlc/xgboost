@@ -754,6 +754,8 @@ class LambdaRankObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
+  ObjInfo Task() const override { return {ObjInfo::kRanking, false}; }
+
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
                    int iter,
