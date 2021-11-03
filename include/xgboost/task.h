@@ -12,10 +12,9 @@ namespace xgboost {
  *        not used by any algorithm yet, only for future development like categorical
  *        split.
  *
- * The task field is useful for tree split finding, also for some metrics like auc.  While
- * const_hess is useful for algorithms like adaptive tree where one needs to update the
- * leaf value after building the tree.  Lastly, knowing whether hessian is constant can
- * allow some optimizations like skipping the quantile sketching.
+ * The task field is useful for tree split finding, also for some metrics like auc.
+ * Lastly, knowing whether hessian is constant can allow some optimizations like skipping
+ * the quantile sketching.
  *
  * This struct should not be serialized since it can be recovered from objective function,
  * hence it doesn't need to be stable.
