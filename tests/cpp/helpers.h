@@ -106,42 +106,39 @@ bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
  */
 class SimpleLCG {
  private:
-  using StateType = int64_t;
+  using StateType = uint64_t;
   static StateType constexpr kDefaultInit = 3;
-  static StateType constexpr default_alpha_ = 61;
-  static StateType constexpr max_value_ = ((StateType)1 << 32) - 1;
+  static StateType constexpr kDefaultAlpha = 61;
+  static StateType constexpr kMaxValue = (static_cast<StateType>(1) << 32) - 1;
 
   StateType state_;
   StateType const alpha_;
   StateType const mod_;
 
-  StateType seed_;
+ public:
+  using result_type = StateType;  // NOLINT
 
  public:
-  SimpleLCG() : state_{kDefaultInit},
-                alpha_{default_alpha_}, mod_{max_value_}, seed_{state_}{}
+  SimpleLCG() : state_{kDefaultInit}, alpha_{kDefaultAlpha}, mod_{kMaxValue} {}
   SimpleLCG(SimpleLCG const& that) = default;
   SimpleLCG(SimpleLCG&& that) = default;
 
-  void Seed(StateType seed) {
-    seed_ = seed;
-  }
+  void Seed(StateType seed) { state_ = seed % mod_; }
   /*!
    * \brief Initialize SimpleLCG.
    *
    * \param state  Initial state, can also be considered as seed. If set to
    *               zero, SimpleLCG will use internal default value.
-   * \param alpha  multiplier
-   * \param mod    modulo
    */
-  explicit SimpleLCG(StateType state,
-                     StateType alpha=default_alpha_, StateType mod=max_value_)
-      : state_{state == 0 ? kDefaultInit : state},
-        alpha_{alpha}, mod_{mod} , seed_{state} {}
+  explicit SimpleLCG(StateType state)
+      : state_{state == 0 ? kDefaultInit : state}, alpha_{kDefaultAlpha}, mod_{kMaxValue} {}
 
   StateType operator()();
   StateType Min() const;
   StateType Max() const;
+
+  constexpr result_type static min() { return 0; };         // NOLINT
+  constexpr result_type static max() { return kMaxValue; }  // NOLINT
 };
 
 template <typename ResultT>
@@ -217,10 +214,12 @@ class RandomDataGenerator {
   float upper_;
 
   int32_t device_;
-  int32_t seed_;
+  uint64_t seed_;
   SimpleLCG lcg_;
 
   size_t bins_;
+  std::vector<FeatureType> ft_;
+  bst_cat_t max_cat_;
 
   Json ArrayInterfaceImpl(HostDeviceVector<float> *storage, size_t rows,
                           size_t cols) const;
@@ -242,13 +241,23 @@ class RandomDataGenerator {
     device_ = d;
     return *this;
   }
-  RandomDataGenerator& Seed(int32_t s) {
+  RandomDataGenerator& Seed(uint64_t s) {
     seed_ = s;
     lcg_.Seed(seed_);
     return *this;
   }
   RandomDataGenerator& Bins(size_t b) {
     bins_ = b;
+    return *this;
+  }
+  RandomDataGenerator& Type(common::Span<FeatureType> ft) {
+    CHECK_EQ(ft.size(), cols_);
+    ft_.resize(ft.size());
+    std::copy(ft.cbegin(), ft.cend(), ft_.begin());
+    return *this;
+  }
+  RandomDataGenerator& MaxCategory(bst_cat_t cat) {
+    max_cat_ = cat;
     return *this;
   }
 
