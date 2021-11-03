@@ -3,6 +3,8 @@
  */
 #include <limits>
 #include <utility>
+
+#include "rabit/rabit.h"
 #include "quantile.h"
 #include "hist_util.h"
 #include "categorical.h"
@@ -189,7 +191,7 @@ void HostSketchContainer::PushRowPage(
           if (is_dense) {
             for (size_t ii = begin; ii < end; ii++) {
               if (IsCat(feature_types_, ii)) {
-                categories_[ii].emplace(p_inst[ii].fvalue);
+                categories_[ii].emplace(AsCat(p_inst[ii].fvalue));
               } else {
                 sketches_[ii].Push(p_inst[ii].fvalue, w);
               }
@@ -199,7 +201,7 @@ void HostSketchContainer::PushRowPage(
               auto const& entry = p_inst[i];
               if (entry.index >= begin && entry.index < end) {
                 if (IsCat(feature_types_, entry.index)) {
-                  categories_[entry.index].emplace(entry.fvalue);
+                  categories_[entry.index].emplace(AsCat(entry.fvalue));
                 } else {
                   sketches_[entry.index].Push(entry.fvalue, w);
                 }

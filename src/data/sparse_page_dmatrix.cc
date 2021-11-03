@@ -184,10 +184,11 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
     batch_param_ = param;
     ghist_index_source_.reset();
     CHECK_NE(cuts.Values().size(), 0);
+    auto ft = this->info_.feature_types.ConstHostSpan();
     ghist_index_source_.reset(new GradientIndexPageSource(
         this->missing_, this->ctx_.Threads(), this->Info().num_col_,
         this->n_batches_, cache_info_.at(id), param, std::move(cuts),
-        this->IsDense(), param.max_bin, sparse_page_source_));
+        this->IsDense(), param.max_bin, ft, sparse_page_source_));
   } else {
     CHECK(ghist_index_source_);
     ghist_index_source_->Reset();

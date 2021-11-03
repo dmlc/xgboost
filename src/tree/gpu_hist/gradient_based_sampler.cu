@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by XGBoost Contributors
+ * Copyright 2019-2021 by XGBoost Contributors
  */
 #include <thrust/functional.h>
 #include <thrust/random.h>
@@ -13,6 +13,7 @@
 
 #include "../../common/compressed_iterator.h"
 #include "../../common/random.h"
+#include "../param.h"
 #include "gradient_based_sampler.cuh"
 
 namespace xgboost {

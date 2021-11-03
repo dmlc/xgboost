@@ -10,7 +10,8 @@ void GradientIndexPageSource::Fetch() {
     auto const& csr = source_->Page();
     this->page_.reset(new GHistIndexMatrix());
     CHECK_NE(cuts_.Values().size(), 0);
-    this->page_->Init(*csr, cuts_, max_bin_per_feat_, is_dense_, nthreads_);
+    this->page_->Init(*csr, feature_types_, cuts_, max_bin_per_feat_, is_dense_,
+                      nthreads_);
     this->WriteCache();
   }
 }
