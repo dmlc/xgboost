@@ -39,7 +39,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   int grow_policy;
 
   uint32_t max_cat_to_onehot{1};
-  float cat_smooth{10.0};
 
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
