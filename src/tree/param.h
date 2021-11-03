@@ -127,9 +127,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_default(4)
         .set_lower_bound(1)
         .describe("Maximum number of categories to use one-hot encoding based split.");
-    DMLC_DECLARE_FIELD(cat_smooth)
-        .set_default(10.0)
-        .describe("");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
