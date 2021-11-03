@@ -5,6 +5,13 @@
 #include "../../../src/common/quantile.cuh"
 
 namespace xgboost {
+namespace {
+struct IsSorted {
+  XGBOOST_DEVICE bool operator()(common::SketchEntry const& a, common::SketchEntry const& b) const {
+    return a.value < b.value;
+  }
+};
+}
 namespace common {
 TEST(GPUQuantile, Basic) {
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
@@ -52,9 +59,15 @@ void TestSketchUnique(float sparsity) {
     ASSERT_EQ(sketch.Data().size(), h_columns_ptr.back());
 
     sketch.Unique();
-    ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch.Data().data(),
-                                  sketch.Data().data() + sketch.Data().size(),
-                                  detail::SketchUnique{}));
+
+    std::vector<SketchEntry> h_data(sketch.Data().size());
+    thrust::copy(dh::tcbegin(sketch.Data()), dh::tcend(sketch.Data()), h_data.begin());
+
+    for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
+      auto begin = h_columns_ptr[i - 1];
+      auto column = common::Span<SketchEntry>(h_data).subspan(begin, h_columns_ptr[i] - begin);
+      ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+    }
   });
 }
 
@@ -84,8 +97,7 @@ void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
       if (with_error) {
         ASSERT_GE(in_column[idx].rmin + in_column[idx].rmin * kRtEps,
                   prev_rmin);
-        ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps,
-                  prev_rmax);
+        ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps, prev_rmax);
         ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps,
                   rmin_next);
       } else {
@@ -169,7 +181,7 @@ TEST(GPUQuantile, MergeEmpty) {
 
 TEST(GPUQuantile, MergeBasic) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const &info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_0(ft, n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage_0;
@@ -265,9 +277,16 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 
   sketch_0.Unique();
-  ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch_0.Data().data(),
-                                sketch_0.Data().data() + sketch_0.Data().size(),
-                                detail::SketchUnique{}));
+  columns_ptr = sketch_0.ColumnsPtr();
+  dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
+
+  std::vector<SketchEntry> h_data(sketch_0.Data().size());
+  dh::CopyDeviceSpanToVector(&h_data, sketch_0.Data());
+  for (size_t i = 1; i < h_columns_ptr.size(); ++i) {
+    auto begin = h_columns_ptr[i - 1];
+    auto column = Span<SketchEntry> {h_data}.subspan(begin, h_columns_ptr[i] - begin);
+    ASSERT_TRUE(std::is_sorted(column.begin(), column.end(), IsSorted{}));
+  }
 }
 
 TEST(GPUQuantile, MergeDuplicated) {
