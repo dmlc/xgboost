@@ -95,7 +95,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  explicit QuantileHistMaker(ObjInfo task) {
+  explicit QuantileHistMaker(ObjInfo task) : task_{task} {
     updater_monitor_.Init("QuantileHistMaker");
   }
   void Configure(const Args& args) override;
