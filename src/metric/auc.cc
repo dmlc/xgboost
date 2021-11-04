@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "rabit/rabit.h"
+#include "xgboost/linalg.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/metric.h"
 
@@ -83,41 +84,45 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
   CHECK_NE(n_classes, 0);
   auto const &labels = info.labels_.ConstHostVector();
 
-  std::vector<double> results(n_classes * 3, 0);
-  auto s_results = common::Span<double>(results);
-
-  auto local_area = s_results.subspan(0, n_classes);
-  auto tp = s_results.subspan(n_classes, n_classes);
-  auto auc = s_results.subspan(2 * n_classes, n_classes);
+  std::vector<double> results_storage(n_classes * 3, 0);
+  linalg::TensorView<double> results(results_storage,
+                                     {n_classes, static_cast<size_t>(3)},
+                                     GenericParameter::kCpuId);
+  auto local_area = results.Slice(linalg::All(), 0);
+  auto tp = results.Slice(linalg::All(), 1);
+  auto auc = results.Slice(linalg::All(), 2);
 
   auto weights = OptionalWeights{info.weights_.ConstHostSpan()};
+  auto predts_t = linalg::TensorView<float const, 2>(
+      predts, {static_cast<size_t>(info.num_row_), n_classes},
+      GenericParameter::kCpuId);
 
   if (!info.labels_.Empty()) {
     common::ParallelFor(n_classes, n_threads, [&](auto c) {
       std::vector<float> proba(info.labels_.Size());
       std::vector<float> response(info.labels_.Size());
       for (size_t i = 0; i < proba.size(); ++i) {
-        proba[i] = predts[i * n_classes + c];
+        proba[i] = predts_t(i, c);
         response[i] = labels[i] == c ? 1.0f : 0.0;
       }
       double fp;
-      std::tie(fp, tp[c], auc[c]) = binary_auc(proba, response, weights);
-      local_area[c] = fp * tp[c];
+      std::tie(fp, tp(c), auc(c)) = binary_auc(proba, response, weights);
+      local_area(c) = fp * tp(c);
     });
   }
 
   // we have 2 averages going in here, first is among workers, second is among
   // classes. allreduce sums up fp/tp auc for each class.
-  rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
+  rabit::Allreduce<rabit::op::Sum>(results.Values().data(), results.Values().size());
   double auc_sum{0};
   double tp_sum{0};
   for (size_t c = 0; c < n_classes; ++c) {
-    if (local_area[c] != 0) {
+    if (local_area(c) != 0) {
       // normalize and weight it by prevalence.  After allreduce, `local_area`
       // means the total covered area (not area under curve, rather it's the
       // accessible area for each worker) for each class.
-      auc_sum += auc[c] / local_area[c] * tp[c];
-      tp_sum += tp[c];
+      auc_sum += auc(c) / local_area(c) * tp(c);
+      tp_sum += tp(c);
     } else {
       auc_sum = std::numeric_limits<double>::quiet_NaN();
       break;

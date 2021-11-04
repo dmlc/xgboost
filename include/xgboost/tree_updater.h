@@ -73,7 +73,7 @@ class TreeUpdater : public Configurable {
    *         updated by the time this function returns.
    */
   virtual bool UpdatePredictionCache(const DMatrix * /*data*/,
-                                     VectorView<float> /*out_preds*/) {
+                                     linalg::VectorView<float> /*out_preds*/) {
     return false;
   }
 

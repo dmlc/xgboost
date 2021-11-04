@@ -243,7 +243,10 @@ class GBLinear : public GradientBooster {
     // The bias is the last weight
     out_scores->resize(model_.weight.size() - learner_model_param_->num_output_group, 0);
     auto n_groups = learner_model_param_->num_output_group;
-    MatrixView<float> scores{out_scores, {learner_model_param_->num_feature, n_groups}};
+    linalg::TensorView<float, 2> scores{
+        *out_scores,
+        {learner_model_param_->num_feature, n_groups},
+        GenericParameter::kCpuId};
     for (size_t i = 0; i < learner_model_param_->num_feature; ++i) {
       for (bst_group_t g = 0; g < n_groups; ++g) {
         scores(i, g) = model_[i][g];
