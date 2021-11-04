@@ -45,7 +45,7 @@ Installation from maven repo
 
 .. note:: Use of Python in XGBoost4J-Spark
 
-  By default, we use the tracker in `dmlc-core <https://github.com/dmlc/dmlc-core/tree/master/tracker>`_ to drive the training with XGBoost4J-Spark. It requires Python 2.7+. We also have an experimental Scala version of tracker which can be enabled by passing the parameter ``tracker_conf`` as ``scala``.
+  By default, we use the tracker in `Python package <https://github.com/dmlc/xgboost/blob/master/python-package/xgboost/tracker.py>`_ to drive the training with XGBoost4J-Spark. It requires Python 3.6+. We also have an experimental Scala version of tracker which can be enabled by passing the parameter ``tracker_conf`` as ``scala``.
 
 Data Preparation
 ================
