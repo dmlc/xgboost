@@ -430,7 +430,7 @@ TEST(GBTree, FeatureScore) {
 
   std::vector<bst_feature_t> features_weight;
   std::vector<float> scores_weight;
-  learner->CalcFeatureScore("weight", &features_weight, &scores_weight);
+  learner->CalcFeatureScore("weight", {}, &features_weight, &scores_weight);
   ASSERT_EQ(features_weight.size(), scores_weight.size());
   ASSERT_LE(features_weight.size(), learner->GetNumFeature());
   ASSERT_TRUE(std::is_sorted(features_weight.begin(), features_weight.end()));
@@ -438,11 +438,11 @@ TEST(GBTree, FeatureScore) {
   auto test_eq = [&learner, &scores_weight](std::string type) {
     std::vector<bst_feature_t> features;
     std::vector<float> scores;
-    learner->CalcFeatureScore(type, &features, &scores);
+    learner->CalcFeatureScore(type, {}, &features, &scores);
 
     std::vector<bst_feature_t> features_total;
     std::vector<float> scores_total;
-    learner->CalcFeatureScore("total_" + type, &features_total, &scores_total);
+    learner->CalcFeatureScore("total_" + type, {}, &features_total, &scores_total);
 
     for (size_t i = 0; i < scores_weight.size(); ++i) {
       ASSERT_LE(RelError(scores_total[i] / scores[i], scores_weight[i]), kRtEps);

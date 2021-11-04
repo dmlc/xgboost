@@ -1212,11 +1212,10 @@ class LearnerImpl : public LearnerIO {
     *out_preds = &out_predictions.predictions;
   }
 
-  void CalcFeatureScore(std::string const &importance_type,
-                        std::vector<bst_feature_t> *features,
-                        std::vector<float> *scores) override {
+  void CalcFeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
+                        std::vector<bst_feature_t>* features, std::vector<float>* scores) override {
     this->Configure();
-    gbm_->FeatureScore(importance_type, features, scores);
+    gbm_->FeatureScore(importance_type, trees, features, scores);
   }
 
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {

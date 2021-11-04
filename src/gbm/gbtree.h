@@ -300,18 +300,28 @@ class GBTree : public GradientBooster {
     }
   }
 
-  void FeatureScore(std::string const &importance_type,
-                    std::vector<bst_feature_t> *features,
-                    std::vector<float> *scores) const override {
+  void FeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
+                    std::vector<bst_feature_t>* features,
+                    std::vector<float>* scores) const override {
     // Because feature with no importance doesn't appear in the return value so
     // we need to set up another pair of vectors to store the values during
     // computation.
     std::vector<size_t> split_counts(this->model_.learner_model_param->num_feature, 0);
     std::vector<float> gain_map(this->model_.learner_model_param->num_feature, 0);
+    std::vector<int32_t> tree_idx;
+    if (trees.empty()) {
+      tree_idx.resize(this->model_.trees.size());
+      std::iota(tree_idx.begin(), tree_idx.end(), 0);
+      trees = common::Span<int32_t const>(tree_idx);
+    }
+
+    auto total_n_trees = model_.trees.size();
     auto add_score = [&](auto fn) {
-      for (auto const &p_tree : model_.trees) {
+      for (auto idx : trees) {
+        CHECK_LE(idx, total_n_trees) << "Invalid tree index.";
+        auto const& p_tree = model_.trees[idx];
         p_tree->WalkTree([&](bst_node_t nidx) {
-          auto const &node = (*p_tree)[nidx];
+          auto const& node = (*p_tree)[nidx];
           if (!node.IsLeaf()) {
             split_counts[node.SplitIndex()]++;
             fn(p_tree, nidx, node.SplitIndex());
