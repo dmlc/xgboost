@@ -398,11 +398,15 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   ret <- predts$results
 
   n_row <- nrow(newdata)
+  print("dim:")
+  print(dim(newdata))
   if (n_row != shape[1]) {
     stop("Incorrect predict shape.")
   }
 
   arr <- array(data = ret, dim = rev(shape))
+  print("prediction dim")
+  print(dim(arr))
 
   cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
   if (predcontrib) {
@@ -417,10 +421,17 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     }
   }
 
+  print("n_row")
+  print(n_row)
+
   if (!strict_shape) {
     n_groups <- shape[2]
     if (predleaf) {
+      print("before mat")
+      print(dim(arr))
       arr <- matrix(arr, nrow = n_row, byrow = TRUE)
+      print('after dim')
+      print(dim(arr))
     } else if (predcontrib && n_groups != 1) {
       arr <- lapply(seq_len(n_groups), function(g) arr[g, , ])
     } else if (predinteraction && n_groups != 1) {
@@ -430,7 +441,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     } else if (reshape && n_groups != 1) {
       arr <- matrix(arr, ncol = n_groups, byrow = TRUE)
     }
-    arr <- drop(arr)
+    print(dim(arr))
+    ## arr <- drop(arr)
     if (length(dim(arr)) == 1) {
       arr <- as.vector(arr)
     } else if (length(dim(arr)) == 2) {
