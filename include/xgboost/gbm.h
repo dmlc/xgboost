@@ -182,9 +182,10 @@ class GradientBooster : public Model, public Configurable {
                                              bool with_stats,
                                              std::string format) const = 0;
 
-  virtual void FeatureScore(std::string const &importance_type,
-                            std::vector<bst_feature_t> *features,
-                            std::vector<float> *scores) const = 0;
+  virtual void FeatureScore(std::string const& importance_type,
+                            common::Span<int32_t const> trees,
+                            std::vector<bst_feature_t>* features,
+                            std::vector<float>* scores) const = 0;
   /*!
    * \brief Whether the current booster uses GPU.
    */

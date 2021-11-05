@@ -115,14 +115,14 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
   } else {
     concatenated <- list()
     output_names <- vector()
-    for (importance_type in c("weight", "gain", "cover")) {
-      args <- list(importance_type = importance_type, feature_names = feature_names)
+    for (importance_type in c("weight", "total_gain", "total_cover")) {
+      args <- list(importance_type = importance_type, feature_names = feature_names, tree_idx = trees)
       results <- .Call(
         XGBoosterFeatureScore_R, model$handle, jsonlite::toJSON(args, auto_unbox = TRUE, null = "null")
       )
       names(results) <- c("features", "shape", importance_type)
       concatenated[
-        switch(importance_type, "weight" = "Frequency", "gain" = "Gain", "cover" = "Cover")
+        switch(importance_type, "weight" = "Frequency", "total_gain" = "Gain", "total_cover" = "Cover")
       ] <- results[importance_type]
       output_names <- results$features
     }
