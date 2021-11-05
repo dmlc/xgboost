@@ -22,8 +22,8 @@ void VerifySampling(size_t page_size,
   size_t sample_rows = kRows * subsample;
 
   dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(
-      CreateSparsePageDMatrixWithRC(kRows, kCols, page_size, true, tmpdir));
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(
+      kRows, kCols, kRows / (page_size == 0 ? kRows : page_size), tmpdir.path + "/cache"));
   auto gpair = GenerateRandomGradients(kRows);
   GradientPair sum_gpair{};
   for (const auto& gp : gpair.ConstHostVector()) {
@@ -81,8 +81,8 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
 
   // Create a DMatrix with multiple batches.
   dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  std::unique_ptr<DMatrix> dmat(
+      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
   auto gpair = GenerateRandomGradients(kRows);
   gpair.SetDevice(0);
 

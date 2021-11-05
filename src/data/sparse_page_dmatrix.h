@@ -146,7 +146,7 @@ MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
   auto it = cache_info.find(id);
   if (it == cache_info.cend()) {
     cache_info[id].reset(new Cache{false, name, format});
-    LOG(INFO) << "Make cache:" << name << std::endl;
+    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName() << std::endl;
   }
   return id;
 }

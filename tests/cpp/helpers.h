@@ -302,11 +302,26 @@ GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
                                             int num_rows, int num_columns);
 
+/**
+ * \brief Create Sparse Page using data iterator.
+ *
+ * \param n_samples  Total number of rows for all batches combined.
+ * \param n_features Number of features
+ * \param n_batches  Number of batches
+ * \param prefix     Cache prefix, can be used for specifying file path.
+ *
+ * \return A Sparse DMatrix with n_batches.
+ */
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_row_t n_samples, bst_feature_t n_features,
+                                                 size_t n_batches, std::string prefix = "cache");
+
+/**
+ * Deprecated, stop using it
+ */
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, std::string prefix = "cache");
 
 /**
- * \fn std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
- *                                                            size_t page_size);
+ * Deprecated, stop using it
  *
  * \brief Creates dmatrix with some records, each record containing random number of
  *        features in [1, n_cols]

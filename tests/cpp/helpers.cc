@@ -362,6 +362,32 @@ GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_row_t n_samples, bst_feature_t n_features,
+                                                 size_t n_batches, std::string prefix) {
+  CHECK_GE(n_samples, n_batches);
+  ArrayIterForTest iter(0, n_samples, n_features, n_batches);
+
+  std::unique_ptr<DMatrix> dmat{
+      DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
+                      std::numeric_limits<float>::quiet_NaN(), omp_get_max_threads(), prefix)};
+
+  auto row_page_path =
+      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(dmat.get())) + ".row.page";
+  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
+
+  // Loop over the batches and count the number of pages
+  int64_t batch_count = 0;
+  int64_t row_count = 0;
+  for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
+    batch_count++;
+    row_count += batch.Size();
+  }
+
+  EXPECT_GE(batch_count, n_batches);
+  EXPECT_EQ(row_count, dmat->Info().num_row_);
+  return dmat;
+}
+
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
                                                  std::string prefix) {
   size_t n_columns = 3;
