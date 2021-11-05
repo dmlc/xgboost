@@ -239,5 +239,7 @@ inline void GenerateFeatureMap(Learner const *learner,
   }
   CHECK_EQ(feature_map.Size(), n_features);
 }
+
+void XGBBuildInfoDevice(Json* p_info);
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_

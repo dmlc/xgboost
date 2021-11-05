@@ -7,6 +7,34 @@
 #include "../data/device_adapter.cuh"
 
 namespace xgboost {
+
+void XGBBuildInfoDevice(Json *p_info) {
+  auto &info = *p_info;
+
+  std::vector<Json> v{Json{THRUST_MAJOR_VERSION}, Json{THRUST_MINOR_VERSION},
+                      Json{THRUST_SUBMINOR_VERSION}};
+  info["THRUST_VERSION"] = v;
+
+  v = {Json{__CUDACC_VER_MAJOR__}, Json{__CUDACC_VER_MINOR__}, Json{__CUDACC_VER_BUILD__}};
+  info["CUDACC_VERSION"] = v;
+
+#if defined(XGBOOST_USE_NCCL) && XGBOOST_USE_NCCL
+  info["USE_NCCL"] = true;
+  v = {Json{NCCL_MAJOR}, Json{NCCL_MINOR}, Json{NCCL_PATCH}};
+  info["NCCL_VERSION"] = v;
+#else
+  info["USE_NCCL"] = false;
+#endif
+
+#if defined(XGBOOST_USE_RMM)
+  info["USE_RMM"] = true;
+  v = {Json{RMM_VERSION_MAJOR}, Json{RMM_VERSION_MINOR}, Json{RMM_VERSION_PATCH}};
+  info["RMM_VERSION"] = v;
+#else
+  info["USE_RMM"] = false;
+#endif
+}
+
 void XGBoostAPIGuard::SetGPUAttribute() {
   try {
     device_id_ = dh::CurrentDevice();

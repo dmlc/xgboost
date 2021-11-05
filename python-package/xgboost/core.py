@@ -192,6 +192,20 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
+def build_info() -> dict:
+    """Build information of XGBoost.  The returned value format is not stable. Also, please
+    note that build time dependency is not the same as runtime dependency. For instance,
+    it's possible to build XGBoost with older CUDA version but run it with the lastest
+    one.
+
+    """
+    j_info = ctypes.c_char_p()
+    _check_call(_LIB.XGBBuildInfo(ctypes.byref(j_info)))
+    assert j_info.value is not None
+    res = json.loads(j_info.value.decode())
+    return res
+
+
 def _numpy2ctypes_type(dtype):
     _NUMPY_TO_CTYPES_MAPPING = {
         np.float32: ctypes.c_float,
