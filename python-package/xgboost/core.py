@@ -198,6 +198,8 @@ def build_info() -> dict:
     it's possible to build XGBoost with older CUDA version but run it with the lastest
     one.
 
+      .. versionadded:: 1.6.0
+
     """
     j_info = ctypes.c_char_p()
     _check_call(_LIB.XGBBuildInfo(ctypes.byref(j_info)))
