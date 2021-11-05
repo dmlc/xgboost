@@ -468,13 +468,14 @@ TEST(GpuHist, ExternalMemory) {
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1024;
 
-  // Create an in-memory DMatrix.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+  dmlc::TemporaryDirectory tmpdir;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  std::unique_ptr<DMatrix> dmat_ext(
+      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
+
+  // Create a single batch DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
 
   auto gpair = GenerateRandomGradients(kRows);
 
@@ -503,13 +504,14 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   const std::string kSamplingMethod = "gradient_based";
   common::GlobalRandom().seed(0);
 
-  // Create an in-memory DMatrix.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+  dmlc::TemporaryDirectory tmpdir;
+
+  // Create a single batch DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  std::unique_ptr<DMatrix> dmat_ext(
+      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
 
   auto gpair = GenerateRandomGradients(kRows);
 
