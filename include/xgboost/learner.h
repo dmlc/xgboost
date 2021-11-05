@@ -156,9 +156,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*!
    * \brief Calculate feature score.  See doc in C API for outputs.
    */
-  virtual void CalcFeatureScore(std::string const &importance_type,
-                                std::vector<bst_feature_t> *features,
-                                std::vector<float> *scores) = 0;
+  virtual void CalcFeatureScore(std::string const& importance_type,
+                                common::Span<int32_t const> trees,
+                                std::vector<bst_feature_t>* features,
+                                std::vector<float>* scores) = 0;
 
   /*
    * \brief Get number of boosted rounds from gradient booster.

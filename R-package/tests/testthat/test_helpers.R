@@ -1,3 +1,4 @@
+library(testthat)
 context('Test helper functions')
 
 require(xgboost)
@@ -310,7 +311,35 @@ test_that("xgb.importance works with and without feature names", {
   # for multiclass
   imp.Tree <- xgb.importance(model = mbst.Tree)
   expect_equal(dim(imp.Tree), c(4, 4))
-  xgb.importance(model = mbst.Tree, trees = seq(from = 0, by = nclass, length.out = nrounds))
+
+  trees <- seq(from = 0, by = 2, length.out = 2)
+  importance <- xgb.importance(feature_names = feature.names, model = bst.Tree, trees = trees)
+
+  importance_from_dump <- function() {
+    model_text_dump <- xgb.dump(model = bst.Tree, with_stats = TRUE, trees = trees)
+    imp <- xgb.model.dt.tree(
+      feature_names = feature.names,
+      text = model_text_dump,
+      trees = trees
+    )[
+      Feature != "Leaf", .(
+        Gain = sum(Quality),
+        Cover = sum(Cover),
+        Frequency = .N
+      ),
+      by = Feature
+    ][
+      , `:=`(
+        Gain = Gain / sum(Gain),
+        Cover = Cover / sum(Cover),
+        Frequency = Frequency / sum(Frequency)
+      )
+    ][
+      order(Gain, decreasing = TRUE)
+    ]
+    imp
+  }
+  expect_equal(importance_from_dump(), importance, tolerance = 1e-6)
 })
 
 test_that("xgb.importance works with GLM model", {
