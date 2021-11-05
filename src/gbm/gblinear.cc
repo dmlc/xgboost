@@ -232,9 +232,11 @@ class GBLinear : public GradientBooster {
   }
 
   void FeatureScore(std::string const &importance_type,
+                    common::Span<int32_t const> trees,
                     std::vector<bst_feature_t> *out_features,
                     std::vector<float> *out_scores) const override {
     CHECK(!model_.weight.empty()) << "Model is not initialized";
+    CHECK(trees.empty()) << "gblinear doesn't support number of trees for feature importance.";
     CHECK_EQ(importance_type, "weight")
         << "gblinear only has `weight` defined for feature importance.";
     out_features->resize(this->learner_model_param_->num_feature, 0);

@@ -1159,9 +1159,17 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
     custom_feature_names = get<Array const>(config["feature_names"]);
   }
 
-  auto& scores = learner->GetThreadLocal().ret_vec_float;
+  std::vector<int32_t> tree_idx;
+  if (!IsA<Null>(config["tree_idx"])) {
+    auto j_tree_idx = get<Array const>(config["tree_idx"]);
+    for (auto const &idx : j_tree_idx) {
+      tree_idx.push_back(get<Integer const>(idx));
+    }
+  }
+
+  auto &scores = learner->GetThreadLocal().ret_vec_float;
   std::vector<bst_feature_t> features;
-  learner->CalcFeatureScore(importance, &features, &scores);
+  learner->CalcFeatureScore(importance, common::Span<int32_t const>(tree_idx), &features, &scores);
 
   auto n_features = learner->GetNumFeature();
   GenerateFeatureMap(learner, custom_feature_names, n_features, &feature_map);
