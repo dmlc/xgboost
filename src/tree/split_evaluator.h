@@ -92,7 +92,7 @@ class TreeEvaluator {
 
     XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT &param,
                                     tree::GradStats const& stats) const {
-      float w = xgboost::tree::CalcWeight(param, stats);
+      float w = ::xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
         return w;
       }
@@ -107,6 +107,12 @@ class TreeEvaluator {
         return w;
       }
     }
+
+    template <typename GradientSumT>
+    XGBOOST_DEVICE double CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
+      return ::xgboost::tree::CalcWeight(param, stats);
+    }
+
     XGBOOST_DEVICE float
     CalcGainGivenWeight(ParamT const &p, tree::GradStats const& stats, float w) const {
       if (stats.GetHess() <= 0) {

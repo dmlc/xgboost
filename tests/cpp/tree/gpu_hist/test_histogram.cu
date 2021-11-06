@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 #include <vector>
-#include "../../helpers.h"
+
 #include "../../../../src/common/categorical.h"
-#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
+#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
+#include "../../categorical_helpers.h"
+#include "../../helpers.h"
 
 namespace xgboost {
 namespace tree {
@@ -99,16 +101,6 @@ TEST(Histogram, GPUDeterministic) {
   }
 }
 
-std::vector<float> OneHotEncodeFeature(std::vector<float> x, size_t num_cat) {
-  std::vector<float> ret(x.size() * num_cat, 0);
-  size_t n_rows = x.size();
-  for (size_t r = 0; r < n_rows; ++r) {
-    bst_cat_t cat = common::AsCat(x[r]);
-    ret.at(num_cat * r + cat) = 1;
-  }
-  return ret;
-}
-
 // Test 1 vs rest categorical histogram is equivalent to one hot encoded data.
 void TestGPUHistogramCategorical(size_t num_categories) {
   size_t constexpr kRows = 340;
@@ -123,7 +115,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
   gpair.SetDevice(0);
   auto rounding = CreateRoundingFactor<GradientPairPrecise>(gpair.DeviceSpan());
-  // Generate hist with cat data.
+  /**
+   * Generate hist with cat data.
+   */
   for (auto const &batch : cat_m->GetBatches<EllpackPage>(batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
@@ -133,7 +127,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
                            rounding);
   }
 
-  // Generate hist with one hot encoded data.
+  /**
+   * Generate hist with one hot encoded data.
+   */
   auto x_encoded = OneHotEncodeFeature(x, num_categories);
   auto encode_m = GetDMatrixFromData(x_encoded, kRows, num_categories);
   dh::device_vector<GradientPairPrecise> encode_hist(2 * num_categories);
@@ -152,20 +148,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 
   std::vector<GradientPairPrecise> h_encode_hist(encode_hist.size());
   thrust::copy(encode_hist.begin(), encode_hist.end(), h_encode_hist.begin());
-
-  for (size_t c = 0; c < num_categories; ++c) {
-    auto zero = h_encode_hist[c * 2];
-    auto one = h_encode_hist[c * 2 + 1];
-
-    auto chosen = h_cat_hist[c];
-    auto not_chosen = cat_sum - chosen;
-
-    ASSERT_LE(RelError(zero.GetGrad(), not_chosen.GetGrad()), kRtEps);
-    ASSERT_LE(RelError(zero.GetHess(), not_chosen.GetHess()), kRtEps);
-
-    ASSERT_LE(RelError(one.GetGrad(), chosen.GetGrad()), kRtEps);
-    ASSERT_LE(RelError(one.GetHess(), chosen.GetHess()), kRtEps);
-  }
+  ValidateCategoricalHistogram(num_categories,
+                               common::Span<GradientPairPrecise>{h_encode_hist},
+                               common::Span<GradientPairPrecise>{h_cat_hist});
 }
 
 TEST(Histogram, GPUHistCategorical) {

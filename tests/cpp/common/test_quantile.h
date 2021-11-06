@@ -48,7 +48,9 @@ template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
   std::vector<MetaInfo> infos(2);
   auto& h_weights = infos.front().weights_.HostVector();
   h_weights.resize(rows);
-  std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
+
+  SimpleRealUniformDistribution<float> weight_dist(0, 10);
+  std::generate(h_weights.begin(), h_weights.end(), [&]() { return weight_dist(&lcg); });
 
   for (auto seed : seeds) {
     for (auto n_bin : bins) {

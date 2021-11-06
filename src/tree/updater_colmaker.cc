@@ -336,10 +336,10 @@ class ColMaker: public TreeUpdater {
               bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
               if ( proposed_split == fvalue ) {
                 e.best.Update(loss_chg, fid, e.last_fvalue,
-                              d_step == -1, c, e.stats);
+                              d_step == -1, false, c, e.stats);
               } else {
                 e.best.Update(loss_chg, fid, proposed_split,
-                              d_step == -1, c, e.stats);
+                              d_step == -1, false, c, e.stats);
               }
             } else {
               loss_chg = static_cast<bst_float>(
@@ -348,10 +348,10 @@ class ColMaker: public TreeUpdater {
               bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
               if ( proposed_split == fvalue ) {
                 e.best.Update(loss_chg, fid, e.last_fvalue,
-                            d_step == -1, e.stats, c);
+                              d_step == -1, false, e.stats, c);
               } else {
                 e.best.Update(loss_chg, fid, proposed_split,
-                            d_step == -1, e.stats, c);
+                              d_step == -1, false, e.stats, c);
               }
             }
           }
@@ -430,14 +430,14 @@ class ColMaker: public TreeUpdater {
             loss_chg = static_cast<bst_float>(
                 evaluator.CalcSplitGain(param_, nid, fid, c, e.stats) -
                 snode_[nid].root_gain);
-            e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1, c,
-                          e.stats);
+            e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1,
+                          false, c, e.stats);
           } else {
             loss_chg = static_cast<bst_float>(
                 evaluator.CalcSplitGain(param_, nid, fid, e.stats, c) -
                 snode_[nid].root_gain);
             e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1,
-                          e.stats, c);
+                          false, e.stats, c);
           }
         }
       }

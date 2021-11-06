@@ -5,11 +5,12 @@
 #ifndef XGBOOST_COMMON_CATEGORICAL_H_
 #define XGBOOST_COMMON_CATEGORICAL_H_
 
+#include "bitfield.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
-#include "xgboost/span.h"
 #include "xgboost/parameter.h"
-#include "bitfield.h"
+#include "xgboost/span.h"
+#include "xgboost/task.h"
 
 namespace xgboost {
 namespace common {
@@ -45,6 +46,15 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, bst_cat_t
 inline void InvalidCategory() {
   LOG(FATAL) << "Invalid categorical value detected.  Categorical value "
                 "should be non-negative.";
+}
+
+/*!
+ * \brief Whether should we use onehot encoding for categorical data.
+ */
+inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot, ObjInfo task) {
+  bool use_one_hot = n_cats < max_cat_to_onehot ||
+                     (task.task != ObjInfo::kRegression && task.task != ObjInfo::kBinary);
+  return use_one_hot;
 }
 
 struct IsCatOp {

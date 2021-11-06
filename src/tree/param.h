@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
  * \author Tianqi Chen
@@ -7,6 +7,7 @@
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -15,6 +16,7 @@
 
 #include "xgboost/parameter.h"
 #include "xgboost/data.h"
+#include "../common/categorical.h"
 #include "../common/math.h"
 
 namespace xgboost {
@@ -35,6 +37,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
+
+  uint32_t max_cat_to_onehot{1};
 
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
@@ -119,6 +123,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
             "Tree growing policy. 0: favor splitting at nodes closest to the node, "
             "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
             "change. (cf. LightGBM)");
+    DMLC_DECLARE_FIELD(max_cat_to_onehot)
+        .set_default(4)
+        .set_lower_bound(1)
+        .describe("Maximum number of categories to use one-hot encoding based split.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -384,6 +392,8 @@ struct SplitEntryContainer {
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
+  std::vector<uint32_t> cat_bits;
+  bool is_cat{false};
 
   GradientT left_sum;
   GradientT right_sum;
@@ -433,6 +443,8 @@ struct SplitEntryContainer {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
       this->split_value = e.split_value;
+      this->is_cat = e.is_cat;
+      this->cat_bits = e.cat_bits;
       this->left_sum = e.left_sum;
       this->right_sum = e.right_sum;
       return true;
@@ -449,9 +461,8 @@ struct SplitEntryContainer {
    * \return whether the proposed split is better and can replace current split
    */
   bool Update(bst_float new_loss_chg, unsigned split_index,
-              bst_float new_split_value, bool default_left,
-              const GradientT &left_sum,
-              const GradientT &right_sum) {
+              bst_float new_split_value, bool default_left, bool is_cat,
+              const GradientT &left_sum, const GradientT &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -459,6 +470,31 @@ struct SplitEntryContainer {
       }
       this->sindex = split_index;
       this->split_value = new_split_value;
+      this->is_cat = is_cat;
+      this->left_sum = left_sum;
+      this->right_sum = right_sum;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  /*!
+   * \brief Update with partition based categorical split.
+   *
+   * \return Whether the proposed split is better and can replace current split.
+   */
+  bool Update(float new_loss_chg, bst_feature_t split_index, common::KCatBitField cats,
+              bool default_left, GradientT const &left_sum, GradientT const &right_sum) {
+    if (this->NeedReplace(new_loss_chg, split_index)) {
+      this->loss_chg = new_loss_chg;
+      if (default_left) {
+        split_index |= (1U << 31);
+      }
+      this->sindex = split_index;
+      cat_bits.resize(cats.Bits().size());
+      std::copy(cats.Bits().begin(), cats.Bits().end(), cat_bits.begin());
+      this->is_cat = true;
       this->left_sum = left_sum;
       this->right_sum = right_sum;
       return true;
