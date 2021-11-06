@@ -32,6 +32,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{SparkContext, SparkUtils, TaskContext}
 import org.apache.spark.ml.{Estimator, Model, PipelineStage}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.functions.{col, collect_list, struct}
@@ -244,7 +245,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
         new Iterator[Row] {
           private var batchCnt = 0
-          private var converter: RowConverter = null
+          private var converter: InternalRow => Row = _
 
           // GPU batches read in must be closed by the receiver (us)
           @transient var cb: ColumnarBatch = null
@@ -279,8 +280,8 @@ object GpuPreXGBoost extends PreXGBoostProvider {
                   "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
                 Rabit.init(rabitEnv.asJava)
 
-                converter = new RowConverter(bOrigSchema.value,
-                  (0 until table.getNumberOfColumns).map(table.getColumn(_).getType))
+                converter = CatalystTypeConverters.createToScalaConverter(bOrigSchema.value)
+                  .asInstanceOf[InternalRow => Row]
               }
 
               val dataTypes = bOrigSchema.value.fields.map(x => x.dataType)
@@ -294,7 +295,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
                 val rowIterator = cb.rowIterator().asScala
                   .map(toUnsafe)
-                  .map(converter.toExternalRow(_))
+                  .map(converter(_))
 
                 val gpuColumnBatch = new GpuColumnBatch(table, bOrigSchema.value)
 
