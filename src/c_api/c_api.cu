@@ -13,8 +13,8 @@ void XGBBuildInfoDevice(Json *p_info) {
 
   info["USE_CUDA"] = true;
 
-  std::vector<Json> v{Json{THRUST_MAJOR_VERSION}, Json{THRUST_MINOR_VERSION},
-                      Json{THRUST_SUBMINOR_VERSION}};
+  std::vector<Json> v{Json{Integer{THRUST_MAJOR_VERSION}}, Json{Integer{THRUST_MINOR_VERSION}},
+                      Json{Integer{THRUST_SUBMINOR_VERSION}}};
   info["THRUST_VERSION"] = v;
 
   v = {Json{Integer{dh::CUDAVersion().first}}, Json{Integer{dh::CUDAVersion().second}}};

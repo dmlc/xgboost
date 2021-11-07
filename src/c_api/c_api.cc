@@ -48,9 +48,9 @@ using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocal
 namespace xgboost {
 void XGBBuildInfoDevice(Json *p_info) {
   auto &info = *p_info;
-  info["USE_CUDA"] = false;
-  info["USE_NCCL"] = false;
-  info["USE_RMM"] = false;
+  info["USE_CUDA"] = Boolean{false};
+  info["USE_NCCL"] = Boolean{false};
+  info["USE_RMM"] = Boolean{false};
 }
 }  // namespace xgboost
 #endif
