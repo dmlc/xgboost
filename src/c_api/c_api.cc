@@ -44,6 +44,17 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
 
 using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
+#if !defined(XGBOOST_USE_CUDA)
+namespace xgboost {
+void XGBBuildInfoDevice(Json *p_info) {
+  auto &info = *p_info;
+  info["USE_CUDA"] = false;
+  info["USE_NCCL"] = false;
+  info["USE_RMM"] = false;
+}
+}  // namespace xgboost
+#endif
+
 XGB_DLL int XGBBuildInfo(char const **out) {
   API_BEGIN();
   CHECK(out) << "Invalid input pointer";
@@ -92,15 +103,6 @@ XGB_DLL int XGBBuildInfo(char const **out) {
 
   API_END();
 }
-
-#if !defined(XGBOOST_USE_CUDA)
-void XGBBuildInfoDevice(Json *p_info) {
-  auto& info = *p_info;
-  info["USE_CUDA"] = false;
-  info["USE_NCCL"] = false;
-  info["USE_RMM"] = false;
-}
-#endif
 
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN_UNGUARD();
