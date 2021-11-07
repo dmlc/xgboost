@@ -61,21 +61,21 @@ XGB_DLL int XGBBuildInfo(char const **out) {
   Json info{Object{}};
 
 #if defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
-  info["BUILTIN_PREFETCH_PRESENT"] = true;
+  info["BUILTIN_PREFETCH_PRESENT"] = Boolean{true};
 #else
-  info["BUILTIN_PREFETCH_PRESENT"] = false;
+  info["BUILTIN_PREFETCH_PRESENT"] = Boolean{false};
 #endif
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
-  info["MM_PREFETCH_PRESENT"] = true;
+  info["MM_PREFETCH_PRESENT"] = Boolean{true};
 #else
-  info["MM_PREFETCH_PRESENT"] = false;
+  info["MM_PREFETCH_PRESENT"] = Boolean{false};
 #endif
 
 #if defined(_OPENMP)
-  info["USE_OPENMP"] = true;
+  info["USE_OPENMP"] = Boolean{true};
 #else
-  info["USE_OPENMP"] = false;
+  info["USE_OPENMP"] = Boolean{false};
 #endif
 
 #if defined(__GNUC__) && !defined(__clang__)
@@ -90,9 +90,9 @@ XGB_DLL int XGBBuildInfo(char const **out) {
 #endif
 
 #if !defined(NDEBUG)
-  info["DEBUG"] = true;
+  info["DEBUG"] = Boolean{true};
 #else
-  info["DEBUG"] = false;
+  info["DEBUG"] = Boolean{false};
 #endif
 
   XGBBuildInfoDevice(&info);
