@@ -20,7 +20,7 @@ void XGBBuildInfoDevice(Json *p_info) {
   v = {Json{Integer{dh::CUDAVersion().first}}, Json{Integer{dh::CUDAVersion().second}}};
   info["CUDA_VERSION"] = v;
 
-#if defined(XGBOOST_USE_NCCL) && XGBOOST_USE_NCCL
+#if defined(XGBOOST_USE_NCCL)
   info["USE_NCCL"] = true;
   v = {Json{Integer{NCCL_MAJOR}}, Json{Integer{NCCL_MINOR}}, Json{Integer{NCCL_PATCH}}};
   info["NCCL_VERSION"] = v;

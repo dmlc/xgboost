@@ -60,13 +60,13 @@ XGB_DLL int XGBBuildInfo(char const **out) {
   CHECK(out) << "Invalid input pointer";
   Json info{Object{}};
 
-#if defined(XGBOOST_BUILTIN_PREFETCH_PRESENT) && XGBOOST_BUILTIN_PREFETCH_PRESENT
+#if defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
   info["BUILTIN_PREFETCH_PRESENT"] = true;
 #else
   info["BUILTIN_PREFETCH_PRESENT"] = false;
 #endif
 
-#if defined(XGBOOST_MM_PREFETCH_PRESENT) && XGBOOST_MM_PREFETCH_PRESENT == 1
+#if defined(XGBOOST_MM_PREFETCH_PRESENT)
   info["MM_PREFETCH_PRESENT"] = true;
 #else
   info["MM_PREFETCH_PRESENT"] = false;
