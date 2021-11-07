@@ -11,16 +11,18 @@ namespace xgboost {
 void XGBBuildInfoDevice(Json *p_info) {
   auto &info = *p_info;
 
+  info["USE_CUDA"] = true;
+
   std::vector<Json> v{Json{THRUST_MAJOR_VERSION}, Json{THRUST_MINOR_VERSION},
                       Json{THRUST_SUBMINOR_VERSION}};
   info["THRUST_VERSION"] = v;
 
-  v = {Json{__CUDACC_VER_MAJOR__}, Json{__CUDACC_VER_MINOR__}, Json{__CUDACC_VER_BUILD__}};
-  info["CUDACC_VERSION"] = v;
+  v = {Json{Integer{dh::CUDAVersion().first}}, Json{Integer{dh::CUDAVersion().second}}};
+  info["CUDA_VERSION"] = v;
 
 #if defined(XGBOOST_USE_NCCL) && XGBOOST_USE_NCCL
   info["USE_NCCL"] = true;
-  v = {Json{NCCL_MAJOR}, Json{NCCL_MINOR}, Json{NCCL_PATCH}};
+  v = {Json{Integer{NCCL_MAJOR}}, Json{Integer{NCCL_MINOR}}, Json{Integer{NCCL_PATCH}}};
   info["NCCL_VERSION"] = v;
 #else
   info["USE_NCCL"] = false;
@@ -28,7 +30,8 @@ void XGBBuildInfoDevice(Json *p_info) {
 
 #if defined(XGBOOST_USE_RMM)
   info["USE_RMM"] = true;
-  v = {Json{RMM_VERSION_MAJOR}, Json{RMM_VERSION_MINOR}, Json{RMM_VERSION_PATCH}};
+  v = {Json{Integer{RMM_VERSION_MAJOR}}, Json{Integer{RMM_VERSION_MINOR}},
+       Json{Integer{RMM_VERSION_PATCH}}};
   info["RMM_VERSION"] = v;
 #else
   info["USE_RMM"] = false;

@@ -67,23 +67,15 @@ XGB_DLL int XGBBuildInfo(char const **out) {
   info["USE_OPENMP"] = false;
 #endif
 
-#if defined(XGBOOST_USE_CUDA) && XGBOOST_USE_CUDA
-  info["USE_CUDA"] = true;
-  XGBBuildInfoDevice(&info);
-#else
-  info["USE_CUDA"] = false;
-  info["USE_NCCL"] = false;
-  info["USE_RMM"] = false;
-#endif
-
 #if defined(__GNUC__) && !defined(__clang__)
-  info["GCC_VERSION"] =
-      std::vector<Json>{Json{__GNUC__}, Json{__GNUC_MINOR__}, Json{Integer{__GNUC_PATCHLEVEL__}}};
+  info["GCC_VERSION"] = std::vector<Json>{Json{Integer{__GNUC__}}, Json{Integer{__GNUC_MINOR__}},
+                                          Json{Integer{__GNUC_PATCHLEVEL__}}};
 #endif
 
 #if defined(__clang__)
-  info["CLANG_VERSION"] = std::vector<Json>{Json{__clang_major__}, Json{Integer{__clang_minor__}},
-                                            Json{Integer{__clang_patchlevel__}}};
+  info["CLANG_VERSION"] =
+      std::vector<Json>{Json{Integer{__clang_major__}}, Json{Integer{__clang_minor__}},
+                        Json{Integer{__clang_patchlevel__}}};
 #endif
 
 #if !defined(NDEBUG)
@@ -92,12 +84,23 @@ XGB_DLL int XGBBuildInfo(char const **out) {
   info["DEBUG"] = false;
 #endif
 
+  XGBBuildInfoDevice(&info);
+
   auto &out_str = GlobalConfigAPIThreadLocalStore::Get()->ret_str;
   Json::Dump(info, &out_str);
   *out = out_str.c_str();
 
   API_END();
 }
+
+#if !defined(XGBOOST_USE_CUDA)
+void XGBBuildInfoDevice(Json *p_info) {
+  auto& info = *p_info;
+  info["USE_CUDA"] = false;
+  info["USE_NCCL"] = false;
+  info["USE_RMM"] = false;
+}
+#endif
 
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN_UNGUARD();
