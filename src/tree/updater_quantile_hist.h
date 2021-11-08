@@ -165,7 +165,6 @@ class QuantileHistMaker: public TreeUpdater {
           task_{task} {
       builder_monitor_.Init("Quantile::Builder");
     }
-    ~Builder();
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,

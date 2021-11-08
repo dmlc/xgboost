@@ -115,9 +115,6 @@ bool QuantileHistMaker::UpdatePredictionCache(
   }
 }
 
-template <typename GradientSumT>
-QuantileHistMaker::Builder<GradientSumT>::~Builder() = default;
-
 
 template <typename GradientSumT>
 template <bool any_missing>
