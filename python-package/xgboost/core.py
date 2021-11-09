@@ -20,7 +20,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
-                     lazy_isinstance, ffi, pa)
+                     lazy_isinstance, ffi)
 from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
