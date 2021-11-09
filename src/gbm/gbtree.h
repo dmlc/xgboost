@@ -273,6 +273,7 @@ class GBTree : public GradientBooster {
     uint32_t tree_begin, tree_end;
     std::tie(tree_begin, tree_end) =
         detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
     std::vector<Predictor const *> predictors{
       cpu_predictor_.get(),
 #if defined(XGBOOST_USE_CUDA)
