@@ -489,6 +489,10 @@ TEST(GBTree, PredictRange) {
     auto h_out_predt_full = out_predt->HostVector();
 
     ASSERT_TRUE(std::equal(h_out_predt.begin(), h_out_predt.end(), h_out_predt_full.begin()));
+
+    ASSERT_THROW(learner->InplacePredict(x, nullptr, PredictionType::kValue,
+                                         std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 3),
+                 dmlc::Error);
   }
 }
 }  // namespace xgboost
