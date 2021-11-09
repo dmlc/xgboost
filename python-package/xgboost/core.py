@@ -610,41 +610,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.handle = None
             return
 
-        from .data import dispatch_data_backend, _is_iter, _is_arrow
+        from .data import dispatch_data_backend, _is_iter
 
         if _is_iter(data):
             self._init_from_iter(data, enable_categorical)
-            assert self.handle is not None
-            return
-
-        if _is_arrow(data):
-            if not all(pa.types.is_integer(t) or pa.types.is_floating(t)
-                        for t in data.schema.types):
-                raise ValueError(
-                    'Features in dataset can only be integers or floating point number')
-
-            if feature_names is not None:
-                raise ValueError(
-                    'feature_names must be set separately using DMatrix.set_info()')
-
-            if feature_types is not None:
-                raise ValueError(
-                    'feature_types must be set separately using DMatrix.set_info()')
-
-            if not all((label is None or isinstance(label, str),
-                label_lower_bound is None or isinstance(label_lower_bound, str),
-                label_upper_bound is None or isinstance(label_upper_bound, str),
-                weight is None or isinstance(weight, str),
-                base_margin is None or isinstance(base_margin, str),
-                qid is None or isinstance(qid, str))):
-                raise ValueError(
-                    'label, label_lower_bound, label_upper_bound, weight, ' +
-                    'base_margin, and qid must be column names in string')
-
-            rb_iter = iter(data.to_batches())
-            it = RecordBatchDataIter(rb_iter)
-            self._init_from_arrow(it, label, label_lower_bound,
-                    label_upper_bound, weight, base_margin, qid)
             assert self.handle is not None
             return
 
@@ -674,44 +643,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.feature_names = feature_names
         if feature_types is not None:
             self.feature_types = feature_types
-
-    def _init_from_arrow(
-            self,
-            iterator: RecordBatchDataIter,
-            label: str,
-            label_lower_bound: str,
-            label_upper_bound: str,
-            weight: str,
-            base_margin: str,
-            qid: str):
-        handle = ctypes.c_void_p()
-        next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(iterator.next)
-        plabel = (ctypes.POINTER(ctypes.c_char_p)() if label is None else
-                bytes(label, "utf-8"))
-        plabel_lb = (ctypes.POINTER(ctypes.c_char_p)() if label_lower_bound is None else
-                bytes(label_lower_bound, "utf-8"))
-        plabel_ub = (ctypes.POINTER(ctypes.c_char_p)() if label_upper_bound is None else
-                bytes(label_upper_bound, "utf-8"))
-        pweight = (ctypes.POINTER(ctypes.c_char_p)() if weight is None else
-                bytes(weight, "utf-8"))
-        pbase_margin = (ctypes.POINTER(ctypes.c_char_p)() if base_margin is None else
-                bytes(base_margin, "utf-8"))
-        pqid = (ctypes.POINTER(ctypes.c_char_p)() if qid is None else
-                bytes(qid, "utf-8"))
-        ret = _LIB.XGDMatrixCreateFromArrowCallback(
-            next_callback,
-            ctypes.c_float(self.missing),
-            ctypes.c_int(self.nthread),
-            plabel,
-            plabel_lb,
-            plabel_ub,
-            pweight,
-            pbase_margin,
-            pqid,
-            ctypes.byref(handle)
-        )
-        _check_call(ret)
-        self.handle = handle
 
     def _init_from_iter(self, iterator: DataIter, enable_categorical: bool) -> None:
         it = iterator

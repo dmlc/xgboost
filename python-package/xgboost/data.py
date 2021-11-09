@@ -11,7 +11,7 @@ import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
 from .core import _cuda_array_interface
-from .core import DataIter, _ProxyDMatrix, DMatrix
+from .core import DataIter, RecordBatchDataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance, DataFrame, PYARROW_INSTALLED, pa, arrow_dataset
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -199,12 +199,6 @@ def _is_modin_df(data):
     except ImportError:
         return False
     return isinstance(data, pd.DataFrame)
-
-
-def _is_arrow(data):
-    if not PYARROW_INSTALLED:
-        return False
-    return isinstance(data, (pa.Table, arrow_dataset.Dataset))
 
 
 _pandas_dtype_mapper = {
@@ -452,6 +446,47 @@ def _from_dt_df(
         ctypes.byref(handle),
         ctypes.c_int(nthread)))
     return handle, feature_names, feature_types
+
+
+def _is_arrow(data):
+    if not PYARROW_INSTALLED:
+        return False
+    return isinstance(data, (pa.Table, arrow_dataset.Dataset))
+
+
+def _from_arrow(
+    data,
+    missing,
+    nthread,
+    feature_names: Optional[List[str]],
+    feature_types: Optional[List[str]],
+    enable_categorical: bool
+) -> Tuple[ctypes.c_void_p, Optional[List[str]], Optional[List[str]]]:
+    if not all(pa.types.is_integer(t) or pa.types.is_floating(t)
+                for t in data.schema.types):
+        raise ValueError(
+            'Features in dataset can only be integers or floating point number')
+    if enable_categorical:
+        raise ValueError("categorical data in datatable is not supported yet.")
+
+    rb_iter = iter(data.to_batches())
+    it = RecordBatchDataIter(rb_iter)
+    next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(it.next)
+    handle = ctypes.c_void_p()
+    ret = _LIB.XGDMatrixCreateFromArrowCallback(
+        next_callback,
+        ctypes.c_float(missing),
+        ctypes.c_int(nthread),
+        ctypes.POINTER(ctypes.c_char_p)(),
+        ctypes.POINTER(ctypes.c_char_p)(),
+        ctypes.POINTER(ctypes.c_char_p)(),
+        ctypes.POINTER(ctypes.c_char_p)(),
+        ctypes.POINTER(ctypes.c_char_p)(),
+        ctypes.POINTER(ctypes.c_char_p)(),
+        ctypes.byref(handle)
+    )
+    _check_call(ret)
+    return (handle, feature_names, feature_types)
 
 
 def _is_cudf_df(data):
@@ -806,6 +841,9 @@ def dispatch_data_backend(
         return _from_pandas_series(
             data, missing, threads, enable_categorical, feature_names, feature_types
         )
+    if _is_arrow(data):
+        return _from_arrow(
+            data, missing, threads, feature_names, feature_types, enable_categorical)
     if _has_array_protocol(data):
         array = np.asarray(data)
         return _from_numpy_array(array, missing, threads, feature_names, feature_types)
