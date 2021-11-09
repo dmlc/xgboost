@@ -609,7 +609,7 @@ class ColMaker: public TreeUpdater {
     const TrainParam& param_;
     const ColMakerTrainParam& colmaker_train_param_;
     // number of omp thread used during training
-    const int nthread_;
+    const int nthread_{0};
     common::ColumnSampler column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;

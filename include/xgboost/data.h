@@ -211,7 +211,7 @@ struct Entry {
  */
 struct BatchParam {
   /*! \brief The GPU device to use. */
-  int gpu_id;
+  int gpu_id {-1};
   /*! \brief Maximum number of bins per feature for histograms. */
   int max_bin{0};
   /*! \brief Hessian, used for sketching with future approx implementation. */
