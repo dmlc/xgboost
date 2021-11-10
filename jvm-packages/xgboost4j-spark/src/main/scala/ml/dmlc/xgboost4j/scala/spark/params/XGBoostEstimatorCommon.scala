@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,24 +14,20 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark
+package ml.dmlc.xgboost4j.scala.spark.params
 
-import ml.dmlc.xgboost4j.scala.spark.params._
-
-import org.apache.spark.ml.param.shared.HasWeightCol
+import org.apache.spark.ml.param.shared.{HasFeaturesCol, HasLabelCol, HasWeightCol}
 
 private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with LearningTaskParams
-  with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables {
+  with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables with HasWeightCol
+  with HasBaseMarginCol with HasLeafPredictionCol with HasContribPredictionCol with HasFeaturesCol
+  with HasLabelCol {
 
   def needDeterministicRepartitioning: Boolean = {
     getCheckpointPath != null && getCheckpointPath.nonEmpty && getCheckpointInterval > 0
   }
 }
 
-private[spark] trait XGBoostClassifierParams extends HasWeightCol with HasBaseMarginCol
-  with HasNumClass with HasLeafPredictionCol with HasContribPredictionCol
-  with XGBoostEstimatorCommon
+private[spark] trait XGBoostClassifierParams extends XGBoostEstimatorCommon with HasNumClass
 
-private[spark] trait XGBoostRegressorParams extends HasBaseMarginCol with HasWeightCol
-  with HasGroupCol with HasLeafPredictionCol with HasContribPredictionCol
-  with XGBoostEstimatorCommon
+private[spark] trait XGBoostRegressorParams extends XGBoostEstimatorCommon with HasGroupCol
