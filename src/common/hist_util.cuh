@@ -124,6 +124,11 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
 
 void SortByWeight(dh::device_vector<float>* weights,
                   dh::device_vector<Entry>* sorted_entries);
+
+void RemoveDuplicatedCategories(
+    int32_t device, MetaInfo const &info, Span<bst_row_t> d_cuts_ptr,
+    dh::device_vector<Entry> *p_sorted_entries,
+    dh::caching_device_vector<size_t> *p_column_sizes_scan);
 }  // namespace detail
 
 // Compute sketch on DMatrix.
@@ -132,9 +137,10 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
                            size_t sketch_batch_num_elements = 0);
 
 template <typename AdapterBatch>
-void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
-                          size_t begin, size_t end, float missing,
-                          SketchContainer* sketch_container, int num_cuts) {
+void ProcessSlidingWindow(AdapterBatch const &batch, MetaInfo const &info,
+                          int device, size_t columns, size_t begin, size_t end,
+                          float missing, SketchContainer *sketch_container,
+                          int num_cuts) {
   // Copy current subset of valid elements into temporary storage and sort
   dh::device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
@@ -142,6 +148,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
       thrust::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
+  cuts_ptr.SetDevice(device);
   detail::MakeEntriesFromAdapter(batch, batch_iter, {begin, end}, missing,
                                  columns, num_cuts, device,
                                  &cuts_ptr,
@@ -151,8 +158,14 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), detail::EntryCompareOp());
 
-  auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  if (sketch_container->HasCategorical()) {
+    auto d_cuts_ptr = cuts_ptr.DeviceSpan();
+    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
+                                       &sorted_entries, &column_sizes_scan);
+  }
+
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
+  auto const &h_cuts_ptr = cuts_ptr.HostVector();
   // Extract the cuts from all columns concurrently
   sketch_container->Push(dh::ToSpan(sorted_entries),
                          dh::ToSpan(column_sizes_scan), d_cuts_ptr,
@@ -222,6 +235,12 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
 
   detail::SortByWeight(&temp_weights, &sorted_entries);
 
+  if (sketch_container->HasCategorical()) {
+    auto d_cuts_ptr = cuts_ptr.DeviceSpan();
+    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
+                                       &sorted_entries, &column_sizes_scan);
+  }
+
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
@@ -274,8 +293,8 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
         device, num_cuts_per_feature, false);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
       size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
-      ProcessSlidingWindow(batch, device, num_cols,
-                           begin, end, missing, sketch_container, num_cuts_per_feature);
+      ProcessSlidingWindow(batch, info, device, num_cols, begin, end, missing,
+                           sketch_container, num_cuts_per_feature);
     }
   }
 }

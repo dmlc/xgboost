@@ -152,6 +152,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
 
   if (batches == 1) {
     this->info_ = std::move(proxy->Info());
+    this->info_.num_nonzero_ = nnz;
     CHECK_EQ(proxy->Info().labels_.Size(), 0);
   }
 

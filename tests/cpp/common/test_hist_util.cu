@@ -392,6 +392,52 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
+void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
+                                  int32_t num_bins, bool weighted) {
+  auto h_x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+  thrust::device_vector<float> x(h_x);
+  auto adapter = AdapterFromData(x, n, 1);
+  MetaInfo info;
+  info.num_row_ = n;
+  info.num_col_ = 1;
+  info.feature_types.HostVector().push_back(FeatureType::kCategorical);
+
+  if (weighted) {
+    std::vector<float> weights(n, 0);
+    SimpleLCG lcg;
+    SimpleRealUniformDistribution<float> dist(0, 1);
+    for (auto& v : weights) {
+      v = dist(&lcg);
+    }
+    info.weights_.HostVector() = weights;
+  }
+
+  ASSERT_EQ(info.feature_types.Size(), 1);
+  SketchContainer container(info.feature_types, num_bins, 1, n, 0);
+  AdapterDeviceSketch(adapter.Value(), num_bins, info,
+                      std::numeric_limits<float>::quiet_NaN(), &container);
+  HistogramCuts cuts;
+  container.MakeCuts(&cuts);
+
+  thrust::sort(x.begin(), x.end());
+  auto n_uniques = thrust::unique(x.begin(), x.end()) - x.begin();
+  ASSERT_NE(n_uniques, x.size());
+  ASSERT_EQ(cuts.TotalBins(), n_uniques);
+  ASSERT_EQ(n_uniques, num_categories);
+
+  auto& values = cuts.cut_values_.HostVector();
+  ASSERT_TRUE(std::is_sorted(values.cbegin(), values.cend()));
+  auto is_unique = (std::unique(values.begin(), values.end()) - values.begin()) == n_uniques;
+  ASSERT_TRUE(is_unique);
+
+  x.resize(n_uniques);
+  h_x.resize(n_uniques);
+  thrust::copy(x.begin(), x.end(), h_x.begin());
+  for (decltype(n_uniques) i = 0; i < n_uniques; ++i) {
+    ASSERT_EQ(h_x[i], values[i]);
+  }
+}
+
 TEST(HistUtil, AdapterDeviceSketchCategorical) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
@@ -404,6 +450,8 @@ TEST(HistUtil, AdapterDeviceSketchCategorical) {
       auto adapter = AdapterFromData(x_device, n, 1);
       ValidateBatchedCuts(adapter, num_bins, adapter.NumColumns(),
                           adapter.NumRows(), dmat.get());
+      TestCategoricalSketchAdapter(n, num_categories, num_bins, true);
+      TestCategoricalSketchAdapter(n, num_categories, num_bins, false);
     }
   }
 }
