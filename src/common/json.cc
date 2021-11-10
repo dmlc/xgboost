@@ -1,19 +1,21 @@
 /*!
  * Copyright (c) by Contributors 2019-2021
  */
+#include "xgboost/json.h"
+
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <iterator>
+#include <limits>
 #include <locale>
 #include <sstream>
-#include <limits>
-#include <cmath>
 
 #include "charconv.h"
 #include "xgboost/base.h"
-#include "xgboost/logging.h"
-#include "xgboost/json.h"
 #include "xgboost/json_io.h"
+#include "xgboost/logging.h"
+#include "xgboost/string_view.h"
 
 namespace xgboost {
 
@@ -416,7 +418,8 @@ Json JsonReader::Load() {
 
 void JsonReader::Error(std::string msg) const {
   // just copy it.
-  std::istringstream str_s(raw_str_.substr(0, raw_str_.size()));
+  std::stringstream str_s;
+  str_s << raw_str_.substr(0, raw_str_.size());
 
   msg += ", around character position: " + std::to_string(cursor_.Pos());
   msg += '\n';
@@ -431,7 +434,7 @@ void JsonReader::Error(std::string msg) const {
   auto end = cursor_.Pos() + kExtend >= raw_str_.size() ?
              raw_str_.size() : cursor_.Pos() + kExtend;
 
-  std::string const& raw_portion = raw_str_.substr(beg, end - beg);
+  auto raw_portion = raw_str_.substr(beg, end - beg);
   std::string portion;
   for (auto c : raw_portion) {
     if (c == '\n') {
@@ -744,13 +747,6 @@ void Json::Dump(Json json, std::string* str) {
 }
 
 Json& Json::operator=(Json const &other) = default;
-
-std::ostream &operator<<(std::ostream &os, StringView const v) {
-  for (auto c : v) {
-    os.put(c);
-  }
-  return os;
-}
 
 static_assert(std::is_nothrow_move_constructible<Json>::value, "");
 static_assert(std::is_nothrow_move_constructible<Object>::value, "");

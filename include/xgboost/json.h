@@ -4,16 +4,17 @@
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
 
+#include <xgboost/intrusive_ptr.h>
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
-#include <xgboost/intrusive_ptr.h>
+#include <xgboost/string_view.h>
 
+#include <functional>
 #include <map>
 #include <memory>
-#include <vector>
-#include <functional>
-#include <utility>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 
@@ -298,43 +299,6 @@ class JsonBoolean : public Value {
   }
 };
 
-struct StringView {
- private:
-  using CharT = char;  // unsigned char
-  using Traits = std::char_traits<CharT>;
-  CharT const* str_;
-  size_t size_;
-
- public:
-  StringView() = default;
-  StringView(CharT const* str, size_t size) : str_{str}, size_{size} {}
-  explicit StringView(std::string const& str): str_{str.c_str()}, size_{str.size()} {}
-  explicit StringView(CharT const* str) : str_{str}, size_{Traits::length(str)} {}
-
-  CharT const& operator[](size_t p) const { return str_[p]; }
-  CharT const& at(size_t p) const {  // NOLINT
-    CHECK_LT(p, size_);
-    return str_[p];
-  }
-  size_t size() const { return size_; }  // NOLINT
-  // Copies a portion of string.  Since we don't have std::from_chars and friends here, so
-  // copying substring is necessary for appending `\0`.  It's not too bad since string by
-  // default has small vector optimization, which is enabled by most if not all modern
-  // compilers for numeric values.
-  std::string substr(size_t beg, size_t n) const {  // NOLINT
-    CHECK_LE(beg, size_);
-    return std::string {str_ + beg, n < (size_ - beg) ? n : (size_ - beg)};
-  }
-  CharT const* c_str() const { return str_; }  // NOLINT
-
-  CharT const* cbegin() const { return str_; }         // NOLINT
-  CharT const* cend() const { return str_ + size(); }  // NOLINT
-  CharT const* begin() const { return str_; }          // NOLINT
-  CharT const* end() const { return str_ + size(); }   // NOLINT
-};
-
-std::ostream &operator<<(std::ostream &os, StringView const v);
-
 /*!
  * \brief Data structure representing JSON format.
  *
@@ -451,7 +415,7 @@ class Json {
 };
 
 template <typename T>
-bool IsA(Json const j) {
+bool IsA(Json const& j) {
   auto const& v = j.GetValue();
   return IsA<T>(&v);
 }

@@ -580,14 +580,4 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
     test(static_cast<uint32_t>(i));
   }
 }
-
-TEST(StringView, Basic) {
-  StringView str{"This is a string."};
-  std::stringstream ss;
-  ss << str;
-
-  std::string res = ss.str();
-  ASSERT_EQ(str.size(), res.size());
-  ASSERT_TRUE(std::equal(res.cbegin(), res.cend(), str.cbegin()));
-}
 }  // namespace xgboost

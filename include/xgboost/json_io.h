@@ -89,7 +89,7 @@ class JsonReader {
     } else if (got == 0) {
       msg += "\\0\"";
     } else {
-      msg += std::to_string(got) + " \"";
+      msg += std::string{got} + " \"";
     }
     Error(msg);
   }
