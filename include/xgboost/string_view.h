@@ -69,13 +69,13 @@ inline std::ostream& operator<<(std::ostream& os, StringView const v) {
   return os;
 }
 
-constexpr bool operator==(StringView l, StringView r) {
+inline bool operator==(StringView l, StringView r) {
   if (l.size() != r.size()) {
     return false;
   }
   return std::equal(l.cbegin(), l.cend(), r.cbegin());
 }
 
-constexpr bool operator!=(StringView l, StringView r) { return !(l == r); }
+inline bool operator!=(StringView l, StringView r) { return !(l == r); }
 }  // namespace xgboost
 #endif  // XGBOOST_STRING_VIEW_H_
