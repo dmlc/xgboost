@@ -478,7 +478,7 @@ TEST(GBTree, PredictRange) {
     // inplace predict
     HostDeviceVector<float> raw_storage;
     auto raw = RandomDataGenerator{n_samples, n_features, 0.5}.GenerateArrayInterface(&raw_storage);
-    auto x = std::make_shared<data::ArrayAdapter>(StringView{raw});
+    std::shared_ptr<data::ArrayAdapter> x{new data::ArrayAdapter{StringView{raw}}};
 
     HostDeviceVector<float>* out_predt;
     learner->InplacePredict(x, nullptr, PredictionType::kValue,
