@@ -1986,13 +1986,6 @@ class Booster(object):
         preds = ctypes.POINTER(ctypes.c_float)()
 
         # once caching is supported, we can pass id(data) as cache id.
-        try:
-            import pandas as pd
-
-            if isinstance(data, pd.DataFrame):
-                data = data.values
-        except ImportError:
-            pass
         args = {
             "type": 0,
             "training": False,
@@ -2027,8 +2020,8 @@ class Booster(object):
                     f"got {data.shape[1]}"
                 )
 
-        from .data import _array_interface
         from .data import _is_pandas_df, _transform_pandas_df
+        from .data import _array_interface
         if (
             _is_pandas_df(data)
             or lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
