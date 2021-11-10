@@ -5,6 +5,7 @@
 #define XGBOOST_STRING_VIEW_H_
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <iterator>
 #include <ostream>
 #include <string>
