@@ -27,10 +27,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   common::ParallelGHistBuilder<GradientSumT> buffer_;
   rabit::Reducer<GradientPairT, GradientPairT::Reduce> reducer_;
   BatchParam param_;
-  int32_t n_threads_ {-1};
-  size_t n_batches_ {0};
+  int32_t n_threads_{-1};
+  size_t n_batches_{0};
   // Whether XGBoost is running in distributed environment.
-  bool is_distributed_ {false};
+  bool is_distributed_{false};
 
  public:
   /**
@@ -41,8 +41,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
    * \param is_distributed   Mostly used for testing to allow injecting parameters instead
    *                         of using global rabit variable.
    */
-  void Reset(uint32_t total_bins, BatchParam p, int32_t n_threads,
-             size_t n_batches, bool is_distributed) {
+  void Reset(uint32_t total_bins, BatchParam p, int32_t n_threads, size_t n_batches,
+             bool is_distributed) {
     CHECK_GE(n_threads, 1);
     n_threads_ = n_threads;
     n_batches_ = n_batches;
@@ -55,13 +55,11 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   }
 
   template <bool any_missing>
-  void BuildLocalHistograms(
-      size_t page_idx,
-      common::BlockedSpace2d space,
-      GHistIndexMatrix const &gidx,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      common::RowSetCollection const &row_set_collection,
-      const std::vector<GradientPair> &gpair_h) {
+  void BuildLocalHistograms(size_t page_idx, common::BlockedSpace2d space,
+                            GHistIndexMatrix const &gidx,
+                            std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                            common::RowSetCollection const &row_set_collection,
+                            const std::vector<GradientPair> &gpair_h) {
     const size_t n_nodes = nodes_for_explicit_hist_build.size();
     CHECK_GT(n_nodes, 0);
 
@@ -78,21 +76,19 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     }
 
     // Parallel processing by nodes and data in each node
-    common::ParallelFor2d(
-        space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
-          const auto tid = static_cast<unsigned>(omp_get_thread_num());
-          const int32_t nid = nodes_for_explicit_hist_build[nid_in_set].nid;
-          auto elem = row_set_collection[nid];
-          auto start_of_row_set = std::min(r.begin(), elem.Size());
-          auto end_of_row_set = std::min(r.end(), elem.Size());
-          auto rid_set = common::RowSetCollection::Elem(
-              elem.begin + start_of_row_set, elem.begin + end_of_row_set, nid);
-          auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-          if (rid_set.Size() != 0) {
-            builder_.template BuildHist<any_missing>(gpair_h, rid_set, gidx,
-                                                     hist);
-          }
-        });
+    common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
+      const auto tid = static_cast<unsigned>(omp_get_thread_num());
+      const int32_t nid = nodes_for_explicit_hist_build[nid_in_set].nid;
+      auto elem = row_set_collection[nid];
+      auto start_of_row_set = std::min(r.begin(), elem.Size());
+      auto end_of_row_set = std::min(r.end(), elem.Size());
+      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
+                                                    elem.begin + end_of_row_set, nid);
+      auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
+      if (rid_set.Size() != 0) {
+        builder_.template BuildHist<any_missing>(gpair_h, rid_set, gidx, hist);
+      }
+    });
   }
 
   void
@@ -112,10 +108,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   }
 
   /** Main entry point of this class, build histogram for tree nodes. */
-  void BuildHist(size_t page_id,
-                 common::BlockedSpace2d space,
-                 GHistIndexMatrix const& gidx, RegTree *p_tree,
-                 common::RowSetCollection const &row_set_collection,
+  void BuildHist(size_t page_id, common::BlockedSpace2d space, GHistIndexMatrix const &gidx,
+                 RegTree *p_tree, common::RowSetCollection const &row_set_collection,
                  std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                  std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
                  std::vector<GradientPair> const &gpair) {
