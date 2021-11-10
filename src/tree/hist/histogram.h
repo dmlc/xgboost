@@ -12,7 +12,6 @@
 #include "xgboost/tree_model.h"
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
-#include "../../common/observer.h"
 
 namespace xgboost {
 namespace tree {
