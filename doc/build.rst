@@ -148,7 +148,8 @@ From the command line on Linux starting from the XGBoost directory:
 
   mkdir build
   cd build
-  cmake .. -DUSE_CUDA=ON
+  # For CUDA toolkit >= 11.4, `BUILD_WITH_CUDA_CUB` is required.
+  cmake .. -DUSE_CUDA=ON -DBUILD_WITH_CUDA_CUB=ON
   make -j4
 
 .. note:: Specifying compute capability
