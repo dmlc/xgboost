@@ -80,7 +80,7 @@ def train(
         <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
         details.
     feval :
-        .. deprecated:: 1.5.1
+        .. deprecated:: 1.6.0
             Use `custom_metric` instead.
     maximize : bool
         Whether to maximize feval.
@@ -132,7 +132,7 @@ def train(
 
     custom_metric:
 
-        .. versionadded 1.5.1
+        .. versionadded 1.6.0
 
         Custom metric function.  See `Custom Metric
         <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
@@ -392,7 +392,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         details.
 
     feval : function
-        .. deprecated:: 1.5.1
+        .. deprecated:: 1.6.0
             Use `custom_metric` instead.
     maximize : bool
         Whether to maximize feval.
@@ -432,7 +432,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Shuffle data before creating folds.
     custom_metric :
 
-        .. versionadded 1.5.1
+        .. versionadded 1.6.0
 
         Custom metric function.  See `Custom Metric
         <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
