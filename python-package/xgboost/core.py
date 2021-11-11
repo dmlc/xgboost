@@ -1805,7 +1805,7 @@ class Booster(object):
         .. note::
 
             See `Prediction
-            <https://xgboost.readthedocs.io/en/latest/tutorials/prediction.html>`_
+            <https://xgboost.readthedocs.io/en/latest/prediction.html>`_
             for issues like thread safety and a summary of outputs from this function.
 
         Parameters
