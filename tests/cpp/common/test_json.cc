@@ -457,10 +457,9 @@ TEST(Json, Invalid) {
     bool has_thrown = false;
     try {
       Json load{Json::Load(StringView(str.c_str(), str.size()))};
-    } catch (dmlc::Error const &e) {
+    } catch (dmlc::Error const& e) {
       std::string msg = e.what();
-      ASSERT_TRUE(msg.find("EOF") != std::string::npos
-                  || msg.find("255") != std::string::npos);  // EOF is printed as 255 on s390x
+      ASSERT_TRUE(msg.find("EOF") != std::string::npos) << msg;
       has_thrown = true;
     };
     ASSERT_TRUE(has_thrown);
