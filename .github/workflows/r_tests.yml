@@ -3,7 +3,7 @@ name: XGBoost-R-Tests
 on: [push, pull_request]
 
 env:
-  R_PACKAGES: c('XML', 'igraph', 'data.table', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
+  R_PACKAGES: c('XML', 'data.table', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -40,6 +40,11 @@ jobs:
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
+    - name: Install igraph on Windows
+      shell: Rscript {0}
+      if: matrix.config.os == 'windows-latest'
+      run: |
+        install.packages('igraph', type='binary')
 
     - name: Run lintr
       run: |
@@ -83,6 +88,11 @@ jobs:
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
+    - name: Install igraph on Windows
+      shell: Rscript {0}
+      if: matrix.config.os == 'windows-2016'
+      run: |
+        install.packages('igraph', type='binary', dependencies = c('Depends', 'Imports', 'LinkingTo'))
 
     - uses: actions/setup-python@v2
       with:
@@ -91,7 +101,7 @@ jobs:
 
     - name: Test R
       run: |
-        python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
+        python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool='${{ matrix.config.build }}'
 
   test-R-CRAN:
     runs-on: ubuntu-latest
@@ -115,7 +125,7 @@ jobs:
 
     - name: Install system packages
       run: |
-        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc
+        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc libglpk-dev
 
     - name: Cache R packages
       uses: actions/cache@v2
@@ -130,6 +140,7 @@ jobs:
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
+        install.packages('igraph', repos = 'http://cloud.r-project.org', dependencies = c('Depends', 'Imports', 'LinkingTo'))
 
     - name: Check R Package
       run: |
