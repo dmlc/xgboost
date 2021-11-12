@@ -457,10 +457,10 @@ TEST(Json, Invalid) {
     bool has_thrown = false;
     try {
       Json load{Json::Load(StringView(str.c_str(), str.size()))};
-    } catch (dmlc::Error const &e) {
+    } catch (dmlc::Error const& e) {
       std::string msg = e.what();
-      ASSERT_TRUE(msg.find("EOF") != std::string::npos
-                  || msg.find("255") != std::string::npos);  // EOF is printed as 255 on s390x
+      // EOF is printed as 255 on s390x
+      ASSERT_TRUE(msg.find("EOF") != std::string::npos || msg.find("255") != std::string::npos);
       has_thrown = true;
     };
     ASSERT_TRUE(has_thrown);
@@ -579,15 +579,5 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
   for (int64_t i = 0; i <= int32_max; ++i) {
     test(static_cast<uint32_t>(i));
   }
-}
-
-TEST(StringView, Basic) {
-  StringView str{"This is a string."};
-  std::stringstream ss;
-  ss << str;
-
-  std::string res = ss.str();
-  ASSERT_EQ(str.size(), res.size());
-  ASSERT_TRUE(std::equal(res.cbegin(), res.cend(), str.cbegin()));
 }
 }  // namespace xgboost

@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cinttypes>
 #include <functional>
+#include <ostream>
 
 namespace xgboost {
 /*!

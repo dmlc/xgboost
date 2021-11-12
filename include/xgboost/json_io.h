@@ -84,12 +84,12 @@ class JsonReader {
     std::string msg = "Expecting: \"";
     msg += c;
     msg += "\", got: \"";
-    if (got == -1) {
+    if (got == EOF) {
       msg += "EOF\"";
     } else if (got == 0) {
       msg += "\\0\"";
     } else {
-      msg += std::to_string(got) + " \"";
+      msg += (got <= 127 ? std::string{got} : std::to_string(got)) + " \"";  // NOLINT
     }
     Error(msg);
   }
