@@ -667,7 +667,7 @@ struct GPUHistMakerDevice {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
                   RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
-    Driver<GPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
+    Driver<GPUExpandEntry> driver(param);
 
     monitor.Start("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);

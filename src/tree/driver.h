@@ -33,10 +33,14 @@ class Driver {
                           std::function<bool(ExpandEntryT, ExpandEntryT)>>;
 
  public:
-  explicit Driver(TrainParam::TreeGrowPolicy policy)
-      : policy_(policy),
-        queue_(policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT> :
-                                                  LossGuide<ExpandEntryT>) {}
+  explicit Driver(TrainParam param)
+      : param_(std::move(param)),
+        queue_(param_.grow_policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT>
+                                                            : LossGuide<ExpandEntryT>) {
+    if (param_.grow_policy != TrainParam::kLossGuide && param_.max_greedy_nodes != 1) {
+      LOG(FATAL) << "`max_greedy_nodes` is only applicable for `lossguide` grow policy.";
+    }
+  }
   template <typename EntryIterT>
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
@@ -63,27 +67,33 @@ class Driver {
   std::vector<ExpandEntryT> Pop() {
     if (queue_.empty()) return {};
     // Return a single entry for loss guided mode
-    if (policy_ == TrainParam::kLossGuide) {
-      ExpandEntryT e = queue_.top();
-      queue_.pop();
-      return {e};
+    std::vector<ExpandEntryT> results;
+    if (param_.grow_policy == TrainParam::kLossGuide) {
+      bst_node_t i = 0;
+      while (i < param_.max_greedy_nodes && !queue_.empty()) {
+        ExpandEntryT e = queue_.top();
+        queue_.pop();
+        results.emplace_back(e);
+        i++;
+      }
+
+      return results;
     }
     // Return nodes on same level for depth wise
-    std::vector<ExpandEntryT> result;
     ExpandEntryT e = queue_.top();
     int level = e.depth;
     while (e.depth == level && !queue_.empty()) {
       queue_.pop();
-      result.emplace_back(e);
+      results.emplace_back(e);
       if (!queue_.empty()) {
         e = queue_.top();
       }
     }
-    return result;
+    return results;
   }
 
  private:
-  TrainParam::TreeGrowPolicy policy_;
+  TrainParam param_;
   ExpandQueue queue_;
 };
 }  // namespace tree

@@ -241,7 +241,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   builder_monitor_.Start("ExpandTree");
   int num_leaves = 0;
 
-  Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+  Driver<CPUExpandEntry> driver(param_);
   std::vector<CPUExpandEntry> expand;
   InitRoot<any_missing>(p_fmat, p_tree, gpair_h, &num_leaves, &expand);
   driver.Push(expand[0]);
