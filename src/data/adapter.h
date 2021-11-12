@@ -826,7 +826,10 @@ class Column {
   const uint8_t* bitmap_;
 };
 
-// only columns of primitive types are supported
+// Only columns of primitive types are supported. An ArrowColumnarBatch is a
+// collection of std::shared_ptr<PrimitiveColumn>. These columns can be of different data types.
+// Hence, PrimitiveColumn is a class template; and all concrete PrimitiveColumns
+// derive from the abstract class Column.
 template <typename T>
 class PrimitiveColumn : public Column {
   static constexpr float nan = std::numeric_limits<float>::quiet_NaN();
