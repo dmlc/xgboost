@@ -43,6 +43,15 @@ typedef void *BoosterHandle;  // NOLINT(*)
 XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch);
 
 /*!
+ * \brief Get compile information of shared library.
+ *
+ * \param out string encoded JSON object containing build flags and dependency version.
+ *
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBBuildInfo(char const **out);
+
+/*!
  * \brief get string message of the last error
  *
  *  all function in this file will return 0 when success

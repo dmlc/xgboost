@@ -42,6 +42,68 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   }
 }
 
+using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
+
+#if !defined(XGBOOST_USE_CUDA)
+namespace xgboost {
+void XGBBuildInfoDevice(Json *p_info) {
+  auto &info = *p_info;
+  info["USE_CUDA"] = Boolean{false};
+  info["USE_NCCL"] = Boolean{false};
+  info["USE_RMM"] = Boolean{false};
+}
+}  // namespace xgboost
+#endif
+
+XGB_DLL int XGBBuildInfo(char const **out) {
+  API_BEGIN();
+  CHECK(out) << "Invalid input pointer";
+  Json info{Object{}};
+
+#if defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
+  info["BUILTIN_PREFETCH_PRESENT"] = Boolean{true};
+#else
+  info["BUILTIN_PREFETCH_PRESENT"] = Boolean{false};
+#endif
+
+#if defined(XGBOOST_MM_PREFETCH_PRESENT)
+  info["MM_PREFETCH_PRESENT"] = Boolean{true};
+#else
+  info["MM_PREFETCH_PRESENT"] = Boolean{false};
+#endif
+
+#if defined(_OPENMP)
+  info["USE_OPENMP"] = Boolean{true};
+#else
+  info["USE_OPENMP"] = Boolean{false};
+#endif
+
+#if defined(__GNUC__) && !defined(__clang__)
+  info["GCC_VERSION"] = std::vector<Json>{Json{Integer{__GNUC__}}, Json{Integer{__GNUC_MINOR__}},
+                                          Json{Integer{__GNUC_PATCHLEVEL__}}};
+#endif
+
+#if defined(__clang__)
+  info["CLANG_VERSION"] =
+      std::vector<Json>{Json{Integer{__clang_major__}}, Json{Integer{__clang_minor__}},
+                        Json{Integer{__clang_patchlevel__}}};
+#endif
+
+#if !defined(NDEBUG)
+  info["DEBUG"] = Boolean{true};
+#else
+  info["DEBUG"] = Boolean{false};
+#endif
+
+  XGBBuildInfoDevice(&info);
+
+  auto &out_str = GlobalConfigAPIThreadLocalStore::Get()->ret_str;
+  Json::Dump(info, &out_str);
+  *out = out_str.c_str();
+
+  API_END();
+}
+
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN_UNGUARD();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
@@ -94,8 +156,6 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
   }
   API_END();
 }
-
-using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
 XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_BEGIN();

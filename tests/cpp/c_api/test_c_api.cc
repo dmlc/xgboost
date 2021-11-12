@@ -278,4 +278,13 @@ TEST(CAPI, XGBGlobalConfig) {
     ASSERT_EQ(err.find("verbosity"), std::string::npos);
   }
 }
+
+TEST(CAPI, BuildInfo) {
+  char const* out;
+  XGBBuildInfo(&out);
+  auto loaded = Json::Load(StringView{out});
+  ASSERT_TRUE(get<Object const>(loaded).find("USE_OPENMP") != get<Object const>(loaded).cend());
+  ASSERT_TRUE(get<Object const>(loaded).find("USE_CUDA") != get<Object const>(loaded).cend());
+  ASSERT_TRUE(get<Object const>(loaded).find("USE_NCCL") != get<Object const>(loaded).cend());
+}
 }  // namespace xgboost
