@@ -17,16 +17,6 @@ pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
 
-class TemporaryDirectory(object):
-    """Context manager for tempfile.mkdtemp()"""
-    def __enter__(self):
-        self.name = tempfile.mkdtemp()
-        return self.name
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        shutil.rmtree(self.name)
-
-
 def test_binary_classification():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
@@ -509,7 +499,7 @@ def test_classification_with_custom_objective():
     assert is_called[0]
 
 
-def test_sklearn_api():
+def run_sklearn_api(booster, error, n_est):
     from sklearn.datasets import load_iris
     from sklearn.model_selection import train_test_split
 
@@ -517,30 +507,18 @@ def test_sklearn_api():
     tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target,
                                               train_size=120, test_size=0.2)
 
-    classifier = xgb.XGBClassifier(booster='gbtree', n_estimators=10)
+    classifier = xgb.XGBClassifier(booster=booster, n_estimators=n_est)
     classifier.fit(tr_d, tr_l)
 
     preds = classifier.predict(te_d)
     labels = te_l
     err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
-    assert err < 0.2
+    assert err < error
 
 
-def test_sklearn_api_gblinear():
-    from sklearn.datasets import load_iris
-    from sklearn.model_selection import train_test_split
-
-    iris = load_iris()
-    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target,
-                                              train_size=120)
-
-    classifier = xgb.XGBClassifier(booster='gblinear', n_estimators=100)
-    classifier.fit(tr_d, tr_l)
-
-    preds = classifier.predict(te_d)
-    labels = te_l
-    err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
-    assert err < 0.5
+def test_sklearn_api():
+    run_sklearn_api("gbtree", 0.2, 10)
+    run_sklearn_api("gblinear", 0.5, 100)
 
 
 @pytest.mark.skipif(**tm.no_matplotlib())
@@ -721,7 +699,7 @@ def test_sklearn_get_default_params():
     assert cls.get_params()['base_score'] is not None
 
 
-def test_validation_weights_xgbmodel():
+def run_validation_weights(model):
     from sklearn.datasets import make_hastie_10_2
 
     # prepare training and test data
@@ -733,7 +711,7 @@ def test_validation_weights_xgbmodel():
     # instantiate model
     param_dist = {'objective': 'binary:logistic', 'n_estimators': 2,
                   'random_state': 123}
-    clf = xgb.sklearn.XGBModel(**param_dist)
+    clf = model(**param_dist)
 
     # train it using instance weights only in the training set
     weights_train = np.random.choice([1, 2], len(X_train))
@@ -778,49 +756,9 @@ def test_validation_weights_xgbmodel():
                 sample_weight_eval_set=[weights_train])
 
 
-def test_validation_weights_xgbclassifier():
-    from sklearn.datasets import make_hastie_10_2
-
-    # prepare training and test data
-    X, y = make_hastie_10_2(n_samples=2000, random_state=42)
-    labels, y = np.unique(y, return_inverse=True)
-    X_train, X_test = X[:1600], X[1600:]
-    y_train, y_test = y[:1600], y[1600:]
-
-    # instantiate model
-    param_dist = {'objective': 'binary:logistic', 'n_estimators': 2,
-                  'random_state': 123}
-    clf = xgb.sklearn.XGBClassifier(**param_dist)
-
-    # train it using instance weights only in the training set
-    weights_train = np.random.choice([1, 2], len(X_train))
-    clf.fit(X_train, y_train,
-            sample_weight=weights_train,
-            eval_set=[(X_test, y_test)],
-            eval_metric='logloss',
-            verbose=False)
-
-    # evaluate logloss metric on test set *without* using weights
-    evals_result_without_weights = clf.evals_result()
-    logloss_without_weights = evals_result_without_weights[
-        "validation_0"]["logloss"]
-
-    # now use weights for the test set
-    np.random.seed(0)
-    weights_test = np.random.choice([1, 2], len(X_test))
-    clf.fit(X_train, y_train,
-            sample_weight=weights_train,
-            eval_set=[(X_test, y_test)],
-            sample_weight_eval_set=[weights_test],
-            eval_metric='logloss',
-            verbose=False)
-    evals_result_with_weights = clf.evals_result()
-    logloss_with_weights = evals_result_with_weights["validation_0"]["logloss"]
-
-    # check that the logloss in the test set is actually different
-    # when using weights than when not using them
-    assert all((logloss_with_weights[i] != logloss_without_weights[i]
-                for i in [0, 1]))
+def test_validation_weights():
+    run_validation_weights(xgb.XGBModel)
+    run_validation_weights(xgb.XGBClassifier)
 
 
 def save_load_model(model_path):
@@ -862,16 +800,16 @@ def save_load_model(model_path):
 
 
 def test_save_load_model():
-    with TemporaryDirectory() as tempdir:
+    with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model')
         save_load_model(model_path)
 
-    with TemporaryDirectory() as tempdir:
+    with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model.json')
         save_load_model(model_path)
 
     from sklearn.datasets import load_digits
-    with TemporaryDirectory() as tempdir:
+    with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model.json')
         digits = load_digits(n_class=2)
         y = digits['target']
@@ -949,7 +887,7 @@ def test_XGBClassifier_resume():
     from sklearn.datasets import load_breast_cancer
     from sklearn.metrics import log_loss
 
-    with TemporaryDirectory() as tempdir:
+    with tempfile.TemporaryDirectory() as tempdir:
         model1_path = os.path.join(tempdir, 'test_XGBClassifier.model')
         model1_booster_path = os.path.join(tempdir, 'test_XGBClassifier.booster')
 
@@ -1089,7 +1027,7 @@ def test_pandas_input():
 
 
 def run_feature_weights(X, y, fw, model=xgb.XGBRegressor):
-    with TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir:
         colsample_bynode = 0.5
         reg = model(tree_method='hist', colsample_bynode=colsample_bynode)
 
