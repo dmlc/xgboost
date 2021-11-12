@@ -23,7 +23,7 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
   column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(sizeof(T))))});
-  column["version"] = Integer(static_cast<Integer::Int>(1));
+  column["version"] = 3;
   column["typestr"] = String(typestr);
 
   auto p_d_data = d_data.data().get();
@@ -31,6 +31,7 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
         Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
         Json(Boolean(false))};
   column["data"] = j_data;
+  column["stream"] = nullptr;
   Json array(std::vector<Json>{column});
 
   std::string str;
