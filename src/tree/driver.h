@@ -65,9 +65,9 @@ class Driver {
   // This set has no dependencies between entries so they may be expanded in
   // parallel or asynchronously
   std::vector<ExpandEntryT> Pop() {
-    if (queue_.empty()) return {};
-    // Return a single entry for loss guided mode
     std::vector<ExpandEntryT> results;
+    if (queue_.empty()) return results;
+    // Return a single entry for loss guided mode
     if (param_.grow_policy == TrainParam::kLossGuide) {
       bst_node_t i = 0;
       while (i < param_.max_greedy_nodes && !queue_.empty()) {
