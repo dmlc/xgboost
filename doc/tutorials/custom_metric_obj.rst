@@ -21,6 +21,7 @@ concepts should be readily applicable to other language bindings.
 .. note::
 
    * The ranking task does not support customized functions.
+   * Breaking change was made in XGBoost 1.6.
 
 In the following two sections, we will provide a step by step walk through of implementing
 ``Squared Log Error(SLE)`` objective function:
@@ -270,7 +271,7 @@ Scikit-Learn Interface
 
 
 The scikit-learn interface of XGBoost has some utilities to improve the integration with
-standard scikit-learn functions.  For instance, after XGBoost 1.5.1 users can use the cost
+standard scikit-learn functions.  For instance, after XGBoost 1.6.0 users can use the cost
 function (not scoring functions) from scikit-learn out of the box:
 
 .. code-block:: python

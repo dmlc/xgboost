@@ -199,7 +199,7 @@ __model_doc = f'''
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 
-        .. versionadded:: 1.5.1
+        .. versionadded:: 1.6.0
 
         Metric used for monitoring the training result and early stopping.  It can be a
         string or list of strings as names of predefined metric in XGBoost (See
@@ -239,7 +239,7 @@ __model_doc = f'''
 
     early_stopping_rounds : Optional[int]
 
-        .. versionadded:: 1.5.1
+        .. versionadded:: 1.6.0
 
         Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.  Requires at least
@@ -855,11 +855,11 @@ class XGBModel(XGBModelBase):
             Validation metrics will help us track the performance of the model.
 
         eval_metric : str, list of str, or callable, optional
-            .. deprecated:: 1.5.1
+            .. deprecated:: 1.6.0
                 Use `eval_metric` in :py:meth:`__init__` or :py:meth:`set_params` instead.
 
         early_stopping_rounds : int
-            .. deprecated:: 1.5.1
+            .. deprecated:: 1.6.0
                 Use `early_stopping_rounds` in :py:meth:`__init__` or
                 :py:meth:`set_params` instead.
         verbose :
@@ -881,7 +881,7 @@ class XGBModel(XGBModelBase):
             `exact` tree methods.
 
         callbacks :
-            .. deprecated: 1.5.1
+            .. deprecated: 1.6.0
                 Use `callbacks` in :py:meth:`__init__` or :py:methd:`set_params` instead.
         """
         evals_result: TrainingCallback.EvalsLog = {}
@@ -1693,11 +1693,11 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             pair in **eval_set**.
 
         eval_metric : str, list of str, optional
-            .. deprecated:: 1.5.1
+            .. deprecated:: 1.6.0
                 use `eval_metric` in :py:meth:`__init__` or :py:meth:`set_params` instead.
 
         early_stopping_rounds : int
-            .. deprecated:: 1.5.1
+            .. deprecated:: 1.6.0
                 use `early_stopping_rounds` in :py:meth:`__init__` or
                 :py:meth:`set_params` instead.
 
@@ -1727,7 +1727,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             `exact` tree methods.
 
         callbacks :
-            .. deprecated: 1.5.1
+            .. deprecated: 1.6.0
                 Use `callbacks` in :py:meth:`__init__` or :py:methd:`set_params` instead.
         """
         # check if group information is provided
