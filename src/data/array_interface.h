@@ -116,11 +116,12 @@ class ArrayInterfaceHandler {
       LOG(FATAL) << ArrayInterfaceErrors::Version();
     }
 
-    if (array.find("typestr") == array.cend()) {
+    auto typestr_it = array.find("typestr");
+    if (typestr_it == array.cend()) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
 
-    auto typestr = get<String const>(array.at("typestr"));
+    auto typestr = get<String const>(typestr_it->second);
     CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();
 
     if (array.find("shape") == array.cend()) {
