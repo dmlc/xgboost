@@ -16,7 +16,7 @@
 
 namespace xgboost {
 namespace {
-auto SetDeviceToPtr(void* ptr) {
+auto SetDeviceToPtr(void const* ptr) {
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
   int32_t ptr_device = attr.device;

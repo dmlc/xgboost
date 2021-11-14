@@ -91,19 +91,21 @@ struct ArrayInterfaceErrors {
   }
 };
 
-// TODO(trivialfis): Abstract this into a class that accept a json
-// object and turn it into an array (for cupy and numba).
+/**
+ * Utilities for consuming array interface.
+ */
 class ArrayInterfaceHandler {
  public:
   enum Type : std::int8_t { kF4, kF8, kF16, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
 
   template <typename PtrType>
   static PtrType GetPtrFromArrayData(std::map<std::string, Json> const &obj) {
-    if (obj.find("data") == obj.cend()) {
+    auto data_it = obj.find("data");
+    if (data_it == obj.cend()) {
       LOG(FATAL) << "Empty data passed in.";
     }
     auto p_data = reinterpret_cast<PtrType>(
-        static_cast<size_t>(get<Integer const>(get<Array const>(obj.at("data")).at(0))));
+        static_cast<size_t>(get<Integer const>(get<Array const>(data_it->second).at(0))));
     return p_data;
   }
 
@@ -472,38 +474,38 @@ class ArrayInterface {
     using T = ArrayInterfaceHandler::Type;
     switch (type) {
       case T::kF4:
-        return func(reinterpret_cast<float *>(data));
+        return func(reinterpret_cast<float const *>(data));
       case T::kF8:
-        return func(reinterpret_cast<double *>(data));
+        return func(reinterpret_cast<double const *>(data));
 #ifdef __CUDA_ARCH__
       case T::kF16: {
         // CUDA device code doesn't support long double.
         SPAN_CHECK(false);
-        return func(reinterpret_cast<double *>(data));
+        return func(reinterpret_cast<double const *>(data));
       }
 #else
       case T::kF16:
-        return func(reinterpret_cast<long double *>(data));
+        return func(reinterpret_cast<long double const *>(data));
 #endif
       case T::kI1:
-        return func(reinterpret_cast<int8_t *>(data));
+        return func(reinterpret_cast<int8_t const *>(data));
       case T::kI2:
-        return func(reinterpret_cast<int16_t *>(data));
+        return func(reinterpret_cast<int16_t const *>(data));
       case T::kI4:
-        return func(reinterpret_cast<int32_t *>(data));
+        return func(reinterpret_cast<int32_t const *>(data));
       case T::kI8:
-        return func(reinterpret_cast<int64_t *>(data));
+        return func(reinterpret_cast<int64_t const *>(data));
       case T::kU1:
-        return func(reinterpret_cast<uint8_t *>(data));
+        return func(reinterpret_cast<uint8_t const *>(data));
       case T::kU2:
-        return func(reinterpret_cast<uint16_t *>(data));
+        return func(reinterpret_cast<uint16_t const *>(data));
       case T::kU4:
-        return func(reinterpret_cast<uint32_t *>(data));
+        return func(reinterpret_cast<uint32_t const *>(data));
       case T::kU8:
-        return func(reinterpret_cast<uint64_t *>(data));
+        return func(reinterpret_cast<uint64_t const *>(data));
     }
     SPAN_CHECK(false);
-    return func(reinterpret_cast<uint64_t *>(data));
+    return func(reinterpret_cast<uint64_t const *>(data));
   }
 
   XGBOOST_DEVICE size_t constexpr ElementSize() {
@@ -527,7 +529,7 @@ class ArrayInterface {
   // Array shape
   size_t shape[D]{0};
   // Type earsed pointer referencing the data.
-  void *data;
+  void const *data;
   // Total number of items
   size_t n;
   // Whether the memory is c-contiguous
