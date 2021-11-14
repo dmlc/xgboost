@@ -375,7 +375,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         n_threads_{n_threads},
         task_{task} {
     interaction_constraints_.Configure(param, info.num_col_);
-    column_sampler_->Init(info.num_col_, info.feature_weigths.HostVector(),
+    column_sampler_->Init(info.num_col_, info.feature_weights.HostVector(),
                           param_.colsample_bynode, param_.colsample_bylevel,
                           param_.colsample_bytree, skip_0_index);
   }

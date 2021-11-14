@@ -177,8 +177,8 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     CopyInfoImpl(array_interface, &labels_upper_bound_);
     return;
   } else if (key == "feature_weights") {
-    CopyInfoImpl(array_interface, &feature_weigths);
-    auto d_feature_weights = feature_weigths.ConstDeviceSpan();
+    CopyInfoImpl(array_interface, &feature_weights);
+    auto d_feature_weights = feature_weights.ConstDeviceSpan();
     auto valid = thrust::none_of(
         thrust::device, d_feature_weights.data(),
         d_feature_weights.data() + d_feature_weights.size(), WeightsCheck{});

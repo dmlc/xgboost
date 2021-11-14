@@ -93,7 +93,7 @@ class MetaInfo {
    * \brief Weight of each feature, used to define the probability of each feature being
    *        selected when using column sampling.
    */
-  HostDeviceVector<float> feature_weigths;
+  HostDeviceVector<float> feature_weights;
 
   /*! \brief default constructor */
   MetaInfo()  = default;
