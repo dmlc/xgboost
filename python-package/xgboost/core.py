@@ -458,7 +458,7 @@ def _deprecate_positional_args(f):
     Using the keyword-only argument syntax in pep 3102, arguments after the
     * will issue a warning when passed as a positional argument.
 
-    Modifed from sklearn utils.validation.
+    Modified from sklearn utils.validation.
 
     Parameters
     ----------
@@ -2411,7 +2411,7 @@ class Booster:
                 arr = line.split('[')
                 # Leaf node
                 if len(arr) == 1:
-                    # Last element of line.split is an empy string
+                    # Last element of line.split is an empty string
                     if arr == ['']:
                         continue
                     # parse string

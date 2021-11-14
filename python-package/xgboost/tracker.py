@@ -208,7 +208,7 @@ class RabitTracker:
 
     def worker_envs(self) -> Dict[str, Union[str, int]]:
         """
-        get enviroment variables for workers
+        get environment variables for workers
         can be passed in as args or envs
         """
         return {'DMLC_TRACKER_URI': self.hostIP,
@@ -286,7 +286,7 @@ class RabitTracker:
         return tree_map_, parent_map_, ring_map_
 
     def accept_workers(self, n_workers: int) -> None:
-        # set of nodes that finishs the job
+        # set of nodes that finishes the job
         shutdown: Dict[int, WorkerEntry] = {}
         # set of nodes that is waiting for connections
         wait_conn: Dict[int, WorkerEntry] = {}
@@ -425,7 +425,7 @@ def main() -> None:
     """Main function if tracker is executed in standalone mode."""
     parser = argparse.ArgumentParser(description='Rabit Tracker start.')
     parser.add_argument('--num-workers', required=True, type=int,
-                        help='Number of worker proccess to be launched.')
+                        help='Number of worker process to be launched.')
     parser.add_argument(
         '--num-servers', default=0, type=int,
         help='Number of server process to be launched. Only used in PS jobs.'

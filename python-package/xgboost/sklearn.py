@@ -312,7 +312,7 @@ def xgboost_model_doc(
     header: str
        An introducion to the class.
     items : list
-       A list of commom doc items.  Available items are:
+       A list of common doc items.  Available items are:
          - estimators: the meaning of n_estimators
          - model: All the other parameters
          - objective: note for customized objective
