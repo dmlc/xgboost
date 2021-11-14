@@ -347,7 +347,6 @@ inline void ArrayInterfaceHandler::SyncCudaStream(int64_t stream) { common::Asse
 inline bool ArrayInterfaceHandler::IsCudaPtr(void const* ptr) { return false; }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-// A view over __array_interface__
 /**
  * \brief A type erased view over __array_interface__ protocol defined by numpy
  *
