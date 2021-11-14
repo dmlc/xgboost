@@ -166,7 +166,7 @@ def _assert_dask_support() -> None:
 
 
 class RabitContext:
-    '''A context controling rabit initialization and finalization.'''
+    '''A context controlling rabit initialization and finalization.'''
     def __init__(self, args: List[bytes]) -> None:
         self.args = args
         worker = distributed.get_worker()

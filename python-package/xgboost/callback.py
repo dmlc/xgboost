@@ -512,7 +512,7 @@ class TrainingCheckPoint(TrainingCallback):
         pattern of output model file.  Models will be saved as name_0.json, name_1.json,
         name_2.json ....
     as_pickle :
-        When set to Ture, all training parameters will be saved in pickle format, instead
+        When set to True, all training parameters will be saved in pickle format, instead
         of saving only the model.
     iterations :
         Interval of checkpointing.  Checkpointing is slow so setting a larger number can

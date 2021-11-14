@@ -224,5 +224,5 @@ def version_number() -> int:
     return ret
 
 
-# intialization script
+# initialization script
 _init_rabit()
