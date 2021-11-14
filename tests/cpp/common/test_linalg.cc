@@ -1,11 +1,21 @@
+/*!
+ * Copyright 2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
+#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 
 #include <numeric>
 
+#include "../../../src/common/linalg_op.h"
+
 namespace xgboost {
 namespace linalg {
+namespace {
+auto kCpuId = GenericParameter::kCpuId;
+}
+
 auto MakeMatrixFromTest(HostDeviceVector<float> *storage, size_t n_rows, size_t n_cols) {
   storage->Resize(n_rows * n_cols);
   auto &h_storage = storage->HostVector();
@@ -16,16 +26,16 @@ auto MakeMatrixFromTest(HostDeviceVector<float> *storage, size_t n_rows, size_t 
   return m;
 }
 
-TEST(Linalg, Matrix) {
+TEST(Linalg, MatrixView) {
   size_t kRows = 31, kCols = 77;
   HostDeviceVector<float> storage;
   auto m = MakeMatrixFromTest(&storage, kRows, kCols);
-  ASSERT_EQ(m.DeviceIdx(), GenericParameter::kCpuId);
+  ASSERT_EQ(m.DeviceIdx(), kCpuId);
   ASSERT_EQ(m(0, 0), 0);
   ASSERT_EQ(m(kRows - 1, kCols - 1), storage.Size() - 1);
 }
 
-TEST(Linalg, Vector) {
+TEST(Linalg, VectorView) {
   size_t kRows = 31, kCols = 77;
   HostDeviceVector<float> storage;
   auto m = MakeMatrixFromTest(&storage, kRows, kCols);
@@ -37,7 +47,7 @@ TEST(Linalg, Vector) {
   ASSERT_EQ(v(0), 3);
 }
 
-TEST(Linalg, Tensor) {
+TEST(Linalg, TensorView) {
   std::vector<double> data(2 * 3 * 4, 0);
   std::iota(data.begin(), data.end(), 0);
 
@@ -99,14 +109,123 @@ TEST(Linalg, Tensor) {
   }
 }
 
-TEST(Linalg, Empty) {
-  auto t = TensorView<double, 2>{{}, {0, 3}, GenericParameter::kCpuId};
-  for (int32_t i : {0, 1, 2}) {
-    auto s = t.Slice(All(), i);
-    ASSERT_EQ(s.Size(), 0);
-    ASSERT_EQ(s.Shape().size(), 1);
-    ASSERT_EQ(s.Shape(0), 0);
+TEST(Linalg, Tensor) {
+  {
+    Tensor<float, 3> t{{2, 3, 4}, kCpuId};
+    auto view = t.View(kCpuId);
+
+    auto const &as_const = t;
+    auto k_view = as_const.View(kCpuId);
+
+    size_t n = 2 * 3 * 4;
+    ASSERT_EQ(t.Size(), n);
+    ASSERT_TRUE(std::equal(k_view.cbegin(), k_view.cbegin(), view.begin()));
+
+    Tensor<float, 3> t_0{std::move(t)};
+    ASSERT_EQ(t_0.Size(), n);
+    ASSERT_EQ(t_0.Shape(0), 2);
+    ASSERT_EQ(t_0.Shape(1), 3);
+    ASSERT_EQ(t_0.Shape(2), 4);
   }
+  {
+    // Reshape
+    Tensor<float, 3> t{{2, 3, 4}, kCpuId};
+    t.Reshape(4, 3, 2);
+    ASSERT_EQ(t.Size(), 24);
+    ASSERT_EQ(t.Shape(2), 2);
+    t.Reshape(1);
+    ASSERT_EQ(t.Size(), 1);
+    t.Reshape(0, 0, 0);
+    ASSERT_EQ(t.Size(), 0);
+    t.Reshape(0, 3, 0);
+    ASSERT_EQ(t.Size(), 0);
+    ASSERT_EQ(t.Shape(1), 3);
+    t.Reshape(3, 3, 3);
+    ASSERT_EQ(t.Size(), 27);
+  }
+}
+
+TEST(Linalg, Empty) {
+  {
+    auto t = TensorView<double, 2>{{}, {0, 3}, kCpuId};
+    for (int32_t i : {0, 1, 2}) {
+      auto s = t.Slice(All(), i);
+      ASSERT_EQ(s.Size(), 0);
+      ASSERT_EQ(s.Shape().size(), 1);
+      ASSERT_EQ(s.Shape(0), 0);
+    }
+  }
+  {
+    auto t = Tensor<double, 2>{{0, 3}, kCpuId};
+    ASSERT_EQ(t.Size(), 0);
+    auto view = t.View(kCpuId);
+
+    for (int32_t i : {0, 1, 2}) {
+      auto s = view.Slice(All(), i);
+      ASSERT_EQ(s.Size(), 0);
+      ASSERT_EQ(s.Shape().size(), 1);
+      ASSERT_EQ(s.Shape(0), 0);
+    }
+  }
+}
+
+TEST(Linalg, ArrayInterface) {
+  auto cpu = kCpuId;
+  auto t = Tensor<double, 2>{{3, 3}, cpu};
+  auto v = t.View(cpu);
+  std::iota(v.begin(), v.end(), 0);
+  auto arr = Json::Load(StringView{v.ArrayInterfaceStr()});
+  ASSERT_EQ(get<Integer>(arr["shape"][0]), 3);
+  ASSERT_EQ(get<Integer>(arr["strides"][0]), 3 * sizeof(double));
+
+  ASSERT_FALSE(get<Boolean>(arr["data"][1]));
+  ASSERT_EQ(reinterpret_cast<double *>(get<Integer>(arr["data"][0])), v.Values().data());
+}
+
+TEST(Linalg, Popc) {
+  {
+    uint32_t v{0};
+    ASSERT_EQ(detail::NativePopc(v), 0);
+    ASSERT_EQ(detail::Popc(v), 0);
+    v = 1;
+    ASSERT_EQ(detail::NativePopc(v), 1);
+    ASSERT_EQ(detail::Popc(v), 1);
+    v = 0xffffffff;
+    ASSERT_EQ(detail::NativePopc(v), 32);
+    ASSERT_EQ(detail::Popc(v), 32);
+  }
+  {
+    uint64_t v{0};
+    ASSERT_EQ(detail::NativePopc(v), 0);
+    ASSERT_EQ(detail::Popc(v), 0);
+    v = 1;
+    ASSERT_EQ(detail::NativePopc(v), 1);
+    ASSERT_EQ(detail::Popc(v), 1);
+    v = 0xffffffff;
+    ASSERT_EQ(detail::NativePopc(v), 32);
+    ASSERT_EQ(detail::Popc(v), 32);
+    v = 0xffffffffffffffff;
+    ASSERT_EQ(detail::NativePopc(v), 64);
+    ASSERT_EQ(detail::Popc(v), 64);
+  }
+}
+
+TEST(Linalg, Stack) {
+  Tensor<float, 3> l{{2, 3, 4}, kCpuId};
+  ElementWiseKernelHost(l.View(kCpuId), omp_get_max_threads(),
+                        [=](size_t i, float v) { return i; });
+  Tensor<float, 3> r_0{{2, 3, 4}, kCpuId};
+  ElementWiseKernelHost(r_0.View(kCpuId), omp_get_max_threads(),
+                        [=](size_t i, float v) { return i; });
+
+  Stack(&l, r_0);
+
+  Tensor<float, 3> r_1{{0, 3, 4}, kCpuId};
+  Stack(&l, r_1);
+  ASSERT_EQ(l.Shape(0), 4);
+
+  Stack(&r_1, l);
+  ASSERT_EQ(r_1.Shape(0), l.Shape(0));
 }
 }  // namespace linalg
 }  // namespace xgboost
