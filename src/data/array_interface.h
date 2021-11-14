@@ -529,13 +529,13 @@ class ArrayInterface {
   // Array shape
   size_t shape[D]{0};
   // Type earsed pointer referencing the data.
-  void const *data;
+  void const *data{nullptr};
   // Total number of items
-  size_t n;
+  size_t n{0};
   // Whether the memory is c-contiguous
   bool is_contiguous {false};
-  // RTTI
-  ArrayInterfaceHandler::Type type;
+  // RTTI, initialized to the f16 to avoid masking potential bugs in initialization.
+  ArrayInterfaceHandler::Type type{ArrayInterfaceHandler::kF16};
 };
 
 /**
