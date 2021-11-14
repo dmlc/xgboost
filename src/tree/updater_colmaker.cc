@@ -229,8 +229,7 @@ class ColMaker: public TreeUpdater {
         }
       }
       {
-        column_sampler_.Init(fmat.Info().num_col_,
-                             fmat.Info().feature_weigths.ConstHostVector(),
+        column_sampler_.Init(fmat.Info().num_col_, fmat.Info().feature_weights.ConstHostVector(),
                              param_.colsample_bynode, param_.colsample_bylevel,
                              param_.colsample_bytree);
       }
