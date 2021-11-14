@@ -14,11 +14,6 @@
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/adapter.h"
 
-#ifdef __CUDACC__
-#include <xgboost/json.h>
-#include "../../../src/data/device_adapter.cuh"
-#endif  // __CUDACC__
-
 // Some helper functions used to test both GPU and CPU algorithms
 //
 namespace xgboost {
@@ -45,25 +40,6 @@ inline std::vector<float> GenerateRandomWeights(int num_rows) {
   std::generate(w.begin(), w.end(), [&]() { return dist(rng); });
   return w;
 }
-
-#ifdef __CUDACC__
-inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
-  int num_rows, int num_columns) {
-  Json array_interface{Object()};
-  std::vector<Json> shape = {Json(static_cast<Integer::Int>(num_rows)),
-    Json(static_cast<Integer::Int>(num_columns))};
-  array_interface["shape"] = Array(shape);
-  std::vector<Json> j_data{
-    Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
-    Json(Boolean(false))};
-  array_interface["data"] = j_data;
-  array_interface["version"] = 3;
-  array_interface["typestr"] = String("<f4");
-  std::string str;
-  Json::Dump(array_interface, &str);
-  return data::CupyAdapter(str);
-}
-#endif
 
 inline std::shared_ptr<data::SimpleDMatrix>
 GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {

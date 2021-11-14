@@ -10,6 +10,7 @@
 
 #include <xgboost/data.h>
 #include <xgboost/c_api.h>
+#include <xgboost/linalg.h>
 
 #include "test_hist_util.h"
 #include "../helpers.h"
@@ -24,6 +25,16 @@
 
 namespace xgboost {
 namespace common {
+namespace {
+data::CupyAdapter AdapterFromData(thrust::device_vector<float> const& x, int num_rows,
+                                  int num_columns) {
+  auto str =
+      linalg::TensorView<float const, 2>{
+          Span<float const>{x.data().get(), x.size()}, {num_rows, num_columns}, 0}
+          .ArrayInterfaceStr();
+  return data::CupyAdapter(str);
+}
+}  // anonymous namespace
 
 template <typename AdapterT>
 HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
