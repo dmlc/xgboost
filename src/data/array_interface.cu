@@ -1,8 +1,8 @@
 /*!
  * Copyright 2021 by Contributors
  */
-#include "array_interface.h"
 #include "../common/common.h"
+#include "array_interface.h"
 
 namespace xgboost {
 void ArrayInterfaceHandler::SyncCudaStream(int64_t stream) {

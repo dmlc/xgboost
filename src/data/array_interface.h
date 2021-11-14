@@ -346,7 +346,7 @@ struct ToDType<int64_t> {
 
 #if !defined(XGBOOST_USE_CUDA)
 inline void ArrayInterfaceHandler::SyncCudaStream(int64_t stream) { common::AssertGPUSupport(); }
-inline bool ArrayInterfaceHandler::IsCudaPtr(void const* ptr) { return false; }
+inline bool ArrayInterfaceHandler::IsCudaPtr(void const *ptr) { return false; }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 /**
@@ -413,9 +413,7 @@ class ArrayInterface {
 
  public:
   ArrayInterface() = default;
-  explicit ArrayInterface(std::map<std::string, Json> const &array) {
-    this->Initialize(array);
-  }
+  explicit ArrayInterface(std::map<std::string, Json> const &array) { this->Initialize(array); }
 
   explicit ArrayInterface(Json const &array) {
     if (IsA<Object>(array)) {
@@ -533,7 +531,7 @@ class ArrayInterface {
   // Total number of items
   size_t n{0};
   // Whether the memory is c-contiguous
-  bool is_contiguous {false};
+  bool is_contiguous{false};
   // RTTI, initialized to the f16 to avoid masking potential bugs in initialization.
   ArrayInterfaceHandler::Type type{ArrayInterfaceHandler::kF16};
 };
