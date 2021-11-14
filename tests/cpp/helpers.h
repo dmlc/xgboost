@@ -198,7 +198,7 @@ Json GetArrayInterface(HostDeviceVector<T> *storage, size_t rows, size_t cols) {
   array_interface["shape"][0] = rows;
   array_interface["shape"][1] = cols;
 
-  char t = ArrayInterfaceHandler::TypeChar<T>();
+  char t = linalg::detail::ArrayInterfaceHandler::TypeChar<T>();
   array_interface["typestr"] = String(std::string{"<"} + t + std::to_string(sizeof(T)));
   array_interface["version"] = 1;
   return array_interface;

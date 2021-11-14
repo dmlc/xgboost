@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2020 by Contributors
+ * Copyright 2015-2021 by Contributors
  * \file data.cc
  */
 #include <dmlc/registry.h>
@@ -24,6 +24,7 @@
 #include "../data/iterative_device_dmatrix.h"
 #include "file_iterator.h"
 
+#include "validation.h"
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
 
@@ -337,17 +338,6 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
   return true;
 }
 
-void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_) {
-  bool valid_query_group = true;
-  for (size_t i = 1; i < group_ptr_.size(); ++i) {
-    valid_query_group = valid_query_group && group_ptr_[i] >= group_ptr_[i - 1];
-    if (!valid_query_group) {
-      break;
-    }
-  }
-  CHECK(valid_query_group) << "Invalid group structure.";
-}
-
 // macro to dispatch according to specified pointer types
 #define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
   switch (dtype) {                                                      \
@@ -398,7 +388,7 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     for (size_t i = 1; i < group_ptr_.size(); ++i) {
       group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
-    ValidateQueryGroup(group_ptr_);
+    data::ValidateQueryGroup(group_ptr_);
   } else if (!std::strcmp(key, "qid")) {
     std::vector<uint32_t> query_ids(num, 0);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
@@ -632,7 +622,7 @@ void MetaInfo::Validate(int32_t device) const {
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
+void MetaInfo::SetInfo(StringView key, std::string const& interface_str) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

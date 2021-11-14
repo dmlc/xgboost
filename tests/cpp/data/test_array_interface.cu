@@ -32,11 +32,24 @@ TEST(ArrayInterface, Stream) {
   dh::caching_device_vector<uint64_t> out(1, 0);
   uint64_t dur = 1e9;
   dh::LaunchKernel{1, 1, 0, stream}(SleepForTest, out.data().get(), dur);
-  ArrayInterface arr(arr_str);
+  ArrayInterface<2> arr(arr_str);
 
   auto t = out[0];
   CHECK_GE(t, dur);
 
   cudaStreamDestroy(stream);
+}
+
+TEST(ArrayInterface, Ptr) {
+  std::vector<float> h_data(10);
+  ASSERT_FALSE(ArrayInterfaceHandler::IsCudaPtr(h_data.data()));
+  dh::safe_cuda(cudaGetLastError());
+
+  dh::device_vector<float> d_data(10);
+  ASSERT_TRUE(ArrayInterfaceHandler::IsCudaPtr(d_data.data().get()));
+  dh::safe_cuda(cudaGetLastError());
+
+  ASSERT_FALSE(ArrayInterfaceHandler::IsCudaPtr(nullptr));
+  dh::safe_cuda(cudaGetLastError());
 }
 }  // namespace xgboost

@@ -9,84 +9,81 @@
 #include "xgboost/json.h"
 #include "array_interface.h"
 #include "../common/device_helpers.cuh"
+#include "../common/linalg_op.cuh"
 #include "device_adapter.cuh"
 #include "simple_dmatrix.h"
+#include "validation.h"
 
 namespace xgboost {
-
-void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
-  auto SetDeviceToPtr = [](void* ptr) {
-    cudaPointerAttributes attr;
-    dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
-    int32_t ptr_device = attr.device;
-    if (ptr_device >= 0) {
-      dh::safe_cuda(cudaSetDevice(ptr_device));
-    }
-    return ptr_device;
-  };
-  auto ptr_device = SetDeviceToPtr(column.data);
-
-  if (column.num_rows == 0) {
-    return;
-  }
-  out->SetDevice(ptr_device);
-
-  size_t size = column.num_rows * column.num_cols;
-  CHECK_NE(size, 0);
-  out->Resize(size);
-
-  auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
-  dh::LaunchN(size, [=] __device__(size_t idx) {
-    size_t ridx = idx / column.num_cols;
-    size_t cidx = idx - (ridx * column.num_cols);
-    p_dst[idx] = column.GetElement(ridx, cidx);
-  });
-}
-
 namespace {
-auto SetDeviceToPtr(void *ptr) {
+auto SetDeviceToPtr(void* ptr) {
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
   int32_t ptr_device = attr.device;
   dh::safe_cuda(cudaSetDevice(ptr_device));
   return ptr_device;
 }
-}  // anonymous namespace
 
-void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
-  CHECK(column.type != ArrayInterface::kF4 && column.type != ArrayInterface::kF8)
+template <typename T, int32_t D>
+void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
+  ArrayInterface<D> array(arr_interface);
+  if (array.n == 0) {
+    return;
+  }
+  CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
+  auto ptr_device = SetDeviceToPtr(array.data);
+
+  if (array.is_contiguous && array.type == ToDType<T>::kType) {
+    p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
+      // set shape
+      std::copy(array.shape, array.shape + D, shape.data());
+      // set data
+      data->SetDevice(ptr_device);
+      data->Resize(array.n);
+      dh::safe_cuda(cudaMemcpyAsync(data->DevicePointer(), array.data, array.n * sizeof(T),
+                                    cudaMemcpyDefault));
+    });
+    return;
+  }
+  p_out->SetDevice(ptr_device);
+  p_out->Reshape(array.shape);
+  auto t = p_out->View(ptr_device);
+  linalg::ElementWiseKernelDevice(t, [=] __device__(size_t i, T) {
+    return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
+  });
+}
+
+void CopyGroupInfoImpl(ArrayInterface<1> column, std::vector<bst_group_t>* out) {
+  CHECK(column.type != ArrayInterfaceHandler::kF4 && column.type != ArrayInterfaceHandler::kF8)
       << "Expected integer for group info.";
 
   auto ptr_device = SetDeviceToPtr(column.data);
   CHECK_EQ(ptr_device, dh::CurrentDevice());
-  dh::TemporaryArray<bst_group_t> temp(column.num_rows);
-  auto d_tmp = temp.data();
+  dh::TemporaryArray<bst_group_t> temp(column.Shape(0));
+  auto d_tmp = temp.data().get();
 
-  dh::LaunchN(column.num_rows, [=] __device__(size_t idx) {
-    d_tmp[idx] = column.GetElement<size_t>(idx, 0);
-  });
-  auto length = column.num_rows;
+  dh::LaunchN(column.Shape(0),
+              [=] __device__(size_t idx) { d_tmp[idx] = TypedIndex<size_t, 1>{column}(idx); });
+  auto length = column.Shape(0);
   out->resize(length + 1);
   out->at(0) = 0;
   thrust::copy(temp.data(), temp.data() + length, out->begin() + 1);
   std::partial_sum(out->begin(), out->end(), out->begin());
 }
 
-void CopyQidImpl(ArrayInterface array_interface,
-                 std::vector<bst_group_t> *p_group_ptr) {
+void CopyQidImpl(ArrayInterface<1> array_interface, std::vector<bst_group_t>* p_group_ptr) {
   auto &group_ptr_ = *p_group_ptr;
   auto it = dh::MakeTransformIterator<uint32_t>(
-      thrust::make_counting_iterator(0ul),
-      [array_interface] __device__(size_t i) {
-        return array_interface.GetElement<uint32_t>(i, 0);
+      thrust::make_counting_iterator(0ul), [array_interface] __device__(size_t i) {
+        return TypedIndex<uint32_t, 1>{array_interface}(i);
       });
   dh::caching_device_vector<bool> flag(1);
   auto d_flag = dh::ToSpan(flag);
   auto d = SetDeviceToPtr(array_interface.data);
   dh::LaunchN(1, [=] __device__(size_t) { d_flag[0] = true; });
-  dh::LaunchN(array_interface.num_rows - 1, [=] __device__(size_t i) {
-    if (array_interface.GetElement<uint32_t>(i, 0) >
-        array_interface.GetElement<uint32_t>(i + 1, 0)) {
+  dh::LaunchN(array_interface.Shape(0) - 1, [=] __device__(size_t i) {
+    auto typed = TypedIndex<uint32_t, 1>{array_interface};
+    if (typed(i) > typed(i + 1)) {
       d_flag[0] = false;
     }
   });
@@ -95,16 +92,16 @@ void CopyQidImpl(ArrayInterface array_interface,
                            cudaMemcpyDeviceToHost));
   CHECK(non_dec) << "`qid` must be sorted in increasing order along with data.";
   size_t bytes = 0;
-  dh::caching_device_vector<uint32_t> out(array_interface.num_rows);
-  dh::caching_device_vector<uint32_t> cnt(array_interface.num_rows);
+  dh::caching_device_vector<uint32_t> out(array_interface.Shape(0));
+  dh::caching_device_vector<uint32_t> cnt(array_interface.Shape(0));
   HostDeviceVector<int> d_num_runs_out(1, 0, d);
   cub::DeviceRunLengthEncode::Encode(
       nullptr, bytes, it, out.begin(), cnt.begin(),
-      d_num_runs_out.DevicePointer(), array_interface.num_rows);
+      d_num_runs_out.DevicePointer(), array_interface.Shape(0));
   dh::caching_device_vector<char> tmp(bytes);
   cub::DeviceRunLengthEncode::Encode(
       tmp.data().get(), bytes, it, out.begin(), cnt.begin(),
-      d_num_runs_out.DevicePointer(), array_interface.num_rows);
+      d_num_runs_out.DevicePointer(), array_interface.Shape(0));
 
   auto h_num_runs_out = d_num_runs_out.HostSpan()[0];
   group_ptr_.clear();
@@ -115,77 +112,56 @@ void CopyQidImpl(ArrayInterface array_interface,
   thrust::copy(cnt.begin(), cnt.begin() + h_num_runs_out,
                group_ptr_.begin() + 1);
 }
+}  // namespace
 
-namespace {
-// thrust::all_of tries to copy lambda function.
-struct LabelsCheck {
-  __device__ bool operator()(float y) { return ::isnan(y) || ::isinf(y); }
-};
-struct WeightsCheck {
-  __device__ bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }  // NOLINT
-};
-}  // anonymous namespace
-
-void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_);
-
-void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
-  Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
-  ArrayInterface array_interface(interface_str);
-  std::string key{c_key};
-
-  CHECK(!array_interface.valid.Data())
-      << "Meta info " << key << " should be dense, found validity mask";
-  if (array_interface.num_rows == 0) {
-    return;
-  }
-
+void MetaInfo::SetInfo(StringView key, std::string const& interface_str) {
+  Json array = Json::Load(StringView{interface_str});
+  // multi-dim float info
   if (key == "base_margin") {
-    CopyInfoImpl(array_interface, &base_margin_);
+    // FIXME(jiamingy): This is temporary until #7405 can be fully merged
+    linalg::Tensor<float, 3> t;
+    CopyTensorInfoImpl(array, &t);
+    base_margin_ = std::move(*t.Data());
     return;
   }
-
-  CHECK(array_interface.num_cols == 1 || array_interface.num_rows == 1)
-      << "MetaInfo: " << c_key << " has invalid shape";
-  if (!((array_interface.num_cols == 1 && array_interface.num_rows == 0) ||
-        (array_interface.num_cols == 0 && array_interface.num_rows == 1))) {
-    // Not an empty column, transform it.
-    array_interface.AsColumnVector();
-  }
-  if (key == "label") {
-    CopyInfoImpl(array_interface, &labels_);
-    auto ptr = labels_.ConstDevicePointer();
-    auto valid = thrust::none_of(thrust::device, ptr, ptr + labels_.Size(),
-                                 LabelsCheck{});
-    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
-  } else if (key == "weight") {
-    CopyInfoImpl(array_interface, &weights_);
-    auto ptr = weights_.ConstDevicePointer();
-    auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(),
-                                 WeightsCheck{});
-    CHECK(valid) << "Weights must be positive values.";
-  } else if (key == "group") {
+  // uint info
+  if (key == "group") {
+    auto array_interface{ArrayInterface<1>(array)};
     CopyGroupInfoImpl(array_interface, &group_ptr_);
-    ValidateQueryGroup(group_ptr_);
+    data::ValidateQueryGroup(group_ptr_);
     return;
   } else if (key == "qid") {
+    auto array_interface{ArrayInterface<1>(array)};
     CopyQidImpl(array_interface, &group_ptr_);
+    data::ValidateQueryGroup(group_ptr_);
     return;
+  }
+  // float info
+  linalg::Tensor<float, 1> t;
+  CopyTensorInfoImpl(array, &t);
+  if (key == "label") {
+    this->labels_ = std::move(*t.Data());
+    auto ptr = labels_.ConstDevicePointer();
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + labels_.Size(), data::LabelsCheck{});
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
+  } else if (key == "weight") {
+    this->weights_ = std::move(*t.Data());
+    auto ptr = weights_.ConstDevicePointer();
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(), data::WeightsCheck{});
+    CHECK(valid) << "Weights must be positive values.";
   } else if (key == "label_lower_bound") {
-    CopyInfoImpl(array_interface, &labels_lower_bound_);
-    return;
+    this->labels_lower_bound_ = std::move(*t.Data());
   } else if (key == "label_upper_bound") {
-    CopyInfoImpl(array_interface, &labels_upper_bound_);
-    return;
+    this->labels_upper_bound_ = std::move(*t.Data());
   } else if (key == "feature_weights") {
-    CopyInfoImpl(array_interface, &feature_weights);
+    this->feature_weights = std::move(*t.Data());
     auto d_feature_weights = feature_weights.ConstDeviceSpan();
-    auto valid = thrust::none_of(
-        thrust::device, d_feature_weights.data(),
-        d_feature_weights.data() + d_feature_weights.size(), WeightsCheck{});
+    auto valid =
+        thrust::none_of(thrust::device, d_feature_weights.data(),
+                        d_feature_weights.data() + d_feature_weights.size(), data::WeightsCheck{});
     CHECK(valid) << "Feature weight must be greater than 0.";
-    return;
   } else {
-    LOG(FATAL) << "Unknown metainfo: " << key;
+    LOG(FATAL) << "Unknown key for MetaInfo: " << key;
   }
 }
 
