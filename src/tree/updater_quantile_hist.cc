@@ -126,13 +126,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     int *num_leaves, std::vector<CPUExpandEntry> *expand) {
   CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
 
-  nodes_for_explicit_hist_build_.clear();
-  nodes_for_subtraction_trick_.clear();
-  nodes_for_explicit_hist_build_.push_back(node);
-
-  this->histogram_builder_->BuildHist(p_fmat, p_tree, row_set_collection_,
-                                      nodes_for_explicit_hist_build_,
-                                      nodes_for_subtraction_trick_, gpair_h);
+  this->histogram_builder_->BuildHist(p_fmat, p_tree, row_set_collection_, {node}, {}, gpair_h);
 
   {
     auto nid = RegTree::kRoot;
@@ -184,53 +178,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
 }
 
 template<typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
-          const std::vector<CPUExpandEntry>& expand,
-          RegTree *p_tree,
-          int *num_leaves,
-          std::vector<CPUExpandEntry>* nodes_for_apply_split) {
-  for (auto const& entry : expand) {
-    if (entry.IsValid(param_, *num_leaves)) {
-      nodes_for_apply_split->push_back(entry);
-      evaluator_->ApplyTreeSplit(entry, p_tree);
-      (*num_leaves)++;
-    }
-  }
-}
-
-// Split nodes to 2 sets depending on amount of rows in each node
-// Histograms for small nodes will be built explicitly
-// Histograms for big nodes will be built by 'Subtraction Trick'
-// Exception: in distributed setting, we always build the histogram for the left child node
-//    and use 'Subtraction Trick' to built the histogram for the right child node.
-//    This ensures that the workers operate on the same set of tree nodes.
-template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
-    const std::vector<CPUExpandEntry> &nodes_for_apply_split,
-    std::vector<CPUExpandEntry> *nodes_to_evaluate, RegTree *p_tree) {
-  builder_monitor_.Start("SplitSiblings");
-  for (auto const& entry : nodes_for_apply_split) {
-    int nid = entry.nid;
-
-    const int cleft = (*p_tree)[nid].LeftChild();
-    const int cright = (*p_tree)[nid].RightChild();
-    const CPUExpandEntry left_node = CPUExpandEntry(cleft, p_tree->GetDepth(cleft), 0.0);
-    const CPUExpandEntry right_node = CPUExpandEntry(cright, p_tree->GetDepth(cright), 0.0);
-    nodes_to_evaluate->push_back(left_node);
-    nodes_to_evaluate->push_back(right_node);
-    if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-      nodes_for_explicit_hist_build_.push_back(left_node);
-      nodes_for_subtraction_trick_.push_back(right_node);
-    } else {
-      nodes_for_explicit_hist_build_.push_back(right_node);
-      nodes_for_subtraction_trick_.push_back(left_node);
-    }
-  }
-  CHECK_EQ(nodes_for_subtraction_trick_.size(), nodes_for_explicit_hist_build_.size());
-  builder_monitor_.Stop("SplitSiblings");
-}
-
-template<typename GradientSumT>
 template <bool any_missing>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     const GHistIndexMatrix& gmat,
@@ -241,52 +188,63 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   builder_monitor_.Start("ExpandTree");
   int num_leaves = 0;
 
-  Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
-  std::vector<CPUExpandEntry> expand;
-  InitRoot<any_missing>(p_fmat, p_tree, gpair_h, &num_leaves, &expand);
-  driver.Push(expand[0]);
+  Driver<CPUExpandEntry> driver(param_);
+  std::vector<CPUExpandEntry> expand_set;
+  InitRoot<any_missing>(p_fmat, p_tree, gpair_h, &num_leaves, &expand_set);
+  driver.Push(expand_set[0]);
+  expand_set = driver.Pop();
 
-  int32_t depth = 0;
-  while (!driver.IsEmpty()) {
-    expand = driver.Pop();
-    depth = expand[0].depth + 1;
-    std::vector<CPUExpandEntry> nodes_for_apply_split;
-    std::vector<CPUExpandEntry> nodes_to_evaluate;
-    nodes_for_explicit_hist_build_.clear();
-    nodes_for_subtraction_trick_.clear();
+  std::vector<CPUExpandEntry> best_splits;
+  // candidates that can be further splited.
+  std::vector<CPUExpandEntry> valid_candidates;
+  // candidaates that can be applied.
+  std::vector<CPUExpandEntry> applied;
 
-    AddSplitsToTree(expand, p_tree, &num_leaves, &nodes_for_apply_split);
+  std::vector<CPUExpandEntry> nodes_to_build;
+  // subtraction trick.
+  std::vector<CPUExpandEntry> nodes_to_sub;
 
-    if (nodes_for_apply_split.size() != 0) {
-      ApplySplit<any_missing>(nodes_for_apply_split, gmat, column_matrix, p_tree);
-      SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
-
-      if (depth < param_.max_depth) {
-        this->histogram_builder_->BuildHist(
-            p_fmat, p_tree, row_set_collection_, nodes_for_explicit_hist_build_,
-            nodes_for_subtraction_trick_, gpair_h);
-      } else {
-        int starting_index = std::numeric_limits<int>::max();
-        int sync_count = 0;
-        this->histogram_builder_->AddHistRows(
-            &starting_index, &sync_count, nodes_for_explicit_hist_build_,
-            nodes_for_subtraction_trick_, p_tree);
+  while (!expand_set.empty()) {
+    int32_t depth = expand_set.front().depth + 1;
+    for (auto const& candidate : expand_set) {
+      if (!candidate.IsValid(param_, num_leaves)) {
+        continue;
       }
-
-      builder_monitor_.Start("EvaluateSplits");
-      auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-      evaluator_->EvaluateSplits(this->histogram_builder_->Histogram(),
-                                 gmat.cut, ft, *p_tree, &nodes_to_evaluate);
-      builder_monitor_.Stop("EvaluateSplits");
-
-      for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
-        CPUExpandEntry left_node = nodes_to_evaluate.at(i * 2 + 0);
-        CPUExpandEntry right_node = nodes_to_evaluate.at(i * 2 + 1);
-        driver.Push(left_node);
-        driver.Push(right_node);
+      evaluator_->ApplyTreeSplit(candidate, p_tree);
+      applied.push_back(candidate);
+      num_leaves++;
+      // int left_child_nidx = (*p_tree)[candidate.nid].LeftChild();
+      if (CPUExpandEntry::ChildIsValid(param_, depth, num_leaves)) {
+        valid_candidates.emplace_back(candidate);
       }
     }
+    this->ApplySplit<any_missing>(applied, gmat, column_matrix, p_tree);
+    applied.clear();
+
+    auto& tree = *p_tree;
+    if (!valid_candidates.empty()) {
+      this->BuildHistogram(p_fmat, p_tree, valid_candidates, &nodes_to_build, &nodes_to_sub,
+                           gpair_h);
+      for (auto const& candidate : valid_candidates) {
+        int left_child_nidx = tree[candidate.nid].LeftChild();
+        int right_child_nidx = tree[candidate.nid].RightChild();
+        CPUExpandEntry l_best{left_child_nidx, depth, 0.0};
+        CPUExpandEntry r_best{right_child_nidx, depth, 0.0};
+        best_splits.push_back(l_best);
+        best_splits.push_back(r_best);
+      }
+      auto const& histograms = histogram_builder_->Histogram();
+      auto ft = p_fmat->Info().feature_types.ConstHostSpan();
+      evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, &best_splits);
+    }
+    valid_candidates.clear();
+
+    driver.Push(best_splits.begin(), best_splits.end());
+
+    best_splits.clear();
+    expand_set = driver.Pop();
   }
+
   builder_monitor_.Stop("ExpandTree");
 }
 

@@ -38,7 +38,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
 
-  uint32_t max_cat_to_onehot{1};
+  bst_node_t max_greedy_nodes{1};
+
+  uint32_t max_cat_to_onehot{4};
 
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
@@ -123,6 +125,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
             "Tree growing policy. 0: favor splitting at nodes closest to the node, "
             "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
             "change. (cf. LightGBM)");
+    DMLC_DECLARE_FIELD(max_greedy_nodes)
+        .set_default(1)
+        .describe("Maximum number of nodes per iteration for loss guide grow policy.");
     DMLC_DECLARE_FIELD(max_cat_to_onehot)
         .set_default(4)
         .set_lower_bound(1)
