@@ -28,24 +28,24 @@ template <typename T, int32_t D>
 void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array(arr_interface);
   if (array.n == 0) {
+    p_out->SetDevice(0);
     return;
   }
   CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
   auto ptr_device = SetDeviceToPtr(array.data);
+  p_out->SetDevice(ptr_device);
 
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
     p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
       // set shape
       std::copy(array.shape, array.shape + D, shape.data());
       // set data
-      data->SetDevice(ptr_device);
       data->Resize(array.n);
       dh::safe_cuda(cudaMemcpyAsync(data->DevicePointer(), array.data, array.n * sizeof(T),
                                     cudaMemcpyDefault));
     });
     return;
   }
-  p_out->SetDevice(ptr_device);
   p_out->Reshape(array.shape);
   auto t = p_out->View(ptr_device);
   linalg::ElementWiseKernelDevice(t, [=] __device__(size_t i, T) {
