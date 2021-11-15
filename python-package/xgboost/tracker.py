@@ -162,7 +162,7 @@ class RabitTracker:
         n_workers: int,
         port: int = 9091,
         port_end: int = 9999,
-        use_logger: bool = True,
+        use_logger: bool = False,
     ) -> None:
         """A Python implementation of RABIT tracker.
 
@@ -407,16 +407,17 @@ def start_rabit_tracker(args: argparse.Namespace) -> None:
     ----------
     args: arguments to start the rabit tracker.
     """
-    envs = {'DMLC_NUM_WORKER': args.num_workers,
-            'DMLC_NUM_SERVER': args.num_servers}
-    rabit = RabitTracker(hostIP=get_host_ip(args.host_ip), n_workers=args.num_workers)
+    envs = {"DMLC_NUM_WORKER": args.num_workers, "DMLC_NUM_SERVER": args.num_servers}
+    rabit = RabitTracker(
+        hostIP=get_host_ip(args.host_ip), n_workers=args.num_workers, use_logger=True
+    )
     envs.update(rabit.worker_envs())
     rabit.start(args.num_workers)
-    sys.stdout.write('DMLC_TRACKER_ENV_START\n')
+    sys.stdout.write("DMLC_TRACKER_ENV_START\n")
     # simply write configuration to stdout
     for k, v in envs.items():
         sys.stdout.write(f"{k}={v}\n")
-    sys.stdout.write('DMLC_TRACKER_ENV_END\n')
+    sys.stdout.write("DMLC_TRACKER_ENV_END\n")
     sys.stdout.flush()
     rabit.join()
 
