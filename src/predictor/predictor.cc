@@ -79,12 +79,17 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
   if (generic_param_->gpu_id >= 0) {
     out_preds->SetDevice(generic_param_->gpu_id);
   }
-  out_preds->Resize(n);
   if (base_margin->Size() != 0) {
+    out_preds->Resize(n);
     ValidateBaseMarginShape(info.base_margin_, info.num_row_, n_classes);
     out_preds->Copy(*base_margin);
   } else {
-    out_preds->Fill(model.learner_model_param->base_score);
+    if (out_preds->Empty()) {
+      out_preds->Resize(n, model.learner_model_param->base_score);
+    } else {
+      out_preds->Resize(n);
+      out_preds->Fill(model.learner_model_param->base_score);
+    }
   }
 }
 }  // namespace xgboost
