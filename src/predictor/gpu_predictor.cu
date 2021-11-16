@@ -854,7 +854,7 @@ class GPUPredictor : public xgboost::Predictor {
           dh::tend(phis));
     }
     // Add the base margin term to last column
-    p_fmat->Info().base_margin_.Data()->SetDevice(generic_param_->gpu_id);
+    p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
     float base_score = model.learner_model_param->base_score;
     dh::LaunchN(
@@ -913,7 +913,7 @@ class GPUPredictor : public xgboost::Predictor {
           dh::tend(phis));
     }
     // Add the base margin term to last column
-    p_fmat->Info().base_margin_.Data()->SetDevice(generic_param_->gpu_id);
+    p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
     float base_score = model.learner_model_param->base_score;
     size_t n_features = model.learner_model_param->num_feature;
