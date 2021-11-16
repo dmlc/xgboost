@@ -228,7 +228,7 @@ if (grepl('Windows', Sys.info()[['sysname']]) ||
       X <- 10^runif(100, -20, 20)
       if (capabilities('long.double')) {
           X2X <- as.numeric(format(X, digits = 17))
-          expect_identical(X, X2X)
+          expect_equal(X, X2X, tolerance = float_tolerance)
       }
       # retrieved attributes to be the same as written
       for (x in X) {
