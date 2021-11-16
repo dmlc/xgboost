@@ -41,9 +41,10 @@ TEST(Adapter, CSRArrayAdapter) {
   HostDeviceVector<bst_feature_t> indices;
   size_t n_features = 100, n_samples = 10;
   RandomDataGenerator{n_samples, n_features, 0.5}.GenerateCSR(&values, &indptr, &indices);
-  auto indptr_arr = MakeArrayInterface(indptr.HostPointer(), indptr.Size());
-  auto values_arr = MakeArrayInterface(values.HostPointer(), values.Size());
-  auto indices_arr = MakeArrayInterface(indices.HostPointer(), indices.Size());
+  using linalg::MakeVec;
+  auto indptr_arr = MakeVec(indptr.HostPointer(), indptr.Size()).ArrayInterfaceStr();
+  auto values_arr = MakeVec(values.HostPointer(), values.Size()).ArrayInterfaceStr();
+  auto indices_arr = MakeVec(indices.HostPointer(), indices.Size()).ArrayInterfaceStr();
   auto adapter = data::CSRArrayAdapter(
       StringView{indptr_arr.c_str(), indptr_arr.size()},
       StringView{values_arr.c_str(), values_arr.size()},

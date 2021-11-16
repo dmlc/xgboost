@@ -103,9 +103,9 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
 
     auto j_interface =
         Json::Load({interface_str.c_str(), interface_str.size()});
-    ArrayInterface loaded {get<Object const>(j_interface)};
+    ArrayInterface<2> loaded {get<Object const>(j_interface)};
     std::vector<float> h_data(cols * rows);
-    common::Span<float> s_data{static_cast<float*>(loaded.data), cols * rows};
+    common::Span<float const> s_data{static_cast<float const*>(loaded.data), cols * rows};
     dh::CopyDeviceSpanToVector(&h_data, s_data);
 
     for(auto i = 0ull; i < rows * cols; i++) {
@@ -128,9 +128,9 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   std::string interface_str = iter.AsArray();
   auto j_interface =
       Json::Load({interface_str.c_str(), interface_str.size()});
-  ArrayInterface loaded {get<Object const>(j_interface)};
+  ArrayInterface<2> loaded {get<Object const>(j_interface)};
   std::vector<float> h_data(cols * rows);
-  common::Span<float> s_data{static_cast<float*>(loaded.data), cols * rows};
+  common::Span<float const> s_data{static_cast<float const*>(loaded.data), cols * rows};
   dh::CopyDeviceSpanToVector(&h_data, s_data);
   h_data[1] = kMissing;
   h_data[5] = kMissing;

@@ -1,4 +1,4 @@
-/*! Copyright 2019 by Contributors */
+/*! Copyright 2019-2021 by XGBoost Contributors */
 
 #include <gtest/gtest.h>
 #include <xgboost/data.h>

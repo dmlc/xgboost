@@ -136,7 +136,7 @@ inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
 }
 #endif
 
-inline int32_t CudaGetPointerDevice(void* ptr) {
+inline int32_t CudaGetPointerDevice(void const *ptr) {
   int32_t device = -1;
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));

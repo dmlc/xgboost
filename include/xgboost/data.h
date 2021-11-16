@@ -11,12 +11,14 @@
 #include <dmlc/data.h>
 #include <dmlc/serializer.h>
 #include <xgboost/base.h>
-#include <xgboost/span.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/linalg.h>
+#include <xgboost/span.h>
+#include <xgboost/string_view.h>
 
+#include <algorithm>
 #include <memory>
 #include <numeric>
-#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -157,7 +159,7 @@ class MetaInfo {
    *
    *        Right now only 1 column is permitted.
    */
-  void SetInfo(const char* key, std::string const& interface_str);
+  void SetInfo(StringView key, std::string const& interface_str);
 
   void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                const void** out_dptr) const;

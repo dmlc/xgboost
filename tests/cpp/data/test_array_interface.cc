@@ -11,21 +11,22 @@ TEST(ArrayInterface, Initialize) {
   size_t constexpr kRows = 10, kCols = 10;
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
-  auto arr_interface = ArrayInterface(array);
-  ASSERT_EQ(arr_interface.num_rows, kRows);
-  ASSERT_EQ(arr_interface.num_cols, kCols);
+  auto arr_interface = ArrayInterface<2>(StringView{array});
+  ASSERT_EQ(arr_interface.Shape(0), kRows);
+  ASSERT_EQ(arr_interface.Shape(1), kCols);
   ASSERT_EQ(arr_interface.data, storage.ConstHostPointer());
   ASSERT_EQ(arr_interface.ElementSize(), 4);
-  ASSERT_EQ(arr_interface.type, ArrayInterface::kF4);
+  ASSERT_EQ(arr_interface.type, ArrayInterfaceHandler::kF4);
 
   HostDeviceVector<size_t> u64_storage(storage.Size());
-  std::string u64_arr_str;
-  Json::Dump(GetArrayInterface(&u64_storage, kRows, kCols), &u64_arr_str);
+  std::string u64_arr_str{linalg::TensorView<size_t const, 2>{
+      u64_storage.ConstHostSpan(), {kRows, kCols}, GenericParameter::kCpuId}
+                              .ArrayInterfaceStr()};
   std::copy(storage.ConstHostVector().cbegin(), storage.ConstHostVector().cend(),
             u64_storage.HostSpan().begin());
-  auto u64_arr = ArrayInterface{u64_arr_str};
+  auto u64_arr = ArrayInterface<2>{u64_arr_str};
   ASSERT_EQ(u64_arr.ElementSize(), 8);
-  ASSERT_EQ(u64_arr.type, ArrayInterface::kU8);
+  ASSERT_EQ(u64_arr.type, ArrayInterfaceHandler::kU8);
 }
 
 TEST(ArrayInterface, Error) {
@@ -38,23 +39,22 @@ TEST(ArrayInterface, Error) {
         Json(Boolean(false))};
 
   auto const& column_obj = get<Object>(column);
-  std::pair<size_t, size_t> shape{kRows, kCols};
   std::string typestr{"<f4"};
+  size_t n = kRows * kCols;
 
   // missing version
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
-               dmlc::Error);
-  column["version"] = Integer(static_cast<Integer::Int>(1));
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
+  column["version"] = 3;
   // missing data
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
   column["data"] = j_data;
   // missing typestr
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
   column["typestr"] = String("<f4");
   // nullptr is not valid
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
 
   HostDeviceVector<float> storage;
@@ -63,22 +63,52 @@ TEST(ArrayInterface, Error) {
       Json(Integer(reinterpret_cast<Integer::Int>(storage.ConstHostPointer()))),
       Json(Boolean(false))};
   column["data"] = j_data;
-  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape));
+  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n));
 }
 
 TEST(ArrayInterface, GetElement) {
   size_t kRows = 4, kCols = 2;
   HostDeviceVector<float> storage;
   auto intefrace_str = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
-  ArrayInterface array_interface{intefrace_str};
+  ArrayInterface<2> array_interface{intefrace_str};
 
   auto const& h_storage = storage.ConstHostVector();
   for (size_t i = 0; i < kRows; ++i) {
     for (size_t j = 0; j < kCols; ++j) {
-      float v0 = array_interface.GetElement(i, j);
+      float v0 = array_interface(i, j);
       float v1 = h_storage.at(i * kCols + j);
       ASSERT_EQ(v0, v1);
     }
   }
+}
+
+TEST(ArrayInterface, TrivialDim) {
+  size_t kRows{1000}, kCols = 1;
+  HostDeviceVector<float> storage;
+  auto interface_str = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
+  {
+    ArrayInterface<1> arr_i{interface_str};
+    ASSERT_EQ(arr_i.n, kRows);
+    ASSERT_EQ(arr_i.Shape(0), kRows);
+  }
+
+  std::swap(kRows, kCols);
+  interface_str = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
+  {
+    ArrayInterface<1> arr_i{interface_str};
+    ASSERT_EQ(arr_i.n, kCols);
+    ASSERT_EQ(arr_i.Shape(0), kCols);
+  }
+}
+
+TEST(ArrayInterface, ToDType) {
+  static_assert(ToDType<float>::kType == ArrayInterfaceHandler::kF4, "");
+  static_assert(ToDType<double>::kType == ArrayInterfaceHandler::kF8, "");
+
+  static_assert(ToDType<uint32_t>::kType == ArrayInterfaceHandler::kU4, "");
+  static_assert(ToDType<uint64_t>::kType == ArrayInterfaceHandler::kU8, "");
+
+  static_assert(ToDType<int32_t>::kType == ArrayInterfaceHandler::kI4, "");
+  static_assert(ToDType<int64_t>::kType == ArrayInterfaceHandler::kI8, "");
 }
 }  // namespace xgboost

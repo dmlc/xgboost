@@ -12,6 +12,7 @@
 #include "dmlc/data.h"
 #include "xgboost/c_api.h"
 #include "xgboost/json.h"
+#include "xgboost/linalg.h"
 #include "array_interface.h"
 
 namespace xgboost {
@@ -58,16 +59,14 @@ class FileIterator {
     CHECK(parser_);
     if (parser_->Next()) {
       row_block_ = parser_->Value();
+      using linalg::MakeVec;
 
-      indptr_ = MakeArrayInterface(row_block_.offset, row_block_.size + 1);
-      values_ = MakeArrayInterface(row_block_.value,
-                                   row_block_.offset[row_block_.size]);
-      indices_ = MakeArrayInterface(row_block_.index,
-                                    row_block_.offset[row_block_.size]);
+      indptr_ = MakeVec(row_block_.offset, row_block_.size + 1).ArrayInterfaceStr();
+      values_ = MakeVec(row_block_.value, row_block_.offset[row_block_.size]).ArrayInterfaceStr();
+      indices_ = MakeVec(row_block_.index, row_block_.offset[row_block_.size]).ArrayInterfaceStr();
 
-      size_t n_columns = *std::max_element(
-          row_block_.index,
-          row_block_.index + row_block_.offset[row_block_.size]);
+      size_t n_columns = *std::max_element(row_block_.index,
+                                           row_block_.index + row_block_.offset[row_block_.size]);
       // dmlc parser converts 1-based indexing back to 0-based indexing so we can ignore
       // this condition and just add 1 to n_columns
       n_columns += 1;

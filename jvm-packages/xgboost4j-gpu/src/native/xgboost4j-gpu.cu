@@ -35,13 +35,12 @@ template <typename T> T CheckJvmCall(T const &v, JNIEnv *jenv) {
 }
 
 template <typename VCont>
-void CopyColumnMask(xgboost::ArrayInterface const &interface,
+void CopyColumnMask(xgboost::ArrayInterface<1> const &interface,
                     std::vector<Json> const &columns, cudaMemcpyKind kind,
                     size_t c, VCont *p_mask, Json *p_out, cudaStream_t stream) {
   auto &mask = *p_mask;
   auto &out = *p_out;
-  auto size = sizeof(typename VCont::value_type) * interface.num_rows *
-              interface.num_cols;
+  auto size = sizeof(typename VCont::value_type) * interface.n;
   mask.resize(size);
   CHECK(RawPtr(mask));
   CHECK(size);
@@ -67,11 +66,11 @@ void CopyColumnMask(xgboost::ArrayInterface const &interface,
     LOG(FATAL) << "Invalid shape of mask";
   }
   out["mask"]["typestr"] = String("<t1");
-  out["mask"]["version"] = Integer(1);
+  out["mask"]["version"] = Integer(3);
 }
 
 template <typename DCont, typename VCont>
-void CopyInterface(std::vector<xgboost::ArrayInterface> &interface_arr,
+void CopyInterface(std::vector<xgboost::ArrayInterface<1>> &interface_arr,
                    std::vector<Json> const &columns, cudaMemcpyKind kind,
                    std::vector<DCont> *p_data, std::vector<VCont> *p_mask,
                    std::vector<xgboost::Json> *p_out, cudaStream_t stream) {
@@ -81,7 +80,7 @@ void CopyInterface(std::vector<xgboost::ArrayInterface> &interface_arr,
   for (size_t c = 0; c < interface_arr.size(); ++c) {
     auto &interface = interface_arr.at(c);
     size_t element_size = interface.ElementSize();
-    size_t size = element_size * interface.num_rows * interface.num_cols;
+    size_t size = element_size * interface.n;
 
     auto &data = (*p_data)[c];
     auto &mask = (*p_mask)[c];
@@ -95,14 +94,13 @@ void CopyInterface(std::vector<xgboost::ArrayInterface> &interface_arr,
         Json{Boolean{false}}};
 
     out["data"] = Array(std::move(j_data));
-    out["shape"] = Array(std::vector<Json>{Json(Integer(interface.num_rows)),
-                                           Json(Integer(interface.num_cols))});
+    out["shape"] = Array(std::vector<Json>{Json(Integer(interface.Shape(0)))});
 
     if (interface.valid.Data()) {
       CopyColumnMask(interface, columns, kind, c, &mask, &out, stream);
     }
     out["typestr"] = String("<f4");
-    out["version"] = Integer(1);
+    out["version"] = Integer(3);
   }
 }
 
@@ -110,10 +108,10 @@ void CopyMetaInfo(Json *p_interface, dh::device_vector<float> *out, cudaStream_t
   auto &j_interface = *p_interface;
   CHECK_EQ(get<Array const>(j_interface).size(), 1);
   auto object = get<Object>(get<Array>(j_interface)[0]);
-  ArrayInterface interface(object);
-  out->resize(interface.num_rows);
+  ArrayInterface<1> interface(object);
+  out->resize(interface.Shape(0));
   size_t element_size = interface.ElementSize();
-  size_t size = element_size * interface.num_rows;
+  size_t size = element_size * interface.n;
   dh::safe_cuda(cudaMemcpyAsync(RawPtr(*out), interface.data, size,
                                 cudaMemcpyDeviceToDevice, stream));
   j_interface[0]["data"][0] = reinterpret_cast<Integer::Int>(RawPtr(*out));
@@ -285,11 +283,11 @@ class DataIteratorProxy {
 
     Json features = json_interface["features_str"];
     auto json_columns = get<Array const>(features);
-    std::vector<ArrayInterface> interfaces;
+    std::vector<ArrayInterface<1>> interfaces;
 
     // Stage the data
     for (auto &json_col : json_columns) {
-      auto column = ArrayInterface(get<Object const>(json_col));
+      auto column = ArrayInterface<1>(get<Object const>(json_col));
       interfaces.emplace_back(column);
     }
     Json::Dump(features, &interface_str);
@@ -342,9 +340,9 @@ class DataIteratorProxy {
     // Data
     auto const &json_interface = host_columns_.at(it_)->interfaces;
 
-    std::vector<ArrayInterface> in;
+    std::vector<ArrayInterface<1>> in;
     for (auto interface : json_interface) {
-      auto column = ArrayInterface(get<Object const>(interface));
+      auto column = ArrayInterface<1>(get<Object const>(interface));
       in.emplace_back(column);
     }
     std::vector<Json> out;
