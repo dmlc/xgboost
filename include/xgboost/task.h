@@ -33,7 +33,7 @@ struct ObjInfo {
   bool const_hess{false};
 
   explicit ObjInfo(Task t) : task{t} {}
-  ObjInfo(Task t, bool khess) : const_hess{khess} {}
+  ObjInfo(Task t, bool khess) : task{t}, const_hess{khess} {}
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_
