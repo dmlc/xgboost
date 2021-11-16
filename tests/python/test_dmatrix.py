@@ -30,6 +30,7 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
         xgb.train({"tree_method": tm}, Xy)
 
     if not hasattr(X, "iloc"):
+        # column major matrix
         got = DType(Xy.get_base_margin().reshape(50, 2))
         assert (got == base_margin).all()
 
@@ -38,6 +39,20 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
         Xy.set_info(base_margin=base_margin.T)
         got = DType(Xy.get_base_margin().reshape(2, 50))
         assert (got == base_margin.T).all()
+
+        # Row vs col vec.
+        base_margin = y
+        Xy.set_base_margin(base_margin)
+        bm_col = Xy.get_base_margin()
+        Xy.set_base_margin(base_margin.reshape(1, base_margin.size))
+        bm_row = Xy.get_base_margin()
+        assert (bm_row == bm_col).all()
+
+        # type
+        base_margin = base_margin.astype(np.float64)
+        Xy.set_base_margin(base_margin)
+        bm_f64 = Xy.get_base_margin()
+        assert (bm_f64 == bm_col).all()
 
 
 class TestDMatrix:
