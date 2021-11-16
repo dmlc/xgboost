@@ -54,6 +54,11 @@ def set_base_margin_info(DType, DMatrixT, tm: str):
         bm_f64 = Xy.get_base_margin()
         assert (bm_f64 == bm_col).all()
 
+        # too many dimensions
+        base_margin = X.reshape(2, 5, 2, 5)
+        with pytest.raises(ValueError, match=r".*base_margin.*"):
+            Xy.set_base_margin(base_margin)
+
 
 class TestDMatrix:
     def test_warn_missing(self):
