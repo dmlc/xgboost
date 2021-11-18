@@ -9,6 +9,8 @@
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
 
+#include <ostream>
+
 namespace xgboost {
 
 void CompareJSON(Json l, Json r) {
@@ -18,7 +20,7 @@ void CompareJSON(Json l, Json r) {
     break;
   }
   case Value::ValueKind::kNumber: {
-    ASSERT_NEAR(get<Number>(l), get<Number>(r), kRtEps);
+    ASSERT_EQ(get<Number>(l), get<Number>(r));
     break;
   }
   case Value::ValueKind::kInteger: {
@@ -149,6 +151,10 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 
     Json m_0 = Json::Load(StringView{continued_model.c_str(), continued_model.size()});
     Json m_1 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
+    std::ofstream fout("model_0.json");
+    fout << m_0;
+    std::ofstream f1("model_1.json");
+    f1 << m_1;
     CompareJSON(m_0, m_1);
   }
 
@@ -620,6 +626,9 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             // different result (1e-7) with CPU predictor for some
                             // entries.
                             {"predictor", "gpu_predictor"},
+                            // Mitigate the difference caused by hardware fused multiple
+                            // add to tree weight during update prediction cache.
+                            {"learning_rate", "1.0"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 
@@ -630,7 +639,8 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"max_depth", std::to_string(kClasses)},
                             // GPU_Hist has higher floating point error. 1e-6 doesn't work
                             // after num_parallel_tree goes to 4
-                            {"num_parallel_tree", "3"},
+                            {"num_parallel_tree", "4"},
+                            {"learning_rate", "1.0"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 
@@ -638,6 +648,7 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"learning_rate", "1.0"},
                             {"max_depth", std::to_string(kClasses)},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
