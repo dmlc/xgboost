@@ -18,7 +18,7 @@ void CompareJSON(Json l, Json r) {
     break;
   }
   case Value::ValueKind::kNumber: {
-    ASSERT_EQ(get<Number>(l), get<Number>(r));
+    ASSERT_NEAR(get<Number>(l), get<Number>(r), kRtEps);
     break;
   }
   case Value::ValueKind::kInteger: {
@@ -149,10 +149,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 
     Json m_0 = Json::Load(StringView{continued_model.c_str(), continued_model.size()});
     Json m_1 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
-    std::ofstream fout("model_0.json");
-    fout << m_0;
-    std::ofstream f1("model_1.json");
-    f1 << m_1;
+
     CompareJSON(m_0, m_1);
   }
 
