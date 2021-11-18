@@ -9,8 +9,6 @@
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
 
-#include <ostream>
-
 namespace xgboost {
 
 void CompareJSON(Json l, Json r) {
