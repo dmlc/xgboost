@@ -621,7 +621,7 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             // different result (1e-7) with CPU predictor for some
                             // entries.
                             {"predictor", "gpu_predictor"},
-                            // Mitigate the difference caused by hardware fused multiple
+                            // Mitigate the difference caused by hardware fused multiply
                             // add to tree weight during update prediction cache.
                             {"learning_rate", "1.0"},
                             {"tree_method", "gpu_hist"}},
