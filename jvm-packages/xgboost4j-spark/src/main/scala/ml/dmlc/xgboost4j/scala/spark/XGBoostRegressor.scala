@@ -16,25 +16,19 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.{AbstractIterator, Iterator, mutable}
-import scala.collection.JavaConverters._
+import scala.collection.{Iterator, mutable}
 
-import ml.dmlc.xgboost4j.java.Rabit
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.hadoop.fs.Path
 
-import org.apache.spark.TaskContext
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.ml.util._
 import org.apache.spark.ml._
 import org.apache.spark.ml.param._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
 import org.json4s.DefaultFormats
 
 import org.apache.spark.broadcast.Broadcast
@@ -257,71 +251,7 @@ class XGBoostRegressionModel private[ml] (
     _booster.predict(data = dm)(0)(0)
   }
 
-  private def transformInternal(dataset: Dataset[_]): DataFrame = {
-
-    val schema = StructType(dataset.schema.fields ++
-      Seq(StructField(name = _originalPredictionCol, dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false)))
-
-    val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
-    val appName = dataset.sparkSession.sparkContext.appName
-
-    val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
-      new AbstractIterator[Row] {
-        private var batchCnt = 0
-
-        private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
-          if (batchCnt == 0) {
-            val rabitEnv = Array(
-              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
-            Rabit.init(rabitEnv.asJava)
-          }
-
-          val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))
-
-          import DataUtils._
-          val cacheInfo = {
-            if ($(useExternalMemory)) {
-              s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
-                s"${TaskContext.getPartitionId()}-batch-$batchCnt"
-            } else {
-              null
-            }
-          }
-
-          val dm = new DMatrix(
-            processMissingValues(
-              features.map(_.asXGB),
-              $(missing),
-              $(allowNonZeroForMissing)
-            ),
-            cacheInfo)
-          try {
-            val Array(rawPredictionItr, predLeafItr, predContribItr) =
-              producePredictionItrs(bBooster, dm)
-            produceResultIterator(batchRow.iterator, rawPredictionItr, predLeafItr, predContribItr)
-          } finally {
-            batchCnt += 1
-            dm.delete()
-          }
-        }
-
-        override def hasNext: Boolean = batchIterImpl.hasNext
-
-        override def next(): Row = {
-          val ret = batchIterImpl.next()
-          if (!batchIterImpl.hasNext) {
-            Rabit.shutdown()
-          }
-          ret
-        }
-      }
-    }
-    bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
-  }
-
-  private def produceResultIterator(
+  private[spark] def produceResultIterator(
       originalRowItr: Iterator[Row],
       predictionItr: Iterator[Row],
       predLeafItr: Iterator[Row],
@@ -353,20 +283,7 @@ class XGBoostRegressionModel private[ml] (
     }
   }
 
-  private def generateResultSchema(fixedSchema: StructType): StructType = {
-    var resultSchema = fixedSchema
-    if (isDefined(leafPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
-    }
-    if (isDefined(contribPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
-    }
-    resultSchema
-  }
-
-  private def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
+  private[spark] def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
       Array[Iterator[Row]] = {
     val originalPredictionItr = {
       booster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
@@ -394,7 +311,7 @@ class XGBoostRegressionModel private[ml] (
     transformSchema(dataset.schema, logging = true)
     // Output selected columns only.
     // This is a bit complicated since it tries to avoid repeated computation.
-    var outputData = transformInternal(dataset)
+    var outputData = PreXGBoost.transformDataFrame(this, dataset)
     var numColsOutput = 0
 
     val predictUDF = udf { (originalPrediction: mutable.WrappedArray[Float]) =>
@@ -425,7 +342,7 @@ class XGBoostRegressionModel private[ml] (
 
 object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
 
-  private val _originalPredictionCol = "_originalPrediction"
+  private[spark] val _originalPredictionCol = "_originalPrediction"
 
   override def read: MLReader[XGBoostRegressionModel] = new XGBoostRegressionModelReader
 
