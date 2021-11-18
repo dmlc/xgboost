@@ -282,27 +282,6 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void InitOutPredictions(const MetaInfo& info,
-                          HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const override {
-    CHECK_NE(model.learner_model_param->num_output_group, 0);
-    size_t n = model.learner_model_param->num_output_group * info.num_row_;
-    const auto& base_margin = info.base_margin_.HostVector();
-    out_preds->Resize(n);
-    std::vector<bst_float>& out_preds_h = out_preds->HostVector();
-    if (base_margin.empty()) {
-      std::fill(out_preds_h.begin(), out_preds_h.end(),
-                model.learner_model_param->base_score);
-    } else {
-      std::string expected{
-          "(" + std::to_string(info.num_row_) + ", " +
-          std::to_string(model.learner_model_param->num_output_group) + ")"};
-      CHECK_EQ(base_margin.size(), n)
-          << "Invalid shape of base_margin. Expected:" << expected;
-      std::copy(base_margin.begin(), base_margin.end(), out_preds_h.begin());
-    }
-  }
-
  public:
   explicit CPUPredictor(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {}
@@ -456,7 +435,7 @@ class CPUPredictor : public Predictor {
     common::ParallelFor(bst_omp_uint(ntree_limit), [&](bst_omp_uint i) {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
-    const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
+    auto base_margin = info.base_margin_.View(GenericParameter::kCpuId);
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
@@ -496,8 +475,9 @@ class CPUPredictor : public Predictor {
           }
           feats.Drop(page[i]);
           // add base margin to BIAS
-          if (base_margin.size() != 0) {
-            p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
+          if (base_margin.Size() != 0) {
+            CHECK_EQ(base_margin.Shape(1), ngroup);
+            p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
           } else {
             p_contribs[ncolumns - 1] += model.learner_model_param->base_score;
           }

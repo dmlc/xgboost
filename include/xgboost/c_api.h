@@ -249,7 +249,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
                                                   char const* json_config,
                                                   DMatrixHandle *out);
 
-/*
+/**
  * ========================== Begin data callback APIs =========================
  *
  * Short notes for data callback
@@ -258,9 +258,9 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
  * used by JVM packages.  It uses `XGBoostBatchCSR` to accept batches for CSR formated
  * input, and concatenate them into 1 final big CSR.  The related functions are:
  *
- * - XGBCallbackSetData
- * - XGBCallbackDataIterNext
- * - XGDMatrixCreateFromDataIter
+ * - \ref XGBCallbackSetData
+ * - \ref XGBCallbackDataIterNext
+ * - \ref XGDMatrixCreateFromDataIter
  *
  * Another set is used by external data iterator. It accept foreign data iterators as
  * callbacks.  There are 2 different senarios where users might want to pass in callbacks
@@ -276,17 +276,17 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
  * Related functions are:
  *
  * # Factory functions
- * - `XGDMatrixCreateFromCallback` for external memory
- * - `XGDeviceQuantileDMatrixCreateFromCallback` for quantile DMatrix
+ * - \ref XGDMatrixCreateFromCallback for external memory
+ * - \ref XGDeviceQuantileDMatrixCreateFromCallback for quantile DMatrix
  *
  * # Proxy that callers can use to pass data to XGBoost
- * - XGProxyDMatrixCreate
- * - XGDMatrixCallbackNext
- * - DataIterResetCallback
- * - XGProxyDMatrixSetDataCudaArrayInterface
- * - XGProxyDMatrixSetDataCudaColumnar
- * - XGProxyDMatrixSetDataDense
- * - XGProxyDMatrixSetDataCSR
+ * - \ref XGProxyDMatrixCreate
+ * - \ref XGDMatrixCallbackNext
+ * - \ref DataIterResetCallback
+ * - \ref XGProxyDMatrixSetDataCudaArrayInterface
+ * - \ref XGProxyDMatrixSetDataCudaColumnar
+ * - \ref XGProxyDMatrixSetDataDense
+ * - \ref XGProxyDMatrixSetDataCSR
  * - ... (data setters)
  */
 
@@ -411,7 +411,7 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *
- * \param out      The created external memory DMatrix
+ * \param[out] out      The created external memory DMatrix
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -605,7 +605,8 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
  *   char const* feat_names [] {"feat_0", "feat_1"};
  *   XGDMatrixSetStrFeatureInfo(handle, "feature_name", feat_names, 2);
  *
- *   // i for integer, q for quantitive.  Similarly "int" and "float" are also recognized.
+ *   // i for integer, q for quantitive, c for categorical.  Similarly "int" and "float"
+ *   // are also recognized.
  *   char const* feat_types [] {"i", "q"};
  *   XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, 2);
  *

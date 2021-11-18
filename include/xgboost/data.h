@@ -47,7 +47,7 @@ enum class FeatureType : uint8_t {
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 11;
+  static constexpr uint64_t kNumField = 12;
 
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};  // NOLINT
@@ -69,7 +69,7 @@ class MetaInfo {
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  HostDeviceVector<bst_float> base_margin_;  // NOLINT
+  linalg::Tensor<float, 3> base_margin_;  // NOLINT
   /*!
    * \brief lower bound of the label, to be used for survival analysis (censored regression)
    */
@@ -154,12 +154,8 @@ class MetaInfo {
    * \brief Set information in the meta info with array interface.
    * \param key The key of the information.
    * \param interface_str String representation of json format array interface.
-   *
-   *          [ column_0, column_1, ... column_n ]
-   *
-   *        Right now only 1 column is permitted.
    */
-  void SetInfo(StringView key, std::string const& interface_str);
+  void SetInfo(StringView key, StringView interface_str);
 
   void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                const void** out_dptr) const;
@@ -181,6 +177,9 @@ class MetaInfo {
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
  private:
+  void SetInfoFromHost(StringView key, Json arr);
+  void SetInfoFromCUDA(StringView key, Json arr);
+
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
 };
@@ -479,7 +478,7 @@ class DMatrix {
     this->Info().SetInfo(key, dptr, dtype, num);
   }
   virtual void SetInfo(const char* key, std::string const& interface_str) {
-    this->Info().SetInfo(key, interface_str);
+    this->Info().SetInfo(key, StringView{interface_str});
   }
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;

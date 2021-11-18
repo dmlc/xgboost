@@ -253,8 +253,8 @@ TEST(SimpleDMatrix, Slice) {
   std::iota(lower.begin(), lower.end(), 0.0f);
   std::iota(upper.begin(), upper.end(), 1.0f);
 
-  auto& margin = p_m->Info().base_margin_.HostVector();
-  margin.resize(kRows * kClasses);
+  auto& margin = p_m->Info().base_margin_;
+  margin = linalg::Tensor<float, 3>{{kRows, kClasses}, GenericParameter::kCpuId};
 
   std::array<int32_t, 3> ridxs {1, 3, 5};
   std::unique_ptr<DMatrix> out { p_m->Slice(ridxs) };
@@ -284,10 +284,10 @@ TEST(SimpleDMatrix, Slice) {
         ASSERT_EQ(p_m->Info().weights_.HostVector().at(ridx),
                   out->Info().weights_.HostVector().at(i));
 
-        auto& out_margin = out->Info().base_margin_.HostVector();
+        auto out_margin = out->Info().base_margin_.View(GenericParameter::kCpuId);
+        auto in_margin = margin.View(GenericParameter::kCpuId);
         for (size_t j = 0; j < kClasses; ++j) {
-          auto in_beg = ridx * kClasses;
-          ASSERT_EQ(out_margin.at(i * kClasses + j), margin.at(in_beg + j));
+          ASSERT_EQ(out_margin(i, j), in_margin(ridx, j));
         }
       }
     }

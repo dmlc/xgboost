@@ -1,4 +1,6 @@
-// Copyright 2016-2020 by Contributors
+// Copyright 2016-2021 by Contributors
+#include "test_metainfo.h"
+
 #include <dmlc/io.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/data.h>
@@ -122,7 +124,10 @@ TEST(MetaInfo, SaveLoadBinary) {
     EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
     EXPECT_EQ(inforead.group_ptr_, info.group_ptr_);
     EXPECT_EQ(inforead.weights_.HostVector(), info.weights_.HostVector());
-    EXPECT_EQ(inforead.base_margin_.HostVector(), info.base_margin_.HostVector());
+
+    auto orig_margin = info.base_margin_.View(xgboost::GenericParameter::kCpuId);
+    auto read_margin = inforead.base_margin_.View(xgboost::GenericParameter::kCpuId);
+    EXPECT_TRUE(std::equal(orig_margin.cbegin(), orig_margin.cend(), read_margin.cbegin()));
 
     EXPECT_EQ(inforead.feature_type_names.size(), kCols);
     EXPECT_EQ(inforead.feature_types.Size(), kCols);
@@ -254,10 +259,10 @@ TEST(MetaInfo, Validate) {
   xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};
   d_groups.SetDevice(0);
   d_groups.DevicePointer();  // pull to device
-  auto arr_interface = xgboost::GetArrayInterface(&d_groups, 64, 1);
-  std::string arr_interface_str;
-  xgboost::Json::Dump(arr_interface, &arr_interface_str);
-  EXPECT_THROW(info.SetInfo("group", arr_interface_str), dmlc::Error);
+  std::string arr_interface_str{
+      xgboost::linalg::MakeVec(d_groups.ConstDevicePointer(), d_groups.Size(), 0)
+          .ArrayInterfaceStr()};
+  EXPECT_THROW(info.SetInfo("group", xgboost::StringView{arr_interface_str}), dmlc::Error);
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
@@ -292,3 +297,7 @@ TEST(MetaInfo, HostExtend) {
     ASSERT_EQ(lhs.group_ptr_.at(i), per_group * i);
   }
 }
+
+namespace xgboost {
+TEST(MetaInfo, CPUStridedData) { TestMetaInfoStridedData(GenericParameter::kCpuId); }
+}  // namespace xgboost

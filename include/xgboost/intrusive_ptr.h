@@ -19,7 +19,7 @@ namespace xgboost {
  */
 class IntrusivePtrCell {
  private:
-  std::atomic<int32_t> count_;
+  std::atomic<int32_t> count_ {0};
   template <typename T> friend class IntrusivePtr;
 
   std::int32_t IncRef() noexcept {
@@ -31,7 +31,7 @@ class IntrusivePtrCell {
   bool IsZero() const { return Count() == 0; }
 
  public:
-  IntrusivePtrCell() noexcept : count_{0} {}
+  IntrusivePtrCell() noexcept = default;
   int32_t Count() const { return count_.load(std::memory_order_relaxed); }
 };
 

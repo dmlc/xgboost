@@ -188,6 +188,7 @@ Json GetArrayInterface(HostDeviceVector<T> *storage, size_t rows, size_t cols) {
   if (storage->DeviceCanRead()) {
     array_interface["data"][0] =
         Integer(reinterpret_cast<int64_t>(storage->ConstDevicePointer()));
+    array_interface["stream"] = nullptr;
   } else {
     array_interface["data"][0] =
         Integer(reinterpret_cast<int64_t>(storage->ConstHostPointer()));
@@ -200,7 +201,7 @@ Json GetArrayInterface(HostDeviceVector<T> *storage, size_t rows, size_t cols) {
 
   char t = linalg::detail::ArrayInterfaceHandler::TypeChar<T>();
   array_interface["typestr"] = String(std::string{"<"} + t + std::to_string(sizeof(T)));
-  array_interface["version"] = 1;
+  array_interface["version"] = 3;
   return array_interface;
 }
 

@@ -5,7 +5,7 @@ import ctypes
 import json
 import warnings
 import os
-from typing import Any, Tuple, Callable, Optional, List
+from typing import Any, Tuple, Callable, Optional, List, Union
 
 import numpy as np
 
@@ -138,14 +138,14 @@ def _is_numpy_array(data):
     return isinstance(data, (np.ndarray, np.matrix))
 
 
-def _ensure_np_dtype(data, dtype):
+def _ensure_np_dtype(data, dtype) -> Tuple[np.ndarray, np.dtype]:
     if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
         data = data.astype(np.float32, copy=False)
         dtype = np.float32
     return data, dtype
 
 
-def _maybe_np_slice(data, dtype):
+def _maybe_np_slice(data: np.ndarray, dtype) -> np.ndarray:
     '''Handle numpy slice.  This can be removed if we use __array_interface__.
     '''
     try:
@@ -852,23 +852,17 @@ def _validate_meta_shape(data: Any, name: str) -> None:
 
 
 def _meta_from_numpy(
-    data: np.ndarray, field: str, dtype, handle: ctypes.c_void_p
+    data: np.ndarray,
+    field: str,
+    dtype: Optional[Union[np.dtype, str]],
+    handle: ctypes.c_void_p,
 ) -> None:
-    data = _maybe_np_slice(data, dtype)
+    data, dtype = _ensure_np_dtype(data, dtype)
     interface = data.__array_interface__
-    assert interface.get('mask', None) is None, 'Masked array is not supported'
-    size = data.size
-
-    c_type = _to_data_type(str(data.dtype), field)
-    ptr = interface['data'][0]
-    ptr = ctypes.c_void_p(ptr)
-    _check_call(_LIB.XGDMatrixSetDenseInfo(
-        handle,
-        c_str(field),
-        ptr,
-        c_bst_ulong(size),
-        c_type
-    ))
+    if interface.get("mask", None) is not None:
+        raise ValueError("Masked array is not supported.")
+    interface_str = _array_interface(data)
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface_str))
 
 
 def _meta_from_list(data, field, dtype, handle):
@@ -911,7 +905,9 @@ def _meta_from_dt(data, field: str, dtype, handle: ctypes.c_void_p):
     _meta_from_numpy(data, field, dtype, handle)
 
 
-def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
+def dispatch_meta_backend(
+    matrix: DMatrix, data, name: str, dtype: Optional[Union[str, np.dtype]] = None
+):
     '''Dispatch for meta info.'''
     handle = matrix.handle
     assert handle is not None

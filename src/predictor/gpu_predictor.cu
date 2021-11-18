@@ -855,7 +855,7 @@ class GPUPredictor : public xgboost::Predictor {
     }
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
-    const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
+    const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
     float base_score = model.learner_model_param->base_score;
     dh::LaunchN(
         p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
@@ -914,7 +914,7 @@ class GPUPredictor : public xgboost::Predictor {
     }
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
-    const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
+    const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
     float base_score = model.learner_model_param->base_score;
     size_t n_features = model.learner_model_param->num_feature;
     dh::LaunchN(
@@ -926,27 +926,6 @@ class GPUPredictor : public xgboost::Predictor {
               row_idx, ngroup, group, n_features, n_features, n_features)] +=
               margin.empty() ? base_score : margin[idx];
         });
-  }
-
- protected:
-  void InitOutPredictions(const MetaInfo& info,
-                          HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const override {
-    size_t n_classes = model.learner_model_param->num_output_group;
-    size_t n = n_classes * info.num_row_;
-    const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
-    out_preds->SetDevice(generic_param_->gpu_id);
-    out_preds->Resize(n);
-    if (base_margin.Size() != 0) {
-      std::string expected{
-          "(" + std::to_string(info.num_row_) + ", " +
-          std::to_string(model.learner_model_param->num_output_group) + ")"};
-      CHECK_EQ(base_margin.Size(), n)
-          << "Invalid shape of base_margin. Expected:" << expected;
-      out_preds->Copy(base_margin);
-    } else {
-      out_preds->Fill(model.learner_model_param->base_score);
-    }
   }
 
   void PredictInstance(const SparsePage::Inst&,
