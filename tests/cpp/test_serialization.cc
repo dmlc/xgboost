@@ -611,7 +611,6 @@ TEST_F(MultiClassesSerializationTest, CPUCoordDescent) {
 
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(MultiClassesSerializationTest, GpuHist) {
-  GTEST_SKIP() << "This test is broken for CUDA 11.0 + Windows combination, skipping";
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
