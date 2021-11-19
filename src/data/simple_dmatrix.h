@@ -49,10 +49,10 @@ class SimpleDMatrix : public DMatrix {
   MetaInfo info_;
   // Primary storage type
   std::shared_ptr<SparsePage> sparse_page_ = std::make_shared<SparsePage>();
-  std::shared_ptr<CSCPage> column_page_;
-  std::shared_ptr<SortedCSCPage> sorted_column_page_;
-  std::shared_ptr<EllpackPage> ellpack_page_;
-  std::shared_ptr<GHistIndexMatrix> gradient_index_;
+  std::shared_ptr<CSCPage> column_page_{nullptr};
+  std::shared_ptr<SortedCSCPage> sorted_column_page_{nullptr};
+  std::shared_ptr<EllpackPage> ellpack_page_{nullptr};
+  std::shared_ptr<GHistIndexMatrix> gradient_index_{nullptr};
   BatchParam batch_param_;
 
   bool EllpackExists() const override {
