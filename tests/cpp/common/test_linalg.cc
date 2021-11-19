@@ -160,6 +160,18 @@ TEST(Linalg, TensorView) {
     ASSERT_TRUE(s.CContiguous());
     ASSERT_TRUE(all.CContiguous());
   }
+
+  {
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto copied = t;
+    auto moved = std::move(t);
+    for (size_t i = 0; i < t.Shape().size(); ++i) {
+      ASSERT_EQ(t.Shape(i), copied.Shape(i));
+      ASSERT_EQ(t.Shape(i), moved.Shape(i));
+      ASSERT_EQ(t.Stride(i), copied.Stride(i));
+      ASSERT_EQ(t.Stride(i), moved.Stride(i));
+    }
+  }
 }
 
 TEST(Linalg, Tensor) {
