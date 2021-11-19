@@ -4,3 +4,4 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 README.md
+CMakeLists.txt
