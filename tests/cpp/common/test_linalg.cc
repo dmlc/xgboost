@@ -118,6 +118,7 @@ TEST(Linalg, TensorView) {
     ASSERT_EQ(s(2), 21);
   }
   {
+    // range slice
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(linalg::All(), linalg::Range(1, 3), 2);
     static_assert(decltype(s)::kDimension == 2, "");
@@ -132,6 +133,7 @@ TEST(Linalg, TensorView) {
     ASSERT_FALSE(s.CContiguous());
   }
   {
+    // range slice
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(1, linalg::Range(1, 3), linalg::Range(1, 3));
     static_assert(decltype(s)::kDimension == 2, "");
@@ -146,6 +148,7 @@ TEST(Linalg, TensorView) {
     ASSERT_FALSE(s.CContiguous());
   }
   {
+    // same as no slice.
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
     static_assert(decltype(s)::kDimension == 3, "");
@@ -162,14 +165,13 @@ TEST(Linalg, TensorView) {
   }
 
   {
+    // copy and move constructor.
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
-    auto copied = t;
-    auto moved = std::move(t);
+    auto from_copy = t;
+    auto from_move = std::move(t);
     for (size_t i = 0; i < t.Shape().size(); ++i) {
-      ASSERT_EQ(t.Shape(i), copied.Shape(i));
-      ASSERT_EQ(t.Shape(i), moved.Shape(i));
-      ASSERT_EQ(t.Stride(i), copied.Stride(i));
-      ASSERT_EQ(t.Stride(i), moved.Stride(i));
+      ASSERT_EQ(from_copy.Shape(i), from_move.Shape(i));
+      ASSERT_EQ(from_copy.Stride(i), from_copy.Stride(i));
     }
   }
 }
