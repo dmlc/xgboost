@@ -413,7 +413,7 @@ void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   }
   p_out->Reshape(array.shape);
   auto t = p_out->View(GenericParameter::kCpuId);
-  CHECK(t.Contiguous());
+  CHECK(t.CContiguous());
   // FIXME(jiamingy): Remove the use of this default thread.
   linalg::ElementWiseKernelHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
     return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, t.Shape()));
@@ -531,8 +531,8 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
     auto t =
         linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, GenericParameter::kCpuId);
-    CHECK(t.Contiguous());
-    Json interface { t.ArrayInterface() };
+    CHECK(t.CContiguous());
+    Json interface { linalg::ArrayInterface(t) };
     assert(ArrayInterface<1>{interface}.is_contiguous);
     return interface;
   };

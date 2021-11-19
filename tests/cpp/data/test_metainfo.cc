@@ -127,7 +127,8 @@ TEST(MetaInfo, SaveLoadBinary) {
 
     auto orig_margin = info.base_margin_.View(xgboost::GenericParameter::kCpuId);
     auto read_margin = inforead.base_margin_.View(xgboost::GenericParameter::kCpuId);
-    EXPECT_TRUE(std::equal(orig_margin.cbegin(), orig_margin.cend(), read_margin.cbegin()));
+    EXPECT_TRUE(std::equal(orig_margin.Values().cbegin(), orig_margin.Values().cend(),
+                           read_margin.Values().cbegin()));
 
     EXPECT_EQ(inforead.feature_type_names.size(), kCols);
     EXPECT_EQ(inforead.feature_types.Size(), kCols);
@@ -259,9 +260,8 @@ TEST(MetaInfo, Validate) {
   xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};
   d_groups.SetDevice(0);
   d_groups.DevicePointer();  // pull to device
-  std::string arr_interface_str{
-      xgboost::linalg::MakeVec(d_groups.ConstDevicePointer(), d_groups.Size(), 0)
-          .ArrayInterfaceStr()};
+  std::string arr_interface_str{ArrayInterfaceStr(
+      xgboost::linalg::MakeVec(d_groups.ConstDevicePointer(), d_groups.Size(), 0))};
   EXPECT_THROW(info.SetInfo("group", xgboost::StringView{arr_interface_str}), dmlc::Error);
 #endif  // defined(XGBOOST_USE_CUDA)
 }

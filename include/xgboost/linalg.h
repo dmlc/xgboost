@@ -400,7 +400,7 @@ class TensorView {
    */
   template <typename... Index>
   LINALG_HD T &operator()(Index &&...index) {
-    static_assert(sizeof...(index) == kDim, "Invalid index.");
+    static_assert(sizeof...(index) <= kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
     assert(offset < data_.size() && "Out of bound access.");
     return ptr_[offset];
@@ -410,7 +410,7 @@ class TensorView {
    */
   template <typename... Index>
   LINALG_HD T const &operator()(Index &&...index) const {
-    static_assert(sizeof...(index) == kDim, "Invalid index.");
+    static_assert(sizeof...(index) <= kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
     assert(offset < data_.size() && "Out of bound access.");
     return ptr_[offset];
