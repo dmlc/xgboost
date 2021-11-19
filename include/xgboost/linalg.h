@@ -483,13 +483,13 @@ class TensorView {
  */
 template <typename Container, typename I, int32_t D,
           std::enable_if_t<!common::detail::IsSpan<Container>::value> * = nullptr>
-auto MakeTensorView(Container &data, I const (&shape)[D], int32_t device = 0) {  // NOLINT
+auto MakeTensorView(Container &data, I const (&shape)[D], int32_t device) {  // NOLINT
   using T = typename Container::value_type;
   return TensorView<T, D>{data, shape, device};
 }
 
 template <typename T, typename I, int32_t D>
-LINALG_HD auto MakeTensorView(common::Span<T> data, I const (&shape)[D], int32_t device = 0) {
+LINALG_HD auto MakeTensorView(common::Span<T> data, I const (&shape)[D], int32_t device) {
   return TensorView<T, D>{data, shape, device};
 }
 
