@@ -51,7 +51,7 @@ TEST(Linalg, TensorView) {
   std::vector<double> data(2 * 3 * 4, 0);
   std::iota(data.begin(), data.end(), 0);
 
-  TensorView<double> t{data, {2, 3, 4}, -1};
+  auto t = MakeTensorView(data, {2, 3, 4}, -1);
   ASSERT_EQ(t.Shape()[0], 2);
   ASSERT_EQ(t.Shape()[1], 3);
   ASSERT_EQ(t.Shape()[2], 4);
@@ -96,33 +96,52 @@ TEST(Linalg, TensorView) {
     // assignment
     TensorView<double, 3> t{data, {2, 3, 4}, 0};
     double pi = 3.14159;
+    auto old = t(1, 2, 3);
     t(1, 2, 3) = pi;
     ASSERT_EQ(t(1, 2, 3), pi);
+    t(1, 2, 3) = old;
+    ASSERT_EQ(t(1, 2, 3), old);
   }
 
   {
     // Don't assign the initial dimension, tensor should be able to deduce the correct dim
     // for Slice.
-    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(1, 2, All());
     static_assert(decltype(s)::kDimension == 1, "");
   }
   {
-    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(1, linalg::All(), 1);
     ASSERT_EQ(s(0), 13);
     ASSERT_EQ(s(1), 17);
     ASSERT_EQ(s(2), 21);
   }
   {
-    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(linalg::All(), linalg::Range(0, 3), 2);
     static_assert(decltype(s)::kDimension == 2, "");
+    std::vector<double> sol{2, 6, 10, 14, 18, 22};
+    auto k = 0;
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        ASSERT_EQ(s(i, j), sol.at(k));
+        k++;
+      }
+    }
   }
   {
-    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
     static_assert(decltype(s)::kDimension == 3, "");
+    auto all = t.Slice(linalg::All(), linalg::All(), linalg::All());
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        for (size_t k = 0; k < s.Shape(2); ++k) {
+          ASSERT_EQ(s(i, j, k), all(i,j, k));
+        }
+      }
+    }
   }
 }
 

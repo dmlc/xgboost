@@ -212,7 +212,7 @@ constexpr detail::RangeTag<I> Range(I beg, I end) {
 }
 
 /**
- * \brief A tensor view with static type and shape. It implements indexing and slicing.
+ * \brief A tensor view with static type and dimension. It implements indexing and slicing.
  *
  * Most of the algorithms in XGBoost are implemented for both CPU and GPU without using
  * much linear algebra routines, this class is a helper intended to ease some high level
@@ -224,7 +224,7 @@ constexpr detail::RangeTag<I> Range(I beg, I end) {
  * some functions expect data types that can be used in everywhere (update prediction
  * cache for example).
  */
-template <typename T, int32_t kDim = 5>
+template <typename T, int32_t kDim>
 class TensorView {
  public:
   using ShapeT = size_t[kDim];
@@ -389,7 +389,7 @@ class TensorView {
    */
   template <typename... Index>
   XGBOOST_DEVICE T &operator()(Index &&...index) {
-    static_assert(sizeof...(index) <= kDim, "Invalid index.");
+    static_assert(sizeof...(index) == kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
     assert(offset < data_.size() && "Out of bound access.");
     return ptr_[offset];
@@ -399,7 +399,7 @@ class TensorView {
    */
   template <typename... Index>
   XGBOOST_DEVICE T const &operator()(Index &&...index) const {
-    static_assert(sizeof...(index) <= kDim, "Invalid index.");
+    static_assert(sizeof...(index) == kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
     assert(offset < data_.size() && "Out of bound access.");
     return ptr_[offset];
@@ -515,6 +515,21 @@ class TensorView {
     return str;
   }
 };
+
+/**
+ * \brief Constructor for automatic type deduction.
+ */
+template <typename Container, typename I, int32_t D,
+          std::enable_if_t<!common::detail::IsSpan<Container>::value> * = nullptr>
+auto MakeTensorView(Container &data, I const (&shape)[D], int32_t device = 0) {  // NOLINT
+  using T = typename Container::value_type;
+  return TensorView<T, D>{data, shape, device};
+}
+
+template <typename T, typename I, int32_t D>
+auto MakeTensorView(common::Span<T> data, I const (&shape)[D], int32_t device = 0) {
+  return TensorView<T, D>{data, shape, device};
+}
 
 /**
  * \brief Turns linear index into multi-dimension index.  Similar to numpy unravel.

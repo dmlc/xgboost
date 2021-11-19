@@ -56,7 +56,27 @@ void TestElementWiseKernel() {
     }
   }
 }
+
+void TestSlice() {
+  thrust::device_vector<double> data(2 * 3 * 4);
+  auto t = MakeTensorView(dh::ToSpan(data), {2, 3, 4}, 0);
+  dh::LaunchN(1, [=] __device__(size_t) {
+    auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
+    auto all = t.Slice(linalg::All(), linalg::All(), linalg::All());
+    static_assert(decltype(s)::kDimension == 3, "");
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        for (size_t k = 0; k < s.Shape(2); ++k) {
+          SPAN_CHECK(s(i, j, k) == all(i, j, k));
+        }
+      }
+    }
+  });
+}
 }  // anonymous namespace
+
 TEST(Linalg, GPUElementWise) { TestElementWiseKernel(); }
+
+TEST(Linalg, GPUTensorView) { TestSlice(); }
 }  // namespace linalg
 }  // namespace xgboost
