@@ -136,7 +136,8 @@ TEST(Linalg, Tensor) {
 
     size_t n = 2 * 3 * 4;
     ASSERT_EQ(t.Size(), n);
-    ASSERT_TRUE(std::equal(k_view.cbegin(), k_view.cbegin(), view.begin()));
+    ASSERT_TRUE(
+        std::equal(k_view.Values().cbegin(), k_view.Values().cbegin(), view.Values().begin()));
 
     Tensor<float, 3> t_0{std::move(t)};
     ASSERT_EQ(t_0.Size(), n);
@@ -190,7 +191,7 @@ TEST(Linalg, ArrayInterface) {
   auto cpu = kCpuId;
   auto t = Tensor<double, 2>{{3, 3}, cpu};
   auto v = t.View(cpu);
-  std::iota(v.begin(), v.end(), 0);
+  std::iota(v.Values().begin(), v.Values().end(), 0);
   auto arr = Json::Load(StringView{v.ArrayInterfaceStr()});
   ASSERT_EQ(get<Integer>(arr["shape"][0]), 3);
   ASSERT_EQ(get<Integer>(arr["strides"][0]), 3 * sizeof(double));

@@ -254,9 +254,11 @@ class TensorView {
     static_assert(new_dim < D, "");
     static_assert(old_dim < kDim, "");
     new_stride[new_dim] = stride_[old_dim];
-    assert(range.Size() <= shape_[old_dim]);
     new_shape[new_dim] = range.Size();
-    return 0;
+    assert(static_cast<decltype(shape_[old_dim])>(range.end) <= shape_[old_dim]);
+
+    auto offset = stride_[old_dim] * range.beg;
+    return offset;
   }
   /**
    * \brief Slice dimension for Range tag.
@@ -267,11 +269,13 @@ class TensorView {
     static_assert(new_dim < D, "");
     static_assert(old_dim < kDim, "");
     new_stride[new_dim] = stride_[old_dim];
-    assert(range.Size() <= shape_[old_dim]);
     new_shape[new_dim] = range.Size();
+    assert(static_cast<decltype(shape_[old_dim])>(range.end) <= shape_[old_dim]);
+
+    auto offset = stride_[old_dim] * range.beg;
     return MakeSliceDim<old_dim + 1, new_dim + 1, D>(new_shape, new_stride,
                                                      std::forward<S>(slices)...) +
-           range.beg;
+           offset;
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D>
@@ -439,10 +443,6 @@ class TensorView {
    */
   XGBOOST_DEVICE auto Stride(size_t i) const { return stride_[i]; }
 
-  XGBOOST_DEVICE auto cbegin() const { return data_.cbegin(); }  // NOLINT
-  XGBOOST_DEVICE auto cend() const { return data_.cend(); }      // NOLINT
-  XGBOOST_DEVICE auto begin() { return data_.begin(); }          // NOLINT
-  XGBOOST_DEVICE auto end() { return data_.end(); }              // NOLINT
   /**
    * \brief Number of items in the tensor.
    */
