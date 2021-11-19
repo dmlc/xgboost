@@ -10,7 +10,7 @@ namespace xgboost {
 namespace linalg {
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
-  if (t.Contiguous()) {
+  if (t.CContiguous()) {
     auto ptr = t.Values().data();
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) { ptr[i] = fn(i, ptr[i]); });
   } else {

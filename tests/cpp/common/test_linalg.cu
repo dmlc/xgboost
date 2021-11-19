@@ -18,7 +18,7 @@ void TestElementWiseKernel() {
      */
     // GPU view
     auto t = l.View(0).Slice(linalg::All(), 1, linalg::All());
-    ASSERT_FALSE(t.Contiguous());
+    ASSERT_FALSE(t.CContiguous());
     ElementWiseKernelDevice(t, [] __device__(size_t i, float) { return i; });
     // CPU view
     t = l.View(GenericParameter::kCpuId).Slice(linalg::All(), 1, linalg::All());
@@ -42,7 +42,7 @@ void TestElementWiseKernel() {
      */
     auto t = l.View(0);
     ElementWiseKernelDevice(t, [] __device__(size_t i, float) { return i; });
-    ASSERT_TRUE(t.Contiguous());
+    ASSERT_TRUE(t.CContiguous());
     // CPU view
     t = l.View(GenericParameter::kCpuId);
 

@@ -119,9 +119,9 @@ TEST(Linalg, TensorView) {
   }
   {
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
-    auto s = t.Slice(linalg::All(), linalg::Range(0, 3), 2);
+    auto s = t.Slice(linalg::All(), linalg::Range(1, 3), 2);
     static_assert(decltype(s)::kDimension == 2, "");
-    std::vector<double> sol{2, 6, 10, 14, 18, 22};
+    std::vector<double> sol{6, 10, 18, 22};
     auto k = 0;
     for (size_t i = 0; i < s.Shape(0); ++i) {
       for (size_t j = 0; j < s.Shape(1); ++j) {
@@ -129,6 +129,21 @@ TEST(Linalg, TensorView) {
         k++;
       }
     }
+    ASSERT_FALSE(s.CContiguous());
+  }
+  {
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto s = t.Slice(1, linalg::Range(1, 3), linalg::Range(1, 3));
+    static_assert(decltype(s)::kDimension == 2, "");
+    std::vector<double> sol{17, 18, 21, 22};
+    auto k = 0;
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        ASSERT_EQ(s(i, j), sol.at(k));
+        k++;
+      }
+    }
+    ASSERT_FALSE(s.CContiguous());
   }
   {
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
@@ -138,10 +153,12 @@ TEST(Linalg, TensorView) {
     for (size_t i = 0; i < s.Shape(0); ++i) {
       for (size_t j = 0; j < s.Shape(1); ++j) {
         for (size_t k = 0; k < s.Shape(2); ++k) {
-          ASSERT_EQ(s(i, j, k), all(i,j, k));
+          ASSERT_EQ(s(i, j, k), all(i, j, k));
         }
       }
     }
+    ASSERT_TRUE(s.CContiguous());
+    ASSERT_TRUE(all.CContiguous());
   }
 }
 
@@ -156,7 +173,7 @@ TEST(Linalg, Tensor) {
     size_t n = 2 * 3 * 4;
     ASSERT_EQ(t.Size(), n);
     ASSERT_TRUE(
-        std::equal(k_view.Values().cbegin(), k_view.Values().cbegin(), view.Values().begin()));
+        std::equal(k_view.Values().cbegin(), k_view.Values().cend(), view.Values().cbegin()));
 
     Tensor<float, 3> t_0{std::move(t)};
     ASSERT_EQ(t_0.Size(), n);

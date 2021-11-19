@@ -10,7 +10,7 @@ namespace xgboost {
 namespace linalg {
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernelHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& fn) {
-  if (t.Contiguous()) {
+  if (t.CContiguous()) {
     auto ptr = t.Values().data();
     common::ParallelFor(t.Size(), n_threads, [&](size_t i) { ptr[i] = fn(i, ptr[i]); });
   } else {
