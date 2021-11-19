@@ -534,15 +534,14 @@ auto MakeVec(T *ptr, size_t s, int32_t device = -1) {
 template <typename T>
 using MatrixView = TensorView<T, 2>;
 
-
-  /**
-   * \brief Array Interface defined by
-   * <a href="https://numpy.org/doc/stable/reference/arrays.interface.html">numpy</a>.
-   *
-   * `stream` is optionally included when data is on CUDA device.
-   */
+/**
+ * \brief Array Interface defined by
+ * <a href="https://numpy.org/doc/stable/reference/arrays.interface.html">numpy</a>.
+ *
+ * `stream` is optionally included when data is on CUDA device.
+ */
 template <typename T, int32_t D>
-Json ArrayInterface(TensorView<T const, D> const& t) {
+Json ArrayInterface(TensorView<T const, D> const &t) {
   Json array_interface{Object{}};
   array_interface["data"] = std::vector<Json>(2);
   array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(t.Values().data()));
