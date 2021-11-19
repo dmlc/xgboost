@@ -374,11 +374,14 @@ class TensorView {
     this->CalcSize();
   }
 
-  LINALG_HD TensorView(TensorView const &that)
-      : data_{that.data_}, ptr_{data_.data()}, size_{that.size_}, device_{that.device_} {
+  template <
+      typename U,
+      std::enable_if_t<common::detail::IsAllowedElementTypeConversion<U, T>::value> * = nullptr>
+  LINALG_HD TensorView(TensorView<U, kDim> const &that)  // NOLINT
+      : data_{that.Values()}, ptr_{data_.data()}, size_{that.Size()}, device_{that.DeviceIdx()} {
     detail::UnrollLoop<kDim>([&](auto i) {
-      stride_[i] = that.stride_[i];
-      shape_[i] = that.shape_[i];
+      stride_[i] = that.Stride(i);
+      shape_[i] = that.Shape(i);
     });
   }
 
@@ -473,61 +476,6 @@ class TensorView {
    * \brief Obtain the CUDA device ordinal.
    */
   LINALG_HD auto DeviceIdx() const { return device_; }
-
-  /**
-   * \brief Array Interface defined by
-   * <a href="https://numpy.org/doc/stable/reference/arrays.interface.html">numpy</a>.
-   *
-   * `stream` is optionally included when data is on CUDA device.
-   */
-  Json ArrayInterface() const {
-    Json array_interface{Object{}};
-    array_interface["data"] = std::vector<Json>(2);
-    array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(data_.data()));
-    array_interface["data"][1] = Boolean{true};
-    if (this->DeviceIdx() >= 0) {
-      // Change this once we have different CUDA stream.
-      array_interface["stream"] = Null{};
-    }
-    std::vector<Json> shape(Shape().size());
-    std::vector<Json> stride(Stride().size());
-    for (size_t i = 0; i < Shape().size(); ++i) {
-      shape[i] = Integer(Shape(i));
-      stride[i] = Integer(Stride(i) * sizeof(T));
-    }
-    array_interface["shape"] = Array{shape};
-    array_interface["strides"] = Array{stride};
-    array_interface["version"] = 3;
-
-    char constexpr kT = detail::ArrayInterfaceHandler::TypeChar<T>();
-    static_assert(kT != '\0', "");
-    if (DMLC_LITTLE_ENDIAN) {
-      array_interface["typestr"] = String{"<" + (kT + std::to_string(sizeof(T)))};
-    } else {
-      array_interface["typestr"] = String{">" + (kT + std::to_string(sizeof(T)))};
-    }
-    return array_interface;
-  }
-  /**
-   * \brief Same as const version, but returns non-readonly data pointer.
-   */
-  Json ArrayInterface() {
-    auto const &as_const = *this;
-    auto res = as_const.ArrayInterface();
-    res["data"][1] = Boolean{false};
-    return res;
-  }
-
-  auto ArrayInterfaceStr() const {
-    std::string str;
-    Json::Dump(this->ArrayInterface(), &str);
-    return str;
-  }
-  auto ArrayInterfaceStr() {
-    std::string str;
-    Json::Dump(this->ArrayInterface(), &str);
-    return str;
-  }
 };
 
 /**
@@ -585,6 +533,71 @@ auto MakeVec(T *ptr, size_t s, int32_t device = -1) {
  */
 template <typename T>
 using MatrixView = TensorView<T, 2>;
+
+
+  /**
+   * \brief Array Interface defined by
+   * <a href="https://numpy.org/doc/stable/reference/arrays.interface.html">numpy</a>.
+   *
+   * `stream` is optionally included when data is on CUDA device.
+   */
+template <typename T, int32_t D>
+Json ArrayInterface(TensorView<T const, D> const& t) {
+  Json array_interface{Object{}};
+  array_interface["data"] = std::vector<Json>(2);
+  array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(t.Values().data()));
+  array_interface["data"][1] = Boolean{true};
+  if (t.DeviceIdx() >= 0) {
+    // Change this once we have different CUDA stream.
+    array_interface["stream"] = Null{};
+  }
+  std::vector<Json> shape(t.Shape().size());
+  std::vector<Json> stride(t.Stride().size());
+  for (size_t i = 0; i < t.Shape().size(); ++i) {
+    shape[i] = Integer(t.Shape(i));
+    stride[i] = Integer(t.Stride(i) * sizeof(T));
+  }
+  array_interface["shape"] = Array{shape};
+  array_interface["strides"] = Array{stride};
+  array_interface["version"] = 3;
+
+  char constexpr kT = detail::ArrayInterfaceHandler::TypeChar<T>();
+  static_assert(kT != '\0', "");
+  if (DMLC_LITTLE_ENDIAN) {
+    array_interface["typestr"] = String{"<" + (kT + std::to_string(sizeof(T)))};
+  } else {
+    array_interface["typestr"] = String{">" + (kT + std::to_string(sizeof(T)))};
+  }
+  return array_interface;
+}
+
+/**
+ * \brief Same as const version, but returns non-readonly data pointer.
+ */
+template <typename T, int32_t D>
+Json ArrayInterface(TensorView<T, D> const &t) {
+  TensorView<T const, D> const &as_const = t;
+  auto res = ArrayInterface(as_const);
+  res["data"][1] = Boolean{false};
+  return res;
+}
+
+/**
+ * \brief Return string representation of array interface.
+ */
+template <typename T, int32_t D>
+auto ArrayInterfaceStr(TensorView<T const, D> const &t) {
+  std::string str;
+  Json::Dump(ArrayInterface(t), &str);
+  return str;
+}
+
+template <typename T, int32_t D>
+auto ArrayInterfaceStr(TensorView<T, D> const &t) {
+  std::string str;
+  Json::Dump(ArrayInterface(t), &str);
+  return str;
+}
 
 /**
  * \brief A tensor storage. To use it for other functionality like slicing one needs to

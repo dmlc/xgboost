@@ -228,12 +228,16 @@ TEST(Linalg, ArrayInterface) {
   auto t = Tensor<double, 2>{{3, 3}, cpu};
   auto v = t.View(cpu);
   std::iota(v.Values().begin(), v.Values().end(), 0);
-  auto arr = Json::Load(StringView{v.ArrayInterfaceStr()});
+  auto arr = Json::Load(StringView{ArrayInterfaceStr(v)});
   ASSERT_EQ(get<Integer>(arr["shape"][0]), 3);
   ASSERT_EQ(get<Integer>(arr["strides"][0]), 3 * sizeof(double));
 
   ASSERT_FALSE(get<Boolean>(arr["data"][1]));
   ASSERT_EQ(reinterpret_cast<double *>(get<Integer>(arr["data"][0])), v.Values().data());
+
+  TensorView<double const, 2> as_const = v;
+  auto const_arr = ArrayInterface(as_const);
+  ASSERT_TRUE(get<Boolean>(const_arr["data"][1]));
 }
 
 TEST(Linalg, Popc) {

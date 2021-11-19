@@ -61,9 +61,9 @@ class FileIterator {
       row_block_ = parser_->Value();
       using linalg::MakeVec;
 
-      indptr_ = MakeVec(row_block_.offset, row_block_.size + 1).ArrayInterfaceStr();
-      values_ = MakeVec(row_block_.value, row_block_.offset[row_block_.size]).ArrayInterfaceStr();
-      indices_ = MakeVec(row_block_.index, row_block_.offset[row_block_.size]).ArrayInterfaceStr();
+      indptr_ = ArrayInterfaceStr(MakeVec(row_block_.offset, row_block_.size + 1));
+      values_ = ArrayInterfaceStr(MakeVec(row_block_.value, row_block_.offset[row_block_.size]));
+      indices_ = ArrayInterfaceStr(MakeVec(row_block_.index, row_block_.offset[row_block_.size]));
 
       size_t n_columns = *std::max_element(row_block_.index,
                                            row_block_.index + row_block_.offset[row_block_.size]);
