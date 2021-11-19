@@ -55,7 +55,15 @@ constexpr void CalcStride(size_t (&shape)[D], size_t (&stride)[D]) {
 }
 
 struct AllTag {};
+
 struct IntTag {};
+
+template <typename I>
+struct RangeTag {
+  I beg;
+  I end;
+  constexpr size_t Size() const { return end - beg; }
+};
 
 /**
  * \brief Calculate the dimension of sliced tensor.
@@ -83,7 +91,7 @@ template <typename S>
 using RemoveCRType = std::remove_const_t<std::remove_reference_t<S>>;
 
 template <typename S>
-using IndexToTag = std::conditional_t<std::is_integral<RemoveCRType<S>>::value, IntTag, AllTag>;
+using IndexToTag = std::conditional_t<std::is_integral<RemoveCRType<S>>::value, IntTag, S>;
 
 template <int32_t n, typename Fn>
 XGBOOST_DEVICE constexpr auto UnrollLoop(Fn fn) {
@@ -192,9 +200,16 @@ XGBOOST_DEVICE decltype(auto) constexpr Apply(Fn &&f, Tup &&t) {
 }  // namespace detail
 
 /**
- * \brief Specify all elements in the axis is used for slice.
+ * \brief Specify all elements in the axis for slicing.
  */
 constexpr detail::AllTag All() { return {}; }
+/**
+ * \brief Specify a range of elements in the axis for slicing.
+ */
+template <typename I>
+constexpr detail::RangeTag<I> Range(I beg, I end) {
+  return {beg, end};
+}
 
 /**
  * \brief A tensor view with static type and shape. It implements indexing and slicing.
@@ -233,7 +248,33 @@ class TensorView {
     }
   }
 
-  template <size_t old_dim, size_t new_dim, int32_t D, typename... S>
+  template <size_t old_dim, size_t new_dim, int32_t D, typename I>
+  XGBOOST_DEVICE size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+                                     detail::RangeTag<I> &&range) const {
+    static_assert(new_dim < D, "");
+    static_assert(old_dim < kDim, "");
+    new_stride[new_dim] = stride_[old_dim];
+    assert(range.Size() <= shape_[old_dim]);
+    new_shape[new_dim] = range.Size();
+    return 0;
+  }
+  /**
+   * \brief Slice dimension for Range tag.
+   */
+  template <size_t old_dim, size_t new_dim, int32_t D, typename I, typename... S>
+  XGBOOST_DEVICE size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+                                     detail::RangeTag<I> &&range, S &&...slices) const {
+    static_assert(new_dim < D, "");
+    static_assert(old_dim < kDim, "");
+    new_stride[new_dim] = stride_[old_dim];
+    assert(range.Size() <= shape_[old_dim]);
+    new_shape[new_dim] = range.Size();
+    return MakeSliceDim<old_dim + 1, new_dim + 1, D>(new_shape, new_stride,
+                                                     std::forward<S>(slices)...) +
+           range.beg;
+  }
+
+  template <size_t old_dim, size_t new_dim, int32_t D>
   XGBOOST_DEVICE size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
                                      detail::AllTag) const {
     static_assert(new_dim < D, "");

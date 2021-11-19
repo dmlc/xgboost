@@ -107,6 +107,23 @@ TEST(Linalg, TensorView) {
     auto s = t.Slice(1, 2, All());
     static_assert(decltype(s)::kDimension == 1, "");
   }
+  {
+    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto s = t.Slice(1, linalg::All(), 1);
+    ASSERT_EQ(s(0), 13);
+    ASSERT_EQ(s(1), 17);
+    ASSERT_EQ(s(2), 21);
+  }
+  {
+    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto s = t.Slice(linalg::All(), linalg::Range(0, 3), 2);
+    static_assert(decltype(s)::kDimension == 2, "");
+  }
+  {
+    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
+    static_assert(decltype(s)::kDimension == 3, "");
+  }
 }
 
 TEST(Linalg, Tensor) {
