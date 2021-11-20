@@ -55,13 +55,13 @@ class SoftmaxMultiClassObj : public ObjFunction {
     // Remove unused parameter compiler warning.
     (void) iter;
 
-    if (info.labels_.Size() == 0) {
+    if (info.labels.Size() == 0) {
       return;
     }
-    CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
+    CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels.Size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match.\n"
         << "label.Size() * num_class: "
-        << info.labels_.Size() * static_cast<size_t>(param_.num_class) << "\n"
+        << info.labels.Size() * static_cast<size_t>(param_.num_class) << "\n"
         << "num_class: " << param_.num_class << "\n"
         << "preds.Size(): " << preds.Size();
 
@@ -70,7 +70,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
     auto device = tparam_->gpu_id;
     out_gpair->SetDevice(device);
-    info.labels_.SetDevice(device);
+    info.labels.SetDevice(device);
     info.weights_.SetDevice(device);
     preds.SetDevice(device);
 
@@ -115,7 +115,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
         }, common::Range{0, ndata}, device, false)
-        .Eval(out_gpair, &info.labels_, &preds, &info.weights_, &label_correct_);
+        .Eval(out_gpair, info.labels.Data(), &preds, &info.weights_, &label_correct_);
 
     std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (auto const flag : label_correct_h) {

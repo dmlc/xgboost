@@ -148,7 +148,8 @@ class TestPandas:
         assert not np.any(arr == -1.0)
 
         X = X["f0"]
-        with pytest.raises(ValueError):
+        y = y[:X.shape[0]]
+        with pytest.raises(ValueError, match=r".*enable_categorical.*"):
             xgb.DMatrix(X, y)
 
         Xy = xgb.DMatrix(X, y, enable_categorical=True)

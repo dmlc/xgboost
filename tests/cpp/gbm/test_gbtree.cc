@@ -105,7 +105,7 @@ TEST(GBTree, WrongUpdater) {
 
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  p_dmat->Info().labels_.Resize(kRows);
+  p_dmat->Info().labels.Reshape(kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
   // Hist can not be used for updating tree.
@@ -126,7 +126,7 @@ TEST(GBTree, ChoosePredictor) {
   auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
-  p_dmat->Info().labels_.Resize(kRows);
+  p_dmat->Info().labels.Reshape(kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
   learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});

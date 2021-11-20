@@ -20,7 +20,7 @@ TEST(SimpleDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_row_, 2);
   EXPECT_EQ(dmat->Info().num_col_, 5);
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
-  EXPECT_EQ(dmat->Info().labels_.Size(), dmat->Info().num_row_);
+  EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
 
   delete dmat;
 }
@@ -258,7 +258,7 @@ TEST(SimpleDMatrix, Slice) {
 
   std::array<int32_t, 3> ridxs {1, 3, 5};
   std::unique_ptr<DMatrix> out { p_m->Slice(ridxs) };
-  ASSERT_EQ(out->Info().labels_.Size(), ridxs.size());
+  ASSERT_EQ(out->Info().labels.Size(), ridxs.size());
   ASSERT_EQ(out->Info().labels_lower_bound_.Size(), ridxs.size());
   ASSERT_EQ(out->Info().labels_upper_bound_.Size(), ridxs.size());
   ASSERT_EQ(out->Info().base_margin_.Size(), ridxs.size() * kClasses);

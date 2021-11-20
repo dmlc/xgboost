@@ -635,6 +635,20 @@ class Tensor {
   HostDeviceVector<T> data_;
   ShapeT shape_{0};
 
+  template <typename I, std::int32_t D>
+  void Initialize(I const (&shape)[D], std::int32_t device) {
+    static_assert(D <= kDim, "Invalid shape.");
+    std::copy(shape, shape + D, shape_);
+    for (auto i = D; i < kDim; ++i) {
+      shape_[i] = 1;
+    }
+    if (device >= 0) {
+      data_.SetDevice(device);
+      data_.DevicePointer();  // Pull to device;
+    }
+    CHECK_EQ(data_.Size(), detail::CalcSize(shape_));
+  }
+
  public:
   Tensor() = default;
 
@@ -665,20 +679,20 @@ class Tensor {
    */
   template <typename It, typename I, int32_t D>
   explicit Tensor(It begin, It end, I const (&shape)[D], int32_t device) {
-    // shape
-    static_assert(D <= kDim, "Invalid shape.");
-    std::copy(shape, shape + D, shape_);
-    for (auto i = D; i < kDim; ++i) {
-      shape_[i] = 1;
-    }
     auto &h_vec = data_.HostVector();
     h_vec.insert(h_vec.begin(), begin, end);
-    if (device >= 0) {
-      data_.SetDevice(device);
-      data_.DevicePointer();  // Pull to device;
-    }
-    CHECK_EQ(data_.Size(), detail::CalcSize(shape_));
+    // shape
+    this->Initialize(shape, device);
   }
+
+  template <typename I, int32_t D>
+  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], int32_t device) {
+    auto &h_vec = data_.HostVector();
+    h_vec = data;
+    // shape
+    this->Initialize(shape, device);
+  }
+
   /**
    * \brief Get a \ref TensorView for this tensor.
    */
@@ -702,6 +716,9 @@ class Tensor {
       return {span, shape_, device};
     }
   }
+
+  auto HostView() const { return this->View(-1); }
+  auto HostView() { return this->View(-1); }
 
   size_t Size() const { return data_.Size(); }
   auto Shape() const { return common::Span<size_t const, kDim>{shape_}; }
@@ -756,14 +773,15 @@ class Tensor {
   /**
    * \brief Set device ordinal for this tensor.
    */
-  void SetDevice(int32_t device) { data_.SetDevice(device); }
+  void SetDevice(int32_t device) const { data_.SetDevice(device); }
+  int32_t DeviceIdx() const { return data_.DeviceIdx(); }
 };
 
 // Only first axis is supported for now.
 template <typename T, int32_t D>
 void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
-  if (r.Data()->DeviceIdx() >= 0) {
-    l->Data()->SetDevice(r.Data()->DeviceIdx());
+  if (r.DeviceIdx() >= 0) {
+    l->SetDevice(r.DeviceIdx());
   }
   l->ModifyInplace([&](HostDeviceVector<T> *data, common::Span<size_t, D> shape) {
     for (size_t i = 1; i < D; ++i) {

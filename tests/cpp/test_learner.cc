@@ -141,9 +141,8 @@ TEST(Learner, JsonModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
 
-  std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
-  p_dmat->Info().labels_.Resize(kRows);
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
+  p_dmat->Info().labels.Reshape(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
   {
@@ -204,9 +203,8 @@ TEST(Learner, MultiThreadedPredict) {
   size_t constexpr kRows = 1000;
   size_t constexpr kCols = 100;
 
-  std::shared_ptr<DMatrix> p_dmat{
-      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
-  p_dmat->Info().labels_.Resize(kRows);
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  p_dmat->Info().labels.Reshape(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
   std::shared_ptr<DMatrix> p_data{
@@ -240,7 +238,7 @@ TEST(Learner, BinaryModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
   auto p_dmat = RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix();
-  p_dmat->Info().labels_.Resize(kRows);
+  p_dmat->Info().labels.Reshape(kRows);
 
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->SetParam("eval_metric", "rmsle");
@@ -279,7 +277,7 @@ TEST(Learner, GPUConfiguration) {
   for (size_t i = 0; i < labels.size(); ++i) {
     labels[i] = i;
   }
-  p_dmat->Info().labels_.HostVector() = labels;
+  p_dmat->Info().labels.Data()->HostVector() = labels;
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"booster", "gblinear"},

@@ -56,7 +56,7 @@ class MetaInfo {
   /*! \brief number of nonzero entries in the data */
   uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
-  HostDeviceVector<bst_float> labels_;  // NOLINT
+  linalg::Tensor<float, 2> labels;
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
@@ -119,12 +119,12 @@ class MetaInfo {
   }
   /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
   inline const std::vector<size_t>& LabelAbsSort() const {
-    if (label_order_cache_.size() == labels_.Size()) {
+    if (label_order_cache_.size() == labels.Size()) {
       return label_order_cache_;
     }
-    label_order_cache_.resize(labels_.Size());
+    label_order_cache_.resize(labels.Size());
     std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
-    const auto& l = labels_.HostVector();
+    const auto& l = labels.Data()->HostVector();
     XGBOOST_PARALLEL_SORT(label_order_cache_.begin(), label_order_cache_.end(),
               [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
 

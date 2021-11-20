@@ -33,11 +33,11 @@ class HingeObj : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels_.Size())
+    CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels.Size())
         << "labels are not correctly provided"
         << "preds.size=" << preds.Size()
-        << ", label.size=" << info.labels_.Size();
+        << ", label.size=" << info.labels.Size();
 
     const size_t ndata = preds.Size();
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -67,7 +67,7 @@ class HingeObj : public ObjFunction {
         },
         common::Range{0, static_cast<int64_t>(ndata)},
         tparam_->gpu_id).Eval(
-            out_gpair, &preds, &info.labels_, &info.weights_);
+            out_gpair, &preds, info.labels.Data(), &info.weights_);
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {

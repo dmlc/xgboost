@@ -957,7 +957,17 @@ thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
 }
 
 template <typename T>
+thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+  return thrust::device_ptr<T>(span.data());
+}
+
+template <typename T>
 thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
+  return tbegin(span) + span.size();
+}
+
+template <typename T>
+thrust::device_ptr<T> tend(xgboost::common::Span<T> const& span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 

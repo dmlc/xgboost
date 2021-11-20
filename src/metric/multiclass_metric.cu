@@ -169,19 +169,20 @@ template<typename Derived>
 struct EvalMClassBase : public Metric {
   double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info,
               bool distributed) override {
-    if (info.labels_.Size() == 0) {
+    if (info.labels.Size() == 0) {
       CHECK_EQ(preds.Size(), 0);
     } else {
-      CHECK(preds.Size() % info.labels_.Size() == 0) << "label and prediction size not match";
+      CHECK(preds.Size() % info.labels.Size() == 0) << "label and prediction size not match";
     }
     double dat[2] { 0.0, 0.0 };
-    if (info.labels_.Size() != 0) {
-      const size_t nclass = preds.Size() / info.labels_.Size();
+    if (info.labels.Size() != 0) {
+      const size_t nclass = preds.Size() / info.labels.Size();
       CHECK_GE(nclass, 1U)
           << "mlogloss and merror are only used for multi-class classification,"
           << " use logloss for binary classification";
       int device = tparam_->gpu_id;
-      auto result = reducer_.Reduce(*tparam_, device, nclass, info.weights_, info.labels_, preds);
+      auto result =
+          reducer_.Reduce(*tparam_, device, nclass, info.weights_, *info.labels.Data(), preds);
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }

@@ -46,15 +46,15 @@ class MyLogistic : public ObjFunction {
     out_gpair->Resize(preds.Size());
     const std::vector<bst_float>& preds_h = preds.HostVector();
     std::vector<GradientPair>& out_gpair_h = out_gpair->HostVector();
-    const std::vector<bst_float>& labels_h = info.labels_.HostVector();
+    auto const labels_h = info.labels.HostView();
     for (size_t i = 0; i < preds_h.size(); ++i) {
       bst_float w = info.GetWeight(i);
       // scale the negative examples!
-      if (labels_h[i] == 0.0f) w *= param_.scale_neg_weight;
+      if (labels_h(i) == 0.0f) w *= param_.scale_neg_weight;
       // logistic transformation
       bst_float p = 1.0f / (1.0f + std::exp(-preds_h[i]));
       // this is the gradient
-      bst_float grad = (p - labels_h[i]) * w;
+      bst_float grad = (p - labels_h(i)) * w;
       // this is the second order gradient
       bst_float hess = p * (1.0f - p) * w;
       out_gpair_h.at(i) = GradientPair(grad, hess);
