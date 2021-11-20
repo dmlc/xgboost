@@ -40,6 +40,9 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
 }  // anonymous namespace
 }  // namespace xgboost
 
+namespace xgboost {
+namespace metric {
+
 TEST(Metric, DeclareUnifiedTest(RMSE)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
@@ -276,3 +279,27 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
 
   xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mphe"}, GPUIDX);
 }
+
+TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
+  size_t n_samples = 32, n_targets = 8;
+  linalg::Tensor<float, 2> y{{n_samples, n_targets}, GPUIDX};
+  auto &h_y = y.Data()->HostVector();
+  std::iota(h_y.begin(), h_y.end(), 0);
+
+  HostDeviceVector<float> predt(n_samples * n_targets, 0);
+
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Metric> metric{Metric::Create("rmse", &lparam)};
+  metric->Configure({});
+
+  auto loss = GetMultiMetricEval(metric.get(), predt, y);
+  std::vector<float> weights(n_samples, 1);
+  auto loss_w = GetMultiMetricEval(metric.get(), predt, y, weights);
+
+  std::transform(h_y.cbegin(), h_y.cend(), h_y.begin(), [](auto &v) { return v * v; });
+  auto ret = std::sqrt(std::accumulate(h_y.cbegin(), h_y.cend(), 1.0, std::plus<>{}) / h_y.size());
+  ASSERT_FLOAT_EQ(ret, loss);
+  ASSERT_FLOAT_EQ(ret, loss_w);
+}
+}  // namespace metric
+}  // namespace xgboost

@@ -52,8 +52,12 @@ def test_boost_from_prediction_gpu_hist():
     X, y = load_digits(return_X_y=True)
     X, y = cp.array(X), cp.array(y)
 
-    twskl.run_boost_from_prediction_multi_clasas(tree_method, X, y, None)
-    twskl.run_boost_from_prediction_multi_clasas(tree_method, X, y, cudf.DataFrame)
+    twskl.run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, X, y, None
+    )
+    twskl.run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, X, y, cudf.DataFrame
+    )
 
 
 def test_num_parallel_tree():

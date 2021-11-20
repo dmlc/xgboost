@@ -88,12 +88,15 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief the version of XGBoost. */
   uint32_t major_version;
   uint32_t minor_version;
+
+  uint32_t num_target{1};
   /*! \brief reserved field */
-  int reserved[27];
+  int reserved[26];
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
     base_score = 0.5f;
+    num_target = 1;
     major_version = std::get<0>(Version::Self());
     minor_version = std::get<1>(Version::Self());
     static_assert(sizeof(LearnerModelParamLegacy) == 136,
@@ -119,6 +122,10 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     CHECK(ret.ec == std::errc());
     obj["num_class"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                   static_cast<int64_t>(num_target));
+    obj["num_target"] = Integer(num_target);
+
     return Json(std::move(obj));
   }
   void FromJson(Json const& obj) {
@@ -129,6 +136,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     this->Init(m);
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
+    num_target = get<Integer const>(j_param.at("num_target"));
   }
   inline LearnerModelParamLegacy ByteSwap() const {
     LearnerModelParamLegacy x = *this;
@@ -161,10 +169,14 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
 LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin,
                                      ObjInfo t)
-    : base_score{base_margin},
-      num_feature{user_param.num_feature},
-      num_output_group{user_param.num_class == 0 ? 1 : static_cast<uint32_t>(user_param.num_class)},
-      task{t} {}
+    : base_score{base_margin}, num_feature{user_param.num_feature}, task{t} {
+  auto n_classes = std::max(static_cast<uint32_t>(user_param.num_class), 1u);
+  auto n_targets = user_param.num_target;
+  num_output_group = std::max(n_classes, n_targets);
+  CHECK(n_classes == 1 || n_targets == 1)
+      << "Multi-class multi-output is not yet supported. n_classes:" << n_classes
+      << ", n_targets:" << n_targets;
+}
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
@@ -325,6 +337,24 @@ class LearnerConfiguration : public Learner {
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
+    auto const& cache = this->GetPredictionCache()->Container();
+    size_t n_targets = 1;
+    for (auto const& d : cache) {
+      if (n_targets == 1) {
+        n_targets = this->obj_->Targets(d.first);
+      } else {
+        CHECK_EQ(n_targets, this->obj_->Targets(d.first));
+      }
+    }
+    if (mparam_.num_target != 1) {
+      CHECK(n_targets == 1 || n_targets == mparam_.num_target)
+          << "Inconsistent configuration of num_target.  Configuration result from input data:"
+          << n_targets << ", configuration from parameter:" << mparam_.num_target;
+    } else {
+      mparam_.num_target = n_targets;
+    }
+    auto task = this->obj_->Task();
+
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
     // keep the stability, we initialize it in binary LoadModel instead of configuration.
@@ -339,7 +369,7 @@ class LearnerConfiguration : public Learner {
     // - model is configured second time due to change of parameter
     if (!learner_model_param_.Initialized() || mparam_.base_score != mparam_backup.base_score) {
       learner_model_param_ =
-          LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), obj_->Task());
+          LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), task);
     }
 
     this->ConfigureGBM(old_tparam, args);
@@ -586,8 +616,7 @@ class LearnerConfiguration : public Learner {
         CHECK(matrix.first);
         CHECK(!matrix.second.ref.expired());
         const uint64_t num_col = matrix.first->Info().num_col_;
-        CHECK_LE(num_col,
-                 static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
+        CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
             << "Unfortunately, XGBoost does not support data matrices with "
             << std::numeric_limits<unsigned>::max() << " features or greater";
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));

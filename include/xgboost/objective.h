@@ -77,6 +77,11 @@ class ObjFunction : public Configurable {
    * \brief Return task of this objective.
    */
   virtual struct ObjInfo Task() const = 0;
+  /**
+   * \brief Return number of targets for input matrix.  Right now XGBoost supports only
+   *        multi-target regression.
+   */
+  virtual uint32_t Targets(DMatrix const*) const { return 1; }
 
   /*!
    * \brief Create an objective function according to name.

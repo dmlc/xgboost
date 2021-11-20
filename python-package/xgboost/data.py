@@ -21,7 +21,7 @@ CAT_T = "c"
 # meta info that can be a matrix instead of vector.
 # For now it's base_margin for multi-class, but it can be extended to label once we have
 # multi-output.
-_matrix_meta = {"base_margin"}
+_matrix_meta = {"base_margin", "label"}
 
 
 def _warn_unused_missing(data, missing):

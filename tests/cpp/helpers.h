@@ -91,6 +91,12 @@ xgboost::bst_float GetMetricEval(
   std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float>(),
   std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>());
 
+double GetMultiMetricEval(xgboost::Metric* metric,
+                          xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
+                          xgboost::linalg::Tensor<float, 2> const& labels,
+                          std::vector<xgboost::bst_float> weights = {},
+                          std::vector<xgboost::bst_uint> groups = {});
+
 namespace xgboost {
 bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
             std::vector<xgboost::bst_float>::const_iterator _end1,

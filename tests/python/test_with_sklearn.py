@@ -1118,10 +1118,10 @@ def run_boost_from_prediction_binary(tree_method, X, y, as_frame: Optional[Calla
 
 
 def run_boost_from_prediction_multi_clasas(
-    tree_method, X, y, as_frame: Optional[Callable]
+    estimator, tree_method, X, y, as_frame: Optional[Callable]
 ):
     # Multi-class
-    model_0 = xgb.XGBClassifier(
+    model_0 = estimator(
         learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
     )
     model_0.fit(X=X, y=y)
@@ -1129,7 +1129,7 @@ def run_boost_from_prediction_multi_clasas(
     if as_frame is not None:
         margin = as_frame(margin)
 
-    model_1 = xgb.XGBClassifier(
+    model_1 = estimator(
         learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
     )
     model_1.fit(X=X, y=y, base_margin=margin)
@@ -1137,7 +1137,7 @@ def run_boost_from_prediction_multi_clasas(
         xgb.DMatrix(X, base_margin=margin), output_margin=True
     )
 
-    model_2 = xgb.XGBClassifier(
+    model_2 = estimator(
         learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
     )
     model_2.fit(X=X, y=y)
@@ -1152,8 +1152,9 @@ def run_boost_from_prediction_multi_clasas(
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
 def test_boost_from_prediction(tree_method):
-    from sklearn.datasets import load_breast_cancer, load_digits
+    from sklearn.datasets import load_breast_cancer, load_digits, make_regression
     import pandas as pd
+
     X, y = load_breast_cancer(return_X_y=True)
 
     run_boost_from_prediction_binary(tree_method, X, y, None)
@@ -1161,8 +1162,13 @@ def test_boost_from_prediction(tree_method):
 
     X, y = load_digits(return_X_y=True)
 
-    run_boost_from_prediction_multi_clasas(tree_method, X, y, None)
-    run_boost_from_prediction_multi_clasas(tree_method, X, y, pd.DataFrame)
+    run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, X, y, None)
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, X, y, pd.DataFrame
+    )
+
+    X, y = make_regression(n_samples=100, n_targets=4)
+    run_boost_from_prediction_multi_clasas(xgb.XGBRegressor, tree_method, X, y, None)
 
 
 def test_estimator_type():

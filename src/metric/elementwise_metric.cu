@@ -37,20 +37,26 @@ class ElementWiseMetricsReduction {
 
   PackedReduceResult
   CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
-                   const HostDeviceVector<bst_float> &labels,
+                   linalg::TensorView<float const, 2> labels,
                    const HostDeviceVector<bst_float> &preds,
                    int32_t n_threads) const {
     size_t ndata = labels.Size();
+    auto n_targets = std::max(labels.Shape(1), static_cast<size_t>(1));
+    auto h_labels = labels.Values();
 
-    const auto& h_labels = labels.HostVector();
     const auto& h_weights = weights.HostVector();
     const auto& h_preds = preds.HostVector();
 
     std::vector<double> score_tloc(n_threads, 0.0);
     std::vector<double> weight_tloc(n_threads, 0.0);
 
+    // We sum over losses over all samples and targets instead of performing this for each
+    // target since the first one approach more accurate while the second approach is used
+    // for approximation in distributed setting
+    // - sqrt(avg_t0 + avg_t1 + ... + avg_tm)            // multi-target
+    // - sqrt(avg_t0) + sqrt(avg_t1) + ... sqrt(avg_tm)  // distributed
     common::ParallelFor(ndata, n_threads, [&](size_t i) {
-      float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
+      float wt = h_weights.size() > 0 ? h_weights[i / n_targets] : 1.0f;
       auto t_idx = omp_get_thread_num();
       score_tloc[t_idx] += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
       weight_tloc[t_idx] += wt;
@@ -66,14 +72,15 @@ class ElementWiseMetricsReduction {
 
   PackedReduceResult DeviceReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
+      linalg::TensorView<float const, 2> labels,
       const HostDeviceVector<bst_float>& preds) {
     size_t n_data = preds.Size();
+    auto n_targets = std::max(labels.Shape(1), static_cast<size_t>(1));
 
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;
 
-    auto s_label = labels.DeviceSpan();
+    auto s_label = labels.Values();
     auto s_preds = preds.DeviceSpan();
     auto s_weights = weights.DeviceSpan();
 
@@ -86,7 +93,7 @@ class ElementWiseMetricsReduction {
         thrust::cuda::par(alloc),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
-          float weight = is_null_weight ? 1.0f : s_weights[idx];
+          float weight = is_null_weight ? 1.0f : s_weights[idx / n_targets];
 
           float residue = d_policy.EvalRow(s_label[idx], s_preds[idx]);
           residue *= weight;
@@ -100,26 +107,22 @@ class ElementWiseMetricsReduction {
 
 #endif  // XGBOOST_USE_CUDA
 
-  PackedReduceResult Reduce(
-      const GenericParameter &ctx,
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds) {
+  PackedReduceResult Reduce(const GenericParameter& ctx, const HostDeviceVector<bst_float>& weights,
+                            linalg::Tensor<float, 2> const& labels,
+                            const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
     if (ctx.gpu_id < 0) {
       auto n_threads = ctx.Threads();
-      result = CpuReduceMetrics(weights, labels, preds, n_threads);
+      result = CpuReduceMetrics(weights, labels.HostView(), preds, n_threads);
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      device_ = ctx.gpu_id;
-      preds.SetDevice(device_);
-      labels.SetDevice(device_);
-      weights.SetDevice(device_);
+      preds.SetDevice(ctx.gpu_id);
+      weights.SetDevice(ctx.gpu_id);
 
-      dh::safe_cuda(cudaSetDevice(device_));
-      result = DeviceReduceMetrics(weights, labels, preds);
+      dh::safe_cuda(cudaSetDevice(ctx.gpu_id));
+      result = DeviceReduceMetrics(weights, labels.View(ctx.gpu_id), preds);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
@@ -128,7 +131,6 @@ class ElementWiseMetricsReduction {
  private:
   EvalRow policy_;
 #if defined(XGBOOST_USE_CUDA)
-  int device_{-1};
 #endif  // defined(XGBOOST_USE_CUDA)
 };
 
@@ -364,7 +366,7 @@ struct EvalEWiseBase : public Metric {
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    auto result = reducer_.Reduce(*tparam_, info.weights_, *info.labels.Data(), preds);
+    auto result = reducer_.Reduce(*tparam_, info.weights_, info.labels, preds);
 
     double dat[2] { result.Residue(), result.Weights() };
 

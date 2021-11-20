@@ -144,15 +144,26 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
 }
 
-xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
+xgboost::bst_float GetMetricEval(xgboost::Metric* metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights,
                                  std::vector<xgboost::bst_uint> groups) {
+  return GetMultiMetricEval(
+      metric, preds,
+      xgboost::linalg::Tensor<float, 2>{labels.begin(), labels.end(), {labels.size()}, -1}, weights,
+      groups);
+}
+
+double GetMultiMetricEval(xgboost::Metric* metric,
+                          xgboost::HostDeviceVector<xgboost::bst_float> const& preds,
+                          xgboost::linalg::Tensor<float, 2> const& labels,
+                          std::vector<xgboost::bst_float> weights,
+                          std::vector<xgboost::bst_uint> groups) {
   xgboost::MetaInfo info;
-  info.num_row_ = labels.size();
-  info.labels =
-      xgboost::linalg::Tensor<float, 2>{labels.begin(), labels.end(), {labels.size()}, -1};
+  info.num_row_ = labels.Shape(0);
+  info.labels.Reshape(labels.Shape()[0], labels.Shape()[1]);
+  info.labels.Data()->Copy(*labels.Data());
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -344,13 +355,14 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
     RandomDataGenerator gen(rows_, 1, 0);
     if (!float_label) {
       gen.Lower(0).Upper(classes).GenerateDense(out->Info().labels.Data());
-      out->Info().labels.Reshape(out->Info().labels.Size());
+      out->Info().labels.Reshape(this->rows_);
       auto& h_labels = out->Info().labels.Data()->HostVector();
       for (auto& v : h_labels) {
         v = static_cast<float>(static_cast<uint32_t>(v));
       }
     } else {
       gen.GenerateDense(out->Info().labels.Data());
+      out->Info().labels.Reshape(this->rows_);
     }
   }
   if (device_ >= 0) {

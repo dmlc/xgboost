@@ -278,6 +278,7 @@ TEST(Learner, GPUConfiguration) {
     labels[i] = i;
   }
   p_dmat->Info().labels.Data()->HostVector() = labels;
+  p_dmat->Info().labels.Reshape(kRows);
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"booster", "gblinear"},
