@@ -188,7 +188,10 @@ def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
         return numpy.concatenate(value, axis=0)
     if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
         return scipy_sparse.vstack(value, format="csr")
+    if scipy_sparse and isinstance(value[0], scipy_sparse.csc_matrix):
+        return scipy_sparse.vstack(value, format="csc")
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
+        # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format='csr')
     if sparse and isinstance(value[0], sparse.SparseArray):
         return sparse.concatenate(value, axis=0)
