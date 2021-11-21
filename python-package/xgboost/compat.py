@@ -120,11 +120,6 @@ except ImportError:
     scipy_csr: Any = object
     SCIPY_INSTALLED = False
 
-try:
-    import sparse
-except ImportError:
-    sparse = None
-
 
 # Modified from tensorflow with added caching.  There's a `LazyLoader` in
 # `importlib.utils`, except it's unclear from its document on how to use it.  This one
