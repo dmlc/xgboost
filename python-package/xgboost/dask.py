@@ -186,6 +186,8 @@ def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
     '''To be replaced with dask builtin.'''
     if isinstance(value[0], numpy.ndarray):
         return numpy.concatenate(value, axis=0)
+    if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
+        return scipy_sparse.vstack(value, format="csr")
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
         return scipy_sparse.vstack(value, format='csr')
     if sparse and isinstance(value[0], sparse.SparseArray):
