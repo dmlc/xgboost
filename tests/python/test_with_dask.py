@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import scipy
 import json
-from typing import List, Tuple, Dict, Optional, Type, Any, Callable
+from typing import List, Tuple, Dict, Optional, Type, Any
 import asyncio
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
@@ -294,7 +294,8 @@ def run_boost_from_prediction(
 def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
     X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+
     run_boost_from_prediction(X, y, tree_method, client)
 
     X_, y_ = load_digits(return_X_y=True)
