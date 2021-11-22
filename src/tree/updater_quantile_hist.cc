@@ -127,9 +127,14 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
   nodes_for_subtraction_trick_.clear();
   nodes_for_explicit_hist_build_.push_back(node);
 
-  this->histogram_builder_->BuildHist(p_fmat, p_tree, row_set_collection_,
-                                      nodes_for_explicit_hist_build_,
-                                      nodes_for_subtraction_trick_, gpair_h);
+  size_t page_id = 0;
+  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(
+           {GenericParameter::kCpuId, param_.max_bin})) {
+    this->histogram_builder_->BuildHist(
+        page_id, gidx, p_tree, row_set_collection_,
+        nodes_for_explicit_hist_build_, nodes_for_subtraction_trick_, gpair_h);
+    ++page_id;
+  }
 
   {
     auto nid = RegTree::kRoot;
@@ -259,9 +264,15 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
 
       if (depth < param_.max_depth) {
-        this->histogram_builder_->BuildHist(
-            p_fmat, p_tree, row_set_collection_, nodes_for_explicit_hist_build_,
-            nodes_for_subtraction_trick_, gpair_h);
+        size_t i = 0;
+        for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(
+                 {GenericParameter::kCpuId, param_.max_bin})) {
+          this->histogram_builder_->BuildHist(
+              i, gidx, p_tree, row_set_collection_,
+              nodes_for_explicit_hist_build_, nodes_for_subtraction_trick_,
+              gpair_h);
+          ++i;
+        }
       } else {
         int starting_index = std::numeric_limits<int>::max();
         int sync_count = 0;
@@ -432,7 +443,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
       });
     }
     exc.Rethrow();
-    this->histogram_builder_->Reset(nbins, param_.max_bin, this->nthread_);
+    this->histogram_builder_->Reset(
+        nbins, BatchParam{GenericParameter::kCpuId, param_.max_bin},
+        this->nthread_, 1, rabit::IsDistributed());
 
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(info.num_row_);

@@ -36,7 +36,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  auto hist_builder = GHistBuilder<GradientSumT>(omp_get_max_threads(), gmat.cut.Ptrs().back());
+  auto hist_builder = GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();

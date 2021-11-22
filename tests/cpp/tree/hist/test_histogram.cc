@@ -8,6 +8,16 @@
 
 namespace xgboost {
 namespace tree {
+namespace {
+void InitRowPartitionForTest(RowSetCollection *row_set, size_t n_samples,
+                             size_t base_rowid = 0) {
+  auto &row_indices = *row_set->Data();
+  row_indices.resize(n_samples);
+  std::iota(row_indices.begin(), row_indices.end(), base_rowid);
+  row_set->Init();
+}
+}  // anonymous namespace
+
 template <typename GradientSumT>
 void TestAddHistRows(bool is_distributed) {
   std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
@@ -35,8 +45,9 @@ void TestAddHistRows(bool is_distributed) {
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram_builder;
-  histogram_builder.Reset(gmat.cut.TotalBins(), kMaxBins, omp_get_max_threads(),
-                          is_distributed);
+  histogram_builder.Reset(gmat.cut.TotalBins(),
+                          {GenericParameter::kCpuId, kMaxBins},
+                          omp_get_max_threads(), 1, is_distributed);
   histogram_builder.AddHistRows(&starting_index, &sync_count,
                                 nodes_for_explicit_hist_build_,
                                 nodes_for_subtraction_trick_, &tree);
@@ -81,7 +92,8 @@ void TestSyncHist(bool is_distributed) {
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
   uint32_t total_bins = gmat.cut.Ptrs().back();
-  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(), is_distributed);
+  histogram.Reset(total_bins, {GenericParameter::kCpuId, kMaxBins},
+                  omp_get_max_threads(), 1, is_distributed);
 
   RowSetCollection row_set_collection_;
   {
@@ -247,22 +259,26 @@ void TestBuildHistogram(bool is_distributed) {
 
   bst_node_t nid = 0;
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
-  histogram.Reset(total_bins, kMaxBins, omp_get_max_threads(), is_distributed);
+  histogram.Reset(total_bins, {GenericParameter::kCpuId, kMaxBins},
+                  omp_get_max_threads(), 1, is_distributed);
 
   RegTree tree;
 
-  RowSetCollection row_set_collection_;
-  row_set_collection_.Clear();
-  std::vector<size_t> &row_indices = *row_set_collection_.Data();
+  RowSetCollection row_set_collection;
+  row_set_collection.Clear();
+  std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kNRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
-  row_set_collection_.Init();
+  row_set_collection.Init();
 
   CPUExpandEntry node(RegTree::kRoot, tree.GetDepth(0), 0.0f);
-  std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
-  nodes_for_explicit_hist_build_.push_back(node);
-  histogram.BuildHist(p_fmat.get(), &tree, row_set_collection_,
-                      nodes_for_explicit_hist_build_, {}, gpair);
+  std::vector<CPUExpandEntry> nodes_for_explicit_hist_build;
+  nodes_for_explicit_hist_build.push_back(node);
+  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(
+           {GenericParameter::kCpuId, kMaxBins})) {
+    histogram.BuildHist(0, gidx, &tree, row_set_collection,
+                        nodes_for_explicit_hist_build, {}, gpair);
+  }
 
   // Check if number of histogram bins is correct
   ASSERT_EQ(histogram.Histogram()[nid].size(), gmat.cut.Ptrs().back());
@@ -293,6 +309,89 @@ TEST(CPUHistogram, BuildHist) {
 
   TestBuildHistogram<float>(false);
   TestBuildHistogram<double>(false);
+}
+
+TEST(CPUHistogram, ExternalMemory) {
+  size_t constexpr kEntries = 1 << 16;
+
+  int32_t constexpr kBins = 32;
+  auto m = CreateSparsePageDMatrix(kEntries, "cache");
+  std::vector<size_t> partition_size(1, 0);
+  size_t total_bins{0};
+  size_t n_samples{0};
+
+  auto gpair = GenerateRandomGradients(m->Info().num_row_, 0.0, 1.0);
+  auto const &h_gpair = gpair.HostVector();
+
+  RegTree tree;
+  std::vector<CPUExpandEntry> nodes;
+  nodes.emplace_back(0, tree.GetDepth(0), 0.0f);
+
+  GHistRow<double> multi_page;
+  HistogramBuilder<double, CPUExpandEntry> multi_build;
+  {
+    /**
+     * Multi page
+     */
+    std::vector<RowSetCollection> rows_set;
+    std::vector<float> hess(m->Info().num_row_, 1.0);
+    for (auto const &page : m->GetBatches<GHistIndexMatrix>(
+             {GenericParameter::kCpuId, kBins, hess})) {
+      CHECK_LT(page.base_rowid, m->Info().num_row_);
+      auto n_rows_in_node = page.Size();
+      partition_size[0] = std::max(partition_size[0], n_rows_in_node);
+      total_bins = page.cut.TotalBins();
+      n_samples += n_rows_in_node;
+
+      rows_set.emplace_back();
+      InitRowPartitionForTest(&rows_set.back(), n_rows_in_node, page.base_rowid);
+    }
+    ASSERT_EQ(n_samples, m->Info().num_row_);
+
+    common::BlockedSpace2d space{
+        1, [&](size_t nidx_in_set) { return partition_size.at(nidx_in_set); },
+        256};
+
+    multi_build.Reset(total_bins, {GenericParameter::kCpuId, kBins},
+                      omp_get_max_threads(), rows_set.size(), false);
+
+    size_t page_idx{0};
+    for (auto const &page : m->GetBatches<GHistIndexMatrix>(
+             {GenericParameter::kCpuId, kBins, hess})) {
+      multi_build.BuildHist(page_idx, space, page, &tree,
+                                  rows_set.at(page_idx), nodes, {}, h_gpair);
+      ++page_idx;
+    }
+    ASSERT_EQ(page_idx, 2);
+    multi_page = multi_build.Histogram()[0];
+  }
+
+  HistogramBuilder<double, CPUExpandEntry> single_build;
+  GHistRow<double> single_page;
+  {
+    /**
+     * Single page
+     */
+    RowSetCollection row_set_collection;
+    InitRowPartitionForTest(&row_set_collection, n_samples);
+
+    single_build.Reset(total_bins, {GenericParameter::kCpuId, kBins},
+                       omp_get_max_threads(), 1, false);
+    size_t n_batches{0};
+    for (auto const &page :
+         m->GetBatches<GHistIndexMatrix>({GenericParameter::kCpuId, kBins})) {
+      single_build.BuildHist(0, page, &tree, row_set_collection, nodes, {},
+                             h_gpair);
+      n_batches ++;
+    }
+    ASSERT_EQ(n_batches, 1);
+    single_page = single_build.Histogram()[0];
+  }
+
+  for (size_t i = 0; i < single_page.size(); ++i) {
+    ASSERT_NEAR(single_page[i].GetGrad(), multi_page[i].GetGrad(), kRtEps);
+    ASSERT_NEAR(single_page[i].GetHess(), multi_page[i].GetHess(), kRtEps);
+  }
 }
 }  // namespace tree
 }  // namespace xgboost
