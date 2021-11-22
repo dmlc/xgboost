@@ -186,6 +186,16 @@ TEST(Linalg, TensorView) {
     ASSERT_TRUE(s_1.Contiguous());
     ASSERT_EQ(s_1(0), 17);
     ASSERT_EQ(s_1(1), 18);
+
+    auto s_2 = s_0.Slice(1, linalg::All(), linalg::Range(0, 2));
+    std::vector<double> sol{13, 14, 17, 18};
+    auto k = 0;
+    for (size_t i = 0; i < s_2.Shape(0); i++) {
+      for (size_t j = 0; j < s_2.Shape(1); ++j) {
+        ASSERT_EQ(s_2(i, j), sol[k]);
+        k++;
+      }
+    }
   }
   {
     // f-contiguous
