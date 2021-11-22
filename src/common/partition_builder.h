@@ -1,4 +1,3 @@
-
 /*!
  * Copyright 2021 by Contributors
  * \file row_set.h
