@@ -1,6 +1,9 @@
-"""Experimental support for external memory.  This is similar to the one in
-`quantile_data_iterator.py`, but for external memory instead of Quantile DMatrix.  The
-feature is not ready for production use yet.
+"""
+Experimental support for external memory
+========================================
+
+This is similar to the one in `quantile_data_iterator.py`, but for external memory
+instead of Quantile DMatrix.  The feature is not ready for production use yet.
 
     .. versionadded:: 1.5.0
 

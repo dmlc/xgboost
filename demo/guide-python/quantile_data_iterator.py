@@ -1,4 +1,6 @@
-'''A demo for defining data iterator.
+'''
+Demo for using data iterator with Quantile DMatrix
+==================================================
 
     .. versionadded:: 1.2.0
 

@@ -1,5 +1,9 @@
-"""Demo for using `process_type` with `prune` and `refresh`.  Modifying existing trees is
-not a well established use for XGBoost, so feel free to experiment.
+"""
+Demo for using `process_type` with `prune` and `refresh`
+========================================================
+
+Modifying existing trees is not a well established use for XGBoost, so feel free to
+experiment.
 
 """
 

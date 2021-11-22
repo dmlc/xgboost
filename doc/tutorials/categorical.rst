@@ -57,13 +57,10 @@ can plot the model and calculate the global feature importance:
 
 The ``scikit-learn`` interface from dask is similar to single node version.  The basic
 idea is create dataframe with category feature type, and tell XGBoost to use ``gpu_hist``
-with parameter ``enable_categorical``.  See `this demo
-<https://github.com/dmlc/xgboost/blob/master/demo/guide-python/categorical.py>`__ for a
-worked example of using categorical data with ``scikit-learn`` interface.  A comparison
-between using one-hot encoded data and XGBoost's categorical data support can be found
-`here
-<https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cat_in_the_dat.py>`__.
-
+with parameter ``enable_categorical``.  See :ref:`sphx_glr_python_examples_categorical.py`
+for a worked example of using categorical data with ``scikit-learn`` interface.  A
+comparison between using one-hot encoded data and XGBoost's categorical data support can
+be found :ref:`sphx_glr_python_examples_cat_in_the_dat.py`.
 
 
 **********************

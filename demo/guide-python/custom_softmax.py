@@ -1,10 +1,12 @@
-'''Demo for creating customized multi-class objective function.  This demo is
-only applicable after (excluding) XGBoost 1.0.0, as before this version XGBoost
-returns transformed prediction for multi-class objective function.  More
-details in comments.
+'''
+Demo for creating customized multi-class objective function
+===========================================================
 
-See https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html for detailed
-tutorial and notes.
+This demo is only applicable after (excluding) XGBoost 1.0.0, as before this version
+XGBoost returns transformed prediction for multi-class objective function.  More details
+in comments.
+
+See :doc:`/tutorials/custom_metric_obj` for detailed tutorial and notes.
 
 '''
 

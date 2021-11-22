@@ -1,4 +1,7 @@
 '''
+Collection of examples for using sklearn interface
+==================================================
+
 Created on 1 Apr 2015
 
 @author: Jamie Hall

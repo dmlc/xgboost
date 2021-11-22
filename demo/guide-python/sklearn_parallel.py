@@ -1,3 +1,7 @@
+"""
+Demo for using xgboost with sklearn
+===================================
+"""
 from sklearn.model_selection import GridSearchCV
 from sklearn.datasets import load_boston
 import xgboost as xgb

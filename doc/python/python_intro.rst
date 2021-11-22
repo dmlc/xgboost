@@ -5,7 +5,7 @@ This document gives a basic walkthrough of the xgboost package for Python.
 
 **List of other Helpful Links**
 
-* `Python walkthrough code collections <https://github.com/dmlc/xgboost/blob/master/demo/guide-python>`_
+* :doc:`/python/examples/index`
 * :doc:`Python API Reference <python_api>`
 
 Install XGBoost

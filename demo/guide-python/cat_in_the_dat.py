@@ -1,4 +1,8 @@
-"""A simple demo for categorical data support using dataset from Kaggle categorical data
+"""
+Train XGBoost with cat_in_the_dat dataset
+=========================================
+
+A simple demo for categorical data support using dataset from Kaggle categorical data
 tutorial.
 
 The excellent tutorial is at:
@@ -8,7 +12,7 @@ And the data can be found at:
 https://www.kaggle.com/shahules/an-overview-of-encoding-techniques/data
 
 Also, see the tutorial for using XGBoost with categorical data:
-https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
+:doc:`/tutorials/categorical`.
 
     .. versionadded 1.6.0
 
