@@ -459,6 +459,10 @@ class TensorView {
    */
   LINALG_HD size_t Size() const { return size_; }
   /**
+   * \brief Whether this is a contiguous array, both C and F contiguous returns true.
+   */
+  LINALG_HD bool Contiguous() const { return this->Size() == data_.size(); }
+  /**
    * \brief Whether it's a c-contiguous array.
    */
   LINALG_HD bool CContiguous() const {
