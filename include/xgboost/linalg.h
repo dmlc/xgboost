@@ -55,11 +55,18 @@ constexpr std::enable_if_t<sizeof...(Tail) != 0, size_t> Offset(S (&strides)[D],
   return Offset<dim + 1>(strides, n + (head * strides[dim]), std::forward<Tail>(rest)...);
 }
 
-template <int32_t D>
+template <int32_t D, bool f_array = false>
 constexpr void CalcStride(size_t const (&shape)[D], size_t (&stride)[D]) {
-  stride[D - 1] = 1;
-  for (int32_t s = D - 2; s >= 0; --s) {
-    stride[s] = shape[s + 1] * stride[s + 1];
+  if (f_array) {
+    stride[0] = 1;
+    for (int32_t s = 1; s < D; ++s) {
+      stride[s] = shape[s - 1] * stride[s - 1];
+    }
+  } else {
+    stride[D - 1] = 1;
+    for (int32_t s = D - 2; s >= 0; --s) {
+      stride[s] = shape[s + 1] * stride[s + 1];
+    }
   }
 }
 
@@ -461,7 +468,9 @@ class TensorView {
   /**
    * \brief Whether this is a contiguous array, both C and F contiguous returns true.
    */
-  LINALG_HD bool Contiguous() const { return this->Size() == data_.size(); }
+  LINALG_HD bool Contiguous() const {
+    return data_.size() == this->Size() || this->CContiguous() || this->FContiguous();
+  }
   /**
    * \brief Whether it's a c-contiguous array.
    */
@@ -470,6 +479,16 @@ class TensorView {
     static_assert(std::is_same<decltype(stride), decltype(stride_)>::value, "");
     // It's contiguous if the stride can be calculated from shape.
     detail::CalcStride(shape_, stride);
+    return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
+  }
+  /**
+   * \brief Whether it's a f-contiguous array.
+   */
+  LINALG_HD bool FContiguous() const {
+    StrideT stride;
+    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value, "");
+    // It's contiguous if the stride can be calculated from shape.
+    detail::CalcStride<kDim, true>(shape_, stride);
     return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
   }
   /**

@@ -166,13 +166,33 @@ TEST(Linalg, TensorView) {
 
   {
     // copy and move constructor.
-    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto t = MakeTensorView(data, {2, 3, 4}, kCpuId);
     auto from_copy = t;
     auto from_move = std::move(t);
     for (size_t i = 0; i < t.Shape().size(); ++i) {
       ASSERT_EQ(from_copy.Shape(i), from_move.Shape(i));
       ASSERT_EQ(from_copy.Stride(i), from_copy.Stride(i));
     }
+  }
+
+  {
+    // multiple slices
+    auto t = MakeTensorView(data, {2, 3, 4}, kCpuId);
+    auto s_0 = t.Slice(linalg::All(), linalg::Range(0, 2), linalg::Range(1, 4));
+    ASSERT_FALSE(s_0.CContiguous());
+    auto s_1 = s_0.Slice(1, 1, linalg::Range(0, 2));
+    ASSERT_EQ(s_1.Size(), 2);
+    ASSERT_TRUE(s_1.CContiguous());
+    ASSERT_TRUE(s_1.Contiguous());
+    ASSERT_EQ(s_1(0), 17);
+    ASSERT_EQ(s_1(1), 18);
+  }
+  {
+    // f-contiguous
+    TensorView<double, 3> t{data, {4, 3, 2}, {1, 4, 12}, kCpuId};
+    ASSERT_TRUE(t.Contiguous());
+    ASSERT_TRUE(t.FContiguous());
+    ASSERT_FALSE(t.CContiguous());
   }
 }
 
