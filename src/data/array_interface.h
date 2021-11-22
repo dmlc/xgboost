@@ -468,7 +468,7 @@ class ArrayInterface {
   XGBOOST_DEVICE size_t Stride(size_t i) const { return strides[i]; }
 
   template <typename Fn>
-  XGBOOST_HOST_DEV_INLINE constexpr decltype(auto) DispatchCall(Fn func) const {
+  XGBOOST_HOST_DEV_INLINE decltype(auto) DispatchCall(Fn func) const {
     using T = ArrayInterfaceHandler::Type;
     switch (type) {
       case T::kF4:
@@ -506,7 +506,7 @@ class ArrayInterface {
     return func(reinterpret_cast<uint64_t const *>(data));
   }
 
-  XGBOOST_DEVICE size_t constexpr ElementSize() {
+  XGBOOST_DEVICE size_t ElementSize() {
     return this->DispatchCall(
         [](auto *p_values) { return sizeof(std::remove_pointer_t<decltype(p_values)>); });
   }
