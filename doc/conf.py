@@ -202,14 +202,13 @@ latex_documents = [
 ]
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.6', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
-    'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),
-    'sklearn': ('http://scikit-learn.org/stable', None),
+    "python": ("https://docs.python.org/3.6", None),
+    "numpy": ("http://docs.scipy.org/doc/numpy/", None),
+    "scipy": ("http://docs.scipy.org/doc/scipy/reference/", None),
+    "pandas": ("http://pandas-docs.github.io/pandas-docs-travis/", None),
+    "sklearn": ("http://scikit-learn.org/stable", None),
     "dask": ("https://docs.dask.org/en/stable/", None),
     "distributed": ("https://distributed.dask.org/en/stable/", None),
-    "typing": ("https://python.readthedocs.io/en/stable", None)
 }
 
 
