@@ -115,8 +115,7 @@ jobs:
 
     - name: Upload Python wheel
       shell: bash -l {0}
-      if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) && matrix.config.os == 'macos-10.15'
+      if: (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) && matrix.config.os == 'macos-10.15'
       run: |
         python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
       env:
