@@ -39,7 +39,7 @@ def _configure_custom_metric(
         )
     if feval is not None and custom_metric is not None:
         raise ValueError(
-            "Bost `feval` and `custom_metric` are supplied.  Use `custom_metric` instead."
+            "Both `feval` and `custom_metric` are supplied.  Use `custom_metric` instead."
         )
     eval_metric = custom_metric if custom_metric is not None else feval
     return eval_metric
