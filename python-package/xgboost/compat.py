@@ -112,12 +112,10 @@ except pkg_resources.DistributionNotFound:
 
 
 try:
-    import sparse
     import scipy.sparse as scipy_sparse
     from scipy.sparse import csr_matrix as scipy_csr
     SCIPY_INSTALLED = True
 except ImportError:
-    sparse = False
     scipy_sparse = False
     scipy_csr: Any = object
     SCIPY_INSTALLED = False
