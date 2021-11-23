@@ -1,3 +1,7 @@
+"""
+Getting started with XGBoost
+============================
+"""
 import numpy as np
 import scipy.sparse
 import pickle

@@ -1,3 +1,7 @@
+"""
+Demo for gamma regression
+=========================
+"""
 import xgboost as xgb
 import numpy as np
 

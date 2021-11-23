@@ -1,6 +1,7 @@
-##
-#  This script demonstrate how to access the eval metrics in xgboost
-##
+"""
+This script demonstrate how to access the eval metrics
+======================================================
+"""
 import os
 import xgboost as xgb
 

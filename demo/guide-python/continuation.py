@@ -1,5 +1,6 @@
 """
-Demo for training continuation.
+Demo for training continuation
+==============================
 """
 
 from sklearn.datasets import load_breast_cancer

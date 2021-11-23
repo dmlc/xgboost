@@ -1,6 +1,7 @@
-##
-#  This script demonstrate how to access the xgboost eval metrics by using sklearn
-##
+"""
+Demo for accessing the xgboost eval metrics by using sklearn interface
+======================================================================
+"""
 
 import xgboost as xgb
 import numpy as np

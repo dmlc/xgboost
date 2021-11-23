@@ -13,4 +13,4 @@ Contents
   python_api
   callbacks
   model
-  Python examples <https://github.com/dmlc/xgboost/tree/master/demo/guide-python>
+  examples/index

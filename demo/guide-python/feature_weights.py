@@ -1,4 +1,6 @@
-'''Using feature weight to change column sampling.
+'''
+Demo for using feature weight to change column sampling
+=======================================================
 
     .. versionadded:: 1.3.0
 '''

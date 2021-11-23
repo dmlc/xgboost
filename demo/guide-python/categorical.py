@@ -1,12 +1,16 @@
-"""Experimental support for categorical data.  After 1.5 XGBoost `gpu_hist` tree method
-has experimental support for one-hot encoding based tree split.
+"""
+Getting started with categorical data
+=====================================
+
+Experimental support for categorical data.  After 1.5 XGBoost `gpu_hist` tree method has
+experimental support for one-hot encoding based tree split.
 
 In before, users need to run an encoder themselves before passing the data into XGBoost,
 which creates a sparse matrix and potentially increase memory usage.  This demo showcases
 the experimental categorical data support, more advanced features are planned.
 
-Also, see the tutorial for using XGBoost with categorical data:
-https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html
+Also, see :doc:`the tutorial </tutorials/categorical>` for using XGBoost with categorical data
+
 
     .. versionadded:: 1.5.0
 

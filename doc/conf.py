@@ -62,12 +62,6 @@ libpath = os.path.join(curr_path, '../python-package/')
 sys.path.insert(0, libpath)
 sys.path.insert(0, curr_path)
 
-# -- mock out modules
-import mock                     # NOQA
-MOCK_MODULES = ['scipy', 'scipy.sparse', 'sklearn', 'pandas']
-for mod_name in MOCK_MODULES:
-    sys.modules[mod_name] = mock.Mock()
-
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
@@ -90,9 +84,16 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx.ext.intersphinx',
+    "sphinx_gallery.gen_gallery",
     'breathe',
     'recommonmark'
 ]
+
+sphinx_gallery_conf = {
+    "examples_dirs": "../demo/guide-python",  # path to your example scripts
+    "gallery_dirs": "python/examples",  # path to where to save gallery generated output
+    "matplotlib_animations": True,
+}
 
 autodoc_typehints = "description"
 
@@ -201,11 +202,13 @@ latex_documents = [
 ]
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.6', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
-    'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),
-    'sklearn': ('http://scikit-learn.org/stable', None)
+    "python": ("https://docs.python.org/3.6", None),
+    "numpy": ("http://docs.scipy.org/doc/numpy/", None),
+    "scipy": ("http://docs.scipy.org/doc/scipy/reference/", None),
+    "pandas": ("http://pandas-docs.github.io/pandas-docs-travis/", None),
+    "sklearn": ("http://scikit-learn.org/stable", None),
+    "dask": ("https://docs.dask.org/en/stable/", None),
+    "distributed": ("https://distributed.dask.org/en/stable/", None),
 }
 
 

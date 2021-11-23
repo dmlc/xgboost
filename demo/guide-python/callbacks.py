@@ -1,5 +1,6 @@
 '''
-Demo for using and defining callback functions.
+Demo for using and defining callback functions
+==============================================
 
     .. versionadded:: 1.3.0
 '''
