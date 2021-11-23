@@ -76,7 +76,8 @@ def main():
     print("====Next Steps====")
     print("1. Obtain Linux and Windows binaries from the CI server")
     print("2. Put them in xgboost4j(-gpu)/src/main/resources/lib/[os]/[arch]")
-    print("3. Now run 'mvn release' on a Mac machine")
+    print("3. Now on a Mac machine, run:")
+    print("   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests")
 
 if __name__ == "__main__":
     main()
