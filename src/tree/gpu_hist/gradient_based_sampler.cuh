@@ -66,14 +66,12 @@ class UniformSampling : public SamplingStrategy {
 /*! \brief No sampling in external memory mode. */
 class ExternalMemoryUniformSampling : public SamplingStrategy {
  public:
-  ExternalMemoryUniformSampling(EllpackPageImpl const* page,
-                                size_t n_rows,
+  ExternalMemoryUniformSampling(size_t n_rows,
                                 BatchParam batch_param,
                                 float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl const* original_page_;
   BatchParam batch_param_;
   float subsample_;
   std::unique_ptr<EllpackPageImpl> page_;
@@ -100,14 +98,12 @@ class GradientBasedSampling : public SamplingStrategy {
 /*! \brief Gradient-based sampling in external memory mode.. */
 class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  public:
-  ExternalMemoryGradientBasedSampling(EllpackPageImpl const* page,
-                                      size_t n_rows,
+  ExternalMemoryGradientBasedSampling(size_t n_rows,
                                       BatchParam batch_param,
                                       float subsample);
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  EllpackPageImpl const* original_page_;
   BatchParam batch_param_;
   float subsample_;
   dh::caching_device_vector<float> threshold_;
