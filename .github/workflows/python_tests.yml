@@ -45,13 +45,59 @@ jobs:
         cd ..
         python -c 'import xgboost'
 
-  python-tests:
+  python-tests-on-win:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
     strategy:
       matrix:
         config:
           - {os: windows-2016, python-version: '3.8'}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.config.python-version }}
+        activate-environment: win64_env
+        environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
+
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+
+    - name: Build XGBoost on Windows
+      shell: bash -l {0}
+      run: |
+        mkdir build_msvc
+        cd build_msvc
+        cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
+        cmake --build . --config Release --parallel $(nproc)
+
+    - name: Install Python package
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py bdist_wheel --universal
+        pip install ./dist/*.whl
+
+    - name: Test Python package
+      shell: bash -l {0}
+      run: |
+        pytest -s -v ./tests/python
+
+  python-tests-on-macos:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        config:
           - {os: macos-10.15, python-version "3.8" }
 
     steps:
@@ -63,8 +109,8 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
-        activate-environment: win64_test
-        environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
+        activate-environment: macos_test
+        environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
     - name: Display Conda env
       shell: bash -l {0}
@@ -72,17 +118,7 @@ jobs:
         conda info
         conda list
 
-    - name: Build XGBoost on Windows
-      shell: bash -l {0}
-      if: matrix.config.os == 'windows-2016'
-      run: |
-        mkdir build_msvc
-        cd build_msvc
-        cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
-        cmake --build . --config Release --parallel $(nproc)
-
     - name: Build XGBoost on macos
-      if: matrix.config.os == 'macos-10.15'
       run: |
         wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
         brew install ninja libomp
@@ -108,16 +144,19 @@ jobs:
 
     - name: Rename Python wheel
       shell: bash -l {0}
-      if: matrix.config.os == 'macos-10.15'
       run: |
         TAG=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
         python tests/ci_build/rename_whl.py python-package/dist/*.whl ${{ github.sha }} ${TAG}
 
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+
     - name: Upload Python wheel
       shell: bash -l {0}
-      if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        matrix.os == 'macos-latest'
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
       run: |
         python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
       env:

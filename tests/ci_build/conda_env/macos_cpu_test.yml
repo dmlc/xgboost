@@ -1,4 +1,4 @@
-name: cpu_test
+name: macos_test
 channels:
 - conda-forge
 dependencies:
