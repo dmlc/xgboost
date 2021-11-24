@@ -7,7 +7,7 @@ import sys
 sys.path.append("tests/python")
 from test_data_iterator import SingleBatch, make_batches
 from test_data_iterator import test_single_batch as cpu_single_batch
-from test_data_iterator import run_data_iterator
+from test_data_iterator import run_data_iterator, run_data_iterator_subsample
 from testing import IteratorForTest, no_cupy
 
 
@@ -25,7 +25,10 @@ def test_gpu_data_iterator(
 ) -> None:
     run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", True)
     run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", False)
-
+    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", True, 0.25, "gradient_based")
+    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", False, 0.25, "gradient_based")
+    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", True, 0.25, "uniform")
+    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", False, 0.25, "uniform")
 
 def test_cpu_data_iterator() -> None:
     """Make sure CPU algorithm can handle GPU inputs"""

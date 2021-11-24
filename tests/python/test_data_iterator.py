@@ -69,6 +69,7 @@ def run_data_iterator_subsample(
     tree_method: str,
     use_cupy: bool,
     subsample_value: float,
+    sampling_method: str,
 ) -> None:
     n_rounds = 2
 
@@ -87,7 +88,7 @@ def run_data_iterator_subsample(
     results_from_it: xgb.callback.EvaluationMonitor.EvalsLog = {}
     from_it = xgb.train(
         {"tree_method": tree_method, "max_depth": 2, 
-         "subsample": subsample_value },
+         "subsample": subsample_value, "sampling_method": sampling_method},
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -104,7 +105,7 @@ def run_data_iterator_subsample(
     results_from_arrays: xgb.callback.EvaluationMonitor.EvalsLog = {}
     from_arrays = xgb.train(
         {"tree_method": tree_method, "max_depth": 2, 
-         "subsample": subsample_value},
+         "subsample": subsample_value, "sampling_method": sampling_method},
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -197,4 +198,3 @@ def test_data_iterator(
 ) -> None:
     run_data_iterator(n_samples_per_batch, n_features, n_batches, "approx", False)
     run_data_iterator(n_samples_per_batch, n_features, n_batches, "hist", False)
-    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", False, 0.25)
