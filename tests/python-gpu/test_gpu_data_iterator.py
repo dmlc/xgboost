@@ -25,6 +25,15 @@ def test_gpu_data_iterator(
 ) -> None:
     run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", True)
     run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", False)
+
+@pytest.mark.skipif(**no_cupy())
+@given(
+    strategies.integers(0, 1024), strategies.integers(1, 7), strategies.integers(0, 13)
+)
+@settings(deadline=None)
+def test_gpu_data_iterator_subsample(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
     run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", True, 0.25, "gradient_based")
     run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", False, 0.25, "gradient_based")
     run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", True, 0.25, "uniform")
