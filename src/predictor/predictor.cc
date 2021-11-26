@@ -61,7 +61,8 @@ Predictor* Predictor::Create(
   return p_predictor;
 }
 
-void ValidateBaseMarginShape(linalg::Tensor<float, 3> const& margin, bst_row_t n_samples,
+template <int32_t D>
+void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_row_t n_samples,
                              bst_group_t n_groups) {
   // FIXME: Bindings other than Python doesn't have shape.
   std::string expected{"Invalid shape of base_margin. Expected: (" + std::to_string(n_samples) +
