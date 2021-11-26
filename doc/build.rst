@@ -52,7 +52,7 @@ This shared library is used by different language bindings (with some additions 
 on the binding you choose).  The minimal building requirement is
 
 - A recent C++ compiler supporting C++11 (g++-5.0 or higher)
-- CMake 3.13 or higher.
+- CMake 3.14 or higher.
 
 For a list of CMake options like GPU support, see ``#-- Options`` in CMakeLists.txt on top
 level of source tree.
