@@ -62,77 +62,13 @@ def test_single_batch(tree_method: str = "approx") -> None:
     from_np = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
     assert from_np.get_dump() == from_it.get_dump()
 
-def run_data_iterator_subsample(
-    n_samples_per_batch: int,
-    n_features: int,
-    n_batches: int,
-    tree_method: str,
-    use_cupy: bool,
-    subsample_value: float,
-    sampling_method: str,
-) -> None:
-    n_rounds = 2
-
-    it = IteratorForTest(
-        *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy)
-    )
-    if n_batches == 0:
-        with pytest.raises(ValueError, match="1 batch"):
-            Xy = xgb.DMatrix(it)
-        return
-
-    Xy = xgb.DMatrix(it)
-    assert Xy.num_row() == n_samples_per_batch * n_batches
-    assert Xy.num_col() == n_features
-
-    results_from_it: xgb.callback.EvaluationMonitor.EvalsLog = {}
-    from_it = xgb.train(
-        {"tree_method": tree_method, "max_depth": 2, 
-         "subsample": subsample_value, "sampling_method": sampling_method},
-        Xy,
-        num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
-        evals_result=results_from_it,
-        verbose_eval=False,
-    )
-    it_predt = from_it.predict(Xy)
-
-    X, y = it.as_arrays()
-    Xy = xgb.DMatrix(X, y)
-    assert Xy.num_row() == n_samples_per_batch * n_batches
-    assert Xy.num_col() == n_features
-
-    results_from_arrays: xgb.callback.EvaluationMonitor.EvalsLog = {}
-    from_arrays = xgb.train(
-        {"tree_method": tree_method, "max_depth": 2, 
-         "subsample": subsample_value, "sampling_method": sampling_method},
-        Xy,
-        num_boost_round=n_rounds,
-        evals=[(Xy, "Train")],
-        evals_result=results_from_arrays,
-        verbose_eval=False,
-    )
-    arr_predt = from_arrays.predict(Xy)
-
-    if tree_method != "gpu_hist":
-        rtol = 1e-1  # flaky
-    else:
-        # Model can be sensitive to quantiles, use 1e-2 to relax the test.
-        # rtol=1e-2 makes test fail (because of subsampling) we use 5e-2
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=5e-2)
-        rtol = 1e-6
-
-    np.testing.assert_allclose(
-        results_from_it["Train"]["rmse"],
-        results_from_arrays["Train"]["rmse"],
-        rtol=rtol,
-    )
 
 def run_data_iterator(
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
     tree_method: str,
+    subsample: float,
     use_cupy: bool,
 ) -> None:
     n_rounds = 2
@@ -149,9 +85,14 @@ def run_data_iterator(
     assert Xy.num_row() == n_samples_per_batch * n_batches
     assert Xy.num_col() == n_features
 
+    parameters = {"tree_method": tree_method, "max_depth": 2, "subsample": subsample}
+
+    if tree_method == "gpu_hist":
+        parameters["sampling_method"] = "gradient_based"
+
     results_from_it: xgb.callback.EvaluationMonitor.EvalsLog = {}
     from_it = xgb.train(
-        {"tree_method": tree_method, "max_depth": 2},
+        parameters,
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -167,7 +108,7 @@ def run_data_iterator(
 
     results_from_arrays: xgb.callback.EvaluationMonitor.EvalsLog = {}
     from_arrays = xgb.train(
-        {"tree_method": tree_method, "max_depth": 2},
+        parameters,
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -191,11 +132,22 @@ def run_data_iterator(
 
 
 @given(
-    strategies.integers(0, 1024), strategies.integers(1, 7), strategies.integers(0, 13)
+    strategies.integers(0, 1024),
+    strategies.integers(1, 7),
+    strategies.integers(0, 13),
+    strategies.booleans(),
 )
 @settings(deadline=None)
 def test_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    subsample: bool,
 ) -> None:
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "approx", False)
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "hist", False)
+    subsample_rate = 0.5 if subsample else 1.0
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "approx", subsample_rate, False
+    )
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "hist", subsample_rate, False
+    )

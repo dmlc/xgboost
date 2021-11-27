@@ -7,7 +7,7 @@ import sys
 sys.path.append("tests/python")
 from test_data_iterator import SingleBatch, make_batches
 from test_data_iterator import test_single_batch as cpu_single_batch
-from test_data_iterator import run_data_iterator, run_data_iterator_subsample
+from test_data_iterator import run_data_iterator
 from testing import IteratorForTest, no_cupy
 
 
@@ -17,28 +17,24 @@ def test_gpu_single_batch() -> None:
 
 @pytest.mark.skipif(**no_cupy())
 @given(
-    strategies.integers(0, 1024), strategies.integers(1, 7), strategies.integers(0, 13)
+    strategies.integers(0, 1024),
+    strategies.integers(1, 7),
+    strategies.integers(0, 13),
+    strategies.booleans(),
 )
 @settings(deadline=None)
 def test_gpu_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int
+    n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool
 ) -> None:
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", True)
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", False)
+    subsample_rate = 0.5 if subsample else 1.0
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample_rate, True
+    )
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample_rate, False
+    )
 
-@pytest.mark.skipif(**no_cupy())
-@given(
-    strategies.integers(0, 1024), strategies.integers(1, 7), strategies.integers(0, 13)
-)
-@settings(deadline=None)
-def test_gpu_data_iterator_subsample(
-    n_samples_per_batch: int, n_features: int, n_batches: int
-) -> None:
-    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", True, 0.25, "gradient_based")
-    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", False, 0.25, "gradient_based")
-    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", True, 0.25, "uniform")
-    run_data_iterator_subsample(n_samples_per_batch, n_features, n_batches, "gpu_hist", False, 0.25, "uniform")
 
 def test_cpu_data_iterator() -> None:
     """Make sure CPU algorithm can handle GPU inputs"""
-    run_data_iterator(1024, 2, 3, "approx", True)
+    run_data_iterator(1024, 2, 3, "approx", 1.0, True)
