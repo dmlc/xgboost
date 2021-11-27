@@ -36,13 +36,13 @@ class ApproxRowPartitioner {
                              std::vector<float> const &cut_values) {
     int32_t gidx = -1;
     auto const &row_ptr = index.row_ptr;
-    auto get_row_ptr = [&](size_t ridx) { return row_ptr.at(ridx - index.base_rowid); };
+    auto get_rid = [&](size_t ridx) { return row_ptr[ridx - index.base_rowid]; };
 
     if (index.IsDense()) {
-      gidx = index.index[get_row_ptr(ridx) + fidx];
+      gidx = index.index[get_rid(ridx) + fidx];
     } else {
-      auto begin = get_row_ptr(ridx);
-      auto end = get_row_ptr(ridx + 1);
+      auto begin = get_rid(ridx);
+      auto end = get_rid(ridx + 1);
       auto f_begin = cut_ptrs[fidx];
       auto f_end = cut_ptrs[fidx + 1];
       gidx = common::BinarySearchBin(begin, end, index.index, f_begin, f_end);
