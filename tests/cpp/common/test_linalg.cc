@@ -51,7 +51,7 @@ TEST(Linalg, TensorView) {
   std::vector<double> data(2 * 3 * 4, 0);
   std::iota(data.begin(), data.end(), 0);
 
-  TensorView<double> t{data, {2, 3, 4}, -1};
+  auto t = MakeTensorView(data, {2, 3, 4}, -1);
   ASSERT_EQ(t.Shape()[0], 2);
   ASSERT_EQ(t.Shape()[1], 3);
   ASSERT_EQ(t.Shape()[2], 4);
@@ -96,16 +96,113 @@ TEST(Linalg, TensorView) {
     // assignment
     TensorView<double, 3> t{data, {2, 3, 4}, 0};
     double pi = 3.14159;
+    auto old = t(1, 2, 3);
     t(1, 2, 3) = pi;
     ASSERT_EQ(t(1, 2, 3), pi);
+    t(1, 2, 3) = old;
+    ASSERT_EQ(t(1, 2, 3), old);
   }
 
   {
     // Don't assign the initial dimension, tensor should be able to deduce the correct dim
     // for Slice.
-    TensorView<double> t{data, {2, 3, 4}, 0};
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
     auto s = t.Slice(1, 2, All());
     static_assert(decltype(s)::kDimension == 1, "");
+  }
+  {
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto s = t.Slice(1, linalg::All(), 1);
+    ASSERT_EQ(s(0), 13);
+    ASSERT_EQ(s(1), 17);
+    ASSERT_EQ(s(2), 21);
+  }
+  {
+    // range slice
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto s = t.Slice(linalg::All(), linalg::Range(1, 3), 2);
+    static_assert(decltype(s)::kDimension == 2, "");
+    std::vector<double> sol{6, 10, 18, 22};
+    auto k = 0;
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        ASSERT_EQ(s(i, j), sol.at(k));
+        k++;
+      }
+    }
+    ASSERT_FALSE(s.CContiguous());
+  }
+  {
+    // range slice
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto s = t.Slice(1, linalg::Range(1, 3), linalg::Range(1, 3));
+    static_assert(decltype(s)::kDimension == 2, "");
+    std::vector<double> sol{17, 18, 21, 22};
+    auto k = 0;
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        ASSERT_EQ(s(i, j), sol.at(k));
+        k++;
+      }
+    }
+    ASSERT_FALSE(s.CContiguous());
+  }
+  {
+    // same as no slice.
+    auto t = MakeTensorView(data, {2, 3, 4}, 0);
+    auto s = t.Slice(linalg::All(), linalg::Range(0, 3), linalg::Range(0, 4));
+    static_assert(decltype(s)::kDimension == 3, "");
+    auto all = t.Slice(linalg::All(), linalg::All(), linalg::All());
+    for (size_t i = 0; i < s.Shape(0); ++i) {
+      for (size_t j = 0; j < s.Shape(1); ++j) {
+        for (size_t k = 0; k < s.Shape(2); ++k) {
+          ASSERT_EQ(s(i, j, k), all(i, j, k));
+        }
+      }
+    }
+    ASSERT_TRUE(s.CContiguous());
+    ASSERT_TRUE(all.CContiguous());
+  }
+
+  {
+    // copy and move constructor.
+    auto t = MakeTensorView(data, {2, 3, 4}, kCpuId);
+    auto from_copy = t;
+    auto from_move = std::move(t);
+    for (size_t i = 0; i < t.Shape().size(); ++i) {
+      ASSERT_EQ(from_copy.Shape(i), from_move.Shape(i));
+      ASSERT_EQ(from_copy.Stride(i), from_copy.Stride(i));
+    }
+  }
+
+  {
+    // multiple slices
+    auto t = MakeTensorView(data, {2, 3, 4}, kCpuId);
+    auto s_0 = t.Slice(linalg::All(), linalg::Range(0, 2), linalg::Range(1, 4));
+    ASSERT_FALSE(s_0.CContiguous());
+    auto s_1 = s_0.Slice(1, 1, linalg::Range(0, 2));
+    ASSERT_EQ(s_1.Size(), 2);
+    ASSERT_TRUE(s_1.CContiguous());
+    ASSERT_TRUE(s_1.Contiguous());
+    ASSERT_EQ(s_1(0), 17);
+    ASSERT_EQ(s_1(1), 18);
+
+    auto s_2 = s_0.Slice(1, linalg::All(), linalg::Range(0, 2));
+    std::vector<double> sol{13, 14, 17, 18};
+    auto k = 0;
+    for (size_t i = 0; i < s_2.Shape(0); i++) {
+      for (size_t j = 0; j < s_2.Shape(1); ++j) {
+        ASSERT_EQ(s_2(i, j), sol[k]);
+        k++;
+      }
+    }
+  }
+  {
+    // f-contiguous
+    TensorView<double, 3> t{data, {4, 3, 2}, {1, 4, 12}, kCpuId};
+    ASSERT_TRUE(t.Contiguous());
+    ASSERT_TRUE(t.FContiguous());
+    ASSERT_FALSE(t.CContiguous());
   }
 }
 
@@ -119,7 +216,8 @@ TEST(Linalg, Tensor) {
 
     size_t n = 2 * 3 * 4;
     ASSERT_EQ(t.Size(), n);
-    ASSERT_TRUE(std::equal(k_view.cbegin(), k_view.cbegin(), view.begin()));
+    ASSERT_TRUE(
+        std::equal(k_view.Values().cbegin(), k_view.Values().cend(), view.Values().cbegin()));
 
     Tensor<float, 3> t_0{std::move(t)};
     ASSERT_EQ(t_0.Size(), n);
@@ -173,13 +271,17 @@ TEST(Linalg, ArrayInterface) {
   auto cpu = kCpuId;
   auto t = Tensor<double, 2>{{3, 3}, cpu};
   auto v = t.View(cpu);
-  std::iota(v.begin(), v.end(), 0);
-  auto arr = Json::Load(StringView{v.ArrayInterfaceStr()});
+  std::iota(v.Values().begin(), v.Values().end(), 0);
+  auto arr = Json::Load(StringView{ArrayInterfaceStr(v)});
   ASSERT_EQ(get<Integer>(arr["shape"][0]), 3);
   ASSERT_EQ(get<Integer>(arr["strides"][0]), 3 * sizeof(double));
 
   ASSERT_FALSE(get<Boolean>(arr["data"][1]));
   ASSERT_EQ(reinterpret_cast<double *>(get<Integer>(arr["data"][0])), v.Values().data());
+
+  TensorView<double const, 2> as_const = v;
+  auto const_arr = ArrayInterface(as_const);
+  ASSERT_TRUE(get<Boolean>(const_arr["data"][1]));
 }
 
 TEST(Linalg, Popc) {

@@ -30,7 +30,7 @@ inline void TestMetaInfoStridedData(int32_t device) {
         is_gpu ? labels.ConstDeviceSpan() : labels.ConstHostSpan(), {32, 2}, device};
     auto s = t.Slice(linalg::All(), 0);
 
-    auto str = s.ArrayInterfaceStr();
+    auto str = ArrayInterfaceStr(s);
     ASSERT_EQ(s.Size(), 32);
 
     info.SetInfo("label", StringView{str});
@@ -48,7 +48,7 @@ inline void TestMetaInfoStridedData(int32_t device) {
     auto& h_qid = qid.Data()->HostVector();
     std::iota(h_qid.begin(), h_qid.end(), 0);
     auto s = qid.View(device).Slice(linalg::All(), 0);
-    auto str = s.ArrayInterfaceStr();
+    auto str = ArrayInterfaceStr(s);
     info.SetInfo("qid", StringView{str});
     auto const& h_result = info.group_ptr_;
     ASSERT_EQ(h_result.size(), s.Size() + 1);
@@ -62,7 +62,7 @@ inline void TestMetaInfoStridedData(int32_t device) {
     auto t_margin = base_margin.View(device).Slice(linalg::All(), 0, linalg::All());
     ASSERT_EQ(t_margin.Shape().size(), 2);
 
-    info.SetInfo("base_margin", StringView{t_margin.ArrayInterfaceStr()});
+    info.SetInfo("base_margin", StringView{ArrayInterfaceStr(t_margin)});
     auto const& h_result = info.base_margin_.View(-1);
     ASSERT_EQ(h_result.Shape().size(), 2);
     auto in_margin = base_margin.View(-1);

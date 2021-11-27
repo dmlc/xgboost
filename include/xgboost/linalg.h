@@ -20,6 +20,15 @@
 #include <utility>
 #include <vector>
 
+// decouple it from xgboost.
+#ifndef LINALG_HD
+#if defined(__CUDA__) || defined(__NVCC__)
+#define LINALG_HD __host__ __device__
+#else
+#define LINALG_HD
+#endif  // defined (__CUDA__) || defined(__NVCC__)
+#endif  // LINALG_HD
+
 namespace xgboost {
 namespace linalg {
 namespace detail {
@@ -46,16 +55,31 @@ constexpr std::enable_if_t<sizeof...(Tail) != 0, size_t> Offset(S (&strides)[D],
   return Offset<dim + 1>(strides, n + (head * strides[dim]), std::forward<Tail>(rest)...);
 }
 
-template <int32_t D>
-constexpr void CalcStride(size_t (&shape)[D], size_t (&stride)[D]) {
-  stride[D - 1] = 1;
-  for (int32_t s = D - 2; s >= 0; --s) {
-    stride[s] = shape[s + 1] * stride[s + 1];
+template <int32_t D, bool f_array = false>
+constexpr void CalcStride(size_t const (&shape)[D], size_t (&stride)[D]) {
+  if (f_array) {
+    stride[0] = 1;
+    for (int32_t s = 1; s < D; ++s) {
+      stride[s] = shape[s - 1] * stride[s - 1];
+    }
+  } else {
+    stride[D - 1] = 1;
+    for (int32_t s = D - 2; s >= 0; --s) {
+      stride[s] = shape[s + 1] * stride[s + 1];
+    }
   }
 }
 
 struct AllTag {};
+
 struct IntTag {};
+
+template <typename I>
+struct RangeTag {
+  I beg;
+  I end;
+  constexpr size_t Size() const { return end - beg; }
+};
 
 /**
  * \brief Calculate the dimension of sliced tensor.
@@ -83,10 +107,10 @@ template <typename S>
 using RemoveCRType = std::remove_const_t<std::remove_reference_t<S>>;
 
 template <typename S>
-using IndexToTag = std::conditional_t<std::is_integral<RemoveCRType<S>>::value, IntTag, AllTag>;
+using IndexToTag = std::conditional_t<std::is_integral<RemoveCRType<S>>::value, IntTag, S>;
 
 template <int32_t n, typename Fn>
-XGBOOST_DEVICE constexpr auto UnrollLoop(Fn fn) {
+LINALG_HD constexpr auto UnrollLoop(Fn fn) {
 #if defined __CUDA_ARCH__
 #pragma unroll n
 #endif  // defined __CUDA_ARCH__
@@ -102,7 +126,7 @@ int32_t NativePopc(T v) {
   return c;
 }
 
-inline XGBOOST_DEVICE int Popc(uint32_t v) {
+inline LINALG_HD int Popc(uint32_t v) {
 #if defined(__CUDA_ARCH__)
   return __popc(v);
 #elif defined(__GNUC__) || defined(__clang__)
@@ -114,7 +138,7 @@ inline XGBOOST_DEVICE int Popc(uint32_t v) {
 #endif  // compiler
 }
 
-inline XGBOOST_DEVICE int Popc(uint64_t v) {
+inline LINALG_HD int Popc(uint64_t v) {
 #if defined(__CUDA_ARCH__)
   return __popcll(v);
 #elif defined(__GNUC__) || defined(__clang__)
@@ -140,7 +164,7 @@ constexpr auto Arr2Tup(T (&arr)[N]) {
 // slow on both CPU and GPU, especially 64 bit integer.  So here we first try to avoid 64
 // bit when the index is smaller, then try to avoid division when it's exp of 2.
 template <typename I, int32_t D>
-XGBOOST_DEVICE auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
+LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
   size_t index[D]{0};
   static_assert(std::is_signed<decltype(D)>::value,
                 "Don't change the type without changing the for loop.");
@@ -174,7 +198,7 @@ void ReshapeImpl(size_t (&out_shape)[D], I &&s, S &&...rest) {
 }
 
 template <typename Fn, typename Tup, size_t... I>
-XGBOOST_DEVICE decltype(auto) constexpr Apply(Fn &&f, Tup &&t, std::index_sequence<I...>) {
+LINALG_HD decltype(auto) constexpr Apply(Fn &&f, Tup &&t, std::index_sequence<I...>) {
   return f(std::get<I>(t)...);
 }
 
@@ -185,19 +209,26 @@ XGBOOST_DEVICE decltype(auto) constexpr Apply(Fn &&f, Tup &&t, std::index_sequen
  * \param t tuple of arguments
  */
 template <typename Fn, typename Tup>
-XGBOOST_DEVICE decltype(auto) constexpr Apply(Fn &&f, Tup &&t) {
+LINALG_HD decltype(auto) constexpr Apply(Fn &&f, Tup &&t) {
   constexpr auto kSize = std::tuple_size<Tup>::value;
   return Apply(std::forward<Fn>(f), std::forward<Tup>(t), std::make_index_sequence<kSize>{});
 }
 }  // namespace detail
 
 /**
- * \brief Specify all elements in the axis is used for slice.
+ * \brief Specify all elements in the axis for slicing.
  */
 constexpr detail::AllTag All() { return {}; }
+/**
+ * \brief Specify a range of elements in the axis for slicing.
+ */
+template <typename I>
+constexpr detail::RangeTag<I> Range(I beg, I end) {
+  return {beg, end};
+}
 
 /**
- * \brief A tensor view with static type and shape. It implements indexing and slicing.
+ * \brief A tensor view with static type and dimension. It implements indexing and slicing.
  *
  * Most of the algorithms in XGBoost are implemented for both CPU and GPU without using
  * much linear algebra routines, this class is a helper intended to ease some high level
@@ -209,7 +240,7 @@ constexpr detail::AllTag All() { return {}; }
  * some functions expect data types that can be used in everywhere (update prediction
  * cache for example).
  */
-template <typename T, int32_t kDim = 5>
+template <typename T, int32_t kDim>
 class TensorView {
  public:
   using ShapeT = size_t[kDim];
@@ -225,7 +256,7 @@ class TensorView {
   int32_t device_{-1};
 
   // Unlike `Tensor`, the data_ can have arbitrary size since this is just a view.
-  XGBOOST_DEVICE void CalcSize() {
+  LINALG_HD void CalcSize() {
     if (data_.empty()) {
       size_ = 0;
     } else {
@@ -233,9 +264,38 @@ class TensorView {
     }
   }
 
-  template <size_t old_dim, size_t new_dim, int32_t D, typename... S>
-  XGBOOST_DEVICE size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
-                                     detail::AllTag) const {
+  template <size_t old_dim, size_t new_dim, int32_t D, typename I>
+  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+                                detail::RangeTag<I> &&range) const {
+    static_assert(new_dim < D, "");
+    static_assert(old_dim < kDim, "");
+    new_stride[new_dim] = stride_[old_dim];
+    new_shape[new_dim] = range.Size();
+    assert(static_cast<decltype(shape_[old_dim])>(range.end) <= shape_[old_dim]);
+
+    auto offset = stride_[old_dim] * range.beg;
+    return offset;
+  }
+  /**
+   * \brief Slice dimension for Range tag.
+   */
+  template <size_t old_dim, size_t new_dim, int32_t D, typename I, typename... S>
+  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D],
+                                detail::RangeTag<I> &&range, S &&...slices) const {
+    static_assert(new_dim < D, "");
+    static_assert(old_dim < kDim, "");
+    new_stride[new_dim] = stride_[old_dim];
+    new_shape[new_dim] = range.Size();
+    assert(static_cast<decltype(shape_[old_dim])>(range.end) <= shape_[old_dim]);
+
+    auto offset = stride_[old_dim] * range.beg;
+    return MakeSliceDim<old_dim + 1, new_dim + 1, D>(new_shape, new_stride,
+                                                     std::forward<S>(slices)...) +
+           offset;
+  }
+
+  template <size_t old_dim, size_t new_dim, int32_t D>
+  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag) const {
     static_assert(new_dim < D, "");
     static_assert(old_dim < kDim, "");
     new_stride[new_dim] = stride_[old_dim];
@@ -246,8 +306,8 @@ class TensorView {
    * \brief Slice dimension for All tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename... S>
-  XGBOOST_DEVICE size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
-                                     S &&...slices) const {
+  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], detail::AllTag,
+                                S &&...slices) const {
     static_assert(new_dim < D, "");
     static_assert(old_dim < kDim, "");
     new_stride[new_dim] = stride_[old_dim];
@@ -257,7 +317,7 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index>
-  XGBOOST_DEVICE size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], Index i) const {
+  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], Index i) const {
     static_assert(old_dim < kDim, "");
     return stride_[old_dim] * i;
   }
@@ -265,7 +325,7 @@ class TensorView {
    * \brief Slice dimension for Index tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index, typename... S>
-  XGBOOST_DEVICE std::enable_if_t<std::is_integral<Index>::value, size_t> MakeSliceDim(
+  LINALG_HD std::enable_if_t<std::is_integral<Index>::value, size_t> MakeSliceDim(
       size_t new_shape[D], size_t new_stride[D], Index i, S &&...slices) const {
     static_assert(old_dim < kDim, "");
     auto offset = stride_[old_dim] * i;
@@ -291,7 +351,7 @@ class TensorView {
    * \param device Device ordinal
    */
   template <typename I, int32_t D>
-  XGBOOST_DEVICE TensorView(common::Span<T> data, I const (&shape)[D], int32_t device)
+  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], int32_t device)
       : data_{data}, ptr_{data_.data()}, device_{device} {
     static_assert(D > 0 && D <= kDim, "Invalid shape.");
     // shape
@@ -310,8 +370,8 @@ class TensorView {
    *        stride can be calculated from shape.
    */
   template <typename I, int32_t D>
-  XGBOOST_DEVICE TensorView(common::Span<T> data, I const (&shape)[D], I const (&stride)[D],
-                            int32_t device)
+  LINALG_HD TensorView(common::Span<T> data, I const (&shape)[D], I const (&stride)[D],
+                       int32_t device)
       : data_{data}, ptr_{data_.data()}, device_{device} {
     static_assert(D == kDim, "Invalid shape & stride.");
     detail::UnrollLoop<D>([&](auto i) {
@@ -321,11 +381,14 @@ class TensorView {
     this->CalcSize();
   }
 
-  XGBOOST_DEVICE TensorView(TensorView const &that)
-      : data_{that.data_}, ptr_{data_.data()}, size_{that.size_}, device_{that.device_} {
+  template <
+      typename U,
+      std::enable_if_t<common::detail::IsAllowedElementTypeConversion<U, T>::value> * = nullptr>
+  LINALG_HD TensorView(TensorView<U, kDim> const &that)  // NOLINT
+      : data_{that.Values()}, ptr_{data_.data()}, size_{that.Size()}, device_{that.DeviceIdx()} {
     detail::UnrollLoop<kDim>([&](auto i) {
-      stride_[i] = that.stride_[i];
-      shape_[i] = that.shape_[i];
+      stride_[i] = that.Stride(i);
+      shape_[i] = that.Shape(i);
     });
   }
 
@@ -343,7 +406,7 @@ class TensorView {
    * \endcode
    */
   template <typename... Index>
-  XGBOOST_DEVICE T &operator()(Index &&...index) {
+  LINALG_HD T &operator()(Index &&...index) {
     static_assert(sizeof...(index) <= kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
     assert(offset < data_.size() && "Out of bound access.");
@@ -353,7 +416,7 @@ class TensorView {
    * \brief Index the tensor to obtain a scalar value.
    */
   template <typename... Index>
-  XGBOOST_DEVICE T const &operator()(Index &&...index) const {
+  LINALG_HD T const &operator()(Index &&...index) const {
     static_assert(sizeof...(index) <= kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
     assert(offset < data_.size() && "Out of bound access.");
@@ -374,7 +437,7 @@ class TensorView {
    * \endcode
    */
   template <typename... S>
-  XGBOOST_DEVICE auto Slice(S &&...slices) const {
+  LINALG_HD auto Slice(S &&...slices) const {
     static_assert(sizeof...(slices) <= kDim, "Invalid slice.");
     int32_t constexpr kNewDim{detail::CalcSliceDim<detail::IndexToTag<S>...>()};
     size_t new_shape[kNewDim];
@@ -387,99 +450,77 @@ class TensorView {
     return ret;
   }
 
-  XGBOOST_DEVICE auto Shape() const { return common::Span<size_t const, kDim>{shape_}; }
+  LINALG_HD auto Shape() const { return common::Span<size_t const, kDim>{shape_}; }
   /**
    * Get the shape for i^th dimension
    */
-  XGBOOST_DEVICE auto Shape(size_t i) const { return shape_[i]; }
-  XGBOOST_DEVICE auto Stride() const { return common::Span<size_t const, kDim>{stride_}; }
+  LINALG_HD auto Shape(size_t i) const { return shape_[i]; }
+  LINALG_HD auto Stride() const { return common::Span<size_t const, kDim>{stride_}; }
   /**
    * Get the stride for i^th dimension, stride is specified as number of items instead of bytes.
    */
-  XGBOOST_DEVICE auto Stride(size_t i) const { return stride_[i]; }
+  LINALG_HD auto Stride(size_t i) const { return stride_[i]; }
 
-  XGBOOST_DEVICE auto cbegin() const { return data_.cbegin(); }  // NOLINT
-  XGBOOST_DEVICE auto cend() const { return data_.cend(); }      // NOLINT
-  XGBOOST_DEVICE auto begin() { return data_.begin(); }          // NOLINT
-  XGBOOST_DEVICE auto end() { return data_.end(); }              // NOLINT
   /**
    * \brief Number of items in the tensor.
    */
-  XGBOOST_DEVICE size_t Size() const { return size_; }
+  LINALG_HD size_t Size() const { return size_; }
   /**
-   * \brief Whether it's a contiguous array. (c and f contiguous are both contiguous)
+   * \brief Whether this is a contiguous array, both C and F contiguous returns true.
    */
-  XGBOOST_DEVICE bool Contiguous() const { return size_ == data_.size(); }
+  LINALG_HD bool Contiguous() const {
+    return data_.size() == this->Size() || this->CContiguous() || this->FContiguous();
+  }
   /**
-   * \brief Obtain the raw data.
+   * \brief Whether it's a c-contiguous array.
    */
-  XGBOOST_DEVICE auto Values() const { return data_; }
+  LINALG_HD bool CContiguous() const {
+    StrideT stride;
+    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value, "");
+    // It's contiguous if the stride can be calculated from shape.
+    detail::CalcStride(shape_, stride);
+    return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
+  }
+  /**
+   * \brief Whether it's a f-contiguous array.
+   */
+  LINALG_HD bool FContiguous() const {
+    StrideT stride;
+    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value, "");
+    // It's contiguous if the stride can be calculated from shape.
+    detail::CalcStride<kDim, true>(shape_, stride);
+    return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
+  }
+  /**
+   * \brief Obtain a reference to the raw data.
+   */
+  LINALG_HD auto Values() const -> decltype(data_) const & { return data_; }
   /**
    * \brief Obtain the CUDA device ordinal.
    */
-  XGBOOST_DEVICE auto DeviceIdx() const { return device_; }
-
-  /**
-   * \brief Array Interface defined by
-   * <a href="https://numpy.org/doc/stable/reference/arrays.interface.html">numpy</a>.
-   *
-   * `stream` is optionally included when data is on CUDA device.
-   */
-  Json ArrayInterface() const {
-    Json array_interface{Object{}};
-    array_interface["data"] = std::vector<Json>(2);
-    array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(data_.data()));
-    array_interface["data"][1] = Boolean{true};
-    if (this->DeviceIdx() >= 0) {
-      // Change this once we have different CUDA stream.
-      array_interface["stream"] = Null{};
-    }
-    std::vector<Json> shape(Shape().size());
-    std::vector<Json> stride(Stride().size());
-    for (size_t i = 0; i < Shape().size(); ++i) {
-      shape[i] = Integer(Shape(i));
-      stride[i] = Integer(Stride(i) * sizeof(T));
-    }
-    array_interface["shape"] = Array{shape};
-    array_interface["strides"] = Array{stride};
-    array_interface["version"] = 3;
-
-    char constexpr kT = detail::ArrayInterfaceHandler::TypeChar<T>();
-    static_assert(kT != '\0', "");
-    if (DMLC_LITTLE_ENDIAN) {
-      array_interface["typestr"] = String{"<" + (kT + std::to_string(sizeof(T)))};
-    } else {
-      array_interface["typestr"] = String{">" + (kT + std::to_string(sizeof(T)))};
-    }
-    return array_interface;
-  }
-  /**
-   * \brief Same as const version, but returns non-readonly data pointer.
-   */
-  Json ArrayInterface() {
-    auto const &as_const = *this;
-    auto res = as_const.ArrayInterface();
-    res["data"][1] = Boolean{false};
-    return res;
-  }
-
-  auto ArrayInterfaceStr() const {
-    std::string str;
-    Json::Dump(this->ArrayInterface(), &str);
-    return str;
-  }
-  auto ArrayInterfaceStr() {
-    std::string str;
-    Json::Dump(this->ArrayInterface(), &str);
-    return str;
-  }
+  LINALG_HD auto DeviceIdx() const { return device_; }
 };
+
+/**
+ * \brief Constructor for automatic type deduction.
+ */
+template <typename Container, typename I, int32_t D,
+          std::enable_if_t<!common::detail::IsSpan<Container>::value> * = nullptr>
+auto MakeTensorView(Container &data, I const (&shape)[D], int32_t device) {  // NOLINT
+  using T = typename Container::value_type;
+  return TensorView<T, D>{data, shape, device};
+}
+
+template <typename T, typename I, int32_t D>
+LINALG_HD auto MakeTensorView(common::Span<T> data, I const (&shape)[D], int32_t device) {
+  return TensorView<T, D>{data, shape, device};
+}
 
 /**
  * \brief Turns linear index into multi-dimension index.  Similar to numpy unravel.
  */
 template <size_t D>
-XGBOOST_DEVICE auto UnravelIndex(size_t idx, common::Span<size_t const, D> shape) {
+LINALG_HD auto UnravelIndex(size_t idx, common::Span<size_t const, D> shape) {
   if (idx > std::numeric_limits<uint32_t>::max()) {
     return detail::UnravelImpl<uint64_t, D>(static_cast<uint64_t>(idx), shape);
   } else {
@@ -515,6 +556,70 @@ auto MakeVec(T *ptr, size_t s, int32_t device = -1) {
  */
 template <typename T>
 using MatrixView = TensorView<T, 2>;
+
+/**
+ * \brief Array Interface defined by
+ * <a href="https://numpy.org/doc/stable/reference/arrays.interface.html">numpy</a>.
+ *
+ * `stream` is optionally included when data is on CUDA device.
+ */
+template <typename T, int32_t D>
+Json ArrayInterface(TensorView<T const, D> const &t) {
+  Json array_interface{Object{}};
+  array_interface["data"] = std::vector<Json>(2);
+  array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(t.Values().data()));
+  array_interface["data"][1] = Boolean{true};
+  if (t.DeviceIdx() >= 0) {
+    // Change this once we have different CUDA stream.
+    array_interface["stream"] = Null{};
+  }
+  std::vector<Json> shape(t.Shape().size());
+  std::vector<Json> stride(t.Stride().size());
+  for (size_t i = 0; i < t.Shape().size(); ++i) {
+    shape[i] = Integer(t.Shape(i));
+    stride[i] = Integer(t.Stride(i) * sizeof(T));
+  }
+  array_interface["shape"] = Array{shape};
+  array_interface["strides"] = Array{stride};
+  array_interface["version"] = 3;
+
+  char constexpr kT = detail::ArrayInterfaceHandler::TypeChar<T>();
+  static_assert(kT != '\0', "");
+  if (DMLC_LITTLE_ENDIAN) {
+    array_interface["typestr"] = String{"<" + (kT + std::to_string(sizeof(T)))};
+  } else {
+    array_interface["typestr"] = String{">" + (kT + std::to_string(sizeof(T)))};
+  }
+  return array_interface;
+}
+
+/**
+ * \brief Same as const version, but returns non-readonly data pointer.
+ */
+template <typename T, int32_t D>
+Json ArrayInterface(TensorView<T, D> const &t) {
+  TensorView<T const, D> const &as_const = t;
+  auto res = ArrayInterface(as_const);
+  res["data"][1] = Boolean{false};
+  return res;
+}
+
+/**
+ * \brief Return string representation of array interface.
+ */
+template <typename T, int32_t D>
+auto ArrayInterfaceStr(TensorView<T const, D> const &t) {
+  std::string str;
+  Json::Dump(ArrayInterface(t), &str);
+  return str;
+}
+
+template <typename T, int32_t D>
+auto ArrayInterfaceStr(TensorView<T, D> const &t) {
+  std::string str;
+  Json::Dump(ArrayInterface(t), &str);
+  return str;
+}
 
 /**
  * \brief A tensor storage. To use it for other functionality like slicing one needs to
@@ -674,4 +779,8 @@ void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
 }
 }  // namespace linalg
 }  // namespace xgboost
+
+#if defined(LINALG_HD)
+#undef LINALG_HD
+#endif  // defined(LINALG_HD)
 #endif  // XGBOOST_LINALG_H_
