@@ -26,15 +26,14 @@ def test_gpu_single_batch() -> None:
 def test_gpu_data_iterator(
     n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool
 ) -> None:
-    subsample_rate = 0.5 if subsample else 1.0
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample_rate, True
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, True
     )
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample_rate, False
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, False
     )
 
 
 def test_cpu_data_iterator() -> None:
     """Make sure CPU algorithm can handle GPU inputs"""
-    run_data_iterator(1024, 2, 3, "approx", 1.0, True)
+    run_data_iterator(1024, 2, 3, "approx", False, True)

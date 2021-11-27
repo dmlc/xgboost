@@ -68,10 +68,14 @@ def run_data_iterator(
     n_features: int,
     n_batches: int,
     tree_method: str,
-    subsample: float,
+    subsample: bool,
     use_cupy: bool,
 ) -> None:
     n_rounds = 2
+    # The test is more difficult to pass if the subsample rate is smaller as the root_sum
+    # is accumulated in parallel, different number of entries in gradient vector causes
+    # floating error.
+    subsample_rate = 0.8 if subsample else 1.0
 
     it = IteratorForTest(
         *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy)
@@ -85,7 +89,12 @@ def run_data_iterator(
     assert Xy.num_row() == n_samples_per_batch * n_batches
     assert Xy.num_col() == n_features
 
-    parameters = {"tree_method": tree_method, "max_depth": 2, "subsample": subsample}
+    parameters = {
+        "tree_method": tree_method,
+        "max_depth": 2,
+        "subsample": subsample_rate,
+        "seed": 0,
+    }
 
     if tree_method == "gpu_hist":
         parameters["sampling_method"] = "gradient_based"
@@ -146,10 +155,9 @@ def test_data_iterator(
     n_batches: int,
     subsample: bool,
 ) -> None:
-    subsample_rate = 0.5 if subsample else 1.0
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "approx", subsample_rate, False
+        n_samples_per_batch, n_features, n_batches, "approx", subsample, False
     )
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "hist", subsample_rate, False
+        n_samples_per_batch, n_features, n_batches, "hist", subsample, False
     )
