@@ -73,8 +73,8 @@ def run_data_iterator(
 ) -> None:
     n_rounds = 2
     # The test is more difficult to pass if the subsample rate is smaller as the root_sum
-    # is accumulated in parallel, different number of entries in gradient vector causes
-    # floating error.
+    # is accumulated in parallel.  Reductions with different number of entries lead to
+    # different floating point errors.
     subsample_rate = 0.8 if subsample else 1.0
 
     it = IteratorForTest(
