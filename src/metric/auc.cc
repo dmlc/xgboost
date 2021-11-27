@@ -149,15 +149,17 @@ std::tuple<double, double, double> BinaryROCAUC(common::Span<float const> predts
  * Calculate AUC for 1 ranking group;
  */
 double GroupRankingROC(common::Span<float const> predts,
-                       common::Span<float const> labels, float w) {
+                       linalg::VectorView<float const> labels, float w) {
   // on ranking, we just count all pairs.
   double auc{0};
-  auto const sorted_idx = common::ArgSort<size_t>(labels, std::greater<>{});
+  // argsort doesn't support tensor input yet.
+  auto raw_labels = labels.Values().subspan(0, labels.Size());
+  auto const sorted_idx = common::ArgSort<size_t>(raw_labels, std::greater<>{});
   w = common::Sqr(w);
 
   double sum_w = 0.0f;
-  for (size_t i = 0; i < labels.size(); ++i) {
-    for (size_t j = i + 1; j < labels.size(); ++j) {
+  for (size_t i = 0; i < labels.Size(); ++i) {
+    for (size_t j = i + 1; j < labels.Size(); ++j) {
       auto predt = predts[sorted_idx[i]] - predts[sorted_idx[j]];
       if (predt > 0) {
         predt = 1.0;
@@ -225,9 +227,9 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
     size_t cnt = info.group_ptr_[g] - info.group_ptr_[g - 1];
     float w = s_weights.empty() ? 1.0f : s_weights[g - 1];
     auto g_predts = s_predts.subspan(info.group_ptr_[g - 1], cnt);
-    auto g_labels = labels.Values().subspan(info.group_ptr_[g - 1], cnt);
+    auto g_labels = labels.Slice(linalg::Range(info.group_ptr_[g - 1], info.group_ptr_[g]));
     double auc;
-    if (is_roc && g_labels.size() < 3) {
+    if (is_roc && g_labels.Size() < 3) {
       // With 2 documents, there's only 1 comparison can be made.  So either
       // TP or FP will be zero.
       invalid_groups++;
@@ -236,9 +238,7 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
       if (is_roc) {
         auc = GroupRankingROC(g_predts, g_labels, w);
       } else {
-        auc = std::get<2>(BinaryPRAUC(
-            g_predts, linalg::MakeVec(g_labels.data(), g_labels.size(), GenericParameter::kCpuId),
-            OptionalWeights{w}));
+        auc = std::get<2>(BinaryPRAUC(g_predts, g_labels, OptionalWeights{w}));
       }
       if (std::isnan(auc)) {
         invalid_groups++;
