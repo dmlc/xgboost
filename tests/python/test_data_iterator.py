@@ -120,13 +120,11 @@ def run_data_iterator(
     if tree_method != "gpu_hist":
         rtol = 1e-1  # flaky
     else:
-        # Model can be sensitive to quantiles, use 1e-2 to relax the test.
-        # Increase tolerance according to subsample value
-        rtol = 1e-2
-        if subsample > 0.0 and subsample < 1.0:
-            rtol /= subsample
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
-        rtol = 1e-6
+        # Model can be sensitive to quantiles, use both mismatch rate and floating point
+        # tolerance to relax the test.
+        rtol = 1e-4
+        mismatch = ((1.0 - it_predt / arr_predt) > rtol).sum() / it_predt.size
+        assert mismatch < 1e-2
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
