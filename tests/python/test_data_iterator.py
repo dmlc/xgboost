@@ -121,7 +121,11 @@ def run_data_iterator(
         rtol = 1e-1  # flaky
     else:
         # Model can be sensitive to quantiles, use 1e-2 to relax the test.
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=1e-2)
+        # Increase tolerance according to subsample value
+        rtol = 1e-2
+        if subsample > 0.0 and subsample < 1.0:
+            rtol /= subsample
+        np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
         rtol = 1e-6
 
     np.testing.assert_allclose(
