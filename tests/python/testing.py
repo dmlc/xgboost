@@ -362,6 +362,12 @@ def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
+def mismatch_rate(a: np.ndarray, b: np.ndarray, rtol: float) -> float:
+    """Number of mismatching items. rtol is tolernace of relative error."""
+    assert a.shape == b.shape
+    return ((1.0 - a / b) > rtol).sum() / b.size if b.size != 0 else 0
+
+
 def eval_error_metric(predt, dtrain: xgb.DMatrix):
     """Evaluation metric for xgb.train"""
     label = dtrain.get_label()

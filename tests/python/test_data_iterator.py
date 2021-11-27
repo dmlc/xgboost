@@ -1,7 +1,7 @@
 import xgboost as xgb
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 import numpy as np
-from testing import IteratorForTest
+from testing import IteratorForTest, mismatch_rate
 from typing import Tuple, List
 import pytest
 from hypothesis import given, strategies, settings
@@ -123,7 +123,7 @@ def run_data_iterator(
         # Model can be sensitive to quantiles, use both mismatch rate and floating point
         # tolerance to relax the test.
         rtol = 1e-4
-        mismatch = ((1.0 - it_predt / arr_predt) > rtol).sum() / it_predt.size
+        mismatch = mismatch_rate(it_predt, arr_predt, rtol=rtol)
         assert mismatch < 1e-2
 
     np.testing.assert_allclose(
