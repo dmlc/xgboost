@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.rapids.spark
 import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
-import com.nvidia.spark.rapids.{Arm, GpuColumnVector}
+import com.nvidia.spark.rapids.{GpuColumnVector}
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.java.nvidia.spark.GpuColumnBatch
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, DeviceQuantileDMatrix}
@@ -89,7 +89,7 @@ class GpuPreXGBoost extends PreXGBoostProvider {
   }
 }
 
-object GpuPreXGBoost extends PreXGBoostProvider with Arm {
+object GpuPreXGBoost extends PreXGBoostProvider {
 
   private val logger = LogFactory.getLog("XGBoostSpark")
   private val FEATURES_COLS = "features_cols"
@@ -557,6 +557,15 @@ object GpuPreXGBoost extends PreXGBoostProvider with Arm {
           gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(weights).asJava),
           gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(margins).asJava));
       }
+    }
+  }
+
+  /** Executes the provided code block and then closes the resource */
+  def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
+    try {
+      block(r)
+    } finally {
+      r.close()
     }
   }
 
