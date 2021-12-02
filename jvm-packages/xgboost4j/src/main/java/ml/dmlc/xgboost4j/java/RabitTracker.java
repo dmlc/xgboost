@@ -1,5 +1,7 @@
 package ml.dmlc.xgboost4j.java;
 
+
+
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,15 +51,17 @@ public class RabitTracker implements IRabitTracker {
 
       Log trackerProcessLogger = LogFactory.getLog(TrackerProcessLogger.class);
       BufferedReader reader = new BufferedReader(new InputStreamReader(
-              trackerProcess.get().getErrorStream()));
+        trackerProcess.get().getErrorStream()));
       String line;
+      int exitValue = 0;
       try {
         while ((line = reader.readLine()) != null) {
           trackerProcessLogger.info(line);
         }
         trackerProcess.get().waitFor();
+        int exitValue = trackerProcess.get().exitValue();
         trackerProcessLogger.info("Tracker Process ends with exit code " +
-                trackerProcess.get().exitValue());
+          trackerProcess.get().exitValue());
       } catch (IOException ex) {
         trackerProcessLogger.error(ex.toString());
       } catch (InterruptedException ie) {
@@ -65,6 +69,8 @@ public class RabitTracker implements IRabitTracker {
         ie.printStackTrace();
         logger.error("the RabitTracker thread is terminated unexpectedly");
       }
+      // I think that if the tracker server program is killed by unknown reasons, the java process should also die
+      System.exit(exitValue);
     }
   }
 
@@ -78,7 +84,7 @@ public class RabitTracker implements IRabitTracker {
   }
 
   public RabitTracker(int numWorkers)
-      throws XGBoostError {
+    throws XGBoostError {
     if (numWorkers < 1) {
       throw new XGBoostError("numWorkers must be greater equal to one");
     }
@@ -129,7 +135,7 @@ public class RabitTracker implements IRabitTracker {
   private boolean startTrackerProcess() {
     try {
       String trackerExecString = this.addTrackerProperties("python " + tracker_py +
-          " --log-level=DEBUG --num-workers=" + String.valueOf(numWorkers));
+        " --log-level=DEBUG --num-workers=" + String.valueOf(numWorkers));
 
       trackerProcess.set(Runtime.getRuntime().exec(trackerExecString));
       loadEnvs(trackerProcess.get().getInputStream());
@@ -161,8 +167,8 @@ public class RabitTracker implements IRabitTracker {
   public boolean start(long timeout) {
     if (timeout > 0L) {
       logger.warn("Python RabitTracker does not support timeout. " +
-              "The tracker will wait for all workers to connect indefinitely, unless " +
-              "it is interrupted manually. Use the Scala RabitTracker for timeout support.");
+        "The tracker will wait for all workers to connect indefinitely, unless " +
+        "it is interrupted manually. Use the Scala RabitTracker for timeout support.");
     }
 
     if (startTrackerProcess()) {
@@ -183,9 +189,9 @@ public class RabitTracker implements IRabitTracker {
   public int waitFor(long timeout) {
     if (timeout > 0L) {
       logger.warn("Python RabitTracker does not support timeout. " +
-              "The tracker will wait for either all workers to finish tasks and send " +
-              "shutdown signal, or manual interruptions. " +
-              "Use the Scala RabitTracker for timeout support.");
+        "The tracker will wait for either all workers to finish tasks and send " +
+        "shutdown signal, or manual interruptions. " +
+        "Use the Scala RabitTracker for timeout support.");
     }
 
     try {
