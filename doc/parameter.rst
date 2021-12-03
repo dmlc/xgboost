@@ -225,14 +225,14 @@ Parameters for Tree Booster
 
 * ``monotone_constraints``
 
-  - Constraint of variable monotonicity.  See :doc:`tutorial </tutorials/monotonic>`for more information.
+  - Constraint of variable monotonicity.  See :doc:`tutorial </tutorials/monotonic>` for more information.
 
 * ``interaction_constraints``
 
   - Constraints for interaction representing permitted interactions.  The constraints must
     be specified in the form of a nest list, e.g. ``[[0, 1], [2, 3, 4]]``, where each inner
     list is a group of indices of features that are allowed to interact with each other.
-    See tutorial for more information
+    See :doc:`tutorial </tutorials/feature_interaction_constraint>` for more information.
 
 Additional parameters for ``hist`` and ``gpu_hist`` tree method
 ================================================================
