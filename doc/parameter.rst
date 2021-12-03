@@ -208,7 +208,7 @@ Parameters for Tree Booster
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
-* ``predictor``, [default=``auto``]
+* ``predictor``, [default= ``auto``]
 
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
 
@@ -225,7 +225,7 @@ Parameters for Tree Booster
 
 * ``monotone_constraints``
 
-  - Constraint of variable monotonicity.  See tutorial for more information.
+  - Constraint of variable monotonicity.  See :doc:`tutorial </tutorials/monotonic>`for more information.
 
 * ``interaction_constraints``
 
