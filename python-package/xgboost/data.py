@@ -830,7 +830,7 @@ def dispatch_data_backend(
 
 def _to_data_type(dtype: str, name: str):
     dtype_map = {'float32': 1, 'float64': 2, 'uint32': 3, 'uint64': 4}
-    if dtype not in dtype_map.keys():
+    if dtype not in dtype_map:
         raise TypeError(
             f'Expecting float32, float64, uint32, uint64, got {dtype} ' +
             f'for {name}.')

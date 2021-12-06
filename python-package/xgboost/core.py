@@ -219,7 +219,7 @@ def _numpy2ctypes_type(dtype):
     }
     if np.intc is not np.int32:  # Windows
         _NUMPY_TO_CTYPES_MAPPING[np.intc] = _NUMPY_TO_CTYPES_MAPPING[np.int32]
-    if dtype not in _NUMPY_TO_CTYPES_MAPPING.keys():
+    if dtype not in _NUMPY_TO_CTYPES_MAPPING:
         raise TypeError(
             f"Supported types: {_NUMPY_TO_CTYPES_MAPPING.keys()}, got: {dtype}"
         )
@@ -256,7 +256,7 @@ def ctypes2cupy(cptr, length, dtype):
     from cupy.cuda.memory import UnownedMemory
 
     CUPY_TO_CTYPES_MAPPING = {cupy.float32: ctypes.c_float, cupy.uint32: ctypes.c_uint}
-    if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
+    if dtype not in CUPY_TO_CTYPES_MAPPING:
         raise RuntimeError(f"Supported types: {CUPY_TO_CTYPES_MAPPING.keys()}")
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
