@@ -1,7 +1,5 @@
 package ml.dmlc.xgboost4j.java;
 
-
-
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -59,9 +57,8 @@ public class RabitTracker implements IRabitTracker {
           trackerProcessLogger.info(line);
         }
         trackerProcess.get().waitFor();
-        int exitValue = trackerProcess.get().exitValue();
-        trackerProcessLogger.info("Tracker Process ends with exit code " +
-          trackerProcess.get().exitValue());
+        exitValue = trackerProcess.get().exitValue();
+        trackerProcessLogger.info("Tracker Process ends with exit code " + exitValue);
       } catch (IOException ex) {
         trackerProcessLogger.error(ex.toString());
       } catch (InterruptedException ie) {
