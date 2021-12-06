@@ -77,9 +77,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // Stored as a JSON string.
   std::string interaction_constraints;
 
-  // the criteria to use for ranking splits
-  std::string split_evaluator;
-
   // ------ From CPU quantile histogram -------.
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
@@ -189,9 +186,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
                   "e.g. [[0, 1], [2, 3, 4]], where each inner list is a group of"
                   "indices of features that are allowed to interact with each other."
                   "See tutorial for more information");
-    DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("elastic_net,monotonic")
-        .describe("The criteria to use for ranking splits");
 
     // ------ From cpu quantile histogram -------.
     DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
