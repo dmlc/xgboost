@@ -47,8 +47,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float reg_lambda;
   // L1 regularization factor
   float reg_alpha;
-  // default direction choice
-  int default_direction;
   // maximum delta update we can add in weight estimation
   // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
@@ -127,12 +125,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("L1 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(default_direction)
-        .set_default(0)
-        .add_enum("learn", 0)
-        .add_enum("left", 1)
-        .add_enum("right", 2)
-        .describe("Default direction choice when encountering a missing value");
     DMLC_DECLARE_FIELD(max_delta_step)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
