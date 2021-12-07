@@ -49,9 +49,10 @@ trait GpuTestSuite extends FunSuite with TmpFolderSuite {
   }
 
   def withGpuSparkSession[U](conf: SparkConf = new SparkConf())(f: SparkSession => U): U = {
+    // set "spark.rapids.sql.explain" to "ALL" to check if the operators
+    // can be replaced by GPU
     val c = conf.clone()
       .set("spark.rapids.sql.enabled", "true")
-//      .set("spark.rapids.sql.explain", "ALL")
     withSparkSession(c, f)
   }
 

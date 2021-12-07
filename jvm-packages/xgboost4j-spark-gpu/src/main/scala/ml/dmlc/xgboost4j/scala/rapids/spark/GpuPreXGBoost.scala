@@ -58,7 +58,7 @@ class GpuPreXGBoost extends PreXGBoostProvider {
   /**
    * Convert the Dataset[_] to RDD[Watches] which will be fed to XGBoost
    *
-   * @param estimator supports XGBoostClassifier and XGBoostRegressor
+   * @param estimator [[XGBoostClassifier]] or [[XGBoostRegressor]]
    * @param dataset   the training data
    * @param params    all user defined and defaulted params
    * @return [[XGBoostExecutionParams]] => (RDD[[Watches]], Option[ RDD[_] ])
@@ -74,7 +74,7 @@ class GpuPreXGBoost extends PreXGBoostProvider {
   /**
    * Transform Dataset
    *
-   * @param model   supporting [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
+   * @param model   [[XGBoostClassificationModel]] or [[XGBoostRegressionModel]]
    * @param dataset the input Dataset to transform
    * @return the transformed DataFrame
    */
@@ -139,12 +139,12 @@ object GpuPreXGBoost extends PreXGBoostProvider {
             case regressor: XGBoostRegressor => if (regressor.isDefined(regressor.groupCol)) {
               regressor.getGroupCol } else ""
             case _: XGBoostClassifier => ""
-            case _ => throw new RuntimeException("Unsupporting estimator: " + estimator)
+            case _ => throw new RuntimeException("Unsupported estimator: " + estimator)
           }
           // Check schema and cast columns' type
           (GpuUtils.getColumnNames(est)(est.labelCol, est.weightCol, est.baseMarginCol),
             est.getFeaturesCols, groupName, est.getEvalSets(params))
-        case _ => throw new RuntimeException("Unsupporting estimator: " + estimator)
+        case _ => throw new RuntimeException("Unsupported estimator: " + estimator)
     }
 
     val castedDF = GpuUtils.prepareColumnType(dataset, feturesCols, labelName, weightName,
@@ -389,7 +389,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
       isCacheData: Boolean): Map[String, ColumnDataBatch] = {
     // Cache is not supported
     if (isCacheData) {
-      logger.warn("Dataset cache is not support for GPU pipeline!")
+      logger.warn("the cache param will be ignored by GPU pipeline!")
     }
 
     (Map(TRAIN_NAME -> trainingData) ++ evalSetsMap).map {
