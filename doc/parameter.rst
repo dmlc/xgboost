@@ -71,8 +71,8 @@ Parameters for Tree Booster
 
 * ``max_depth`` [default=6]
 
-  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguide`` growing policy when tree_method is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
-  - range: [0,∞] (0 is only accepted in ``lossguide`` growing policy when tree_method is set as ``hist`` or ``gpu_hist``)
+  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguide`` growing policy when ``tree_method`` is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
+  - range: [0,∞] (0 is only accepted in ``lossguide`` growing policy when ``tree_method`` is set as ``hist`` or ``gpu_hist``)
 
 * ``min_child_weight`` [default=1]
 
@@ -221,6 +221,7 @@ Parameters for Tree Booster
       recommended for performing prediction tasks.
 
 * ``num_parallel_tree``, [default=1]
+
   - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.
 
 * ``monotone_constraints``
@@ -348,7 +349,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-  - ``count:poisson`` --poisson regression for count data, output mean of Poisson distribution
+  - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
 
     - ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 
