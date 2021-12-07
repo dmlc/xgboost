@@ -38,7 +38,7 @@ General Parameters
     is displayed as warning message.  If there's unexpected behaviour, please try to
     increase value of verbosity.
 
-* ``validate_parameters`` [default to false, except for Python, R and CLI interface]
+* ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
     a parameter is used or not.  The feature is still experimental.  It's expected to have
@@ -49,7 +49,7 @@ General Parameters
   - Number of parallel threads used to run XGBoost.  When choosing it, please keep thread
     contention and hyperthreading in mind.
 
-* ``disable_default_eval_metric`` [default=``false``]
+* ``disable_default_eval_metric`` [default= ``false``]
 
   - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
@@ -71,8 +71,8 @@ Parameters for Tree Booster
 
 * ``max_depth`` [default=6]
 
-  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguide`` growing policy when tree_method is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
-  - range: [0,∞] (0 is only accepted in ``lossguide`` growing policy when tree_method is set as ``hist`` or ``gpu_hist``)
+  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguide`` growing policy when ``tree_method`` is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
+  - range: [0,∞] (0 is only accepted in ``lossguide`` growing policy when ``tree_method`` is set as ``hist`` or ``gpu_hist``)
 
 * ``min_child_weight`` [default=1]
 
@@ -208,7 +208,7 @@ Parameters for Tree Booster
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
-* ``predictor``, [default=``auto``]
+* ``predictor``, [default= ``auto``]
 
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
 
@@ -221,23 +221,24 @@ Parameters for Tree Booster
       recommended for performing prediction tasks.
 
 * ``num_parallel_tree``, [default=1]
+
   - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.
 
 * ``monotone_constraints``
 
-  - Constraint of variable monotonicity.  See tutorial for more information.
+  - Constraint of variable monotonicity.  See :doc:`/tutorials/monotonic` for more information.
 
 * ``interaction_constraints``
 
   - Constraints for interaction representing permitted interactions.  The constraints must
     be specified in the form of a nest list, e.g. ``[[0, 1], [2, 3, 4]]``, where each inner
     list is a group of indices of features that are allowed to interact with each other.
-    See tutorial for more information
+    See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
 Additional parameters for ``hist`` and ``gpu_hist`` tree method
 ================================================================
 
-* ``single_precision_histogram``, [default=``false``]
+* ``single_precision_histogram``, [default= ``false``]
 
   - Use single precision to build histograms instead of double precision.
 
@@ -348,7 +349,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-  - ``count:poisson`` --poisson regression for count data, output mean of Poisson distribution
+  - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
 
     - ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 
@@ -418,7 +419,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
 
-* ``seed_per_iteration`` [default=false]
+* ``seed_per_iteration`` [default= ``false``]
 
   - Seed PRNG determnisticly via iterator number.
 
