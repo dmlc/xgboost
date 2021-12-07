@@ -38,7 +38,7 @@ General Parameters
     is displayed as warning message.  If there's unexpected behaviour, please try to
     increase value of verbosity.
 
-* ``validate_parameters`` [default to false, except for Python, R and CLI interface]
+* ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
     a parameter is used or not.  The feature is still experimental.  It's expected to have
@@ -49,7 +49,7 @@ General Parameters
   - Number of parallel threads used to run XGBoost.  When choosing it, please keep thread
     contention and hyperthreading in mind.
 
-* ``disable_default_eval_metric`` [default=``false``]
+* ``disable_default_eval_metric`` [default= ``false``]
 
   - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
@@ -237,7 +237,7 @@ Parameters for Tree Booster
 Additional parameters for ``hist`` and ``gpu_hist`` tree method
 ================================================================
 
-* ``single_precision_histogram``, [default=``false``]
+* ``single_precision_histogram``, [default= ``false``]
 
   - Use single precision to build histograms instead of double precision.
 
@@ -418,7 +418,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
 
-* ``seed_per_iteration`` [default=false]
+* ``seed_per_iteration`` [default= ``false``]
 
   - Seed PRNG determnisticly via iterator number.
 
