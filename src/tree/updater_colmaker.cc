@@ -27,24 +27,29 @@ DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 struct ColMakerTrainParam : XGBoostParameter<ColMakerTrainParam> {
   // speed optimization for dense column
   float opt_dense_col;
+  // default direction choice
+  int default_direction;
+
   DMLC_DECLARE_PARAMETER(ColMakerTrainParam) {
     DMLC_DECLARE_FIELD(opt_dense_col)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("EXP Param: speed optimization for dense column.");
+    DMLC_DECLARE_FIELD(default_direction)
+        .set_default(0)
+        .add_enum("learn", 0)
+        .add_enum("left", 1)
+        .add_enum("right", 2)
+        .describe("Default direction choice when encountering a missing value");
   }
 
   /*! \brief whether need forward small to big search: default right */
-  inline bool NeedForwardSearch(int default_direction, float col_density,
-                                bool indicator) const {
+  inline bool NeedForwardSearch(float col_density, bool indicator) const {
     return default_direction == 2 ||
-           (default_direction == 0 && (col_density < opt_dense_col) &&
-            !indicator);
+           (default_direction == 0 && (col_density < opt_dense_col) && !indicator);
   }
   /*! \brief whether need backward big to small search: default left */
-  inline bool NeedBackwardSearch(int default_direction) const {
-    return default_direction != 2;
-  }
+  inline bool NeedBackwardSearch() const { return default_direction != 2; }
 };
 
 DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
@@ -465,15 +470,13 @@ class ColMaker: public TreeUpdater {
             auto c = page[fid];
             const bool ind =
                 c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
-            if (colmaker_train_param_.NeedForwardSearch(
-                    param_.default_direction, column_densities_[fid], ind)) {
-              this->EnumerateSplit(c.data(), c.data() + c.size(), +1, fid,
-                                  gpair, stemp_[tid], evaluator);
+            if (colmaker_train_param_.NeedForwardSearch(column_densities_[fid], ind)) {
+              this->EnumerateSplit(c.data(), c.data() + c.size(), +1, fid, gpair, stemp_[tid],
+                                   evaluator);
             }
-            if (colmaker_train_param_.NeedBackwardSearch(
-                    param_.default_direction)) {
-              this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1,
-                                  fid, gpair, stemp_[tid], evaluator);
+            if (colmaker_train_param_.NeedBackwardSearch()) {
+              this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1, fid, gpair,
+                                   stemp_[tid], evaluator);
             }
           });
         }

@@ -47,8 +47,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float reg_lambda;
   // L1 regularization factor
   float reg_alpha;
-  // default direction choice
-  int default_direction;
   // maximum delta update we can add in weight estimation
   // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
@@ -77,22 +75,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // Stored as a JSON string.
   std::string interaction_constraints;
 
-  // the criteria to use for ranking splits
-  std::string split_evaluator;
-
   // ------ From CPU quantile histogram -------.
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
   double sparse_threshold;
-  // when grouping features, how many "conflicts" to allow.
-  // conflict is when an instance has nonzero values for two or more features
-  // default is 0, meaning features should be strictly complementary
-  double max_conflict_rate;
-  // when grouping features, how much effort to expend to prevent singleton groups
-  // we'll try to insert each feature into existing groups before creating a new group
-  // for that feature; to save time, only up to (max_search_group) of existing groups
-  // will be considered. If set to zero, ALL existing groups will be examined
-  unsigned max_search_group;
 
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
@@ -139,12 +125,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("L1 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(default_direction)
-        .set_default(0)
-        .add_enum("learn", 0)
-        .add_enum("left", 1)
-        .add_enum("right", 2)
-        .describe("Default direction choice when encountering a missing value");
     DMLC_DECLARE_FIELD(max_delta_step)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
@@ -198,23 +178,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
                   "e.g. [[0, 1], [2, 3, 4]], where each inner list is a group of"
                   "indices of features that are allowed to interact with each other."
                   "See tutorial for more information");
-    DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("elastic_net,monotonic")
-        .describe("The criteria to use for ranking splits");
 
     // ------ From cpu quantile histogram -------.
     DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
         .describe("percentage threshold for treating a feature as sparse");
-    DMLC_DECLARE_FIELD(max_conflict_rate).set_range(0, 1.0).set_default(0)
-        .describe("when grouping features, how many \"conflicts\" to allow."
-       "conflict is when an instance has nonzero values for two or more features."
-       "default is 0, meaning features should be strictly complementary.");
-    DMLC_DECLARE_FIELD(max_search_group).set_lower_bound(0).set_default(100)
-        .describe("when grouping features, how much effort to expend to prevent "
-                  "singleton groups. We'll try to insert each feature into existing "
-                  "groups before creating a new group for that feature; to save time, "
-                  "only up to (max_search_group) of existing groups will be "
-                  "considered. If set to zero, ALL existing groups will be examined.");
 
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
