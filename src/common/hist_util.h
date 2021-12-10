@@ -131,6 +131,12 @@ class HistogramCuts {
   }
 };
 
+/**
+ * \brief Run CPU sketching on DMatrix.
+ *
+ * \param use_sorted Whether should we use SortedCSC for sketching, it's more efficient
+ *                   but consumes more memory.
+ */
 inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, bool use_sorted = false,
                                      Span<float> const hessian = {}) {
   HistogramCuts out;

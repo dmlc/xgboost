@@ -882,7 +882,9 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
       ++i;
     }
   }
-
+  /**
+   * \brief Push a sorted CSC page.
+   */
   void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
 };
 }  // namespace common
