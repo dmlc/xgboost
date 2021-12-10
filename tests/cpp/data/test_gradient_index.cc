@@ -36,7 +36,7 @@ TEST(GradientIndex, FromCategoricalBasic) {
   BatchParam p(0, max_bins);
   GHistIndexMatrix gidx;
 
-  gidx.Init(m.get(), max_bins, {});
+  gidx.Init(m.get(), max_bins, false, {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());

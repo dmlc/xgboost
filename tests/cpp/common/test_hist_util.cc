@@ -223,13 +223,19 @@ TEST(HistUtil, DenseCutsAccuracyTestWeights) {
     auto w = GenerateRandomWeights(num_rows);
     dmat->Info().weights_.HostVector() = w;
     for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts = SketchOnDMatrix(dmat.get(), num_bins);
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      {
+        HistogramCuts cuts = SketchOnDMatrix(dmat.get(), num_bins, true);
+        ValidateCuts(cuts, dmat.get(), num_bins);
+      }
+      {
+        HistogramCuts cuts = SketchOnDMatrix(dmat.get(), num_bins, false);
+        ValidateCuts(cuts, dmat.get(), num_bins);
+      }
     }
   }
 }
 
-TEST(HistUtil, QuantileWithHessian) {
+void TestQuantileWithHessian(bool use_sorted) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {1000, 1500};
   int num_columns = 5;
@@ -243,13 +249,13 @@ TEST(HistUtil, QuantileWithHessian) {
     dmat->Info().weights_.HostVector() = w;
 
     for (auto num_bins : bin_sizes) {
-      HistogramCuts cuts_hess = SketchOnDMatrix(dmat.get(), num_bins, hessian);
+      HistogramCuts cuts_hess = SketchOnDMatrix(dmat.get(), num_bins, use_sorted, hessian);
       for (size_t i = 0; i < w.size(); ++i) {
         dmat->Info().weights_.HostVector()[i] = w[i] * hessian[i];
       }
       ValidateCuts(cuts_hess, dmat.get(), num_bins);
 
-      HistogramCuts cuts_wh = SketchOnDMatrix(dmat.get(), num_bins);
+      HistogramCuts cuts_wh = SketchOnDMatrix(dmat.get(), num_bins, use_sorted);
       ValidateCuts(cuts_wh, dmat.get(), num_bins);
 
       ASSERT_EQ(cuts_hess.Values().size(), cuts_wh.Values().size());
@@ -260,6 +266,11 @@ TEST(HistUtil, QuantileWithHessian) {
       dmat->Info().weights_.HostVector() = w;
     }
   }
+}
+
+TEST(HistUtil, QuantileWithHessian) {
+  TestQuantileWithHessian(true);
+  TestQuantileWithHessian(false);
 }
 
 TEST(HistUtil, DenseCutsExternalMemory) {
@@ -292,7 +303,7 @@ TEST(HistUtil, IndexBinBound) {
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin, false);
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
@@ -315,7 +326,7 @@ TEST(HistUtil, IndexBinData) {
 
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    GHistIndexMatrix hmat(p_fmat.get(), max_bin);
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin, false);
     uint32_t* offsets = hmat.index.Offset();
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {

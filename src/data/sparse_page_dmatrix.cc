@@ -159,12 +159,12 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 
 BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam& param) {
   CHECK_GE(param.max_bin, 2);
-  if (param.hess.empty()) {
+  if (param.hess.empty() && !param.regen) {
     // hist method doesn't support full external memory implementation, so we concatenate
     // all index here.
     if (!ghist_index_page_ || (param != batch_param_ && param != BatchParam{})) {
       this->InitializeSparsePage();
-      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin});
+      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin, param.regen});
       this->InitializeSparsePage();
       batch_param_ = param;
     }
@@ -175,20 +175,23 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
 
   auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
   this->InitializeSparsePage();
-  if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{})) {
+  if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{}) ||
+      param.regen) {
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
-    auto cuts = common::SketchOnDMatrix(this, param.max_bin, param.hess);
+    // Use sorted sketch for approx.
+    auto sorted_sketch = param.regen;
+    auto cuts = common::SketchOnDMatrix(this, param.max_bin, sorted_sketch, param.hess);
     this->InitializeSparsePage();  // reset after use.
 
     batch_param_ = param;
     ghist_index_source_.reset();
     CHECK_NE(cuts.Values().size(), 0);
     auto ft = this->info_.feature_types.ConstHostSpan();
-    ghist_index_source_.reset(new GradientIndexPageSource(
-        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
-        this->n_batches_, cache_info_.at(id), param, std::move(cuts),
-        this->IsDense(), param.max_bin, ft, sparse_page_source_));
+    ghist_index_source_.reset(
+        new GradientIndexPageSource(this->missing_, this->ctx_.Threads(), this->Info().num_col_,
+                                    this->n_batches_, cache_info_.at(id), param, std::move(cuts),
+                                    this->IsDense(), param.max_bin, ft, sparse_page_source_));
   } else {
     CHECK(ghist_index_source_);
     ghist_index_source_->Reset();

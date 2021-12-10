@@ -15,7 +15,6 @@
 #include "random.h"
 #include "column_matrix.h"
 #include "quantile.h"
-#include "./../tree/updater_quantile_hist.h"
 #include "../data/gradient_index.h"
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
