@@ -450,6 +450,7 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
     auto &sketch = sketches_[fidx];
     sketch.Init(max_bins_);
     // first pass
+    sketch.sum_total = 0.0;
     for (auto c : column) {
       sketch.sum_total += weights[c.index];
     }

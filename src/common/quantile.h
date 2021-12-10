@@ -794,7 +794,6 @@ struct SortedQuantile {
   inline void Init(unsigned max_size) {
     next_goal = -1.0f;
     rmin = wmin = 0.0f;
-    sum_total = 0.0;
     sketch->temp.Reserve(max_size + 1);
     sketch->temp.size = 0;
   }
