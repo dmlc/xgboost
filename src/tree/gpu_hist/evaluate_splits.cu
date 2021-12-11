@@ -78,7 +78,7 @@ template <typename GradientSumT, typename TempStorageT> struct OneHotBin {
     GradientSumT bin = thread_active
                            ? inputs.gradient_histogram[scan_begin + threadIdx.x]
                            : GradientSumT();
-    auto rest = inputs.parent_sum - GradientPairPrecise{bin} - missing;
+    auto rest = inputs.parent_sum - GradientPairPrecise(bin) - missing;
     return GradientSumT{rest};
   }
 };
