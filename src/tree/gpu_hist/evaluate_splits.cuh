@@ -15,7 +15,7 @@ namespace tree {
 template <typename GradientSumT>
 struct EvaluateSplitInputs {
   int nidx;
-  GradientSumT parent_sum;
+  GradientPairPrecise parent_sum;
   GPUTrainingParam param;
   common::Span<const bst_feature_t> feature_set;
   common::Span<FeatureType const> feature_types;
