@@ -268,16 +268,15 @@ struct GPUHistMakerDevice {
     common::Span<bst_feature_t> feature_set =
         interaction_constraints.Query(sampled_features->DeviceSpan(), nidx);
     auto matrix = page->GetDeviceAccessor(device_id);
-    EvaluateSplitInputs<GradientSumT> inputs{
-        nidx,
-        {root_sum.GetGrad(), root_sum.GetHess()},
-        gpu_param,
-        feature_set,
-        feature_types,
-        matrix.feature_segments,
-        matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
-        hist.GetNodeHistogram(nidx)};
+    EvaluateSplitInputs<GradientSumT> inputs{nidx,
+                                             root_sum,
+                                             gpu_param,
+                                             feature_set,
+                                             feature_types,
+                                             matrix.feature_segments,
+                                             matrix.gidx_fvalue_map,
+                                             matrix.min_fvalue,
+                                             hist.GetNodeHistogram(nidx)};
     auto gain_calc = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     EvaluateSingleSplit(dh::ToSpan(splits_out), gain_calc, inputs);
     std::vector<DeviceSplitCandidate> result(1);
@@ -306,26 +305,24 @@ struct GPUHistMakerDevice {
                                       left_nidx);
     auto matrix = page->GetDeviceAccessor(device_id);
 
-    EvaluateSplitInputs<GradientSumT> left{
-        left_nidx,
-        {candidate.split.left_sum.GetGrad(), candidate.split.left_sum.GetHess()},
-        gpu_param,
-        left_feature_set,
-        feature_types,
-        matrix.feature_segments,
-        matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
-        hist.GetNodeHistogram(left_nidx)};
-    EvaluateSplitInputs<GradientSumT> right{
-        right_nidx,
-        {candidate.split.right_sum.GetGrad(), candidate.split.right_sum.GetHess()},
-        gpu_param,
-        right_feature_set,
-        feature_types,
-        matrix.feature_segments,
-        matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
-        hist.GetNodeHistogram(right_nidx)};
+    EvaluateSplitInputs<GradientSumT> left{left_nidx,
+                                           candidate.split.left_sum,
+                                           gpu_param,
+                                           left_feature_set,
+                                           feature_types,
+                                           matrix.feature_segments,
+                                           matrix.gidx_fvalue_map,
+                                           matrix.min_fvalue,
+                                           hist.GetNodeHistogram(left_nidx)};
+    EvaluateSplitInputs<GradientSumT> right{right_nidx,
+                                            candidate.split.right_sum,
+                                            gpu_param,
+                                            right_feature_set,
+                                            feature_types,
+                                            matrix.feature_segments,
+                                            matrix.gidx_fvalue_map,
+                                            matrix.min_fvalue,
+                                            hist.GetNodeHistogram(right_nidx)};
     auto d_splits_out = dh::ToSpan(splits_out);
     EvaluateSplits(d_splits_out, tree_evaluator.GetEvaluator<GPUTrainingParam>(), left, right);
     dh::TemporaryArray<GPUExpandEntry> entries(2);
