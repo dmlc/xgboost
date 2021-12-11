@@ -496,12 +496,11 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows();
 
     GPUTrainingParam param_d(param);
-    dh::TemporaryArray<GradientPair> device_node_sum_gradients(node_sum_gradients.size());
+    dh::TemporaryArray<GradientPairPrecise> device_node_sum_gradients(node_sum_gradients.size());
 
-    dh::safe_cuda(
-        cudaMemcpyAsync(device_node_sum_gradients.data().get(), node_sum_gradients.data(),
-                        sizeof(GradientPair) * node_sum_gradients.size(),
-                        cudaMemcpyHostToDevice));
+    dh::safe_cuda(cudaMemcpyAsync(device_node_sum_gradients.data().get(), node_sum_gradients.data(),
+                                  sizeof(GradientPairPrecise) * node_sum_gradients.size(),
+                                  cudaMemcpyHostToDevice));
     auto d_position = row_partitioner->GetPosition();
     auto d_node_sum_gradients = device_node_sum_gradients.data().get();
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
