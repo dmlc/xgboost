@@ -1606,8 +1606,9 @@ class DaskScikitLearnBase(XGBModel):
         should use `worker_client' instead of default client.
 
         """
-        asynchronous = getattr(self, "_asynchronous", False)
+
         if self._client is None:
+            asynchronous = getattr(self, "_asynchronous", False)
             try:
                 distributed.get_worker()
                 in_worker = True
@@ -1620,7 +1621,7 @@ class DaskScikitLearnBase(XGBModel):
                         return ret
                     return ret
 
-        return self.client.sync(func, **kwargs, asynchronous=asynchronous)
+        return self.client.sync(func, **kwargs, asynchronous=self.client.asynchronous)
 
 
 @xgboost_model_doc(
