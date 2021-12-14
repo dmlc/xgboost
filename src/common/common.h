@@ -178,6 +178,20 @@ inline void AssertOneAPISupport() {
 #endif  // XGBOOST_USE_ONEAPI
 }
 
+constexpr bool WithRMMSupport() {
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  return true;
+#else
+  return false;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+}
+
+inline void AssertRMMSupport() {
+  if (!WithRMMSupport()) {
+    LOG(FATAL) << "XGBoost version not compiled with RMM support.";
+  }
+}
+
 template <typename Idx, typename Container,
           typename V = typename Container::value_type,
           typename Comp = std::less<V>>

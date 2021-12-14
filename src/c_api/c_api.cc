@@ -154,6 +154,13 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
     }
     LOG(FATAL) << ss.str()  << " }";
   }
+
+  auto use_rmm = GlobalConfigThreadLocalStore::Get()->use_rmm;
+  if (use_rmm && !common::WithRMMSupport()) {
+    // restore to false in case the user want to recover from the error.
+    GlobalConfigThreadLocalStore::Get()->use_rmm = false;
+    common::AssertRMMSupport();
+  }
   API_END();
 }
 
