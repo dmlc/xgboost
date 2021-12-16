@@ -343,7 +343,8 @@ class LearnerConfiguration : public Learner {
       if (n_targets == 1) {
         n_targets = this->obj_->Targets(d.first);
       } else {
-        CHECK_EQ(n_targets, this->obj_->Targets(d.first));
+        auto t = this->obj_->Targets(d.first);
+        CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
       }
     }
     if (mparam_.num_target != 1) {
