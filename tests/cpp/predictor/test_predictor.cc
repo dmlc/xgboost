@@ -45,8 +45,8 @@ void TestTrainingPrediction(size_t rows, size_t bins,
 
   std::unique_ptr<Learner> learner;
   auto train = [&](std::string predictor, HostDeviceVector<float> *out) {
-    auto &h_label = p_hist->Info().labels_.HostVector();
-    h_label.resize(rows);
+    p_hist->Info().labels.Reshape(rows, 1);
+    auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
     for (size_t i = 0; i < rows; ++i) {
       h_label[i] = i % kClasses;

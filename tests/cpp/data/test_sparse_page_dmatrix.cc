@@ -113,7 +113,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_row_, 8ul);
   EXPECT_EQ(dmat->Info().num_col_, 5ul);
   EXPECT_EQ(dmat->Info().num_nonzero_, kEntries);
-  EXPECT_EQ(dmat->Info().labels_.Size(), dmat->Info().num_row_);
+  EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
 
   delete dmat;
 }

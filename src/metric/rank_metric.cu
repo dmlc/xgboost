@@ -41,18 +41,18 @@ struct EvalRankGpu : public Metric, public EvalRankConfig {
     auto device = tparam_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
 
-    info.labels_.SetDevice(device);
+    info.labels.SetDevice(device);
     preds.SetDevice(device);
 
     auto dpreds = preds.ConstDevicePointer();
-    auto dlabels = info.labels_.ConstDevicePointer();
+    auto dlabels = info.labels.View(device);
 
     // Sort all the predictions
     dh::SegmentSorter<float> segment_pred_sorter;
     segment_pred_sorter.SortItems(dpreds, preds.Size(), gptr);
 
     // Compute individual group metric and sum them up
-    return EvalMetricT::EvalMetric(segment_pred_sorter, dlabels, *this);
+    return EvalMetricT::EvalMetric(segment_pred_sorter, dlabels.Values().data(), *this);
   }
 
   const char* Name() const override {

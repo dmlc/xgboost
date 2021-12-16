@@ -23,7 +23,7 @@ TEST(ProxyDMatrix, DeviceData) {
   proxy.SetInfo("label", labels.c_str());
 
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CupyAdapter>));
-  ASSERT_EQ(proxy.Info().labels_.Size(), kRows);
+  ASSERT_EQ(proxy.Info().labels.Size(), kRows);
   ASSERT_EQ(dmlc::get<std::shared_ptr<CupyAdapter>>(proxy.Adapter())->NumRows(),
             kRows);
   ASSERT_EQ(

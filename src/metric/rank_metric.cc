@@ -107,7 +107,7 @@ struct EvalAMS : public Metric {
     CHECK(!distributed) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
-    const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
+    const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
     PredIndPairContainer rec(ndata);
 
     const auto &h_preds = preds.ConstHostVector();
@@ -120,11 +120,11 @@ struct EvalAMS : public Metric {
     const double br = 10.0;
     unsigned thresindex = 0;
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-    const auto& labels = info.labels_.ConstHostVector();
+    const auto& labels = info.labels.View(GenericParameter::kCpuId);
     for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
       const bst_float wt = info.GetWeight(ridx);
-      if (labels[ridx] > 0.5f) {
+      if (labels(ridx) > 0.5f) {
         s_tp += wt;
       } else {
         b_fp += wt;
@@ -164,7 +164,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
  public:
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
               bool distributed) override {
-    CHECK_EQ(preds.Size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels.Size())
         << "label size predict size not match";
 
     // quick consistency when group is not available
@@ -194,7 +194,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
     std::vector<double> sum_tloc(tparam_->Threads(), 0.0);
 
     if (!rank_gpu_ || tparam_->gpu_id < 0) {
-      const auto &labels = info.labels_.ConstHostVector();
+      const auto& labels = info.labels.View(GenericParameter::kCpuId);
       const auto &h_preds = preds.ConstHostVector();
 
       dmlc::OMPException exc;
@@ -208,7 +208,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
             exc.Run([&]() {
               rec.clear();
               for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-                rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
+                rec.emplace_back(h_preds[j], static_cast<int>(labels(j)));
               }
               sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
             });
@@ -348,7 +348,7 @@ struct EvalCox : public Metric {
     CHECK(!distributed) << "Cox metric does not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
-    const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
+    const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
     const auto &label_order = info.LabelAbsSort();
 
     // pre-compute a sum for the denominator
@@ -362,10 +362,10 @@ struct EvalCox : public Metric {
     double out = 0;
     double accumulated_sum = 0;
     bst_omp_uint num_events = 0;
-    const auto& labels = info.labels_.ConstHostVector();
+    const auto& labels = info.labels.HostView();
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       const size_t ind = label_order[i];
-      const auto label = labels[ind];
+      const auto label = labels(ind);
       if (label > 0) {
         out -= log(h_preds[ind]) - log(exp_p_sum);
         ++num_events;
@@ -373,7 +373,7 @@ struct EvalCox : public Metric {
 
       // only update the denominator after we move forward in time (labels are sorted)
       accumulated_sum += h_preds[ind];
-      if (i == ndata - 1 || std::abs(label) < std::abs(labels[label_order[i + 1]])) {
+      if (i == ndata - 1 || std::abs(label) < std::abs(labels(label_order[i + 1]))) {
         exp_p_sum -= accumulated_sum;
         accumulated_sum = 0;
       }

@@ -361,10 +361,10 @@ struct EvalEWiseBase : public Metric {
 
   double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
               bool distributed) override {
-    CHECK_EQ(preds.Size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    auto result = reducer_.Reduce(*tparam_, info.weights_, info.labels_, preds);
+    auto result = reducer_.Reduce(*tparam_, info.weights_, *info.labels.Data(), preds);
 
     double dat[2] { result.Residue(), result.Weights() };
 

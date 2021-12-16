@@ -119,6 +119,12 @@ void MetaInfo::SetInfoFromCUDA(StringView key, Json array) {
   if (key == "base_margin") {
     CopyTensorInfoImpl(array, &base_margin_);
     return;
+  } else if (key == "label") {
+    CopyTensorInfoImpl(array, &labels);
+    auto ptr = labels.Data()->ConstDevicePointer();
+    auto valid = thrust::none_of(thrust::device, ptr, ptr + labels.Size(), data::LabelsCheck{});
+    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
+    return;
   }
   // uint info
   if (key == "group") {
@@ -135,12 +141,7 @@ void MetaInfo::SetInfoFromCUDA(StringView key, Json array) {
   // float info
   linalg::Tensor<float, 1> t;
   CopyTensorInfoImpl(array, &t);
-  if (key == "label") {
-    this->labels_ = std::move(*t.Data());
-    auto ptr = labels_.ConstDevicePointer();
-    auto valid = thrust::none_of(thrust::device, ptr, ptr + labels_.Size(), data::LabelsCheck{});
-    CHECK(valid) << "Label contains NaN, infinity or a value too large.";
-  } else if (key == "weight") {
+  if (key == "weight") {
     this->weights_ = std::move(*t.Data());
     auto ptr = weights_.ConstDevicePointer();
     auto valid = thrust::none_of(thrust::device, ptr, ptr + weights_.Size(), data::WeightsCheck{});

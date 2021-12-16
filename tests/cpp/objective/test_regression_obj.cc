@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
@@ -293,8 +293,8 @@ TEST(Objective, CPU_vs_CUDA) {
   }
   auto& info = pdmat->Info();
 
-  info.labels_.Resize(kRows);
-  auto& h_labels = info.labels_.HostVector();
+  info.labels.Reshape(kRows);
+  auto& h_labels = info.labels.Data()->HostVector();
   for (size_t i = 0; i < h_labels.size(); ++i) {
     h_labels[i] = 1 / (float)(i+1);
   }

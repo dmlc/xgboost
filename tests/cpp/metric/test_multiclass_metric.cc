@@ -11,13 +11,14 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 
   HostDeviceVector<float> predts;
   MetaInfo info;
-  auto &h_labels = info.labels_.HostVector();
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;
 
   size_t n_samples = 2048, n_classes = 4;
-  h_labels.resize(n_samples);
+
+  info.labels.Reshape(n_samples);
+  auto &h_labels = info.labels.Data()->HostVector();
   h_predts.resize(n_samples * n_classes);
 
   {

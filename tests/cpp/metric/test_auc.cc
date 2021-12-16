@@ -21,10 +21,10 @@ TEST(Metric, DeclareUnifiedTest(BinaryAUC)) {
 
   // Invalid dataset
   MetaInfo info;
-  info.labels_ = {0, 0};
+  info.labels = linalg::Tensor<float, 2>{{0.0f, 0.0f}, {2}, -1};
   float auc = metric->Eval({1, 1}, info, false);
   ASSERT_TRUE(std::isnan(auc));
-  info.labels_ = HostDeviceVector<float>{};
+  *info.labels.Data() = HostDeviceVector<float>{};
   auc = metric->Eval(HostDeviceVector<float>{}, info, false);
   ASSERT_TRUE(std::isnan(auc));
 

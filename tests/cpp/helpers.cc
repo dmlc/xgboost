@@ -100,7 +100,8 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_.HostVector() = labels;
+  info.labels =
+      xgboost::linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
   info.weights_.HostVector() = weights;
 
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
@@ -135,7 +136,8 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                              std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_.HostVector() = labels;
+  info.labels =
+      xgboost::linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -149,7 +151,8 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_uint> groups) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_.HostVector() = labels;
+  info.labels =
+      xgboost::linalg::Tensor<float, 2>{labels.begin(), labels.end(), {labels.size()}, -1};
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -340,17 +343,18 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
   if (with_label) {
     RandomDataGenerator gen(rows_, 1, 0);
     if (!float_label) {
-      gen.Lower(0).Upper(classes).GenerateDense(&out->Info().labels_);
-      auto& h_labels = out->Info().labels_.HostVector();
+      gen.Lower(0).Upper(classes).GenerateDense(out->Info().labels.Data());
+      out->Info().labels.Reshape(out->Info().labels.Size());
+      auto& h_labels = out->Info().labels.Data()->HostVector();
       for (auto& v : h_labels) {
         v = static_cast<float>(static_cast<uint32_t>(v));
       }
     } else {
-      gen.GenerateDense(&out->Info().labels_);
+      gen.GenerateDense(out->Info().labels.Data());
     }
   }
   if (device_ >= 0) {
-    out->Info().labels_.SetDevice(device_);
+    out->Info().labels.SetDevice(device_);
     out->Info().feature_types.SetDevice(device_);
     for (auto const& page : out->GetBatches<SparsePage>()) {
       page.data.SetDevice(device_);
@@ -520,7 +524,8 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   for (size_t i = 0; i < kRows; ++i) {
     labels[i] = i;
   }
-  p_dmat->Info().labels_.HostVector() = labels;
+  p_dmat->Info().labels =
+      linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
   HostDeviceVector<GradientPair> gpair;
   auto& h_gpair = gpair.HostVector();
   h_gpair.resize(kRows);
@@ -636,7 +641,7 @@ class RMMAllocator {};
 void DeleteRMMResource(RMMAllocator* r) {}
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
-  return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+  return {nullptr, DeleteRMMResource};
 }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 }  // namespace xgboost

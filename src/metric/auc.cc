@@ -32,17 +32,16 @@ namespace metric {
  */
 template <typename Fn>
 std::tuple<double, double, double>
-BinaryAUC(common::Span<float const> predts, common::Span<float const> labels,
+BinaryAUC(common::Span<float const> predts, linalg::VectorView<float const> labels,
           OptionalWeights weights,
           std::vector<size_t> const &sorted_idx, Fn &&area_fn) {
-  CHECK(!labels.empty());
-  CHECK_EQ(labels.size(), predts.size());
+  CHECK_NE(labels.Size(), 0);
+  CHECK_EQ(labels.Size(), predts.size());
   auto p_predts = predts.data();
-  auto p_labels = labels.data();
 
   double auc{0};
 
-  float label = p_labels[sorted_idx.front()];
+  float label = labels(sorted_idx.front());
   float w = weights[sorted_idx[0]];
   double fp = (1.0 - label) * w, tp = label * w;
   double tp_prev = 0, fp_prev = 0;
@@ -53,7 +52,7 @@ BinaryAUC(common::Span<float const> predts, common::Span<float const> labels,
       tp_prev = tp;
       fp_prev = fp;
     }
-    label = p_labels[sorted_idx[i]];
+    label = labels(sorted_idx[i]);
     float w = weights[sorted_idx[i]];
     fp += (1.0f - label) * w;
     tp += label * w;
@@ -82,7 +81,10 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
                      size_t n_classes, int32_t n_threads,
                      BinaryAUC &&binary_auc) {
   CHECK_NE(n_classes, 0);
-  auto const &labels = info.labels_.ConstHostVector();
+  auto const labels = info.labels.View(GenericParameter::kCpuId);
+  if (labels.Shape(0) != 0) {
+    CHECK_EQ(labels.Shape(1), 1) << "AUC doesn't support multi-target model.";
+  }
 
   std::vector<double> results_storage(n_classes * 3, 0);
   linalg::TensorView<double, 2> results(results_storage, {n_classes, static_cast<size_t>(3)},
@@ -96,16 +98,17 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
       predts, {static_cast<size_t>(info.num_row_), n_classes},
       GenericParameter::kCpuId);
 
-  if (!info.labels_.Empty()) {
+  if (info.labels.Size() != 0) {
     common::ParallelFor(n_classes, n_threads, [&](auto c) {
-      std::vector<float> proba(info.labels_.Size());
-      std::vector<float> response(info.labels_.Size());
+      std::vector<float> proba(info.labels.Size());
+      std::vector<float> response(info.labels.Size());
       for (size_t i = 0; i < proba.size(); ++i) {
         proba[i] = predts_t(i, c);
-        response[i] = labels[i] == c ? 1.0f : 0.0;
+        response[i] = labels(i) == c ? 1.0f : 0.0;
       }
       double fp;
-      std::tie(fp, tp(c), auc(c)) = binary_auc(proba, response, weights);
+      std::tie(fp, tp(c), auc(c)) =
+          binary_auc(proba, linalg::MakeVec(response.data(), response.size(), -1), weights);
       local_area(c) = fp * tp(c);
     });
   }
@@ -135,9 +138,9 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
   return auc_sum;
 }
 
-std::tuple<double, double, double>
-BinaryROCAUC(common::Span<float const> predts, common::Span<float const> labels,
-             OptionalWeights weights) {
+std::tuple<double, double, double> BinaryROCAUC(common::Span<float const> predts,
+                                                linalg::VectorView<float const> labels,
+                                                OptionalWeights weights) {
   auto const sorted_idx = common::ArgSort<size_t>(predts, std::greater<>{});
   return BinaryAUC(predts, labels, weights, sorted_idx, TrapezoidArea);
 }
@@ -146,15 +149,17 @@ BinaryROCAUC(common::Span<float const> predts, common::Span<float const> labels,
  * Calculate AUC for 1 ranking group;
  */
 double GroupRankingROC(common::Span<float const> predts,
-                       common::Span<float const> labels, float w) {
+                       linalg::VectorView<float const> labels, float w) {
   // on ranking, we just count all pairs.
   double auc{0};
-  auto const sorted_idx = common::ArgSort<size_t>(labels, std::greater<>{});
+  // argsort doesn't support tensor input yet.
+  auto raw_labels = labels.Values().subspan(0, labels.Size());
+  auto const sorted_idx = common::ArgSort<size_t>(raw_labels, std::greater<>{});
   w = common::Sqr(w);
 
   double sum_w = 0.0f;
-  for (size_t i = 0; i < labels.size(); ++i) {
-    for (size_t j = i + 1; j < labels.size(); ++j) {
+  for (size_t i = 0; i < labels.Size(); ++i) {
+    for (size_t j = i + 1; j < labels.Size(); ++j) {
       auto predt = predts[sorted_idx[i]] - predts[sorted_idx[j]];
       if (predt > 0) {
         predt = 1.0;
@@ -180,14 +185,14 @@ double GroupRankingROC(common::Span<float const> predts,
  *   https://doi.org/10.1371/journal.pone.0092209
  */
 std::tuple<double, double, double> BinaryPRAUC(common::Span<float const> predts,
-                                               common::Span<float const> labels,
+                                               linalg::VectorView<float const> labels,
                                                OptionalWeights weights) {
   auto const sorted_idx = common::ArgSort<size_t>(predts, std::greater<>{});
   double total_pos{0}, total_neg{0};
-  for (size_t i = 0; i < labels.size(); ++i) {
+  for (size_t i = 0; i < labels.Size(); ++i) {
     auto w = weights[i];
-    total_pos += w * labels[i];
-    total_neg += w * (1.0f - labels[i]);
+    total_pos += w * labels(i);
+    total_neg += w * (1.0f - labels(i));
   }
   if (total_pos <= 0 || total_neg <= 0) {
     return {1.0f, 1.0f, std::numeric_limits<float>::quiet_NaN()};
@@ -211,7 +216,7 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
   CHECK_GE(info.group_ptr_.size(), 2);
   uint32_t n_groups = info.group_ptr_.size() - 1;
   auto s_predts = common::Span<float const>{predts};
-  auto s_labels = info.labels_.ConstHostSpan();
+  auto labels = info.labels.View(GenericParameter::kCpuId);
   auto s_weights = info.weights_.ConstHostSpan();
 
   std::atomic<uint32_t> invalid_groups{0};
@@ -222,9 +227,9 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
     size_t cnt = info.group_ptr_[g] - info.group_ptr_[g - 1];
     float w = s_weights.empty() ? 1.0f : s_weights[g - 1];
     auto g_predts = s_predts.subspan(info.group_ptr_[g - 1], cnt);
-    auto g_labels = s_labels.subspan(info.group_ptr_[g - 1], cnt);
+    auto g_labels = labels.Slice(linalg::Range(info.group_ptr_[g - 1], info.group_ptr_[g]));
     double auc;
-    if (is_roc && g_labels.size() < 3) {
+    if (is_roc && g_labels.Size() < 3) {
       // With 2 documents, there's only 1 comparison can be made.  So either
       // TP or FP will be zero.
       invalid_groups++;
@@ -254,11 +259,11 @@ class EvalAUC : public Metric {
     double auc {0};
     if (tparam_->gpu_id != GenericParameter::kCpuId) {
       preds.SetDevice(tparam_->gpu_id);
-      info.labels_.SetDevice(tparam_->gpu_id);
+      info.labels.SetDevice(tparam_->gpu_id);
       info.weights_.SetDevice(tparam_->gpu_id);
     }
     //  We use the global size to handle empty dataset.
-    std::array<size_t, 2> meta{info.labels_.Size(), preds.Size()};
+    std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
     rabit::Allreduce<rabit::op::Max>(meta.data(), meta.size());
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.
@@ -271,8 +276,8 @@ class EvalAUC : public Metric {
         CHECK_EQ(info.weights_.Size(), info.group_ptr_.size() - 1);
       }
       uint32_t valid_groups = 0;
-      if (!info.labels_.Empty()) {
-        CHECK_EQ(info.group_ptr_.back(), info.labels_.Size());
+      if (info.labels.Size() != 0) {
+        CHECK_EQ(info.group_ptr_.back(), info.labels.Size());
         std::tie(auc, valid_groups) =
             static_cast<Curve *>(this)->EvalRanking(preds, info);
       }
@@ -304,7 +309,7 @@ class EvalAUC : public Metric {
        * binary classification
        */
       double fp{0}, tp{0};
-      if (!(preds.Empty() || info.labels_.Empty())) {
+      if (!(preds.Empty() || info.labels.Size() == 0)) {
         std::tie(fp, tp, auc) =
             static_cast<Curve *>(this)->EvalBinary(preds, info);
       }
@@ -367,7 +372,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double fp, tp, auc;
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       std::tie(fp, tp, auc) =
-          BinaryROCAUC(predts.ConstHostVector(), info.labels_.ConstHostVector(),
+          BinaryROCAUC(predts.ConstHostVector(), info.labels.HostView().Slice(linalg::All(), 0),
                        OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       std::tie(fp, tp, auc) = GPUBinaryROCAUC(predts.ConstDeviceSpan(), info,
@@ -420,7 +425,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     double pr, re, auc;
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       std::tie(pr, re, auc) =
-          BinaryPRAUC(predts.ConstHostSpan(), info.labels_.ConstHostSpan(),
+          BinaryPRAUC(predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       std::tie(pr, re, auc) = GPUBinaryPRAUC(predts.ConstDeviceSpan(), info,
@@ -447,7 +452,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     uint32_t valid_groups = 0;
     auto n_threads = tparam_->Threads();
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
-      auto labels = info.labels_.ConstHostSpan();
+      auto labels = info.labels.Data()->ConstHostSpan();
       if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
         InvalidLabels();
       }

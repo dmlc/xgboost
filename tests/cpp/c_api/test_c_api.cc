@@ -91,7 +91,7 @@ TEST(CAPI, ConfigIO) {
   for (size_t i = 0; i < labels.size(); ++i) {
     labels[i] = i;
   }
-  p_dmat->Info().labels_.HostVector() = labels;
+  p_dmat->Info().labels.Data()->HostVector() = labels;
 
   std::shared_ptr<Learner> learner { Learner::Create(mat) };
 
@@ -125,7 +125,7 @@ TEST(CAPI, JsonModelIO) {
   for (size_t i = 0; i < labels.size(); ++i) {
     labels[i] = i;
   }
-  p_dmat->Info().labels_.HostVector() = labels;
+  p_dmat->Info().labels.Data()->HostVector() = labels;
 
   std::shared_ptr<Learner> learner { Learner::Create(mat) };
 
