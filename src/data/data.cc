@@ -160,10 +160,11 @@ void LoadTensorField(dmlc::Stream* strm, std::string const& expected_name,
   CHECK(strm->Read(&is_scalar)) << invalid;
   CHECK(!is_scalar) << invalid << "Expected field " << expected_name
                     << " to be a tensor; got a scalar";
-  std::array<size_t, D> shape;
+  size_t shape[D];
   for (size_t i = 0; i < D; ++i) {
     CHECK(strm->Read(&(shape[i])));
   }
+  p_out->Reshape(shape);
   auto& field = p_out->Data()->HostVector();
   CHECK(strm->Read(&field)) << invalid;
 }
