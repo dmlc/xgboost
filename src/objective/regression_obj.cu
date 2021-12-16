@@ -108,7 +108,7 @@ class RegLossObj : public ObjFunction {
 
           for (size_t idx = begin; idx < end; ++idx) {
             bst_float p = Loss::PredTransform(preds_ptr[idx]);
-            bst_float w = _is_null_weight ? 1.0f : weights_ptr[idx % n_targets];
+            bst_float w = _is_null_weight ? 1.0f : weights_ptr[idx / n_targets];
             bst_float label = labels_ptr[idx];
             if (label == 1.0f) {
               w *= _scale_pos_weight;
