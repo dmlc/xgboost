@@ -11,7 +11,6 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 
   HostDeviceVector<float> predts;
   MetaInfo info;
-
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;

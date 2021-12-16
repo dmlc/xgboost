@@ -52,8 +52,8 @@ class ElementWiseMetricsReduction {
 
     // We sum over losses over all samples and targets instead of performing this for each
     // target since the first one approach more accurate while the second approach is used
-    // for approximation in distributed setting
-    // - sqrt(avg_t0 + avg_t1 + ... + avg_tm)            // multi-target
+    // for approximation in distributed setting.  For rmse:
+    // - sqrt(1/w(sum_t0 + sum_t1 + ... + sum_tm))       // multi-target
     // - sqrt(avg_t0) + sqrt(avg_t1) + ... sqrt(avg_tm)  // distributed
     common::ParallelFor(ndata, n_threads, [&](size_t i) {
       float wt = h_weights.size() > 0 ? h_weights[i / n_targets] : 1.0f;
