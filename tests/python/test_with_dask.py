@@ -450,12 +450,12 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
     kRows, kCols = 1, 97
     X = dd.from_array(np.random.randn(kRows, kCols))
     y = dd.from_array(np.random.rand(kRows))
-    X.columns = ['X' + str(i) for i in range(0, 97)]
+    X.columns = ['X' + str(i) for i in range(0, kCols)]
     dtrain = xgb.dask.DaskDMatrix(client, X, y)
 
     kRows += 1000
     X = dd.from_array(np.random.randn(kRows, kCols), chunksize=10)
-    X.columns = ['X' + str(i) for i in range(0, 97)]
+    X.columns = ['X' + str(i) for i in range(0, kCols)]
     y = dd.from_array(np.random.rand(kRows), chunksize=10)
     valid = xgb.dask.DaskDMatrix(client, X, y)
 

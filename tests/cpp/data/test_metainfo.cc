@@ -54,7 +54,7 @@ TEST(MetaInfo, GetSetFeature) {
   std::vector<char const*> c_types(kCols);
   std::transform(types.cbegin(), types.cend(), c_types.begin(),
                  [](auto const &str) { return str.c_str(); });
-  // Info has 0 column
+  info.num_col_ = 1;
   EXPECT_THROW(
       info.SetFeatureInfo(u8"feature_type", c_types.data(), c_types.size()),
       dmlc::Error);

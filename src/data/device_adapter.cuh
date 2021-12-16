@@ -39,7 +39,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
 
  private:
   common::Span<ArrayInterface> columns_;
-  size_t num_rows_;
+  size_t num_rows_{0};
 };
 
 /*!

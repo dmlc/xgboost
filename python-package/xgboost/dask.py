@@ -997,6 +997,8 @@ def _maybe_dataframe(
         index = getattr(data, "index", None)
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             import cudf
+            if prediction.size == 0:
+                return cudf.DataFrame({}, columns=columns, dtype=numpy.float32)
 
             prediction = cudf.DataFrame(
                 prediction, columns=columns, dtype=numpy.float32, index=index

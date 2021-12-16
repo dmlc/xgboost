@@ -16,8 +16,8 @@ namespace data {
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
-  auto device =
-      adapter->DeviceIdx() < 0 ? dh::CurrentDevice() : adapter->DeviceIdx();
+  auto device = (adapter->DeviceIdx() < 0 || adapter->NumRows() == 0) ? dh::CurrentDevice()
+                                                                      : adapter->DeviceIdx();
   CHECK_GE(device, 0);
   dh::safe_cuda(cudaSetDevice(device));
 
