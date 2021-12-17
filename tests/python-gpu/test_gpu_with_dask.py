@@ -277,7 +277,9 @@ def run_gpu_hist(
     X = to_cp(dataset.X, DMatrixT)
     X = da.from_array(X, chunks=(chunk, dataset.X.shape[1]))
     y = to_cp(dataset.y, DMatrixT)
-    y = da.from_array(y, chunks=(chunk,))
+    y_chunk = chunk if len(dataset.y.shape) == 1 else (chunk, dataset.y.shape[1])
+    y = da.from_array(y, chunks=y_chunk)
+
     if dataset.w is not None:
         w = to_cp(dataset.w, DMatrixT)
         w = da.from_array(w, chunks=(chunk,))
