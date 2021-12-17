@@ -60,8 +60,9 @@ def _test_from_cudf(DMatrixT):
     assert dtrain.feature_names == ['x']
     assert dtrain.feature_types == ['int']
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match=r".*multi.*"):
         dtrain = DMatrixT(cd, label=cd)
+        xgb.train({"tree_method": "gpu_hist", "objective": "multi:softprob"}, dtrain)
 
     # Test when number of elements is less than 8
     X = cudf.DataFrame({'x': cudf.Series([0, 1, 2, np.NAN, 4],
