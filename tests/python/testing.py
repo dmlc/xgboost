@@ -349,7 +349,6 @@ def _dataset_weight_margin(draw):
         )
         if num_class != 1:
             data.margin = data.margin.reshape(data.y.shape[0], num_class)
-            print(data.margin.shape, data.y.shape)
 
     return data
 
