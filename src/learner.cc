@@ -173,7 +173,8 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
   auto n_classes = std::max(static_cast<uint32_t>(user_param.num_class), 1u);
   auto n_targets = user_param.num_target;
   num_output_group = std::max(n_classes, n_targets);
-  CHECK(n_classes == 1 || n_targets == 1)
+  // For version < 1.6, n_targets == 0
+  CHECK(n_classes <= 1 || n_targets <= 1)
       << "Multi-class multi-output is not yet supported. n_classes:" << n_classes
       << ", n_targets:" << n_targets;
 }
