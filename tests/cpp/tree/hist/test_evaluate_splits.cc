@@ -29,7 +29,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
 
-  GHistIndexMatrix gmat(dmat.get(), kMaxBins);
+  GHistIndexMatrix gmat(dmat.get(), kMaxBins, false);
   common::RowSetCollection row_set_collection;
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);

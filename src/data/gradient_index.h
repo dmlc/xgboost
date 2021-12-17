@@ -37,14 +37,14 @@ class GHistIndexMatrix {
   size_t base_rowid{0};
 
   GHistIndexMatrix() = default;
-  GHistIndexMatrix(DMatrix* x, int32_t max_bin, common::Span<float> hess = {}) {
-    this->Init(x, max_bin, hess);
+  GHistIndexMatrix(DMatrix* x, int32_t max_bin, bool sorted_sketch, common::Span<float> hess = {}) {
+    this->Init(x, max_bin, sorted_sketch, hess);
   }
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins, common::Span<float> hess);
-  void Init(SparsePage const &page, common::Span<FeatureType const> ft,
-            common::HistogramCuts const &cuts, int32_t max_bins_per_feat,
-            bool is_dense, int32_t n_threads);
+  void Init(DMatrix* p_fmat, int max_num_bins, bool sorted_sketch, common::Span<float> hess);
+  void Init(SparsePage const& page, common::Span<FeatureType const> ft,
+            common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,
+            int32_t n_threads);
 
   // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>
@@ -57,7 +57,9 @@ class GHistIndexMatrix {
     const size_t batch_size = batch.Size();
     CHECK_LT(batch_size, offset_vec.size());
     BinIdxType* index_data = index_data_span.data();
-    common::ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
+    auto const& ptrs = cut.Ptrs();
+    auto const& values = cut.Values();
+    common::ParallelFor(batch_size, batch_threads, [&](omp_ulong i) {
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
@@ -71,7 +73,7 @@ class GHistIndexMatrix {
           index_data[ibegin + j] = get_offset(bin_idx, j);
           ++hit_count_tloc_[tid * nbins + bin_idx];
         } else {
-          uint32_t idx = cut.SearchBin(inst[j]);
+          uint32_t idx = cut.SearchBin(inst[j].fvalue, inst[j].index, ptrs, values);
           index_data[ibegin + j] = get_offset(idx, j);
           ++hit_count_tloc_[tid * nbins + idx];
         }

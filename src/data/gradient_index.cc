@@ -118,7 +118,7 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
                  [](auto idx, auto) { return idx; });
   }
 
-  common::ParallelFor(bst_omp_uint(nbins), n_threads, [&](bst_omp_uint idx) {
+  common::ParallelFor(nbins, n_threads, [&](bst_omp_uint idx) {
     for (int32_t tid = 0; tid < n_threads; ++tid) {
       hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
       hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
@@ -126,8 +126,11 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
   });
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins, common::Span<float> hess) {
-  cut = common::SketchOnDMatrix(p_fmat, max_bins, hess);
+void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, bool sorted_sketch,
+                            common::Span<float> hess) {
+  // We use sorted sketching for approx tree method since it's more efficient in
+  // computation time (but higher memory usage).
+  cut = common::SketchOnDMatrix(p_fmat, max_bins, sorted_sketch, hess);
 
   max_num_bins = max_bins;
   const int32_t nthread = omp_get_max_threads();

@@ -162,7 +162,7 @@ class QuantileHistMock : public QuantileHistMaker {
         // kNRows samples with kNCols features
         auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
 
-        GHistIndexMatrix gmat(dmat.get(), kMaxBins);
+        GHistIndexMatrix gmat(dmat.get(), kMaxBins, false);
         ColumnMatrix cm;
 
         // treat everything as dense, as this is what we intend to test here
@@ -253,7 +253,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins);
+    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false);
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -270,7 +270,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitDataSampling() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins);
+    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false);
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
