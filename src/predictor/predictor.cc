@@ -77,8 +77,8 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
   size_t n_classes = model.learner_model_param->num_output_group;
   size_t n = n_classes * info.num_row_;
   const HostDeviceVector<bst_float>* base_margin = info.base_margin_.Data();
-  if (generic_param_->gpu_id >= 0) {
-    out_preds->SetDevice(generic_param_->gpu_id);
+  if (ctx_->gpu_id >= 0) {
+    out_preds->SetDevice(ctx_->gpu_id);
   }
   if (base_margin->Size() != 0) {
     out_preds->Resize(n);
