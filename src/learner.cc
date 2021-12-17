@@ -122,9 +122,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     CHECK(ret.ec == std::errc());
     obj["num_class"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                    static_cast<int64_t>(num_target));
-    obj["num_target"] = Integer(num_target);
+    obj["num_target"] =
+        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
     return Json(std::move(obj));
   }
@@ -133,10 +135,14 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     std::map<std::string, std::string> m;
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
     m["num_class"] = get<String const>(j_param.at("num_class"));
+    auto n_targets_it = j_param.find("num_target");
+    if (n_targets_it != j_param.cend()) {
+      m["num_target"] = get<String const>(n_targets_it->second);
+    }
+
     this->Init(m);
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
-    num_target = get<Integer const>(j_param.at("num_target"));
   }
   inline LearnerModelParamLegacy ByteSwap() const {
     LearnerModelParamLegacy x = *this;
@@ -147,6 +153,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
     dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
     dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
+    dmlc::ByteSwap(&x.num_target, sizeof(x.num_target), 1);
     dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
@@ -164,6 +171,10 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     DMLC_DECLARE_FIELD(num_class).set_default(0).set_lower_bound(0).describe(
         "Number of class option for multi-class classifier. "
         " By default equals 0 and corresponds to binary classifier.");
+    DMLC_DECLARE_FIELD(num_target)
+        .set_default(1)
+        .set_lower_bound(1)
+        .describe("Number of target for multi-target regression.");
   }
 };
 
