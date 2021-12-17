@@ -349,24 +349,7 @@ class LearnerConfiguration : public Learner {
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
-    auto const& cache = this->GetPredictionCache()->Container();
-    size_t n_targets = 1;
-    for (auto const& d : cache) {
-      if (n_targets == 1) {
-        n_targets = this->obj_->Targets(d.first->Info());
-      } else {
-        auto t = this->obj_->Targets(d.first->Info());
-        CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
-      }
-    }
-    if (mparam_.num_target != 1) {
-      CHECK(n_targets == 1 || n_targets == mparam_.num_target)
-          << "Inconsistent configuration of num_target.  Configuration result from input data:"
-          << n_targets << ", configuration from parameter:" << mparam_.num_target;
-    } else {
-      mparam_.num_target = n_targets;
-    }
-    auto task = this->obj_->Task();
+    auto task = this->ConfigureTargets();
 
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
@@ -693,6 +676,31 @@ class LearnerConfiguration : public Learner {
     for (auto& p_metric : metrics_) {
       p_metric->Configure(args);
     }
+  }
+
+  /**
+   * Get number of targets from objective function.
+   */
+  ObjInfo ConfigureTargets() {
+    CHECK(this->obj_);
+    auto const& cache = this->GetPredictionCache()->Container();
+    size_t n_targets = 1;
+    for (auto const& d : cache) {
+      if (n_targets == 1) {
+        n_targets = this->obj_->Targets(d.first->Info());
+      } else {
+        auto t = this->obj_->Targets(d.first->Info());
+        CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
+      }
+    }
+    if (mparam_.num_target != 1) {
+      CHECK(n_targets == 1 || n_targets == mparam_.num_target)
+          << "Inconsistent configuration of num_target.  Configuration result from input data:"
+          << n_targets << ", configuration from parameter:" << mparam_.num_target;
+    } else {
+      mparam_.num_target = n_targets;
+    }
+    return this->obj_->Task();
   }
 };
 
