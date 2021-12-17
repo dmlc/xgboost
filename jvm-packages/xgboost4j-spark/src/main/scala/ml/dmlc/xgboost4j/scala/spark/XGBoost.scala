@@ -53,12 +53,12 @@ object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
 }
 
-private[this] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
+private[scala] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
                                                              maximizeEvalMetrics: Boolean)
 
-private[this] case class XGBoostExecutionInputParams(trainTestRatio: Double, seed: Long)
+private[scala] case class XGBoostExecutionInputParams(trainTestRatio: Double, seed: Long)
 
-private[spark] case class XGBoostExecutionParams(
+private[scala] case class XGBoostExecutionParams(
     numWorkers: Int,
     numRounds: Int,
     useExternalMemory: Boolean,
@@ -257,7 +257,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def getGPUAddrFromResources: Int = {
+  def getGPUAddrFromResources: Int = {
     val tc = TaskContext.get()
     if (tc == null) {
       throw new RuntimeException("Something wrong for task context")
@@ -473,7 +473,7 @@ object XGBoost extends Serializable {
 
 }
 
-class Watches private(
+class Watches private[scala] (
     val datasets: Array[DMatrix],
     val names: Array[String],
     val cacheDirName: Option[String]) {
