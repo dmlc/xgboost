@@ -826,6 +826,9 @@ class LearnerIO : public LearnerConfiguration {
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       mparam_ = mparam_.ByteSwap();
     }
+    if (mparam_.num_target == 0) {
+      mparam_.num_target = 1;
+    }
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
