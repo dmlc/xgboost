@@ -56,9 +56,9 @@ class RegLossObj : public ObjFunction {
     return Loss::Info();
   }
 
-  uint32_t Targets(DMatrix const* m) const override {
+  uint32_t Targets(MetaInfo const& info) const override {
     // Multi-target regression.
-    return std::max(static_cast<size_t>(1), m->Info().labels.Shape(1));
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,

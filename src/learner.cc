@@ -353,9 +353,9 @@ class LearnerConfiguration : public Learner {
     size_t n_targets = 1;
     for (auto const& d : cache) {
       if (n_targets == 1) {
-        n_targets = this->obj_->Targets(d.first);
+        n_targets = this->obj_->Targets(d.first->Info());
       } else {
-        auto t = this->obj_->Targets(d.first);
+        auto t = this->obj_->Targets(d.first->Info());
         CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
       }
     }
