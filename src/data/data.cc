@@ -411,6 +411,7 @@ template <int32_t D, typename T>
 void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array{arr_interface};
   if (array.n == 0) {
+    p_out->Reshape(array.shape);
     return;
   }
   CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
