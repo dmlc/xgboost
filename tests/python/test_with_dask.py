@@ -1114,9 +1114,9 @@ class TestWithDask:
             return
 
         chunk = 128
-        X = da.from_array(dataset.X,
-                          chunks=(chunk, dataset.X.shape[1]))
-        y = da.from_array(dataset.y, chunks=(chunk,))
+        y_chunk = chunk if len(dataset.y.shape) == 1 else (chunk, dataset.y.shape[1])
+        X = da.from_array(dataset.X, chunks=(chunk, dataset.X.shape[1]))
+        y = da.from_array(dataset.y, chunks=y_chunk)
         if dataset.w is not None:
             w = da.from_array(dataset.w, chunks=(chunk,))
         else:

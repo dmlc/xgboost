@@ -9,8 +9,9 @@
 #include <xgboost/linalg.h>
 
 #include <numeric>
-#include "../../../src/data/array_interface.h"
+
 #include "../../../src/common/linalg_op.h"
+#include "../../../src/data/array_interface.h"
 
 namespace xgboost {
 inline void TestMetaInfoStridedData(int32_t device) {

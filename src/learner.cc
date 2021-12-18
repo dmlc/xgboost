@@ -88,12 +88,15 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief the version of XGBoost. */
   uint32_t major_version;
   uint32_t minor_version;
+
+  uint32_t num_target{1};
   /*! \brief reserved field */
-  int reserved[27];
+  int reserved[26];
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
     base_score = 0.5f;
+    num_target = 1;
     major_version = std::get<0>(Version::Self());
     minor_version = std::get<1>(Version::Self());
     static_assert(sizeof(LearnerModelParamLegacy) == 136,
@@ -119,6 +122,12 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     CHECK(ret.ec == std::errc());
     obj["num_class"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+
+    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                   static_cast<int64_t>(num_target));
+    obj["num_target"] =
+        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+
     return Json(std::move(obj));
   }
   void FromJson(Json const& obj) {
@@ -126,6 +135,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     std::map<std::string, std::string> m;
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
     m["num_class"] = get<String const>(j_param.at("num_class"));
+    auto n_targets_it = j_param.find("num_target");
+    if (n_targets_it != j_param.cend()) {
+      m["num_target"] = get<String const>(n_targets_it->second);
+    }
+
     this->Init(m);
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
@@ -139,6 +153,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
     dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
     dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
+    dmlc::ByteSwap(&x.num_target, sizeof(x.num_target), 1);
     dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
@@ -156,15 +171,24 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     DMLC_DECLARE_FIELD(num_class).set_default(0).set_lower_bound(0).describe(
         "Number of class option for multi-class classifier. "
         " By default equals 0 and corresponds to binary classifier.");
+    DMLC_DECLARE_FIELD(num_target)
+        .set_default(1)
+        .set_lower_bound(1)
+        .describe("Number of target for multi-target regression.");
   }
 };
 
 LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin,
                                      ObjInfo t)
-    : base_score{base_margin},
-      num_feature{user_param.num_feature},
-      num_output_group{user_param.num_class == 0 ? 1 : static_cast<uint32_t>(user_param.num_class)},
-      task{t} {}
+    : base_score{base_margin}, num_feature{user_param.num_feature}, task{t} {
+  auto n_classes = std::max(static_cast<uint32_t>(user_param.num_class), 1u);
+  auto n_targets = user_param.num_target;
+  num_output_group = std::max(n_classes, n_targets);
+  // For version < 1.6, n_targets == 0
+  CHECK(n_classes <= 1 || n_targets <= 1)
+      << "Multi-class multi-output is not yet supported. n_classes:" << n_classes
+      << ", n_targets:" << n_targets;
+}
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
@@ -325,6 +349,8 @@ class LearnerConfiguration : public Learner {
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
+    auto task = this->ConfigureTargets();
+
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
     // keep the stability, we initialize it in binary LoadModel instead of configuration.
@@ -339,7 +365,7 @@ class LearnerConfiguration : public Learner {
     // - model is configured second time due to change of parameter
     if (!learner_model_param_.Initialized() || mparam_.base_score != mparam_backup.base_score) {
       learner_model_param_ =
-          LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), obj_->Task());
+          LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), task);
     }
 
     this->ConfigureGBM(old_tparam, args);
@@ -586,8 +612,7 @@ class LearnerConfiguration : public Learner {
         CHECK(matrix.first);
         CHECK(!matrix.second.ref.expired());
         const uint64_t num_col = matrix.first->Info().num_col_;
-        CHECK_LE(num_col,
-                 static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
+        CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
             << "Unfortunately, XGBoost does not support data matrices with "
             << std::numeric_limits<unsigned>::max() << " features or greater";
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
@@ -651,6 +676,31 @@ class LearnerConfiguration : public Learner {
     for (auto& p_metric : metrics_) {
       p_metric->Configure(args);
     }
+  }
+
+  /**
+   * Get number of targets from objective function.
+   */
+  ObjInfo ConfigureTargets() {
+    CHECK(this->obj_);
+    auto const& cache = this->GetPredictionCache()->Container();
+    size_t n_targets = 1;
+    for (auto const& d : cache) {
+      if (n_targets == 1) {
+        n_targets = this->obj_->Targets(d.first->Info());
+      } else {
+        auto t = this->obj_->Targets(d.first->Info());
+        CHECK(n_targets == t || 1 == t) << "Inconsistent labels.";
+      }
+    }
+    if (mparam_.num_target != 1) {
+      CHECK(n_targets == 1 || n_targets == mparam_.num_target)
+          << "Inconsistent configuration of num_target.  Configuration result from input data:"
+          << n_targets << ", configuration from parameter:" << mparam_.num_target;
+    } else {
+      mparam_.num_target = n_targets;
+    }
+    return this->obj_->Task();
   }
 };
 
@@ -783,6 +833,9 @@ class LearnerIO : public LearnerConfiguration {
         << "BoostLearner: wrong model format";
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       mparam_ = mparam_.ByteSwap();
+    }
+    if (mparam_.num_target == 0) {
+      mparam_.num_target = 1;
     }
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";

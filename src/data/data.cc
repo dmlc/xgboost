@@ -160,10 +160,11 @@ void LoadTensorField(dmlc::Stream* strm, std::string const& expected_name,
   CHECK(strm->Read(&is_scalar)) << invalid;
   CHECK(!is_scalar) << invalid << "Expected field " << expected_name
                     << " to be a tensor; got a scalar";
-  std::array<size_t, D> shape;
+  size_t shape[D];
   for (size_t i = 0; i < D; ++i) {
     CHECK(strm->Read(&(shape[i])));
   }
+  p_out->Reshape(shape);
   auto& field = p_out->Data()->HostVector();
   CHECK(strm->Read(&field)) << invalid;
 }
@@ -411,6 +412,7 @@ template <int32_t D, typename T>
 void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array{arr_interface};
   if (array.n == 0) {
+    p_out->Reshape(array.shape);
     return;
   }
   CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
@@ -737,8 +739,7 @@ void MetaInfo::Validate(int32_t device) const {
     return;
   }
   if (labels.Size() != 0) {
-    CHECK_EQ(labels.Size(), num_row_)
-        << "Size of labels must equal to number of rows.";
+    CHECK_EQ(labels.Shape(0), num_row_) << "Size of labels must equal to number of rows.";
     check_device(*labels.Data());
     return;
   }

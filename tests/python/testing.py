@@ -305,26 +305,48 @@ def make_categorical(
 
 
 _unweighted_datasets_strategy = strategies.sampled_from(
-    [TestDataset('boston', get_boston, 'reg:squarederror', 'rmse'),
-     TestDataset('digits', get_digits, 'multi:softmax', 'mlogloss'),
-     TestDataset("cancer", get_cancer, "binary:logistic", "logloss"),
-     TestDataset
-     ("sparse", get_sparse, "reg:squarederror", "rmse"),
-     TestDataset("empty", lambda: (np.empty((0, 100)), np.empty(0)), "reg:squarederror",
-                 "rmse")])
+    [
+        TestDataset("boston", get_boston, "reg:squarederror", "rmse"),
+        TestDataset("digits", get_digits, "multi:softmax", "mlogloss"),
+        TestDataset("cancer", get_cancer, "binary:logistic", "logloss"),
+        TestDataset(
+            "mtreg",
+            lambda: datasets.make_regression(n_samples=128, n_targets=3),
+            "reg:squarederror",
+            "rmse",
+        ),
+        TestDataset("sparse", get_sparse, "reg:squarederror", "rmse"),
+        TestDataset(
+            "empty",
+            lambda: (np.empty((0, 100)), np.empty(0)),
+            "reg:squarederror",
+            "rmse",
+        ),
+    ]
+)
 
 
 @strategies.composite
 def _dataset_weight_margin(draw):
     data: TestDataset = draw(_unweighted_datasets_strategy)
     if draw(strategies.booleans()):
-        data.w = draw(arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0)))
+        data.w = draw(
+            arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0))
+        )
     if draw(strategies.booleans()):
         num_class = 1
         if data.objective == "multi:softmax":
             num_class = int(np.max(data.y) + 1)
+        elif data.name == "mtreg":
+            num_class = data.y.shape[1]
+
         data.margin = draw(
-            arrays(np.float64, (len(data.y) * num_class), elements=strategies.floats(0.5, 1.0)))
+            arrays(
+                np.float64,
+                (data.y.shape[0] * num_class),
+                elements=strategies.floats(0.5, 1.0),
+            )
+        )
         if num_class != 1:
             data.margin = data.margin.reshape(data.y.shape[0], num_class)
 
