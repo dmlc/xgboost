@@ -1,6 +1,6 @@
-####################
-XGBoost Tree Methods
-####################
+############
+Tree Methods
+############
 
 For training boosted tree models, there are 2 parameters used for choosing algorithms,
 namely ``updater`` and ``tree_method``.  XGBoost has 4 builtin tree methods, namely
