@@ -27,3 +27,4 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   external_memory
   custom_metric_obj
   categorical
+  multioutput
