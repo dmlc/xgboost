@@ -122,10 +122,10 @@ __model_doc = f'''
     booster: Optional[str]
         Specify which booster to use: gbtree, gblinear or dart.
     tree_method: Optional[str]
-        Specify which tree method to use.  Default to auto.  If this parameter
-        is set to default, XGBoost will choose the most conservative option
-        available.  It's recommended to study this option from the parameters
-        document: https://xgboost.readthedocs.io/en/latest/treemethod.html.
+        Specify which tree method to use.  Default to auto.  If this parameter is set to
+        default, XGBoost will choose the most conservative option available.  It's
+        recommended to study this option from the parameters document :doc:`tree method
+        </treemethod>`
     n_jobs : Optional[int]
         Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
         algorithms like grid search, you may choose which algorithm to parallelize and
@@ -216,9 +216,8 @@ __model_doc = f'''
         For advanced usage on Early stopping like directly choosing to maximize instead of
         minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
 
-        See `Custom Objective and Evaluation Metric
-        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
-        more.
+        See :doc:`Custom Objective and Evaluation Metric </tutorials/custom_metric_obj>`
+        for more.
 
         .. note::
 
@@ -268,9 +267,8 @@ __model_doc = f'''
                                                     save_best=True)]
 
     kwargs : dict, optional
-        Keyword arguments for XGBoost Booster object.  Full documentation of
-        parameters can be found here:
-        https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
+        Keyword arguments for XGBoost Booster object.  Full documentation of parameters
+        can be found :doc:`here </parameter>`.
         Attempting to set a parameter via the constructor args and \\*\\*kwargs
         dict simultaneously will result in a TypeError.
 

@@ -1817,9 +1817,8 @@ class Booster:
 
         .. note::
 
-            See `Prediction
-            <https://xgboost.readthedocs.io/en/latest/prediction.html>`_
-            for issues like thread safety and a summary of outputs from this function.
+            See :doc:`Prediction </prediction>` for issues like thread safety and a
+            summary of outputs from this function.
 
         Parameters
         ----------
@@ -1945,8 +1944,8 @@ class Booster:
         base_margin: Any = None,
         strict_shape: bool = False
     ):
-        """Run prediction in-place, Unlike ``predict`` method, inplace prediction does
-        not cache the prediction result.
+        """Run prediction in-place, Unlike :py:meth:`predict` method, inplace prediction does not
+        cache the prediction result.
 
         Calling only ``inplace_predict`` in multiple threads is safe and lock
         free.  But the safety does not hold when used in conjunction with other
@@ -1971,7 +1970,7 @@ class Booster:
             ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
             array or CuDF DataFrame.
         iteration_range :
-            See :py:meth:`xgboost.Booster.predict` for details.
+            See :py:meth:`predict` for details.
         predict_type :
             * `value` Output model prediction values.
             * `margin` Output the raw untransformed margin value.
@@ -2127,9 +2126,8 @@ class Booster:
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
         (such as feature_names) will not be saved when using binary format.  To save those
-        attributes, use JSON instead. See: `Model IO
-        <https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html>`_ for more
-        info.
+        attributes, use JSON instead. See :doc:`Model IO </tutorials/saving_model>` for
+        more info.
 
         Parameters
         ----------
@@ -2165,9 +2163,8 @@ class Booster:
         The model is loaded from XGBoost format which is universal among the various
         XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
         feature_names) will not be loaded when using binary format.  To save those
-        attributes, use JSON instead.  See: `Model IO
-        <https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html>`_ for more
-        info.
+        attributes, use JSON instead.  See :doc:`Model IO </tutorials/saving_model>` for
+        more info.
 
         Parameters
         ----------
@@ -2215,7 +2212,7 @@ class Booster:
         return features.value
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
-        """Dump model into a text or JSON file.  Unlike `save_model`, the
+        """Dump model into a text or JSON file.  Unlike :py:meth:`save_model`, the
         output format is primarily used for visualization or interpretation,
         hence it's more human readable but cannot be loaded back to XGBoost.
 
@@ -2258,9 +2255,9 @@ class Booster:
         with_stats: bool = False,
         dump_format: str = "text"
     ) -> List[str]:
-        """Returns the model dump as a list of strings.  Unlike `save_model`, the
-        output format is primarily used for visualization or interpretation,
-        hence it's more human readable but cannot be loaded back to XGBoost.
+        """Returns the model dump as a list of strings.  Unlike :py:meth:`save_model`, the output
+        format is primarily used for visualization or interpretation, hence it's more
+        human readable but cannot be loaded back to XGBoost.
 
         Parameters
         ----------

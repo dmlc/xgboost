@@ -54,6 +54,6 @@ this callback function directly into XGBoost:
 Defining your own callback
 --------------------------
 
-XGBoost provides an callback interface class: ``xgboost.callback.TrainingCallback``, user
+XGBoost provides an callback interface class: :py:class:`xgboost.callback.TrainingCallback`, user
 defined callbacks should inherit this class and override corresponding methods.  There's a
 working example in `demo/guide-python/callbacks.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/callbacks.py>`_

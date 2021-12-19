@@ -77,15 +77,28 @@ Plotting API
 
 Callback API
 ------------
-.. autofunction:: xgboost.callback.TrainingCallback
+.. autoclass:: xgboost.callback.TrainingCallback
+    :members:
 
-.. autofunction:: xgboost.callback.EvaluationMonitor
+.. autoclass:: xgboost.callback.EvaluationMonitor
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.callback.EarlyStopping
+.. autoclass:: xgboost.callback.EarlyStopping
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.callback.LearningRateScheduler
+.. autoclass:: xgboost.callback.LearningRateScheduler
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.callback.TrainingCheckPoint
+.. autoclass:: xgboost.callback.TrainingCheckPoint
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
 .. _dask_api:
 
