@@ -5,16 +5,21 @@ Multiple Outputs
 .. versionadded:: 1.6
 
 Starting from version 1.6, XGBoost has experimental support for multi-output regression
-and multi-label classification.  For the terminologies please refer to the `scikit-learn
-user guide <https://scikit-learn.org/stable/modules/multiclass.html>`_.
+and multi-label classification with Python package.  Multi-label classification usually
+refers to targets that have multiple non-exclusive class labels.  For instance, a movie
+can be simultaneously classified as both sci-fi and comedy.  For detailed explanation of
+terminologies related to different multi-output models please refer to the `scikit-learn
+user guide <https://scikit-learn.org/stable/modules/multiclass.HTML>`_.
 
 Internally, XGBoost builds one model for each target similar to sklearn meta estimators,
 with the added benefit of reusing data and custom objective support.  For a worked example
 of regression, see :ref:`sphx_glr_python_examples_multioutput_regression.py`. For
 multi-label classification, the binary relevance strategy is used.  Input ``y`` should be
-of shape ``(n_samples, n_classes)`` with each column has value 0 or 1 to specify whether
-the sample is labeled as positive.  At the moment XGBoost supports only dense matrix for
-labels.
+of shape ``(n_samples, n_classes)`` with each column having a value of 0 or 1 to specify
+whether the sample is labeled as positive for respective class. Given a sample with 3
+output classes and 2 labels, the corresponding `y` should be encoded as ``[1, 0, 1]`` with
+the second class labeled as negative and the rest labeled as positive. At the moment
+XGBoost supports only dense matrix for labels.
 
 .. code-block:: python
 
@@ -29,4 +34,4 @@ labels.
     np.testing.assert_allclose(clf.predict(X), y)
 
 
-The feature is still under development and might contain unknown issues.
+The feature is still under development with limited support from objectives and metrics.

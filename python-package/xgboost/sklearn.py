@@ -1383,7 +1383,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             return class_probs
 
         if len(class_probs.shape) > 1 and self.n_classes_ != 2:
-            # turns softprob into softmax
+            # multi-class, turns softprob into softmax
             column_indexes: np.ndarray = np.argmax(class_probs, axis=1)  # type: ignore
         elif len(class_probs.shape) > 1 and class_probs.shape[1] != 1:
             # multi-label
