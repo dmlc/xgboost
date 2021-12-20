@@ -16,7 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.GpuTestSuite
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.functions._
@@ -24,7 +23,7 @@ import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
-abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
+class XGBoostRegressorSuite extends FunSuite with PerTest {
   protected val treeMethod: String = "auto"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
@@ -217,14 +216,4 @@ abstract class XGBoostRegressorSuiteBase extends FunSuite with PerTest {
     assert(resultDF.columns.contains("predictLeaf"))
     assert(resultDF.columns.contains("predictContrib"))
   }
-}
-
-class XGBoostCpuRegressorSuite extends XGBoostRegressorSuiteBase {
-
-}
-
-@GpuTestSuite
-class XGBoostGpuRegressorSuite extends XGBoostRegressorSuiteBase {
-  override protected val treeMethod: String = "gpu_hist"
-  override protected val numWorkers: Int = 1
 }
