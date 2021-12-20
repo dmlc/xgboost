@@ -56,7 +56,11 @@ void TestEvaluateSingleSplit(bool is_categorical) {
 
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 1);
-  EXPECT_EQ(result.fvalue, 11.0);
+  if (is_categorical) {
+    EXPECT_TRUE(result.fvalue == 11.0 || result.fvalue == 12.0);
+  } else {
+    EXPECT_EQ(result.fvalue, 11.0);
+  }
   EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(),
                   parent_sum.GetGrad());
   EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(),
@@ -103,7 +107,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
-  EXPECT_EQ(result.dir, kRightDir);
+  EXPECT_EQ(result.dir, DefaultDirection::kRightDir);
   EXPECT_EQ(result.left_sum, GradientPair(-0.5, 0.5));
   EXPECT_EQ(result.right_sum, GradientPair(1.5, 1.0));
 }

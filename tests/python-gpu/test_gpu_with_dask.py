@@ -384,6 +384,7 @@ class TestDistributedGPU:
                                          n_estimators=100)
             cls.client = client
             cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                    eval_metric='error',
                     eval_set=[(valid_X, valid_y)])
             booster = cls.get_booster()
             dump = booster.get_dump(dump_format='json')

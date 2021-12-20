@@ -67,7 +67,7 @@ def main() -> None:
     reg_enc_results = np.array(reg_enc.evals_result()["validation_0"]["rmse"])
 
     # Check that they have same results
-    np.testing.assert_allclose(reg_results, reg_enc_results)
+    np.testing.assert_allclose(reg_results, reg_enc_results, rtol=1e-3)
 
     # Convert to DMatrix for SHAP value
     booster: xgb.Booster = reg.get_booster()

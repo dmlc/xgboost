@@ -47,7 +47,7 @@ static const bst_node_t kUnusedNode = -1;
  * @enum DefaultDirection node.cuh
  * @brief Default direction to be followed in case of missing values
  */
-enum DefaultDirection {
+enum class DefaultDirection : uint8_t {
   /** move to left child */
   kLeftDir = 0,
   /** move to right child */
@@ -56,7 +56,7 @@ enum DefaultDirection {
 
 struct DeviceSplitCandidate {
   float loss_chg {-FLT_MAX};
-  DefaultDirection dir {kLeftDir};
+  DefaultDirection dir {DefaultDirection::kLeftDir};
   int findex {-1};
   float fvalue {0};
   bool is_cat { false };
@@ -65,6 +65,12 @@ struct DeviceSplitCandidate {
   GradientPair right_sum;
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
+
+  XGBOOST_DEVICE DeviceSplitCandidate(float loss_chg, DefaultDirection dir, int findex,
+                                      float fvalue, bool is_cat, GradientPair left_sum,
+                                      GradientPair right_sum)
+    : loss_chg(loss_chg), dir(dir), findex(findex), fvalue(fvalue), is_cat(is_cat),
+      left_sum(left_sum), right_sum(right_sum) {}
 
   template <typename ParamT>
   XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
@@ -98,7 +104,7 @@ struct DeviceSplitCandidate {
 
   friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
     os << "loss_chg:" << c.loss_chg << ", "
-       << "dir: " << c.dir << ", "
+       << "dir: " << (c.dir == DefaultDirection::kLeftDir ? "left" : "right") << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
        << "is_cat: " << c.is_cat << ", "

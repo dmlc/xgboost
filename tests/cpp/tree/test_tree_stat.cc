@@ -32,7 +32,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
     tree.WalkTree([&tree](bst_node_t nidx) {
       if (tree[nidx].IsLeaf()) {
         // 1.0 is the default `min_child_weight`.
-        CHECK_GE(tree.Stat(nidx).sum_hess, 1.0);
+        EXPECT_GE(tree.Stat(nidx).sum_hess, 1.0);
       }
       return true;
     });
