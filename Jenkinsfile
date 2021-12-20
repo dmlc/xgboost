@@ -62,8 +62,8 @@ pipeline {
             // using CentOS 7 image
             'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
             'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '11.0') },
-            'build-jvm-packages-gpu-cuda11.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '11.0') },
-            'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
+            'build-jvm-packages-gpu-cuda11.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.1', cuda_version: '11.0') },
+            'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.1') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
