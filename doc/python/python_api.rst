@@ -77,6 +77,7 @@ Plotting API
 
 Callback API
 ------------
+.. automodule:: xgboost.callback
 .. autoclass:: xgboost.callback.TrainingCallback
     :members:
 

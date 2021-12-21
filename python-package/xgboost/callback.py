@@ -1,7 +1,11 @@
 # coding: utf-8
 # pylint: disable=invalid-name, too-many-statements, no-self-use
 # pylint: disable=too-many-arguments
-"""Training Library containing training routines."""
+"""Callback library containing training routines.  See :doc:`Callback Functions
+</python/callbacks>` for a quick introduction.
+
+"""
+
 from abc import ABC
 import collections
 import os
