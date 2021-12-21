@@ -1105,6 +1105,12 @@ class XGBModel(XGBModelBase):
         booster = self.get_booster()
         return booster.num_features()
 
+    @property
+    def feature_names_in_(self) -> np.ndarray:
+        """Names of features seen during :py:meth:`fit`."""
+        booster = self.get_booster()
+        return np.array(booster.feature_names)
+
     def _early_stopping_attr(self, attr: str) -> Union[float, int]:
         booster = self.get_booster()
         try:

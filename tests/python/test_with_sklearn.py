@@ -1017,6 +1017,8 @@ def test_pandas_input():
     train = df.drop(columns=['status'])
     model = xgb.XGBClassifier()
     model.fit(train, target)
+    np.testing.assert_equal(model.feature_names_in_, np.array(feature_names))
+
     clf_isotonic = CalibratedClassifierCV(model,
                                           cv='prefit', method='isotonic')
     clf_isotonic.fit(train, target)
