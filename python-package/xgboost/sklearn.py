@@ -1101,6 +1101,7 @@ class XGBModel(XGBModelBase):
 
     @property
     def n_features_in_(self) -> int:
+        """Number of features seen during :py:meth:`fit`."""
         booster = self.get_booster()
         return booster.num_features()
 
