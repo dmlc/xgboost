@@ -68,17 +68,6 @@
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
             </modules>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.scalatest</groupId>
-                        <artifactId>scalatest-maven-plugin</artifactId>
-                        <configuration>
-                            <tagsToExclude>ml.dmlc.xgboost4j.java.GpuTestSuite</tagsToExclude>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
 
         <!-- gpu profile with both cpu and gpu test suites -->
@@ -94,37 +83,6 @@
                 <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
             </modules>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.scalatest</groupId>
-                        <artifactId>scalatest-maven-plugin</artifactId>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!-- gpu-with-gpu-tests profile with only gpu test suites -->
-        <profile>
-            <id>gpu-with-gpu-tests</id>
-            <properties>
-                <use.cuda>ON</use.cuda>
-            </properties>
-            <modules>
-                <module>xgboost4j-gpu</module>
-                <module>xgboost4j-spark-gpu</module>
-            </modules>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.scalatest</groupId>
-                        <artifactId>scalatest-maven-plugin</artifactId>
-                        <configuration>
-                            <tagsToInclude>ml.dmlc.xgboost4j.java.GpuTestSuite</tagsToInclude>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
 
         <profile>
