@@ -435,7 +435,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       lapply(seq_len(n_groups), function(g) arr[g, , ])
     } else {
       ## remove the first axis (group)
-      as.matrix(arr[1, , ])
+      dn <- dimnames(arr)
+      matrix(arr[1, , ], nrow = dim(arr)[2], ncol = dim(arr)[3], dimnames = c(dn[2], dn[3]))
     }
   } else if (predinteraction) {
     ## Predict interaction
@@ -447,7 +448,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       lapply(seq_len(n_groups), function(g) arr[g, , , ])
     } else {
       ## remove the first axis (group)
-      arr[1, , , ]
+      arr <- arr[1, , , , drop = FALSE]
+      array(arr, dim = dim(arr)[2:4], dimnames(arr)[2:4])
     }
   } else {
     ## Normal prediction
