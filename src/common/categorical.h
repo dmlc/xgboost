@@ -30,22 +30,30 @@ inline XGBOOST_DEVICE bool IsCat(Span<FeatureType const> ft, bst_feature_t fidx)
   return !ft.empty() && ft[fidx] == FeatureType::kCategorical;
 }
 
+template <typename SizeT>
+bool InvalidCat(float cat, SizeT n) {
+  return cat < 0 || cat > static_cast<float>(std::numeric_limits<bst_cat_t>::max()) || cat >= n;
+}
+
 /* \brief Whether should it traverse to left branch of a tree.
  *
  *  For one hot split, go to left if it's NOT the matching category.
  */
-inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, bst_cat_t cat) {
-  auto pos = CLBitField32::ToBitPos(cat);
-  if (pos.int_pos >= cats.size()) {
-    return true;
-  }
+template <bool validate = true>
+inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat, bool dft_left) {
   CLBitField32 const s_cats(cats);
-  return !s_cats.Check(cat);
+  // FIXME: Size() is not accurate since it represents the size of bit set instead of
+  // actual number of categories.
+  if (XGBOOST_EXPECT(validate && InvalidCat(cat, s_cats.Size()), false)) {
+    return dft_left;
+  }
+  return !s_cats.Check(AsCat(cat));
 }
 
 inline void InvalidCategory() {
   LOG(FATAL) << "Invalid categorical value detected.  Categorical value "
-                "should be non-negative.";
+                "should be non-negative, less than maximum size of int32 and less than total "
+                "number of categories in training data.";
 }
 
 /*!

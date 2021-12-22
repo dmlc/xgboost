@@ -581,14 +581,14 @@ void SketchContainer::AllReduce() {
 }
 
 namespace {
-struct InvalidCat {
+struct InvalidCatOp {
   Span<float const> values;
   Span<uint32_t const> ptrs;
   Span<FeatureType const> ft;
 
   XGBOOST_DEVICE bool operator()(size_t i) {
     auto fidx = dh::SegmentId(ptrs, i);
-    return IsCat(ft, fidx) && values[i] < 0;
+    return InvalidCat(values[i], ptrs[fidx + 1] - ptrs[fidx]);
   }
 };
 }  // anonymous namespace
@@ -690,7 +690,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     CHECK_EQ(p_cuts->Ptrs().back(), out_cut_values.size());
     auto invalid =
         thrust::any_of(thrust::cuda::par(alloc), it, it + out_cut_values.size(),
-                       InvalidCat{out_cut_values, ptrs, d_ft});
+                       InvalidCatOp{out_cut_values, ptrs, d_ft});
     if (invalid) {
       InvalidCategory();
     }

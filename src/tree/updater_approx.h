@@ -95,7 +95,7 @@ class ApproxRowPartitioner {
             auto node_cats = categories.subspan(segment.beg, segment.size);
             bool go_left = true;
             if (is_cat) {
-              go_left = common::Decision(node_cats, common::AsCat(cut_value));
+              go_left = common::Decision(node_cats, cut_value, candidate.split.DefaultLeft());
             } else {
               go_left = cut_value <= candidate.split.split_value;
             }
