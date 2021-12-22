@@ -49,16 +49,21 @@ T CreateRoundingFactor(T max_abs, int n) {
 }
 
 namespace {
+template <typename GradientSumT>
 struct Pair {
-  GradientPair first;
-  GradientPair second;
+  GradientSumT first;
+  GradientSumT second;
 };
-__host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
+
+template <typename GradientSumT>
+__host__ XGBOOST_DEV_INLINE Pair<GradientSumT> operator+(Pair<GradientSumT> const& lhs,
+                                                         Pair<GradientSumT> const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
 }  // anonymous namespace
 
-struct Clip : public thrust::unary_function<GradientPair, Pair> {
+template <typename GradientSumT>
+struct Clip : public thrust::unary_function<GradientPair, Pair<GradientSumT>> {
   static XGBOOST_DEV_INLINE float Pclip(float v) {
     return v > 0 ? v : 0;
   }
@@ -66,14 +71,14 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
     return v < 0 ? abs(v) : 0;
   }
 
-  XGBOOST_DEV_INLINE Pair operator()(GradientPair x) const {
+  XGBOOST_DEV_INLINE Pair<GradientSumT> operator()(GradientPair x) const {
     auto pg = Pclip(x.GetGrad());
     auto ph = Pclip(x.GetHess());
 
     auto ng = Nclip(x.GetGrad());
     auto nh = Nclip(x.GetHess());
 
-    return { GradientPair{ pg, ph }, GradientPair{ ng, nh } };
+    return { GradientSumT{ pg, ph }, GradientSumT{ ng, nh } };
   }
 };
 
@@ -84,10 +89,11 @@ HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const>
 
   thrust::device_ptr<GradientPair const> gpair_beg {gpair.data()};
   thrust::device_ptr<GradientPair const> gpair_end {gpair.data() + gpair.size()};
-  auto beg = thrust::make_transform_iterator(gpair_beg, Clip());
-  auto end = thrust::make_transform_iterator(gpair_end, Clip());
-  Pair p = dh::Reduce(thrust::cuda::par(alloc), beg, end, Pair{}, thrust::plus<Pair>{});
-  GradientPair positive_sum {p.first}, negative_sum {p.second};
+  auto beg = thrust::make_transform_iterator(gpair_beg, Clip<GradientSumT>());
+  auto end = thrust::make_transform_iterator(gpair_end, Clip<GradientSumT>());
+  Pair<GradientSumT> p = dh::Reduce(thrust::cuda::par(alloc), beg, end, Pair<GradientSumT>{},
+                                    thrust::plus<Pair<GradientSumT>>{});
+  GradientSumT positive_sum{p.first}, negative_sum{p.second};
 
   auto histogram_rounding = GradientSumT {
     CreateRoundingFactor<T>(std::max(positive_sum.GetGrad(), negative_sum.GetGrad()),
@@ -102,8 +108,8 @@ HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const>
    */
   GradientSumT to_floating_point =
       histogram_rounding /
-      T(IntT(1) << (sizeof(typename GradientSumT::ValueT) * 8 -
-                    2));  // keep 1 for sign bit
+      static_cast<T>(static_cast<IntT>(1)
+                     << (sizeof(typename GradientSumT::ValueT) * 8 - 2));  // keep 1 for sign bit
   /**
    * Factor for converting gradients from floating-point to fixed-point. For
    * f64:
@@ -113,8 +119,9 @@ HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const>
    * rounding is calcuated as exp(m), see the rounding factor calcuation for
    * details.
    */
-  GradientSumT to_fixed_point = GradientSumT(
-      T(1) / to_floating_point.GetGrad(), T(1) / to_floating_point.GetHess());
+  auto constexpr kOne = static_cast<T>(1);
+  GradientSumT to_fixed_point =
+      GradientSumT(kOne / to_floating_point.GetGrad(), kOne / to_floating_point.GetHess());
 
   return {histogram_rounding, to_fixed_point, to_floating_point};
 }
