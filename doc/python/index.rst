@@ -14,3 +14,4 @@ Contents
   callbacks
   model
   examples/index
+  dask-examples/index

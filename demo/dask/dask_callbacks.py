@@ -1,4 +1,7 @@
-"""Example of using callbacks in Dask"""
+"""
+Example of using callbacks with Dask
+====================================
+"""
 import numpy as np
 import xgboost as xgb
 from xgboost.dask import DaskDMatrix

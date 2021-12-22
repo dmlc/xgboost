@@ -1,3 +1,9 @@
+"""
+Example of training survival model with Dask on CPU
+===================================================
+
+"""
+
 import xgboost as xgb
 import os
 from xgboost.dask import DaskDMatrix

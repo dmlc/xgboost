@@ -1,3 +1,8 @@
+"""
+Example of training with Dask on CPU
+====================================
+
+"""
 import xgboost as xgb
 from xgboost.dask import DaskDMatrix
 from dask.distributed import Client

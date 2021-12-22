@@ -90,8 +90,10 @@ extensions = [
 ]
 
 sphinx_gallery_conf = {
-    "examples_dirs": "../demo/guide-python",  # path to your example scripts
-    "gallery_dirs": "python/examples",  # path to where to save gallery generated output
+    # path to your example scripts
+    "examples_dirs": ["../demo/guide-python", "../demo/dask"],
+    # path to where to save gallery generated output
+    "gallery_dirs": ["python/examples", "python/dask-examples"],
     "matplotlib_animations": True,
 }
 
@@ -203,10 +205,10 @@ latex_documents = [
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3.6", None),
-    "numpy": ("http://docs.scipy.org/doc/numpy/", None),
-    "scipy": ("http://docs.scipy.org/doc/scipy/reference/", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
     "pandas": ("http://pandas-docs.github.io/pandas-docs-travis/", None),
-    "sklearn": ("http://scikit-learn.org/stable", None),
+    "sklearn": ("https://scikit-learn.org/stable", None),
     "dask": ("https://docs.dask.org/en/stable/", None),
     "distributed": ("https://distributed.dask.org/en/stable/", None),
 }
