@@ -588,7 +588,7 @@ struct InvalidCatOp {
 
   XGBOOST_DEVICE bool operator()(size_t i) {
     auto fidx = dh::SegmentId(ptrs, i);
-    return InvalidCat(values[i], ptrs[fidx + 1] - ptrs[fidx]);
+    return IsCat(ft, fidx) && InvalidCat(values[i], ptrs[fidx + 1] - ptrs[fidx]);
   }
 };
 }  // anonymous namespace
