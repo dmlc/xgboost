@@ -17,7 +17,7 @@ auto ZeroParam() {
 
 void TestEvaluateSingleSplit(bool is_categorical) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
-  GradientPair parent_sum(0.0, 1.0);
+  GradientPairPrecise parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
@@ -73,7 +73,7 @@ TEST(GpuHist, EvaluateCategoricalSplit) {
 
 TEST(GpuHist, EvaluateSingleSplitMissing) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
-  GradientPair parent_sum(1.0, 1.5);
+  GradientPairPrecise parent_sum(1.0, 1.5);
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
@@ -104,8 +104,8 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
   EXPECT_EQ(result.dir, kRightDir);
-  EXPECT_EQ(result.left_sum, GradientPair(-0.5, 0.5));
-  EXPECT_EQ(result.right_sum, GradientPair(1.5, 1.0));
+  EXPECT_EQ(result.left_sum, GradientPairPrecise(-0.5, 0.5));
+  EXPECT_EQ(result.right_sum, GradientPairPrecise(1.5, 1.0));
 }
 
 TEST(GpuHist, EvaluateSingleSplitEmpty) {
@@ -130,7 +130,7 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
 // Feature 0 has a better split, but the algorithm must select feature 1
 TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
-  GradientPair parent_sum(0.0, 1.0);
+  GradientPairPrecise parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   tparam.UpdateAllowUnknown(Args{});
   GPUTrainingParam param{tparam};
@@ -164,14 +164,14 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
-  EXPECT_EQ(result.left_sum, GradientPair(-0.5, 0.5));
-  EXPECT_EQ(result.right_sum, GradientPair(0.5, 0.5));
+  EXPECT_EQ(result.left_sum, GradientPairPrecise(-0.5, 0.5));
+  EXPECT_EQ(result.right_sum, GradientPairPrecise(0.5, 0.5));
 }
 
 // Features 0 and 1 have identical gain, the algorithm must select 0
 TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
-  GradientPair parent_sum(0.0, 1.0);
+  GradientPairPrecise parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   tparam.UpdateAllowUnknown(Args{});
   GPUTrainingParam param{tparam};
@@ -209,7 +209,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
 
 TEST(GpuHist, EvaluateSplits) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(2);
-  GradientPair parent_sum(0.0, 1.0);
+  GradientPairPrecise parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   tparam.UpdateAllowUnknown(Args{});
   GPUTrainingParam param{tparam};

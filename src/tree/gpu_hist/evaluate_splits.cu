@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2021 by XGBoost Contributors
  */
 #include <limits>
 #include "evaluate_splits.cuh"
@@ -9,15 +9,13 @@ namespace xgboost {
 namespace tree {
 
 // With constraints
-template <typename GradientPairT>
-XGBOOST_DEVICE float
-LossChangeMissing(const GradientPairT &scan, const GradientPairT &missing,
-                  const GradientPairT &parent_sum,
-                  const GPUTrainingParam &param,
-                  bst_node_t nidx,
-                  bst_feature_t fidx,
-                  TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-                  bool &missing_left_out) { // NOLINT
+XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
+                                       const GradientPairPrecise &missing,
+                                       const GradientPairPrecise &parent_sum,
+                                       const GPUTrainingParam &param, bst_node_t nidx,
+                                       bst_feature_t fidx,
+                                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                                       bool &missing_left_out) {  // NOLINT
   float parent_gain = CalcGain(param, parent_sum);
   float missing_left_gain =
       evaluator.CalcSplitGain(param, nidx, fidx, GradStats(scan + missing),
@@ -72,32 +70,32 @@ ReduceFeature(common::Span<const GradientSumT> feature_histogram,
 }
 
 template <typename GradientSumT, typename TempStorageT> struct OneHotBin {
-  GradientSumT __device__ operator()(
-      bool thread_active, uint32_t scan_begin,
-      SumCallbackOp<GradientSumT>*,
-      GradientSumT const &missing,
-      EvaluateSplitInputs<GradientSumT> const &inputs, TempStorageT *) {
+  GradientSumT __device__ operator()(bool thread_active, uint32_t scan_begin,
+                                     SumCallbackOp<GradientSumT> *,
+                                     GradientPairPrecise const &missing,
+                                     EvaluateSplitInputs<GradientSumT> const &inputs,
+                                     TempStorageT *) {
     GradientSumT bin = thread_active
                            ? inputs.gradient_histogram[scan_begin + threadIdx.x]
                            : GradientSumT();
-    auto rest = inputs.parent_sum - bin - missing;
-    return rest;
+    auto rest = inputs.parent_sum - GradientPairPrecise(bin) - missing;
+    return GradientSumT{rest};
   }
 };
 
 template <typename GradientSumT>
 struct UpdateOneHot {
   void __device__ operator()(bool missing_left, uint32_t scan_begin, float gain,
-                             bst_feature_t fidx, GradientSumT const &missing,
+                             bst_feature_t fidx, GradientPairPrecise const &missing,
                              GradientSumT const &bin,
                              EvaluateSplitInputs<GradientSumT> const &inputs,
                              DeviceSplitCandidate *best_split) {
     int split_gidx = (scan_begin + threadIdx.x);
     float fvalue = inputs.feature_values[split_gidx];
-    GradientSumT left = missing_left ? bin + missing : bin;
-    GradientSumT right = inputs.parent_sum - left;
-    best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx,
-                       GradientPair(left), GradientPair(right), true,
+    GradientPairPrecise left =
+        missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
+    GradientPairPrecise right = inputs.parent_sum - left;
+    best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right, true,
                        inputs.param);
   }
 };
@@ -105,8 +103,8 @@ struct UpdateOneHot {
 template <typename GradientSumT, typename TempStorageT, typename ScanT>
 struct NumericBin {
   GradientSumT __device__ operator()(bool thread_active, uint32_t scan_begin,
-                                     SumCallbackOp<GradientSumT>* prefix_callback,
-                                     GradientSumT const &missing,
+                                     SumCallbackOp<GradientSumT> *prefix_callback,
+                                     GradientPairPrecise const &missing,
                                      EvaluateSplitInputs<GradientSumT> inputs,
                                      TempStorageT *temp_storage) {
     GradientSumT bin = thread_active
@@ -120,7 +118,7 @@ struct NumericBin {
 template <typename GradientSumT>
 struct UpdateNumeric {
   void __device__ operator()(bool missing_left, uint32_t scan_begin, float gain,
-                             bst_feature_t fidx, GradientSumT const &missing,
+                             bst_feature_t fidx, GradientPairPrecise const &missing,
                              GradientSumT const &bin,
                              EvaluateSplitInputs<GradientSumT> const &inputs,
                              DeviceSplitCandidate *best_split) {
@@ -133,11 +131,11 @@ struct UpdateNumeric {
     } else {
       fvalue = inputs.feature_values[split_gidx];
     }
-    GradientSumT left = missing_left ? bin + missing : bin;
-    GradientSumT right = inputs.parent_sum - left;
-    best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue,
-                       fidx, GradientPair(left), GradientPair(right),
-                       false, inputs.param);
+    GradientPairPrecise left =
+        missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
+    GradientPairPrecise right = inputs.parent_sum - left;
+    best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right, false,
+                       inputs.param);
   }
 };
 
@@ -164,7 +162,7 @@ __device__ void EvaluateFeature(
       ReduceFeature<BLOCK_THREADS, ReduceT, TempStorageT, GradientSumT>(
           feature_hist, temp_storage);
 
-  GradientSumT const missing = inputs.parent_sum - feature_sum;
+  GradientPairPrecise const missing = inputs.parent_sum - GradientPairPrecise{feature_sum};
   float const null_gain = -std::numeric_limits<bst_float>::infinity();
 
   SumCallbackOp<GradientSumT> prefix_op = SumCallbackOp<GradientSumT>();
@@ -177,11 +175,8 @@ __device__ void EvaluateFeature(
     bool missing_left = true;
     float gain = null_gain;
     if (thread_active) {
-      gain = LossChangeMissing(bin, missing, inputs.parent_sum, inputs.param,
-                               inputs.nidx,
-                               fidx,
-                               evaluator,
-                               missing_left);
+      gain = LossChangeMissing(GradientPairPrecise{bin}, missing, inputs.parent_sum, inputs.param,
+                               inputs.nidx, fidx, evaluator, missing_left);
     }
 
     __syncthreads();

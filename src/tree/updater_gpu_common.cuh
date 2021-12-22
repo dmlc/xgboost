@@ -61,8 +61,8 @@ struct DeviceSplitCandidate {
   float fvalue {0};
   bool is_cat { false };
 
-  GradientPair left_sum;
-  GradientPair right_sum;
+  GradientPairPrecise left_sum;
+  GradientPairPrecise right_sum;
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
 
@@ -78,8 +78,8 @@ struct DeviceSplitCandidate {
 
   XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
                              float fvalue_in, int findex_in,
-                             GradientPair left_sum_in,
-                             GradientPair right_sum_in,
+                             GradientPairPrecise left_sum_in,
+                             GradientPairPrecise right_sum_in,
                              bool cat,
                              const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
