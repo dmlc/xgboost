@@ -269,7 +269,7 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
       combined_num_features);
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
-  dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
+  dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0} (
       EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, evaluator,
       dh::ToSpan(feature_best_splits));
 
