@@ -5,6 +5,8 @@
 #ifndef XGBOOST_COMMON_CATEGORICAL_H_
 #define XGBOOST_COMMON_CATEGORICAL_H_
 
+#include <limits>
+
 #include "bitfield.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -66,9 +68,7 @@ inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot, ObjInfo task)
 }
 
 struct IsCatOp {
-  XGBOOST_DEVICE bool operator()(FeatureType ft) {
-    return ft == FeatureType::kCategorical;
-  }
+  XGBOOST_DEVICE bool operator()(FeatureType ft) { return ft == FeatureType::kCategorical; }
 };
 
 using CatBitField = LBitField32;
