@@ -33,7 +33,7 @@ inline XGBOOST_DEVICE bool IsCat(Span<FeatureType const> ft, bst_feature_t fidx)
 }
 
 template <typename SizeT>
-bool InvalidCat(float cat, SizeT n) {
+XGBOOST_DEVICE bool InvalidCat(float cat, SizeT n) {
   return cat < 0 || cat > static_cast<float>(std::numeric_limits<bst_cat_t>::max()) || cat >= n;
 }
 
