@@ -166,11 +166,8 @@ class QuantileHistMaker: public TreeUpdater {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
-    virtual void Update(const GHistIndexMatrix& gmat,
-                        const ColumnMatrix& column_matrix,
-                        HostDeviceVector<GradientPair>* gpair,
-                        DMatrix* p_fmat,
-                        RegTree* p_tree);
+    void Update(const GHistIndexMatrix& gmat, const ColumnMatrix& column_matrix,
+                HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree);
 
     bool UpdatePredictionCache(const DMatrix* data,
                                linalg::VectorView<float> out_preds);
