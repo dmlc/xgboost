@@ -17,16 +17,23 @@ def test_gpu_single_batch() -> None:
 
 @pytest.mark.skipif(**no_cupy())
 @given(
-    strategies.integers(0, 1024), strategies.integers(1, 7), strategies.integers(0, 13)
+    strategies.integers(0, 1024),
+    strategies.integers(1, 7),
+    strategies.integers(0, 13),
+    strategies.booleans(),
 )
 @settings(deadline=None)
 def test_gpu_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int
+    n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool
 ) -> None:
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", True)
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "gpu_hist", False)
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, True
+    )
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, False
+    )
 
 
 def test_cpu_data_iterator() -> None:
     """Make sure CPU algorithm can handle GPU inputs"""
-    run_data_iterator(1024, 2, 3, "approx", True)
+    run_data_iterator(1024, 2, 3, "approx", False, True)

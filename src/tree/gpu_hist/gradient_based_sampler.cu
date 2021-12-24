@@ -185,12 +185,10 @@ GradientBasedSample UniformSampling::Sample(common::Span<GradientPair> gpair, DM
   return {dmat->Info().num_row_, page_, gpair};
 }
 
-ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(EllpackPageImpl const* page,
-                                                             size_t n_rows,
+ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(size_t n_rows,
                                                              BatchParam batch_param,
                                                              float subsample)
-    : original_page_(page),
-      batch_param_(std::move(batch_param)),
+    : batch_param_(std::move(batch_param)),
       subsample_(subsample),
       sample_row_index_(n_rows) {}
 
@@ -218,15 +216,17 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(common::Span<GradientP
                     sample_row_index_.begin(),
                     ClearEmptyRows());
 
+  auto batch_iterator = dmat->GetBatches<EllpackPage>(batch_param_);
+  auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
   page_.reset(new EllpackPageImpl(
-      batch_param_.gpu_id, original_page_->Cuts(), original_page_->is_dense,
-                                  original_page_->row_stride, sample_rows));
+      batch_param_.gpu_id, first_page->Cuts(), first_page->is_dense,
+                           first_page->row_stride, sample_rows));
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
-  for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {
+  for (auto& batch : batch_iterator) {
     page_->Compact(batch_param_.gpu_id, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
@@ -259,12 +259,10 @@ GradientBasedSample GradientBasedSampling::Sample(common::Span<GradientPair> gpa
 }
 
 ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(
-    EllpackPageImpl const* page,
     size_t n_rows,
     BatchParam batch_param,
     float subsample)
-    : original_page_(page),
-      batch_param_(std::move(batch_param)),
+    : batch_param_(std::move(batch_param)),
       subsample_(subsample),
       threshold_(n_rows + 1, 0.0f),
       grad_sum_(n_rows, 0.0f),
@@ -300,15 +298,17 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(common::Span<Gra
                     sample_row_index_.begin(),
                     ClearEmptyRows());
 
+  auto batch_iterator = dmat->GetBatches<EllpackPage>(batch_param_);
+  auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-  page_.reset(new EllpackPageImpl(batch_param_.gpu_id, original_page_->Cuts(),
-                                  original_page_->is_dense,
-                                  original_page_->row_stride, sample_rows));
+  page_.reset(new EllpackPageImpl(batch_param_.gpu_id, first_page->Cuts(),
+                                  first_page->is_dense,
+                                  first_page->row_stride, sample_rows));
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
-  for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {
+  for (auto& batch : batch_iterator) {
     page_->Compact(batch_param_.gpu_id, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
@@ -329,7 +329,7 @@ GradientBasedSampler::GradientBasedSampler(EllpackPageImpl const* page,
     switch (sampling_method) {
       case TrainParam::kUniform:
         if (is_external_memory) {
-          strategy_.reset(new ExternalMemoryUniformSampling(page, n_rows, batch_param, subsample));
+          strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
         } else {
           strategy_.reset(new UniformSampling(page, subsample));
         }
@@ -337,7 +337,7 @@ GradientBasedSampler::GradientBasedSampler(EllpackPageImpl const* page,
       case TrainParam::kGradientBased:
         if (is_external_memory) {
           strategy_.reset(
-              new ExternalMemoryGradientBasedSampling(page, n_rows, batch_param, subsample));
+              new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
         } else {
           strategy_.reset(new GradientBasedSampling(page, n_rows, batch_param, subsample));
         }

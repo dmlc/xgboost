@@ -68,9 +68,14 @@ def run_data_iterator(
     n_features: int,
     n_batches: int,
     tree_method: str,
+    subsample: bool,
     use_cupy: bool,
 ) -> None:
     n_rounds = 2
+    # The test is more difficult to pass if the subsample rate is smaller as the root_sum
+    # is accumulated in parallel.  Reductions with different number of entries lead to
+    # different floating point errors.
+    subsample_rate = 0.8 if subsample else 1.0
 
     it = IteratorForTest(
         *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy)
@@ -84,9 +89,19 @@ def run_data_iterator(
     assert Xy.num_row() == n_samples_per_batch * n_batches
     assert Xy.num_col() == n_features
 
+    parameters = {
+        "tree_method": tree_method,
+        "max_depth": 2,
+        "subsample": subsample_rate,
+        "seed": 0,
+    }
+
+    if tree_method == "gpu_hist":
+        parameters["sampling_method"] = "gradient_based"
+
     results_from_it: xgb.callback.EvaluationMonitor.EvalsLog = {}
     from_it = xgb.train(
-        {"tree_method": tree_method, "max_depth": 2},
+        parameters,
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -102,7 +117,7 @@ def run_data_iterator(
 
     results_from_arrays: xgb.callback.EvaluationMonitor.EvalsLog = {}
     from_arrays = xgb.train(
-        {"tree_method": tree_method, "max_depth": 2},
+        parameters,
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -126,11 +141,21 @@ def run_data_iterator(
 
 
 @given(
-    strategies.integers(0, 1024), strategies.integers(1, 7), strategies.integers(0, 13)
+    strategies.integers(0, 1024),
+    strategies.integers(1, 7),
+    strategies.integers(0, 13),
+    strategies.booleans(),
 )
 @settings(deadline=None)
 def test_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    subsample: bool,
 ) -> None:
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "approx", False)
-    run_data_iterator(n_samples_per_batch, n_features, n_batches, "hist", False)
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "approx", subsample, False
+    )
+    run_data_iterator(
+        n_samples_per_batch, n_features, n_batches, "hist", subsample, False
+    )
