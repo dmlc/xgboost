@@ -1,7 +1,7 @@
 import xgboost as xgb
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 import numpy as np
-from testing import IteratorForTest, mismatch_rate
+from testing import IteratorForTest
 from typing import Tuple, List
 import pytest
 from hypothesis import given, strategies, settings
@@ -129,11 +129,9 @@ def run_data_iterator(
     if tree_method != "gpu_hist":
         rtol = 1e-1  # flaky
     else:
-        # Model can be sensitive to quantiles, use both mismatch rate and floating point
-        # tolerance to relax the test.
-        rtol = 1e-4
-        mismatch = mismatch_rate(it_predt, arr_predt, rtol=rtol)
-        assert mismatch < 1e-2
+        # Model can be sensitive to quantiles, use 1e-2 to relax the test.
+        np.testing.assert_allclose(it_predt, arr_predt, rtol=1e-2)
+        rtol = 1e-6
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
