@@ -22,13 +22,7 @@
 #define fopen64 std::fopen
 #endif  // !defined(__GNUC__) || defined(__FreeBSD__)
 
-#ifdef _MSC_VER
-// NOTE: sprintf_s is not equivalent to snprintf,
-// they are equivalent when success, which is sufficient for our case
-#define snprintf sprintf_s
-#define vsnprintf vsprintf_s
-
-#else
+#ifndef _MSC_VER
 
 #ifdef _FILE_OFFSET_BITS
 #if _FILE_OFFSET_BITS == 32
