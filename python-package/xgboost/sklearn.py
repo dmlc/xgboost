@@ -1107,9 +1107,15 @@ class XGBModel(XGBModelBase):
 
     @property
     def feature_names_in_(self) -> np.ndarray:
-        """Names of features seen during :py:meth:`fit`."""
-        booster = self.get_booster()
-        return np.array(booster.feature_names)
+        """Names of features seen during :py:meth:`fit`.  Defined only when `X` has feature
+        names that are all strings."""
+        feature_names = self.get_booster().feature_names
+        if feature_names is None:
+            raise AttributeError(
+                "`feature_names_in_` is defined only when `X` has feature names that "
+                "are all strings."
+            )
+        return np.array(feature_names)
 
     def _early_stopping_attr(self, attr: str) -> Union[float, int]:
         booster = self.get_booster()

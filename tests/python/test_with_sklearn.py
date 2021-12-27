@@ -372,6 +372,9 @@ def test_boston_housing_regression():
         assert mean_squared_error(preds3, labels) < 25
         assert mean_squared_error(preds4, labels) < 350
 
+        with pytest.raises(AttributeError, match="feature_names_in_"):
+            xgb_model.feature_names_in_
+
 
 def run_boston_housing_rf_regression(tree_method):
     from sklearn.metrics import mean_squared_error
