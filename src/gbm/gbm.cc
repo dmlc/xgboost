@@ -26,7 +26,7 @@ GradientBooster* GradientBooster::Create(
     LOG(FATAL) << "Unknown gbm type " << name;
   }
   auto p_bst =  (e->body)(learner_model_param);
-  p_bst->generic_param_ = generic_param;
+  p_bst->ctx_ = generic_param;
   return p_bst;
 }
 }  // namespace xgboost

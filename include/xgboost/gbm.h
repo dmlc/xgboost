@@ -38,7 +38,7 @@ class PredictionContainer;
  */
 class GradientBooster : public Model, public Configurable {
  protected:
-  GenericParameter const* generic_param_;
+  GenericParameter const* ctx_;
 
  public:
   /*! \brief virtual destructor */

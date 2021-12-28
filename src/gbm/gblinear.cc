@@ -86,7 +86,7 @@ class GBLinear : public GradientBooster {
     }
     param_.UpdateAllowUnknown(cfg);
     param_.CheckGPUSupport();
-    updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
+    updater_.reset(LinearUpdater::Create(param_.updater, ctx_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
   }
@@ -120,7 +120,7 @@ class GBLinear : public GradientBooster {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
     FromJson(in["gblinear_train_param"], &param_);
     param_.CheckGPUSupport();
-    updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
+    updater_.reset(LinearUpdater::Create(param_.updater, ctx_));
     this->updater_->LoadConfig(in["updater"]);
   }
   void SaveConfig(Json* p_out) const override {
