@@ -201,16 +201,16 @@ void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
 }
 #endif
 
-void CopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
+void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_threads,
                   bst_group_t n_groups, bst_group_t group_id,
-                  HostDeviceVector<GradientPair> *out_gpair) {
+                  HostDeviceVector<GradientPair>* out_gpair) {
   if (in_gpair->DeviceIdx() != GenericParameter::kCpuId) {
     GPUCopyGradient(in_gpair, n_groups, group_id, out_gpair);
   } else {
     std::vector<GradientPair> &tmp_h = out_gpair->HostVector();
     auto nsize = static_cast<bst_omp_uint>(out_gpair->Size());
     const auto &gpair_h = in_gpair->ConstHostVector();
-    common::ParallelFor(nsize, [&](bst_omp_uint i) {
+    common::ParallelFor(nsize, n_threads, [&](bst_omp_uint i) {
       tmp_h[i] = gpair_h[i * n_groups + group_id];
     });
   }
@@ -255,7 +255,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                                        in_gpair->DeviceIdx());
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
-      CopyGradient(in_gpair, ngroup, gid, &tmp);
+      CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
       const size_t num_new_trees = ret.size();
@@ -758,11 +758,10 @@ class Dart : public GBTree {
       } else {
         auto &h_out_predts = p_out_preds->predictions.HostVector();
         auto &h_predts = predts.predictions.HostVector();
-#pragma omp parallel for
-        for (omp_ulong ridx = 0; ridx < p_fmat->Info().num_row_; ++ridx) {
+        common::ParallelFor(p_fmat->Info().num_row_, ctx_->Threads(), [&](auto ridx) {
           const size_t offset = ridx * n_groups + group;
           h_out_predts[offset] += (h_predts[offset] * w);
-        }
+        });
       }
     }
   }
@@ -846,13 +845,11 @@ class Dart : public GBTree {
       if (device == GenericParameter::kCpuId) {
         auto &h_predts = predts.predictions.HostVector();
         auto &h_out_predts = out_preds->predictions.HostVector();
-#pragma omp parallel for
-        for (omp_ulong ridx = 0; ridx < n_rows; ++ridx) {
+        common::ParallelFor(n_rows, ctx_->Threads(), [&](auto ridx) {
           const size_t offset = ridx * n_groups + group;
           // Need to remove the base margin from individual tree.
-          h_out_predts[offset] +=
-              (h_predts[offset] - model_.learner_model_param->base_score) * w;
-        }
+          h_out_predts[offset] += (h_predts[offset] - model_.learner_model_param->base_score) * w;
+        });
       } else {
         out_preds->predictions.SetDevice(device);
         predts.predictions.SetDevice(device);

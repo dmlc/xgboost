@@ -29,7 +29,7 @@ class GBLinearModel;
  */
 class LinearUpdater : public Configurable {
  protected:
-  GenericParameter const* learner_param_;
+  GenericParameter const* ctx_;
 
  public:
   /*! \brief virtual destructor */
