@@ -56,7 +56,7 @@ class TreeGenerator {
     }
     return res;
   }
-  /* \brief Find the first occurance of key in input and replace it with corresponding
+  /* \brief Find the first occurrence of key in input and replace it with corresponding
    *        value.
    */
   static std::string Match(std::string const& input,
