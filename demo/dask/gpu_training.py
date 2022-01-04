@@ -1,3 +1,7 @@
+"""
+Example of training with Dask on GPU
+====================================
+"""
 from dask_cuda import LocalCUDACluster
 from dask.distributed import Client
 from dask import array as da

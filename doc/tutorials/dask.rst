@@ -63,15 +63,17 @@ on a dask cluster:
             evals=[(dtrain, "train")],
         )
 
-Here we first create a cluster in single-node mode with ``dask.distributed.LocalCluster``, then
-connect a ``dask.distributed.Client`` to this cluster, setting up an environment for later
-computation.  Notice that the cluster construction is guared by ``__name__ == "__main__"``, which is
-necessary otherwise there might be obscure errors.
+Here we first create a cluster in single-node mode with
+:py:class:`distributed.LocalCluster`, then connect a :py:class:`distributed.Client` to
+this cluster, setting up an environment for later computation.  Notice that the cluster
+construction is guared by ``__name__ == "__main__"``, which is necessary otherwise there
+might be obscure errors.
 
-We then create a ``DaskDMatrix`` object and pass it to ``train``, along with some other parameters,
-much like XGBoost's normal, non-dask interface. Unlike that interface, ``data`` and ``label`` must
-be either `Dask DataFrame <https://examples.dask.org/dataframe.html>`_ or
-`Dask Array <https://examples.dask.org/array.html>`_ instances.
+We then create a :py:class:`xgboost.dask.DaskDMatrix` object and pass it to
+:py:func:`xgboost.dask.train`, along with some other parameters, much like XGBoost's
+normal, non-dask interface. Unlike that interface, ``data`` and ``label`` must be either
+:py:class:`Dask DataFrame <dask.dataframe.DataFrame>` or :py:class:`Dask Array
+<dask.array.Array>` instances.
 
 The primary difference with XGBoost's dask interface is
 we pass our dask client as an additional argument for carrying out the computation. Note that if
@@ -86,7 +88,7 @@ returns a model and the computation history as a Python dictionary:
   {'booster': Booster,
    'history': dict}
 
-For prediction, pass the ``output`` returned by ``train`` into ``xgb.dask.predict``:
+For prediction, pass the ``output`` returned by ``train`` into :py:func:`xgboost.dask.predict`:
 
 .. code-block:: python
 
@@ -105,14 +107,15 @@ computation a bit faster when meta information like ``base_margin`` is not neede
 
 Here ``prediction`` is a dask ``Array`` object containing predictions from model if input
 is a ``DaskDMatrix`` or ``da.Array``.  When putting dask collection directly into the
-``predict`` function or using ``inplace_predict``, the output type depends on input data.
-See next section for details.
+``predict`` function or using :py:func:`xgboost.dask.inplace_predict`, the output type
+depends on input data.  See next section for details.
 
 Alternatively, XGBoost also implements the Scikit-Learn interface with
-``DaskXGBClassifier``, ``DaskXGBRegressor``, ``DaskXGBRanker`` and 2 random forest
-variances.  This wrapper is similar to the single node Scikit-Learn interface in xgboost,
-with dask collection as inputs and has an additional ``client`` attribute.  See following
-sections and ``xgboost/demo/dask`` for more examples.
+:py:class:`~xgboost.dask.DaskXGBClassifier`, :py:class:`~xgboost.dask.DaskXGBRegressor`,
+:py:class:`~xgboost.dask.DaskXGBRanker` and 2 random forest variances.  This wrapper is
+similar to the single node Scikit-Learn interface in xgboost, with dask collection as
+inputs and has an additional ``client`` attribute.  See following sections and
+:ref:`sphx_glr_python_dask-examples` for more examples.
 
 
 ******************
@@ -152,7 +155,7 @@ depending on output shape.  For example, when shap based prediction is used, the
 value can have 3 or 4 dimensions , in such cases an ``Array`` is always returned.
 
 The performance of running prediction, either using ``predict`` or ``inplace_predict``, is
-sensitive to number of blocks.  Internally, it's implemented using ``da.map_blocks`` or
+sensitive to number of blocks.  Internally, it's implemented using ``da.map_blocks`` and
 ``dd.map_partitions``.  When number of partitions is large and each of them have only
 small amount of data, the overhead of calling predict becomes visible.  On the other hand,
 if not using GPU, the number of threads used for prediction on each block matters.  Right
@@ -160,7 +163,7 @@ now, xgboost uses single thread for each partition.  If the number of blocks on 
 workers is smaller than number of cores, then the CPU workers might not be fully utilized.
 
 One simple optimization for running consecutive predictions is using
-``distributed.Future``:
+:py:class:`distributed.Future`:
 
 .. code-block:: python
 
@@ -504,8 +507,9 @@ Here are some pratices on reducing memory usage with dask and xgboost.
   nice summary.
 
 - When using GPU input, like dataframe loaded by ``dask_cudf``, you can try
-  ``xgboost.dask.DaskDeviceQuantileDMatrix`` as a drop in replacement for ``DaskDMatrix``
-  to reduce overall memory usage.  See ``demo/dask/gpu_training.py`` for an example.
+  :py:class:`xgboost.dask.DaskDeviceQuantileDMatrix` as a drop in replacement for ``DaskDMatrix``
+  to reduce overall memory usage.  See
+  :ref:`sphx_glr_python_dask-examples_gpu_training.py` for an example.
 
 - Use in-place prediction when possible.
 
