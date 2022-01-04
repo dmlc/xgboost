@@ -1,7 +1,6 @@
 import sys
-from hypothesis import strategies, given, settings, assume
+from hypothesis import strategies, given, settings, assume, note
 import pytest
-import numpy
 import xgboost as xgb
 sys.path.append("tests/python")
 import testing as tm
@@ -17,10 +16,14 @@ parameter_strategy = strategies.fixed_dictionaries({
     'top_k': strategies.integers(1, 10),
 })
 
+
 def train_result(param, dmat, num_rounds):
     result = {}
-    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
-              evals_result=result)
+    booster = xgb.train(
+        param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
+        evals_result=result
+    )
+    assert booster.num_boosted_rounds() == num_rounds
     return result
 
 
@@ -33,6 +36,7 @@ class TestGPULinear:
         param['updater'] = 'gpu_coord_descent'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        note(result)
         assert tm.non_increasing(result)
 
     # Loss is not guaranteed to always decrease because of regularisation parameters
@@ -49,6 +53,7 @@ class TestGPULinear:
         param['lambda'] = lambd
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        note(result)
         assert tm.non_increasing([result[0], result[-1]])
 
     @pytest.mark.skipif(**tm.no_cupy())

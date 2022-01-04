@@ -32,6 +32,7 @@ class TestLinear:
         param.update(coord_param)
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        note(result)
         assert tm.non_increasing(result, 5e-4)
 
     # Loss is not guaranteed to always decrease because of regularisation parameters
@@ -48,6 +49,7 @@ class TestLinear:
         param.update(coord_param)
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        note(result)
         assert tm.non_increasing([result[0], result[-1]])
 
     @given(parameter_strategy, strategies.integers(10, 50),
@@ -57,6 +59,7 @@ class TestLinear:
         param['updater'] = 'shotgun'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        note(result)
         # shotgun is non-deterministic, so we relax the test by only using first and last
         # iteration.
         if len(result) > 2:
@@ -75,4 +78,5 @@ class TestLinear:
         param['lambda'] = lambd
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        note(result)
         assert tm.non_increasing([result[0], result[-1]])
