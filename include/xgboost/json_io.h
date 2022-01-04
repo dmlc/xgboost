@@ -115,12 +115,10 @@ class JsonReader {
 class JsonWriter {
   static constexpr size_t kIndentSize = 2;
 
-  size_t n_spaces_;
   std::vector<char>* stream_;
 
  public:
-  explicit JsonWriter(std::vector<char>* stream) :
-      n_spaces_{0}, stream_{stream} {}
+  explicit JsonWriter(std::vector<char>* stream) : stream_{stream} {}
 
   virtual ~JsonWriter() = default;
 
