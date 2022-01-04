@@ -149,21 +149,21 @@ GetGradientParallel(GenericParameter const *ctx, int group_idx, int num_group,
  */
 inline std::pair<double, double> GetBiasGradientParallel(int group_idx, int num_group,
                                                          const std::vector<GradientPair> &gpair,
-                                                         DMatrix *p_fmat) {
-  double sum_grad = 0.0, sum_hess = 0.0;
+                                                         DMatrix *p_fmat, int32_t n_threads) {
   const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
-  dmlc::OMPException exc;
-#pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
-  for (bst_omp_uint i = 0; i < ndata; ++i) {
-    exc.Run([&]() {
-      auto &p = gpair[i * num_group + group_idx];
-      if (p.GetHess() >= 0.0f) {
-        sum_grad += p.GetGrad();
-        sum_hess += p.GetHess();
-      }
-    });
-  }
-  exc.Rethrow();
+  std::vector<double> sum_grad_tloc(n_threads, 0);
+  std::vector<double> sum_hess_tloc(n_threads, 0);
+
+  common::ParallelFor(ndata, n_threads, [&](auto i) {
+    auto tid = omp_get_thread_num();
+    auto &p = gpair[i * num_group + group_idx];
+    if (p.GetHess() >= 0.0f) {
+      sum_grad_tloc[tid] += p.GetGrad();
+      sum_hess_tloc[tid] += p.GetHess();
+    }
+  });
+  double sum_grad = std::accumulate(sum_grad_tloc.cbegin(), sum_grad_tloc.cend(), 0.0);
+  double sum_hess = std::accumulate(sum_hess_tloc.cbegin(), sum_hess_tloc.cend(), 0.0);
   return std::make_pair(sum_grad, sum_hess);
 }
 
@@ -179,23 +179,18 @@ inline std::pair<double, double> GetBiasGradientParallel(int group_idx, int num_
  */
 inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
                                    float dw, std::vector<GradientPair> *in_gpair,
-                                   DMatrix *p_fmat) {
+                                   DMatrix *p_fmat, int32_t n_threads) {
   if (dw == 0.0f) return;
   for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
     auto page = batch.GetView();
     auto col = page[fidx];
     // update grad value
     const auto num_row = static_cast<bst_omp_uint>(col.size());
-    dmlc::OMPException exc;
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint j = 0; j < num_row; ++j) {
-      exc.Run([&]() {
-        GradientPair &p = (*in_gpair)[col[j].index * num_group + group_idx];
-        if (p.GetHess() < 0.0f) return;
-        p += GradientPair(p.GetHess() * col[j].fvalue * dw, 0);
-      });
-    }
-    exc.Rethrow();
+    common::ParallelFor(num_row, n_threads, [&](auto j) {
+      GradientPair &p = (*in_gpair)[col[j].index * num_group + group_idx];
+      if (p.GetHess() < 0.0f) return;
+      p += GradientPair(p.GetHess() * col[j].fvalue * dw, 0);
+    });
   }
 }
 
@@ -209,20 +204,15 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
  * \param p_fmat    The input feature matrix.
  */
 inline void UpdateBiasResidualParallel(int group_idx, int num_group, float dbias,
-                                       std::vector<GradientPair> *in_gpair,
-                                       DMatrix *p_fmat) {
+                                       std::vector<GradientPair> *in_gpair, DMatrix *p_fmat,
+                                       int32_t n_threads) {
   if (dbias == 0.0f) return;
   const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
-  dmlc::OMPException exc;
-#pragma omp parallel for schedule(static)
-  for (bst_omp_uint i = 0; i < ndata; ++i) {
-    exc.Run([&]() {
-      GradientPair &g = (*in_gpair)[i * num_group + group_idx];
-      if (g.GetHess() < 0.0f) return;
-      g += GradientPair(g.GetHess() * dbias, 0);
-    });
-  }
-  exc.Rethrow();
+  common::ParallelFor(ndata, n_threads, [&](auto i) {
+    GradientPair &g = (*in_gpair)[i * num_group + group_idx];
+    if (g.GetHess() < 0.0f) return;
+    g += GradientPair(g.GetHess() * dbias, 0);
+  });
 }
 
 /**
@@ -230,9 +220,13 @@ inline void UpdateBiasResidualParallel(int group_idx, int num_group, float dbias
  *        in coordinate descent algorithms.
  */
 class FeatureSelector {
+ protected:
+  int32_t n_threads_{-1};
+
  public:
+  explicit FeatureSelector(int32_t n_threads) : n_threads_{n_threads} {}
   /*! \brief factory method */
-  static FeatureSelector *Create(int choice);
+  static FeatureSelector *Create(int choice, int32_t n_threads);
   /*! \brief virtual destructor */
   virtual ~FeatureSelector() = default;
   /**
@@ -274,6 +268,7 @@ class FeatureSelector {
  */
 class CyclicFeatureSelector : public FeatureSelector {
  public:
+  using FeatureSelector::FeatureSelector;
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int , const std::vector<GradientPair> &,
                   DMatrix *, float, float) override {
@@ -287,6 +282,7 @@ class CyclicFeatureSelector : public FeatureSelector {
  */
 class ShuffleFeatureSelector : public FeatureSelector {
  public:
+  using FeatureSelector::FeatureSelector;
   void Setup(const gbm::GBLinearModel &model,
              const std::vector<GradientPair>&,
              DMatrix *, float, float, int) override {
@@ -313,6 +309,7 @@ class ShuffleFeatureSelector : public FeatureSelector {
  */
 class RandomFeatureSelector : public FeatureSelector {
  public:
+  using FeatureSelector::FeatureSelector;
   int NextFeature(int, const gbm::GBLinearModel &model,
                   int, const std::vector<GradientPair> &,
                   DMatrix *, float, float) override {
@@ -331,6 +328,7 @@ class RandomFeatureSelector : public FeatureSelector {
  */
 class GreedyFeatureSelector : public FeatureSelector {
  public:
+  using FeatureSelector::FeatureSelector;
   void Setup(const gbm::GBLinearModel &model,
              const std::vector<GradientPair> &,
              DMatrix *, float, float, int param) override {
@@ -360,7 +358,7 @@ class GreedyFeatureSelector : public FeatureSelector {
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
     for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
       auto page = batch.GetView();
-      common::ParallelFor(nfeat, [&](bst_omp_uint i) {
+      common::ParallelFor(nfeat, this->n_threads_, [&](bst_omp_uint i) {
         const auto col = page[i];
         const bst_uint ndata = col.size();
         auto &sums = gpair_sums_[group_idx * nfeat + i];
@@ -407,6 +405,7 @@ class GreedyFeatureSelector : public FeatureSelector {
  */
 class ThriftyFeatureSelector : public FeatureSelector {
  public:
+  using FeatureSelector::FeatureSelector;
   void Setup(const gbm::GBLinearModel &model,
              const std::vector<GradientPair> &gpair,
              DMatrix *p_fmat, float alpha, float lambda, int param) override {
@@ -426,7 +425,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
     for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
       auto page = batch.GetView();
       // column-parallel is usually fastaer than row-parallel
-      common::ParallelFor(nfeat, [&](bst_omp_uint i) {
+      common::ParallelFor(nfeat, this->n_threads_, [&](auto i) {
         const auto col = page[i];
         const bst_uint ndata = col.size();
         for (bst_uint gid = 0u; gid < ngroup; ++gid) {
@@ -483,18 +482,18 @@ class ThriftyFeatureSelector : public FeatureSelector {
   std::vector<std::pair<double, double>> gpair_sums_;
 };
 
-inline FeatureSelector *FeatureSelector::Create(int choice) {
+inline FeatureSelector *FeatureSelector::Create(int choice, int32_t n_threads) {
   switch (choice) {
     case kCyclic:
-      return new CyclicFeatureSelector();
+      return new CyclicFeatureSelector(n_threads);
     case kShuffle:
-      return new ShuffleFeatureSelector();
+      return new ShuffleFeatureSelector(n_threads);
     case kThrifty:
-      return new ThriftyFeatureSelector();
+      return new ThriftyFeatureSelector(n_threads);
     case kGreedy:
-      return new GreedyFeatureSelector();
+      return new GreedyFeatureSelector(n_threads);
     case kRandom:
-      return new RandomFeatureSelector();
+      return new RandomFeatureSelector(n_threads);
     default:
       LOG(FATAL) << "unknown coordinate selector: " << choice;
   }
