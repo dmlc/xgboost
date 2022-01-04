@@ -122,10 +122,10 @@ __model_doc = f'''
     booster: Optional[str]
         Specify which booster to use: gbtree, gblinear or dart.
     tree_method: Optional[str]
-        Specify which tree method to use.  Default to auto.  If this parameter
-        is set to default, XGBoost will choose the most conservative option
-        available.  It's recommended to study this option from the parameters
-        document: https://xgboost.readthedocs.io/en/latest/treemethod.html.
+        Specify which tree method to use.  Default to auto.  If this parameter is set to
+        default, XGBoost will choose the most conservative option available.  It's
+        recommended to study this option from the parameters document :doc:`tree method
+        </treemethod>`
     n_jobs : Optional[int]
         Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
         algorithms like grid search, you may choose which algorithm to parallelize and
@@ -167,14 +167,14 @@ __model_doc = f'''
     num_parallel_tree: Optional[int]
         Used for boosting random forest.
     monotone_constraints : Optional[Union[Dict[str, int], str]]
-        Constraint of variable monotonicity.  See tutorial for more
-        information.
+        Constraint of variable monotonicity.  See :doc:`tutorial </tutorials/monotonic>`
+        for more information.
     interaction_constraints : Optional[Union[str, List[Tuple[str]]]]
         Constraints for interaction representing permitted interactions.  The
-        constraints must be specified in the form of a nest list, e.g. [[0, 1],
-        [2, 3, 4]], where each inner list is a group of indices of features
-        that are allowed to interact with each other.  See tutorial for more
-        information
+        constraints must be specified in the form of a nested list, e.g. ``[[0, 1], [2,
+        3, 4]]``, where each inner list is a group of indices of features that are
+        allowed to interact with each other.  See :doc:`tutorial
+        </tutorials/feature_interaction_constraint>` for more information
     importance_type: Optional[str]
         The feature importance type for the feature_importances\\_ property:
 
@@ -216,9 +216,8 @@ __model_doc = f'''
         For advanced usage on Early stopping like directly choosing to maximize instead of
         minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
 
-        See `Custom Objective and Evaluation Metric
-        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
-        more.
+        See :doc:`Custom Objective and Evaluation Metric </tutorials/custom_metric_obj>`
+        for more.
 
         .. note::
 
@@ -243,7 +242,7 @@ __model_doc = f'''
 
         Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.  Requires at least
-        one item in **eval_set** in :py:meth:`xgboost.sklearn.XGBModel.fit`.
+        one item in **eval_set** in :py:meth:`fit`.
 
         The method returns the model from the last iteration (not the best one).  If
         there's more than one item in **eval_set**, the last entry will be used for early
@@ -251,7 +250,8 @@ __model_doc = f'''
         will be used for early stopping.
 
         If early stopping occurs, the model will have three additional fields:
-        ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+        :py:attr:`best_score`, :py:attr:`best_iteration` and
+        :py:attr:`best_ntree_limit`.
 
         .. note::
 
@@ -268,9 +268,8 @@ __model_doc = f'''
                                                     save_best=True)]
 
     kwargs : dict, optional
-        Keyword arguments for XGBoost Booster object.  Full documentation of
-        parameters can be found here:
-        https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
+        Keyword arguments for XGBoost Booster object.  Full documentation of parameters
+        can be found :doc:`here </parameter>`.
         Attempting to set a parameter via the constructor args and \\*\\*kwargs
         dict simultaneously will result in a TypeError.
 
@@ -1102,6 +1101,7 @@ class XGBModel(XGBModelBase):
 
     @property
     def n_features_in_(self) -> int:
+        """Number of features seen during :py:meth:`fit`."""
         booster = self.get_booster()
         return booster.num_features()
 
@@ -1128,10 +1128,15 @@ class XGBModel(XGBModelBase):
 
     @property
     def best_score(self) -> float:
+        """The best score obtained by early stopping."""
         return float(self._early_stopping_attr('best_score'))
 
     @property
     def best_iteration(self) -> int:
+        """The best iteration obtained by early stopping.  This attribute is 0-based,
+        for instance if the best iteration is the first round, then best_iteration is 0.
+
+        """
         return int(self._early_stopping_attr('best_iteration'))
 
     @property

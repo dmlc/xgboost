@@ -76,9 +76,8 @@ def train(
         List of validation sets for which metrics will evaluated during training.
         Validation metrics will help us track the performance of the model.
     obj
-        Custom objective function.  See `Custom Objective
-        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
-        details.
+        Custom objective function.  See :doc:`Custom Objective
+        </tutorials/custom_metric_obj>` for details.
     feval :
         .. deprecated:: 1.6.0
             Use `custom_metric` instead.
@@ -134,9 +133,8 @@ def train(
 
         .. versionadded 1.6.0
 
-        Custom metric function.  See `Custom Metric
-        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
-        details.
+        Custom metric function.  See :doc:`Custom Metric </tutorials/custom_metric_obj>`
+        for details.
 
     Returns
     -------
@@ -387,9 +385,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Evaluation metrics to be watched in CV.
     obj :
 
-        Custom objective function.  See `Custom Objective
-        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
-        details.
+        Custom objective function.  See :doc:`Custom Objective
+        </tutorials/custom_metric_obj>` for details.
 
     feval : function
         .. deprecated:: 1.6.0
@@ -434,9 +431,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
         .. versionadded 1.6.0
 
-        Custom metric function.  See `Custom Metric
-        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
-        details.
+        Custom metric function.  See :doc:`Custom Metric </tutorials/custom_metric_obj>`
+        for details.
 
     Returns
     -------

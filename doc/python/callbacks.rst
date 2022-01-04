@@ -2,10 +2,11 @@
 Callback Functions
 ##################
 
-This document gives a basic walkthrough of callback function used in XGBoost Python
-package.  In XGBoost 1.3, a new callback interface is designed for Python package, which
-provides the flexibility of designing various extension for training.  Also, XGBoost has a
-number of pre-defined callbacks for supporting early stopping, checkpoints etc.
+This document gives a basic walkthrough of :ref:`callback API <callback_api>` used in
+XGBoost Python package.  In XGBoost 1.3, a new callback interface is designed for Python
+package, which provides the flexibility of designing various extension for training.
+Also, XGBoost has a number of pre-defined callbacks for supporting early stopping,
+checkpoints etc.
 
 
 Using builtin callbacks
@@ -14,8 +15,8 @@ Using builtin callbacks
 By default, training methods in XGBoost have parameters like ``early_stopping_rounds`` and
 ``verbose``/``verbose_eval``, when specified the training procedure will define the
 corresponding callbacks internally.  For example, when ``early_stopping_rounds`` is
-specified, ``EarlyStopping`` callback is invoked inside iteration loop.  You can also pass
-this callback function directly into XGBoost:
+specified, :py:class:`EarlyStopping <xgboost.callback.EarlyStopping>` callback is invoked
+inside iteration loop.  You can also pass this callback function directly into XGBoost:
 
 .. code-block:: python
 
@@ -54,6 +55,7 @@ this callback function directly into XGBoost:
 Defining your own callback
 --------------------------
 
-XGBoost provides an callback interface class: ``xgboost.callback.TrainingCallback``, user
-defined callbacks should inherit this class and override corresponding methods.  There's a
-working example in `demo/guide-python/callbacks.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/callbacks.py>`_
+XGBoost provides an callback interface class: :py:class:`TrainingCallback
+<xgboost.callback.TrainingCallback>`, user defined callbacks should inherit this class and
+override corresponding methods.  There's a working example in
+:ref:`sphx_glr_python_examples_callbacks.py`.

@@ -30,8 +30,8 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
     {header}
 
     Global configuration consists of a collection of parameters that can be applied in the
-    global scope. See https://xgboost.readthedocs.io/en/stable/parameter.html for the full
-    list of parameters supported in the global configuration.
+    global scope. See :ref:`global_config` for the full list of parameters supported in
+    the global configuration.
 
     {extra_note}
 

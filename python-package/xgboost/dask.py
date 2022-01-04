@@ -3,9 +3,8 @@
 # pylint: disable=too-many-lines, fixme
 # pylint: disable=too-few-public-methods
 # pylint: disable=import-error
-"""Dask extensions for distributed training. See
-https://xgboost.readthedocs.io/en/latest/tutorials/dask.html for simple
-tutorial.  Also xgboost/demo/dask for some examples.
+"""Dask extensions for distributed training. See :doc:`Distributed XGBoost with Dask
+</tutorials/dask>` for simple tutorial.  Also xgboost/demo/dask for some examples.
 
 There are two sets of APIs in this module, one is the functional API including
 ``train`` and ``predict`` methods.  Another is stateful Scikit-Learner wrapper

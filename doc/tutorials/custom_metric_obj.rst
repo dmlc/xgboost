@@ -146,7 +146,8 @@ We will be able to see XGBoost printing something like:
 Notice that the parameter ``disable_default_eval_metric`` is used to suppress the default metric
 in XGBoost.
 
-For fully reproducible source code and comparison plots, see `custom_rmsle.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_rmsle.py>`_.
+For fully reproducible source code and comparison plots, see
+:ref:`sphx_glr_python_examples_custom_rmsle.py`.
 
 *********************
 Reverse Link Function
@@ -261,8 +262,7 @@ available in XGBoost:
 We use ``multi:softmax`` to illustrate the differences of transformed prediction.  With
 ``softprob`` the output prediction array has shape ``(n_samples, n_classes)`` while for
 ``softmax`` it's ``(n_samples, )``. A demo for multi-class objective function is also
-available at `demo/guide-python/custom_softmax.py
-<https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_softmax.py>`_
+available at :ref:`sphx_glr_python_examples_custom_softmax.py`.
 
 
 **********************
