@@ -24,7 +24,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   bool seed_per_iteration;
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
-  int nthread;
+  int nthread{0};
   // primary device, -1 means no gpu.
   int gpu_id;
   // fail when gpu_id is invalid

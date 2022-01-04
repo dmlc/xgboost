@@ -217,10 +217,9 @@ void TestCategoricalPrediction(std::string name) {
   gbm::GBTreeModel model(&param);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  GenericParameter runtime;
-  runtime.gpu_id = 0;
-  std::unique_ptr<Predictor> predictor{
-      Predictor::Create(name.c_str(), &runtime)};
+  GenericParameter ctx;
+  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  std::unique_ptr<Predictor> predictor{Predictor::Create(name.c_str(), &ctx)};
 
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;

@@ -150,10 +150,12 @@ class AdapterView {
   static size_t constexpr kUnroll = kUnrollLen;
 
  public:
-  explicit AdapterView(Adapter *adapter, float missing,
-                       common::Span<Entry> workplace)
-      : adapter_{adapter}, missing_{missing}, workspace_{workplace},
-        current_unroll_(omp_get_max_threads() > 0 ? omp_get_max_threads() : 1, 0) {}
+  explicit AdapterView(Adapter *adapter, float missing, common::Span<Entry> workplace,
+                       int32_t n_threads)
+      : adapter_{adapter},
+        missing_{missing},
+        workspace_{workplace},
+        current_unroll_(n_threads > 0 ? n_threads : 1, 0) {}
   SparsePage::Inst operator[](size_t i) {
     bst_feature_t columns = adapter_->NumColumns();
     auto const &batch = adapter_->Value();
@@ -186,7 +188,7 @@ template <typename DataView, size_t block_of_rows_size>
 void PredictBatchByBlockOfRowsKernel(
     DataView batch, std::vector<bst_float> *out_preds,
     gbm::GBTreeModel const &model, int32_t tree_begin, int32_t tree_end,
-    std::vector<RegTree::FVec> *p_thread_temp) {
+    std::vector<RegTree::FVec> *p_thread_temp, int32_t n_threads) {
   auto &thread_temp = *p_thread_temp;
   int32_t const num_group = model.learner_model_param->num_output_group;
 
@@ -197,7 +199,7 @@ void PredictBatchByBlockOfRowsKernel(
   const int num_feature = model.learner_model_param->num_feature;
   omp_ulong n_blocks = common::DivRoundUp(nsize, block_of_rows_size);
 
-  common::ParallelFor(n_blocks, [&](bst_omp_uint block_id) {
+  common::ParallelFor(n_blocks, n_threads, [&](bst_omp_uint block_id) {
     const size_t batch_offset = block_id * block_of_rows_size;
     const size_t block_size =
         std::min(nsize - batch_offset, block_of_rows_size);
@@ -252,7 +254,7 @@ class CPUPredictor : public Predictor {
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                       gbm::GBTreeModel const &model, int32_t tree_begin,
                       int32_t tree_end) const {
-    const int threads = omp_get_max_threads();
+    auto const n_threads = this->ctx_->Threads();
     constexpr double kDensityThresh = .5;
     size_t total = std::max(p_fmat->Info().num_row_ * p_fmat->Info().num_col_,
                             static_cast<uint64_t>(1));
@@ -261,7 +263,7 @@ class CPUPredictor : public Predictor {
     bool blocked = density > kDensityThresh;
 
     std::vector<RegTree::FVec> feat_vecs;
-    InitThreadTemp(threads * (blocked ? kBlockOfRowsSize : 1),
+    InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1),
                    model.learner_model_param->num_feature, &feat_vecs);
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
@@ -269,15 +271,14 @@ class CPUPredictor : public Predictor {
                    model.learner_model_param->num_output_group);
       size_t constexpr kUnroll = 8;
       if (blocked) {
-        PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>,
-                                        kBlockOfRowsSize>(
-            SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin,
-            tree_end, &feat_vecs);
+        PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>, kBlockOfRowsSize>(
+            SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs,
+            n_threads);
 
       } else {
         PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>, 1>(
-            SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin,
-            tree_end, &feat_vecs);
+            SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs,
+            n_threads);
       }
     }
   }
@@ -304,7 +305,7 @@ class CPUPredictor : public Predictor {
                                 const gbm::GBTreeModel &model, float missing,
                                 PredictionCacheEntry *out_preds,
                                 uint32_t tree_begin, uint32_t tree_end) const {
-    auto threads = omp_get_max_threads();
+    auto const n_threads = this->ctx_->Threads();
     auto m = dmlc::get<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
@@ -316,14 +317,14 @@ class CPUPredictor : public Predictor {
       info.num_row_ = m->NumRows();
       this->InitOutPredictions(info, &(out_preds->predictions), model);
     }
-    std::vector<Entry> workspace(m->NumColumns() * 8 * threads);
+    std::vector<Entry> workspace(m->NumColumns() * 8 * n_threads);
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(threads * kBlockSize, model.learner_model_param->num_feature,
+    InitThreadTemp(n_threads * kBlockSize, model.learner_model_param->num_feature,
                    &thread_temp);
     PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>, kBlockSize>(
-        AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}),
-        &predictions, model, tree_begin, tree_end, &thread_temp);
+        AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}, n_threads),
+        &predictions, model, tree_begin, tree_end, &thread_temp, n_threads);
   }
 
   bool InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
@@ -370,10 +371,10 @@ class CPUPredictor : public Predictor {
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
-    const int nthread = omp_get_max_threads();
+    auto const n_threads = this->ctx_->Threads();
     std::vector<RegTree::FVec> feat_vecs;
     const int num_feature = model.learner_model_param->num_feature;
-    InitThreadTemp(nthread, num_feature, &feat_vecs);
+    InitThreadTemp(n_threads, num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
@@ -386,7 +387,7 @@ class CPUPredictor : public Predictor {
       // parallel over local batch
       auto page = batch.GetView();
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      common::ParallelFor(nsize, [&](bst_omp_uint i) {
+      common::ParallelFor(nsize, n_threads, [&](bst_omp_uint i) {
         const int tid = omp_get_thread_num();
         auto ridx = static_cast<size_t>(batch.base_rowid + i);
         RegTree::FVec &feats = feat_vecs[tid];
@@ -411,10 +412,10 @@ class CPUPredictor : public Predictor {
                            std::vector<bst_float> const *tree_weights,
                            bool approximate, int condition,
                            unsigned condition_feature) const override {
-    const int nthread = omp_get_max_threads();
+    auto const n_threads = this->ctx_->Threads();
     const int num_feature = model.learner_model_param->num_feature;
     std::vector<RegTree::FVec> feat_vecs;
-    InitThreadTemp(nthread,  num_feature, &feat_vecs);
+    InitThreadTemp(n_threads,  num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
@@ -432,7 +433,7 @@ class CPUPredictor : public Predictor {
     std::fill(contribs.begin(), contribs.end(), 0);
     // initialize tree node mean values
     std::vector<std::vector<float>> mean_values(ntree_limit);
-    common::ParallelFor(bst_omp_uint(ntree_limit), [&](bst_omp_uint i) {
+    common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
     auto base_margin = info.base_margin_.View(GenericParameter::kCpuId);
@@ -441,7 +442,7 @@ class CPUPredictor : public Predictor {
       auto page = batch.GetView();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      common::ParallelFor(nsize, [&](bst_omp_uint i) {
+      common::ParallelFor(nsize, n_threads, [&](bst_omp_uint i) {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         RegTree::FVec &feats = feat_vecs[omp_get_thread_num()];
         if (feats.Size() == 0) {
