@@ -59,7 +59,7 @@ template <typename VT, typename Direction, bool IsConst = false>
 struct BitFieldContainer {
   using value_type = std::conditional_t<IsConst, VT const, VT>;  // NOLINT
   using index_type = size_t;                                     // NOLINT
-  using pointer = value_type*;  // NOLINT
+  using pointer = value_type*;                                   // NOLINT
 
   static index_type constexpr kValueSize = sizeof(value_type) * 8;
   static index_type constexpr kOne = 1;  // force correct type.
@@ -79,8 +79,8 @@ struct BitFieldContainer {
     if (pos == 0) {
       return pos_v;
     }
-    pos_v.int_pos =  pos / kValueSize;
-    pos_v.bit_pos =  pos % kValueSize;
+    pos_v.int_pos = pos / kValueSize;
+    pos_v.bit_pos = pos % kValueSize;
     return pos_v;
   }
 
