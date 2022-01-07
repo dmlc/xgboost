@@ -115,7 +115,9 @@ public class BoosterImplTest {
     booster.saveModel(temp.getAbsolutePath());
 
     Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
-    assert (Arrays.equals(bst2.toByteArray(), booster.toByteArray()));
+    assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
+    assert (Arrays.equals(bst2.toByteArray("json"), booster.toByteArray("json")));
+    assert (Arrays.equals(bst2.toByteArray("deprecated"), booster.toByteArray("deprecated")));
     float[][] predicts2 = bst2.predict(testMat, true, 0);
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
   }

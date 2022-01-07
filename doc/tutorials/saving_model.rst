@@ -2,16 +2,18 @@
 Introduction to Model IO
 ########################
 
-In XGBoost 1.0.0, we introduced experimental support of using `JSON
+In XGBoost 1.0.0, we introduced support of using `JSON
 <https://www.json.org/json-en.html>`_ for saving/loading XGBoost models and related
 hyper-parameters for training, aiming to replace the old binary internal format with an
-open format that can be easily reused.  The support for binary format will be continued in
-the future until JSON format is no-longer experimental and has satisfying performance.
-This tutorial aims to share some basic insights into the JSON serialisation method used in
-XGBoost.  Without explicitly mentioned, the following sections assume you are using the
-JSON format, which can be enabled by providing the file name with ``.json`` as file
-extension when saving/loading model: ``booster.save_model('model.json')``.  More details
-below.
+open format that can be easily reused.  Later in XGBoost 1.6.0, additional support for
+`Universal Binary JSON <https://ubjson.org/>`__ is added as an optimization for more
+efficient model IO.  They have the same document structure with different representations,
+and we will refer them collectively as the JSON format. This tutorial aims to share some
+basic insights into the JSON serialisation method used in XGBoost.  Without explicitly
+mentioned, the following sections assume you are using the one of the 2 outputs formats,
+which can be enabled by providing the file name with ``.json`` (or ``.ubj`` for binary
+JSON) as file extension when saving/loading model: ``booster.save_model('model.json')``.
+More details below.
 
 Before we get started, XGBoost is a gradient boosting library with focus on tree model,
 which means inside XGBoost, there are 2 distinct parts:
@@ -53,7 +55,8 @@ Other language bindings are still working in progress.
   based serialisation methods.
 
 To enable JSON format support for model IO (saving only the trees and objective), provide
-a filename with ``.json`` as file extension:
+a filename with ``.json`` or ``.ubj`` as file extension, the latter is the extension for
+`Universal Binary JSON <https://ubjson.org/>`__
 
 .. code-block:: python
   :caption: Python
@@ -65,7 +68,7 @@ a filename with ``.json`` as file extension:
 
   xgb.save(bst, 'model_file_name.json')
 
-While for memory snapshot, JSON is the default starting with xgboost 1.3.
+While for memory snapshot, UBJSON is the default starting with xgboost 1.6.
 
 ***************************************************************
 A note on backward compatibility of models and memory snapshots
@@ -105,15 +108,10 @@ Loading pickled file from different version of XGBoost
 
 As noted, pickled model is neither portable nor stable, but in some cases the pickled
 models are valuable.  One way to restore it in the future is to load it back with that
-specific version of Python and XGBoost, export the model by calling `save_model`.  To help
-easing the mitigation, we created a simple script for converting pickled XGBoost 0.90
-Scikit-Learn interface object to XGBoost 1.0.0 native model.  Please note that the script
-suits simple use cases, and it's advised not to use pickle when stability is needed.  It's
-located in ``xgboost/doc/python`` with the name ``convert_090to100.py``.  See comments in
-the script for more details.
+specific version of Python and XGBoost, export the model by calling `save_model`.
 
-A similar procedure may be used to recover the model persisted in an old RDS file. In R, you are
-able to install an older version of XGBoost using the ``remotes`` package:
+A similar procedure may be used to recover the model persisted in an old RDS file. In R,
+you are able to install an older version of XGBoost using the ``remotes`` package:
 
 .. code-block:: r
 
@@ -244,10 +242,3 @@ leaf directly, instead it saves the weights as a separated array.
 
 .. include:: ../model.schema
    :code: json
-
-************
-Future Plans
-************
-
-Right now using the JSON format incurs longer serialisation time, we have been working on
-optimizing the JSON implementation to close the gap between binary format and JSON format.

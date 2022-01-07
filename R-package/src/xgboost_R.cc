@@ -429,21 +429,6 @@ XGB_DLL SEXP XGBoosterSaveModel_R(SEXP handle, SEXP fname) {
   return R_NilValue;
 }
 
-XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle) {
-  SEXP ret;
-  R_API_BEGIN();
-  bst_ulong olen;
-  const char *raw;
-  CHECK_CALL(XGBoosterGetModelRaw(R_ExternalPtrAddr(handle), &olen, &raw));
-  ret = PROTECT(allocVector(RAWSXP, olen));
-  if (olen != 0) {
-    memcpy(RAW(ret), raw, olen);
-  }
-  R_API_END();
-  UNPROTECT(1);
-  return ret;
-}
-
 XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterLoadModelFromBuffer(R_ExternalPtrAddr(handle),
@@ -451,6 +436,22 @@ XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {
                                           length(raw)));
   R_API_END();
   return R_NilValue;
+}
+
+XGB_DLL SEXP XGBoosterSaveModelToRaw_R(SEXP handle, SEXP json_config) {
+  SEXP ret;
+  R_API_BEGIN();
+  bst_ulong olen;
+  char const *c_json_config = CHAR(asChar(json_config));
+  char const *raw;
+  CHECK_CALL(XGBoosterSaveModelToBuffer(R_ExternalPtrAddr(handle), c_json_config, &olen, &raw))
+  ret = PROTECT(allocVector(RAWSXP, olen));
+  if (olen != 0) {
+    std::memcpy(RAW(ret), raw, olen);
+  }
+  R_API_END();
+  UNPROTECT(1);
+  return ret;
 }
 
 XGB_DLL SEXP XGBoosterSaveJsonConfig_R(SEXP handle) {

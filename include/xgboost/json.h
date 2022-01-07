@@ -89,9 +89,10 @@ class JsonString : public Value {
   JsonString(std::string const& str) :  // NOLINT
       Value(ValueKind::kString), str_{str} {}
   JsonString(std::string&& str) noexcept :  // NOLINT
-      Value(ValueKind::kString), str_{std::move(str)} {}
-  JsonString(JsonString&& str) noexcept :  // NOLINT
-      Value(ValueKind::kString), str_{std::move(str.str_)} {}
+      Value(ValueKind::kString), str_{std::forward<std::string>(str)} {}
+  JsonString(JsonString&& str) noexcept : Value(ValueKind::kString) {  // NOLINT
+    std::swap(str.str_, this->str_);
+  }
 
   void Save(JsonWriter* writer) const override;
 
@@ -111,8 +112,8 @@ class JsonArray : public Value {
 
  public:
   JsonArray() : Value(ValueKind::kArray) {}
-  JsonArray(std::vector<Json>&& arr) noexcept :  // NOLINT
-      Value(ValueKind::kArray), vec_{std::move(arr)} {}
+  JsonArray(std::vector<Json>&& arr) noexcept  // NOLINT
+      : Value(ValueKind::kArray), vec_{std::forward<std::vector<Json>>(arr)} {}
   JsonArray(std::vector<Json> const& arr) :  // NOLINT
       Value(ValueKind::kArray), vec_{arr} {}
   JsonArray(JsonArray const& that) = delete;
@@ -381,10 +382,9 @@ class Json {
     return *this;
   }
   // array
-  explicit Json(JsonArray list) :
-      ptr_ {new JsonArray(std::move(list))} {}
-  Json& operator=(JsonArray array) {
-    ptr_.reset(new JsonArray(std::move(array)));
+  explicit Json(JsonArray&& list) : ptr_{new JsonArray(std::forward<JsonArray>(list))} {}
+  Json& operator=(JsonArray&& array) {
+    ptr_.reset(new JsonArray(std::forward<JsonArray>(array)));
     return *this;
   }
   // typed array
@@ -397,17 +397,15 @@ class Json {
     return *this;
   }
   // object
-  explicit Json(JsonObject object) :
-      ptr_{new JsonObject(std::move(object))} {}
-  Json& operator=(JsonObject object) {
-    ptr_.reset(new JsonObject(std::move(object)));
+  explicit Json(JsonObject&& object) : ptr_{new JsonObject(std::forward<JsonObject>(object))} {}
+  Json& operator=(JsonObject&& object) {
+    ptr_.reset(new JsonObject(std::forward<JsonObject>(object)));
     return *this;
   }
   // string
-  explicit Json(JsonString str) :
-      ptr_{new JsonString(std::move(str))} {}
-  Json& operator=(JsonString str) {
-    ptr_.reset(new JsonString(std::move(str)));
+  explicit Json(JsonString&& str) : ptr_{new JsonString(std::forward<JsonString>(str))} {}
+  Json& operator=(JsonString&& str) {
+    ptr_.reset(new JsonString(std::forward<JsonString>(str)));
     return *this;
   }
   // bool

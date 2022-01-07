@@ -8,7 +8,7 @@ function (run_doxygen)
   configure_file(
     ${xgboost_SOURCE_DIR}/doc/Doxyfile.in
     ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
-  add_custom_target( doc_doxygen ALL
+  add_custom_target(doc_doxygen ALL
     COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generate C APIs documentation."

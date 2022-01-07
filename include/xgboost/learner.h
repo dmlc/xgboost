@@ -45,6 +45,8 @@ enum class PredictionType : std::uint8_t {  // NOLINT
 struct XGBAPIThreadLocalEntry {
   /*! \brief result holder for returning string */
   std::string ret_str;
+  /*! \brief result holder for returning raw buffer */
+  std::vector<char> ret_char_vec;
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;
   /*! \brief result holder for returning string pointers */
