@@ -1,15 +1,25 @@
-// Copyright (c) 2019-2020 by Contributors
+// Copyright (c) 2019-2022 by Contributors
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
 #include <string>
 #include <xgboost/learner.h>
 #include <xgboost/data.h>
 #include <xgboost/base.h>
+#include <xgboost/json.h>
 #include "helpers.h"
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
 
 namespace xgboost {
+template <typename Array>
+void CompareIntArray(Json l, Json r) {
+  auto const& l_arr = get<Array const>(l);
+  auto const& r_arr = get<Array const>(r);
+  ASSERT_EQ(l_arr.size(), r_arr.size());
+  for (size_t i = 0; i < l_arr.size(); ++i) {
+    ASSERT_EQ(l_arr[i], r_arr[i]);
+  }
+}
 
 void CompareJSON(Json l, Json r) {
   switch (l.GetValue().Type()) {
@@ -43,6 +53,27 @@ void CompareJSON(Json l, Json r) {
     for (size_t i = 0; i < l_arr.size(); ++i) {
       CompareJSON(l_arr[i], r_arr[i]);
     }
+    break;
+  }
+  case Value::ValueKind::kNumberArray: {
+    auto const& l_arr = get<F32Array const>(l);
+    auto const& r_arr = get<F32Array const>(r);
+    ASSERT_EQ(l_arr.size(), r_arr.size());
+    for (size_t i = 0; i < l_arr.size(); ++i) {
+      ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+    }
+    break;
+  }
+  case Value::ValueKind::kU8Array: {
+    CompareIntArray<U8Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kI32Array: {
+    CompareIntArray<I32Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kI64Array: {
+    CompareIntArray<I64Array>(l, r);
     break;
   }
   case Value::ValueKind::kBoolean: {
