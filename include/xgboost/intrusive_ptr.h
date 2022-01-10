@@ -127,8 +127,8 @@ template <typename T> class IntrusivePtr {
     ptr_ = nullptr;
   }
   void reset(element_type *that) { IntrusivePtr{that}.swap(*this); }  // NOLINT
-
-  element_type &operator*() const noexcept { return *ptr_; }
+  // clang-tidy might manufacture a null value, disable the check
+  element_type &operator*() const noexcept { return *ptr_; }  // NOLINT
   element_type *operator->() const noexcept { return ptr_; }
   element_type *get() const noexcept { return ptr_; }  // NOLINT
 

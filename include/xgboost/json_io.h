@@ -1,20 +1,20 @@
 /*!
- * Copyright (c) by Contributors 2019
+ * Copyright (c) by Contributors 2019-2022
  */
 #ifndef XGBOOST_JSON_IO_H_
 #define XGBOOST_JSON_IO_H_
-#include <xgboost/json.h>
+#include <dmlc/endian.h>
 #include <xgboost/base.h>
+#include <xgboost/json.h>
 
-#include <vector>
+#include <cinttypes>
+#include <limits>
+#include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
-#include <map>
-#include <limits>
-#include <sstream>
-#include <locale>
-#include <cinttypes>
+#include <vector>
 
 namespace xgboost {
 /*
@@ -47,7 +47,7 @@ class JsonReader {
   void SkipSpaces();
 
   char GetNextChar() {
-    if (cursor_.Pos() == raw_str_.size()) {
+    if (XGBOOST_EXPECT((cursor_.Pos() == raw_str_.size()), false)) {
       return -1;
     }
     char ch = raw_str_[cursor_.Pos()];
@@ -109,12 +109,30 @@ class JsonReader {
 
   virtual ~JsonReader() = default;
 
-  Json Load();
+  virtual Json Load();
 };
 
 class JsonWriter {
-  static constexpr size_t kIndentSize = 2;
+  template <typename T, std::enable_if_t<!std::is_same<Json, T>::value>* = nullptr>
+  void Save(T const& v) {
+    this->Save(Json{v});
+  }
+  template <typename Array, typename Fn>
+  void WriteArray(Array const* arr, Fn&& fn) {
+    stream_->emplace_back('[');
+    auto const& vec = arr->GetArray();
+    size_t size = vec.size();
+    for (size_t i = 0; i < size; ++i) {
+      auto const& value = vec[i];
+      this->Save(fn(value));
+      if (i != size - 1) {
+        stream_->emplace_back(',');
+      }
+    }
+    stream_->emplace_back(']');
+  }
 
+ protected:
   std::vector<char>* stream_;
 
  public:
@@ -122,15 +140,126 @@ class JsonWriter {
 
   virtual ~JsonWriter() = default;
 
-  void Save(Json json);
+  virtual void Save(Json json);
 
   virtual void Visit(JsonArray  const* arr);
+  virtual void Visit(F32Array  const* arr);
+  virtual void Visit(U8Array  const* arr);
+  virtual void Visit(I32Array  const* arr);
+  virtual void Visit(I64Array  const* arr);
   virtual void Visit(JsonObject const* obj);
   virtual void Visit(JsonNumber const* num);
   virtual void Visit(JsonInteger const* num);
   virtual void Visit(JsonNull   const* null);
   virtual void Visit(JsonString const* str);
   virtual void Visit(JsonBoolean const* boolean);
+};
+
+#if defined(__GLIBC__)
+template <typename T>
+T BuiltinBSwap(T v);
+
+template <>
+inline uint16_t BuiltinBSwap(uint16_t v) {
+  return __builtin_bswap16(v);
+}
+
+template <>
+inline uint32_t BuiltinBSwap(uint32_t v) {
+  return __builtin_bswap32(v);
+}
+
+template <>
+inline uint64_t BuiltinBSwap(uint64_t v) {
+  return __builtin_bswap64(v);
+}
+#else
+template <typename T>
+T BuiltinBSwap(T v) {
+  dmlc::ByteSwap(&v, sizeof(v), 1);
+  return v;
+}
+#endif  //  defined(__GLIBC__)
+
+template <typename T, std::enable_if_t<sizeof(T) == 1>* = nullptr>
+inline T ByteSwap(T v) {
+  return v;
+}
+
+template <typename T, std::enable_if_t<sizeof(T) != 1>* = nullptr>
+inline T ByteSwap(T v) {
+  static_assert(std::is_pod<T>::value, "Only pod is supported.");
+#if DMLC_LITTLE_ENDIAN
+  auto constexpr kS = sizeof(T);
+  std::conditional_t<kS == 2, uint16_t, std::conditional_t<kS == 4, uint32_t, uint64_t>> u;
+  std::memcpy(&u, &v, sizeof(u));
+  u = BuiltinBSwap(u);
+  std::memcpy(&v, &u, sizeof(u));
+#endif  // DMLC_LITTLE_ENDIAN
+  return v;
+}
+
+/**
+ * \brief Reader for UBJSON https://ubjson.org/
+ */
+class UBJReader : public JsonReader {
+  Json Parse();
+
+  template <typename T>
+  T ReadStream() {
+    auto ptr = this->raw_str_.c_str() + cursor_.Pos();
+    T v{0};
+    std::memcpy(&v, ptr, sizeof(v));
+    cursor_.Forward(sizeof(v));
+    return v;
+  }
+
+  template <typename T>
+  T ReadPrimitive() {
+    auto v = ReadStream<T>();
+    v = ByteSwap(v);
+    return v;
+  }
+
+  template <typename TypedArray>
+  auto ParseTypedArray(int64_t n) {
+    TypedArray results{static_cast<size_t>(n)};
+    for (int64_t i = 0; i < n; ++i) {
+      auto v = this->ReadPrimitive<typename TypedArray::Type>();
+      results.Set(i, v);
+    }
+    return Json{std::move(results)};
+  }
+
+  std::string DecodeStr();
+
+  Json ParseArray() override;
+  Json ParseObject() override;
+
+ public:
+  using JsonReader::JsonReader;
+  Json Load() override;
+};
+
+/**
+ * \brief Writer for UBJSON https://ubjson.org/
+ */
+class UBJWriter : public JsonWriter {
+  void Visit(JsonArray const* arr) override;
+  void Visit(F32Array  const* arr) override;
+  void Visit(U8Array  const* arr) override;
+  void Visit(I32Array  const* arr) override;
+  void Visit(I64Array  const* arr) override;
+  void Visit(JsonObject const* obj) override;
+  void Visit(JsonNumber const* num) override;
+  void Visit(JsonInteger const* num) override;
+  void Visit(JsonNull const* null) override;
+  void Visit(JsonString const* str) override;
+  void Visit(JsonBoolean const* boolean) override;
+
+ public:
+  using JsonWriter::JsonWriter;
+  void Save(Json json) override;
 };
 }      // namespace xgboost
 
