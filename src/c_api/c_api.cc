@@ -55,7 +55,7 @@ void XGBBuildInfoDevice(Json *p_info) {
 }  // namespace xgboost
 #endif
 
-XGB_DLL int XGBBuildInfo(char const **out) {
+XGB_DLL int XGBuildInfo(char const **out) {
   API_BEGIN();
   CHECK(out) << "Invalid input pointer";
   Json info{Object{}};
