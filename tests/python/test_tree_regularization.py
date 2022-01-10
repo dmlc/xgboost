@@ -60,3 +60,18 @@ class TestTreeRegularization:
         # sum_hess = 1.0
         # 0.7 = 0.5 - (sum_grad - alpha * sgn(sum_grad)) / (sum_hess + lambda)
         assert_approx_equal(preds[0], 0.7)
+
+    def test_unlimited_depth(self):
+        x = np.array([[0], [1], [2], [3]])
+        y = np.array([0, 1, 2, 3])
+
+        model = xgb.XGBRegressor(
+            n_estimators=1,
+            eta=1,
+            tree_method="hist",
+            grow_policy="lossguide",
+            reg_lambda=0,
+            max_leaves=128,
+            max_depth=0,
+        ).fit(x, y)
+        assert np.array_equal(model.predict(x), y)
