@@ -43,6 +43,8 @@ class EllpackPageSource : public PageSourceIncMixIn<EllpackPage> {
 
 #if !defined(XGBOOST_USE_CUDA)
 inline void EllpackPageSource::Fetch() {
+  (void)(row_stride_);
+  (void)(is_dense_);
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
