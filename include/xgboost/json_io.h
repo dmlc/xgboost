@@ -199,6 +199,9 @@ inline T ByteSwap(T v) {
   return v;
 }
 
+/**
+ * \brief Reader for UBJSON https://ubjson.org/
+ */
 class UBJReader : public JsonReader {
   Json Parse();
 
@@ -238,6 +241,9 @@ class UBJReader : public JsonReader {
   Json Load() override;
 };
 
+/**
+ * \brief Writer for UBJSON https://ubjson.org/
+ */
 class UBJWriter : public JsonWriter {
   void Visit(JsonArray const* arr) override;
   void Visit(F32Array  const* arr) override;

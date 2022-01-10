@@ -135,6 +135,12 @@ class JsonArray : public Value {
   }
 };
 
+/**
+ * \brief Typed array for Universal Binary JSON.
+ *
+ * \tparam T The underlying primitive type.
+ * \tparam kind Value kind defined by JSON type.
+ */
 template <typename T, Value::ValueKind kind>
 class JsonTypedArray : public Value {
   std::vector<T> vec_;
@@ -160,9 +166,21 @@ class JsonTypedArray : public Value {
   static bool IsClassOf(Value const* value) { return value->Type() == kind; }
 };
 
+/**
+ * \brief Typed UBJSON array for 32-bit floating point.
+ */
 using F32Array = JsonTypedArray<float, Value::ValueKind::kNumberArray>;
+/**
+ * \brief Typed UBJSON array for uint8_t.
+ */
 using U8Array = JsonTypedArray<uint8_t, Value::ValueKind::kU8Array>;
+/**
+ * \brief Typed UBJSON array for int32_t.
+ */
 using I32Array = JsonTypedArray<int32_t, Value::ValueKind::kI32Array>;
+/**
+ * \brief Typed UBJSON array for int64_t.
+ */
 using I64Array = JsonTypedArray<int64_t, Value::ValueKind::kI64Array>;
 
 class JsonObject : public Value {
@@ -332,14 +350,20 @@ class JsonBoolean : public Value {
  */
 class Json {
  public:
-  /*! \brief Decode the Json object. */
+  /**
+   *  \brief Decode the JSON object.  Optional parameter mode for choosing between text
+   *         and binary (ubjson) input.
+   */
   static Json Load(StringView str, std::ios::openmode mode = std::ios::in);
   /*! \brief Pass your own JsonReader. */
   static Json Load(JsonReader* reader);
-  /*! \brief Encode the JSON object. */
-  static void Dump(Json json, std::string* out, std::ios::openmode = std::ios::out);
-  static void Dump(Json json, std::vector<char>* out, std::ios::openmode = std::ios::out);
-  /*! \brief Use a different serialization format. */
+  /**
+   *  \brief Encode the JSON object.  Optional parameter mode for choosing between text
+   *         and binary (ubjson) output.
+   */
+  static void Dump(Json json, std::string* out, std::ios::openmode mode = std::ios::out);
+  static void Dump(Json json, std::vector<char>* out, std::ios::openmode mode = std::ios::out);
+  /*! \brief Use your own JsonWriter. */
   static void Dump(Json json, JsonWriter* writer);
 
   Json() : ptr_{new JsonNull} {}
@@ -350,14 +374,12 @@ class Json {
     ptr_.reset(new JsonNumber(std::move(number)));
     return *this;
   }
-
   // integer
   explicit Json(JsonInteger integer) : ptr_{new JsonInteger(std::move(integer))} {}
   Json& operator=(JsonInteger integer) {
     ptr_.reset(new JsonInteger(std::move(integer)));
     return *this;
   }
-
   // array
   explicit Json(JsonArray list) :
       ptr_ {new JsonArray(std::move(list))} {}
@@ -365,7 +387,6 @@ class Json {
     ptr_.reset(new JsonArray(std::move(array)));
     return *this;
   }
-
   // typed array
   template <typename T, Value::ValueKind kind>
   explicit Json(JsonTypedArray<T, kind>&& list)
@@ -375,7 +396,6 @@ class Json {
     ptr_.reset(new JsonTypedArray<T, kind>(std::forward<JsonTypedArray<T, kind>>(array)));
     return *this;
   }
-
   // object
   explicit Json(JsonObject object) :
       ptr_{new JsonObject(std::move(object))} {}
@@ -442,6 +462,15 @@ class Json {
   IntrusivePtr<Value> ptr_;
 };
 
+/**
+ * \brief Check whether a Json object has specific type.
+ *
+ * \code
+ *   Json json {Array{}};
+ *   bool is_array = IsA<Array>(json);
+ *   CHECK(is_array);
+ * \endcode
+ */
 template <typename T>
 bool IsA(Json const& j) {
   auto const& v = j.GetValue();
