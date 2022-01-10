@@ -79,6 +79,10 @@ class IterativeDeviceDMatrix : public DMatrix {
 
 #if !defined(XGBOOST_USE_CUDA)
 inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing, int nthread) {
+  // silent the warning about unused variables.
+  (void)(proxy_);
+  (void)(reset_);
+  (void)(next_);
   common::AssertGPUSupport();
 }
 inline BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
