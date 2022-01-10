@@ -263,7 +263,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       ApplySplit<any_missing>(nodes_for_apply_split, gmat, column_matrix, p_tree);
       SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
 
-      if (depth < param_.max_depth) {
+      if (param_.max_depth == 0 || depth < param_.max_depth) {
         size_t i = 0;
         for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(
                  {GenericParameter::kCpuId, param_.max_bin})) {
