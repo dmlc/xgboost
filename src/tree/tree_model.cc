@@ -973,6 +973,7 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
       }
       size_t size = categories.size() - begin;
       categories_sizes.emplace_back(static_cast<Integer::Int>(size));
+      CHECK_NE(size, 0);
     }
   }
 

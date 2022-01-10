@@ -154,7 +154,7 @@ Parameters for Tree Booster
 
 * ``sketch_eps`` [default=0.03]
 
-  - Only used for ``tree_method=approx``.
+  - Only used for ``updater=grow_local_histmaker``.
   - This roughly translates into ``O(1 / sketch_eps)`` number of bins.
     Compared to directly select number of bins, this comes with theoretical guarantee with sketch accuracy.
   - Usually user does not have to tune this.
@@ -238,12 +238,26 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
-Additional parameters for ``hist`` and ``gpu_hist`` tree method
-================================================================
+Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
+===========================================================================
 
 * ``single_precision_histogram``, [default= ``false``]
 
   - Use single precision to build histograms instead of double precision.
+
+Additional parameters for ``approx`` tree method
+================================================
+
+* ``max_cat_to_onehot``
+
+  .. versionadded:: 1.6
+
+  .. note:: The support for this parameter is experimental.
+
+  - A threshold for deciding whether XGBoost should use one-hot encoding based split for
+    categorical data.  When number of categories is lesser than the threshold then one-hot
+    encoding is chosen, otherwise the categories will be partitioned into children nodes.
+    Only relevant for regression and binary classification with `approx` tree method.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

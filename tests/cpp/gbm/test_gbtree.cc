@@ -35,7 +35,7 @@ TEST(GBTree, SelectTreeMethod) {
   gbtree.Configure(args);
   auto const& tparam = gbtree.GetTrainParam();
   gbtree.Configure({{"tree_method", "approx"}});
-  ASSERT_EQ(tparam.updater_seq, "grow_histmaker,prune");
+  ASSERT_EQ(tparam.updater_seq, "grow_histmaker");
   gbtree.Configure({{"tree_method", "exact"}});
   ASSERT_EQ(tparam.updater_seq, "grow_colmaker,prune");
   gbtree.Configure({{"tree_method", "hist"}});

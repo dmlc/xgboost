@@ -1184,9 +1184,13 @@ class TestWithDask:
             for arg in rabit_args:
                 if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
                     port_env = arg.decode('utf-8')
+                if arg.decode("utf-8").startswith("DMLC_TRACKER_URI"):
+                    uri_env = arg.decode("utf-8")
             port = port_env.split('=')
             env = os.environ.copy()
             env[port[0]] = port[1]
+            uri = uri_env.split("=")
+            env["DMLC_TRACKER_URI"] = uri[1]
             return subprocess.run([str(exe), test], env=env, capture_output=True)
 
         with LocalCluster(n_workers=4) as cluster:
@@ -1210,11 +1214,13 @@ class TestWithDask:
     @pytest.mark.gtest
     def test_quantile_basic(self) -> None:
         self.run_quantile('DistributedBasic')
+        self.run_quantile('SortedDistributedBasic')
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.gtest
     def test_quantile(self) -> None:
         self.run_quantile('Distributed')
+        self.run_quantile('SortedDistributed')
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.gtest
@@ -1252,13 +1258,17 @@ class TestWithDask:
         for i in range(kCols):
             fw[i] *= float(i)
         fw = da.from_array(fw)
-        poly_increasing = run_feature_weights(X, y, fw, model=xgb.dask.DaskXGBRegressor)
+        poly_increasing = run_feature_weights(
+            X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
+        )
 
         fw = np.ones(shape=(kCols,))
         for i in range(kCols):
             fw[i] *= float(kCols - i)
         fw = da.from_array(fw)
-        poly_decreasing = run_feature_weights(X, y, fw, model=xgb.dask.DaskXGBRegressor)
+        poly_decreasing = run_feature_weights(
+            X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
+        )
 
         # Approxmated test, this is dependent on the implementation of random
         # number generator in std library.

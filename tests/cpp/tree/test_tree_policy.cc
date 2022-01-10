@@ -61,7 +61,7 @@ class TestGrowPolicy : public ::testing::Test {
   }
 };
 
-TEST_F(TestGrowPolicy, DISABLED_Approx) {
+TEST_F(TestGrowPolicy, Approx) {
   this->TestTreeGrowPolicy("approx", "depthwise");
   this->TestTreeGrowPolicy("approx", "lossguide");
 }

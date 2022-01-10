@@ -38,7 +38,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
 
-  uint32_t max_cat_to_onehot{1};
+  uint32_t max_cat_to_onehot{4};
 
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
