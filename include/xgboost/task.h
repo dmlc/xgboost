@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_TASK_H_
 #define XGBOOST_TASK_H_
@@ -34,6 +34,10 @@ struct ObjInfo {
 
   explicit ObjInfo(Task t) : task{t} {}
   ObjInfo(Task t, bool khess) : task{t}, const_hess{khess} {}
+
+  constexpr bool UseOneHot() const {
+    return (task != ObjInfo::kRegression && task != ObjInfo::kBinary);
+  }
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_

@@ -216,10 +216,11 @@ __model_doc = f'''
         .. note:: This parameter is experimental
 
         A threshold for deciding whether XGBoost should use one-hot encoding based split
-        for categorical data.  When number of categories is lesser than the threshold then
-        one-hot encoding is chosen, otherwise the categories will be partitioned into
-        children nodes.  Only relevant for regression and binary classification and
-        `approx` tree method.
+        for categorical data.  When number of categories is lesser than the threshold
+        then one-hot encoding is chosen, otherwise the categories will be partitioned
+        into children nodes.  Only relevant for regression and binary
+        classification. Also, ``approx`` or ``gpu_hist`` tree method is required.  See
+        :doc:`Categorical Data </tutorials/categorical>` for details.
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 

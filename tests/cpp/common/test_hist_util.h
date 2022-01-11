@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 by XGBoost Contributors
+ * Copyright 2019-2022 by XGBoost Contributors
  */
 #pragma once
 #include <gtest/gtest.h>
@@ -235,6 +235,7 @@ void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins,
 
   ASSERT_EQ(dmat->Info().feature_types.Size(), 1);
   auto cuts = sketch(dmat.get(), num_bins);
+  ASSERT_EQ(cuts.MaxCategory(), num_categories - 1);
   std::sort(x.begin(), x.end());
   auto n_uniques = std::unique(x.begin(), x.end()) - x.begin();
   ASSERT_NE(n_uniques, x.size());

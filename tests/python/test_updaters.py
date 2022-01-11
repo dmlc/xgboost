@@ -211,6 +211,34 @@ class TestTreeMethod:
         )
         assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
 
+        by_grouping: xgb.callback.TrainingCallback.EvalsLog = {}
+        parameters["max_cat_to_onehot"] = 1
+        parameters["reg_lambda"] = 0
+        m = xgb.DMatrix(cat, label, enable_categorical=True)
+        xgb.train(
+            parameters,
+            m,
+            num_boost_round=8,
+            evals=[(m, "Train")],
+            evals_result=by_grouping,
+        )
+        rmse_oh = by_builtin_results["Train"]["rmse"]
+        rmse_group = by_grouping["Train"]["rmse"]
+        # always better or equal to onehot when there's no regularization.
+        for a, b in zip(rmse_oh, rmse_group):
+            assert a >= b
+
+        parameters["reg_lambda"] = 1.0
+        by_grouping = {}
+        xgb.train(
+            parameters,
+            m,
+            num_boost_round=32,
+            evals=[(m, "Train")],
+            evals_result=by_grouping,
+        )
+        assert tm.non_increasing(by_grouping["Train"]["rmse"]), by_grouping
+
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None)

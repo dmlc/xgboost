@@ -16,6 +16,10 @@
 
 namespace xgboost {
 namespace common {
+
+using CatBitField = LBitField32;
+using KCatBitField = CLBitField32;
+
 // Cast the categorical type.
 template <typename T>
 XGBOOST_DEVICE bst_cat_t AsCat(T const& v) {
@@ -57,6 +61,11 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat
   if (XGBOOST_EXPECT(validate && (InvalidCat(cat) || cat >= s_cats.Size()), false)) {
     return dft_left;
   }
+
+  auto pos = KCatBitField::ToBitPos(cat);
+  if (pos.int_pos >= cats.size()) {
+    return true;
+  }
   return !s_cats.Check(AsCat(cat));
 }
 
@@ -73,18 +82,14 @@ inline void InvalidCategory() {
 /*!
  * \brief Whether should we use onehot encoding for categorical data.
  */
-inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot, ObjInfo task) {
-  bool use_one_hot = n_cats < max_cat_to_onehot ||
-                     (task.task != ObjInfo::kRegression && task.task != ObjInfo::kBinary);
+XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot, ObjInfo task) {
+  bool use_one_hot = n_cats < max_cat_to_onehot || task.UseOneHot();
   return use_one_hot;
 }
 
 struct IsCatOp {
   XGBOOST_DEVICE bool operator()(FeatureType ft) { return ft == FeatureType::kCategorical; }
 };
-
-using CatBitField = LBitField32;
-using KCatBitField = CLBitField32;
 }  // namespace common
 }  // namespace xgboost
 

@@ -180,6 +180,15 @@ class TreeEvaluator {
         .Eval(&lower_bounds_, &upper_bounds_, &monotone_);
   }
 };
+
+enum SplitType {
+  // numerical split
+  kNum = 0,
+  // onehot encoding based categorical split
+  kOneHot = 1,
+  // partition-based categorical split
+  kPart = 2
+};
 }  // namespace tree
 }  // namespace xgboost
 
