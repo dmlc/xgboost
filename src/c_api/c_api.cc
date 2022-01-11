@@ -903,7 +903,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
   };
   if (common::FileExtension(fname) == "json") {
     auto str = read_file();
-    Json in { Json::Load({str.c_str(), str.size()}) };
+    Json in{Json::Load(StringView{str})};
     static_cast<Learner*>(handle)->LoadModel(in);
   } else if (common::FileExtension(fname) == "ubj") {
     auto str = read_file();

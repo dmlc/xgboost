@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015-2021 by Contributors
+ * Copyright (c) 2015-2022 by Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
