@@ -567,7 +567,7 @@ template <typename T, int32_t D>
 Json ArrayInterface(TensorView<T const, D> const &t) {
   Json array_interface{Object{}};
   array_interface["data"] = std::vector<Json>(2);
-  array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(t.Values().data()));
+  array_interface["data"][0] = Integer{reinterpret_cast<int64_t>(t.Values().data())};
   array_interface["data"][1] = Boolean{true};
   if (t.DeviceIdx() >= 0) {
     // Change this once we have different CUDA stream.

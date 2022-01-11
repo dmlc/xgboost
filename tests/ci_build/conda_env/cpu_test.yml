@@ -32,6 +32,7 @@ dependencies:
 - awscli
 - numba
 - llvmlite
+- py-ubjson
 - pip:
   - shap
   - ipython                     # required by shap at import time.

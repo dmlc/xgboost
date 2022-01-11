@@ -16,3 +16,4 @@ dependencies:
 - python-graphviz
 - modin-ray
 - pip
+- py-ubjson

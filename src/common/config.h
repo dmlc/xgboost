@@ -111,7 +111,7 @@ class ConfigParser {
     const auto last_char = str.find_last_not_of(" \t\n\r");
     if (first_char == std::string::npos) {
       // Every character in str is a whitespace
-      return std::string();
+      return {};
     }
     CHECK_NE(last_char, std::string::npos);
     const auto substr_len = last_char + 1 - first_char;

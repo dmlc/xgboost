@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) by XGBoost Contributors 2019
+ * Copyright (c) by XGBoost Contributors 2019-2022
  */
 #if defined(__unix__)
 #include <sys/stat.h>
@@ -52,7 +52,7 @@ size_t PeekableInStream::PeekRead(void* dptr, size_t size) {
 
 FixedSizeStream::FixedSizeStream(PeekableInStream* stream) : PeekableInStream(stream), pointer_{0} {
   size_t constexpr kInitialSize = 4096;
-  size_t size {kInitialSize}, total {0};
+  size_t size{kInitialSize}, total{0};
   buffer_.clear();
   while (true) {
     buffer_.resize(size);
@@ -141,6 +141,19 @@ std::string LoadSequentialFile(std::string uri, bool stream) {
   }
   buffer.resize(total);
   return buffer;
+}
+
+std::string FileExtension(std::string fname, bool lower) {
+  if (lower) {
+    std::transform(fname.begin(), fname.end(), fname.begin(),
+                   [](char c) { return std::tolower(c); });
+  }
+  auto splited = Split(fname, '.');
+  if (splited.size() > 1) {
+    return splited.back();
+  } else {
+    return "";
+  }
 }
 }  // namespace common
 }  // namespace xgboost

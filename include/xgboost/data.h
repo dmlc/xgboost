@@ -36,10 +36,7 @@ enum class DataType : uint8_t {
   kStr = 5
 };
 
-enum class FeatureType : uint8_t {
-  kNumerical,
-  kCategorical
-};
+enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
 /*!
  * \brief Meta information about dataset, always sit in memory.

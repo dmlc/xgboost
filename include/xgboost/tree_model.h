@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file tree_model.h
  * \brief model structure for tree
  * \author Tianqi Chen
@@ -629,6 +629,7 @@ class RegTree : public Model {
   }
 
  private:
+  template <bool typed>
   void LoadCategoricalSplit(Json const& in);
   void SaveCategoricalSplit(Json* p_out) const;
   // vector of nodes
