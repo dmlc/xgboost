@@ -1093,7 +1093,7 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
  *     "format": str
  *       - json: Output booster will be encoded as JSON.
  *       - ubj:  Output booster will be encoded as Univeral binary JSON.
- *       - deprecated: Output booster will be encoded as old custom binary format.  Do now use
+ *       - deprecated: Output booster will be encoded as old custom binary format.  Do not use
  *         this format except for compatibility reasons.
  *
  * \param out_len  The argument to hold the output length
