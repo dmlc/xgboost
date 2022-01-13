@@ -62,9 +62,8 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   }
 };
 
-void LinearCheckLayer(unsigned layer_begin, unsigned layer_end) {
+void LinearCheckLayer(unsigned layer_begin) {
   CHECK_EQ(layer_begin, 0) << "Linear booster does not support prediction range.";
-  CHECK_EQ(layer_end, 0)   << "Linear booster does not support prediction range.";
 }
 
 /*!
@@ -152,7 +151,7 @@ class GBLinear : public GradientBooster {
   void PredictBatch(DMatrix *p_fmat, PredictionCacheEntry *predts,
                     bool training, unsigned layer_begin, unsigned layer_end) override {
     monitor_.Start("PredictBatch");
-    LinearCheckLayer(layer_begin, layer_end);
+    LinearCheckLayer(layer_begin);
     auto* out_preds = &predts->predictions;
     this->PredictBatchInternal(p_fmat, &out_preds->HostVector());
     monitor_.Stop("PredictBatch");
@@ -161,7 +160,7 @@ class GBLinear : public GradientBooster {
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds,
                        unsigned layer_begin, unsigned layer_end) override {
-    LinearCheckLayer(layer_begin, layer_end);
+    LinearCheckLayer(layer_begin);
     const int ngroup = model_.learner_model_param->num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
       this->Pred(inst, dmlc::BeginPtr(*out_preds), gid,
@@ -177,8 +176,8 @@ class GBLinear : public GradientBooster {
                            HostDeviceVector<bst_float>* out_contribs,
                            unsigned layer_begin, unsigned layer_end, bool, int, unsigned) override {
     model_.LazyInitModel();
-    LinearCheckLayer(layer_begin, layer_end);
-    const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
+    LinearCheckLayer(layer_begin);
+    const auto &base_margin = p_fmat->Info().base_margin_.ConstHostVector();
     const int ngroup = model_.learner_model_param->num_output_group;
     const size_t ncolumns = model_.learner_model_param->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
@@ -214,7 +213,7 @@ class GBLinear : public GradientBooster {
   void PredictInteractionContributions(DMatrix* p_fmat,
                                        HostDeviceVector<bst_float>* out_contribs,
                                        unsigned layer_begin, unsigned layer_end, bool) override {
-    LinearCheckLayer(layer_begin, layer_end);
+    LinearCheckLayer(layer_begin);
     std::vector<bst_float>& contribs = out_contribs->HostVector();
 
     // linear models have no interaction effects
