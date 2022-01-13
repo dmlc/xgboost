@@ -58,14 +58,15 @@ __forceinline__ __device__ BitFieldAtomicType AtomicAnd(BitFieldAtomicType* addr
 template <typename VT, typename Direction, bool IsConst = false>
 struct BitFieldContainer {
   using value_type = std::conditional_t<IsConst, VT const, VT>;  // NOLINT
-  using pointer = value_type*;  // NOLINT
+  using index_type = size_t;                                     // NOLINT
+  using pointer = value_type*;                                   // NOLINT
 
-  static value_type constexpr kValueSize = sizeof(value_type) * 8;
-  static value_type constexpr kOne = 1;  // force correct type.
+  static index_type constexpr kValueSize = sizeof(value_type) * 8;
+  static index_type constexpr kOne = 1;  // force correct type.
 
   struct Pos {
-    std::remove_const_t<value_type> int_pos {0};
-    std::remove_const_t<value_type> bit_pos {0};
+    index_type int_pos{0};
+    index_type bit_pos{0};
   };
 
  private:
@@ -73,13 +74,13 @@ struct BitFieldContainer {
   static_assert(!std::is_signed<VT>::value, "Must use unsiged type as underlying storage.");
 
  public:
-  XGBOOST_DEVICE static Pos ToBitPos(value_type pos) {
+  XGBOOST_DEVICE static Pos ToBitPos(index_type pos) {
     Pos pos_v;
     if (pos == 0) {
       return pos_v;
     }
-    pos_v.int_pos =  pos / kValueSize;
-    pos_v.bit_pos =  pos % kValueSize;
+    pos_v.int_pos = pos / kValueSize;
+    pos_v.bit_pos = pos % kValueSize;
     return pos_v;
   }
 
@@ -96,7 +97,7 @@ struct BitFieldContainer {
   /*\brief Compute the size of needed memory allocation.  The returned value is in terms
    *       of number of elements with `BitFieldContainer::value_type'.
    */
-  XGBOOST_DEVICE static size_t ComputeStorageSize(size_t size) {
+  XGBOOST_DEVICE static size_t ComputeStorageSize(index_type size) {
     return common::DivRoundUp(size, kValueSize);
   }
 #if defined(__CUDA_ARCH__)
@@ -138,14 +139,14 @@ struct BitFieldContainer {
 #endif  // defined(__CUDA_ARCH__)
 
 #if defined(__CUDA_ARCH__)
-  __device__ auto Set(value_type pos) {
+  __device__ auto Set(index_type pos) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = bits_[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
     atomicOr(reinterpret_cast<Type *>(&value), set_bit);
   }
-  __device__ void Clear(value_type pos) {
+  __device__ void Clear(index_type pos) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = bits_[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
@@ -153,13 +154,13 @@ struct BitFieldContainer {
     atomicAnd(reinterpret_cast<Type *>(&value), clear_bit);
   }
 #else
-  void Set(value_type pos) {
+  void Set(index_type pos) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = bits_[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     value |= set_bit;
   }
-  void Clear(value_type pos) {
+  void Clear(index_type pos) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
     value_type& value = bits_[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
@@ -175,7 +176,7 @@ struct BitFieldContainer {
     value_type result = test_bit & value;
     return static_cast<bool>(result);
   }
-  XGBOOST_DEVICE bool Check(value_type pos) const {
+  XGBOOST_DEVICE bool Check(index_type pos) const {
     Pos pos_v = ToBitPos(pos);
     return Check(pos_v);
   }
