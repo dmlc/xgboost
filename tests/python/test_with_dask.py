@@ -705,8 +705,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> xgb.dask.TrainR
 async def run_dask_regressor_asyncio(scheduler_address: str) -> None:
     async with Client(scheduler_address, asynchronous=True) as client:
         X, y, _ = generate_array()
-        regressor = await xgb.dask.DaskXGBRegressor(verbosity=1,
-                                                    n_estimators=2)
+        regressor = await xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
         regressor.set_params(tree_method='hist')
         regressor.client = client
         await regressor.fit(X, y, eval_set=[(X, y)])
