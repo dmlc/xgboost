@@ -12,6 +12,8 @@ namespace common {
 TEST(Categorical, Decision) {
   // inf
   float a = std::numeric_limits<float>::infinity();
+
+  ASSERT_TRUE(common::InvalidCat(a));
   std::vector<uint32_t> cats(256, 0);
   ASSERT_TRUE(Decision(cats, a, true));
 

@@ -32,9 +32,9 @@ inline XGBOOST_DEVICE bool IsCat(Span<FeatureType const> ft, bst_feature_t fidx)
   return !ft.empty() && ft[fidx] == FeatureType::kCategorical;
 }
 
-template <typename SizeT>
-XGBOOST_DEVICE bool InvalidCat(float cat, SizeT n) {
-  return cat < 0 || cat > static_cast<float>(std::numeric_limits<bst_cat_t>::max()) || cat >= n;
+
+inline XGBOOST_DEVICE bool InvalidCat(float cat) {
+  return cat < 0 || cat > static_cast<float>(std::numeric_limits<bst_cat_t>::max());
 }
 
 /* \brief Whether should it traverse to left branch of a tree.
@@ -46,7 +46,7 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat
   CLBitField32 const s_cats(cats);
   // FIXME: Size() is not accurate since it represents the size of bit set instead of
   // actual number of categories.
-  if (XGBOOST_EXPECT(validate && InvalidCat(cat, s_cats.Size()), false)) {
+  if (XGBOOST_EXPECT(validate && (InvalidCat(cat) || cat >= s_cats.Size()), false)) {
     return dft_left;
   }
   return !s_cats.Check(AsCat(cat));

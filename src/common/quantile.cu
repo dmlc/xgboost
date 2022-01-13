@@ -588,7 +588,7 @@ struct InvalidCatOp {
 
   XGBOOST_DEVICE bool operator()(size_t i) {
     auto fidx = dh::SegmentId(ptrs, i);
-    return IsCat(ft, fidx) && InvalidCat(values[i], ptrs[fidx + 1] - ptrs[fidx]);
+    return IsCat(ft, fidx) && InvalidCat(values[i]);
   }
 };
 }  // anonymous namespace
@@ -687,10 +687,10 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto ptrs = p_cuts->cut_ptrs_.ConstDeviceSpan();
     auto it = thrust::make_counting_iterator(0ul);
+
     CHECK_EQ(p_cuts->Ptrs().back(), out_cut_values.size());
-    auto invalid =
-        thrust::any_of(thrust::cuda::par(alloc), it, it + out_cut_values.size(),
-                       InvalidCatOp{out_cut_values, ptrs, d_ft});
+    auto invalid = thrust::any_of(thrust::cuda::par(alloc), it, it + out_cut_values.size(),
+                                  InvalidCatOp{out_cut_values, ptrs, d_ft});
     if (invalid) {
       InvalidCategory();
     }
