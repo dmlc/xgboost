@@ -49,7 +49,7 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch);
  *
  * \return 0 for success, -1 for failure
  */
-XGB_DLL int XGBBuildInfo(char const **out);
+XGB_DLL int XGBuildInfo(char const **out);
 
 /*!
  * \brief get string message of the last error

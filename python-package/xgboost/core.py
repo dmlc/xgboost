@@ -202,7 +202,7 @@ def build_info() -> dict:
 
     """
     j_info = ctypes.c_char_p()
-    _check_call(_LIB.XGBBuildInfo(ctypes.byref(j_info)))
+    _check_call(_LIB.XGBuildInfo(ctypes.byref(j_info)))
     assert j_info.value is not None
     res = json.loads(j_info.value.decode())  # pylint: disable=no-member
     return res

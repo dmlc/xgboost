@@ -283,7 +283,7 @@ TEST(CAPI, XGBGlobalConfig) {
 
 TEST(CAPI, BuildInfo) {
   char const* out;
-  XGBBuildInfo(&out);
+  XGBuildInfo(&out);
   auto loaded = Json::Load(StringView{out});
   ASSERT_TRUE(get<Object const>(loaded).find("USE_OPENMP") != get<Object const>(loaded).cend());
   ASSERT_TRUE(get<Object const>(loaded).find("USE_CUDA") != get<Object const>(loaded).cend());
