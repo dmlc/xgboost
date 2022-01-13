@@ -18,6 +18,7 @@ void GBLinearModel::SaveModel(Json* p_out) const {
     j_weights[i] = weight[i];
   }
   out["weights"] = std::move(j_weights);
+  out["boosted_rounds"] = Json{this->num_boosted_rounds};
 }
 
 void GBLinearModel::LoadModel(Json const& in) {
@@ -26,6 +27,13 @@ void GBLinearModel::LoadModel(Json const& in) {
   weight.resize(n_weights);
   for (size_t i = 0; i < n_weights; ++i) {
     weight[i] = get<Number const>(j_weights[i]);
+  }
+  auto const& obj = get<Object const>(in);
+  auto boosted_rounds = obj.find("boosted_rounds");
+  if (boosted_rounds != obj.cend()) {
+    this->num_boosted_rounds = get<Integer const>(boosted_rounds->second);
+  } else {
+    this->num_boosted_rounds = 0;
   }
 }
 
