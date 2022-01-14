@@ -7,7 +7,7 @@ weight is not used in following example. In this script, we implement the Square
 Error (SLE) objective and RMSLE metric as customized functions, then compare it with
 native implementation in XGBoost.
 
-See doc/tutorials/custom_metric_obj.rst for a step by step walkthrough, with other
+See :doc:`/tutorials/custom_metric_obj` for a step by step walkthrough, with other
 details.
 
 The `SLE` objective reduces impact of outliers in training dataset, hence here we also
