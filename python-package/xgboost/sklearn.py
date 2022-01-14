@@ -1354,9 +1354,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             iteration_range=iteration_range
         )
         # If model is loaded from a raw booster there's no `n_classes_`
-        return _cls_predict_proba(
-            getattr(self, "n_classes_", None), class_probs, np.vstack
-        )
+        return _cls_predict_proba(getattr(self, "n_classes_", 0), class_probs, np.vstack)
 
     def evals_result(self) -> TrainingCallback.EvalsLog:
         """Return the evaluation results.
