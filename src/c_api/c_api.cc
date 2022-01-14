@@ -931,25 +931,21 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char *c_fname) {
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(c_fname, "w"));
   auto *learner = static_cast<Learner *>(handle);
   learner->Configure();
-  auto save_json = [&]() {
-    Json out{Object()};
-    learner->SaveModel(&out);
-    std::string str;
-    Json::Dump(out, &str);
-    fo->Write(str.c_str(), str.size());
-  };
-  if (common::FileExtension(c_fname) == "json") {
-    save_json();
-  } else if (common::FileExtension(c_fname) == "ubj") {
+  auto save_json = [&](std::ios::openmode mode) {
     Json out{Object()};
     learner->SaveModel(&out);
     std::vector<char> str;
-    Json::Dump(out, &str, std::ios::binary);
+    Json::Dump(out, &str, mode);
     fo->Write(str.data(), str.size());
+  };
+  if (common::FileExtension(c_fname) == "json") {
+    save_json(std::ios::out);
+  } else if (common::FileExtension(c_fname) == "ubj") {
+    save_json(std::ios::binary);
   } else if (XGBOOST_VER_MAJOR == 2 && XGBOOST_VER_MINOR >= 2) {
     LOG(WARNING) << "Saving model to JSON as default.  You can use file extension `json`, `ubj` or "
                     "`deprecated` to choose between formats.";
-    save_json();
+    save_json(std::ios::out);
   } else {
     WarnOldModel();
     auto *bst = static_cast<Learner *>(handle);
