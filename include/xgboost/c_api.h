@@ -874,8 +874,8 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *
  * \param handle Booster handle
  * \param dmat   DMatrix handle
- * \param json_config String encoded predict configuration in JSON format, with
- *                    following available fields in the JSON object:
+ * \param c_json_config String encoded predict configuration in JSON format, with
+ *                      following available fields in the JSON object:
  *
  *    "type": [0, 6]
  *      - 0: normal prediction
