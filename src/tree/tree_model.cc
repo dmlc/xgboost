@@ -1186,7 +1186,7 @@ void RegTree::SaveModel(Json* p_out) const {
       split_type.Set(i, static_cast<uint8_t>(this->NodeSplitType(i)));
     }
   };
-  if (this->param.num_feature > std::numeric_limits<int32_t>::max()) {
+  if (this->param.num_feature > static_cast<bst_feature_t>(std::numeric_limits<int32_t>::max())) {
     I64Array indices_64(n_nodes);
     save_tree(&indices_64);
     out["split_indices"] = std::move(indices_64);
