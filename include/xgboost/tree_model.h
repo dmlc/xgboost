@@ -42,7 +42,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief maximum depth, this is a statistics of the tree */
   int deprecated_max_depth;
   /*! \brief number of features used for tree construction */
-  int num_feature;
+  bst_feature_t num_feature;
   /*!
    * \brief leaf vector size, used for vector tree
    * used to store more than one dimensional information in tree

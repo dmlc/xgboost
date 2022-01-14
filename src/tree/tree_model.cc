@@ -1015,11 +1015,12 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
   out["categories"] = std::move(categories);
 }
 
-template <bool typed,
+template <bool typed, bool feature_is_64,
           typename FloatArrayT = std::conditional_t<typed, F32Array const, Array const>,
           typename U8ArrayT = std::conditional_t<typed, U8Array const, Array const>,
           typename I32ArrayT = std::conditional_t<typed, I32Array const, Array const>,
-          typename I64ArrayT = std::conditional_t<typed, I64Array const, Array const>>
+          typename I64ArrayT = std::conditional_t<typed, I64Array const, Array const>,
+          typename IndexArrayT = std::conditional_t<feature_is_64, I64ArrayT, I32ArrayT>>
 bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>* p_stats,
                    std::vector<FeatureType>* p_split_types, std::vector<RegTree::Node>* p_nodes,
                    std::vector<RegTree::Segment>* p_split_categories_segments) {
@@ -1045,7 +1046,7 @@ bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>*
   CHECK_EQ(rights.size(), n_nodes);
   auto const& parents = get<I32ArrayT>(in["parents"]);
   CHECK_EQ(parents.size(), n_nodes);
-  auto const& indices = get<I64ArrayT>(in["split_indices"]);
+  auto const& indices = get<IndexArrayT>(in["split_indices"]);
   CHECK_EQ(indices.size(), n_nodes);
   auto const& conds = get<FloatArrayT>(in["split_conditions"]);
   CHECK_EQ(conds.size(), n_nodes);
@@ -1093,12 +1094,19 @@ bool LoadModelImpl(Json const& in, TreeParam* param, std::vector<RTreeNodeStat>*
 void RegTree::LoadModel(Json const& in) {
   bool has_cat{false};
   bool typed = IsA<F32Array>(in["loss_changes"]);
-  if (typed) {
-    has_cat = LoadModelImpl<true>(in, &param, &stats_, &split_types_, &nodes_,
-                                  &split_categories_segments_);
+  bool feature_is_64 = IsA<I64Array>(in["split_indices"]);
+  if (typed && feature_is_64) {
+    has_cat = LoadModelImpl<true, true>(in, &param, &stats_, &split_types_, &nodes_,
+                                        &split_categories_segments_);
+  } else if (typed && !feature_is_64) {
+    has_cat = LoadModelImpl<true, false>(in, &param, &stats_, &split_types_, &nodes_,
+                                         &split_categories_segments_);
+  } else if (!typed && feature_is_64) {
+    has_cat = LoadModelImpl<false, true>(in, &param, &stats_, &split_types_, &nodes_,
+                                         &split_categories_segments_);
   } else {
-    has_cat = LoadModelImpl<false>(in, &param, &stats_, &split_types_, &nodes_,
-                                   &split_categories_segments_);
+    has_cat = LoadModelImpl<false, false>(in, &param, &stats_, &split_types_, &nodes_,
+                                          &split_categories_segments_);
   }
 
   if (has_cat) {
@@ -1152,27 +1160,40 @@ void RegTree::SaveModel(Json* p_out) const {
   I32Array lefts(n_nodes);
   I32Array rights(n_nodes);
   I32Array parents(n_nodes);
-  I64Array indices(n_nodes);
+
+
   F32Array conds(n_nodes);
   U8Array default_left(n_nodes);
   U8Array split_type(n_nodes);
   CHECK_EQ(this->split_types_.size(), param.num_nodes);
 
-  for (bst_node_t i = 0; i < n_nodes; ++i) {
-    auto const& s = stats_[i];
-    loss_changes.Set(i, s.loss_chg);
-    sum_hessian.Set(i, s.sum_hess);
-    base_weights.Set(i, s.base_weight);
+  auto save_tree = [&](auto* p_indices_array) {
+    auto& indices_array = *p_indices_array;
+    for (bst_node_t i = 0; i < n_nodes; ++i) {
+      auto const& s = stats_[i];
+      loss_changes.Set(i, s.loss_chg);
+      sum_hessian.Set(i, s.sum_hess);
+      base_weights.Set(i, s.base_weight);
 
-    auto const& n = nodes_[i];
-    lefts.Set(i, n.LeftChild());
-    rights.Set(i, n.RightChild());
-    parents.Set(i, n.Parent());
-    indices.Set(i, n.SplitIndex());
-    conds.Set(i, n.SplitCond());
-    default_left.Set(i, static_cast<uint8_t>(!!n.DefaultLeft()));
+      auto const& n = nodes_[i];
+      lefts.Set(i, n.LeftChild());
+      rights.Set(i, n.RightChild());
+      parents.Set(i, n.Parent());
+      indices_array.Set(i, n.SplitIndex());
+      conds.Set(i, n.SplitCond());
+      default_left.Set(i, static_cast<uint8_t>(!!n.DefaultLeft()));
 
-    split_type.Set(i, static_cast<uint8_t>(this->NodeSplitType(i)));
+      split_type.Set(i, static_cast<uint8_t>(this->NodeSplitType(i)));
+    }
+  };
+  if (this->param.num_feature > std::numeric_limits<int32_t>::max()) {
+    I64Array indices_64(n_nodes);
+    save_tree(&indices_64);
+    out["split_indices"] = std::move(indices_64);
+  } else {
+    I32Array indices_32(n_nodes);
+    save_tree(&indices_32);
+    out["split_indices"] = std::move(indices_32);
   }
 
   this->SaveCategoricalSplit(&out);
@@ -1185,7 +1206,7 @@ void RegTree::SaveModel(Json* p_out) const {
   out["left_children"] = std::move(lefts);
   out["right_children"] = std::move(rights);
   out["parents"] = std::move(parents);
-  out["split_indices"] = std::move(indices);
+
   out["split_conditions"] = std::move(conds);
   out["default_left"] = std::move(default_left);
 }
