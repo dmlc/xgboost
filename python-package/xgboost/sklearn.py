@@ -197,6 +197,18 @@ __model_doc = f'''
         Experimental support for categorical data.  Do not set to true unless you are
         interested in development. Only valid when `gpu_hist` and dataframe are used.
 
+    max_cat_to_onehot : bool
+
+        .. versionadded:: 1.6.0
+
+        .. note:: This parameter is experimental
+
+        A threshold for deciding whether XGBoost should use one-hot encoding based split
+        for categorical data.  When number of categories is lesser than the threshold then
+        one-hot encoding is chosen, otherwise the categories will be partitioned into
+        children nodes.  Only relevant for regression and binary classification and
+        `approx` tree method.
+
     eval_metric : Optional[Union[str, List[str], Callable]]
 
         .. versionadded:: 1.6.0
@@ -266,16 +278,6 @@ __model_doc = f'''
 
             callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                     save_best=True)]
-
-    max_cat_to_onehot : bool
-
-        .. versionadded:: 1.6.0
-
-        A threshold for deciding whether XGBoost should use one-hot encoding based split
-        for categorical data.  When number of categories is lesser than the threshold then
-        one-hot encoding is chosen, otherwise the categories will be partitioned into
-        children nodes.  Only relevant for regression and binary classification and
-        `approx` tree method.
 
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters
@@ -459,8 +461,10 @@ def _wrap_evaluation_matrices(
                    ['estimators', 'model', 'objective'])
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, missing-docstring
+    @_deprecate_positional_args
     def __init__(
         self,
+        *,
         max_depth: Optional[int] = None,
         learning_rate: Optional[float] = None,
         n_estimators: int = 100,
@@ -490,10 +494,10 @@ class XGBModel(XGBModelBase):
         validate_parameters: Optional[bool] = None,
         predictor: Optional[str] = None,
         enable_categorical: bool = False,
+        max_cat_to_onehot: Optional[int] = None,
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
-        max_cat_to_onehot: Optional[int] = None,
         **kwargs: Any
     ) -> None:
         if not SKLEARN_INSTALLED:
@@ -530,10 +534,10 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.predictor = predictor
         self.enable_categorical = enable_categorical
+        self.max_cat_to_onehot = max_cat_to_onehot
         self.eval_metric = eval_metric
         self.early_stopping_rounds = early_stopping_rounds
         self.callbacks = callbacks
-        self.max_cat_to_onehot = max_cat_to_onehot
         if kwargs:
             self.kwargs = kwargs
 
