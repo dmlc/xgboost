@@ -435,7 +435,7 @@ TEST(Tree, JsonIO) {
   ASSERT_EQ(get<I32Array const>(j_tree["left_children"]).size(), 3ul);
   ASSERT_EQ(get<I32Array const>(j_tree["right_children"]).size(), 3ul);
   ASSERT_EQ(get<I32Array const>(j_tree["parents"]).size(), 3ul);
-  ASSERT_EQ(get<I64Array const>(j_tree["split_indices"]).size(), 3ul);
+  ASSERT_EQ(get<I32Array const>(j_tree["split_indices"]).size(), 3ul);
   ASSERT_EQ(get<F32Array const>(j_tree["split_conditions"]).size(), 3ul);
   ASSERT_EQ(get<U8Array const>(j_tree["default_left"]).size(), 3ul);
 
