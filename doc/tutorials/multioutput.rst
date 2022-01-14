@@ -12,14 +12,15 @@ terminologies related to different multi-output models please refer to the `scik
 user guide <https://scikit-learn.org/stable/modules/multiclass.HTML>`_.
 
 Internally, XGBoost builds one model for each target similar to sklearn meta estimators,
-with the added benefit of reusing data and custom objective support.  For a worked example
-of regression, see :ref:`sphx_glr_python_examples_multioutput_regression.py`. For
-multi-label classification, the binary relevance strategy is used.  Input ``y`` should be
-of shape ``(n_samples, n_classes)`` with each column having a value of 0 or 1 to specify
-whether the sample is labeled as positive for respective class. Given a sample with 3
-output classes and 2 labels, the corresponding `y` should be encoded as ``[1, 0, 1]`` with
-the second class labeled as negative and the rest labeled as positive. At the moment
-XGBoost supports only dense matrix for labels.
+with the added benefit of reusing data and other integrated features like SHAP and custom
+objective support.  For a worked example of regression, see
+:ref:`sphx_glr_python_examples_multioutput_regression.py`. For multi-label classification,
+the binary relevance strategy is used.  Input ``y`` should be of shape ``(n_samples,
+n_classes)`` with each column having a value of 0 or 1 to specify whether the sample is
+labeled as positive for respective class. Given a sample with 3 output classes and 2
+labels, the corresponding `y` should be encoded as ``[1, 0, 1]`` with the second class
+labeled as negative and the rest labeled as positive. At the moment XGBoost supports only
+dense matrix for labels.
 
 .. code-block:: python
 
