@@ -77,7 +77,7 @@ class TestPlotting:
     def run_categorical(self, tree_method: str) -> None:
         X, y = tm.make_categorical(1000, 31, 19, onehot=False)
         reg = xgb.XGBRegressor(
-            enable_categorical=True, n_estimators=10, tree_method="gpu_hist"
+            enable_categorical=True, n_estimators=10, tree_method=tree_method
         )
         reg.fit(X, y)
         trees = reg.get_booster().get_dump(dump_format="json")
