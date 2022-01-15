@@ -195,11 +195,12 @@ Json& Value::operator[](int) {
 }
 
 // Json Object
-JsonObject::JsonObject(JsonObject && that) noexcept :
-    Value(ValueKind::kObject), object_{std::move(that.object_)} {}
+JsonObject::JsonObject(JsonObject&& that) noexcept : Value(ValueKind::kObject) {
+  std::swap(that.object_, this->object_);
+}
 
-JsonObject::JsonObject(std::map<std::string, Json> &&object) noexcept
-    : Value(ValueKind::kObject), object_{std::move(object)} {}
+JsonObject::JsonObject(std::map<std::string, Json>&& object) noexcept
+    : Value(ValueKind::kObject), object_{std::forward<std::map<std::string, Json>>(object)} {}
 
 bool JsonObject::operator==(Value const& rhs) const {
   if (!IsA<JsonObject>(&rhs)) {
@@ -220,8 +221,9 @@ bool JsonString::operator==(Value const& rhs) const {
 void JsonString::Save(JsonWriter* writer) const { writer->Visit(this); }
 
 // Json Array
-JsonArray::JsonArray(JsonArray && that) noexcept :
-    Value(ValueKind::kArray), vec_{std::move(that.vec_)} {}
+JsonArray::JsonArray(JsonArray&& that) noexcept : Value(ValueKind::kArray) {
+  std::swap(that.vec_, this->vec_);
+}
 
 bool JsonArray::operator==(Value const& rhs) const {
   if (!IsA<JsonArray>(&rhs)) {
@@ -696,6 +698,7 @@ void Json::Dump(Json json, std::string* str, std::ios::openmode mode) {
 }
 
 void Json::Dump(Json json, std::vector<char>* str, std::ios::openmode mode) {
+  str->clear();
   if (mode & std::ios::binary) {
     UBJWriter writer{str};
     writer.Save(json);
@@ -768,9 +771,7 @@ std::string UBJReader::DecodeStr() {
   str.resize(bsize);
   auto ptr = raw_str_.c_str() + cursor_.Pos();
   std::memcpy(&str[0], ptr, bsize);
-  for (int64_t i = 0; i < bsize; ++i) {
-    this->cursor_.Forward();
-  }
+  this->cursor_.Forward(bsize);
   return str;
 }
 

@@ -2135,9 +2135,15 @@ class Booster:
 
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
-        (such as feature_names) will not be saved when using binary format.  To save those
-        attributes, use JSON instead. See :doc:`Model IO </tutorials/saving_model>` for
-        more info.
+        (such as feature_names) will not be saved when using binary format.  To save
+        those attributes, use JSON/UBJ instead. See :doc:`Model IO
+        </tutorials/saving_model>` for more info.
+
+        .. code-block:: python
+
+          model.save_model("model.json")
+          # or
+          model.save_model("model.ubj")
 
         Parameters
         ----------
@@ -2152,18 +2158,28 @@ class Booster:
         else:
             raise TypeError("fname must be a string or os PathLike")
 
-    def save_raw(self) -> bytearray:
+    def save_raw(self, raw_format: str = "deprecated") -> bytearray:
         """Save the model to a in memory buffer representation instead of file.
+
+        Parameters
+        ----------
+        raw_format :
+            Format of output buffer. Can be `json`, `ubj` or `deprecated`.  Right now
+            the default is `deprecated` but it will be changed to `ubj` (univeral binary
+            json) in the future.
 
         Returns
         -------
-        a in memory buffer representation of the model
+        An in memory buffer representation of the model
         """
         length = c_bst_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
-        _check_call(_LIB.XGBoosterGetModelRaw(self.handle,
-                                              ctypes.byref(length),
-                                              ctypes.byref(cptr)))
+        config = from_pystr_to_cstr(json.dumps({"format": raw_format}))
+        _check_call(
+            _LIB.XGBoosterSaveModelToBuffer(
+                self.handle, config, ctypes.byref(length), ctypes.byref(cptr)
+            )
+        )
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
@@ -2173,8 +2189,14 @@ class Booster:
         The model is loaded from XGBoost format which is universal among the various
         XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
         feature_names) will not be loaded when using binary format.  To save those
-        attributes, use JSON instead.  See :doc:`Model IO </tutorials/saving_model>` for
-        more info.
+        attributes, use JSON/UBJ instead.  See :doc:`Model IO </tutorials/saving_model>`
+        for more info.
+
+        .. code-block:: python
+
+          model.load_model("model.json")
+          # or
+          model.load_model("model.ubj")
 
         Parameters
         ----------
