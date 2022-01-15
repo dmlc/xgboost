@@ -884,9 +884,19 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
         Returns
         -------
-        base_margin : float
+        base_margin
         """
         return self.get_float_info('base_margin')
+
+    def get_group(self) -> np.ndarray:
+        """Get the group of the DMatrix.
+
+        Returns
+        -------
+        group
+        """
+        group_ptr = self.get_uint_info("group_ptr")
+        return np.diff(group_ptr)
 
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix.
