@@ -29,6 +29,15 @@ except ImportError:
 memory = Memory('./cachedir', verbose=0)
 
 
+def no_ubjson():
+    reason = "ubjson is not intsalled."
+    try:
+        import ubjson           # noqa
+        return {"condition": False, "reason": reason}
+    except ImportError:
+        return {"condition": True, "reason": reason}
+
+
 def no_sklearn():
     return {'condition': not SKLEARN_INSTALLED,
             'reason': 'Scikit-Learn is not installed'}

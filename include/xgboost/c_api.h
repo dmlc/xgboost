@@ -1081,13 +1081,31 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle,
 XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
                                          const void *buf,
                                          bst_ulong len);
+
 /*!
- * \brief save model into binary raw bytes, return header of the array
- * user must copy the result out, before next xgboost call
+ * \brief Save model into raw bytes, return header of the array.  User must copy the
+ *        result out, before next xgboost call
+ *
  * \param handle handle
- * \param out_len the argument to hold the output length
- * \param out_dptr the argument to hold the output data pointer
+ * \param json_config JSON encoded string storing parameters for the function.  Following
+ *                    keys are expected in the JSON document:
+ *
+ *     "format": str
+ *       - json: Output booster will be encoded as JSON.
+ *       - ubj:  Output booster will be encoded as Univeral binary JSON.
+ *       - deprecated: Output booster will be encoded as old custom binary format.  Do not use
+ *         this format except for compatibility reasons.
+ *
+ * \param out_len  The argument to hold the output length
+ * \param out_dptr The argument to hold the output data pointer
+ *
  * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *json_config,
+                                       bst_ulong *out_len, char const **out_dptr);
+
+/*!
+ * \brief Deprecated, use `XGBoosterSaveModelToBuffer` instead.
  */
 XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, bst_ulong *out_len,
                                  const char **out_dptr);

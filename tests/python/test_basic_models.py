@@ -14,7 +14,7 @@ dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 rng = np.random.RandomState(1994)
 
 
-def json_model(model_path, parameters):
+def json_model(model_path: str, parameters: dict) -> dict:
     X = np.random.random((10, 3))
     y = np.random.randint(2, size=(10,))
 
@@ -22,9 +22,14 @@ def json_model(model_path, parameters):
 
     bst = xgb.train(parameters, dm1)
     bst.save_model(model_path)
+    if model_path.endswith("ubj"):
+        import ubjson
+        with open(model_path, "rb") as ubjfd:
+            model = ubjson.load(ubjfd)
+    else:
+        with open(model_path, 'r') as fd:
+            model = json.load(fd)
 
-    with open(model_path, 'r') as fd:
-        model = json.load(fd)
     return model
 
 
@@ -259,22 +264,39 @@ class TestModels:
         buf_from_raw = from_raw.save_raw()
         assert buf == buf_from_raw
 
-    def test_model_json_io(self):
+    def run_model_json_io(self, parameters: dict, ext: str) -> None:
+        if ext == "ubj" and tm.no_ubjson()["condition"]:
+            pytest.skip(tm.no_ubjson()["reason"])
+
         loc = locale.getpreferredencoding(False)
-        model_path = 'test_model_json_io.json'
-        parameters = {'tree_method': 'hist', 'booster': 'gbtree'}
+        model_path = 'test_model_json_io.' + ext
         j_model = json_model(model_path, parameters)
         assert isinstance(j_model['learner'], dict)
 
         bst = xgb.Booster(model_file=model_path)
 
         bst.save_model(fname=model_path)
-        with open(model_path, 'r') as fd:
-            j_model = json.load(fd)
+        if ext == "ubj":
+            import ubjson
+            with open(model_path, "rb") as ubjfd:
+                j_model = ubjson.load(ubjfd)
+        else:
+            with open(model_path, 'r') as fd:
+                j_model = json.load(fd)
+
         assert isinstance(j_model['learner'], dict)
 
         os.remove(model_path)
         assert locale.getpreferredencoding(False) == loc
+
+    @pytest.mark.parametrize("ext", ["json", "ubj"])
+    def test_model_json_io(self, ext: str) -> None:
+        parameters = {"booster": "gbtree", "tree_method": "hist"}
+        self.run_model_json_io(parameters, ext)
+        parameters = {"booster": "gblinear"}
+        self.run_model_json_io(parameters, ext)
+        parameters = {"booster": "dart", "tree_method": "hist"}
+        self.run_model_json_io(parameters, ext)
 
     @pytest.mark.skipif(**tm.no_json_schema())
     def test_json_io_schema(self):

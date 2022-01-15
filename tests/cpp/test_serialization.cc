@@ -178,8 +178,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
       learner->Save(&fo);
     }
 
-    Json m_0 = Json::Load(StringView{continued_model.c_str(), continued_model.size()});
-    Json m_1 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
+    Json m_0 = Json::Load(StringView{continued_model}, std::ios::binary);
+    Json m_1 = Json::Load(StringView{model_at_2kiter}, std::ios::binary);
 
     CompareJSON(m_0, m_1);
   }
@@ -214,8 +214,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     common::MemoryBufferStream fo(&serialised_model_tmp);
     learner->Save(&fo);
 
-    Json m_0 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
-    Json m_1 = Json::Load(StringView{serialised_model_tmp.c_str(), serialised_model_tmp.size()});
+    Json m_0 = Json::Load(StringView{model_at_2kiter}, std::ios::binary);
+    Json m_1 = Json::Load(StringView{serialised_model_tmp}, std::ios::binary);
     // GPU ID is changed as data is coming from device.
     ASSERT_EQ(get<Object>(m_0["Config"]["learner"]["generic_param"]).erase("gpu_id"),
               get<Object>(m_1["Config"]["learner"]["generic_param"]).erase("gpu_id"));

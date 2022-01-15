@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright by XGBoost Contributors 2014-2022
  * \file io.h
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
@@ -86,15 +86,31 @@ class FixedSizeStream : public PeekableInStream {
  */
 std::string LoadSequentialFile(std::string uri, bool stream = false);
 
-inline std::string FileExtension(std::string const& fname) {
-  auto splited = Split(fname, '.');
-  if (splited.size() > 1) {
-    return splited.back();
-  } else {
-    return "";
-  }
-}
+/**
+ * \brief Get file extension from file name.
+ *
+ * \param  lower Return in lower case.
+ *
+ * \return File extension without the `.`
+ */
+std::string FileExtension(std::string fname, bool lower = true);
 
+/**
+ * \brief Read the whole buffer from dmlc stream.
+ */
+inline std::string ReadAll(dmlc::Stream* fi, PeekableInStream* fp) {
+  std::string buffer;
+  if (auto fixed_size = dynamic_cast<common::MemoryFixSizeBuffer*>(fi)) {
+    fixed_size->Seek(common::MemoryFixSizeBuffer::kSeekEnd);
+    size_t size = fixed_size->Tell();
+    buffer.resize(size);
+    fixed_size->Seek(0);
+    CHECK_EQ(fixed_size->Read(&buffer[0], size), size);
+  } else {
+    FixedSizeStream{fp}.Take(&buffer);
+  }
+  return buffer;
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_

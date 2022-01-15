@@ -97,7 +97,7 @@
                   "default_left": {
                     "type": "array",
                     "items": {
-                      "type": "boolean"
+                      "type": "integer"
                     }
                   },
                   "categories": {

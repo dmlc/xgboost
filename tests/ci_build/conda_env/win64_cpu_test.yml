@@ -18,3 +18,4 @@ dependencies:
 - jsonschema
 - python-graphviz
 - pip
+- py-ubjson
