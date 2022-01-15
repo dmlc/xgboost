@@ -662,20 +662,25 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterLoadModel
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterGetModelRaw
- * Signature: (J[[B)I
+ * Method:    XGBoosterSaveModelToBuffer
+ * Signature: (JLjava/lang/String;[[B)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetModelRaw
-  (JNIEnv * jenv, jclass jcls, jlong jhandle, jobjectArray jout) {
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveModelToBuffer
+  (JNIEnv * jenv, jclass jcls, jlong jhandle, jstring jformat, jobjectArray jout) {
   BoosterHandle handle = (BoosterHandle) jhandle;
+  const char *format = jenv->GetStringUTFChars(jformat, 0);
   bst_ulong len = 0;
-  const char* result;
-  int ret = XGBoosterGetModelRaw(handle, &len, &result);
-  JVM_CHECK_CALL(ret);
+  const char *result{nullptr};
+  xgboost::Json config {xgboost::Object{}};
+  config["format"] = std::string{format};
+  std::string config_str;
+  xgboost::Json::Dump(config, &config_str);
 
+  int ret = XGBoosterSaveModelToBuffer(handle, config_str.c_str(), &len, &result);
+  JVM_CHECK_CALL(ret);
   if (result) {
     jbyteArray jarray = jenv->NewByteArray(len);
-    jenv->SetByteArrayRegion(jarray, 0, len, (jbyte*)result);
+    jenv->SetByteArrayRegion(jarray, 0, len, (jbyte *)result);
     jenv->SetObjectArrayElement(jout, 0, jarray);
   }
   return ret;
