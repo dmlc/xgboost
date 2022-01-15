@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import logging
 import distutils
+from typing import Optional, List
 import sys
 from platform import system
 from setuptools import setup, find_packages, Extension
@@ -36,7 +37,7 @@ NEED_CLEAN_FILE = set()
 BUILD_TEMP_DIR = None
 
 
-def lib_name():
+def lib_name() -> str:
     '''Return platform dependent shared object name.'''
     if system() == 'Linux' or system().upper().endswith('BSD'):
         name = 'libxgboost.so'
@@ -47,13 +48,13 @@ def lib_name():
     return name
 
 
-def copy_tree(src_dir, target_dir):
+def copy_tree(src_dir: str, target_dir: str) -> None:
     '''Copy source tree into build directory.'''
-    def clean_copy_tree(src, dst):
+    def clean_copy_tree(src: str, dst: str) -> None:
         distutils.dir_util.copy_tree(src, dst)
         NEED_CLEAN_TREE.add(os.path.abspath(dst))
 
-    def clean_copy_file(src, dst):
+    def clean_copy_file(src: str, dst: str) -> None:
         distutils.file_util.copy_file(src, dst)
         NEED_CLEAN_FILE.add(os.path.abspath(dst))
 
@@ -77,7 +78,7 @@ def copy_tree(src_dir, target_dir):
     clean_copy_file(lic, os.path.join(target_dir, 'LICENSE'))
 
 
-def clean_up():
+def clean_up() -> None:
     '''Removed copied files.'''
     for path in NEED_CLEAN_TREE:
         shutil.rmtree(path)
@@ -87,7 +88,7 @@ def clean_up():
 
 class CMakeExtension(Extension):  # pylint: disable=too-few-public-methods
     '''Wrapper for extension'''
-    def __init__(self, name):
+    def __init__(self, name: str) -> None:
         super().__init__(name=name, sources=[])
 
 
@@ -97,7 +98,14 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
     logger = logging.getLogger('XGBoost build_ext')
 
     # pylint: disable=too-many-arguments,no-self-use
-    def build(self, src_dir, build_dir, generator, build_tool=None, use_omp=1):
+    def build(
+        self,
+        src_dir: str,
+        build_dir: str,
+        generator: str,
+        build_tool: Optional[str] = None,
+        use_omp: int = 1,
+    ) -> None:
         '''Build the core library with CMake.'''
         cmake_cmd = ['cmake', src_dir, generator]
 
@@ -116,13 +124,14 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
         if system() != 'Windows':
             nproc = os.cpu_count()
+            assert build_tool is not None
             subprocess.check_call([build_tool, '-j' + str(nproc)],
                                   cwd=build_dir)
         else:
             subprocess.check_call(['cmake', '--build', '.',
                                    '--config', 'Release'], cwd=build_dir)
 
-    def build_cmake_extension(self):
+    def build_cmake_extension(self) -> None:
         '''Configure and build using CMake'''
         if USER_OPTIONS['use-system-libxgboost'][2]:
             self.logger.info('Using system libxgboost.')
@@ -174,14 +183,14 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                 self.logger.warning('Disabling OpenMP support.')
                 self.build(src_dir, build_dir, gen, build_tool, use_omp=0)
 
-    def build_extension(self, ext):
+    def build_extension(self, ext: Extension) -> None:
         '''Override the method for dispatching.'''
         if isinstance(ext, CMakeExtension):
             self.build_cmake_extension()
         else:
             super().build_extension(ext)
 
-    def copy_extensions_to_source(self):
+    def copy_extensions_to_source(self) -> None:
         '''Dummy override.  Invoked during editable installation.  Our binary
         should available in `lib`.
 
@@ -196,7 +205,7 @@ class Sdist(sdist.sdist):       # pylint: disable=too-many-ancestors
     '''Copy c++ source into Python directory.'''
     logger = logging.getLogger('xgboost sdist')
 
-    def run(self):
+    def run(self) -> None:
         copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
                   os.path.join(CURRENT_DIR, 'xgboost'))
         libxgboost = os.path.join(
@@ -213,7 +222,7 @@ class InstallLib(install_lib.install_lib):
     '''Copy shared object into installation directory.'''
     logger = logging.getLogger('xgboost install_lib')
 
-    def install(self):
+    def install(self) -> List[str]:
         outfiles = super().install()
 
         if USER_OPTIONS['use-system-libxgboost'][2] != 0:
@@ -255,7 +264,7 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
     user_options = install.install.user_options + list(
         (k, v[0], v[1]) for k, v in USER_OPTIONS.items())
 
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         super().initialize_options()
         self.use_openmp = 1
         self.use_cuda = 0
@@ -271,7 +280,7 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
 
         self.use_system_libxgboost = 0
 
-    def run(self):
+    def run(self) -> None:
         # setuptools will configure the options according to user supplied command line
         # arguments, then here we propagate them into `USER_OPTIONS` for visibility to
         # other sub-commands like `build_ext`.
@@ -341,7 +350,9 @@ if __name__ == '__main__':
                        'Programming Language :: Python :: 3',
                        'Programming Language :: Python :: 3.6',
                        'Programming Language :: Python :: 3.7',
-                       'Programming Language :: Python :: 3.8'],
+                       'Programming Language :: Python :: 3.8',
+                       'Programming Language :: Python :: 3.9',
+                       'Programming Language :: Python :: 3.10'],
           python_requires='>=3.6',
           url='https://github.com/dmlc/xgboost')
 
