@@ -264,10 +264,11 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
                        auto e = typename WQSketch::Entry{0, 0, 0, static_cast<float>(cat)};
                        return e;
                      });
+      cursor += categories_[i].size();
     } else {
       std::copy(sketch.data, sketch.data + sketch.size, worker_sketch.begin() + cursor);
+      cursor += sketch.size;
     }
-    cursor += sketch.size;
   }
 
   static_assert(sizeof(typename WQSketch::Entry) / 4 == sizeof(float),
