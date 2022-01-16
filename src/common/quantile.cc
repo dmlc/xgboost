@@ -278,6 +278,37 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
       global_sketches.size() * sizeof(typename WQSketch::Entry) / sizeof(float));
 }
 
+void AllreduceCategories(std::vector<std::set<bst_cat_t>> *p_categories) {
+  auto &categories = *p_categories;
+  std::vector<size_t> feat_size(categories.size() + 1, 0);
+  for (size_t i = 0; i < categories.size(); ++i) {
+    auto const &feat = categories[i];
+    feat_size[i + 1] = feat.size();
+  }
+  std::partial_sum(feat_size.begin(), feat_size.end(), feat_size.size());
+
+  size_t total = feat_size.back();
+  std::vector<bst_cat_t> flatten(total, 0);
+  size_t cursor{0};
+  for (auto const &feat : categories) {
+    for (auto c : feat) {
+      flatten[cursor] = c;
+      cursor++;
+    }
+  }
+
+  // rabit::Allreduce<rabit::op::Sum>(flatten.data(), flatten.size());
+
+  std::vector<size_t> global_totals(rabit::GetWorldSize(), 0);
+  auto rank = rabit::GetRank();
+  global_totals[rank] = total;
+  rabit::Allreduce<rabit::op::Sum>(global_totals.data(), global_totals.size());
+  std::partial_sum(global_totals.cbegin(), global_totals.cend(), global_totals.begin());
+  auto gtotal = global_totals.back();
+
+  std::vector<bst_cat_t> global_categories(gtotal, 0);
+}
+
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::AllReduce(
     std::vector<typename WQSketch::SummaryContainer> *p_reduced,
