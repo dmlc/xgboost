@@ -331,8 +331,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   std::vector<typename WQSketch::SummaryContainer> final_sketches(n_columns);
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
     int32_t intermediate_num_cuts = num_cuts[fidx];
-    auto nbytes =
-        WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
+    auto nbytes = WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
 
     for (decltype(world) i = 1; i < world + 1; ++i) {
       auto size = worker_segments.at(i) - worker_segments[i - 1];
@@ -356,8 +355,10 @@ void SketchContainerImpl<WQSketch>::AllReduce(
       }
     }
 
-    reduced.at(fidx).Reserve(intermediate_num_cuts);
-    reduced.at(fidx).SetPrune(final_sketches.at(fidx), intermediate_num_cuts);
+    if (!IsCat(feature_types_, fidx)) {
+      reduced.at(fidx).Reserve(intermediate_num_cuts);
+      reduced.at(fidx).SetPrune(final_sketches.at(fidx), intermediate_num_cuts);
+    }
   });
   monitor_.Stop(__func__);
 }
