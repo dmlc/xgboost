@@ -15,7 +15,7 @@ namespace common {
 template <typename WQSketch>
 SketchContainerImpl<WQSketch>::SketchContainerImpl(std::vector<bst_row_t> columns_size,
                                                    int32_t max_bins,
-                                                   common::Span<FeatureType const> feature_types,
+                                                   Span<FeatureType const> feature_types,
                                                    bool use_group, int32_t n_threads)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)},
@@ -66,7 +66,7 @@ std::vector<bst_feature_t> SketchContainerImpl<WQSketch>::LoadBalance(SparsePage
    */
   auto page = batch.GetView();
   size_t const total_entries = page.data.size();
-  size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
+  size_t const entries_per_thread = DivRoundUp(total_entries, nthreads);
 
   std::vector<std::vector<bst_row_t>> column_sizes(nthreads);
   for (auto& column : column_sizes) {
@@ -215,46 +215,51 @@ void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo
 template <typename WQSketch>
 void SketchContainerImpl<WQSketch>::GatherSketchInfo(
     std::vector<typename WQSketch::SummaryContainer> const &reduced,
-    std::vector<size_t> *p_worker_segments,
-    std::vector<bst_row_t> *p_sketches_scan,
+    std::vector<size_t> *p_worker_segments, std::vector<bst_row_t> *p_sketches_scan,
     std::vector<typename WQSketch::Entry> *p_global_sketches) {
-  auto& worker_segments = *p_worker_segments;
+  auto &worker_segments = *p_worker_segments;
   worker_segments.resize(1, 0);
   auto world = rabit::GetWorldSize();
   auto rank = rabit::GetRank();
   auto n_columns = sketches_.size();
 
   std::vector<bst_row_t> sketch_size;
-  for (auto const& sketch : reduced) {
-    sketch_size.push_back(sketch.size);
+  for (size_t i = 0; i < reduced.size(); ++i) {
+    if (IsCat(feature_types_, i)) {
+      sketch_size.push_back(categories_[i].size());
+    } else {
+      sketch_size.push_back(reduced[i].size);
+    }
   }
-  std::vector<bst_row_t>& sketches_scan = *p_sketches_scan;
+
+  std::vector<bst_row_t> &sketches_scan = *p_sketches_scan;
   sketches_scan.resize((n_columns + 1) * world, 0);
   size_t beg_scan = rank * (n_columns + 1);
-  std::partial_sum(sketch_size.cbegin(), sketch_size.cend(),
-                   sketches_scan.begin() + beg_scan + 1);
+  std::partial_sum(sketch_size.cbegin(), sketch_size.cend(), sketches_scan.begin() + beg_scan + 1);
+
   // Gather all column pointers
   rabit::Allreduce<rabit::op::Sum>(sketches_scan.data(), sketches_scan.size());
-
   for (int32_t i = 0; i < world; ++i) {
     size_t back = (i + 1) * (n_columns + 1) - 1;
     auto n_entries = sketches_scan.at(back);
     worker_segments.push_back(n_entries);
   }
   // Offset of sketch from each worker.
-  std::partial_sum(worker_segments.begin(), worker_segments.end(),
-                   worker_segments.begin());
+  std::partial_sum(worker_segments.begin(), worker_segments.end(), worker_segments.begin());
   CHECK_GE(worker_segments.size(), 1);
   auto total = worker_segments.back();
 
-  auto& global_sketches = *p_global_sketches;
-  global_sketches.resize(total, typename  WQSketch::Entry{0, 0, 0, 0});
+  auto &global_sketches = *p_global_sketches;
+  global_sketches.resize(total, typename WQSketch::Entry{0, 0, 0, 0});
   auto worker_sketch = Span<typename WQSketch::Entry>{global_sketches}.subspan(
       worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
   size_t cursor = 0;
-  for (auto const &sketch : reduced) {
-    std::copy(sketch.data, sketch.data + sketch.size,
-              worker_sketch.begin() + cursor);
+  for (size_t i = 0; i < reduced.size(); ++i) {
+    auto const &sketch = reduced[i];
+    if (IsCat(feature_types_, i)) {
+    } else {
+      std::copy(sketch.data, sketch.data + sketch.size, worker_sketch.begin() + cursor);
+    }
     cursor += sketch.size;
   }
 
@@ -286,9 +291,13 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   ParallelFor(sketches_.size(), n_threads_, [&](size_t i) {
     int32_t intermediate_num_cuts = static_cast<int32_t>(
-        std::min(global_column_size[i],
-                 static_cast<size_t>(max_bins_ * WQSketch::kFactor)));
-    if (global_column_size[i] != 0) {
+        std::min(global_column_size[i], static_cast<size_t>(max_bins_ * WQSketch::kFactor)));
+    if (global_column_size[i] == 0) {
+      return;
+    }
+    if (IsCat(feature_types_, i)) {
+      intermediate_num_cuts = categories_[i].size();
+    } else {
       typename WQSketch::SummaryContainer out;
       sketches_[i].GetSummary(&out);
       reduced[i].Reserve(intermediate_num_cuts);
@@ -308,8 +317,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   std::vector<bst_row_t> sketches_scan((n_columns + 1) * world, 0);
 
   std::vector<typename WQSketch::Entry> global_sketches;
-  this->GatherSketchInfo(reduced, &worker_segments, &sketches_scan,
-                         &global_sketches);
+  this->GatherSketchInfo(reduced, &worker_segments, &sketches_scan, &global_sketches);
 
   std::vector<typename WQSketch::SummaryContainer> final_sketches(n_columns);
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
@@ -317,20 +325,26 @@ void SketchContainerImpl<WQSketch>::AllReduce(
     auto nbytes =
         WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
 
-    for (int32_t i = 1; i < world + 1; ++i) {
+    for (decltype(world) i = 1; i < world + 1; ++i) {
       auto size = worker_segments.at(i) - worker_segments[i - 1];
       auto worker_sketches =
           Span<typename WQSketch::Entry>{global_sketches}.subspan(worker_segments[i - 1], size);
+      auto csc_ptr_size = n_columns + 1;
       auto worker_scan =
-          Span<bst_row_t>(sketches_scan)
-              .subspan((i - 1) * (n_columns + 1), (n_columns + 1));
-
-      auto worker_feature = worker_sketches.subspan(
-          worker_scan[fidx], worker_scan[fidx + 1] - worker_scan[fidx]);
+          Span<bst_row_t>(sketches_scan).subspan((i - 1) * csc_ptr_size, csc_ptr_size);
+      // 1 feature of 1 worker
+      auto worker_feature =
+          worker_sketches.subspan(worker_scan[fidx], worker_scan[fidx + 1] - worker_scan[fidx]);
       CHECK(worker_feature.data());
-      typename WQSketch::Summary summary(worker_feature.data(), worker_feature.size());
-      auto &out = final_sketches.at(fidx);
-      out.Reduce(summary, nbytes);
+      if (IsCat(feature_types_, i)) {
+        for (auto e : worker_feature) {
+          categories_.push_back(e.value);
+        }
+      } else {
+        typename WQSketch::Summary summary(worker_feature.data(), worker_feature.size());
+        auto &out = final_sketches.at(fidx);
+        out.Reduce(summary, nbytes);
+      }
     }
 
     reduced.at(fidx).Reserve(intermediate_num_cuts);
