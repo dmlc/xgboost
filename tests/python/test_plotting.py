@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+import json
 import numpy as np
 import xgboost as xgb
 import testing as tm
@@ -73,3 +73,25 @@ class TestPlotting:
         ax = xgb.plot_importance(bst, xlim=(0, 5), ylim=(10, 71))
         assert ax.get_xlim() == (0., 5.)
         assert ax.get_ylim() == (10., 71.)
+
+    def run_categorical(self, tree_method: str) -> None:
+        X, y = tm.make_categorical(1000, 31, 19, onehot=False)
+        reg = xgb.XGBRegressor(
+            enable_categorical=True, n_estimators=10, tree_method=tree_method
+        )
+        reg.fit(X, y)
+        trees = reg.get_booster().get_dump(dump_format="json")
+        for tree in trees:
+            j_tree = json.loads(tree)
+            assert "leaf" in j_tree.keys() or isinstance(
+                j_tree["split_condition"], list
+            )
+
+        graph = xgb.to_graphviz(reg, num_trees=len(j_tree) - 1)
+        assert isinstance(graph, Source)
+        ax = xgb.plot_tree(reg, num_trees=len(j_tree) - 1)
+        assert isinstance(ax, Axes)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical(self) -> None:
+        self.run_categorical("approx")
