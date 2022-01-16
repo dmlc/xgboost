@@ -325,15 +325,15 @@ void AllreduceCategories(std::vector<std::set<bst_cat_t>> *p_categories, int32_t
     // flatten categories of rank r worker
     size_t worker_size = global_worker_ptr[r + 1] - global_worker_ptr[r];
     auto worker_categories =
-        Span<bst_cat_t>(global_categories).subspan(global_worker_ptr[r], worker_size);
+        Span<bst_cat_t const>(global_categories).subspan(global_worker_ptr[r], worker_size);
     // feature ptr of rank r worker.
     auto worker_feat_ptr =
-        Span<size_t>(global_feat_ptrs).subspan(r * feature_ptr.size(), feature_ptr.size());
+        Span<size_t const>(global_feat_ptrs).subspan(r * feature_ptr.size(), feature_ptr.size());
     // push the categories in the other worker into this one.
     ParallelFor(categories.size(), n_threads, [&](auto fidx) {
       size_t begin = worker_feat_ptr[fidx];
       size_t end = worker_feat_ptr[fidx + 1];
-      Span<bst_cat_t> feat = worker_categories.subspan(begin, end - begin);
+      Span<bst_cat_t const> feat = worker_categories.subspan(begin, end - begin);
       for (auto c : feat) {
         categories[fidx].emplace(c);
       }
