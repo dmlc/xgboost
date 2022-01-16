@@ -227,7 +227,7 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
   std::vector<bst_row_t> sketch_size;
   for (size_t i = 0; i < reduced.size(); ++i) {
     if (IsCat(feature_types_, i)) {
-      sketch_size.push_back(categories_[i].size());
+      sketch_size.push_back(0);
     } else {
       sketch_size.push_back(reduced[i].size);
     }
@@ -258,13 +258,7 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
   for (size_t i = 0; i < reduced.size(); ++i) {
     auto const &sketch = reduced[i];
     if (IsCat(feature_types_, i)) {
-      // Convert categories into entries so that we only need to do 1 allreduce for sketch.
-      std::transform(categories_[i].cbegin(), categories_[i].cend(), worker_sketch.begin() + cursor,
-                     [](bst_cat_t cat) {
-                       auto e = typename WQSketch::Entry{0, 0, 0, static_cast<float>(cat)};
-                       return e;
-                     });
-      cursor += categories_[i].size();
+      continue;
     } else {
       std::copy(sketch.data, sketch.data + sketch.size, worker_sketch.begin() + cursor);
       cursor += sketch.size;
@@ -278,35 +272,73 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
       global_sketches.size() * sizeof(typename WQSketch::Entry) / sizeof(float));
 }
 
-void AllreduceCategories(std::vector<std::set<bst_cat_t>> *p_categories) {
+void AllreduceCategories(std::vector<std::set<bst_cat_t>> *p_categories, int32_t n_threads) {
   auto &categories = *p_categories;
-  std::vector<size_t> feat_size(categories.size() + 1, 0);
+  auto world_size = rabit::GetWorldSize();
+  auto rank = rabit::GetRank();
+
+  // csc pointer to each feature
+  std::vector<size_t> feature_ptr(categories.size() + 1, 0);
   for (size_t i = 0; i < categories.size(); ++i) {
     auto const &feat = categories[i];
-    feat_size[i + 1] = feat.size();
+    feature_ptr[i + 1] = feat.size();
   }
-  std::partial_sum(feat_size.begin(), feat_size.end(), feat_size.size());
+  std::partial_sum(feature_ptr.begin(), feature_ptr.end(), feature_ptr.size());
 
-  size_t total = feat_size.back();
+  // gather all feature ptr
+  std::vector<size_t> global_feat_ptrs(feature_ptr.size() * world_size, 0);
+  size_t feat_begin = rank * feature_ptr.size();
+  std::copy(feature_ptr.begin(), feature_ptr.end(), global_feat_ptrs.begin() + feat_begin);
+  rabit::Allreduce<rabit::op::Sum>(global_feat_ptrs.data(), global_feat_ptrs.size());
+
+  // move all categories into a flatten vector
+  size_t total = feature_ptr.back();
   std::vector<bst_cat_t> flatten(total, 0);
   size_t cursor{0};
   for (auto const &feat : categories) {
-    for (auto c : feat) {
-      flatten[cursor] = c;
-      cursor++;
-    }
+    std::copy(feat.cbegin(), feat.cend(), flatten.begin() + cursor);
+    cursor += feat.size();
   }
 
-  // rabit::Allreduce<rabit::op::Sum>(flatten.data(), flatten.size());
+  // indptr to each worker
+  std::vector<size_t> global_worker_ptr(world_size + 1, 0);
+  global_worker_ptr[rank + 1] = total;  // shift 1 to right for constructing the indptr
+  rabit::Allreduce<rabit::op::Sum>(global_worker_ptr.data(), global_worker_ptr.size());
+  std::partial_sum(global_worker_ptr.cbegin(), global_worker_ptr.cend(), global_worker_ptr.begin());
+  // total categories in all workers with all features
+  auto gtotal = global_worker_ptr.back();
 
-  std::vector<size_t> global_totals(rabit::GetWorldSize(), 0);
-  auto rank = rabit::GetRank();
-  global_totals[rank] = total;
-  rabit::Allreduce<rabit::op::Sum>(global_totals.data(), global_totals.size());
-  std::partial_sum(global_totals.cbegin(), global_totals.cend(), global_totals.begin());
-  auto gtotal = global_totals.back();
-
+  // categories in all workers with all features.
   std::vector<bst_cat_t> global_categories(gtotal, 0);
+  auto rank_begin = global_worker_ptr[rank];
+  auto rank_size = global_worker_ptr[rank + 1] - rank_begin;
+  CHECK_EQ(rank_size, categories.size());
+  std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
+  // gather values from all workers.
+  rabit::Allreduce<rabit::op::Sum>(global_categories.data(), global_categories.size());
+
+  for (size_t r = 0; r < world_size; ++r) {
+    if (r == rank) {
+      // continue if it's current worker.
+      continue;
+    }
+    // flatten categories of rank r worker
+    size_t worker_size = global_worker_ptr[r + 1] - global_worker_ptr[r];
+    auto worker_categories =
+        Span<bst_cat_t>(global_categories).subspan(global_worker_ptr[r], worker_size);
+    // feature ptr of rank r worker.
+    auto worker_feat_ptr =
+        Span<size_t>(global_feat_ptrs).subspan(r * feature_ptr.size(), feature_ptr.size());
+    // push the categories in the other worker into this one.
+    ParallelFor(categories.size(), n_threads, [&](auto fidx) {
+      size_t begin = worker_feat_ptr[fidx];
+      size_t end = worker_feat_ptr[fidx + 1];
+      Span<bst_cat_t> feat = worker_categories.subspan(begin, end - begin);
+      for (auto c : feat) {
+        categories[fidx].emplace(c);
+      }
+    });
+  }
 }
 
 template <typename WQSketch>
@@ -318,9 +350,10 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   CHECK_EQ(num_cuts.size(), 0);
   num_cuts.resize(sketches_.size());
 
+  AllreduceCategories(&categories_, n_threads_);
+
   auto &reduced = *p_reduced;
   reduced.resize(sketches_.size());
-  // FIXME: maybe we can just allreduce the categories at the beginning then leave it along?
 
   size_t n_columns = sketches_.size();
   rabit::Allreduce<rabit::op::Max>(&n_columns, 1);
@@ -345,7 +378,6 @@ void SketchContainerImpl<WQSketch>::AllReduce(
       CHECK(reduced[i].data);
       reduced[i].SetPrune(out, intermediate_num_cuts);
     }
-    // FIXME: incorrect num cuts
     num_cuts[i] = intermediate_num_cuts;
   });
 
@@ -378,9 +410,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
           worker_sketches.subspan(worker_scan[fidx], worker_scan[fidx + 1] - worker_scan[fidx]);
       CHECK(worker_feature.data());
       if (IsCat(feature_types_, i)) {
-        for (auto e : worker_feature) {
-          categories_.push_back(e.value);
-        }
+        continue;
       } else {
         typename WQSketch::Summary summary(worker_feature.data(), worker_feature.size());
         auto &out = final_sketches.at(fidx);
