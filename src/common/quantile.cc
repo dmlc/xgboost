@@ -289,6 +289,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 
   auto &reduced = *p_reduced;
   reduced.resize(sketches_.size());
+  // FIXME: maybe we can just allreduce the categories at the beginning then leave it along?
 
   size_t n_columns = sketches_.size();
   rabit::Allreduce<rabit::op::Max>(&n_columns, 1);
@@ -313,6 +314,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
       CHECK(reduced[i].data);
       reduced[i].SetPrune(out, intermediate_num_cuts);
     }
+    // FIXME: incorrect num cuts
     num_cuts[i] = intermediate_num_cuts;
   });
 
