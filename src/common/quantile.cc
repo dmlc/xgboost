@@ -1,13 +1,14 @@
 /*!
- * Copyright 2020-2021 by XGBoost Contributors
+ * Copyright 2020-2022 by XGBoost Contributors
  */
+#include "quantile.h"
+
 #include <limits>
 #include <utility>
 
-#include "rabit/rabit.h"
-#include "quantile.h"
-#include "hist_util.h"
 #include "categorical.h"
+#include "hist_util.h"
+#include "rabit/rabit.h"
 
 namespace xgboost {
 namespace common {
@@ -257,13 +258,20 @@ void SketchContainerImpl<WQSketch>::GatherSketchInfo(
   for (size_t i = 0; i < reduced.size(); ++i) {
     auto const &sketch = reduced[i];
     if (IsCat(feature_types_, i)) {
+      // Convert categories into entries so that we only need to do 1 allreduce for sketch.
+      std::transform(categories_[i].cbegin(), categories_[i].cend(), worker_sketch.begin() + cursor,
+                     [](bst_cat_t cat) {
+                       auto e = typename WQSketch::Entry{0, 0, 0, static_cast<float>(cat)};
+                       return e;
+                     });
     } else {
       std::copy(sketch.data, sketch.data + sketch.size, worker_sketch.begin() + cursor);
     }
     cursor += sketch.size;
   }
 
-  static_assert(sizeof(typename WQSketch::Entry) / 4 == sizeof(float), "");
+  static_assert(sizeof(typename WQSketch::Entry) / 4 == sizeof(float),
+                "Unexpected size of sketch entry.");
   rabit::Allreduce<rabit::op::Sum>(
       reinterpret_cast<float *>(global_sketches.data()),
       global_sketches.size() * sizeof(typename WQSketch::Entry) / sizeof(float));
