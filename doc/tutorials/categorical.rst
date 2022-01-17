@@ -114,11 +114,11 @@ Miscellaneous
 
 By default, XGBoost assumes input categories are integers starting from 0 till the number
 of categories :math:`[0, n_categories)`. However, user might provide inputs with invalid
-values due to mistakes or missing values. It can be negative value, floating point value
-that can not be represented by 32-bit integer, or values that are larger than actual
-number of unique categories.  During training this is validated but for prediction it's
-treated as the same as missing value for performance reasons.  Lastly, missing values are
-treated as the same as numerical features.
+values due to mistakes or missing values. It can be negative value, integer values that
+can not be accurately represented by 32-bit floating point, or values that are larger than
+actual number of unique categories.  During training this is validated but for prediction
+it's treated as the same as missing value for performance reasons.  Lastly, missing values
+are treated as the same as numerical features (using the learned split direction).
 
 **********
 Next Steps
