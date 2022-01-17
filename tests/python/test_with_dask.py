@@ -1276,7 +1276,7 @@ class TestWithDask:
 
         exe: Optional[str] = None
         for possible_path in {'./testxgboost', './build/testxgboost',
-                              '../build/testxgboost',
+                              '../build/cpubuild/testxgboost',
                               '../cpu-build/testxgboost'}:
             if os.path.exists(possible_path):
                 exe = possible_path
