@@ -425,7 +425,7 @@ void SketchContainerImpl<WQSketch>::AllReduce(
       return;
     }
 
-    for (decltype(world) r = 0; r < world; ++r) {
+    for (int32_t r = 0; r < world; ++r) {
       // 1 feature of 1 worker
       auto worker_feature = allreduce_result.Values(r, fidx);
       CHECK(worker_feature.data());
