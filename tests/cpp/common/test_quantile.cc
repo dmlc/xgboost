@@ -102,6 +102,8 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   for (auto rank = 0; rank < world; ++rank) {
     auto m = RandomDataGenerator{rows, cols, sparsity}
                  .Seed(rank)
+                 .Type(ft)
+                 .MaxCategory(13)
                  .Lower(.0f)
                  .Upper(1.0f)
                  .GenerateDMatrix();

@@ -299,6 +299,9 @@ void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_thread
   auto &categories = *p_categories;
   auto world_size = rabit::GetWorldSize();
   auto rank = rabit::GetRank();
+  if (world_size == 1) {
+    return;
+  }
 
   // CSC indptr to each feature
   std::vector<size_t> feature_ptr(categories.size() + 1, 0);
@@ -346,7 +349,7 @@ void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_thread
     if (!IsCat(feature_types, fidx)) {
       return;
     }
-    for (int32_t r; r < world_size; ++r) {
+    for (int32_t r = 0; r < world_size; ++r) {
       if (r == rank) {
         // continue if it's current worker.
         continue;
