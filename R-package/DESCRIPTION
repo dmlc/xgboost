@@ -29,7 +29,6 @@ Authors@R: c(
   person("XGBoost contributors", role = c("cph"),
          comment = "base XGBoost implementation")
   )
-Maintainer: Jiaming Yuan <jm.yuan@outlook.com>
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of the gradient boosting framework from Chen & Guestrin (2016) <doi:10.1145/2939672.2939785>.
     This package is its R interface. The package includes efficient linear
