@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen

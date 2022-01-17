@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
 #define XGBOOST_TREE_HIST_EVALUATE_SPLITS_H_
