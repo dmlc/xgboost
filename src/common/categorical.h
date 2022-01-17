@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020-2021 by XGBoost Contributors
+ * Copyright 2020-2022 by XGBoost Contributors
  * \file categorical.h
  */
 #ifndef XGBOOST_COMMON_CATEGORICAL_H_
