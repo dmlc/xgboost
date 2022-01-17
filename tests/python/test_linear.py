@@ -39,8 +39,8 @@ class TestLinear:
     # We test a weaker condition that the loss has not increased between the first and last
     # iteration
     @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, coord_strategy, strategies.floats(1e-5, 2.0),
-           strategies.floats(1e-5, 2.0))
+           tm.dataset_strategy, coord_strategy, strategies.floats(1e-5, 1.0),
+           strategies.floats(1e-5, 1.0))
     @settings(deadline=None)
     def test_coordinate_regularised(self, param, num_rounds, dataset, coord_param, alpha, lambd):
         param['updater'] = 'coord_descent'
