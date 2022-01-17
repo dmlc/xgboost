@@ -61,10 +61,10 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat
 }
 
 inline void InvalidCategory() {
-  // OutOfRangeCat() can be represented, but everything after that will be rounded toward
-  // it, so we use >= for comparison check.  As a result, we subtract 1 from the last
-  // representable value.
-  auto str = std::to_string(OutOfRangeCat() - 1);
+  // OutOfRangeCat() can be accurately represented, but everything after it will be
+  // rounded toward it, so we use >= for comparison check.  As a result, we require input
+  // values to be less than this last representable value.
+  auto str = std::to_string(OutOfRangeCat());
   LOG(FATAL) << "Invalid categorical value detected.  Categorical value should be non-negative, "
                 "less than total umber of categories in training data and less than " +
                     str;
