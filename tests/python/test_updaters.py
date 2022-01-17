@@ -133,6 +133,41 @@ class TestTreeMethod:
         w = [0, 0, 1, 0]
         model.fit(X, y, sample_weight=w)
 
+    def run_invalid_category(self, tree_method: str) -> None:
+        rng = np.random.default_rng()
+        # too large
+        X = rng.integers(low=0, high=4, size=1000).reshape(100, 10)
+        y = rng.normal(loc=0, scale=1, size=100)
+        X[13, 7] = np.iinfo(np.int32).max + 1
+
+        # Check is performed during sketching.
+        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+        with pytest.raises(ValueError):
+            xgb.train({"tree_method": tree_method}, Xy)
+
+        X[13, 7] = 16777216
+        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+        with pytest.raises(ValueError):
+            xgb.train({"tree_method": tree_method}, Xy)
+
+        # mixed positive and negative values
+        X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)
+        y = rng.normal(loc=0, scale=1, size=100)
+
+        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
+        with pytest.raises(ValueError):
+            xgb.train({"tree_method": tree_method}, Xy)
+
+        if tree_method == "gpu_hist":
+            import cupy as cp
+
+            X, y = cp.array(X), cp.array(y)
+            with pytest.raises(ValueError):
+                Xy = xgb.DeviceQuantileDMatrix(X, y, feature_types=["c"] * 10)
+
+    def test_invalid_category(self) -> None:
+        self.run_invalid_category("approx")
+
     def run_categorical_basic(self, rows, cols, rounds, cats, tree_method):
         onehot, label = tm.make_categorical(rows, cols, cats, True)
         cat, _ = tm.make_categorical(rows, cols, cats, False)

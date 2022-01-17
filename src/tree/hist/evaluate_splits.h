@@ -303,8 +303,9 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     if (candidate.split.is_cat) {
       std::vector<uint32_t> split_cats;
       if (candidate.split.cat_bits.empty()) {
-        CHECK_LT(candidate.split.split_value, std::numeric_limits<bst_cat_t>::max())
-            << "Categorical feature value too large.";
+        if (common::InvalidCat(candidate.split.split_value)) {
+          common::InvalidCategory();
+        }
         auto cat = common::AsCat(candidate.split.split_value);
         split_cats.resize(LBitField32::ComputeStorageSize(std::max(cat + 1, 1)), 0);
         LBitField32 cat_bits;
