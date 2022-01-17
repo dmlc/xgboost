@@ -42,13 +42,6 @@ void GBLinearModel::LoadModel(Json const& in) {
   } else {
     this->num_boosted_rounds = 0;
   }
-  auto const& obj = get<Object const>(in);
-  auto boosted_rounds = obj.find("boosted_rounds");
-  if (boosted_rounds != obj.cend()) {
-    this->num_boosted_rounds = get<Integer const>(boosted_rounds->second);
-  } else {
-    this->num_boosted_rounds = 0;
-  }
 }
 
 DMLC_REGISTER_PARAMETER(DeprecatedGBLinearModelParam);
