@@ -368,18 +368,19 @@ void SketchContainerImpl<WQSketch>::AllReduce(
     std::vector<typename WQSketch::SummaryContainer> *p_reduced,
     std::vector<int32_t>* p_num_cuts) {
   monitor_.Start(__func__);
-  auto& num_cuts = *p_num_cuts;
-  CHECK_EQ(num_cuts.size(), 0);
-  num_cuts.resize(sketches_.size());
-
-  AllreduceCategories(feature_types_, n_threads_, &categories_);
-
-  auto &reduced = *p_reduced;
-  reduced.resize(sketches_.size());
 
   size_t n_columns = sketches_.size();
   rabit::Allreduce<rabit::op::Max>(&n_columns, 1);
   CHECK_EQ(n_columns, sketches_.size()) << "Number of columns differs across workers";
+
+  AllreduceCategories(feature_types_, n_threads_, &categories_);
+
+  auto& num_cuts = *p_num_cuts;
+  CHECK_EQ(num_cuts.size(), 0);
+  num_cuts.resize(sketches_.size());
+
+  auto &reduced = *p_reduced;
+  reduced.resize(sketches_.size());
 
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
