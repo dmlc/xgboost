@@ -16,6 +16,10 @@ if (USE_CUDA)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
 endif (USE_CUDA)
 
+if (PLUGIN_UPDATER_ONEAPI)
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
+endif (PLUGIN_UPDATER_ONEAPI)
+
 target_include_directories(objxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include

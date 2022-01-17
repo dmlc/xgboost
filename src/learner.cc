@@ -227,6 +227,7 @@ DMLC_REGISTER_PARAMETER(GenericParameter);
 
 int constexpr GenericParameter::kCpuId;
 int64_t constexpr GenericParameter::kDefaultSeed;
+int constexpr GenericParameter::kDefaultId;
 
 void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #if defined(XGBOOST_USE_CUDA)
