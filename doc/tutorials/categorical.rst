@@ -113,7 +113,7 @@ Miscellaneous
 *************
 
 By default, XGBoost assumes input categories are integers starting from 0 till the number
-of categories :math:`[0, n_categories)`. However, user might provide inputs with invalid
+of categories :math:`[0, n\_categories)`. However, user might provide inputs with invalid
 values due to mistakes or missing values. It can be negative value, integer values that
 can not be accurately represented by 32-bit floating point, or values that are larger than
 actual number of unique categories.  During training this is validated but for prediction

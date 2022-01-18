@@ -5,6 +5,8 @@ A demo for multi-output regression
 The demo is adopted from scikit-learn:
 
 https://scikit-learn.org/stable/auto_examples/ensemble/plot_random_forest_regression_multioutput.html#sphx-glr-auto-examples-ensemble-plot-random-forest-regression-multioutput-py
+
+See :doc:`/tutorials/multioutput` for more information.
 """
 import numpy as np
 import xgboost as xgb
