@@ -8,7 +8,7 @@ dependencies:
 - pyyaml
 - cpplint
 - pylint
-- numpy=1.19.4
+- numpy
 - scipy
 - scikit-learn
 - pandas
