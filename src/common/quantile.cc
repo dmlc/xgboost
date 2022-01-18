@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020-2021 by XGBoost Contributors
+ * Copyright 2020-2022 by XGBoost Contributors
  */
 #include <limits>
 #include <utility>
@@ -27,6 +27,7 @@ SketchContainerImpl<WQSketch>::SketchContainerImpl(std::vector<bst_row_t> column
   sketches_.resize(columns_size_.size());
   CHECK_GE(n_threads_, 1);
   categories_.resize(columns_size_.size());
+  has_categorical_ = std::any_of(feature_types_.cbegin(), feature_types_.cend(), IsCatOp{});
 }
 
 template <typename WQSketch>
@@ -187,7 +188,7 @@ void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo
           if (is_dense) {
             for (size_t ii = begin; ii < end; ii++) {
               if (IsCat(feature_types_, ii)) {
-                categories_[ii].emplace(AsCat(p_inst[ii].fvalue));
+                categories_[ii].emplace(p_inst[ii].fvalue);
               } else {
                 sketches_[ii].Push(p_inst[ii].fvalue, w);
               }
@@ -197,7 +198,7 @@ void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo
               auto const& entry = p_inst[i];
               if (entry.index >= begin && entry.index < end) {
                 if (IsCat(feature_types_, entry.index)) {
-                  categories_[entry.index].emplace(AsCat(entry.fvalue));
+                  categories_[entry.index].emplace(entry.fvalue);
                 } else {
                   sketches_[entry.index].Push(entry.fvalue, w);
                 }
@@ -352,10 +353,10 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
   }
 }
 
-void AddCategories(std::set<bst_cat_t> const &categories, HistogramCuts *cuts) {
+void AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   auto &cut_values = cuts->cut_values_.HostVector();
   for (auto const &v : categories) {
-    cut_values.push_back(v);
+    cut_values.push_back(AsCat(v));
   }
 }
 
@@ -410,6 +411,15 @@ void SketchContainerImpl<WQSketch>::MakeCuts(HistogramCuts* cuts) {
     CHECK_GT(cut_size, cuts->cut_ptrs_.HostVector().back());
     cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
+
+  if (has_categorical_) {
+    for (auto const &feat : categories_) {
+      if (std::any_of(feat.cbegin(), feat.cend(), InvalidCat)) {
+        InvalidCategory();
+      }
+    }
+  }
+
   monitor_.Stop(__func__);
 }
 
@@ -457,7 +467,7 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
     // second pass
     if (IsCat(feature_types_, fidx)) {
       for (auto c : column) {
-        categories_[fidx].emplace(AsCat(c.fvalue));
+        categories_[fidx].emplace(c.fvalue);
       }
     } else {
       for (auto c : column) {

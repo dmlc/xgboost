@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -706,13 +706,14 @@ template <typename WQSketch>
 class SketchContainerImpl {
  protected:
   std::vector<WQSketch> sketches_;
-  std::vector<std::set<bst_cat_t>> categories_;
+  std::vector<std::set<float>> categories_;
   std::vector<FeatureType> const feature_types_;
 
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
   bool use_group_ind_{false};
   int32_t n_threads_;
+  bool has_categorical_{false};
   Monitor monitor_;
 
  public:
