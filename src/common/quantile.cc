@@ -247,7 +247,7 @@ struct QuantileAllreduce {
  * \brief Merge all categories from other workers.
  */
 void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_threads,
-                         std::vector<std::set<bst_cat_t>> *p_categories) {
+                         std::vector<std::set<float>> *p_categories) {
   auto &categories = *p_categories;
   auto world_size = rabit::GetWorldSize();
   auto rank = rabit::GetRank();
