@@ -1,3 +1,4 @@
+"""Copyright 2019-2022 XGBoost contributors"""
 import sys
 import os
 from typing import Type, TypeVar, Any, Dict, List, Tuple
@@ -36,7 +37,8 @@ from test_with_dask import generate_array             # noqa
 from test_with_dask import kCols as random_cols       # noqa
 from test_with_dask import suppress                   # noqa
 from test_with_dask import run_tree_stats             # noqa
-
+from test_with_dask import run_categorical            # noqa
+from test_with_dask import make_categorical           # noqa
 
 
 try:
@@ -49,49 +51,6 @@ try:
     import cudf
 except ImportError:
     pass
-
-
-def make_categorical(
-    client: Client,
-    n_samples: int,
-    n_features: int,
-    n_categories: int,
-    onehot: bool = False,
-) -> Tuple[dd.DataFrame, dd.Series]:
-    workers = _get_client_workers(client)
-    n_workers = len(workers)
-    dfs = []
-
-    def pack(**kwargs: Any) -> dd.DataFrame:
-        X, y = tm.make_categorical(**kwargs)
-        X["label"] = y
-        return X
-
-    meta = pack(
-        n_samples=1, n_features=n_features, n_categories=n_categories, onehot=False
-    )
-
-    for i, worker in enumerate(workers):
-        l_n_samples = min(
-            n_samples // n_workers, n_samples - i * (n_samples // n_workers)
-        )
-        future = client.submit(
-            pack,
-            n_samples=l_n_samples,
-            n_features=n_features,
-            n_categories=n_categories,
-            onehot=False,
-            workers=[worker],
-        )
-        dfs.append(future)
-
-    df = dd.from_delayed(dfs, meta=meta)
-    y = df["label"]
-    X = df[df.columns.difference(["label"])]
-
-    if onehot:
-        return dd.get_dummies(X), y
-    return X, y
 
 
 def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
@@ -184,69 +143,12 @@ def test_categorical(local_cuda_cluster: LocalCUDACluster) -> None:
     with Client(local_cuda_cluster) as client:
         import dask_cudf
 
-        rounds = 10
         X, y = make_categorical(client, 10000, 30, 13)
         X = dask_cudf.from_dask_dataframe(X)
 
         X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
         X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
-
-        parameters = {"tree_method": "gpu_hist"}
-
-        m = dxgb.DaskDMatrix(client, X_onehot, y, enable_categorical=True)
-        by_etl_results = dxgb.train(
-            client,
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-        )["history"]
-
-        m = dxgb.DaskDMatrix(client, X, y, enable_categorical=True)
-        output = dxgb.train(
-            client,
-            parameters,
-            m,
-            num_boost_round=rounds,
-            evals=[(m, "Train")],
-        )
-        by_builtin_results = output["history"]
-
-        np.testing.assert_allclose(
-            np.array(by_etl_results["Train"]["rmse"]),
-            np.array(by_builtin_results["Train"]["rmse"]),
-            rtol=1e-3,
-        )
-        assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
-
-        def check_model_output(model: dxgb.Booster) -> None:
-            with tempfile.TemporaryDirectory() as tempdir:
-                path = os.path.join(tempdir, "model.json")
-                model.save_model(path)
-                with open(path, "r") as fd:
-                    categorical = json.load(fd)
-
-                categories_sizes = np.array(
-                    categorical["learner"]["gradient_booster"]["model"]["trees"][-1][
-                        "categories_sizes"
-                    ]
-                )
-                assert categories_sizes.shape[0] != 0
-                np.testing.assert_allclose(categories_sizes, 1)
-
-        check_model_output(output["booster"])
-        reg = dxgb.DaskXGBRegressor(
-            enable_categorical=True, n_estimators=10, tree_method="gpu_hist"
-        )
-        reg.fit(X, y)
-
-        check_model_output(reg.get_booster())
-
-        reg = dxgb.DaskXGBRegressor(
-            enable_categorical=True, n_estimators=10
-        )
-        with pytest.raises(ValueError):
-            reg.fit(X, y)
+        run_categorical(client, "gpu_hist", X, X_onehot, y)
 
 
 def to_cp(x: Any, DMatrixT: Type) -> Any:

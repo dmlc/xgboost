@@ -183,7 +183,7 @@ bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
 }
 
 SimpleLCG::StateType SimpleLCG::operator()() {
-  state_ = (alpha_ * state_) % mod_;
+  state_ = (alpha_ * state_ + (state_ == 0 ? kDefaultInit : 0)) % mod_;
   return state_;
 }
 SimpleLCG::StateType SimpleLCG::Min() const { return min(); }

@@ -1,3 +1,4 @@
+"""Copyright 2019-2022 XGBoost contributors"""
 from pathlib import Path
 import pickle
 import testing as tm
@@ -62,6 +63,49 @@ kWorkers = 5
 def _get_client_workers(client: "Client") -> List[str]:
     workers = client.scheduler_info()['workers']
     return list(workers.keys())
+
+
+def make_categorical(
+    client: Client,
+    n_samples: int,
+    n_features: int,
+    n_categories: int,
+    onehot: bool = False,
+) -> Tuple[dd.DataFrame, dd.Series]:
+    workers = _get_client_workers(client)
+    n_workers = len(workers)
+    dfs = []
+
+    def pack(**kwargs: Any) -> dd.DataFrame:
+        X, y = tm.make_categorical(**kwargs)
+        X["label"] = y
+        return X
+
+    meta = pack(
+        n_samples=1, n_features=n_features, n_categories=n_categories, onehot=False
+    )
+
+    for i, worker in enumerate(workers):
+        l_n_samples = min(
+            n_samples // n_workers, n_samples - i * (n_samples // n_workers)
+        )
+        future = client.submit(
+            pack,
+            n_samples=l_n_samples,
+            n_features=n_features,
+            n_categories=n_categories,
+            onehot=False,
+            workers=[worker],
+        )
+        dfs.append(future)
+
+    df = dd.from_delayed(dfs, meta=meta)
+    y = df["label"]
+    X = df[df.columns.difference(["label"])]
+
+    if onehot:
+        return dd.get_dummies(X), y
+    return X, y
 
 
 def generate_array(
@@ -171,6 +215,80 @@ def test_dask_sparse(client: "Client") -> None:
     np.testing.assert_allclose(
         dense_results["validation_0"]["mlogloss"], sparse_results["validation_0"]["mlogloss"]
     )
+
+
+def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
+    parameters = {"tree_method": tree_method, "max_cat_to_onehot": 9999} # force onehot
+    rounds = 10
+    m = xgb.dask.DaskDMatrix(client, X_onehot, y, enable_categorical=True)
+    by_etl_results = xgb.dask.train(
+        client,
+        parameters,
+        m,
+        num_boost_round=rounds,
+        evals=[(m, "Train")],
+    )["history"]
+
+    m = xgb.dask.DaskDMatrix(client, X, y, enable_categorical=True)
+    output = xgb.dask.train(
+        client,
+        parameters,
+        m,
+        num_boost_round=rounds,
+        evals=[(m, "Train")],
+    )
+    by_builtin_results = output["history"]
+
+    np.testing.assert_allclose(
+        np.array(by_etl_results["Train"]["rmse"]),
+        np.array(by_builtin_results["Train"]["rmse"]),
+        rtol=1e-3,
+    )
+    assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
+
+    def check_model_output(model: xgb.dask.Booster) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = os.path.join(tempdir, "model.json")
+            model.save_model(path)
+            with open(path, "r") as fd:
+                categorical = json.load(fd)
+
+            categories_sizes = np.array(
+                categorical["learner"]["gradient_booster"]["model"]["trees"][-1][
+                    "categories_sizes"
+                ]
+            )
+            assert categories_sizes.shape[0] != 0
+            np.testing.assert_allclose(categories_sizes, 1)
+
+    check_model_output(output["booster"])
+    reg = xgb.dask.DaskXGBRegressor(
+        enable_categorical=True,
+        n_estimators=10,
+        tree_method=tree_method,
+        # force onehot
+        max_cat_to_onehot=9999
+    )
+    reg.fit(X, y)
+
+    check_model_output(reg.get_booster())
+
+    reg = xgb.dask.DaskXGBRegressor(
+        enable_categorical=True, n_estimators=10
+    )
+    with pytest.raises(ValueError):
+        reg.fit(X, y)
+    # check partition based
+    reg = xgb.dask.DaskXGBRegressor(
+        enable_categorical=True, n_estimators=10, tree_method=tree_method
+    )
+    reg.fit(X, y, eval_set=[(X, y)])
+    assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
+
+def test_categorical(client: "Client") -> None:
+    X, y = make_categorical(client, 10000, 30, 13)
+    X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
+    run_categorical(client, "approx", X, X_onehot, y)
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
@@ -1167,7 +1285,7 @@ class TestWithDask:
 
         exe: Optional[str] = None
         for possible_path in {'./testxgboost', './build/testxgboost',
-                              '../build/testxgboost',
+                              '../build/cpubuild/testxgboost',
                               '../cpu-build/testxgboost'}:
             if os.path.exists(possible_path):
                 exe = possible_path
