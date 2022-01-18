@@ -289,6 +289,19 @@ class TestModels:
         os.remove(model_path)
         assert locale.getpreferredencoding(False) == loc
 
+        json_raw = bst.save_raw(raw_format="json")
+        from_jraw = xgb.Booster()
+        from_jraw.load_model(json_raw)
+
+        ubj_raw = bst.save_raw(raw_format="ubj")
+        from_ubjraw = xgb.Booster()
+        from_ubjraw.load_model(ubj_raw)
+
+        old_from_json = from_jraw.save_raw(raw_format="deprecated")
+        old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
+
+        assert old_from_json == old_from_ubj
+
     @pytest.mark.parametrize("ext", ["json", "ubj"])
     def test_model_json_io(self, ext: str) -> None:
         parameters = {"booster": "gbtree", "tree_method": "hist"}
