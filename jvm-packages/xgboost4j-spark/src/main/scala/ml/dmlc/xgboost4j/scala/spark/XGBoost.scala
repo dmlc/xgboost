@@ -683,5 +683,3 @@ private object Watches {
     new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
   }
 }
-
-

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -301,6 +301,19 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
 
   def getVersion: Int = booster.getVersion
 
+  /**
+    * Save model into a raw byte array.  Available options are "json", "ubj" and "deprecated".
+    */
+  @throws(classOf[XGBoostError])
+  def toByteArray(format: String): Array[Byte] = {
+    booster.toByteArray(format)
+  }
+
+  /**
+    * Save model into a raw byte array. Currently it's using the deprecated format as
+   *  default, which will be changed into `ubj` in future releases.
+    */
+  @throws(classOf[XGBoostError])
   def toByteArray: Array[Byte] = {
     booster.toByteArray
   }

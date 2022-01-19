@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2021 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -115,7 +115,9 @@ public class BoosterImplTest {
     booster.saveModel(temp.getAbsolutePath());
 
     Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
-    assert (Arrays.equals(bst2.toByteArray(), booster.toByteArray()));
+    assert (Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")));
+    assert (Arrays.equals(bst2.toByteArray("json"), booster.toByteArray("json")));
+    assert (Arrays.equals(bst2.toByteArray("deprecated"), booster.toByteArray("deprecated")));
     float[][] predicts2 = bst2.predict(testMat, true, 0);
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
   }

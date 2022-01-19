@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ class XGBoostJNI {
 
   public final static native int XGBoosterLoadModelFromBuffer(long handle, byte[] bytes);
 
-  public final static native int XGBoosterGetModelRaw(long handle, byte[][] out_bytes);
+  public final static native int XGBoosterSaveModelToBuffer(long handle, String format, byte[][] out_bytes);
 
   public final static native int XGBoosterDumpModelEx(long handle, String fmap, int with_stats,
                                                       String format, String[][] out_strings);

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -117,6 +117,7 @@ class ScalaBoosterImplSuite extends FunSuite {
 
     val bst2: Booster = XGBoost.loadModel(temp.getAbsolutePath)
     assert(java.util.Arrays.equals(bst2.toByteArray, booster.toByteArray))
+    assert(java.util.Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")))
     val predicts2: Array[Array[Float]] = bst2.predict(testMat, true, 0)
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f)
   }

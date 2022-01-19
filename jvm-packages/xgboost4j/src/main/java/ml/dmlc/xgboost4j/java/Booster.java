@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -636,13 +636,27 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * Save model into raw byte array. Currently it's using the deprecated format as
+   * default, which will be changed into `ubj` in future releases.
    *
-   * @return the saved byte array.
+   * @return the saved byte array
    * @throws XGBoostError native error
    */
   public byte[] toByteArray() throws XGBoostError {
+    return this.toByteArray("deprecated");
+  }
+
+  /**
+   * Save model into raw byte array.
+   *
+   * @param format The output format.  Available options are "json", "ubj" and "deprecated".
+   *
+   * @return the saved byte array
+   * @throws XGBoostError native error
+   */
+  public byte[] toByteArray(String format) throws XGBoostError {
     byte[][] bytes = new byte[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetModelRaw(this.handle, bytes));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveModelToBuffer(this.handle, format, bytes));
     return bytes[0];
   }
 
