@@ -728,7 +728,7 @@ public class Booster implements Serializable, KryoSerializable {
   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
     try {
       out.writeInt(version);
-      out.writeObject(this.toByteArray());
+      out.writeObject(this.toByteArray("ubj"));
     } catch (XGBoostError ex) {
       ex.printStackTrace();
       logger.error(ex.getMessage());
@@ -764,7 +764,7 @@ public class Booster implements Serializable, KryoSerializable {
   @Override
   public void write(Kryo kryo, Output output) {
     try {
-      byte[] serObj = this.toByteArray();
+      byte[] serObj = this.toByteArray("ubj");
       int serObjSize = serObj.length;
       output.writeInt(serObjSize);
       output.writeInt(version);
