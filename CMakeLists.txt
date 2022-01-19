@@ -138,7 +138,7 @@ if (USE_CUDA)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   if ((${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 11.4) AND (NOT BUILD_WITH_CUDA_CUB))
-    message(SEND_ERROR "`BUILD_WITH_CUDA_CUB` should be set to `ON` for CUDA >= 11.4")
+    set(BUILD_WITH_CUDA_CUB ON)
   endif ()
 endif (USE_CUDA)
 
