@@ -1315,7 +1315,8 @@ class TestWithDask:
             with Client(cluster) as client:
                 workers = _get_client_workers(client)
                 rabit_args = client.sync(
-                    xgb.dask._get_rabit_args, len(workers), client)
+                    xgb.dask._get_rabit_args, len(workers), None, client
+                )
                 futures = client.map(runit,
                                      workers,
                                      pure=False,
@@ -1443,7 +1444,9 @@ class TestWithDask:
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
                 workers = _get_client_workers(client)
-                rabit_args = client.sync(xgb.dask._get_rabit_args, len(workers), client)
+                rabit_args = client.sync(
+                    xgb.dask._get_rabit_args, len(workers), None, client
+                )
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:

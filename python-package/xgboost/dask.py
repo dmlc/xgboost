@@ -136,10 +136,10 @@ def _multi_lock() -> Any:
     return MultiLock
 
 
-def _start_tracker(n_workers: int) -> Dict[str, Any]:
+def _start_tracker(n_workers: int, host_ip: Optional[str]) -> Dict[str, Any]:
     """Start Rabit tracker """
     env: Dict[str, Union[int, str]] = {'DMLC_NUM_WORKER': n_workers}
-    host = get_host_ip('auto')
+    host = get_host_ip(host_ip)
     rabit_context = RabitTracker(hostIP=host, n_workers=n_workers, use_logger=False)
     env.update(rabit_context.worker_envs())
 
@@ -805,11 +805,26 @@ def _dmatrix_from_list_of_parts(
     return _create_dmatrix(**kwargs)
 
 
-async def _get_rabit_args(n_workers: int, client: "distributed.Client") -> List[bytes]:
-    '''Get rabit context arguments from data distribution in DaskDMatrix.'''
-    env = await client.run_on_scheduler(_start_tracker, n_workers)
+async def _get_rabit_args(
+    n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
+) -> List[bytes]:
+    """Get rabit context arguments from data distribution in DaskDMatrix."""
+    valid_config = ["scheduler_address"]
+    if dconfig is not None:
+        for k in dconfig:
+            if k not in valid_config:
+                raise ValueError(f"Unknown configuration: {k}")
+        host_ip: Optional[str] = dconfig.get("scheduler_address", None)
+    else:
+        host_ip = None
+
+    env = await client.run_on_scheduler(_start_tracker, n_workers, host_ip)
     rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args
+
+
+def _get_dask_config() -> Optional[Dict[str, Any]]:
+    return dask.config.get("xgboost", default=None)
 
 # train and predict methods are supposed to be "functional", which meets the
 # dask paradigm.  But as a side effect, the `evals_result` in single-node API
@@ -837,6 +852,7 @@ def _get_workers_from_data(
 async def _train_async(
     client: "distributed.Client",
     global_config: Dict[str, Any],
+    dconfig: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
     num_boost_round: int,
@@ -850,7 +866,7 @@ async def _train_async(
     custom_metric: Optional[Metric],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
-    _rabit_args = await _get_rabit_args(len(workers), client)
+    _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
 
     if params.get("booster", None) == "gblinear":
         raise NotImplementedError(
@@ -948,7 +964,7 @@ async def _train_async(
 
 
 @_deprecate_positional_args
-def train(                      # pylint: disable=unused-argument
+def train(  # pylint: disable=unused-argument
     client: "distributed.Client",
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
@@ -995,7 +1011,12 @@ def train(                      # pylint: disable=unused-argument
     _assert_dask_support()
     client = _xgb_get_client(client)
     args = locals()
-    return client.sync(_train_async, global_config=config.get_config(), **args)
+    return client.sync(
+        _train_async,
+        global_config=config.get_config(),
+        dconfig=_get_dask_config(),
+        **args,
+    )
 
 
 def _can_output_df(is_df: bool, output_shape: Tuple) -> bool:
@@ -1693,6 +1714,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
+            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1796,6 +1818,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
+            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1987,6 +2010,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
+            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
