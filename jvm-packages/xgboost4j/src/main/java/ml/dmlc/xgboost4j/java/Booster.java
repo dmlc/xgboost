@@ -645,6 +645,7 @@ public class Booster implements Serializable, KryoSerializable {
   public byte[] toByteArray() throws XGBoostError {
     return this.toByteArray("deprecated");
   }
+
   /**
    * Save model into raw byte array.
    *
