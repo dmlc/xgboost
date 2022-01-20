@@ -174,8 +174,8 @@ def _try_start_tracker(
             str(addrs[1]),
         )
         env = _try_start_tracker(n_workers, addrs[1:])
-    finally:
-        return env
+
+    return env
 
 
 def _start_tracker(
