@@ -205,6 +205,7 @@ class RabitContext:
 
     def __enter__(self) -> None:
         rabit.init(self.args)
+        assert rabit.is_distributed()
         LOGGER.debug('-------------- rabit say hello ------------------')
 
     def __exit__(self, *args: List) -> None:
