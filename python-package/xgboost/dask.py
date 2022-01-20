@@ -165,8 +165,9 @@ def _start_tracker(
         if e.errno != 99:  # not a bind error
             raise
         LOGGER.warning(
-            f"Failed to bind address: {get_host_ip(addr_from_user)}, try"
-            f" {addr_from_dask} instead."
+            "Failed to bind address: %s, try %s instead.",
+            str(get_host_ip(addr_from_user)),
+            str(addr_from_dask),
         )
         rabit_context = RabitTracker(
             hostIP=addr_from_dask, n_workers=n_workers, use_logger=False
