@@ -82,6 +82,7 @@
             <modules>
                 <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
+                <module>xgboost4j-example-gpu</module>
             </modules>
         </profile>
 
@@ -94,6 +95,7 @@
                 <module>xgboost4j-flink</module>
                 <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
+                <module>xgboost4j-example-gpu</module>
             </modules>
             <build>
                 <plugins>
@@ -220,6 +222,7 @@
                 <module>xgboost4j-flink</module>
                 <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
+                <module>xgboost4j-example-gpu</module>
             </modules>
             <build>
                 <plugins>
@@ -296,6 +299,7 @@
                 <module>xgboost4j-flink</module>
                 <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
+                <module>xgboost4j-example-gpu</module>
             </modules>
             <build>
                 <plugins>
