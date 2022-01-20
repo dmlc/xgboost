@@ -41,12 +41,12 @@ void QuantileHistMakerOneAPI::Configure(const Args& args) {
 
   if (is_cpu)
   {
-    updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker", tparam_));
+    updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker", tparam_, task_));
     updater_backend_->Configure(args);
   }
   else
   {
-    updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker_oneapi_gpu", tparam_));
+    updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker_oneapi_gpu", tparam_, task_));
     updater_backend_->Configure(args);
   }
 }
@@ -59,7 +59,7 @@ void QuantileHistMakerOneAPI::Update(HostDeviceVector<GradientPair> *gpair,
 
 bool QuantileHistMakerOneAPI::UpdatePredictionCache(
     const DMatrix* data,
-    HostDeviceVector<bst_float>* out_preds) {
+    linalg::VectorView<bst_float> out_preds) {
   return updater_backend_->UpdatePredictionCache(data, out_preds);
 }
 
@@ -78,7 +78,7 @@ void GPUQuantileHistMakerOneAPI::Configure(const Args& args) {
 
   // initialize pruner
   if (!pruner_) {
-    pruner_.reset(TreeUpdater::Create("prune", tparam_));
+    pruner_.reset(TreeUpdater::Create("prune", tparam_, task_));
   }
   pruner_->Configure(args);
   param_.UpdateAllowUnknown(args);
@@ -148,7 +148,7 @@ void GPUQuantileHistMakerOneAPI::Update(HostDeviceVector<GradientPair> *gpair,
 }
 
 bool GPUQuantileHistMakerOneAPI::UpdatePredictionCache(const DMatrix* data,
-                                                       HostDeviceVector<bst_float>* out_preds) {
+                                                       linalg::VectorView<bst_float> out_preds) {
   if (param_.subsample < 1.0f) {
     return false;
   } else {
@@ -631,7 +631,7 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update(
 template<typename GradientSumT>
 bool GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
-    HostDeviceVector<bst_float>* p_out_preds) {
+    linalg::VectorView<bst_float> out_preds) {
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
@@ -639,10 +639,10 @@ bool GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::UpdatePredictionCache(
   }
   builder_monitor_.Start("UpdatePredictionCache");
 
-  std::vector<bst_float>& out_preds = p_out_preds->HostVector();
-  sycl::buffer<float, 1> out_preds_buf(out_preds.data(), out_preds.size());
+  const size_t stride = out_preds.Stride(0);
+  sycl::buffer<float, 1> out_preds_buf(&out_preds(0), out_preds.Size()*stride);
 
-  CHECK_GT(out_preds.size(), 0U);
+  CHECK_GT(out_preds.Size(), 0U);
 
   size_t n_nodes = row_set_collection_.Size();
   for (size_t node = 0; node < n_nodes; node++) {
@@ -666,7 +666,7 @@ bool GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::UpdatePredictionCache(
       qu_.submit([&](sycl::handler& cgh) {
         auto out_predictions = out_preds_buf.template get_access<sycl::access::mode::read_write>(cgh);
         cgh.parallel_for<>(sycl::range<1>(num_rows), [=](sycl::item<1> pid) {
-          out_predictions[rid[pid.get_id(0)]] += leaf_value;
+          out_predictions[rid[pid.get_id(0)]*stride] += leaf_value;
         });
       }).wait();
     }
@@ -849,11 +849,11 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitData(const GHistInde
   // store a pointer to the tree
   p_last_tree_ = &tree;
   if (data_layout_ == kDenseDataOneBased) {
-    column_sampler_.Init(info.num_col_, info.feature_weigths.ConstHostVector(),
+    column_sampler_.Init(info.num_col_, info.feature_weights.ConstHostVector(),
                          param_.colsample_bynode, param_.colsample_bylevel,
                          param_.colsample_bytree, true);
   } else {
-    column_sampler_.Init(info.num_col_, info.feature_weigths.ConstHostVector(),
+    column_sampler_.Init(info.num_col_, info.feature_weights.ConstHostVector(),
                          param_.colsample_bynode, param_.colsample_bylevel,
                          param_.colsample_bytree, false);
   }
@@ -1396,15 +1396,15 @@ template void GPUQuantileHistMakerOneAPI::Builder<double>::PartitionKernel<uint3
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMakerOneAPI, "grow_quantile_histmaker_oneapi")
 .describe("Grow tree using quantized histogram with dpc++.")
 .set_body(
-    []() {
-      return new QuantileHistMakerOneAPI();
+    [](ObjInfo task) {
+      return new QuantileHistMakerOneAPI(task);
     });
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUQuantileHistMakerOneAPI, "grow_quantile_histmaker_oneapi_gpu")
 .describe("Grow tree using quantized histogram with dpc++ on GPU.")
 .set_body(
-    []() {
-      return new GPUQuantileHistMakerOneAPI();
+    [](ObjInfo task) {
+      return new GPUQuantileHistMakerOneAPI(task);
     });
 }  // namespace tree
 }  // namespace xgboost

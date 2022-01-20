@@ -86,13 +86,13 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    if (info.labels_.Size() == 0) {
+    if (info.labels.Size() == 0) {
       return;
     }
-    CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
+    CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels.Size()))
         << "SoftmaxMultiClassObjOneAPI: label size and pred size does not match.\n"
         << "label.Size() * num_class: "
-        << info.labels_.Size() * static_cast<size_t>(param_.num_class) << "\n"
+        << info.labels.Size() * static_cast<size_t>(param_.num_class) << "\n"
         << "num_class: " << param_.num_class << "\n"
         << "preds.Size(): " << preds.Size();
 
@@ -108,7 +108,7 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
     }
 
     sycl::buffer<bst_float, 1> preds_buf(preds.HostPointer(), preds.Size());
-    sycl::buffer<bst_float, 1> labels_buf(info.labels_.HostPointer(), info.labels_.Size());
+    sycl::buffer<bst_float, 1> labels_buf(info.labels.Data()->HostPointer(), info.labels.Size());
     sycl::buffer<GradientPair, 1> out_gpair_buf(out_gpair->HostPointer(), out_gpair->Size());
     sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
                                                is_null_weight ? 1 : info.weights_.Size());
@@ -161,7 +161,7 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
       LOG(FATAL) << "SoftmaxMultiClassObjOneAPI: label must be in [0, num_class).";
     }
   }
-  void PredTransform(HostDeviceVector<bst_float>* io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float>* io_preds) const override {
     this->Transform(io_preds, output_prob_);
   }
   void EvalTransform(HostDeviceVector<bst_float>* io_preds) override {
@@ -171,7 +171,7 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
     return "mlogloss";
   }
 
-  inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) {
+  inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) const {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
@@ -209,6 +209,8 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
     }
   }
 
+  struct ObjInfo Task() const override {return {ObjInfo::kClassification, false}; } 
+
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     if (this->output_prob_) {
@@ -229,9 +231,9 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
   // parameter
   SoftmaxMultiClassParamOneAPI param_;
   // Cache for max_preds
-  HostDeviceVector<bst_float> max_preds_;
+  mutable HostDeviceVector<bst_float> max_preds_;
 
-  sycl::queue qu_;
+  mutable sycl::queue qu_;
 };
 
 // register the objective functions

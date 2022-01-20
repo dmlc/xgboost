@@ -12,6 +12,7 @@
 
 #include "xgboost/parameter.h"
 #include "xgboost/data.h"
+#include "../src/tree/param.h"
 
 namespace xgboost {
 namespace tree {

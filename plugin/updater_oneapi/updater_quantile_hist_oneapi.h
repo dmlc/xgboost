@@ -98,7 +98,7 @@ struct OneAPIHistMakerTrainParam
 /*! \brief construct a tree using quantized feature values with DPC++ interface */
 class QuantileHistMakerOneAPI: public TreeUpdater {
  public:
-  QuantileHistMakerOneAPI() = default;
+  explicit QuantileHistMakerOneAPI(ObjInfo task) : task_{task} {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -106,7 +106,7 @@ class QuantileHistMakerOneAPI: public TreeUpdater {
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             HostDeviceVector<bst_float>* out_preds) override;
+                             linalg::VectorView<bst_float> out_preds) override;
 
   void LoadConfig(Json const& in) override {
     if (updater_backend_) {
@@ -138,6 +138,7 @@ class QuantileHistMakerOneAPI: public TreeUpdater {
   // training parameter
   TrainParam param_;
 
+  ObjInfo task_;
   std::unique_ptr<TreeUpdater> updater_backend_;
 };
 
@@ -161,7 +162,7 @@ struct NodeEntry {
 /*! \brief construct a tree using quantized feature values with DPC++ backend on GPU*/
 class GPUQuantileHistMakerOneAPI: public TreeUpdater {
  public:
-  GPUQuantileHistMakerOneAPI() {
+  explicit GPUQuantileHistMakerOneAPI(ObjInfo task) : task_{task} {
     updater_monitor_.Init("GPUQuantileHistMakerOneAPI");
   }
   void Configure(const Args& args) override;
@@ -171,7 +172,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             HostDeviceVector<bst_float>* out_preds) override;
+                             linalg::VectorView<bst_float> out_preds) override;
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
@@ -271,7 +272,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     }
 
     bool UpdatePredictionCache(const DMatrix* data,
-                               HostDeviceVector<bst_float>* p_out_preds);
+                               linalg::VectorView<bst_float> p_out_preds);
     void SetHistSynchronizer(HistSynchronizerOneAPI<GradientSumT>* sync);
     void SetHistRowsAdder(HistRowsAdderOneAPI<GradientSumT>* adder);
 
@@ -514,6 +515,8 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
   FeatureInteractionConstraintHost int_constraint_;
 
   sycl::queue qu_;
+
+  ObjInfo task_;
 };
 
 template <typename GradientSumT>

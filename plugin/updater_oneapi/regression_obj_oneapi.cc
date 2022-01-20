@@ -48,12 +48,12 @@ class RegLossObjOneAPI : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    if (info.labels_.Size() == 0U) {
+    if (info.labels.Size() == 0U) {
       LOG(WARNING) << "Label set is empty.";
     }
-    CHECK_EQ(preds.Size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels.Size())
         << " " << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size() << ", "
+        << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "
         << "Loss: " << Loss::Name();
 
     size_t const ndata = preds.Size();
@@ -66,7 +66,7 @@ class RegLossObjOneAPI : public ObjFunction {
     bool is_null_weight = info.weights_.Size() == 0;
 
     sycl::buffer<bst_float, 1> preds_buf(preds.HostPointer(), preds.Size());
-    sycl::buffer<bst_float, 1> labels_buf(info.labels_.HostPointer(), info.labels_.Size());
+    sycl::buffer<bst_float, 1> labels_buf(info.labels.Data()->HostPointer(), info.labels.Size());
     sycl::buffer<GradientPair, 1> out_gpair_buf(out_gpair->HostPointer(), out_gpair->Size());
     sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
                                                is_null_weight ? 1 : info.weights_.Size());
@@ -123,7 +123,7 @@ class RegLossObjOneAPI : public ObjFunction {
     return Loss::DefaultEvalMetric();
   }
 
-  void PredTransform(HostDeviceVector<float> *io_preds) override {
+  void PredTransform(HostDeviceVector<float> *io_preds) const override {
     size_t const ndata = io_preds->Size();
 
     sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
@@ -141,6 +141,10 @@ class RegLossObjOneAPI : public ObjFunction {
     return Loss::ProbToMargin(base_score);
   }
 
+  struct ObjInfo Task() const override {
+    return Loss::Info();
+  };
+
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
@@ -154,7 +158,7 @@ class RegLossObjOneAPI : public ObjFunction {
  protected:
   RegLossParamOneAPI param_;
 
-  sycl::queue qu_;
+  mutable sycl::queue qu_;
 };
 
 // register the objective functions

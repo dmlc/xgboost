@@ -80,7 +80,7 @@ class PredictorOneAPI : public Predictor {
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
-                           std::vector<bst_float>* tree_weights,
+                           const std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
                            unsigned condition_feature) const override {
     predictor_backend_->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
@@ -88,7 +88,7 @@ class PredictorOneAPI : public Predictor {
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
-                                       std::vector<bst_float>* tree_weights,
+                                       const std::vector<bst_float>* tree_weights,
                                        bool approximate) const override {
     predictor_backend_->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate);
   }
@@ -96,7 +96,7 @@ class PredictorOneAPI : public Predictor {
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const override {
+                          const gbm::GBTreeModel& model) const {
     predictor_backend_->InitOutPredictions(info, out_preds, model);
   }
  
@@ -297,10 +297,10 @@ class GPUPredictorOneAPI : public Predictor {
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const override {
+                          const gbm::GBTreeModel& model) const {
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
-    const auto& base_margin = info.base_margin_.HostVector();
+    const auto& base_margin = info.base_margin_.Data()->HostVector();
     out_preds->Resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
     if (base_margin.size() == n) {
@@ -385,7 +385,7 @@ class GPUPredictorOneAPI : public Predictor {
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
-                           std::vector<bst_float>* tree_weights,
+                           const std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
                            unsigned condition_feature) const override {
     cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
@@ -393,7 +393,7 @@ class GPUPredictorOneAPI : public Predictor {
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
-                                       std::vector<bst_float>* tree_weights,
+                                       const std::vector<bst_float>* tree_weights,
                                        bool approximate) const override {
     cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate);
   }
