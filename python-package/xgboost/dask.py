@@ -152,32 +152,37 @@ def _multi_lock() -> Any:
     return MultiLock
 
 
-def _start_tracker(
-    n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
-) -> Dict[str, Any]:
-    """Start Rabit tracker"""
+def _try_start_tracker(
+    n_workers: int, addrs: List[Optional[str]]
+) -> Dict[str, Union[int, str]]:
     env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
     try:
         rabit_context = RabitTracker(
-            hostIP=get_host_ip(addr_from_user), n_workers=n_workers, use_logger=False
+            hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
         )
+        env.update(rabit_context.worker_envs())
+        rabit_context.start(n_workers)
+        thread = Thread(target=rabit_context.join)
+        thread.daemon = True
+        thread.start()
     except socket.error as e:
-        if e.errno != 99 or addr_from_dask is None:  # not a bind error
+        if len(addrs) < 2 or e.errno != 99:
             raise
         LOGGER.warning(
             "Failed to bind address '%s', trying to use '%s' instead.",
-            str(get_host_ip(addr_from_user)),
-            str(addr_from_dask),
+            str(addrs[0]),
+            str(addrs[1]),
         )
-        rabit_context = RabitTracker(
-            hostIP=addr_from_dask, n_workers=n_workers, use_logger=False
-        )
-    env.update(rabit_context.worker_envs())
+        env = _try_start_tracker(n_workers, addrs[1:])
+    finally:
+        return env
 
-    rabit_context.start(n_workers)
-    thread = Thread(target=rabit_context.join)
-    thread.daemon = True
-    thread.start()
+
+def _start_tracker(
+    n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
+) -> Dict[str, Any]:
+    """Start Rabit tracker, recurse to try different addresses."""
+    env = _try_start_tracker(n_workers, [get_host_ip(addr_from_user), addr_from_dask])
     return env
 
 
