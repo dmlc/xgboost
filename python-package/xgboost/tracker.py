@@ -192,7 +192,8 @@ class RabitTracker:
         logging.info('start listen on %s:%d', hostIP, self.port)
 
     def __del__(self) -> None:
-        self.sock.close()
+        if hasattr(self, "sock"):
+            self.sock.close()
 
     @staticmethod
     def get_neighbor(rank: int, n_workers: int) -> List[int]:
