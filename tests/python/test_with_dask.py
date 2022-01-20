@@ -41,10 +41,10 @@ else:
     suppress = hypothesis.utils.conventions.not_set  # type:ignore
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def cluster():
     with LocalCluster(
-        n_workers=2, threads_per_worker=2, dashboard_address=None
+        n_workers=2, threads_per_worker=2, dashboard_address=":0"
     ) as dask_cluster:
         yield dask_cluster
 
@@ -123,7 +123,7 @@ def generate_array(
 
 
 def test_from_dask_dataframe() -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
+    with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             X, y, _ = generate_array()
 
@@ -166,7 +166,9 @@ def test_from_dask_dataframe() -> None:
 
 
 def test_from_dask_array() -> None:
-    with LocalCluster(n_workers=kWorkers, threads_per_worker=5) as cluster:
+    with LocalCluster(
+        n_workers=kWorkers, threads_per_worker=5, dashboard_address=":0"
+    ) as cluster:
         with Client(cluster) as client:
             X, y, _ = generate_array()
             dtrain = DaskDMatrix(client, X, y)
@@ -180,12 +182,12 @@ def test_from_dask_array() -> None:
             # force prediction to be computed
             prediction = prediction.compute()
 
-            booster: xgb.Booster = result['booster']
+            booster: xgb.Booster = result["booster"]
             single_node_predt = booster.predict(xgb.DMatrix(X.compute()))
             np.testing.assert_allclose(prediction, single_node_predt)
 
             config = json.loads(booster.save_config())
-            assert int(config['learner']['generic_param']['nthread']) == 5
+            assert int(config["learner"]["generic_param"]["nthread"]) == 5
 
             from_arr = xgb.dask.predict(client, model=booster, data=X)
 
@@ -793,7 +795,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
 
 
 def test_empty_dmatrix_auc() -> None:
-    with LocalCluster(n_workers=8) as cluster:
+    with LocalCluster(n_workers=8, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             run_empty_dmatrix_auc(client, "hist", 8)
 
@@ -835,11 +837,12 @@ def run_auc(client: "Client", tree_method: str) -> None:
 def test_auc(client: "Client") -> None:
     run_auc(client, "hist")
 
+
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_empty_dmatrix(tree_method) -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
+    with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': tree_method}
             run_empty_dmatrix_reg(client, parameters)
@@ -933,7 +936,7 @@ async def run_dask_classifier_asyncio(scheduler_address: str) -> None:
 
 
 def test_with_asyncio() -> None:
-    with LocalCluster() as cluster:
+    with LocalCluster(dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             address = client.scheduler.address
             output = asyncio.run(run_from_dask_array_asyncio(address))
@@ -946,16 +949,16 @@ def test_with_asyncio() -> None:
 
 async def generate_concurrent_trainings() -> None:
     async def train() -> None:
-        async with LocalCluster(n_workers=2,
-                                threads_per_worker=1,
-                                asynchronous=True,
-                                dashboard_address=0) as cluster:
+        async with LocalCluster(
+            n_workers=2, threads_per_worker=1, asynchronous=True, dashboard_address=":0"
+        ) as cluster:
             async with Client(cluster, asynchronous=True) as client:
                 X, y, w = generate_array(with_weights=True)
                 dtrain = await DaskDMatrix(client, X, y, weight=w)
                 dvalid = await DaskDMatrix(client, X, y, weight=w)
                 output = await xgb.dask.train(client, {}, dtrain=dtrain)
                 await xgb.dask.predict(client, output, data=dvalid)
+
     await asyncio.gather(train(), train())
 
 
@@ -1050,7 +1053,7 @@ def run_aft_survival(client: "Client", dmatrix_t: Type) -> None:
 
 
 def test_dask_aft_survival() -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
+    with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             run_aft_survival(client, DaskDMatrix)
 
@@ -1311,7 +1314,7 @@ class TestWithDask:
             env["DMLC_TRACKER_URI"] = uri[1]
             return subprocess.run([str(exe), test], env=env, capture_output=True)
 
-        with LocalCluster(n_workers=4) as cluster:
+        with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 workers = _get_client_workers(client)
                 rabit_args = client.sync(
@@ -1346,7 +1349,7 @@ class TestWithDask:
         self.run_quantile('SameOnAllWorkers')
 
     def test_n_workers(self) -> None:
-        with LocalCluster(n_workers=2) as cluster:
+        with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 workers = _get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
@@ -1437,7 +1440,7 @@ class TestWithDask:
         generate unnecessary copies of data.
 
         '''
-        with LocalCluster(n_workers=2) as cluster:
+        with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 X, y, _ = generate_array()
                 n_partitions = X.npartitions
@@ -1715,10 +1718,10 @@ def run_tree_stats(client: Client, tree_method: str) -> str:
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_tree_stats(tree_method: str) -> None:
-    with LocalCluster(n_workers=1) as cluster:
+    with LocalCluster(n_workers=1, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             local = run_tree_stats(client, tree_method)
-    with LocalCluster(n_workers=2) as cluster:
+    with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             distributed = run_tree_stats(client, tree_method)
 
@@ -1734,7 +1737,7 @@ def test_parallel_submit_multi_clients() -> None:
 
     from sklearn.datasets import load_digits
 
-    with LocalCluster(n_workers=4) as cluster:
+    with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             workers = _get_client_workers(client)
 

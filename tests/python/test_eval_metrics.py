@@ -177,7 +177,7 @@ class TestEvalMetrics:
                 "objective": "binary:logistic",
             },
             Xy,
-            num_boost_round=8,
+            num_boost_round=1,
         )
         score = booster.predict(Xy)
         skl_auc = roc_auc_score(y, score)
@@ -191,7 +191,7 @@ class TestEvalMetrics:
         np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize("n_samples", [100, 1000])
+    @pytest.mark.parametrize("n_samples", [100, 1000, 10000])
     def test_roc_auc(self, n_samples):
         self.run_roc_auc_binary("hist", n_samples)
 
@@ -229,7 +229,7 @@ class TestEvalMetrics:
                 "num_class": n_classes,
             },
             Xy,
-            num_boost_round=8,
+            num_boost_round=1,
         )
         score = booster.predict(Xy)
         skl_auc = roc_auc_score(
@@ -248,7 +248,7 @@ class TestEvalMetrics:
         np.testing.assert_allclose(skl_auc, auc, rtol=1e-5)
 
     @pytest.mark.parametrize(
-        "n_samples,weighted", [(4, False), (100, False), (1000, False), (1000, True)]
+        "n_samples,weighted", [(4, False), (100, False), (1000, False), (10000, True)]
     )
     def test_roc_auc_multi(self, n_samples, weighted):
         self.run_roc_auc_multi("hist", n_samples, weighted)
