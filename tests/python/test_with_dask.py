@@ -30,6 +30,7 @@ if tm.no_dask()['condition']:
     pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
 from distributed import LocalCluster, Client
+import dask
 import dask.dataframe as dd
 import dask.array as da
 from xgboost.dask import DaskDMatrix
@@ -1215,6 +1216,10 @@ class TestWithDask:
 
         os.remove(before_fname)
         os.remove(after_fname)
+
+        with dask.config.set({'xgboost.foo': "bar"}):
+            with pytest.raises(ValueError):
+                xgb.dask.train(client, {}, dtrain, num_boost_round=4)
 
     def run_updater_test(
         self,
