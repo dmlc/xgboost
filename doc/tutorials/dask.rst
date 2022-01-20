@@ -475,6 +475,8 @@ interface, including callback functions, custom evaluation metric and objective:
     )
 
 
+.. _tracker-ip:
+
 ***************
 Tracker Host IP
 ***************

@@ -3,8 +3,12 @@
 # pylint: disable=too-many-lines, fixme
 # pylint: disable=too-few-public-methods
 # pylint: disable=import-error
-"""Dask extensions for distributed training. See :doc:`Distributed XGBoost with Dask
-</tutorials/dask>` for simple tutorial.  Also xgboost/demo/dask for some examples.
+"""
+Dask extensions for distributed training
+----------------------------------------
+
+See :doc:`Distributed XGBoost with Dask </tutorials/dask>` for simple tutorial.  Also
+:doc:`/python/dask-examples/index` for some examples.
 
 There are two sets of APIs in this module, one is the functional API including
 ``train`` and ``predict`` methods.  Another is stateful Scikit-Learner wrapper
@@ -12,6 +16,17 @@ inherited from single-node Scikit-Learn interface.
 
 The implementation is heavily influenced by dask_xgboost:
 https://github.com/dask/dask-xgboost
+
+Optional dask configuration
+===========================
+
+- **xgboost.scheduler_address**: Specify the scheduler address, see :ref:`tracker-ip`.
+
+  .. versionadded:: 1.6.0
+
+  .. code-block:: python
+
+      dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
 
 """
 import platform
