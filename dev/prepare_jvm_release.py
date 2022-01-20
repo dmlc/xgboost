@@ -74,10 +74,29 @@ def main():
             output_dir = f"xgboost4j-gpu/src/main/resources/lib/{os}/{arch}"
             maybe_makedirs(output_dir)
     print("====Next Steps====")
-    print("1. Obtain Linux and Windows binaries from the CI server")
-    print("2. Put them in xgboost4j(-gpu)/src/main/resources/lib/[os]/[arch]")
-    print("3. Now on a Mac machine, run:")
+    print("1. Gain upload right to Maven Central repo.")
+    print("1-1. Sign up for a JIRA account at Sonatype: ")
+    print("1-2. File a JIRA ticket: "
+          "https://issues.sonatype.org/secure/CreateIssue.jspa?issuetype=21&pid=10134. Example: "
+          "https://issues.sonatype.org/browse/OSSRH-67724")
+    print("2. Store the Sonatype credentials in .m2/settings.xml. See insturctions in "
+          "https://central.sonatype.org/publish/publish-maven/")
+    print("3. Obtain Linux and Windows binaries from the CI server")
+    print("3-1. Get xgboost4j_[commit].dll from "
+          "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html. Rename it to"
+          "xgboost4j.dll.")
+    print("3-2. For Linux binaries, go to "
+          "https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/list.html and navigate to the "
+          "release/ directory. Find and download two JAR files: xgboost4j_2.12-[version].jar and "
+          "xgboost4j-gpu_2.12-[version].jar. Use unzip command to extract libxgboost4j.so (one "
+          "version compiled with GPU support and another compiled without).")
+    print("4. Put the binaries in xgboost4j(-gpu)/src/main/resources/lib/[os]/[arch]")
+    print("5. Now on a Mac machine, run:")
     print("   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests")
+    print("6. Log into https://oss.sonatype.org/. On the left menu panel, click Staging "
+          "Repositories. Visit the URL https://oss.sonatype.org/content/repositories/mldmlc-1085 "
+          "to inspect the staged JAR files. Finally, press Release button to publish the "
+          "artifacts to the Maven Central repository.")
 
 if __name__ == "__main__":
     main()
