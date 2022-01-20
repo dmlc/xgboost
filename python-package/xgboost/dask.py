@@ -165,7 +165,7 @@ def _start_tracker(
         if e.errno != 99 or addr_from_dask is None:  # not a bind error
             raise
         LOGGER.warning(
-            "Failed to bind address: %s, try %s instead.",
+            "Failed to bind address '%s', trying to use '%s' instead.",
             str(get_host_ip(addr_from_user)),
             str(addr_from_dask),
         )
