@@ -153,7 +153,7 @@ def _multi_lock() -> Any:
 
 
 def _start_tracker(
-    n_workers: int, addr_from_dask: str, addr_from_user: Optional[str]
+    n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
 ) -> Dict[str, Any]:
     """Start Rabit tracker"""
     env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
@@ -162,7 +162,7 @@ def _start_tracker(
             hostIP=get_host_ip(addr_from_user), n_workers=n_workers, use_logger=False
         )
     except socket.error as e:
-        if e.errno != 99:  # not a bind error
+        if e.errno != 99 or addr_from_dask is None:  # not a bind error
             raise
         LOGGER.warning(
             "Failed to bind address: %s, try %s instead.",
