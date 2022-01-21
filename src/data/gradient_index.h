@@ -108,5 +108,16 @@ class GHistIndexMatrix {
   std::vector<size_t> hit_count_tloc_;
   bool isDense_;
 };
+
+/**
+ * \brief Should we regenerate the gradient index?
+ *
+ * \param old Parameter stored in DMatrix.
+ * \param p   New parameter passed in by caller.
+ */
+inline bool RegenGHist(BatchParam old, BatchParam p) {
+  // parameter is renewed or caller requests a regen
+  return p.regen || (old.gpu_id != p.gpu_id || old.max_bin != p.max_bin);
+}
 }      // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_

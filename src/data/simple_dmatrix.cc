@@ -94,7 +94,8 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
   if (!(batch_param_ != BatchParam{})) {
     CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
   }
-  if (!gradient_index_ || (batch_param_ != param && param != BatchParam{}) || param.regen) {
+  if (!gradient_index_ || RegenGHist(batch_param_, param)) {
+    LOG(INFO) << "Generating new Gradient Index.";
     CHECK_GE(param.max_bin, 2);
     CHECK_EQ(param.gpu_id, -1);
     // Used only by approx.

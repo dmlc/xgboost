@@ -17,8 +17,7 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
   // block is parallelized on anything other than the batch/block size,
   // it should be reassigned
   const size_t batch_threads =
-      std::max(size_t(1), std::min(batch.Size(),
-                                   static_cast<size_t>(n_threads)));
+      std::max(static_cast<size_t>(1), std::min(batch.Size(), static_cast<size_t>(n_threads)));
   auto page = batch.GetView();
   common::MemStackAllocator<size_t, 128> partial_sums(batch_threads);
   size_t *p_part = partial_sums.Get();
