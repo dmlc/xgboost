@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2018 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file multi_class.cc
  * \brief Definition of multi-class classification objectives.
  * \author Tianqi Chen
@@ -114,7 +114,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             p = label == k ? p - 1.0f : p;
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
-        }, common::Range{0, ndata}, device, false)
+        }, common::Range{0, ndata}, tparam_->Threads(), device)
         .Eval(out_gpair, info.labels.Data(), &preds, &info.weights_, &label_correct_);
 
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -146,8 +146,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 _preds.subspan(_idx * nclass, nclass);
             common::Softmax(point.begin(), point.end());
           },
-          common::Range{0, ndata}, device)
-        .Eval(io_preds);
+          common::Range{0, ndata}, this->tparam_->Threads(), device)
+          .Eval(io_preds);
     } else {
       io_preds->SetDevice(device);
       HostDeviceVector<bst_float> max_preds;
@@ -162,7 +162,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 common::FindMaxIndex(point.cbegin(), point.cend()) -
                 point.cbegin();
           },
-          common::Range{0, ndata}, device, false)
+          common::Range{0, ndata}, this->tparam_->Threads(), device)
           .Eval(io_preds, &max_preds);
       io_preds->Resize(max_preds.Size());
       io_preds->Copy(max_preds);

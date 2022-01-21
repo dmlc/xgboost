@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -121,7 +121,7 @@ class RegLossObj : public ObjFunction {
                                               Loss::SecondOrderGradient(p, label) * w);
           }
         },
-        common::Range{0, static_cast<int64_t>(n_data_blocks)}, device)
+        common::Range{0, static_cast<int64_t>(n_data_blocks)}, nthreads, device)
         .Eval(&additional_input_, out_gpair, &preds, info.labels.Data(),
               &info.weights_);
 
@@ -140,7 +140,8 @@ class RegLossObj : public ObjFunction {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = Loss::PredTransform(_preds[_idx]);
-        }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        },
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->tparam_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
@@ -254,7 +255,7 @@ class PoissonRegression : public ObjFunction {
           _out_gpair[_idx] = GradientPair{(expf(p) - y) * w,
                                           expf(p + max_delta_step) * w};
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, this->tparam_->Threads(), device).Eval(
             &label_correct_, out_gpair, &preds, info.labels.Data(), &info.weights_);
     // copy "label correct" flags back to host
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -269,7 +270,7 @@ class PoissonRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->tparam_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
@@ -448,7 +449,7 @@ class GammaRegression : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair((1 - y / expf(p)) * w, y / expf(p) * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, this->tparam_->Threads(), device).Eval(
             &label_correct_, out_gpair, &preds, info.labels.Data(), &info.weights_);
 
     // copy "label correct" flags back to host
@@ -464,7 +465,7 @@ class GammaRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->tparam_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
@@ -555,7 +556,7 @@ class TweedieRegression : public ObjFunction {
               std::exp((1 - rho) * p) + (2 - rho) * expf((2 - rho) * p);
           _out_gpair[_idx] = GradientPair(grad * w, hess * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata), 1}, device)
+        common::Range{0, static_cast<int64_t>(ndata), 1}, this->tparam_->Threads(), device)
         .Eval(&label_correct_, out_gpair, &preds, info.labels.Data(), &info.weights_);
 
     // copy "label correct" flags back to host
@@ -571,7 +572,7 @@ class TweedieRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->tparam_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }

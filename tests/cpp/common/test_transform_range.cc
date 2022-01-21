@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2018-2022 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/span.h>
@@ -42,7 +45,7 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
   out_vec.Fill(0);
 
   Transform<>::Init(TestTransformRange<bst_float>{},
-                    Range{0, static_cast<Range::DifferenceType>(size)},
+                    Range{0, static_cast<Range::DifferenceType>(size)}, common::OmpGetNumThreads(0),
                     TRANSFORM_GPU)
       .Eval(&out_vec, &in_vec);
   std::vector<bst_float> res = out_vec.HostVector();
@@ -55,11 +58,14 @@ TEST(TransformDeathTest, Exception) {
   size_t const kSize {16};
   std::vector<bst_float> h_in(kSize);
   const HostDeviceVector<bst_float> in_vec{h_in, -1};
-  EXPECT_DEATH({
-    Transform<>::Init([](size_t idx, common::Span<float const> _in) { _in[idx + 1]; },
-                      Range(0, static_cast<Range::DifferenceType>(kSize)), -1)
-        .Eval(&in_vec);
-    }, "");
+  EXPECT_DEATH(
+      {
+        Transform<>::Init([](size_t idx, common::Span<float const> _in) { _in[idx + 1]; },
+                          Range(0, static_cast<Range::DifferenceType>(kSize)),
+                          common::OmpGetNumThreads(0), -1)
+            .Eval(&in_vec);
+      },
+      "");
 }
 #endif
 

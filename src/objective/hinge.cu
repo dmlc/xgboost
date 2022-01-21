@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2019 by Contributors
+ * Copyright 2018-2022 by XGBoost Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
@@ -65,7 +65,7 @@ class HingeObj : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair(g, h);
         },
-        common::Range{0, static_cast<int64_t>(ndata)},
+        common::Range{0, static_cast<int64_t>(ndata)}, this->tparam_->Threads(),
         tparam_->gpu_id).Eval(
             out_gpair, &preds, info.labels.Data(), &info.weights_);
   }
@@ -75,7 +75,7 @@ class HingeObj : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
+        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, this->tparam_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
