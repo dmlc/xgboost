@@ -300,7 +300,7 @@ class SparsePage {
     base_rowid = row_id;
   }
 
-  SparsePage GetTranspose(int num_columns) const;
+  SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
   void SortRows() {
     auto ncol = static_cast<bst_omp_uint>(this->Size());

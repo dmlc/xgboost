@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2021-2022 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include "../../../../src/tree/hist/evaluate_splits.h"
@@ -29,7 +32,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
 
-  GHistIndexMatrix gmat(dmat.get(), kMaxBins, false);
+  GHistIndexMatrix gmat(dmat.get(), kMaxBins, false, common::OmpGetNumThreads(0));
   common::RowSetCollection row_set_collection;
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);

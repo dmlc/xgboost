@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -36,7 +36,7 @@ TEST(GradientIndex, FromCategoricalBasic) {
   BatchParam p(0, max_bins);
   GHistIndexMatrix gidx;
 
-  gidx.Init(m.get(), max_bins, false, {});
+  gidx.Init(m.get(), max_bins, false, common::OmpGetNumThreads(0), {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());

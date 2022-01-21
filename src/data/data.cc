@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2021 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file data.cc
  */
 #include <dmlc/registry.h>
@@ -1001,15 +1001,14 @@ DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,
                 float missing, int nthread, const std::string &cache_prefix);
 
-SparsePage SparsePage::GetTranspose(int num_columns) const {
+SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
                                                          &transpose.data.HostVector());
-  const int nthread = omp_get_max_threads();
-  builder.InitBudget(num_columns, nthread);
+  builder.InitBudget(num_columns, n_threads);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
   auto page = this->GetView();
-  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, n_threads, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
@@ -1017,7 +1016,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
     }
   });
   builder.InitStorage();
-  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, n_threads, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {

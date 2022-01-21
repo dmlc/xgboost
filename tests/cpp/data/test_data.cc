@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2022 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
 #include <fstream>
@@ -66,7 +69,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   SparsePage page; // Consolidated sparse page
   for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
     // Transpose each batch and push
-    SparsePage tmp = batch.GetTranspose(ncols);
+    SparsePage tmp = batch.GetTranspose(ncols, common::OmpGetNumThreads(0));
     page.PushCSC(tmp);
   }
 

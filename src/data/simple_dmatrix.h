@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2021 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file simple_dmatrix.h
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
@@ -61,6 +61,9 @@ class SimpleDMatrix : public DMatrix {
   bool SparsePageExists() const override {
     return true;
   }
+
+ private:
+  GenericParameter ctx_;
 };
 }  // namespace data
 }  // namespace xgboost

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file sparse_page_dmatrix.cc
  * \brief The external memory version of Page Iterator.
  * \author Tianqi Chen
@@ -164,7 +164,8 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
     // all index here.
     if (!ghist_index_page_ || (param != batch_param_ && param != BatchParam{})) {
       this->InitializeSparsePage();
-      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin, param.regen});
+      ghist_index_page_.reset(
+          new GHistIndexMatrix{this, param.max_bin, param.regen, ctx_.Threads()});
       this->InitializeSparsePage();
       batch_param_ = param;
     }
@@ -181,7 +182,8 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
-    auto cuts = common::SketchOnDMatrix(this, param.max_bin, sorted_sketch, param.hess);
+    auto cuts =
+        common::SketchOnDMatrix(this, param.max_bin, ctx_.Threads(), sorted_sketch, param.hess);
     this->InitializeSparsePage();  // reset after use.
 
     batch_param_ = param;
