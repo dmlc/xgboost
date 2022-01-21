@@ -180,9 +180,9 @@ def _try_start_tracker(
 
 def _start_tracker(
     n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
-) -> Dict[str, Any]:
+) -> Dict[str, Union[int, str]]:
     """Start Rabit tracker, recurse to try different addresses."""
-    env = _try_start_tracker(n_workers, [get_host_ip(addr_from_user), addr_from_dask])
+    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
     return env
 
 
