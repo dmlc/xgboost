@@ -3,8 +3,12 @@
 # pylint: disable=too-many-lines, fixme
 # pylint: disable=too-few-public-methods
 # pylint: disable=import-error
-"""Dask extensions for distributed training. See :doc:`Distributed XGBoost with Dask
-</tutorials/dask>` for simple tutorial.  Also xgboost/demo/dask for some examples.
+"""
+Dask extensions for distributed training
+----------------------------------------
+
+See :doc:`Distributed XGBoost with Dask </tutorials/dask>` for simple tutorial.  Also
+:doc:`/python/dask-examples/index` for some examples.
 
 There are two sets of APIs in this module, one is the functional API including
 ``train`` and ``predict`` methods.  Another is stateful Scikit-Learner wrapper
@@ -13,10 +17,22 @@ inherited from single-node Scikit-Learn interface.
 The implementation is heavily influenced by dask_xgboost:
 https://github.com/dask/dask-xgboost
 
+Optional dask configuration
+===========================
+
+- **xgboost.scheduler_address**: Specify the scheduler address, see :ref:`tracker-ip`.
+
+  .. versionadded:: 1.6.0
+
+  .. code-block:: python
+
+      dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
+
 """
 import platform
 import logging
 import collections
+import socket
 from contextlib import contextmanager
 from collections import defaultdict
 from threading import Thread
@@ -136,17 +152,37 @@ def _multi_lock() -> Any:
     return MultiLock
 
 
-def _start_tracker(n_workers: int) -> Dict[str, Any]:
-    """Start Rabit tracker """
-    env: Dict[str, Union[int, str]] = {'DMLC_NUM_WORKER': n_workers}
-    host = get_host_ip('auto')
-    rabit_context = RabitTracker(hostIP=host, n_workers=n_workers, use_logger=False)
-    env.update(rabit_context.worker_envs())
+def _try_start_tracker(
+    n_workers: int, addrs: List[Optional[str]]
+) -> Dict[str, Union[int, str]]:
+    env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
+    try:
+        rabit_context = RabitTracker(
+            hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+        )
+        env.update(rabit_context.worker_envs())
+        rabit_context.start(n_workers)
+        thread = Thread(target=rabit_context.join)
+        thread.daemon = True
+        thread.start()
+    except socket.error as e:
+        if len(addrs) < 2 or e.errno != 99:
+            raise
+        LOGGER.warning(
+            "Failed to bind address '%s', trying to use '%s' instead.",
+            str(addrs[0]),
+            str(addrs[1]),
+        )
+        env = _try_start_tracker(n_workers, addrs[1:])
 
-    rabit_context.start(n_workers)
-    thread = Thread(target=rabit_context.join)
-    thread.daemon = True
-    thread.start()
+    return env
+
+
+def _start_tracker(
+    n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
+) -> Dict[str, Union[int, str]]:
+    """Start Rabit tracker, recurse to try different addresses."""
+    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
     return env
 
 
@@ -174,6 +210,7 @@ class RabitContext:
 
     def __enter__(self) -> None:
         rabit.init(self.args)
+        assert rabit.is_distributed()
         LOGGER.debug('-------------- rabit say hello ------------------')
 
     def __exit__(self, *args: List) -> None:
@@ -805,11 +842,42 @@ def _dmatrix_from_list_of_parts(
     return _create_dmatrix(**kwargs)
 
 
-async def _get_rabit_args(n_workers: int, client: "distributed.Client") -> List[bytes]:
-    '''Get rabit context arguments from data distribution in DaskDMatrix.'''
-    env = await client.run_on_scheduler(_start_tracker, n_workers)
+async def _get_rabit_args(
+    n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
+) -> List[bytes]:
+    """Get rabit context arguments from data distribution in DaskDMatrix.
+
+    """
+    # There are 3 possible different addresses:
+    # 1. Provided by user via dask.config
+    # 2. Guessed by xgboost `get_host_ip` function
+    # 3. From dask scheduler
+    # We try 1 and 3 if 1 is available, otherwise 2 and 3.
+    valid_config = ["scheduler_address"]
+    # See if user config is available
+    if dconfig is not None:
+        for k in dconfig:
+            if k not in valid_config:
+                raise ValueError(f"Unknown configuration: {k}")
+        host_ip: Optional[str] = dconfig.get("scheduler_address", None)
+    else:
+        host_ip = None
+    # Try address from dask scheduler, this might not work, see
+    # https://github.com/dask/dask-xgboost/pull/40
+    try:
+        sched_addr = distributed.comm.get_address_host(client.scheduler.address)
+        sched_addr = sched_addr.strip("/:")
+    except Exception:  # pylint: disable=broad-except
+        sched_addr = None
+
+    env = await client.run_on_scheduler(_start_tracker, n_workers, sched_addr, host_ip)
+
     rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args
+
+
+def _get_dask_config() -> Optional[Dict[str, Any]]:
+    return dask.config.get("xgboost", default=None)
 
 # train and predict methods are supposed to be "functional", which meets the
 # dask paradigm.  But as a side effect, the `evals_result` in single-node API
@@ -837,6 +905,7 @@ def _get_workers_from_data(
 async def _train_async(
     client: "distributed.Client",
     global_config: Dict[str, Any],
+    dconfig: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
     num_boost_round: int,
@@ -850,7 +919,7 @@ async def _train_async(
     custom_metric: Optional[Metric],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
-    _rabit_args = await _get_rabit_args(len(workers), client)
+    _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
 
     if params.get("booster", None) == "gblinear":
         raise NotImplementedError(
@@ -948,7 +1017,7 @@ async def _train_async(
 
 
 @_deprecate_positional_args
-def train(                      # pylint: disable=unused-argument
+def train(  # pylint: disable=unused-argument
     client: "distributed.Client",
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
@@ -995,7 +1064,12 @@ def train(                      # pylint: disable=unused-argument
     _assert_dask_support()
     client = _xgb_get_client(client)
     args = locals()
-    return client.sync(_train_async, global_config=config.get_config(), **args)
+    return client.sync(
+        _train_async,
+        global_config=config.get_config(),
+        dconfig=_get_dask_config(),
+        **args,
+    )
 
 
 def _can_output_df(is_df: bool, output_shape: Tuple) -> bool:
@@ -1693,6 +1767,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
+            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1796,6 +1871,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
+            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1987,6 +2063,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             asynchronous=True,
             client=self.client,
             global_config=config.get_config(),
+            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),

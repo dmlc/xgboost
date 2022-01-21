@@ -30,6 +30,7 @@ if tm.no_dask()['condition']:
     pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
 from distributed import LocalCluster, Client
+import dask
 import dask.dataframe as dd
 import dask.array as da
 from xgboost.dask import DaskDMatrix
@@ -1219,6 +1220,10 @@ class TestWithDask:
         os.remove(before_fname)
         os.remove(after_fname)
 
+        with dask.config.set({'xgboost.foo': "bar"}):
+            with pytest.raises(ValueError):
+                xgb.dask.train(client, {}, dtrain, num_boost_round=4)
+
     def run_updater_test(
         self,
         client: "Client",
@@ -1318,7 +1323,8 @@ class TestWithDask:
             with Client(cluster) as client:
                 workers = _get_client_workers(client)
                 rabit_args = client.sync(
-                    xgb.dask._get_rabit_args, len(workers), client)
+                    xgb.dask._get_rabit_args, len(workers), None, client
+                )
                 futures = client.map(runit,
                                      workers,
                                      pure=False,
@@ -1446,7 +1452,9 @@ class TestWithDask:
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
                 workers = _get_client_workers(client)
-                rabit_args = client.sync(xgb.dask._get_rabit_args, len(workers), client)
+                rabit_args = client.sync(
+                    xgb.dask._get_rabit_args, len(workers), None, client
+                )
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:

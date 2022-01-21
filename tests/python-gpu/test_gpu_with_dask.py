@@ -371,7 +371,7 @@ class TestDistributedGPU:
             m = dxgb.DaskDMatrix(client, X, y, feature_weights=fw)
 
             workers = _get_client_workers(client)
-            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), client)
+            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
 
             def worker_fn(worker_addr: str, data_ref: Dict) -> None:
                 with dxgb.RabitContext(rabit_args):
@@ -473,7 +473,7 @@ class TestDistributedGPU:
 
         with Client(local_cuda_cluster) as client:
             workers = _get_client_workers(client)
-            rabit_args = client.sync(dxgb._get_rabit_args, workers, client)
+            rabit_args = client.sync(dxgb._get_rabit_args, workers, None, client)
             futures = client.map(runit,
                                  workers,
                                  pure=False,

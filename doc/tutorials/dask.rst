@@ -475,6 +475,32 @@ interface, including callback functions, custom evaluation metric and objective:
     )
 
 
+.. _tracker-ip:
+
+***************
+Tracker Host IP
+***************
+
+.. versionadded:: 1.6.0
+
+In some environments XGBoost might fail to resolve the IP address of the scheduler, a
+symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
+during training.  A quick workaround is to specify the address explicitly.  To do that
+dask config is used:
+
+.. code-block:: python
+
+    import dask
+    from distributed import Client
+    from xgboost import dask as dxgb
+    # let xgboost know the scheduler address
+    dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
+
+    with Client(scheduler_file="sched.json") as client:
+        reg = dxgb.DaskXGBRegressor()
+
+XGBoost will read configuration before training.
+
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
 *****************************************************************************
