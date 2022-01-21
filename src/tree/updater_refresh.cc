@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
@@ -51,11 +51,11 @@ class TreeRefresher: public TreeUpdater {
     std::vector<std::vector<GradStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
-    const int nthread = omp_get_max_threads();
+    const int nthread = ctx_->Threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<GradStats>());
     dmlc::OMPException exc;
-    #pragma omp parallel
+#pragma omp parallel num_threads(nthread)
     {
       exc.Run([&]() {
         int tid = omp_get_thread_num();
@@ -78,7 +78,7 @@ class TreeRefresher: public TreeUpdater {
         auto page = batch.GetView();
         CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
-        common::ParallelFor(nbatch, [&](bst_omp_uint i) {
+        common::ParallelFor(nbatch, ctx_->Threads(), [&](bst_omp_uint i) {
           SparsePage::Inst inst = page[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
@@ -95,7 +95,7 @@ class TreeRefresher: public TreeUpdater {
       }
       // aggregate the statistics
       auto num_nodes = static_cast<int>(stemp[0].size());
-      common::ParallelFor(num_nodes, [&](int nid) {
+      common::ParallelFor(num_nodes, ctx_->Threads(), [&](int nid) {
         for (int tid = 1; tid < nthread; ++tid) {
           stemp[0][nid].Add(stemp[tid][nid]);
         }

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022 XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -318,10 +318,10 @@ class GlobalApproxUpdater : public TreeUpdater {
     param_.learning_rate = lr / trees.size();
 
     if (hist_param_.single_precision_histogram) {
-      f32_impl_ = std::make_unique<GloablApproxBuilder<float>>(param_, m->Info(), tparam_,
+      f32_impl_ = std::make_unique<GloablApproxBuilder<float>>(param_, m->Info(), ctx_,
                                                                column_sampler_, task_, &monitor_);
     } else {
-      f64_impl_ = std::make_unique<GloablApproxBuilder<double>>(param_, m->Info(), tparam_,
+      f64_impl_ = std::make_unique<GloablApproxBuilder<double>>(param_, m->Info(), ctx_,
                                                                 column_sampler_, task_, &monitor_);
     }
 

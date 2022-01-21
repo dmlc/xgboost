@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 by Contributors
+ * Copyright 2017-2022 by XGBoost Contributors
  * \file updater_quantile_hist.h
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Chen, Egor Smirnov
@@ -155,14 +155,16 @@ class QuantileHistMaker: public TreeUpdater {
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
     explicit Builder(const size_t n_trees, const TrainParam& param,
-                     std::unique_ptr<TreeUpdater> pruner, DMatrix const* fmat, ObjInfo task)
+                     std::unique_ptr<TreeUpdater> pruner, DMatrix const* fmat, ObjInfo task,
+                     GenericParameter const* ctx)
         : n_trees_(n_trees),
           param_(param),
           pruner_(std::move(pruner)),
           p_last_tree_(nullptr),
           p_last_fmat_(fmat),
           histogram_builder_{new HistogramBuilder<GradientSumT, CPUExpandEntry>},
-          task_{task} {
+          task_{task},
+          ctx_{ctx} {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
@@ -225,8 +227,6 @@ class QuantileHistMaker: public TreeUpdater {
     //  --data fields--
     const size_t n_trees_;
     const TrainParam& param_;
-    // number of omp thread used during training
-    int nthread_;
     std::shared_ptr<common::ColumnSampler> column_sampler_{
         std::make_shared<common::ColumnSampler>()};
 
@@ -258,9 +258,10 @@ class QuantileHistMaker: public TreeUpdater {
 
     enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
-    std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>>
-        histogram_builder_;
+    std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>> histogram_builder_;
     ObjInfo task_;
+    // Context for number of threads
+    GenericParameter const* ctx_;
 
     common::Monitor builder_monitor_;
   };
