@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2022 by Contributors
+ * Copyright 2018-2022 by XGBoost Contributors
  */
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>

@@ -1058,8 +1058,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
   // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
   nthread = kIsRowMajor ? nthread : 1;
-  // Set number of threads but keep old value so we can reset it after
-  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
   if (!kIsRowMajor) {
     CHECK_EQ(nthread, 1);
   }
@@ -1084,7 +1082,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   expected_rows = kIsRowMajor ? batch_size : expected_rows;
   uint64_t max_columns = 0;
   if (batch_size == 0) {
-    omp_set_num_threads(nthread_original);
     return max_columns;
   }
   const size_t thread_size = batch_size / nthread;
@@ -1153,7 +1150,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
-  omp_set_num_threads(nthread_original);
 
   return max_columns;
 }
