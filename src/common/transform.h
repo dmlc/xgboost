@@ -187,10 +187,12 @@ class Transform {
    * \param func    A callable object, accepting a size_t thread index,
    *                  followed by a set of Span classes.
    * \param range   Range object specifying parallel threads index range.
-   * \param ctx     Context for device ID and number of threads.
+   * \param n_threads  Number of CPU threads
+   * \param device_idx GPU device ordinal
    */
   template <typename Functor>
-  static Evaluator<Functor> Init(Functor func, Range const range, int32_t n_threads, int32_t device_idx) {
+  static Evaluator<Functor> Init(Functor func, Range const range, int32_t n_threads,
+                                 int32_t device_idx) {
     return Evaluator<Functor>{func, std::move(range), n_threads, device_idx};
   }
 };
