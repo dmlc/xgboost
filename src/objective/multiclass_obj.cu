@@ -68,7 +68,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     out_gpair->SetDevice(device);
     info.labels.SetDevice(device);
     info.weights_.SetDevice(device);
@@ -114,7 +114,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             p = label == k ? p - 1.0f : p;
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
-        }, common::Range{0, ndata}, tparam_->Threads(), device)
+        }, common::Range{0, ndata}, ctx_->Threads(), device)
         .Eval(out_gpair, info.labels.Data(), &preds, &info.weights_, &label_correct_);
 
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -146,7 +146,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 _preds.subspan(_idx * nclass, nclass);
             common::Softmax(point.begin(), point.end());
           },
-          common::Range{0, ndata}, this->tparam_->Threads(), device)
+          common::Range{0, ndata}, this->ctx_->Threads(), device)
           .Eval(io_preds);
     } else {
       io_preds->SetDevice(device);
@@ -162,7 +162,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 common::FindMaxIndex(point.cbegin(), point.cend()) -
                 point.cbegin();
           },
-          common::Range{0, ndata}, this->tparam_->Threads(), device)
+          common::Range{0, ndata}, this->ctx_->Threads(), device)
           .Eval(io_preds, &max_preds);
       io_preds->Resize(max_preds.Size());
       io_preds->Copy(max_preds);

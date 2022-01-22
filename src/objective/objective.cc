@@ -27,7 +27,7 @@ ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const
                << ss.str();
   }
   auto pobj = (e->body)();
-  pobj->tparam_ = tparam;
+  pobj->ctx_ = tparam;
   return pobj;
 }
 
