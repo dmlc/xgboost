@@ -209,11 +209,21 @@ XGB_DLL SEXP XGBoosterSaveModel_R(SEXP handle, SEXP fname);
 XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
 
 /*!
- * \brief save model into R's raw array
+ * \brief Save model into R's raw array
+ *
  * \param handle handle
- * \return raw array
+ * \param json_config JSON encoded string storing parameters for the function.  Following
+ *                    keys are expected in the JSON document:
+ *
+ *     "format": str
+ *       - json: Output booster will be encoded as JSON.
+ *       - ubj:  Output booster will be encoded as Univeral binary JSON.
+ *       - deprecated: Output booster will be encoded as old custom binary format.  Do now use
+ *         this format except for compatibility reasons.
+ *
+ * \return Raw array
  */
-XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
+XGB_DLL SEXP XGBoosterSaveModelToRaw_R(SEXP handle, SEXP json_config);
 
 /*!
  * \brief Save internal parameters as a JSON string
