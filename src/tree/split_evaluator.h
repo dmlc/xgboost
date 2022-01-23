@@ -176,7 +176,7 @@ class TreeEvaluator {
             lower[rightid] = mid;
           }
         },
-        common::Range(0, 1), device_, false)
+        common::Range(0, 1), 1, device_)
         .Eval(&lower_bounds_, &upper_bounds_, &monotone_);
   }
 };

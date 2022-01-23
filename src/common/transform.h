@@ -1,22 +1,21 @@
 /*!
- * Copyright 2018 XGBoost contributors
+ * Copyright 2018-2022 XGBoost contributors
  */
 #ifndef XGBOOST_COMMON_TRANSFORM_H_
 #define XGBOOST_COMMON_TRANSFORM_H_
 
-#include <dmlc/omp.h>
 #include <dmlc/common.h>
-
+#include <dmlc/omp.h>
 #include <xgboost/data.h>
+
+#include <type_traits>  // enable_if
 #include <utility>
 #include <vector>
-#include <type_traits>  // enable_if
-
-#include "xgboost/host_device_vector.h"
-#include "xgboost/span.h"
 
 #include "common.h"
 #include "threading_utils.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"
@@ -61,10 +60,8 @@ class Transform {
   template <typename Functor>
   struct Evaluator {
    public:
-    Evaluator(Functor func, Range range, int device, bool shard) :
-        func_(func), range_{std::move(range)},
-        shard_{shard},
-        device_{device} {}
+    Evaluator(Functor func, Range range, int32_t n_threads, int32_t device_idx)
+        : func_(func), range_{std::move(range)}, n_threads_{n_threads}, device_{device_idx} {}
 
     /*!
      * \brief Evaluate the functor with input pointers to HostDeviceVector.
@@ -134,9 +131,7 @@ class Transform {
     template <typename std::enable_if<CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
-      if (shard_) {
-        UnpackShard(device_, _vectors...);
-      }
+      UnpackShard(device_, _vectors...);
 
       size_t range_size = *range_.end() - *range_.begin();
 
@@ -167,12 +162,10 @@ class Transform {
 #endif  // defined(__CUDACC__)
 
     template <typename... HDV>
-    void LaunchCPU(Functor func, HDV*... vectors) const {
+    void LaunchCPU(Functor func, HDV *...vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
       SyncHost(vectors...);
-      ParallelFor(end, [&](omp_ulong idx) {
-        func(idx, UnpackHDV(vectors)...);
-      });
+      ParallelFor(end, n_threads_, [&](omp_ulong idx) { func(idx, UnpackHDV(vectors)...); });
     }
 
    private:
@@ -180,9 +173,8 @@ class Transform {
     Functor func_;
     /*! \brief Range object specifying parallel threads index range. */
     Range range_;
-    /*! \brief Whether sharding for vectors is required. */
-    bool shard_;
-    int device_;
+    int32_t n_threads_;
+    int32_t device_;
   };
 
  public:
@@ -195,14 +187,13 @@ class Transform {
    * \param func    A callable object, accepting a size_t thread index,
    *                  followed by a set of Span classes.
    * \param range   Range object specifying parallel threads index range.
-   * \param device  Specify GPU to use.
-   * \param shard Whether Shard for HostDeviceVector is needed.
+   * \param n_threads  Number of CPU threads
+   * \param device_idx GPU device ordinal
    */
   template <typename Functor>
-  static Evaluator<Functor> Init(Functor func, Range const range,
-                                 int device,
-                                 bool const shard = true) {
-    return Evaluator<Functor> {func, std::move(range), device, shard};
+  static Evaluator<Functor> Init(Functor func, Range const range, int32_t n_threads,
+                                 int32_t device_idx) {
+    return Evaluator<Functor>{func, std::move(range), n_threads, device_idx};
   }
 };
 

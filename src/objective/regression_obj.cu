@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -70,7 +70,7 @@ class RegLossObj : public ObjFunction {
         << "Loss: " << Loss::Name();
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     additional_input_.HostVector().begin()[0] = 1;  // Fill the label_correct flag
 
     bool is_null_weight = info.weights_.Size() == 0;
@@ -82,7 +82,7 @@ class RegLossObj : public ObjFunction {
     additional_input_.HostVector().begin()[1] = scale_pos_weight;
     additional_input_.HostVector().begin()[2] = is_null_weight;
 
-    const size_t nthreads = tparam_->Threads();
+    const size_t nthreads = ctx_->Threads();
     bool on_device = device >= 0;
     // On CPU we run the transformation each thread processing a contigious block of data
     // for better performance.
@@ -121,7 +121,7 @@ class RegLossObj : public ObjFunction {
                                               Loss::SecondOrderGradient(p, label) * w);
           }
         },
-        common::Range{0, static_cast<int64_t>(n_data_blocks)}, device)
+        common::Range{0, static_cast<int64_t>(n_data_blocks)}, nthreads, device)
         .Eval(&additional_input_, out_gpair, &preds, info.labels.Data(),
               &info.weights_);
 
@@ -140,7 +140,8 @@ class RegLossObj : public ObjFunction {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = Loss::PredTransform(_preds[_idx]);
-        }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        },
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
@@ -228,7 +229,7 @@ class PoissonRegression : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels.Size()) << "labels are not correctly provided";
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     label_correct_.Resize(1);
     label_correct_.Fill(1);
 
@@ -254,7 +255,7 @@ class PoissonRegression : public ObjFunction {
           _out_gpair[_idx] = GradientPair{(expf(p) - y) * w,
                                           expf(p + max_delta_step) * w};
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(), device).Eval(
             &label_correct_, out_gpair, &preds, info.labels.Data(), &info.weights_);
     // copy "label correct" flags back to host
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -269,7 +270,7 @@ class PoissonRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
@@ -381,7 +382,7 @@ class CoxRegression : public ObjFunction {
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     std::vector<bst_float> &preds = io_preds->HostVector();
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    common::ParallelFor(ndata, [&](long j) { // NOLINT(*)
+    common::ParallelFor(ndata, ctx_->Threads(), [&](long j) { // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     });
   }
@@ -423,7 +424,7 @@ class GammaRegression : public ObjFunction {
     CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels.Size()) << "labels are not correctly provided";
     const size_t ndata = preds.Size();
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     out_gpair->Resize(ndata);
     label_correct_.Resize(1);
     label_correct_.Fill(1);
@@ -448,7 +449,7 @@ class GammaRegression : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair((1 - y / expf(p)) * w, y / expf(p) * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(), device).Eval(
             &label_correct_, out_gpair, &preds, info.labels.Data(), &info.weights_);
 
     // copy "label correct" flags back to host
@@ -464,7 +465,7 @@ class GammaRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
@@ -525,7 +526,7 @@ class TweedieRegression : public ObjFunction {
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
 
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     label_correct_.Resize(1);
     label_correct_.Fill(1);
 
@@ -555,7 +556,7 @@ class TweedieRegression : public ObjFunction {
               std::exp((1 - rho) * p) + (2 - rho) * expf((2 - rho) * p);
           _out_gpair[_idx] = GradientPair(grad * w, hess * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata), 1}, device)
+        common::Range{0, static_cast<int64_t>(ndata), 1}, this->ctx_->Threads(), device)
         .Eval(&label_correct_, out_gpair, &preds, info.labels.Data(), &info.weights_);
 
     // copy "label correct" flags back to host
@@ -571,7 +572,7 @@ class TweedieRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
         io_preds->DeviceIdx())
         .Eval(io_preds);
   }
