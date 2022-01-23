@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 by XGBoost Contributors
+ * Copyright 2019-2022 by XGBoost Contributors
  */
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
@@ -28,7 +28,7 @@ namespace common {
 template <typename AdapterT>
 HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
   data::SimpleDMatrix dmat(adapter, missing, 1);
-  HistogramCuts cuts = SketchOnDMatrix(&dmat, num_bins);
+  HistogramCuts cuts = SketchOnDMatrix(&dmat, num_bins, common::OmpGetNumThreads(0));
   return cuts;
 }
 
@@ -40,7 +40,7 @@ TEST(HistUtil, DeviceSketch) {
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-  HistogramCuts host_cuts = SketchOnDMatrix(dmat.get(), num_bins);
+  HistogramCuts host_cuts = SketchOnDMatrix(dmat.get(), num_bins, common::OmpGetNumThreads(0));
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());

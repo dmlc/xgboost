@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 by Contributors
+ * Copyright 2017-2022 by XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #include <algorithm>
@@ -126,17 +126,16 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
   });
 }
 
-void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, bool sorted_sketch,
+void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, bool sorted_sketch, int32_t n_threads,
                             common::Span<float> hess) {
   // We use sorted sketching for approx tree method since it's more efficient in
   // computation time (but higher memory usage).
-  cut = common::SketchOnDMatrix(p_fmat, max_bins, sorted_sketch, hess);
+  cut = common::SketchOnDMatrix(p_fmat, max_bins, n_threads, sorted_sketch, hess);
 
   max_num_bins = max_bins;
-  const int32_t nthread = omp_get_max_threads();
   const uint32_t nbins = cut.Ptrs().back();
   hit_count.resize(nbins, 0);
-  hit_count_tloc_.resize(nthread * nbins, 0);
+  hit_count_tloc_.resize(n_threads * nbins, 0);
 
   this->p_fmat = p_fmat;
   size_t new_size = 1;
@@ -154,7 +153,7 @@ void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, bool sorted_sketch,
   auto ft = p_fmat->Info().feature_types.ConstHostSpan();
 
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    this->PushBatch(batch, ft, rbegin, prev_sum, nbins, nthread);
+    this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
     prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
   }

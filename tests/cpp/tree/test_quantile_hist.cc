@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2021 by Contributors
+ * Copyright 2018-2022 by XGBoost Contributors
  */
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
@@ -162,7 +162,7 @@ class QuantileHistMock : public QuantileHistMaker {
         // kNRows samples with kNCols features
         auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
 
-        GHistIndexMatrix gmat(dmat.get(), kMaxBins, false);
+        GHistIndexMatrix gmat(dmat.get(), kMaxBins, false, common::OmpGetNumThreads(0));
         ColumnMatrix cm;
 
         // treat everything as dense, as this is what we intend to test here
@@ -253,7 +253,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false);
+    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false, common::OmpGetNumThreads(0));
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -270,7 +270,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitDataSampling() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false);
+    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false, common::OmpGetNumThreads(0));
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);

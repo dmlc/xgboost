@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2020-2022 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include "test_quantile.h"
 #include "../../../src/common/quantile.h"
@@ -201,7 +204,7 @@ TEST(Quantile, SameOnAllWorkers) {
                      .MaxCategory(17)
                      .Seed(rank + seed)
                      .GenerateDMatrix();
-        auto cuts = SketchOnDMatrix(m.get(), n_bins);
+        auto cuts = SketchOnDMatrix(m.get(), n_bins, common::OmpGetNumThreads(0));
         std::vector<float> cut_values(cuts.Values().size() * world, 0);
         std::vector<
             typename std::remove_reference_t<decltype(cuts.Ptrs())>::value_type>
