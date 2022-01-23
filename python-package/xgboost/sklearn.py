@@ -197,7 +197,7 @@ __model_doc = f'''
         Experimental support for categorical data.  Do not set to true unless you are
         interested in development. Only valid when `gpu_hist` and dataframe are used.
 
-    max_cat_to_onehot : bool
+    max_cat_to_onehot : Optional[int]
 
         .. versionadded:: 1.6.0
 
