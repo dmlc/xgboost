@@ -264,7 +264,7 @@ def _transform_pandas_df(
     if feature_names is None and meta is None:
         if isinstance(data.columns, pd.MultiIndex):
             feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
-        elif isinstance(data.columns, (pd.Int64Index, pd.RangeIndex)):
+        elif isinstance(data.columns, (pd.Index, pd.RangeIndex)):
             feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()

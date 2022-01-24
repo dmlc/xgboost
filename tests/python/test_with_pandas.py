@@ -109,6 +109,12 @@ class TestPandas:
         assert dm.num_row() == 2
         assert dm.num_col() == 6
 
+        # test Index as columns
+        df = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=pd.Index([1, 2]))
+        print(df.columns, isinstance(df.columns, pd.Index))
+        Xy = xgb.DMatrix(df)
+        np.testing.assert_equal(np.array(Xy.feature_names), np.array(["1", "2"]))
+
     def test_slice(self):
         rng = np.random.RandomState(1994)
         rows = 100
