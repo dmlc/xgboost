@@ -76,7 +76,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   // Make sure that the final sparse page has the right number of entries
   ASSERT_EQ(kEntries, page.data.Size());
 
-  page.SortRows();
+  page.SortRows(common::OmpGetNumThreads(0));
   auto v = page.GetView();
   for (size_t i = 0; i < v.Size(); ++i) {
     auto column = v[i];

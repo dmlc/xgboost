@@ -302,22 +302,7 @@ class SparsePage {
 
   SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
-  void SortRows() {
-    auto ncol = static_cast<bst_omp_uint>(this->Size());
-    dmlc::OMPException exc;
-#pragma omp parallel for schedule(dynamic, 1)
-    for (bst_omp_uint i = 0; i < ncol; ++i) {
-      exc.Run([&]() {
-        if (this->offset.HostVector()[i] < this->offset.HostVector()[i + 1]) {
-          std::sort(
-              this->data.HostVector().begin() + this->offset.HostVector()[i],
-              this->data.HostVector().begin() + this->offset.HostVector()[i + 1],
-              Entry::CmpValue);
-        }
-      });
-    }
-    exc.Rethrow();
-  }
+  void SortRows(int32_t n_threads);
 
   /**
    * \brief Pushes external data batch onto this page

@@ -339,7 +339,7 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
       this->page_->PushCSC(csr->GetTranspose(n_features_, nthreads_));
       CHECK_EQ(this->page_->Size(), n_features_);
       CHECK_EQ(this->page_->data.Size(), csr->data.Size());
-      this->page_->SortRows();
+      this->page_->SortRows(this->nthreads_);
       page_->SetBaseRowId(csr->base_rowid);
       this->WriteCache();
     }

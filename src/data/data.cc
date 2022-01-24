@@ -1035,6 +1035,16 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   return transpose;
 }
 
+void SparsePage::SortRows(int32_t n_threads) {
+  auto& h_offset = this->offset.HostVector();
+  auto& h_data = this->data.HostVector();
+  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+    if (h_offset[i] < h_offset[i + 1]) {
+      std::sort(h_data.begin() + h_offset[i], h_data.begin() + h_offset[i + 1], Entry::CmpValue);
+    }
+  });
+}
+
 void SparsePage::Push(const SparsePage &batch) {
   auto& data_vec = data.HostVector();
   auto& offset_vec = offset.HostVector();
