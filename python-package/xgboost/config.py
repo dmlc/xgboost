@@ -4,12 +4,14 @@ import ctypes
 import json
 from contextlib import contextmanager
 from functools import wraps
+from pyclbr import Function
+from typing import Any, Dict
 
 from .core import _LIB, _check_call, c_str, py_str
 
 
-def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
-               see_also=None):
+def config_doc(*, header: str = None, extra_note: str = None, parameters: str = None, returns: str = None,
+               see_also: str = None) -> None:
     """Decorator to format docstring for config functions.
 
     Parameters
@@ -64,10 +66,10 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
         assert xgb.get_config()['verbosity'] == 2  # old value restored
     """
 
-    def none_to_str(value):
+    def none_to_str(value: str) -> str:
         return '' if value is None else value
 
-    def config_doc_decorator(func):
+    def config_doc_decorator(func: Function) -> Function:
         func.__doc__ = (doc_template.format(header=none_to_str(header),
                                             extra_note=none_to_str(extra_note))
                         + none_to_str(parameters) + none_to_str(returns)
@@ -89,7 +91,7 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
     new_config: Dict[str, Any]
         Keyword arguments representing the parameters and their values
             """)
-def set_config(**new_config):
+def set_config(**new_config: Dict[str, Any]) -> None:
     config = json.dumps(new_config)
     _check_call(_LIB.XGBSetGlobalConfig(c_str(config)))
 
@@ -103,7 +105,7 @@ def set_config(**new_config):
     args: Dict[str, Any]
         The list of global parameters and their values
             """)
-def get_config():
+def get_config() -> Dict[str, Any]:
     config_str = ctypes.c_char_p()
     _check_call(_LIB.XGBGetGlobalConfig(ctypes.byref(config_str)))
     config = json.loads(py_str(config_str.value))
@@ -132,7 +134,7 @@ def get_config():
     set_config: Set global XGBoost configuration
     get_config: Get current values of the global configuration
             """)
-def config_context(**new_config):
+def config_context(**new_config: Dict[str, Any]) -> None:
     old_config = get_config().copy()
     set_config(**new_config)
 

@@ -1,7 +1,8 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
 """For compatibility and optional dependencies."""
-from typing import Any
+from typing import Any, Dict, List, Union
+from types import ModuleType
 import sys
 import types
 import importlib.util
@@ -14,12 +15,12 @@ assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 STRING_TYPES = (str,)
 
 
-def py_str(x):
+def py_str(x: Union[bytes, None]) -> str:
     """convert c string back to python string"""
     return x.decode('utf-8')
 
 
-def lazy_isinstance(instance, module, name):
+def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
     """Use string representation to identify a type."""
 
     # Notice, we use .__class__ as opposed to type() in order
@@ -68,7 +69,7 @@ try:
 
     class XGBoostLabelEncoder(LabelEncoder):
         '''Label encoder with JSON serialization methods.'''
-        def to_json(self):
+        def to_json(self) -> Dict[str, Any]:
             '''Returns a JSON compatible dictionary'''
             meta = {}
             for k, v in self.__dict__.items():
@@ -78,7 +79,7 @@ try:
                     meta[k] = v
             return meta
 
-        def from_json(self, doc):
+        def from_json(self, doc: Dict[str, Any]) -> None:
             # pylint: disable=attribute-defined-outside-init
             '''Load the encoder back from a JSON compatible dict.'''
             meta = {}
@@ -136,11 +137,11 @@ except ImportError:
 # the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the specific language governing
 # permissions and limitations under the License.
-class LazyLoader(types.ModuleType):
+class LazyLoader(ModuleType):
     """Lazily import a module, mainly to avoid pulling in large dependencies.
     """
 
-    def __init__(self, local_name, parent_module_globals, name, warning=None):
+    def __init__(self, local_name: str, parent_module_globals: Dict[str, Any], name: str, warning=None):
         self._local_name = local_name
         self._parent_module_globals = parent_module_globals
         self._warning = warning
@@ -148,7 +149,7 @@ class LazyLoader(types.ModuleType):
 
         super().__init__(name)
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         """Load the module and insert it into the parent's globals."""
         # Import the target module and insert it into the parent's namespace
         module = importlib.import_module(self.__name__)
@@ -167,12 +168,12 @@ class LazyLoader(types.ModuleType):
 
         return module
 
-    def __getattr__(self, item):
+    def __getattr__(self: object, item: str) -> Any:
         if not self.module:
             self.module = self._load()
         return getattr(self.module, item)
 
-    def __dir__(self):
+    def __dir__(self) -> List[str]:
         if not self.module:
             self.module = self._load()
         return dir(self.module)
