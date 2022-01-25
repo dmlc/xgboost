@@ -94,18 +94,13 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
     din = REAL(mat);
   }
   std::vector<float> data(nrow * ncol);
-  dmlc::OMPException exc;
   int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
 
-#pragma omp parallel for schedule(static) num_threads(threads)
-  for (omp_ulong i = 0; i < nrow; ++i) {
-    exc.Run([&]() {
-      for (size_t j = 0; j < ncol; ++j) {
-        data[i * ncol +j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
-      }
-    });
-  }
-  exc.Rethrow();
+  xgboost::common::ParallelFor(nrow, threads, [&](auto i) {
+    for (size_t j = 0; j < ncol; ++j) {
+      data[i * ncol + j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
+    }
+  });
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromMat_omp(BeginPtr(data), nrow, ncol,
                                         asReal(missing), &handle, threads));
