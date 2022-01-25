@@ -25,7 +25,9 @@ TEST(CpuPredictor, Basic) {
   param.base_score = 0.0;
   param.num_output_group = 1;
 
-  gbm::GBTreeModel model = CreateTestModel(&param);
+  GenericParameter ctx;
+  ctx.UpdateAllowUnknown(Args{});
+  gbm::GBTreeModel model = CreateTestModel(&param, &ctx);
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
@@ -106,7 +108,9 @@ TEST(CpuPredictor, ExternalMemory) {
   param.num_feature = dmat->Info().num_col_;
   param.num_output_group = 1;
 
-  gbm::GBTreeModel model = CreateTestModel(&param);
+  GenericParameter ctx;
+  ctx.UpdateAllowUnknown(Args{});
+  gbm::GBTreeModel model = CreateTestModel(&param, &ctx);
 
   // Test predict batch
   PredictionCacheEntry out_predictions;

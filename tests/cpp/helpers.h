@@ -357,7 +357,8 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
     const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes = 1);
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, GenericParameter const* ctx,
+                                 size_t n_classes = 1);
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(
     std::string name, Args kwargs, size_t kRows, size_t kCols,

@@ -23,7 +23,9 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
       std::unique_ptr<Predictor>(Predictor::Create(name, &lparam));
   predictor->Configure({});
 
-  gbm::GBTreeModel model = CreateTestModel(&param, kClasses);
+  GenericParameter ctx;
+  ctx.UpdateAllowUnknown(Args{});
+  gbm::GBTreeModel model = CreateTestModel(&param, &ctx, kClasses);
 
   {
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();

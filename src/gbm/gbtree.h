@@ -202,8 +202,7 @@ inline bool SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(LearnerModelParam const* booster_config) :
-      model_(booster_config) {}
+  explicit GBTree(LearnerModelParam const* booster_config) : model_(booster_config, ctx_) {}
 
   void Configure(const Args& cfg) override;
   // Revise `tree_method` and `updater` parameters after seeing the training
