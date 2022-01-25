@@ -281,7 +281,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
 
-  virtual GenericParameter const& GetGenericParameter() const = 0;
+  virtual GenericParameter const& Ctx() const = 0;
   /*!
    * \brief Get configuration arguments currently stored by the learner
    * \return Key-value pairs representing configuration arguments

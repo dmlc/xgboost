@@ -1,17 +1,22 @@
 // Copyright (c) 2014 by Contributors
-#include <dmlc/logging.h>
-#include <dmlc/omp.h>
+#include "./xgboost_R.h"
+
 #include <dmlc/common.h>
+#include <dmlc/omp.h>
 #include <xgboost/c_api.h>
-#include <vector>
+#include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
+#include <xgboost/logging.h>
+
+#include <cstdio>
+#include <cstring>
+#include <sstream>
 #include <string>
 #include <utility>
-#include <cstring>
-#include <cstdio>
-#include <sstream>
+#include <vector>
 
+#include "../../src/c_api/c_api_error.h"
 #include "../../src/common/threading_utils.h"
-#include "./xgboost_R.h"
 
 /*!
  * \brief macro to annotate begin of api
@@ -39,6 +44,13 @@
 
 
 using namespace dmlc;
+
+xgboost::GenericParameter const* BoosterCtx(BoosterHandle handle) {
+  CHECK_HANDLE();
+  auto *learner = static_cast<xgboost::Learner *>(handle);
+  CHECK(learner);
+  return learner->Ctx();
+}
 
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
   return ScalarLogical(R_ExternalPtrAddr(handle) == NULL);
@@ -128,15 +140,10 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
-  dmlc::OMPException exc;
-  #pragma omp parallel for schedule(static)
-  for (int64_t i = 0; i < static_cast<int64_t>(ndata); ++i) {
-    exc.Run([&]() {
-      indices_[i] = static_cast<unsigned>(p_indices[i]);
-      data_[i] = static_cast<float>(p_data[i]);
-    });
-  }
-  exc.Rethrow();
+  xgboost::common::ParallelFor(ndata, n_threads, [&](auto i) {
+    indices_[i] = static_cast<unsigned>(p_indices[i]);
+    data_[i] = static_cast<float>(p_data[i]);
+  });
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromCSCEx(BeginPtr(col_ptr_), BeginPtr(indices_),
                                       BeginPtr(data_), nindptr, ndata,
@@ -393,11 +400,10 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
     len *= out_shape[i];
   }
   r_out_result = PROTECT(allocVector(REALSXP, len));
-
-#pragma omp parallel for
-  for (omp_ulong i = 0; i < len; ++i) {
+  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
+  xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto i) {
     REAL(r_out_result)[i] = out_result[i];
-  }
+  });
 
   r_out = PROTECT(allocVector(VECSXP, 2));
 
@@ -595,7 +601,7 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   CHECK_CALL(XGBoosterFeatureScore(R_ExternalPtrAddr(handle), c_json_config,
                                    &out_n_features, &out_features,
                                    &out_dim, &out_shape, &out_scores));
-
+  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
   out_shape_sexp = PROTECT(allocVector(INTSXP, out_dim));
   size_t len = 1;
   for (size_t i = 0; i < out_dim; ++i) {
@@ -604,10 +610,9 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   }
 
   out_scores_sexp = PROTECT(allocVector(REALSXP, len));
-#pragma omp parallel for
-  for (omp_ulong i = 0; i < len; ++i) {
+  xgboost::common::ParallelFor(len, ctx->Threads(), [](auto i) {
     REAL(out_scores_sexp)[i] = out_scores[i];
-  }
+  });
 
   out_features_sexp = PROTECT(allocVector(STRSXP, out_n_features));
   for (size_t i = 0; i < out_n_features; ++i) {
