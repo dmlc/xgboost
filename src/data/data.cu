@@ -27,6 +27,8 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
   auto ptr_device = SetDeviceToPtr(column.data);
 
   if (column.num_rows == 0) {
+    *out = HostDeviceVector<float>{};
+    out->SetDevice(dh::CurrentDevice());
     return;
   }
   out->SetDevice(ptr_device);
@@ -137,9 +139,6 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
 
   CHECK(!array_interface.valid.Data())
       << "Meta info " << key << " should be dense, found validity mask";
-  if (array_interface.num_rows == 0) {
-    return;
-  }
 
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);
