@@ -15,12 +15,6 @@ if [ ${TASK} == "python_sdist_test" ]; then
 fi
 
 if [ ${TASK} == "python_test" ]; then
-    if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
-        echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
-             'try `dh::LaunchKernel`'
-        exit -1
-    fi
-
     set -e
 
 
