@@ -180,7 +180,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        training predicting will perform dropout.
 #' @param iterationrange Specifies which layer of trees are used in prediction.  For
 #'        example, if a random forest is trained with 100 rounds.  Specifying
-#'        `iteration_range=(1, 21)`, then only the forests built during [1, 21) (half open set)
+#'        `iterationrange=(1, 21)`, then only the forests built during [1, 21) (half open set)
 #'        rounds are used in this prediction.  It's 1-based index just like R vector.  When set
 #'        to \code{c(1, 1)} XGBoost will use all trees.
 #' @param strict_shape  Default is \code{FALSE}. When it's set to \code{TRUE}, output
