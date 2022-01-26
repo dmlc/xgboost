@@ -1419,6 +1419,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             # multi-label
             column_indexes = np.zeros(class_probs.shape)
             column_indexes[class_probs > 0.5] = 1
+        elif self.objective == "multi:softmax":
+            return class_probs.astype(np.int32)
         else:
             # turns soft logit into class label
             column_indexes = np.repeat(0, class_probs.shape[0])
