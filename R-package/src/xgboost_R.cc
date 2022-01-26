@@ -116,7 +116,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   std::vector<float> data(nrow * ncol);
   int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
 
-  xgboost::common::ParallelFor(nrow, threads, [&](auto i) {
+  xgboost::common::ParallelFor(nrow, threads, [&](xgboost::omp_ulong i) {
     for (size_t j = 0; j < ncol; ++j) {
       data[i * ncol + j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
     }
@@ -149,7 +149,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
   int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
-  xgboost::common::ParallelFor(ndata, threads, [&](auto i) {
+  xgboost::common::ParallelFor(ndata, threads, [&](xgboost::omp_ulong i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   });
@@ -200,13 +200,15 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   auto ctx = DMatrixCtx(R_ExternalPtrAddr(handle));
   if (!strcmp("group", name)) {
     std::vector<unsigned> vec(len);
-    xgboost::common::ParallelFor(
-        len, ctx->Threads(), [&](auto i) { vec[i] = static_cast<unsigned>(INTEGER(array)[i]); });
+    xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
+      vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
+    });
     CHECK_CALL(
         XGDMatrixSetUIntInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), BeginPtr(vec), len));
   } else {
     std::vector<float> vec(len);
-    xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto i) { vec[i] = REAL(array)[i]; });
+    xgboost::common::ParallelFor(len, ctx->Threads(),
+                                 [&](xgboost::omp_ulong i) { vec[i] = REAL(array)[i]; });
     CHECK_CALL(
         XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), BeginPtr(vec), len));
   }
@@ -312,7 +314,7 @@ XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP h
   int len = length(grad);
   std::vector<float> tgrad(len), thess(len);
   auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
-  xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto j) {
+  xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong j) {
     tgrad[j] = REAL(grad)[j];
     thess[j] = REAL(hess)[j];
   });
@@ -393,7 +395,7 @@ XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_con
   }
   r_out_result = PROTECT(allocVector(REALSXP, len));
   auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
-  xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto i) {
+  xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
     REAL(r_out_result)[i] = out_result[i];
   });
 
@@ -602,7 +604,7 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
 
   out_scores_sexp = PROTECT(allocVector(REALSXP, len));
   auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
-  xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto i) {
+  xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
     REAL(out_scores_sexp)[i] = out_scores[i];
   });
 
