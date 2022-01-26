@@ -148,18 +148,6 @@ jobs:
     - name: Run lint
       run: |
         make lint
-    - name: Lint invalid use of parallel primitives
-      run: |
-        if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
-          echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
-               'try `dh::LaunchKernel`'
-          exit -1
-        fi
-
-        if grep -n -R "omp parallel" src include tests | grep --invert "NOLINT" | grep --invert "threading_utils"; then
-          echo "Do not use raw omp parallel pragma, try `common::ParallelFor` instead"
-          exit -1
-        fi
 
   mypy:
     runs-on: ubuntu-latest

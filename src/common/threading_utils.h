@@ -232,14 +232,6 @@ void ParallelFor(Index size, int32_t n_threads, Func fn) {
   ParallelFor(size, n_threads, Sched::Static(), fn);
 }
 
-template <typename Func>
-void ParallelGroup(int32_t n_threads, Func&& fn) {
-  dmlc::OMPException exc;
-#pragma omp parallel num_threads(n_threads)
-  { fn(omp_get_thread_num()); }
-  exc.Rethrow();
-}
-
 inline int32_t OmpGetThreadLimit() {
   int32_t limit = omp_get_thread_limit();
   CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";

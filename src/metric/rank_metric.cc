@@ -196,23 +196,26 @@ struct EvalRank : public Metric, public EvalRankConfig {
       const auto& labels = info.labels.View(GenericParameter::kCpuId);
       const auto &h_preds = preds.ConstHostVector();
 
-      common::ParallelGroup(tparam_->Threads(), [&](auto tid) {
-        // each thread takes a local rec
-        dmlc::OMPException exc;
-        PredIndPairContainer rec;
+      dmlc::OMPException exc;
+#pragma omp parallel num_threads(tparam_->Threads())
+      {
+        exc.Run([&]() {
+          // each thread takes a local rec
+          PredIndPairContainer rec;
 #pragma omp for schedule(static)
-        for (bst_omp_uint k = 0; k < ngroups; ++k) {
-          exc.Run([&]() {
-            rec.clear();
-            for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-              rec.emplace_back(h_preds[j], static_cast<int>(labels(j)));
-            }
-            sum_tloc[tid] += this->EvalGroup(&rec);
-          });
-        }
-        exc.Rethrow();
-      });
+          for (bst_omp_uint k = 0; k < ngroups; ++k) {
+            exc.Run([&]() {
+              rec.clear();
+              for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
+                rec.emplace_back(h_preds[j], static_cast<int>(labels(j)));
+              }
+              sum_tloc[omp_get_thread_num()] += this->EvalGroup(&rec);
+            });
+          }
+        });
+      }
       sum_metric = std::accumulate(sum_tloc.cbegin(), sum_tloc.cend(), 0.0);
+      exc.Rethrow();
     }
 
     if (distributed) {

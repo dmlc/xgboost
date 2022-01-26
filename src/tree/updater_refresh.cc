@@ -54,15 +54,21 @@ class TreeRefresher: public TreeUpdater {
     const int nthread = ctx_->Threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<GradStats>());
-    common::ParallelGroup(nthread, [&](auto tid) {
-      int num_nodes = 0;
-      for (auto tree : trees) {
-        num_nodes += tree->param.num_nodes;
-      }
-      stemp[tid].resize(num_nodes, GradStats());
-      std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
-      fvec_temp[tid].Init(trees[0]->param.num_feature);
-    });
+    dmlc::OMPException exc;
+#pragma omp parallel num_threads(nthread)
+    {
+      exc.Run([&]() {
+        int tid = omp_get_thread_num();
+        int num_nodes = 0;
+        for (auto tree : trees) {
+          num_nodes += tree->param.num_nodes;
+        }
+        stemp[tid].resize(num_nodes, GradStats());
+        std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
+        fvec_temp[tid].Init(trees[0]->param.num_feature);
+      });
+    }
+    exc.Rethrow();
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
     auto lazy_get_stats = [&]() {

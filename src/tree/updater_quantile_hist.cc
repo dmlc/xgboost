@@ -393,15 +393,19 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const DMatrix& fmat,
   const size_t discard_size = info.num_row_ / n_threads;
   std::bernoulli_distribution coin_flip(param_.subsample);
 
-  common::ParallelGroup(n_threads, [&](size_t tid) {
-    const size_t ibegin = tid * discard_size;
-    const size_t iend = (tid == (n_threads - 1)) ? info.num_row_ : ibegin + discard_size;
-    RandomReplace::MakeIf(
-        [&](size_t i, RandomReplace::EngineT& eng) {
-          return !(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng));
-        },
-        GradientPair(0), initial_seed, ibegin, iend, &gpair_ref);
-  });
+  dmlc::OMPException exc;
+  #pragma omp parallel num_threads(n_threads)
+  {
+    exc.Run([&]() {
+      const size_t tid = omp_get_thread_num();
+      const size_t ibegin = tid * discard_size;
+      const size_t iend = (tid == (n_threads - 1)) ? info.num_row_ : ibegin + discard_size;
+      RandomReplace::MakeIf([&](size_t i, RandomReplace::EngineT& eng) {
+        return !(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng));
+      }, GradientPair(0), initial_seed, ibegin, iend, &gpair_ref);
+    });
+  }
+  exc.Rethrow();
 #endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 }
 template<typename GradientSumT>
@@ -429,6 +433,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     // initialize histogram builder
+    dmlc::OMPException exc;
+    exc.Rethrow();
     this->histogram_builder_->Reset(nbins, BatchParam{GenericParameter::kCpuId, param_.max_bin},
                                     this->ctx_->Threads(), 1, rabit::IsDistributed());
 
@@ -455,18 +461,23 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
 
     const size_t block_size = info.num_row_ / n_threads + !!(info.num_row_ % n_threads);
 
-    common::ParallelGroup(n_threads, [&](auto tid) {
-      const size_t ibegin = tid * block_size;
-      const size_t iend =
-          std::min(static_cast<size_t>(ibegin + block_size), static_cast<size_t>(info.num_row_));
+#pragma omp parallel num_threads(n_threads)
+    {
+      exc.Run([&]() {
+        const size_t tid = omp_get_thread_num();
+        const size_t ibegin = tid * block_size;
+        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+            static_cast<size_t>(info.num_row_));
 
-      for (size_t i = ibegin; i < iend; ++i) {
-        if ((*gpair)[i].GetHess() < 0.0f) {
-          p_buff[tid] = true;
-          break;
+        for (size_t i = ibegin; i < iend; ++i) {
+          if ((*gpair)[i].GetHess() < 0.0f) {
+            p_buff[tid] = true;
+            break;
+          }
         }
-      }
-    });
+      });
+    }
+    exc.Rethrow();
 
     bool has_neg_hess = false;
     for (int32_t tid = 0; tid < n_threads; ++tid) {
@@ -484,14 +495,19 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
       }
       row_indices.resize(j);
     } else {
-      common::ParallelGroup(n_threads, [&](auto tid) {
-        const size_t ibegin = tid * block_size;
-        const size_t iend =
-            std::min(static_cast<size_t>(ibegin + block_size), static_cast<size_t>(info.num_row_));
-        for (size_t i = ibegin; i < iend; ++i) {
-          p_row_indices[i] = i;
-        }
-      });
+      #pragma omp parallel num_threads(n_threads)
+      {
+        exc.Run([&]() {
+          const size_t tid = omp_get_thread_num();
+          const size_t ibegin = tid * block_size;
+          const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+              static_cast<size_t>(info.num_row_));
+          for (size_t i = ibegin; i < iend; ++i) {
+            p_row_indices[i] = i;
+          }
+        });
+      }
+      exc.Rethrow();
     }
   }
 

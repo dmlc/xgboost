@@ -25,7 +25,7 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
   size_t block_size = batch.Size() / batch_threads;
 
   dmlc::OMPException exc;
-#pragma omp parallel num_threads(batch_threads)  // NOLINT
+#pragma omp parallel num_threads(batch_threads)
   {
 #pragma omp for
     for (omp_ulong tid = 0; tid < batch_threads; ++tid) {

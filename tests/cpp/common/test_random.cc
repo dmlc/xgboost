@@ -59,7 +59,8 @@ TEST(ColumnSampler, ThreadSynchronisation) {
   std::vector<bst_feature_t> reference_result;
   std::vector<float> feature_weights;
   bool success = true; // Cannot use google test asserts in multithreaded region
-  common::ParallelGroup(num_threads, [&](auto) {
+#pragma omp parallel num_threads(num_threads)
+  {
     for (auto j = 0ull; j < iterations; j++) {
       ColumnSampler cs(j);
       cs.Init(n, feature_weights, 0.5f, 0.5f, 0.5f);
@@ -73,7 +74,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
 #pragma omp barrier
       }
     }
-  });
+  }
   ASSERT_TRUE(success);
 }
 

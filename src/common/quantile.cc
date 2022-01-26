@@ -168,43 +168,49 @@ void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo
 
   auto batch = page.GetView();
   // Parallel over columns.  Each thread owns a set of consecutive columns.
-  bst_feature_t const ncol = static_cast<bst_feature_t>(info.num_col_);
+  auto const ncol = static_cast<bst_feature_t>(info.num_col_);
   auto thread_columns_ptr = LoadBalance(page, info.num_col_, n_threads_);
 
-  ParallelGroup(n_threads_, [&](auto tid) {
-    auto const begin = thread_columns_ptr[tid];
-    auto const end = thread_columns_ptr[tid + 1];
+  dmlc::OMPException exc;
+#pragma omp parallel num_threads(n_threads_)
+  {
+    exc.Run([&]() {
+      auto tid = static_cast<uint32_t>(omp_get_thread_num());
+      auto const begin = thread_columns_ptr[tid];
+      auto const end = thread_columns_ptr[tid + 1];
 
-    // do not iterate if no columns are assigned to the thread
-    if (begin < end && end <= ncol) {
-      for (size_t i = 0; i < batch.Size(); ++i) {
-        size_t const ridx = page.base_rowid + i;
-        SparsePage::Inst const inst = batch[i];
-        auto w = weights.empty() ? 1.0f : weights[ridx];
-        auto p_inst = inst.data();
-        if (is_dense) {
-          for (size_t ii = begin; ii < end; ii++) {
-            if (IsCat(feature_types_, ii)) {
-              categories_[ii].emplace(p_inst[ii].fvalue);
-            } else {
-              sketches_[ii].Push(p_inst[ii].fvalue, w);
-            }
-          }
-        } else {
-          for (size_t i = 0; i < inst.size(); ++i) {
-            auto const &entry = p_inst[i];
-            if (entry.index >= begin && entry.index < end) {
-              if (IsCat(feature_types_, entry.index)) {
-                categories_[entry.index].emplace(entry.fvalue);
+      // do not iterate if no columns are assigned to the thread
+      if (begin < end && end <= ncol) {
+        for (size_t i = 0; i < batch.Size(); ++i) {
+          size_t const ridx = page.base_rowid + i;
+          SparsePage::Inst const inst = batch[i];
+          auto w = weights.empty() ? 1.0f : weights[ridx];
+          auto p_inst = inst.data();
+          if (is_dense) {
+            for (size_t ii = begin; ii < end; ii++) {
+              if (IsCat(feature_types_, ii)) {
+                categories_[ii].emplace(p_inst[ii].fvalue);
               } else {
-                sketches_[entry.index].Push(entry.fvalue, w);
+                sketches_[ii].Push(p_inst[ii].fvalue, w);
+              }
+            }
+          } else {
+            for (size_t i = 0; i < inst.size(); ++i) {
+              auto const& entry = p_inst[i];
+              if (entry.index >= begin && entry.index < end) {
+                if (IsCat(feature_types_, entry.index)) {
+                  categories_[entry.index].emplace(entry.fvalue);
+                } else {
+                  sketches_[entry.index].Push(entry.fvalue, w);
+                }
               }
             }
           }
         }
       }
-    }
-  });
+    });
+  }
+  exc.Rethrow();
   monitor_.Stop(__func__);
 }
 
