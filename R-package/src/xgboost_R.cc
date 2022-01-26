@@ -141,7 +141,8 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
-  xgboost::common::ParallelFor(ndata, asInteger(n_threads), [&](auto i) {
+  int32_t threads = xgboost::common::OmpGetNumThreads(asInteger(n_threads));
+  xgboost::common::ParallelFor(ndata, threads, [&](auto i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   });

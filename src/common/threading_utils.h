@@ -177,6 +177,7 @@ void ParallelFor(Index size, int32_t n_threads, Sched sched, Func fn) {
   using OmpInd = Index;
 #endif
   OmpInd length = static_cast<OmpInd>(size);
+  CHECK_GE(n_threads, 1);
 
   dmlc::OMPException exc;
   switch (sched.sched) {
@@ -227,7 +228,7 @@ void ParallelFor(Index size, int32_t n_threads, Sched sched, Func fn) {
 }
 
 template <typename Index, typename Func>
-void ParallelFor(Index size, size_t n_threads, Func fn) {
+void ParallelFor(Index size, int32_t n_threads, Func fn) {
   ParallelFor(size, n_threads, Sched::Static(), fn);
 }
 
