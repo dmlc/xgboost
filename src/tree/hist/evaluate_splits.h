@@ -351,6 +351,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
 
   auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
   auto const& Stats() const { return snode_; }
+  auto Task() const { return task_; }
 
   float InitRoot(GradStats const& root_sum) {
     snode_.resize(1);

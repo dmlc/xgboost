@@ -157,7 +157,7 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   return BatchSet<SortedCSCPage>(BatchIterator<SortedCSCPage>(begin_iter));
 }
 
-BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam& param) {
+BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam &param) {
   CHECK_GE(param.max_bin, 2);
   if (param.hess.empty() && !param.regen) {
     // hist method doesn't support full external memory implementation, so we concatenate
@@ -176,10 +176,10 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
 
   auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
   this->InitializeSparsePage();
-  if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{}) ||
-      param.regen) {
+  if (!cache_info_.at(id)->written || RegenGHist(batch_param_, param)) {
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
+    LOG(INFO) << "Generating new Gradient Index.";
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
     auto cuts =
