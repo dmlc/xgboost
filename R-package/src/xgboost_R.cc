@@ -1,6 +1,6 @@
-// Copyright (c) 2014 by Contributors
-#include "./xgboost_R.h"
-
+/**
+ * Copyright 2014-2022 by XGBoost Contributors
+ */
 #include <dmlc/common.h>
 #include <dmlc/omp.h>
 #include <xgboost/c_api.h>
@@ -17,6 +17,8 @@
 
 #include "../../src/c_api/c_api_error.h"
 #include "../../src/common/threading_utils.h"
+
+#include "./xgboost_R.h"
 
 /*!
  * \brief macro to annotate begin of api
@@ -42,14 +44,13 @@
     error(XGBGetLastError());                   \
   }
 
+using dmlc::BeginPtr;
 
-using namespace dmlc;
-
-xgboost::GenericParameter const* BoosterCtx(BoosterHandle handle) {
+xgboost::GenericParameter const *BoosterCtx(BoosterHandle handle) {
   CHECK_HANDLE();
   auto *learner = static_cast<xgboost::Learner *>(handle);
   CHECK(learner);
-  return learner->Ctx();
+  return &learner->Ctx();
 }
 
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
@@ -124,7 +125,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
-                                      SEXP num_row) {
+                                      SEXP num_row, SEXP n_threads) {
   SEXP ret;
   R_API_BEGIN();
   const int *p_indptr = INTEGER(indptr);
@@ -140,7 +141,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
-  xgboost::common::ParallelFor(ndata, n_threads, [&](auto i) {
+  xgboost::common::ParallelFor(ndata, asInteger(n_threads), [&](auto i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   });
@@ -315,15 +316,11 @@ XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP h
       << "gradient and hess must have same length";
   int len = length(grad);
   std::vector<float> tgrad(len), thess(len);
-  dmlc::OMPException exc;
-  #pragma omp parallel for schedule(static)
-  for (int j = 0; j < len; ++j) {
-    exc.Run([&]() {
-      tgrad[j] = REAL(grad)[j];
-      thess[j] = REAL(hess)[j];
-    });
-  }
-  exc.Rethrow();
+  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
+  xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto j) {
+    tgrad[j] = REAL(grad)[j];
+    thess[j] = REAL(hess)[j];
+  });
   CHECK_CALL(XGBoosterBoostOneIter(R_ExternalPtrAddr(handle),
                                  R_ExternalPtrAddr(dtrain),
                                  BeginPtr(tgrad), BeginPtr(thess),
@@ -601,7 +598,6 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   CHECK_CALL(XGBoosterFeatureScore(R_ExternalPtrAddr(handle), c_json_config,
                                    &out_n_features, &out_features,
                                    &out_dim, &out_shape, &out_scores));
-  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
   out_shape_sexp = PROTECT(allocVector(INTSXP, out_dim));
   size_t len = 1;
   for (size_t i = 0; i < out_dim; ++i) {
@@ -610,7 +606,8 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   }
 
   out_scores_sexp = PROTECT(allocVector(REALSXP, len));
-  xgboost::common::ParallelFor(len, ctx->Threads(), [](auto i) {
+  auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
+  xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto i) {
     REAL(out_scores_sexp)[i] = out_scores[i];
   });
 

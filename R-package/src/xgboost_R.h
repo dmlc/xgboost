@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 (c) by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file xgboost_R.h
  * \author Tianqi Chen
  * \brief R wrapper of xgboost
@@ -59,12 +59,11 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
  * \param indices row indices
  * \param data content of the data
  * \param num_row numer of rows (when it's set to 0, then guess from data)
+ * \param n_threads Number of threads used to construct DMatrix from csc matrix.
  * \return created dmatrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
-                                      SEXP indices,
-                                      SEXP data,
-                                      SEXP num_row);
+XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_row,
+                                      SEXP n_threads);
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix

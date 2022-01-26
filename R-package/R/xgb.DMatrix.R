@@ -33,7 +33,9 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthre
     handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, as.integer(NVL(nthread, -1)))
     cnames <- colnames(data)
   } else if (inherits(data, "dgCMatrix")) {
-    handle <- .Call(XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data))
+    handle <- .Call(
+      XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data), as.integer(NVL(nthread, -1))
+    )
     cnames <- colnames(data)
   } else {
     stop("xgb.DMatrix does not support construction from ", typeof(data))

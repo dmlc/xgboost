@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -71,8 +71,9 @@ void LinearCheckLayer(unsigned layer_begin) {
  */
 class GBLinear : public GradientBooster {
  public:
-  explicit GBLinear(LearnerModelParam const* learner_model_param)
-      : learner_model_param_{learner_model_param},
+  explicit GBLinear(LearnerModelParam const* learner_model_param, GenericParameter const* ctx)
+      : GradientBooster{ctx},
+        learner_model_param_{learner_model_param},
         model_{learner_model_param},
         previous_model_{learner_model_param},
         sum_instance_weight_(0),
@@ -351,8 +352,8 @@ DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
     .describe("Linear booster, implement generalized linear model.")
-    .set_body([](LearnerModelParam const* booster_config) {
-      return new GBLinear(booster_config);
+    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+      return new GBLinear(booster_config, ctx);
     });
 }  // namespace gbm
 }  // namespace xgboost

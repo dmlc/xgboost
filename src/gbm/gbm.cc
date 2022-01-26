@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2020 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file gbm.cc
  * \brief Registry of gradient boosters.
  */
@@ -17,16 +17,13 @@ DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);
 }  // namespace dmlc
 
 namespace xgboost {
-GradientBooster* GradientBooster::Create(
-    const std::string& name,
-    GenericParameter const* generic_param,
-    LearnerModelParam const* learner_model_param) {
+GradientBooster* GradientBooster::Create(const std::string& name, GenericParameter const* ctx,
+                                         LearnerModelParam const* learner_model_param) {
   auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown gbm type " << name;
   }
-  auto p_bst =  (e->body)(learner_model_param);
-  p_bst->ctx_ = generic_param;
+  auto p_bst =  (e->body)(learner_model_param, ctx);
   return p_bst;
 }
 }  // namespace xgboost
