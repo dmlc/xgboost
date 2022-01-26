@@ -14,15 +14,7 @@
 namespace xgboost {
 namespace common {
 
-size_t GetNThreads() {
-  size_t nthreads;
-  #pragma omp parallel
-  {
-    #pragma omp master
-    nthreads = omp_get_num_threads();
-  }
-  return nthreads;
-}
+size_t GetNThreads() { return common::OmpGetNumThreads(0); }
 
 template <typename GradientSumT>
 void ParallelGHistBuilderReset() {
