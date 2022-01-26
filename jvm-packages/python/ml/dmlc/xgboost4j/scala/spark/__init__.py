@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019 by Contributors
+# Copyright (c) 2022 by Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from sparkxgb import xgboost
-from sparkxgb.xgboost import XGBoostClassifier, XGBoostRegressor, XGBoostClassificationModel, XGBoostRegressionModel
+
+from ml.dmlc.xgboost4j.scala.spark.xgboost import XGBoostClassifier, XGBoostRegressor, XGBoostClassificationModel, \
+    XGBoostRegressionModel
 
 __all__ = ["XGBoostClassifier", "XGBoostRegressor", "XGBoostClassificationModel", "XGBoostRegressionModel"]
-__version__ = "0.90"
+__version__ = "1.6.0-SNAPSHOT"
+

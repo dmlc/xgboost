@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019 by Contributors
+# Copyright (c) 2022 by Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 from pyspark import keyword_only
 
-from sparkxgb.common import XGboostEstimator, XGboostModel
+from ml.dmlc.xgboost4j.scala.spark.common import XGboostEstimator, XGboostModel
 
 
 class XGBoostClassifier(XGboostEstimator):

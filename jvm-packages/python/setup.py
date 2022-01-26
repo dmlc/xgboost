@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019 by Contributors
+# Copyright (c) 2022 by Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='spark-xgboost',
-    version='0.90',
+    version='1.6.0-SNAPSHOT',
     description='spark-xgboost is the PySpark package for XGBoost',
 
     long_description=long_description,
@@ -49,6 +49,8 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     keywords='development spark xgboost',
 

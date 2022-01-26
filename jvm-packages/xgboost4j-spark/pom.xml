@@ -10,6 +10,11 @@
     </parent>
     <artifactId>xgboost4j-spark_2.12</artifactId>
     <build>
+      <resources>
+        <resource>
+          <directory>../python</directory>
+        </resource>
+      </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

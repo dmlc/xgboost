@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019 by Contributors
+# Copyright (c) 2022 by Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 import re
 
 from pyspark.ml.param import Params
-from pyspark.ml.util import JavaMLWritable
+from pyspark.ml.util import _jvm, JavaMLWritable
 from pyspark.ml.wrapper import JavaModel, JavaEstimator
 
-from sparkxgb.util import XGBoostReadable
+from ml.dmlc.xgboost4j.scala.spark.util import XGBoostReadable
 
 
 class ParamGettersSetters(Params):
@@ -68,6 +68,14 @@ class XGboostEstimator(JavaEstimator, XGBoostReadable, JavaMLWritable, ParamGett
         self._java_obj = self._new_java_obj(classname, self.uid)
         self._create_params_from_java()
         self._create_param_getters_and_setters()
+
+
+    def setFeaturesCols(self, features_cols):
+        """
+        Sets the value of featuresCols which is used to GPU pipeline.
+        """
+        self._java_obj.setFeaturesCols(_jvm().PythonUtils.toSeq(features_cols))
+        return self
 
 
 class XGboostModel(JavaModel, XGBoostReadable, JavaMLWritable, ParamGettersSetters):
