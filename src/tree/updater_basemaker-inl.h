@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file updater_basemaker-inl.h
  * \brief implement a common tree constructor
  * \author Tianqi Chen
@@ -220,9 +220,7 @@ class BaseMaker: public TreeUpdater {
     // set default direct nodes to default
     // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
-    const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
-
-    common::ParallelFor(ndata, [&](bst_omp_uint ridx) {
+    common::ParallelFor(p_fmat->Info().num_row_, ctx_->Threads(), [&](auto ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
         // mark finish when it is not a fresh leaf
@@ -256,8 +254,7 @@ class BaseMaker: public TreeUpdater {
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
-        const auto ndata = static_cast<bst_omp_uint>(col.size());
-        common::ParallelFor(ndata, [&](bst_omp_uint j) {
+        common::ParallelFor(col.size(), ctx_->Threads(), [&](auto j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -312,8 +309,7 @@ class BaseMaker: public TreeUpdater {
       auto page = batch.GetView();
       for (auto fid : fsplits) {
         auto col = page[fid];
-        const auto ndata = static_cast<bst_omp_uint>(col.size());
-        common::ParallelFor(ndata, [&](bst_omp_uint j) {
+        common::ParallelFor(col.size(), ctx_->Threads(), [&](auto j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -337,10 +333,10 @@ class BaseMaker: public TreeUpdater {
                            std::vector< std::vector<TStats> > *p_thread_temp,
                            std::vector<TStats> *p_node_stats) {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
-    thread_temp.resize(omp_get_max_threads());
+    thread_temp.resize(ctx_->Threads());
     p_node_stats->resize(tree.param.num_nodes);
     dmlc::OMPException exc;
-#pragma omp parallel
+#pragma omp parallel num_threads(ctx_->Threads())
     {
       exc.Run([&]() {
         const int tid = omp_get_thread_num();
@@ -352,8 +348,7 @@ class BaseMaker: public TreeUpdater {
     }
     exc.Rethrow();
     // setup position
-    const auto ndata = static_cast<bst_omp_uint>(fmat.Info().num_row_);
-    common::ParallelFor(ndata, [&](bst_omp_uint ridx) {
+    common::ParallelFor(fmat.Info().num_row_, ctx_->Threads(), [&](auto ridx) {
       const int nid = position_[ridx];
       const int tid = omp_get_thread_num();
       if (nid >= 0) {

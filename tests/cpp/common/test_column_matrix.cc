@@ -19,7 +19,7 @@ TEST(DenseColumn, Test) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
     GHistIndexMatrix gmat(dmat.get(), max_num_bin, false, common::OmpGetNumThreads(0));
     ColumnMatrix column_matrix;
-    column_matrix.Init(gmat, 0.2);
+    column_matrix.Init(gmat, 0.2, common::OmpGetNumThreads(0));
 
     for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
       for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
@@ -66,7 +66,7 @@ TEST(SparseColumn, Test) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
     GHistIndexMatrix gmat(dmat.get(), max_num_bin, false, common::OmpGetNumThreads(0));
     ColumnMatrix column_matrix;
-    column_matrix.Init(gmat, 0.5);
+    column_matrix.Init(gmat, 0.5, common::OmpGetNumThreads(0));
     switch (column_matrix.GetTypeSize()) {
       case kUint8BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint8_t, true>(0);
@@ -106,7 +106,7 @@ TEST(DenseColumnWithMissing, Test) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
     GHistIndexMatrix gmat(dmat.get(), max_num_bin, false, common::OmpGetNumThreads(0));
     ColumnMatrix column_matrix;
-    column_matrix.Init(gmat, 0.2);
+    column_matrix.Init(gmat, 0.2, common::OmpGetNumThreads(0));
     switch (column_matrix.GetTypeSize()) {
       case kUint8BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint8_t, true>(0);

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file updater_prune.cc
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
@@ -24,7 +24,7 @@ DMLC_REGISTRY_FILE_TAG(updater_prune);
 class TreePruner: public TreeUpdater {
  public:
   explicit TreePruner(ObjInfo task) {
-    syncher_.reset(TreeUpdater::Create("sync", tparam_, task));
+    syncher_.reset(TreeUpdater::Create("sync", ctx_, task));
     pruner_monitor_.Init("TreePruner");
   }
   char const* Name() const override {

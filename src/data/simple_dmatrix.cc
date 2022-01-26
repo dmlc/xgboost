@@ -67,7 +67,7 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   if (!sorted_column_page_) {
     sorted_column_page_.reset(
         new SortedCSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx_.Threads())));
-    sorted_column_page_->SortRows();
+    sorted_column_page_->SortRows(ctx_.Threads());
   }
   auto begin_iter = BatchIterator<SortedCSCPage>(
       new SimpleBatchIteratorImpl<SortedCSCPage>(sorted_column_page_));
