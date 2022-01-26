@@ -30,8 +30,8 @@ class SimpleDMatrix : public DMatrix {
   void SaveToLocalFile(const std::string& fname);
 
   MetaInfo& Info() override;
-
   const MetaInfo& Info() const override;
+  GenericParameter const* Ctx() const override { return &ctx_; }
 
   bool SingleColBlock() const override { return true; }
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;

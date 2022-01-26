@@ -50,7 +50,14 @@ xgboost::GenericParameter const *BoosterCtx(BoosterHandle handle) {
   CHECK_HANDLE();
   auto *learner = static_cast<xgboost::Learner *>(handle);
   CHECK(learner);
-  return &learner->Ctx();
+  return learner->Ctx();
+}
+
+xgboost::GenericParameter const *DMatrixCtx(DMatrixHandle handle) {
+  CHECK_HANDLE();
+  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  CHECK(p_m);
+  return p_m->get()->Ctx();
 }
 
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
@@ -190,31 +197,18 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
   int len = length(array);
   const char *name = CHAR(asChar(field));
-  dmlc::OMPException exc;
+  auto ctx = DMatrixCtx(R_ExternalPtrAddr(handle));
   if (!strcmp("group", name)) {
     std::vector<unsigned> vec(len);
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < len; ++i) {
-      exc.Run([&]() {
-        vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
-      });
-    }
-    exc.Rethrow();
-    CHECK_CALL(XGDMatrixSetUIntInfo(R_ExternalPtrAddr(handle),
-                                    CHAR(asChar(field)),
-                                    BeginPtr(vec), len));
+    xgboost::common::ParallelFor(
+        len, ctx->Threads(), [&](auto i) { vec[i] = static_cast<unsigned>(INTEGER(array)[i]); });
+    CHECK_CALL(
+        XGDMatrixSetUIntInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), BeginPtr(vec), len));
   } else {
     std::vector<float> vec(len);
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < len; ++i) {
-      exc.Run([&]() {
-        vec[i] = REAL(array)[i];
-      });
-    }
-    exc.Rethrow();
-    CHECK_CALL(XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle),
-                                     CHAR(asChar(field)),
-                                     BeginPtr(vec), len));
+    xgboost::common::ParallelFor(len, ctx->Threads(), [&](auto i) { vec[i] = REAL(array)[i]; });
+    CHECK_CALL(
+        XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), BeginPtr(vec), len));
   }
   R_API_END();
   return R_NilValue;

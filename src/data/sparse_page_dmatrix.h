@@ -99,8 +99,8 @@ class SparsePageDMatrix : public DMatrix {
   }
 
   MetaInfo& Info() override;
-
   const MetaInfo& Info() const override;
+  GenericParameter const* Ctx() const override { return &ctx_; }
 
   bool SingleColBlock() const override { return false; }
   DMatrix *Slice(common::Span<int32_t const>) override {

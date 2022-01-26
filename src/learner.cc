@@ -521,7 +521,7 @@ class LearnerConfiguration : public Learner {
     return cfg_;
   }
 
-  GenericParameter const& Ctx() const override { return generic_parameters_; }
+  GenericParameter const* Ctx() const override { return &generic_parameters_; }
 
  private:
   void ValidateParameters() {
