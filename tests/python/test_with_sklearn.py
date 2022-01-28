@@ -36,7 +36,8 @@ def test_binary_classification():
             assert err < 0.1
 
 
-def test_multiclass_classification():
+@pytest.mark.parametrize('objective', ['multi:softmax', 'multi:softprob'])
+def test_multiclass_classification(objective):
     from sklearn.datasets import load_iris
     from sklearn.model_selection import KFold
 
@@ -54,7 +55,7 @@ def test_multiclass_classification():
     X = iris['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        xgb_model = xgb.XGBClassifier(objective=objective).fit(X[train_index], y[train_index])
         assert (xgb_model.get_booster().num_boosted_rounds() ==
                 xgb_model.n_estimators)
         preds = xgb_model.predict(X[test_index])
