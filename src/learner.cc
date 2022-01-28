@@ -331,7 +331,6 @@ class LearnerConfiguration : public Learner {
     generic_parameters_.UpdateAllowUnknown(args);
 
     ConsoleLogger::Configure(args);
-    common::OmpSetNumThreads(&generic_parameters_.nthread);
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
@@ -522,9 +521,7 @@ class LearnerConfiguration : public Learner {
     return cfg_;
   }
 
-  GenericParameter const& GetGenericParameter() const override {
-    return generic_parameters_;
-  }
+  GenericParameter const* Ctx() const override { return &generic_parameters_; }
 
  private:
   void ValidateParameters() {

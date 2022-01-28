@@ -590,10 +590,8 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
     }
   };
   int64_t int32_max = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
-#pragma omp parallel for schedule(static)
-  for (int64_t i = 0; i <= int32_max; ++i) {
-    test(static_cast<uint32_t>(i));
-  }
+  GenericParameter ctx;
+  common::ParallelFor(int32_max, ctx.Threads(), [&](auto i) { test(static_cast<uint32_t>(i)); });
 }
 
 TEST(Json, TypedArray) {

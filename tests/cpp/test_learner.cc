@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2022 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <vector>
@@ -284,27 +284,27 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"booster", "gblinear"},
                         Arg{"updater", "gpu_coord_descent"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"},
                         Arg{"gpu_id", "-1"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, -1);
+    ASSERT_EQ(learner->Ctx()->gpu_id, -1);
   }
   {
     // with CPU algorithm, but `gpu_id` takes priority
@@ -312,7 +312,7 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"gpu_id", "0"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     // With CPU algorithm but GPU Predictor, this is to simulate when
@@ -322,7 +322,7 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"predictor", "gpu_predictor"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
 }
 #endif  // defined(XGBOOST_USE_CUDA)

@@ -111,9 +111,8 @@ struct EvalAMS : public Metric {
     PredIndPairContainer rec(ndata);
 
     const auto &h_preds = preds.ConstHostVector();
-    common::ParallelFor(ndata, [&](bst_omp_uint i) {
-      rec[i] = std::make_pair(h_preds[i], i);
-    });
+    common::ParallelFor(ndata, tparam_->Threads(),
+                        [&](bst_omp_uint i) { rec[i] = std::make_pair(h_preds[i], i); });
     XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
     if (ntop == 0) ntop = ndata;

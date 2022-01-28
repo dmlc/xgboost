@@ -826,7 +826,7 @@ class LambdaRankObj : public ObjFunction {
     out_gpair->Resize(preds.Size());
 
     dmlc::OMPException exc;
-    #pragma omp parallel
+#pragma omp parallel num_threads(ctx_->Threads())
     {
       exc.Run([&]() {
         // parallel construct, declare random number generator here, so that each

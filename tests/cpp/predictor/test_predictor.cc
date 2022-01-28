@@ -214,10 +214,11 @@ void TestCategoricalPrediction(std::string name) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  gbm::GBTreeModel model(&param);
+  GenericParameter ctx;
+  ctx.UpdateAllowUnknown(Args{});
+  gbm::GBTreeModel model(&param, &ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  GenericParameter ctx;
   ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   std::unique_ptr<Predictor> predictor{Predictor::Create(name.c_str(), &ctx)};
 
@@ -257,13 +258,14 @@ void TestCategoricalPredictLeaf(StringView name) {
   float left_weight = 1.3f;
   float right_weight = 1.7f;
 
-  gbm::GBTreeModel model(&param);
+  GenericParameter ctx;
+  ctx.UpdateAllowUnknown(Args{});
+
+  gbm::GBTreeModel model(&param, &ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
-  GenericParameter runtime;
-  runtime.gpu_id = 0;
-  std::unique_ptr<Predictor> predictor{
-      Predictor::Create(name.c_str(), &runtime)};
+  ctx.gpu_id = 0;
+  std::unique_ptr<Predictor> predictor{Predictor::Create(name.c_str(), &ctx)};
 
   std::vector<float> row(kCols);
   row[split_ind] = split_cat;

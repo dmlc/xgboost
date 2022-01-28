@@ -636,8 +636,8 @@ void GPUDartInplacePredictInc(common::Span<float> out_predts,
 
 class Dart : public GBTree {
  public:
-  explicit Dart(LearnerModelParam const* booster_config) :
-      GBTree(booster_config) {}
+  explicit Dart(LearnerModelParam const* booster_config, GenericParameter const* ctx)
+      : GBTree(booster_config, ctx) {}
 
   void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
@@ -1018,16 +1018,16 @@ DMLC_REGISTER_PARAMETER(GBTreeTrainParam);
 DMLC_REGISTER_PARAMETER(DartTrainParam);
 
 XGBOOST_REGISTER_GBM(GBTree, "gbtree")
-.describe("Tree booster, gradient boosted trees.")
-.set_body([](LearnerModelParam const* booster_config) {
-    auto* p = new GBTree(booster_config);
-    return p;
-  });
+    .describe("Tree booster, gradient boosted trees.")
+    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+      auto* p = new GBTree(booster_config, ctx);
+      return p;
+    });
 XGBOOST_REGISTER_GBM(Dart, "dart")
-.describe("Tree booster, dart.")
-.set_body([](LearnerModelParam const* booster_config) {
-    GBTree* p = new Dart(booster_config);
-    return p;
-  });
+    .describe("Tree booster, dart.")
+    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+      GBTree* p = new Dart(booster_config, ctx);
+      return p;
+    });
 }  // namespace gbm
 }  // namespace xgboost

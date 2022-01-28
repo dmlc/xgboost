@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -39,6 +39,7 @@ class PredictionContainer;
 class GradientBooster : public Model, public Configurable {
  protected:
   GenericParameter const* ctx_;
+  explicit GradientBooster(GenericParameter const* ctx) : ctx_{ctx} {}
 
  public:
   /*! \brief virtual destructor */
@@ -208,9 +209,9 @@ class GradientBooster : public Model, public Configurable {
  */
 struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
-  GradientBoosterReg,
-  std::function<GradientBooster* (LearnerModelParam const* learner_model_param)> > {
-};
+          GradientBoosterReg,
+          std::function<GradientBooster*(LearnerModelParam const* learner_model_param,
+                                         GenericParameter const* ctx)> > {};
 
 /*!
  * \brief Macro to register gradient booster.

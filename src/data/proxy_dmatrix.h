@@ -79,6 +79,11 @@ class DMatrixProxy : public DMatrix {
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }
+  GenericParameter const* Ctx() const override {
+    LOG(FATAL) << "`ProxyDMatrix` doesn't have context.";
+    return nullptr;
+  }
+
   bool SingleColBlock() const override { return true; }
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
