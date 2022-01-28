@@ -465,8 +465,8 @@ test_that("'predict' accepts CSR data", {
   X <- agaricus.train$data
   y <- agaricus.train$label
   x_csc <- as(X[1L, , drop = FALSE], "CsparseMatrix")
-  x_csr <- as(x_single, "RsparseMatrix")
-  x_spv <- as(x_single, "sparseVector")
+  x_csr <- as(x_csc, "RsparseMatrix")
+  x_spv <- as(x_csc, "sparseVector")
   bst <- xgboost(data = X, label = y, objective = "binary:logistic",
                  nrounds = 5L, verbose = FALSE)
   p_csc <- predict(bst, x_csc)
