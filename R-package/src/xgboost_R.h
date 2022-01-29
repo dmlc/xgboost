@@ -66,6 +66,18 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
                                       SEXP n_threads);
 
 /*!
+ * \brief create a matrix content from CSR format
+ * \param indptr pointer to row headers
+ * \param indices column indices
+ * \param data content of the data
+ * \param num_col numer of columns (when it's set to 0, then guess from data)
+ * \param n_threads Number of threads used to construct DMatrix from csr matrix.
+ * \return created dmatrix
+ */
+XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_col,
+                                      SEXP n_threads);
+
+/*!
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced
  * \param idxset index set

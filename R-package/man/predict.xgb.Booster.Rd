@@ -27,7 +27,11 @@
 \arguments{
 \item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}}
 
-\item{newdata}{takes \code{matrix}, \code{dgCMatrix}, local data file or \code{xgb.DMatrix}.}
+\item{newdata}{takes \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+       local data file or \code{xgb.DMatrix}.
+
+       For single-row predictions on sparse data, it's recommended to use CSR format. If passing
+       a sparse vector, it will take it as a row vector.}
 
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
@@ -55,7 +59,7 @@ training predicting will perform dropout.}
 
 \item{iterationrange}{Specifies which layer of trees are used in prediction.  For
 example, if a random forest is trained with 100 rounds.  Specifying
-`iteration_range=(1, 21)`, then only the forests built during [1, 21) (half open set)
+`iterationrange=(1, 21)`, then only the forests built during [1, 21) (half open set)
 rounds are used in this prediction.  It's 1-based index just like R vector.  When set
 to \code{c(1, 1)} XGBoost will use all trees.}
 
