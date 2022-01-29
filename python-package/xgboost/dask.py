@@ -56,7 +56,7 @@ from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import Objective, Metric
 from .core import _deprecate_positional_args
 from .training import train as worker_train
-from .tracker import RabitTracker, get_host_ip
+from .tracker import RabitTracker, get_host_ip, try_start_tracker
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
 from .sklearn import _wrap_evaluation_matrices, _objective_decorator, _check_rf_callback
 from .sklearn import XGBRankerMixIn
@@ -87,7 +87,6 @@ except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
 __all__ = [
-    "RabitContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
     "DaskXGBRegressor",
@@ -152,37 +151,11 @@ def _multi_lock() -> Any:
     return MultiLock
 
 
-def _try_start_tracker(
-    n_workers: int, addrs: List[Optional[str]]
-) -> Dict[str, Union[int, str]]:
-    env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
-    try:
-        rabit_context = RabitTracker(
-            hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
-        )
-        env.update(rabit_context.worker_envs())
-        rabit_context.start(n_workers)
-        thread = Thread(target=rabit_context.join)
-        thread.daemon = True
-        thread.start()
-    except socket.error as e:
-        if len(addrs) < 2 or e.errno != 99:
-            raise
-        LOGGER.warning(
-            "Failed to bind address '%s', trying to use '%s' instead.",
-            str(addrs[0]),
-            str(addrs[1]),
-        )
-        env = _try_start_tracker(n_workers, addrs[1:])
-
-    return env
-
-
 def _start_tracker(
     n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
 ) -> Dict[str, Union[int, str]]:
     """Start Rabit tracker, recurse to try different addresses."""
-    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
+    env = try_start_tracker(LOGGER, n_workers, [addr_from_user, addr_from_dask])
     return env
 
 
@@ -198,24 +171,6 @@ def _assert_dask_support() -> None:
         msg = "Windows is not officially supported for dask/xgboost,"
         msg += " contribution are welcomed."
         LOGGER.warning(msg)
-
-
-class RabitContext:
-    '''A context controlling rabit initialization and finalization.'''
-    def __init__(self, args: List[bytes]) -> None:
-        self.args = args
-        worker = distributed.get_worker()
-        self.args.append(
-            ('DMLC_TASK_ID=[xgboost.dask]:' + str(worker.address)).encode())
-
-    def __enter__(self) -> None:
-        rabit.init(self.args)
-        assert rabit.is_distributed()
-        LOGGER.debug('-------------- rabit say hello ------------------')
-
-    def __exit__(self, *args: List) -> None:
-        rabit.finalize()
-        LOGGER.debug('--------------- rabit say bye ------------------')
 
 
 def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
@@ -948,7 +903,9 @@ async def _train_async(
             n_threads = worker.nthreads
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
 
-        with RabitContext(rabit_args), config.config_context(**global_config):
+        with rabit.RabitContext(LOGGER, rabit_args, worker_addr), config.config_context(
+            **global_config
+        ):
             local_dtrain = _dmatrix_from_list_of_parts(**dtrain_ref, nthread=n_threads)
             local_evals = []
             if evals_ref:

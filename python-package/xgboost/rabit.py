@@ -3,6 +3,7 @@
 """Distributed XGBoost Rabit related API."""
 import ctypes
 import pickle
+import logging
 from typing import Any, TypeVar, Callable, Optional, cast, List, Union
 
 import numpy as np
@@ -222,6 +223,24 @@ def version_number() -> int:
     """
     ret = _LIB.RabitVersionNumber()
     return ret
+
+
+class RabitContext:
+    """A context controlling rabit initialization and finalization."""
+
+    def __init__(self, logger: logging.Logger, args: List[bytes], addr: str) -> None:
+        self.args = args
+        self.logger = logger
+        self.args.append(("DMLC_TASK_ID=[xgboost.dask]:" + str(addr)).encode())
+
+    def __enter__(self) -> None:
+        init(self.args)
+        assert is_distributed()
+        self.logger.debug("-------------- rabit say hello ------------------")
+
+    def __exit__(self, *args: List) -> None:
+        finalize()
+        self.logger.debug("--------------- rabit say bye ------------------")
 
 
 # initialization script

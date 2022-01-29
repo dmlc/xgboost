@@ -401,6 +401,33 @@ def get_host_ip(hostIP: Optional[str] = None) -> str:
     return hostIP
 
 
+def try_start_tracker(
+    logger: logging.Logger, n_workers: int, addrs: List[Optional[str]]
+) -> Dict[str, Union[int, str]]:
+    """Try to start tracking using a list of address."""
+    env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
+    try:
+        rabit_context = RabitTracker(
+            hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+        )
+        env.update(rabit_context.worker_envs())
+        rabit_context.start(n_workers)
+        thread = Thread(target=rabit_context.join)
+        thread.daemon = True
+        thread.start()
+    except socket.error as e:
+        if len(addrs) < 2 or e.errno != 99:
+            raise
+        logger.warning(
+            "Failed to bind address '%s', trying to use '%s' instead.",
+            str(addrs[0]),
+            str(addrs[1]),
+        )
+        env = try_start_tracker(n_workers, addrs[1:])
+
+    return env
+
+
 def start_rabit_tracker(args: argparse.Namespace) -> None:
     """Standalone function to start rabit tracker.
 
