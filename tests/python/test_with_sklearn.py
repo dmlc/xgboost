@@ -328,16 +328,16 @@ def test_select_feature():
 
 
 def test_num_parallel_tree():
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import fetch_california_housing
     reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4,
                            tree_method='hist')
-    boston = load_boston()
-    bst = reg.fit(X=boston['data'], y=boston['target'])
+    X, y = fetch_california_housing(return_X_y=True)
+    bst = reg.fit(X=X, y=y)
     dump = bst.get_booster().get_dump(dump_format='json')
     assert len(dump) == 16
 
     reg = xgb.XGBRFRegressor(n_estimators=4)
-    bst = reg.fit(X=boston['data'], y=boston['target'])
+    bst = reg.fit(X=X, y=y)
     dump = bst.get_booster().get_dump(dump_format='json')
     assert len(dump) == 4
 
@@ -346,14 +346,12 @@ def test_num_parallel_tree():
         'num_parallel_tree']) == 4
 
 
-def test_boston_housing_regression():
+def test_calif_housing_regression():
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
 
-    boston = load_boston()
-    y = boston['target']
-    X = boston['data']
+    X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor().fit(X[train_index], y[train_index])
@@ -377,12 +375,12 @@ def test_boston_housing_regression():
             xgb_model.feature_names_in_
 
 
-def run_boston_housing_rf_regression(tree_method):
+def run_calif_housing_rf_regression(tree_method):
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
 
-    X, y = load_boston(return_X_y=True)
+    X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRFRegressor(random_state=42, tree_method=tree_method).fit(
@@ -397,29 +395,27 @@ def run_boston_housing_rf_regression(tree_method):
         rfreg.fit(X, y, early_stopping_rounds=10)
 
 
-def test_boston_housing_rf_regression():
-    run_boston_housing_rf_regression("hist")
+def test_calif_housing_rf_regression():
+    run_calif_housing_rf_regression("hist")
 
 
 def test_parameter_tuning():
     from sklearn.model_selection import GridSearchCV
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import fetch_california_housing
 
-    boston = load_boston()
-    y = boston['target']
-    X = boston['data']
+    X, y = fetch_california_housing(return_X_y=True)
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
                                    'n_estimators': [50, 100, 200]},
                        cv=3, verbose=1)
     clf.fit(X, y)
     assert clf.best_score_ < 0.7
-    assert clf.best_params_ == {'n_estimators': 100, 'max_depth': 4}
+    assert clf.best_params_ == {'n_estimators': 200, 'max_depth': 4}
 
 
 def test_regression_with_custom_objective():
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
 
     def objective_ls(y_true, y_pred):
@@ -427,9 +423,7 @@ def test_regression_with_custom_objective():
         hess = np.ones(len(y_true))
         return grad, hess
 
-    boston = load_boston()
-    y = boston['target']
-    X = boston['data']
+    X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor(objective=objective_ls).fit(
@@ -841,13 +835,13 @@ def test_save_load_model():
 
 
 def test_RFECV():
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import fetch_california_housing
     from sklearn.datasets import load_breast_cancer
     from sklearn.datasets import load_iris
     from sklearn.feature_selection import RFECV
 
     # Regression
-    X, y = load_boston(return_X_y=True)
+    X, y = fetch_california_housing(return_X_y=True)
     bst = xgb.XGBRegressor(booster='gblinear', learning_rate=0.1,
                            n_estimators=10,
                            objective='reg:squarederror',

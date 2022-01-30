@@ -229,8 +229,8 @@ class TestDataset:
 
 
 @memory.cache
-def get_boston():
-    data = datasets.load_boston()
+def get_california_housing():
+    data = datasets.fetch_california_housing()
     return data.data, data.target
 
 
@@ -315,7 +315,9 @@ def make_categorical(
 
 _unweighted_datasets_strategy = strategies.sampled_from(
     [
-        TestDataset("boston", get_boston, "reg:squarederror", "rmse"),
+        TestDataset(
+            "calif_housing", get_california_housing, "reg:squarederror", "rmse"
+        ),
         TestDataset("digits", get_digits, "multi:softmax", "mlogloss"),
         TestDataset("cancer", get_cancer, "binary:logistic", "logloss"),
         TestDataset(
