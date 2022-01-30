@@ -119,6 +119,9 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                 continue
             cmake_cmd.append('-D' + arg + '=' + value)
 
+        if 'CIBW_TARGET_OSX_ARM64' in os.environ:
+            cmake_cmd.append("-DCMAKE_OSX_ARCHITECTURES=arm64")
+
         self.logger.info('Run CMake command: %s', str(cmake_cmd))
         subprocess.check_call(cmake_cmd, cwd=build_dir)
 
