@@ -116,6 +116,7 @@ jobs:
         conda list
 
     - name: Build XGBoost on macos
+      shell: bash -l {0}
       run: |
         brew install ninja
 
