@@ -45,7 +45,7 @@ If you are using **Apple Silicon**, please use the Conda packaging manager to in
 
 .. code-block:: bash
 
-   conda install -c conda-forge xgboost
+   conda install -c conda-forge py-xgboost
 
 Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
 
