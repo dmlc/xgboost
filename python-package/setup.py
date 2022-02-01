@@ -119,6 +119,10 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                 continue
             cmake_cmd.append('-D' + arg + '=' + value)
 
+        # Flag for cross-compiling for Apple Silicon
+        # We use environment variable because it's the only way to pass down custom flags
+        # through the cibuildwheel package, which otherwise calls `python setup.py bdist_wheel`
+        # command.
         if 'CIBW_TARGET_OSX_ARM64' in os.environ:
             cmake_cmd.append("-DCMAKE_OSX_ARCHITECTURES=arm64")
 
