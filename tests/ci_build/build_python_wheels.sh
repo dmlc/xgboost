@@ -3,14 +3,18 @@
 set -e
 set -x
 
-# OpenMP is not present on macOS by default
+# Bundle libomp 11.1.0 when targeting MacOS.
+# This is a workaround in order to prevent segfaults when running inside a Conda environment.
+# See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025125003 for more context.
+# The workaround is also used by the scikit-learn project.
 if [[ "$RUNNER_OS" == "macOS" ]]; then
     # Make sure to use a libomp version binary compatible with the oldest
     # supported version of the macos SDK as libomp will be vendored into the
-    # XGBoost wheels for macos.
+    # XGBoost wheels for MacOS.
 
     if [[ "$CIBW_BUILD" == *-macosx_arm64 ]]; then
         # arm64 builds must cross compile because CI is on x64
+        # cibuildwheel will take care of cross-compilation.
         export PYTHON_CROSSENV=1
         export MACOSX_DEPLOYMENT_TARGET=12.0
         OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
