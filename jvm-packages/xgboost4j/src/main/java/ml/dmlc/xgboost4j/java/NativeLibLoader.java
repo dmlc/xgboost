@@ -115,7 +115,7 @@ class NativeLibLoader {
    *   <li>Supported OS: macOS, Windows, Linux, Solaris.</li>
    *   <li>Supported Architectures: x86_64, aarch64, sparc.</li>
    * </ul>
-   * Throws UnsatisfiedLinkError if the library failed to load it's dependencies.
+   * Throws UnsatisfiedLinkError if the library failed to load its dependencies.
    * @throws IOException If the library could not be extracted from the jar.
    */
   static synchronized void initXGBoost() throws IOException {
