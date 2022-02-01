@@ -45,7 +45,7 @@ class NativeLibLoader {
 
     final String name;
 
-    private OS(String name) {
+    OS(String name) {
       this.name = name;
     }
 
@@ -80,7 +80,7 @@ class NativeLibLoader {
 
     final String name;
 
-    private Arch(String name) {
+    Arch(String name) {
       this.name = name;
     }
 
