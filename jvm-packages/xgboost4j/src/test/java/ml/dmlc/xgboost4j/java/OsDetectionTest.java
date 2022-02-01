@@ -15,8 +15,11 @@
  */
 package ml.dmlc.xgboost4j.java;
 
+import ml.dmlc.xgboost4j.java.NativeLibLoader.OS;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -26,15 +29,11 @@ import java.util.Collection;
 import static com.github.stefanbirkner.systemlambda.SystemLambda.restoreSystemProperties;
 import static java.util.Arrays.asList;
 import static junit.framework.TestCase.assertSame;
-import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.WINDOWS;
-import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.MACOS;
-import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.LINUX;
-import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.SOLARIS;
-import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.detectOS;
+import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.*;
 import static org.junit.Assert.assertThrows;
 
 /**
- * Test cases for {@link NativeLibLoader.OS}.
+ * Test cases for {@link OS}.
  */
 @RunWith(Enclosed.class)
 public class OsDetectionTest {
@@ -45,9 +44,9 @@ public class OsDetectionTest {
   public static class ParameterizedOSDetectionTest {
 
     private final String osNameValue;
-    private final NativeLibLoader.OS expectedOS;
+    private final OS expectedOS;
 
-    public ParameterizedOSDetectionTest(String osNameValue, NativeLibLoader.OS expectedOS) {
+    public ParameterizedOSDetectionTest(String osNameValue, OS expectedOS) {
       this.osNameValue = osNameValue;
       this.expectedOS = expectedOS;
     }
@@ -72,13 +71,38 @@ public class OsDetectionTest {
     }
   }
 
-  public static class UnsupportedOSDetectionTest {
+  public static class NonParameterizedOSDetectionTest {
+
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
+    @Test
+    public void testForRegularLinux() throws Exception {
+      setMappedFilesBaseDir(folder.getRoot().toPath());
+      folder.newFile("ld-2.23.so");
+
+      restoreSystemProperties(() -> {
+        System.setProperty(OS_NAME_PROPERTY, "linux");
+        assertSame(detectOS(), LINUX);
+      });
+    }
+
+    @Test
+    public void testForMuslBasedLinux() throws Exception {
+      setMappedFilesBaseDir(folder.getRoot().toPath());
+      folder.newFile("ld-musl-x86_64.so.1");
+
+      restoreSystemProperties(() -> {
+        System.setProperty(OS_NAME_PROPERTY, "linux");
+        assertSame(detectOS(), LINUX_MUSL);
+      });
+    }
 
     @Test
     public void testUnsupportedOs() throws Exception {
       restoreSystemProperties(() -> {
         System.setProperty(OS_NAME_PROPERTY, "unsupported");
-        assertThrows(IllegalStateException.class, NativeLibLoader.OS::detectOS);
+        assertThrows(IllegalStateException.class, OS::detectOS);
       });
     }
   }
