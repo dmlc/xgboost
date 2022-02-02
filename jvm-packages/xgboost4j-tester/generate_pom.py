@@ -102,6 +102,12 @@ pom_template = """
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>com.github.stefanbirkner</groupId>
+      <artifactId>system-lambda</artifactId>
+      <version>1.2.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>ml.dmlc</groupId>
       <artifactId>xgboost4j_${{scala.binary.version}}</artifactId>
       <version>{xgboost4j_version}</version>
