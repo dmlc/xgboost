@@ -107,7 +107,7 @@ def BuildWin64() {
     stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      path = "${BRANCH_NAME}/"
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
     }
     echo 'Stashing C++ test executable (testxgboost)...'
@@ -127,7 +127,7 @@ def BuildRPackageWithCUDAWin64() {
       bash tests/ci_build/build_r_pkg_with_cuda_win64.sh ${commit_id}
       """
       echo 'Uploading R tarball...'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      path = "${BRANCH_NAME}/"
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_win64_*.tar.gz'
     }
     deleteDir()
