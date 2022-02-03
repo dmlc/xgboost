@@ -136,7 +136,7 @@ Send a PR to add a one sentence description:)
 
 - XGBoost is used in [Kaggle Script](https://www.kaggle.com/scripts) to solve data science challenges.
 - Distribute XGBoost as Rest API server from Jupyter notebook with [BentoML](https://github.com/bentoml/bentoml). [Link to notebook](https://github.com/bentoml/BentoML/blob/master/examples/xgboost-predict-titanic-survival/XGBoost-titanic-survival-prediction.ipynb)
-- [Seldon predictive service powered by XGBoost](http://docs.seldon.io/iris-demo.html)
+- [Seldon predictive service powered by XGBoost](https://docs.seldon.io/projects/seldon-core/en/latest/servers/xgboost.html)
 - XGBoost Distributed is used in [ODPS Cloud Service by Alibaba](https://yq.aliyun.com/articles/6355) (in Chinese)
 - XGBoost is incoporated as part of [Graphlab Create](https://dato.com/products/create/) for scalable machine learning.
 - [Hanjing Su](https://www.52cs.org) from Tencent data platform team: "We use distributed XGBoost for click through prediction in wechat shopping and lookalikes. The problems involve hundreds millions of users and thousands of features. XGBoost is cleanly designed and can be easily integrated into our production environment, reducing our cost in developments."
