@@ -10,13 +10,9 @@ jobs:
       matrix:
         include:
         - os: macos-latest
-          python: 37
           platform_id: macosx_x86_64
-          wheel_tag: macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
         - os: macos-latest
-          python: 38
           platform_id: macosx_arm64
-          wheel_tag: macosx_12_0_arm64
     steps:
     - uses: actions/checkout@v2
       with:
@@ -25,23 +21,8 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.9'
-    - name: Set env var for ARM64
-      shell: bash
-      run: echo "::set-output name=value::CIBW_TARGET_OSX_ARM64=1"
-      id: arm64_flag
-      if: matrix.platform_id == 'macosx_arm64'
     - name: Build wheels
-      env:
-        CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
-        CIBW_ARCHS: all
-        CIBW_ENVIRONMENT: ${{ steps.arm64_flag.outputs.value }}
-        CIBW_TEST_SKIP: "*-macosx_arm64"
-        CIBW_BUILD_VERBOSITY: 3
-      run: bash tests/ci_build/build_python_wheels.sh
-
-    - name: Rename Python wheel
-      run: |
-        python tests/ci_build/rename_whl.py wheelhouse/*.whl ${{ github.sha }} ${{ matrix.wheel_tag }}
+      run: bash tests/ci_build/build_python_wheels.sh ${{ matrix.platform_id }} ${{ github.sha }}
     - name: Extract branch name
       shell: bash
       run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
