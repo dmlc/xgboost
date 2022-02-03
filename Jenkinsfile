@@ -179,7 +179,7 @@ def BuildCPUARM64() {
     stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      path = "${BRANCH_NAME}/"
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
     }
     stash name: 'xgboost_cli_arm64', includes: 'xgboost'
@@ -232,7 +232,7 @@ def BuildCUDA(args) {
     stash name: "xgboost_whl_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
     if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
       echo 'Uploading Python wheel...'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      path = "${BRANCH_NAME}/"
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
     }
     echo 'Stashing C++ test executable (testxgboost)...'
@@ -268,7 +268,7 @@ def BuildRPackageWithCUDA(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_r_pkg_with_cuda.sh ${commit_id}
       """
       echo 'Uploading R tarball...'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      path = "${BRANCH_NAME}/"
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_linux_*.tar.gz'
     }
     deleteDir()
