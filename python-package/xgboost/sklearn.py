@@ -112,6 +112,13 @@ __estimator_doc = '''
 __model_doc = f'''
     max_depth :  Optional[int]
         Maximum tree depth for base learners.
+    max_leaves :
+        Maximum number of leaves; 0 indicates no limit.
+    max_bin :
+        If using histogram-based algorithm, maximum number of bins per feature
+    grow_policy :
+        Tree growing policy. 0: favor splitting at nodes closest to the node, i.e. grow
+        depth-wise. 1: favor splitting at nodes with highest loss change.
     learning_rate : Optional[float]
         Boosting learning rate (xgb's "eta")
     verbosity : Optional[int]
@@ -132,14 +139,19 @@ __model_doc = f'''
         balance the threads.  Creating thread contention will significantly slow down both
         algorithms.
     gamma : Optional[float]
-        Minimum loss reduction required to make a further partition on a leaf
-        node of the tree.
+        (min_split_loss) Minimum loss reduction required to make a further partition on a
+        leaf node of the tree.
     min_child_weight : Optional[float]
         Minimum sum of instance weight(hessian) needed in a child.
     max_delta_step : Optional[float]
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : Optional[float]
         Subsample ratio of the training instance.
+    sampling_method :
+        Sampling method. Used only by `gpu_hist` tree method.
+          - `uniform`: select random training instances uniformly.
+          - `gradient_based` select random training instances with higher probability when
+            the gradient and hessian are larger. (cf. CatBoost)
     colsample_bytree : Optional[float]
         Subsample ratio of columns when constructing each tree.
     colsample_bylevel : Optional[float]
@@ -464,6 +476,9 @@ class XGBModel(XGBModelBase):
     def __init__(
         self,
         max_depth: Optional[int] = None,
+        max_leaves: Optional[int] = None,
+        max_bin: Optional[int] = None,
+        grow_policy: Optional[str] = None,
         learning_rate: Optional[float] = None,
         n_estimators: int = 100,
         verbosity: Optional[int] = None,
@@ -475,6 +490,7 @@ class XGBModel(XGBModelBase):
         min_child_weight: Optional[float] = None,
         max_delta_step: Optional[float] = None,
         subsample: Optional[float] = None,
+        sampling_method: Optional[str] = None,
         colsample_bytree: Optional[float] = None,
         colsample_bylevel: Optional[float] = None,
         colsample_bynode: Optional[float] = None,
@@ -506,6 +522,9 @@ class XGBModel(XGBModelBase):
         self.objective = objective
 
         self.max_depth = max_depth
+        self.max_leaves = max_leaves
+        self.max_bin = max_bin
+        self.grow_policy = grow_policy
         self.learning_rate = learning_rate
         self.verbosity = verbosity
         self.booster = booster
@@ -514,6 +533,7 @@ class XGBModel(XGBModelBase):
         self.min_child_weight = min_child_weight
         self.max_delta_step = max_delta_step
         self.subsample = subsample
+        self.sampling_method = sampling_method
         self.colsample_bytree = colsample_bytree
         self.colsample_bylevel = colsample_bylevel
         self.colsample_bynode = colsample_bynode
