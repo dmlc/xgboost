@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2021 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -280,8 +280,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \return Created learner.
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
-
-  virtual GenericParameter const& GetGenericParameter() const = 0;
+  /**
+   * \brief Return the context object of this Booster.
+   */
+  virtual GenericParameter const* Ctx() const = 0;
   /*!
    * \brief Get configuration arguments currently stored by the learner
    * \return Key-value pairs representing configuration arguments

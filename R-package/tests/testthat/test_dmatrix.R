@@ -27,6 +27,7 @@ test_that("xgb.DMatrix: saving, loading", {
   # save to a local file
   dtest1 <- xgb.DMatrix(test_data, label = test_label)
   tmp_file <- tempfile('xgb.DMatrix_')
+  on.exit(unlink(tmp_file))
   expect_true(xgb.DMatrix.save(dtest1, tmp_file))
   # read from a local file
   expect_output(dtest3 <- xgb.DMatrix(tmp_file), "entries loaded from")
@@ -41,7 +42,6 @@ test_that("xgb.DMatrix: saving, loading", {
   dtest4 <- xgb.DMatrix(tmp_file, silent = TRUE)
   expect_equal(dim(dtest4), c(3, 4))
   expect_equal(getinfo(dtest4, 'label'), c(0, 1, 0))
-  unlink(tmp_file)
 })
 
 test_that("xgb.DMatrix: getinfo & setinfo", {

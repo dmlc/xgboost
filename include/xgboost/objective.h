@@ -25,7 +25,7 @@ namespace xgboost {
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  GenericParameter const* ctx_;
 
  public:
   /*! \brief virtual destructor */

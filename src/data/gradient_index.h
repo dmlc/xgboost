@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 by Contributors
+ * Copyright 2017-2022 by XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
@@ -19,9 +19,8 @@ namespace xgboost {
  *  index for CPU histogram.  On GPU ellpack page is used.
  */
 class GHistIndexMatrix {
-  void PushBatch(SparsePage const &batch, common::Span<FeatureType const> ft,
-                 size_t rbegin, size_t prev_sum, uint32_t nbins,
-                 int32_t n_threads);
+  void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft, size_t rbegin,
+                 size_t prev_sum, uint32_t nbins, int32_t n_threads);
 
  public:
   /*! \brief row pointer to rows by element position */
@@ -37,11 +36,13 @@ class GHistIndexMatrix {
   size_t base_rowid{0};
 
   GHistIndexMatrix() = default;
-  GHistIndexMatrix(DMatrix* x, int32_t max_bin, bool sorted_sketch, common::Span<float> hess = {}) {
-    this->Init(x, max_bin, sorted_sketch, hess);
+  GHistIndexMatrix(DMatrix* x, int32_t max_bin, bool sorted_sketch, int32_t n_threads,
+                   common::Span<float> hess = {}) {
+    this->Init(x, max_bin, sorted_sketch, n_threads, hess);
   }
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins, bool sorted_sketch, common::Span<float> hess);
+  void Init(DMatrix* p_fmat, int max_num_bins, bool sorted_sketch, int32_t n_threads,
+            common::Span<float> hess);
   void Init(SparsePage const& page, common::Span<FeatureType const> ft,
             common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,
             int32_t n_threads);
@@ -107,5 +108,16 @@ class GHistIndexMatrix {
   std::vector<size_t> hit_count_tloc_;
   bool isDense_;
 };
+
+/**
+ * \brief Should we regenerate the gradient index?
+ *
+ * \param old Parameter stored in DMatrix.
+ * \param p   New parameter passed in by caller.
+ */
+inline bool RegenGHist(BatchParam old, BatchParam p) {
+  // parameter is renewed or caller requests a regen
+  return p.regen || (old.gpu_id != p.gpu_id || old.max_bin != p.max_bin);
+}
 }      // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_

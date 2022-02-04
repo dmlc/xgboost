@@ -875,11 +875,11 @@ class GPUHistMaker : public TreeUpdater {
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>(task_));
       float_maker_->param_ = param;
-      float_maker_->Configure(args, tparam_);
+      float_maker_->Configure(args, ctx_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>(task_));
       double_maker_->param_ = param;
-      double_maker_->Configure(args, tparam_);
+      double_maker_->Configure(args, ctx_);
     }
   }
 

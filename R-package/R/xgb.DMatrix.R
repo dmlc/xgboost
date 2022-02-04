@@ -4,8 +4,10 @@
 #' Supported input file formats are either a LIBSVM text file or a binary file that was created previously by
 #' \code{\link{xgb.DMatrix.save}}).
 #'
-#' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character
-#'        string representing a filename.
+#' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object,
+#'        a \code{dgRMatrix} object (only when making predictions from a fitted model),
+#'        a \code{dsparseVector} object (only when making predictions from a fitted model, will be
+#'        interpreted as a row vector), or a character string representing a filename.
 #' @param info a named list of additional information to store in the \code{xgb.DMatrix} object.
 #'        See \code{\link{setinfo}} for the specific allowed kinds of
 #' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
@@ -33,8 +35,21 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, nthre
     handle <- .Call(XGDMatrixCreateFromMat_R, data, missing, as.integer(NVL(nthread, -1)))
     cnames <- colnames(data)
   } else if (inherits(data, "dgCMatrix")) {
-    handle <- .Call(XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data))
+    handle <- .Call(
+      XGDMatrixCreateFromCSC_R, data@p, data@i, data@x, nrow(data), as.integer(NVL(nthread, -1))
+    )
     cnames <- colnames(data)
+  } else if (inherits(data, "dgRMatrix")) {
+    handle <- .Call(
+      XGDMatrixCreateFromCSR_R, data@p, data@j, data@x, ncol(data), as.integer(NVL(nthread, -1))
+    )
+    cnames <- colnames(data)
+  } else if (inherits(data, "dsparseVector")) {
+    indptr <- c(0L, as.integer(length(data@i)))
+    ind <- as.integer(data@i) - 1L
+    handle <- .Call(
+      XGDMatrixCreateFromCSR_R, indptr, ind, data@x, length(data), as.integer(NVL(nthread, -1))
+    )
   } else {
     stop("xgb.DMatrix does not support construction from ", typeof(data))
   }

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -71,8 +71,9 @@ void LinearCheckLayer(unsigned layer_begin) {
  */
 class GBLinear : public GradientBooster {
  public:
-  explicit GBLinear(LearnerModelParam const* learner_model_param)
-      : learner_model_param_{learner_model_param},
+  explicit GBLinear(LearnerModelParam const* learner_model_param, GenericParameter const* ctx)
+      : GradientBooster{ctx},
+        learner_model_param_{learner_model_param},
         model_{learner_model_param},
         previous_model_{learner_model_param},
         sum_instance_weight_(0),
@@ -190,7 +191,7 @@ class GBLinear : public GradientBooster {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       auto page = batch.GetView();
-      common::ParallelFor(nsize, [&](bst_omp_uint i) {
+      common::ParallelFor(nsize, ctx_->Threads(), [&](bst_omp_uint i) {
         auto inst = page[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
@@ -282,7 +283,7 @@ class GBLinear : public GradientBooster {
       if (base_margin.Size() != 0) {
         CHECK_EQ(base_margin.Size(), nsize * ngroup);
       }
-      common::ParallelFor(nsize, [&](omp_ulong i) {
+      common::ParallelFor(nsize, ctx_->Threads(), [&](omp_ulong i) {
         const size_t ridx = page.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
@@ -351,8 +352,8 @@ DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
     .describe("Linear booster, implement generalized linear model.")
-    .set_body([](LearnerModelParam const* booster_config) {
-      return new GBLinear(booster_config);
+    .set_body([](LearnerModelParam const* booster_config, GenericParameter const* ctx) {
+      return new GBLinear(booster_config, ctx);
     });
 }  // namespace gbm
 }  // namespace xgboost

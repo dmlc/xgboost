@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 (c) by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file xgboost_R.h
  * \author Tianqi Chen
  * \brief R wrapper of xgboost
@@ -59,12 +59,23 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
  * \param indices row indices
  * \param data content of the data
  * \param num_row numer of rows (when it's set to 0, then guess from data)
+ * \param n_threads Number of threads used to construct DMatrix from csc matrix.
  * \return created dmatrix
  */
-XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
-                                      SEXP indices,
-                                      SEXP data,
-                                      SEXP num_row);
+XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_row,
+                                      SEXP n_threads);
+
+/*!
+ * \brief create a matrix content from CSR format
+ * \param indptr pointer to row headers
+ * \param indices column indices
+ * \param data content of the data
+ * \param num_col numer of columns (when it's set to 0, then guess from data)
+ * \param n_threads Number of threads used to construct DMatrix from csr matrix.
+ * \return created dmatrix
+ */
+XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_col,
+                                      SEXP n_threads);
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
@@ -209,11 +220,21 @@ XGB_DLL SEXP XGBoosterSaveModel_R(SEXP handle, SEXP fname);
 XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
 
 /*!
- * \brief save model into R's raw array
+ * \brief Save model into R's raw array
+ *
  * \param handle handle
- * \return raw array
+ * \param json_config JSON encoded string storing parameters for the function.  Following
+ *                    keys are expected in the JSON document:
+ *
+ *     "format": str
+ *       - json: Output booster will be encoded as JSON.
+ *       - ubj:  Output booster will be encoded as Univeral binary JSON.
+ *       - deprecated: Output booster will be encoded as old custom binary format.  Do now use
+ *         this format except for compatibility reasons.
+ *
+ * \return Raw array
  */
-XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
+XGB_DLL SEXP XGBoosterSaveModelToRaw_R(SEXP handle, SEXP json_config);
 
 /*!
  * \brief Save internal parameters as a JSON string

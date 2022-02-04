@@ -10,6 +10,7 @@ dependencies:
 - pylint
 - numpy
 - scipy
+- llvm-openmp
 - scikit-learn
 - pandas
 - matplotlib

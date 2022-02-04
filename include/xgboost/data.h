@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015-2022 by Contributors
+ * Copyright (c) 2015-2022 by XGBoost Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
@@ -11,6 +11,7 @@
 #include <dmlc/data.h>
 #include <dmlc/serializer.h>
 #include <xgboost/base.h>
+#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 #include <xgboost/span.h>
@@ -300,24 +301,9 @@ class SparsePage {
     base_rowid = row_id;
   }
 
-  SparsePage GetTranspose(int num_columns) const;
+  SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
-  void SortRows() {
-    auto ncol = static_cast<bst_omp_uint>(this->Size());
-    dmlc::OMPException exc;
-#pragma omp parallel for schedule(dynamic, 1)
-    for (bst_omp_uint i = 0; i < ncol; ++i) {
-      exc.Run([&]() {
-        if (this->offset.HostVector()[i] < this->offset.HostVector()[i + 1]) {
-          std::sort(
-              this->data.HostVector().begin() + this->offset.HostVector()[i],
-              this->data.HostVector().begin() + this->offset.HostVector()[i + 1],
-              Entry::CmpValue);
-        }
-      });
-    }
-    exc.Rethrow();
-  }
+  void SortRows(int32_t n_threads);
 
   /**
    * \brief Pushes external data batch onto this page
@@ -482,6 +468,11 @@ class DMatrix {
 
   /*! \brief Get thread local memory for returning data from DMatrix. */
   XGBAPIThreadLocalEntry& GetThreadLocal() const;
+  /**
+   * \brief Get the context object of this DMatrix.  The context is created during construction of
+   *        DMatrix with user specified `nthread` parameter.
+   */
+  virtual GenericParameter const* Ctx() const = 0;
 
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.

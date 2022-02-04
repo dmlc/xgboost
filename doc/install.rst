@@ -41,6 +41,14 @@ into permission errors.  Python pre-built binary capability for each platform:
 | Windows           | |tick|  |  |cross|             |
 +-------------------+---------+----------------------+
 
+If you are using **Apple Silicon**, please use the Conda packaging manager to install XGBoost:
+
+.. code-block:: bash
+
+   conda install -c conda-forge py-xgboost
+
+Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
+
 R
 -
 

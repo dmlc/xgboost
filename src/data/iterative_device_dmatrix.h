@@ -69,11 +69,12 @@ class IterativeDeviceDMatrix : public DMatrix {
 
   bool SingleColBlock() const override { return false; }
 
-  MetaInfo& Info() override {
-    return info_;
-  }
-  MetaInfo const& Info() const override {
-    return info_;
+  MetaInfo &Info() override { return info_; }
+  MetaInfo const &Info() const override { return info_; }
+
+  GenericParameter const *Ctx() const override {
+    LOG(FATAL) << "`IterativeDMatrix` doesn't have context.";
+    return nullptr;
   }
 };
 

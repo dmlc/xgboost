@@ -83,8 +83,8 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 
 struct GBTreeModel : public Model {
  public:
-  explicit GBTreeModel(LearnerModelParam const* learner_model) :
-      learner_model_param{learner_model} {}
+  explicit GBTreeModel(LearnerModelParam const* learner_model, GenericParameter const* ctx)
+      : learner_model_param{learner_model}, ctx_{ctx} {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
@@ -135,6 +135,9 @@ struct GBTreeModel : public Model {
   std::vector<std::unique_ptr<RegTree> > trees_to_update;
   /*! \brief some information indicator of the tree, reserved */
   std::vector<int> tree_info;
+
+ private:
+  GenericParameter const* ctx_;
 };
 }  // namespace gbm
 }  // namespace xgboost

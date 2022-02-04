@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014-2021 by Contributors
+ *  Copyright 2014-2022 by XGBoost Contributors
  * \file sparse_page_source.h
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
@@ -311,7 +311,7 @@ class CSCPageSource : public PageSourceIncMixIn<CSCPage> {
       auto const &csr = source_->Page();
       this->page_.reset(new CSCPage{});
       // we might be able to optimize this by merging transpose and pushcsc
-      this->page_->PushCSC(csr->GetTranspose(n_features_));
+      this->page_->PushCSC(csr->GetTranspose(n_features_, nthreads_));
       page_->SetBaseRowId(csr->base_rowid);
       this->WriteCache();
     }
@@ -336,10 +336,10 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
       auto const &csr = this->source_->Page();
       this->page_.reset(new SortedCSCPage{});
       // we might be able to optimize this by merging transpose and pushcsc
-      this->page_->PushCSC(csr->GetTranspose(n_features_));
+      this->page_->PushCSC(csr->GetTranspose(n_features_, nthreads_));
       CHECK_EQ(this->page_->Size(), n_features_);
       CHECK_EQ(this->page_->data.Size(), csr->data.Size());
-      this->page_->SortRows();
+      this->page_->SortRows(this->nthreads_);
       page_->SetBaseRowId(csr->base_rowid);
       this->WriteCache();
     }

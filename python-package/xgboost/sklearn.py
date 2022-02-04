@@ -197,7 +197,7 @@ __model_doc = f'''
         Experimental support for categorical data.  Do not set to true unless you are
         interested in development. Only valid when `gpu_hist` and dataframe are used.
 
-    max_cat_to_onehot : bool
+    max_cat_to_onehot : Optional[int]
 
         .. versionadded:: 1.6.0
 
@@ -1419,6 +1419,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             # multi-label
             column_indexes = np.zeros(class_probs.shape)
             column_indexes[class_probs > 0.5] = 1
+        elif self.objective == "multi:softmax":
+            return class_probs.astype(np.int32)
         else:
             # turns soft logit into class label
             column_indexes = np.repeat(0, class_probs.shape[0])

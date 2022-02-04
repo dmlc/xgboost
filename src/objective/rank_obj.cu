@@ -773,7 +773,7 @@ class LambdaRankObj : public ObjFunction {
 
 #if defined(__CUDACC__)
     // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     if (device >= 0) {
       ComputeGradientsOnGPU(preds, info, iter, out_gpair, gptr);
     } else {
@@ -826,7 +826,7 @@ class LambdaRankObj : public ObjFunction {
     out_gpair->Resize(preds.Size());
 
     dmlc::OMPException exc;
-    #pragma omp parallel
+#pragma omp parallel num_threads(ctx_->Threads())
     {
       exc.Run([&]() {
         // parallel construct, declare random number generator here, so that each
@@ -909,7 +909,7 @@ class LambdaRankObj : public ObjFunction {
                              const std::vector<unsigned> &gptr) {
     LOG(DEBUG) << "Computing " << LambdaWeightComputerT::Name() << " gradients on GPU.";
 
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
 
     bst_float weight_normalization_factor = ComputeWeightNormalizationFactor(info, gptr);

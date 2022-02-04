@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014~2021 by Contributors
+ * Copyright 2014~2022 by XGBoost Contributors
  * \file simple_dmatrix.cc
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
@@ -55,7 +55,7 @@ BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
 BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
   // column page doesn't exist, generate it
   if (!column_page_) {
-    column_page_.reset(new CSCPage(sparse_page_->GetTranspose(info_.num_col_)));
+    column_page_.reset(new CSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx_.Threads())));
   }
   auto begin_iter =
       BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_));
@@ -66,8 +66,8 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
     sorted_column_page_.reset(
-        new SortedCSCPage(sparse_page_->GetTranspose(info_.num_col_)));
-    sorted_column_page_->SortRows();
+        new SortedCSCPage(sparse_page_->GetTranspose(info_.num_col_, ctx_.Threads())));
+    sorted_column_page_->SortRows(ctx_.Threads());
   }
   auto begin_iter = BatchIterator<SortedCSCPage>(
       new SimpleBatchIteratorImpl<SortedCSCPage>(sorted_column_page_));
@@ -94,12 +94,14 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
   if (!(batch_param_ != BatchParam{})) {
     CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
   }
-  if (!gradient_index_ || (batch_param_ != param && param != BatchParam{}) || param.regen) {
+  if (!gradient_index_ || RegenGHist(batch_param_, param)) {
+    LOG(INFO) << "Generating new Gradient Index.";
     CHECK_GE(param.max_bin, 2);
     CHECK_EQ(param.gpu_id, -1);
     // Used only by approx.
     auto sorted_sketch = param.regen;
-    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin, sorted_sketch, param.hess));
+    gradient_index_.reset(
+        new GHistIndexMatrix(this, param.max_bin, sorted_sketch, this->ctx_.Threads(), param.hess));
     batch_param_ = param;
     CHECK_EQ(batch_param_.hess.data(), param.hess.data());
   }
@@ -110,6 +112,8 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
 
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
+  this->ctx_.nthread = nthread;
+
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
@@ -124,7 +128,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   // Iterate over batches of input data
   while (adapter->Next()) {
     auto& batch = adapter->Value();
-    auto batch_max_columns = sparse_page_->Push(batch, missing, nthread);
+    auto batch_max_columns = sparse_page_->Push(batch, missing, ctx_.Threads());
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2021 by Contributors
+ * Copyright 2018-2022 by XGBoost Contributors
  */
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
@@ -27,8 +27,8 @@ class QuantileHistMock : public QuantileHistMaker {
     using GHistRowT = typename RealImpl::GHistRowT;
 
     BuilderMock(const TrainParam &param, std::unique_ptr<TreeUpdater> pruner,
-                DMatrix const *fmat)
-        : RealImpl(1, param, std::move(pruner), fmat, ObjInfo{ObjInfo::kRegression}) {}
+                DMatrix const *fmat, GenericParameter const* ctx)
+        : RealImpl(1, param, std::move(pruner), fmat, ObjInfo{ObjInfo::kRegression}, ctx) {}
 
    public:
     void TestInitData(const GHistIndexMatrix& gmat,
@@ -162,11 +162,11 @@ class QuantileHistMock : public QuantileHistMaker {
         // kNRows samples with kNCols features
         auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
 
-        GHistIndexMatrix gmat(dmat.get(), kMaxBins, false);
+        GHistIndexMatrix gmat(dmat.get(), kMaxBins, false, common::OmpGetNumThreads(0));
         ColumnMatrix cm;
 
         // treat everything as dense, as this is what we intend to test here
-        cm.Init(gmat, 0.0);
+        cm.Init(gmat, 0.0, common::OmpGetNumThreads(0));
         RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
         const size_t num_row = dmat->Info().num_row_;
         // split by feature 0
@@ -222,6 +222,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   int static constexpr kNRows = 8, kNCols = 16;
   std::shared_ptr<xgboost::DMatrix> dmat_;
+  GenericParameter ctx_;
   const std::vector<std::pair<std::string, std::string> > cfg_;
   std::shared_ptr<BuilderMock<float> > float_builder_;
   std::shared_ptr<BuilderMock<double> > double_builder_;
@@ -233,18 +234,12 @@ class QuantileHistMock : public QuantileHistMaker {
       QuantileHistMaker{ObjInfo{ObjInfo::kRegression}}, cfg_{args} {
     QuantileHistMaker::Configure(args);
     dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
+    ctx_.UpdateAllowUnknown(Args{});
     if (single_precision_histogram) {
-      float_builder_.reset(
-          new BuilderMock<float>(
-              param_,
-              std::move(pruner_),
-              dmat_.get()));
+      float_builder_.reset(new BuilderMock<float>(param_, std::move(pruner_), dmat_.get(), &ctx_));
     } else {
       double_builder_.reset(
-          new BuilderMock<double>(
-              param_,
-              std::move(pruner_),
-              dmat_.get()));
+          new BuilderMock<double>(param_, std::move(pruner_), dmat_.get(), &ctx_));
     }
   }
   ~QuantileHistMock() override = default;
@@ -253,7 +248,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false);
+    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false, common::OmpGetNumThreads(0));
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -270,7 +265,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitDataSampling() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false);
+    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false, common::OmpGetNumThreads(0));
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);

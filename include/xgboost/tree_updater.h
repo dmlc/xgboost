@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file tree_updater.h
  * \brief General primitive for tree learning,
  *   Updating a collection of trees given the information.
@@ -32,7 +32,7 @@ class Json;
  */
 class TreeUpdater : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  GenericParameter const* ctx_;
 
  public:
   /*! \brief virtual destructor */

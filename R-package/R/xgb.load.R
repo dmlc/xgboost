@@ -5,7 +5,7 @@
 #' @param modelfile the name of the binary input file.
 #'
 #' @details
-#' The input file is expected to contain a model saved in an xgboost-internal binary format
+#' The input file is expected to contain a model saved in an xgboost model format
 #' using either \code{\link{xgb.save}} or \code{\link{cb.save.model}} in R, or using some
 #' appropriate methods from other xgboost interfaces. E.g., a model trained in Python and
 #' saved from there in xgboost format, could be loaded from R.
@@ -38,6 +38,13 @@ xgb.load <- function(modelfile) {
   handle <- xgb.Booster.handle(modelfile = modelfile)
   # re-use modelfile if it is raw so we do not need to serialize
   if (typeof(modelfile) == "raw") {
+    warning(
+      paste(
+        "The support for loading raw booster with `xgb.load` will be ",
+        "discontinued in upcoming release. Use `xgb.load.raw` or",
+        " `xgb.unserialize` instead. "
+      )
+    )
     bst <- xgb.handleToBooster(handle, modelfile)
   } else {
     bst <- xgb.handleToBooster(handle, NULL)

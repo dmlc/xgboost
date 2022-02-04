@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 by Contributors
+ * Copyright 2017-2022 by XGBoost Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -137,19 +137,18 @@ class HistogramCuts {
  * \param use_sorted Whether should we use SortedCSC for sketching, it's more efficient
  *                   but consumes more memory.
  */
-inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, bool use_sorted = false,
-                                     Span<float> const hessian = {}) {
+inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_threads,
+                                     bool use_sorted = false, Span<float> const hessian = {}) {
   HistogramCuts out;
   auto const& info = m->Info();
-  const auto threads = omp_get_max_threads();
-  std::vector<std::vector<bst_row_t>> column_sizes(threads);
+  std::vector<std::vector<bst_row_t>> column_sizes(n_threads);
   for (auto& column : column_sizes) {
     column.resize(info.num_col_, 0);
   }
   std::vector<bst_row_t> reduced(info.num_col_, 0);
   for (auto const& page : m->GetBatches<SparsePage>()) {
-    auto const &entries_per_column =
-        HostSketchContainer::CalcColumnSize(page, info.num_col_, threads);
+    auto const& entries_per_column =
+        HostSketchContainer::CalcColumnSize(page, info.num_col_, n_threads);
     for (size_t i = 0; i < entries_per_column.size(); ++i) {
       reduced[i] += entries_per_column[i];
     }
@@ -157,14 +156,14 @@ inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, bool use_sort
 
   if (!use_sorted) {
     HostSketchContainer container(max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info),
-                                  hessian, threads);
+                                  hessian, n_threads);
     for (auto const& page : m->GetBatches<SparsePage>()) {
       container.PushRowPage(page, info, hessian);
     }
     container.MakeCuts(&out);
   } else {
     SortedSketchContainer container{
-        max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info), hessian, threads};
+        max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info), hessian, n_threads};
     for (auto const& page : m->GetBatches<SortedCSCPage>()) {
       container.PushColPage(page, info, hessian);
     }

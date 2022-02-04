@@ -14,7 +14,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
   auto id = MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
   size_t row_stride = 0;
   this->InitializeSparsePage();
-  if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{})) {
+  if (!cache_info_.at(id)->written || RegenGHist(batch_param_, param)) {
     // reinitialize the cache
     cache_info_.erase(id);
     MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);

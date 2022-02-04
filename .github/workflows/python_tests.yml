@@ -17,10 +17,7 @@ jobs:
     - name: Install osx system dependencies
       if: matrix.os == 'macos-10.15'
       run: |
-        # Use libomp 11.1.0: https://github.com/dmlc/xgboost/issues/7039
-        wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
         brew install ninja libomp
-        brew pin libomp
     - name: Install Ubuntu system dependencies
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -119,14 +116,16 @@ jobs:
         conda list
 
     - name: Build XGBoost on macos
+      shell: bash -l {0}
       run: |
-        wget https://raw.githubusercontent.com/Homebrew/homebrew-core/679923b4eb48a8dc7ecc1f05d06063cd79b3fc00/Formula/libomp.rb -O $(find $(brew --repository) -name libomp.rb)
-        brew install ninja libomp
-        brew pin libomp
+        brew install ninja
 
         mkdir build
         cd build
-        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
+        # Set prefix, to use OpenMP library from Conda env
+        # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
+        # to learn why we don't use libomp from Homebrew.
+        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
         ninja
 
     - name: Install Python package
@@ -141,24 +140,3 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v ./tests/python
-
-    - name: Rename Python wheel
-      shell: bash -l {0}
-      run: |
-        TAG=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
-        python tests/ci_build/rename_whl.py python-package/dist/*.whl ${{ github.sha }} ${TAG}
-
-    - name: Extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-
-    - name: Upload Python wheel
-      shell: bash -l {0}
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-      run: |
-        python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

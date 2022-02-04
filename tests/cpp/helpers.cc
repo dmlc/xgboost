@@ -506,8 +506,9 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   return dmat;
 }
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes) {
-  gbm::GBTreeModel model(param);
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, GenericParameter const* ctx,
+                                 size_t n_classes) {
+  gbm::GBTreeModel model(param, ctx);
 
   for (size_t i = 0; i < n_classes; ++i) {
     std::vector<std::unique_ptr<RegTree>> trees;

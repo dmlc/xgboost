@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file tree_updater.cc
  * \brief Registry of tree updaters.
  */
@@ -21,7 +21,7 @@ TreeUpdater* TreeUpdater::Create(const std::string& name, GenericParameter const
     LOG(FATAL) << "Unknown tree updater " << name;
   }
   auto p_updater = (e->body)(task);
-  p_updater->tparam_ = tparam;
+  p_updater->ctx_ = tparam;
   return p_updater;
 }
 

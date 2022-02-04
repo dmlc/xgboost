@@ -88,8 +88,8 @@ def test_predict_leaf():
 
 
 def test_predict_shape():
-    from sklearn.datasets import load_boston
-    X, y = load_boston(return_X_y=True)
+    from sklearn.datasets import fetch_california_housing
+    X, y = fetch_california_housing(return_X_y=True)
     reg = xgb.XGBRegressor(n_estimators=1)
     reg.fit(X, y)
     predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)

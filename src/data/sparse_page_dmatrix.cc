@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file sparse_page_dmatrix.cc
  * \brief The external memory version of Page Iterator.
  * \author Tianqi Chen
@@ -157,14 +157,15 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   return BatchSet<SortedCSCPage>(BatchIterator<SortedCSCPage>(begin_iter));
 }
 
-BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam& param) {
+BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam &param) {
   CHECK_GE(param.max_bin, 2);
   if (param.hess.empty() && !param.regen) {
     // hist method doesn't support full external memory implementation, so we concatenate
     // all index here.
     if (!ghist_index_page_ || (param != batch_param_ && param != BatchParam{})) {
       this->InitializeSparsePage();
-      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin, param.regen});
+      ghist_index_page_.reset(
+          new GHistIndexMatrix{this, param.max_bin, param.regen, ctx_.Threads()});
       this->InitializeSparsePage();
       batch_param_ = param;
     }
@@ -175,13 +176,14 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam&
 
   auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
   this->InitializeSparsePage();
-  if (!cache_info_.at(id)->written || (batch_param_ != param && param != BatchParam{}) ||
-      param.regen) {
+  if (!cache_info_.at(id)->written || RegenGHist(batch_param_, param)) {
     cache_info_.erase(id);
     MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
+    LOG(INFO) << "Generating new Gradient Index.";
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
-    auto cuts = common::SketchOnDMatrix(this, param.max_bin, sorted_sketch, param.hess);
+    auto cuts =
+        common::SketchOnDMatrix(this, param.max_bin, ctx_.Threads(), sorted_sketch, param.hess);
     this->InitializeSparsePage();  // reset after use.
 
     batch_param_ = param;

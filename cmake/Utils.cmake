@@ -105,9 +105,10 @@ function(format_gencode_flags flags out)
 
   if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     cmake_policy(SET CMP0104 NEW)
-    foreach(ver ${flags})
-      set(CMAKE_CUDA_ARCHITECTURES "${ver}-real;${ver}-virtual;${CMAKE_CUDA_ARCHITECTURES}")
-    endforeach()
+    list(POP_BACK flags latest_arch)
+    list(TRANSFORM flags APPEND "-real")
+    list(APPEND flags ${latest_arch})
+    set(CMAKE_CUDA_ARCHITECTURES ${flags})
     set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" PARENT_SCOPE)
     message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
   else()
@@ -136,7 +137,8 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>)
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
 
   if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})

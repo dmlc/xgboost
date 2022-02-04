@@ -43,8 +43,8 @@ class TestGPULinear:
     # We test a weaker condition that the loss has not increased between the first and last
     # iteration
     @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, strategies.floats(1e-5, 2.0),
-           strategies.floats(1e-5, 2.0))
+           tm.dataset_strategy, strategies.floats(1e-5, 1.0),
+           strategies.floats(1e-5, 1.0))
     @settings(deadline=None)
     def test_gpu_coordinate_regularised(self, param, num_rounds, dataset, alpha, lambd):
         assume(len(dataset.y) > 0)
@@ -63,7 +63,7 @@ class TestGPULinear:
         import cupy
         params = {'booster': 'gblinear', 'updater': 'gpu_coord_descent',
                   'n_estimators': 100}
-        X, y = tm.get_boston()
+        X, y = tm.get_california_housing()
         cpu_model = xgb.XGBRegressor(**params)
         cpu_model.fit(X, y)
         cpu_predt = cpu_model.predict(X)
