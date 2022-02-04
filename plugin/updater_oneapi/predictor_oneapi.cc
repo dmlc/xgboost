@@ -25,18 +25,20 @@ class PredictorOneAPI : public Predictor {
  public:
   explicit PredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {
-    bool is_cpu = false;
+    bool is_cpu = generic_param->device_id.Type() == DeviceType::kOneAPI_CPU;
     std::vector<sycl::device> devices = sycl::device::get_devices();
+
     for (size_t i = 0; i < devices.size(); i++)
     {
       LOG(INFO) << "device_id = " << i << ", name = " << devices[i].get_info<sycl::info::device::name>();
     }
-    if (generic_param->device_id != GenericParameter::kDefaultId) {
+    if (generic_param->device_id.Index() != DeviceId::kDefaultIndex) {
       int n_devices = (int)devices.size();
-      CHECK_LT(generic_param->device_id, n_devices);
-      is_cpu = devices[generic_param->device_id].is_cpu() | devices[generic_param->device_id].is_host();
+
+      CHECK_LT(generic_param->device_id.Index(), n_devices);
+      is_cpu = devices[generic_param->device_id.Index()].is_cpu() | devices[generic_param->device_id.Index()].is_host();
     }
-    LOG(INFO) << "device_id = " << generic_param->device_id << ", is_cpu = " << int(is_cpu);
+    LOG(INFO) << "device_id = " << generic_param->device_id.Index() << ", is_cpu = " << int(is_cpu);
     
     if (is_cpu)
     {
@@ -331,8 +333,8 @@ class GPUPredictorOneAPI : public Predictor {
   explicit GPUPredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param}, cpu_predictor(Predictor::Create("cpu_predictor", generic_param)) {
     std::vector<sycl::device> devices = sycl::device::get_devices();
-    if (generic_param->device_id != GenericParameter::kDefaultId) {
-      qu_ = sycl::queue(devices[generic_param->device_id]);
+    if (generic_param->device_id.Index() != DeviceId::kDefaultIndex) {
+      qu_ = sycl::queue(devices[generic_param->device_id.Index()]);
     } else {
       sycl::default_selector selector;
       qu_ = sycl::queue(selector);

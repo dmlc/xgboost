@@ -214,9 +214,9 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     if (this->output_prob_) {
-      out["name"] = String("multi:softprob_oneapi");
+      out["name"] = String("multi:softprob");
     } else {
-      out["name"] = String("multi:softmax_oneapi");
+      out["name"] = String("multi:softmax");
     }
     out["softmax_multiclass_param"] = ToJson(param_);
   }
@@ -242,10 +242,14 @@ DMLC_REGISTER_PARAMETER(SoftmaxMultiClassParamOneAPI);
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClassOneAPI, "multi:softmax_oneapi")
 .describe("Softmax for multi-class classification, output class index.")
 .set_body([]() { return new SoftmaxMultiClassObjOneAPI(false); });
+XGBOOST_REGISTERATE_DEVICEID_KERNEL("multi:softmax", DeviceType::kOneAPI_CPU, "multi:softmax_oneapi");
+XGBOOST_REGISTERATE_DEVICEID_KERNEL("multi:softmax", DeviceType::kOneAPI_GPU, "multi:softmax_oneapi");
 
 XGBOOST_REGISTER_OBJECTIVE(SoftprobMultiClassOneAPI, "multi:softprob_oneapi")
 .describe("Softmax for multi-class classification, output probability distribution.")
 .set_body([]() { return new SoftmaxMultiClassObjOneAPI(true); });
+XGBOOST_REGISTERATE_DEVICEID_KERNEL("multi:softprob", DeviceType::kOneAPI_CPU, "multi:softprob_oneapi");
+XGBOOST_REGISTERATE_DEVICEID_KERNEL("multi:softprob", DeviceType::kOneAPI_GPU, "multi:softprob_oneapi");
 
 }  // namespace obj
 }  // namespace xgboost

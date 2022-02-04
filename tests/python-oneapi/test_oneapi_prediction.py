@@ -35,11 +35,11 @@ class TestOneAPIPredict(unittest.TestCase):
                 watchlist = [(dtrain, 'train'), (dval, 'validation')]
                 res = {}
                 param = {
-                    "objective": "binary:logistic_oneapi",
+                    "objective": "binary:logistic",
                     "predictor": "oneapi_predictor",
                     'eval_metric': 'logloss',
                     'tree_method': 'hist',
-                    'updater': 'grow_quantile_histmaker_oneapi',
+                    'updater': 'grow_quantile_histmaker',
                     'max_depth': 1
                 }
                 bst = xgb.train(param, dtrain, iterations, evals=watchlist,
@@ -79,12 +79,14 @@ class TestOneAPIPredict(unittest.TestCase):
 
         params = {}
         params["tree_method"] = "hist"
-        params["updater"] = "grow_quantile_histmaker_oneapi"
+        params["updater"] = "grow_quantile_histmaker"
 
         params['predictor'] = "oneapi_predictor"
+        params['device_id'] = "oneapi:cpu:0"
         bst_oneapi_predict = xgb.train(params, dtrain)
 
         params['predictor'] = "cpu_predictor"
+        params['device_id'] = "cpu:0"
         bst_cpu_predict = xgb.train(params, dtrain)
 
         predict0 = bst_oneapi_predict.predict(dtest)

@@ -79,7 +79,7 @@ class RegLossObjOneAPI : public ObjFunction {
 
     auto scale_pos_weight = param_.scale_pos_weight;
     if (!is_null_weight) {
-      CHECK_EQ(info.weights_.Size(), ndata)
+      CHECK_EQ(info.weights_.Size(), info.labels.Shape(0))
         << "Number of weights should be equal to number of data points.";
     }
 
@@ -145,6 +145,11 @@ class RegLossObjOneAPI : public ObjFunction {
     return Loss::Info();
   };
 
+  uint32_t Targets(MetaInfo const& info) const override {
+    // Multi-target regression.
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
+
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
@@ -165,22 +170,36 @@ class RegLossObjOneAPI : public ObjFunction {
 DMLC_REGISTER_PARAMETER(RegLossParamOneAPI);
 
 // TODO: Find a better way to dispatch names of DPC++ kernels with various template parameters of loss function
-XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::Name())
+XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::KernelName())
 .describe("Regression with squared error with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI>(); });
-XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::Name())
+// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LinearSquareLossOneAPI::Name(), DeviceType::kOneAPI_CPU, LinearSquareLossOneAPI::KernelName());
+XGBOOST_REGISTERATE_DEVICEID_KERNEL(LinearSquareLossOneAPI::Name(), DeviceType::kOneAPI_GPU, LinearSquareLossOneAPI::KernelName());
+
+XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::KernelName())
 .describe("Regression with root mean squared logarithmic error with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI>(); });
-XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::Name())
+// XGBOOST_REGISTERATE_DEVICEID_KERNEL(SquaredLogErrorOneAPI::Name(), DeviceType::kOneAPI_CPU, SquaredLogErrorOneAPI::KernelName());
+XGBOOST_REGISTERATE_DEVICEID_KERNEL(SquaredLogErrorOneAPI::Name(), DeviceType::kOneAPI_GPU, SquaredLogErrorOneAPI::KernelName());
+
+XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::KernelName())
 .describe("Logistic regression for probability regression task with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI>(); });
-XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::Name())
+// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRegressionOneAPI::Name(), DeviceType::kOneAPI_CPU, LogisticRegressionOneAPI::KernelName());
+XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRegressionOneAPI::Name(), DeviceType::kOneAPI_GPU, LogisticRegressionOneAPI::KernelName());
+
+XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::KernelName())
 .describe("Logistic regression for binary classification task with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI>(); });
-XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::Name())
+// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticClassificationOneAPI::Name(), DeviceType::kOneAPI_CPU, LogisticClassificationOneAPI::KernelName());
+XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticClassificationOneAPI::Name(), DeviceType::kOneAPI_GPU, LogisticClassificationOneAPI::KernelName());
+
+XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::KernelName())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI>(); });
+// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRawOneAPI::Name(), DeviceType::kOneAPI_CPU, LogisticRawOneAPI::KernelName());
+XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRawOneAPI::Name(), DeviceType::kOneAPI_GPU, LogisticRawOneAPI::KernelName());
 
 }  // namespace obj
 }  // namespace xgboost

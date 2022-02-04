@@ -37,7 +37,9 @@ struct LinearSquareLossOneAPI {
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
-  static const char* Name() { return "reg:squarederror_oneapi"; }
+  static const char* Name() { return "reg:squarederror"; }
+
+  static const char* KernelName() { return "reg:squarederror_oneapi"; }
 
   static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
 };
@@ -65,9 +67,11 @@ struct SquaredLogErrorOneAPI {
   }
   static const char* DefaultEvalMetric() { return "rmsle"; }
 
-  static const char* Name() { return "reg:squaredlogerror_oneapi"; }
+  static const char* Name() { return "reg:squaredlogerror"; }
 
-  static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
+  static const char* KernelName() { return "reg:squaredlogerror_oneapi"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
 };
 
 // logistic loss for probability regression task
@@ -102,15 +106,18 @@ struct LogisticRegressionOneAPI {
   }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
-  static const char* Name() { return "reg:logistic_oneapi"; }
+  static const char* Name() { return "reg:logistic"; }
 
-  static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
+  static const char* KernelName() { return "reg:logistic_oneapi"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
 };
 
 // logistic loss for binary classification task
 struct LogisticClassificationOneAPI : public LogisticRegressionOneAPI {
   static const char* DefaultEvalMetric() { return "logloss"; }
-  static const char* Name() { return "binary:logistic_oneapi"; }
+  static const char* Name() { return "binary:logistic"; }
+  static const char* KernelName() { return "binary:logistic_oneapi"; }
 };
 
 // logistic loss, but predict un-transformed margin
@@ -142,9 +149,11 @@ struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
   }
   static const char* DefaultEvalMetric() { return "logloss"; }
 
-  static const char* Name() { return "binary:logitraw_oneapi"; }
+  static const char* Name() { return "binary:logitraw"; }
 
-  static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
+  static const char* KernelName() { return "binary:logitraw_oneapi"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
 };
 
 }  // namespace obj

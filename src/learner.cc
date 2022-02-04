@@ -227,7 +227,6 @@ DMLC_REGISTER_PARAMETER(GenericParameter);
 
 int constexpr GenericParameter::kCpuId;
 int64_t constexpr GenericParameter::kDefaultSeed;
-int constexpr GenericParameter::kDefaultId;
 
 void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #if defined(XGBOOST_USE_CUDA)
@@ -347,6 +346,7 @@ class LearnerConfiguration : public Learner {
 
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
+    this->ConfigureDeviceId();
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
@@ -371,6 +371,7 @@ class LearnerConfiguration : public Learner {
 
     this->ConfigureGBM(old_tparam, args);
     generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+    generic_parameters_.device_id.UpdateByGPUId(generic_parameters_.gpu_id);
 
     this->ConfigureMetrics(args);
 
@@ -398,7 +399,7 @@ class LearnerConfiguration : public Learner {
 
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
+      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(tparam_.objective), &generic_parameters_));
     }
     obj_->LoadConfig(objective_fn);
 
@@ -631,11 +632,21 @@ class LearnerConfiguration : public Learner {
     cfg_["num_class"] = common::ToString(mparam_.num_class);
   }
 
+  void ConfigureDeviceId() {
+    std::stringstream ss;
+    ss << generic_parameters_.device_id;
+
+    std::string name;
+    ss >> name;
+    cfg_["device_id"] = name;
+  }
+
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
     if (gbm_ == nullptr || old.booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
                                          &learner_model_param_));
     }
+
     gbm_->Configure(args);
   }
 
@@ -657,7 +668,7 @@ class LearnerConfiguration : public Learner {
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
+      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(tparam_.objective), &generic_parameters_));
     }
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
@@ -744,11 +755,17 @@ class LearnerIO : public LearnerConfiguration {
     auto const& learner = get<Object>(in["learner"]);
     mparam_.FromJson(learner.at("learner_model_param"));
 
+    std::string name;
+    if (learner.count("device_id") > 0) {
+      auto& device_id_fn = learner.at("device_id");
+      name = get<String>(device_id_fn["name"]);
+      generic_parameters_.device_id.Init(name);
+    }
     auto const& objective_fn = learner.at("objective");
 
-    std::string name = get<String>(objective_fn["name"]);
+    name = get<String>(objective_fn["name"]);
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(name, &generic_parameters_));
+    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(name), &generic_parameters_));
     obj_->LoadConfig(objective_fn);
 
     auto const& gradient_booster = learner.at("gradient_booster");
@@ -801,6 +818,10 @@ class LearnerIO : public LearnerConfiguration {
     auto& objective_fn = learner["objective"];
     obj_->SaveConfig(&objective_fn);
 
+    learner["device_id"] = Object();
+    auto& device_id_fn = learner["device_id"];
+    generic_parameters_.device_id.SaveConfig(&device_id_fn);
+
     learner["attributes"] = Object();
     for (auto const& kv : attributes_) {
       learner["attributes"][kv.first] = String(kv.second);
@@ -836,6 +857,7 @@ class LearnerIO : public LearnerConfiguration {
       }
     }
 
+    std::cout << "Trying to load model from dmlc::Stream" << std::endl;
     if (header[0] == '{') {  // Dispatch to JSON
       auto buffer = common::ReadAll(fi, &fp);
       Json model;
@@ -864,7 +886,7 @@ class LearnerIO : public LearnerConfiguration {
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
-    obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
+    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(tparam_.objective), &generic_parameters_));
     gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
                                        &learner_model_param_));
     gbm_->Load(fi);

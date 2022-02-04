@@ -36,7 +36,8 @@ class TestOneAPIUpdaters:
            tm.dataset_strategy.filter(lambda x: x.name != "empty"))
     @settings(deadline=None)
     def test_oneapi_hist(self, param, num_rounds, dataset):
-        param['updater'] = 'grow_quantile_histmaker_oneapi'
+        param['updater'] = 'grow_quantile_histmaker'
+        param['device_id'] = 'oneapi:cpu:-1'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         note(result)
@@ -45,7 +46,8 @@ class TestOneAPIUpdaters:
     @given(tm.dataset_strategy.filter(lambda x: x.name != "empty"), strategies.integers(0, 1))
     @settings(deadline=None)
     def test_specified_device_id_oneapi_update(self, dataset, device_id):
-        param = {'updater': 'grow_quantile_histmaker_oneapi', 'device_id': device_id}
+        param = {'updater': 'grow_quantile_histmaker', 'device_id': f'oneapi:cpu:{device_id}'}
         param = dataset.set_params(param)
+        print(param)
         result = train_result(param, dataset.get_dmat(), 10)
         assert tm.non_increasing(result['train'][dataset.metric])

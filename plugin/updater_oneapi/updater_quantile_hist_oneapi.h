@@ -130,7 +130,7 @@ class QuantileHistMakerOneAPI: public TreeUpdater {
     if (updater_backend_) {
         return updater_backend_->Name();
     } else {
-        return "grow_quantile_histmaker_oneapi";
+        return "grow_quantile_histmaker";
     }
   }
 
@@ -201,7 +201,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
   }
 
   char const* Name() const override {
-    return "grow_quantile_histmaker_oneapi_gpu";
+    return "grow_quantile_histmaker";
   }
 
  protected:

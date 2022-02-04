@@ -7,6 +7,7 @@
 
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
+#include <xgboost/device_id.h>
 
 #include <string>
 
@@ -15,8 +16,8 @@ namespace xgboost {
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // Constant representing the device ID of CPU.
   static int32_t constexpr kCpuId = -1;
+  static int32_t constexpr kGpuId = -1;
   static int64_t constexpr kDefaultSeed = 0;
-  static int32_t constexpr kDefaultId = -1;
 
  public:
   // stored random seed
@@ -33,7 +34,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   bool validate_parameters {false};
 
   // primary oneAPI device, -1 means default device
-  int device_id;
+  DeviceId device_id;
 
   /*!
    * \brief Configure the parameter `gpu_id'.
@@ -59,8 +60,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_ALIAS(nthread, n_jobs);
 
     DMLC_DECLARE_FIELD(gpu_id)
-        .set_default(-1)
-        .set_lower_bound(-1)
+        .set_default(kGpuId)
+        .set_lower_bound(kGpuId)
         .describe("The primary GPU device ordinal.");
     DMLC_DECLARE_FIELD(fail_on_invalid_gpu_id)
         .set_default(false)
@@ -69,9 +70,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
     DMLC_DECLARE_FIELD(device_id)
-        .set_default(kDefaultId)
-        .set_lower_bound(-1)
-        .describe("The primary oneAPI device ordinal.");
+        .set_default(DeviceId())
+        .describe("The unifyed device descriptor.");
   }
 };
 }  // namespace xgboost
