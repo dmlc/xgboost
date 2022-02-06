@@ -563,10 +563,13 @@ def run_dask_classifier(
     assert list(history.keys())[0] == "validation_0"
     assert list(history["validation_0"].keys())[0] == metric
     assert len(list(history["validation_0"])) == 1
+
+    config = json.loads(classifier.get_booster().save_config())
+    n_threads = int(config["learner"]["generic_param"]["nthread"])
+    assert n_threads != 0 and n_threads != os.cpu_count()
+
     forest = int(
-        json.loads(classifier.get_booster().save_config())["learner"][
-            "gradient_booster"
-        ]["gbtree_train_param"]["num_parallel_tree"]
+        config["learner"]["gradient_booster"]["gbtree_train_param"]["num_parallel_tree"]
     )
     if model == "boosting":
         assert len(history["validation_0"][metric]) == 2
@@ -591,6 +594,7 @@ def run_dask_classifier(
             np.testing.assert_allclose(single_node_proba, probas)
         else:
             import cupy
+
             cupy.testing.assert_allclose(single_node_proba, probas)
 
     # Test with dataframe, not shared with GPU as cupy doesn't work well with da.unique.
