@@ -282,7 +282,8 @@ def _transform_pandas_df(
 
     # handle category codes.
     transformed = pd.DataFrame()
-    if enable_categorical:
+    # Avoid transformation due to: PerformanceWarning: DataFrame is highly fragmented
+    if enable_categorical and any(is_categorical_dtype(dtype) for dtype in data.dtypes):
         for i, dtype in enumerate(data.dtypes):
             if is_categorical_dtype(dtype):
                 # pandas uses -1 as default missing value for categorical data

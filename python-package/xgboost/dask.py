@@ -1293,6 +1293,7 @@ async def _predict_async(
 
     all_parts = []
     all_orders = []
+    all_shapes = []
     all_workers: List[str] = []
     workers_address = list(data.worker_map.keys())
     for worker_addr in workers_address:
@@ -1300,10 +1301,14 @@ async def _predict_async(
         all_parts.extend(list_of_parts)
         all_workers.extend(len(list_of_parts) * [worker_addr])
         all_orders.extend([partition_order[part.key] for part in list_of_parts])
+    for w, part in zip(all_workers, all_parts):
+        s = client.submit(lambda part: part["data"].shape[0], part, workers=[w])
+        all_shapes.append(s)
 
-    parts_with_order = list(zip(all_parts, all_orders))
-    parts_with_order = sorted(parts_with_order, key=lambda p: p[1])
-    all_parts = [part for part, order in parts_with_order]
+    parts_with_order = list(zip(all_parts, all_shapes, all_orders))
+    parts_with_order = sorted(parts_with_order, key=lambda p: p[2])
+    all_parts = [part for part, shape, order in parts_with_order]
+    all_shapes = [shape for part, shape, order in parts_with_order]
 
     futures = []
     for w, part in zip(all_workers, all_parts):
@@ -1313,10 +1318,12 @@ async def _predict_async(
     # Constructing a dask array from list of numpy arrays
     # See https://docs.dask.org/en/latest/array-creation.html
     arrays = []
-    for i, part in enumerate(all_parts):
+    all_shapes = await client.gather(all_shapes)
+    for i, rows in enumerate(all_shapes):
+        distributed.Future
         arrays.append(
             da.from_delayed(
-                futures[i], shape=(numpy.nan,) + output_shape[1:], dtype=numpy.float32
+                futures[i], shape=(rows,) + output_shape[1:], dtype=numpy.float32
             )
         )
     predictions = da.concatenate(arrays, axis=0)
