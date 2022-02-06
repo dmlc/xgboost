@@ -11,7 +11,7 @@ import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
 from .core import _cuda_array_interface
-from .core import DataIter, _ProxyDMatrix, DMatrix
+from .core import DataIter, _ProxyDMatrix, DMatrix, FeatNamesT
 from .compat import lazy_isinstance, DataFrame
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -68,7 +68,7 @@ def _from_scipy_csr(
     data,
     missing,
     nthread,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     """Initialize data from a CSR matrix."""
@@ -107,7 +107,7 @@ def _is_scipy_csc(data):
 def _from_scipy_csc(
     data,
     missing,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     if len(data.indices) != len(data.data):
@@ -163,7 +163,7 @@ def _from_numpy_array(
     data,
     missing,
     nthread,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     """Initialize data from a 2-D numpy matrix.
@@ -244,11 +244,11 @@ be set to `True`.""" + err
 def _transform_pandas_df(
     data: DataFrame,
     enable_categorical: bool,
-    feature_names: Optional[List[str]] = None,
+    feature_names: FeatNamesT = None,
     feature_types: Optional[List[str]] = None,
     meta: Optional[str] = None,
     meta_type: Optional[str] = None,
-) -> Tuple[np.ndarray, Optional[List[str]], Optional[List[str]]]:
+) -> Tuple[np.ndarray, FeatNamesT, Optional[List[str]]]:
     import pandas as pd
     from pandas.api.types import is_sparse, is_categorical_dtype
 
@@ -311,9 +311,9 @@ def _from_pandas_df(
     enable_categorical: bool,
     missing: float,
     nthread: int,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
-) -> Tuple[ctypes.c_void_p, Optional[List[str]], Optional[List[str]]]:
+) -> Tuple[ctypes.c_void_p, FeatNamesT, Optional[List[str]]]:
     data, feature_names, feature_types = _transform_pandas_df(
         data, enable_categorical, feature_names, feature_types
     )
@@ -353,7 +353,7 @@ def _from_pandas_series(
     missing: float,
     nthread: int,
     enable_categorical: bool,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     from pandas.api.types import is_categorical_dtype
@@ -384,7 +384,7 @@ _dt_type_mapper2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 
 def _transform_dt_df(
     data,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
     meta=None,
     meta_type=None,
@@ -425,10 +425,10 @@ def _from_dt_df(
     data,
     missing,
     nthread,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
     enable_categorical: bool,
-) -> Tuple[ctypes.c_void_p, Optional[List[str]], Optional[List[str]]]:
+) -> Tuple[ctypes.c_void_p, FeatNamesT, Optional[List[str]]]:
     if enable_categorical:
         raise ValueError("categorical data in datatable is not supported yet.")
     data, feature_names, feature_types = _transform_dt_df(
@@ -510,7 +510,7 @@ def _cudf_array_interfaces(data, cat_codes: list) -> bytes:
 
 def _transform_cudf_df(
     data,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
     enable_categorical: bool,
 ):
@@ -576,7 +576,7 @@ def _from_cudf_df(
     data,
     missing,
     nthread,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
     enable_categorical: bool,
 ) -> Tuple[ctypes.c_void_p, Any, Any]:
@@ -626,7 +626,7 @@ def _from_cupy_array(
     data,
     missing,
     nthread,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     """Initialize DMatrix from cupy ndarray."""
@@ -673,7 +673,7 @@ def _from_dlpack(
     data,
     missing,
     nthread,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     data = _transform_dlpack(data)
@@ -688,7 +688,7 @@ def _is_uri(data):
 def _from_uri(
     data,
     missing,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     _warn_unused_missing(data, missing)
@@ -708,7 +708,7 @@ def _from_list(
     data,
     missing,
     n_threads,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     array = np.array(data)
@@ -724,7 +724,7 @@ def _from_tuple(
     data,
     missing,
     n_threads,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
 ):
     return _from_list(data, missing, n_threads, feature_names, feature_types)
@@ -760,7 +760,7 @@ def dispatch_data_backend(
     data,
     missing,
     threads,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
     enable_categorical: bool = False,
 ):
@@ -988,7 +988,7 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
 
 def _proxy_transform(
     data,
-    feature_names: Optional[List[str]],
+    feature_names: FeatNamesT,
     feature_types: Optional[List[str]],
     enable_categorical: bool,
 ):

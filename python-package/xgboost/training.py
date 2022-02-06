@@ -3,6 +3,7 @@
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import copy
+from time import time
 import os
 import warnings
 from typing import Optional, Dict, Any, Union, Tuple, Sequence
@@ -166,7 +167,6 @@ def train(
     )
 
     bst = cb_container.before_training(bst)
-
     for i in range(start_iteration, num_boost_round):
         if cb_container.before_iteration(bst, i, dtrain, evals):
             break

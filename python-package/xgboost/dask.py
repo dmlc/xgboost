@@ -55,6 +55,7 @@ from .compat import lazy_isinstance
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import Objective, Metric
 from .core import _deprecate_positional_args
+from .data import FeatNamesT
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
@@ -67,22 +68,28 @@ from .sklearn import XGBRanker
 if TYPE_CHECKING:
     from dask import dataframe as dd
     from dask import array as da
+    from dask import delayed as ddelayed
     import dask
     import distributed
 else:
-    dd = LazyLoader('dd', globals(), 'dask.dataframe')
-    da = LazyLoader('da', globals(), 'dask.array')
-    dask = LazyLoader('dask', globals(), 'dask')
-    distributed = LazyLoader('distributed', globals(), 'dask.distributed')
+    dd = LazyLoader("dd", globals(), "dask.dataframe")
+    da = LazyLoader("da", globals(), "dask.array")
+    ddelayed = LazyLoader("Delayed", globals(), "dask.delayed")
+    dask = LazyLoader("dask", globals(), "dask")
+    distributed = LazyLoader("distributed", globals(), "dask.distributed")
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
 
 try:
     from mypy_extensions import TypedDict
-    TrainReturnT = TypedDict('TrainReturnT', {
-        'booster': Booster,
-        'history': Dict,
-    })
+
+    TrainReturnT = TypedDict(
+        "TrainReturnT",
+        {
+            "booster": Booster,
+            "history": Dict,
+        },
+    )
 except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
@@ -121,19 +128,19 @@ __all__ = [
 #       if train returns an Union type.
 
 
-LOGGER = logging.getLogger('[xgboost.dask]')
+LOGGER = logging.getLogger("[xgboost.dask]")
 
 
 def _multi_lock() -> Any:
     """MultiLock is only available on latest distributed.  See:
 
     https://github.com/dask/distributed/pull/4503
-
-"""
+    """
     try:
         from distributed import MultiLock
     except ImportError:
-        class MultiLock:        # type:ignore
+
+        class MultiLock:  # type:ignore
             def __init__(self, *args: Any, **kwargs: Any) -> None:
                 pass
 
@@ -201,25 +208,27 @@ def _assert_dask_support() -> None:
 
 
 class RabitContext:
-    '''A context controlling rabit initialization and finalization.'''
+    """A context controlling rabit initialization and finalization."""
+
     def __init__(self, args: List[bytes]) -> None:
         self.args = args
         worker = distributed.get_worker()
         self.args.append(
-            ('DMLC_TASK_ID=[xgboost.dask]:' + str(worker.address)).encode())
+            ("DMLC_TASK_ID=[xgboost.dask]:" + str(worker.address)).encode()
+        )
 
     def __enter__(self) -> None:
         rabit.init(self.args)
         assert rabit.is_distributed()
-        LOGGER.debug('-------------- rabit say hello ------------------')
+        LOGGER.debug("-------------- rabit say hello ------------------")
 
     def __exit__(self, *args: List) -> None:
         rabit.finalize()
-        LOGGER.debug('--------------- rabit say bye ------------------')
+        LOGGER.debug("--------------- rabit say bye ------------------")
 
 
 def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
-    '''To be replaced with dask builtin.'''
+    """To be replaced with dask builtin."""
     if isinstance(value[0], numpy.ndarray):
         return numpy.concatenate(value, axis=0)
     if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
@@ -228,31 +237,36 @@ def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
         return scipy_sparse.vstack(value, format="csc")
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
         # other sparse format will be converted to CSR.
-        return scipy_sparse.vstack(value, format='csr')
+        return scipy_sparse.vstack(value, format="csr")
     if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
         return pandas_concat(value, axis=0)
-    if lazy_isinstance(value[0], 'cudf.core.dataframe', 'DataFrame') or \
-       lazy_isinstance(value[0], 'cudf.core.series', 'Series'):
+    if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
+        value[0], "cudf.core.series", "Series"
+    ):
         from cudf import concat as CUDF_concat  # pylint: disable=import-error
+
         return CUDF_concat(value, axis=0)
-    if lazy_isinstance(value[0], 'cupy._core.core', 'ndarray'):
+    if lazy_isinstance(value[0], "cupy._core.core", "ndarray"):
         import cupy
+
         # pylint: disable=c-extension-no-member,no-member
         d = cupy.cuda.runtime.getDevice()
         for v in value:
             d_v = v.device.id
-            assert d_v == d, 'Concatenating arrays on different devices.'
+            assert d_v == d, "Concatenating arrays on different devices."
         return cupy.concatenate(value, axis=0)
     return dd.multi.concat(list(value), axis=0)
 
 
 def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
-    '''Simple wrapper around testing None.'''
+    """Simple wrapper around testing None."""
     if not isinstance(client, (type(distributed.get_client()), type(None))):
         raise TypeError(
-            _expect([type(distributed.get_client()), type(None)], type(client)))
+            _expect([type(distributed.get_client()), type(None)], type(client))
+        )
     ret = distributed.get_client() if client is None else client
     return ret
+
 
 # From the implementation point of view, DaskDMatrix complicates a lots of
 # things.  A large portion of the code base is about syncing and extracting
@@ -263,7 +277,7 @@ def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Clie
 
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
-    '''DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing a
+    """DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing a
     `DaskDMatrix` forces all lazy computation to be carried out.  Wait for the input data
     explicitly if you want to see actual computation of constructing `DaskDMatrix`.
 
@@ -283,7 +297,7 @@ class DaskDMatrix:
         Specify the dask client used for training.  Use default client returned from dask
         if it's set to None.
 
-    '''
+    """
 
     @_deprecate_positional_args
     def __init__(
@@ -295,15 +309,15 @@ class DaskDMatrix:
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
-        silent: bool = False,   # pylint: disable=unused-argument
-        feature_names: Optional[Union[str, List[str]]] = None,
-        feature_types: Optional[Union[Any, List[Any]]] = None,
+        silent: bool = False,  # pylint: disable=unused-argument
+        feature_names: FeatNamesT = None,
+        feature_types: Optional[List[str]] = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        enable_categorical: bool = False
+        enable_categorical: bool = False,
     ) -> None:
         _assert_dask_support()
         client = _xgb_get_client(client)
@@ -321,9 +335,7 @@ class DaskDMatrix:
             )
 
         if len(data.shape) != 2:
-            raise ValueError(
-                f"Expecting 2 dimensional input, got: {data.shape}"
-            )
+            raise ValueError(f"Expecting 2 dimensional input, got: {data.shape}")
 
         if not isinstance(data, (dd.DataFrame, da.Array)):
             raise TypeError(_expect((dd.DataFrame, da.Array), type(data)))
@@ -363,48 +375,52 @@ class DaskDMatrix:
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
     ) -> "DaskDMatrix":
-        '''Obtain references to local data.'''
+        """Obtain references to local data."""
 
         def inconsistent(
             left: List[Any], left_name: str, right: List[Any], right_name: str
         ) -> str:
-            msg = (f"Partitions between {left_name} and {right_name} are not "
-                   f"consistent: {len(left)} != {len(right)}.  "
-                   f"Please try to repartition/rechunk your data.")
+            msg = (
+                f"Partitions between {left_name} and {right_name} are not "
+                f"consistent: {len(left)} != {len(right)}.  "
+                f"Please try to repartition/rechunk your data."
+            )
             return msg
 
-        def check_columns(parts: Any) -> None:
+        def check_columns(parts: numpy.ndarray) -> None:
             # x is required to be 2 dim in __init__
-            assert parts.ndim == 1 or parts.shape[1], 'Data should be' \
-                ' partitioned by row. To avoid this specify the number' \
-                ' of columns for your dask Array explicitly. e.g.' \
-                ' chunks=(partition_size, X.shape[1])'
+            assert parts.ndim == 1 or parts.shape[1], (
+                "Data should be"
+                " partitioned by row. To avoid this specify the number"
+                " of columns for your dask Array explicitly. e.g."
+                " chunks=(partition_size, X.shape[1])"
+            )
 
-        data = client.persist(data)
-        for meta in [label, weights, base_margin, label_lower_bound,
-                     label_upper_bound]:
+        def to_delayed(d: _DaskCollection) -> List[ddelayed.Delayed]:
+            """Breaking data into partitions, a trick borrowed from dask_xgboost. `to_delayed`
+            downgrades high-level objects into numpy or pandas equivalents .
+
+            """
+            d = client.persist(d)
+            delayed_obj = d.to_delayed()
+            if isinstance(delayed_obj, numpy.ndarray):
+                # da.Array returns an array to delayed objects
+                check_columns(delayed_obj)
+                delayed_list: List[ddelayed.Delayed] = delayed_obj.flatten().tolist()
+            else:
+                # dd.DataFrame
+                delayed_list = delayed_obj
+            return delayed_list
+
+        OpDelayed = TypeVar("OpDelayed", _DaskCollection, None)
+
+        def flatten_meta(meta: OpDelayed) -> OpDelayed:
             if meta is not None:
-                meta = client.persist(meta)
-        # Breaking data into partitions, a trick borrowed from dask_xgboost.
-
-        # `to_delayed` downgrades high-level objects into numpy or pandas
-        # equivalents.
-        X_parts = data.to_delayed()
-        if isinstance(X_parts, numpy.ndarray):
-            check_columns(X_parts)
-            X_parts = X_parts.flatten().tolist()
-
-        def flatten_meta(
-            meta: Optional[_DaskCollection]
-        ) -> "Optional[List[dask.delayed.Delayed]]":
-            if meta is not None:
-                meta_parts = meta.to_delayed()
-                if isinstance(meta_parts, numpy.ndarray):
-                    check_columns(meta_parts)
-                    meta_parts = meta_parts.flatten().tolist()
+                meta_parts: List[ddelayed.Delayed] = to_delayed(meta)
                 return meta_parts
             return None
 
+        X_parts = to_delayed(data)
         y_parts = flatten_meta(label)
         w_parts = flatten_meta(weights)
         margin_parts = flatten_meta(base_margin)
@@ -412,53 +428,64 @@ class DaskDMatrix:
         ll_parts = flatten_meta(label_lower_bound)
         lu_parts = flatten_meta(label_upper_bound)
 
-        parts = [X_parts]
-        meta_names = []
+        parts: Dict[str, List[ddelayed.Delayed]] = {"data": X_parts}
 
-        def append_meta(
-            m_parts: Optional[List["dask.delayed.delayed"]], name: str
-        ) -> None:
+        def append_meta(m_parts: Optional[List[ddelayed.Delayed]], name: str) -> None:
             if m_parts is not None:
-                assert len(X_parts) == len(
-                    m_parts), inconsistent(X_parts, 'X', m_parts, name)
-                parts.append(m_parts)
-                meta_names.append(name)
+                assert len(X_parts) == len(m_parts), inconsistent(
+                    X_parts, "X", m_parts, name
+                )
+                parts[name] = m_parts
 
-        append_meta(y_parts, 'labels')
-        append_meta(w_parts, 'weights')
-        append_meta(margin_parts, 'base_margin')
-        append_meta(qid_parts, 'qid')
-        append_meta(ll_parts, 'label_lower_bound')
-        append_meta(lu_parts, 'label_upper_bound')
+        append_meta(y_parts, "label")
+        append_meta(w_parts, "weight")
+        append_meta(margin_parts, "base_margin")
+        append_meta(qid_parts, "qid")
+        append_meta(ll_parts, "label_lower_bound")
+        append_meta(lu_parts, "label_upper_bound")
         # At this point, `parts` looks like:
         # [(x0, x1, ..), (y0, y1, ..), ..] in delayed form
 
+        # turn into list of dictionaries.
+        packed_parts: List[Dict[str, ddelayed.Delayed]] = []
+        for i in range(len(X_parts)):
+            part_dict: Dict[str, ddelayed.Delayed] = {}
+            for key, value in parts.items():
+                part_dict[key] = value[i]
+            packed_parts.append(part_dict)
+
         # delay the zipped result
-        parts = list(map(dask.delayed, zip(*parts)))  # pylint: disable=no-member
+        # pylint: disable=no-member
+        delayed_parts: List[ddelayed.Delayed] = list(map(dask.delayed, packed_parts))
         # At this point, the mental model should look like:
         # [(x0, y0, ..), (x1, y1, ..), ..] in delayed form
 
-        parts = client.compute(parts)
-        await distributed.wait(parts)  # async wait for parts to be computed
+        # convert delayed objects into futures and make sure they are realized
+        fut_parts: List[distributed.Future] = client.compute(delayed_parts)
+        await distributed.wait(fut_parts)  # async wait for parts to be computed
 
-        for part in parts:
-            assert part.status == 'finished', part.status
+        # maybe we can call dask.align_partitions here to ease the partition alignment?
+
+        for part in fut_parts:
+            # Each part is [x0, y0, w0, ...] in future form.
+            assert part.status == "finished", part.status
 
         # Preserving the partition order for prediction.
         self.partition_order = {}
-        for i, part in enumerate(parts):
+        for i, part in enumerate(fut_parts):
             self.partition_order[part.key] = i
 
-        key_to_partition = {part.key: part for part in parts}
-        who_has = await client.scheduler.who_has(keys=[part.key for part in parts])
+        key_to_partition = {part.key: part for part in fut_parts}
+        who_has: Dict[str, Tuple[str, ...]] = await client.scheduler.who_has(
+            keys=[part.key for part in fut_parts]
+        )
 
-        worker_map: Dict[str, "distributed.Future"] = defaultdict(list)
+        worker_map: Dict[str, List[distributed.Future]] = defaultdict(list)
 
         for key, workers in who_has.items():
             worker_map[next(iter(workers))].append(key_to_partition[key])
 
         self.worker_map = worker_map
-        self.meta_names = meta_names
 
         if feature_weights is None:
             self.feature_weights = None
@@ -468,75 +495,75 @@ class DaskDMatrix:
         return self
 
     def _create_fn_args(self, worker_addr: str) -> Dict[str, Any]:
-        '''Create a dictionary of objects that can be pickled for function
+        """Create a dictionary of objects that can be pickled for function
         arguments.
 
-        '''
-        return {'feature_names': self.feature_names,
-                'feature_types': self.feature_types,
-                'feature_weights': self.feature_weights,
-                'meta_names': self.meta_names,
-                'missing': self.missing,
-                'enable_categorical': self.enable_categorical,
-                'parts': self.worker_map.get(worker_addr, None),
-                'is_quantile': self.is_quantile}
+        """
+        return {
+            "feature_names": self.feature_names,
+            "feature_types": self.feature_types,
+            "feature_weights": self.feature_weights,
+            "missing": self.missing,
+            "enable_categorical": self.enable_categorical,
+            "parts": self.worker_map.get(worker_addr, None),
+            "is_quantile": self.is_quantile,
+        }
 
     def num_col(self) -> int:
         return self._n_cols
 
 
-_DataParts = List[Tuple[Any, Optional[Any], Optional[Any], Optional[Any], Optional[Any],
-                        Optional[Any], Optional[Any]]]
+_MapRetT = TypeVar("_MapRetT")
 
 
-def _get_worker_parts_ordered(
-    meta_names: List[str], list_of_parts: _DataParts
-) -> _DataParts:
-    # List of partitions like: [(x3, y3, w3, m3, ..), ..], order is not preserved.
-    assert isinstance(list_of_parts, list)
-
-    result = []
-
-    for i, _ in enumerate(list_of_parts):
-        data = list_of_parts[i][0]
-        labels = None
-        weights = None
-        base_margin = None
-        qid = None
-        label_lower_bound = None
-        label_upper_bound = None
-        # Iterate through all possible meta info, brings small overhead as in xgboost
-        # there are constant number of meta info available.
-        for j, blob in enumerate(list_of_parts[i][1:]):
-            if meta_names[j] == 'labels':
-                labels = blob
-            elif meta_names[j] == 'weights':
-                weights = blob
-            elif meta_names[j] == 'base_margin':
-                base_margin = blob
-            elif meta_names[j] == 'qid':
-                qid = blob
-            elif meta_names[j] == 'label_lower_bound':
-                label_lower_bound = blob
-            elif meta_names[j] == 'label_upper_bound':
-                label_upper_bound = blob
+async def map_worker_partitions(
+    client: Optional["distributed.Client"],
+    func: Callable[..., _MapRetT],
+    *refs: Any,
+    workers: List[str],
+) -> List[_MapRetT]:
+    client = _xgb_get_client(client)
+    futures = []
+    for addr in workers:
+        args = []
+        for ref in refs:
+            if isinstance(ref, DaskDMatrix):
+                args.append(ref._create_fn_args(addr))
             else:
-                raise ValueError('Unknown metainfo:', meta_names[j])
-        result.append((data, labels, weights, base_margin, qid, label_lower_bound,
-                       label_upper_bound))
+                args.append(ref)
+        fut = client.submit(func, *args)
+        futures.append(fut)
+    results = await client.gather(futures)
+    return results
+
+
+_DataParts = List[Dict[str, Any]]
+
+
+def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
+    assert isinstance(list_of_parts, list)
+    result: Dict[str, List[Any]] = {}
+
+    def append(i: int, name: str) -> None:
+        if name in list_of_parts[i]:
+            part = list_of_parts[i][name]
+        else:
+            part = None
+        if part is not None:
+            if name not in result:
+                result[name] = []
+            result[name].append(part)
+
+    for i, part in enumerate(list_of_parts):
+        append(i, "data")
+        append(i, "label")
+        append(i, "weight")
+        append(i, "base_margin")
+        append(i, "qid")
+        append(i, "label_lower_bound")
+        append(i, "label_upper_bound")
+
     return result
-
-
-def _unzip(list_of_parts: _DataParts) -> List[Tuple[Any, ...]]:
-    return list(zip(*list_of_parts))
-
-
-def _get_worker_parts(
-    list_of_parts: _DataParts, meta_names: List[str]
-) -> List[Tuple[Any, ...]]:
-    partitions = _get_worker_parts_ordered(meta_names, list_of_parts)
-    partitions_unzipped = _unzip(partitions)
-    return partitions_unzipped
 
 
 class DaskPartitionIter(DataIter):  # pylint: disable=R0902
@@ -544,19 +571,19 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
 
     def __init__(
         self,
-        data: Tuple[Any, ...],
-        label: Optional[Tuple[Any, ...]] = None,
-        weight: Optional[Tuple[Any, ...]] = None,
-        base_margin: Optional[Tuple[Any, ...]] = None,
-        qid: Optional[Tuple[Any, ...]] = None,
-        label_lower_bound: Optional[Tuple[Any, ...]] = None,
-        label_upper_bound: Optional[Tuple[Any, ...]] = None,
-        feature_names: Optional[Union[str, List[str]]] = None,
-        feature_types: Optional[Union[Any, List[Any]]] = None
+        data: List[Any],
+        label: Optional[List[Any]] = None,
+        weight: Optional[List[Any]] = None,
+        base_margin: Optional[List[Any]] = None,
+        qid: Optional[List[Any]] = None,
+        label_lower_bound: Optional[List[Any]] = None,
+        label_upper_bound: Optional[List[Any]] = None,
+        feature_names: FeatNamesT = None,
+        feature_types: Optional[Union[Any, List[Any]]] = None,
     ) -> None:
         self._data = data
-        self._labels = label
-        self._weights = weight
+        self._label = label
+        self._weight = weight
         self._base_margin = base_margin
         self._qid = qid
         self._label_lower_bound = label_lower_bound
@@ -567,87 +594,59 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         assert isinstance(self._data, collections.abc.Sequence)
 
         types = (collections.abc.Sequence, type(None))
-        assert isinstance(self._labels, types)
-        assert isinstance(self._weights, types)
+        assert isinstance(self._label, types)
+        assert isinstance(self._weight, types)
         assert isinstance(self._base_margin, types)
         assert isinstance(self._label_lower_bound, types)
         assert isinstance(self._label_upper_bound, types)
 
-        self._iter = 0             # set iterator to 0
+        self._iter = 0  # set iterator to 0
         super().__init__()
 
+    def _get(self, attr: str) -> Optional[Any]:
+        if getattr(self, attr) is not None:
+            return getattr(self, attr)[self._iter]
+        return None
+
     def data(self) -> Any:
-        '''Utility function for obtaining current batch of data.'''
+        """Utility function for obtaining current batch of data."""
         return self._data[self._iter]
 
-    def labels(self) -> Any:
-        '''Utility function for obtaining current batch of label.'''
-        if self._labels is not None:
-            return self._labels[self._iter]
-        return None
-
-    def weights(self) -> Any:
-        '''Utility function for obtaining current batch of label.'''
-        if self._weights is not None:
-            return self._weights[self._iter]
-        return None
-
-    def qids(self) -> Any:
-        '''Utility function for obtaining current batch of query id.'''
-        if self._qid is not None:
-            return self._qid[self._iter]
-        return None
-
-    def base_margins(self) -> Any:
-        '''Utility function for obtaining current batch of base_margin.'''
-        if self._base_margin is not None:
-            return self._base_margin[self._iter]
-        return None
-
-    def label_lower_bounds(self) -> Any:
-        '''Utility function for obtaining current batch of label_lower_bound.
-        '''
-        if self._label_lower_bound is not None:
-            return self._label_lower_bound[self._iter]
-        return None
-
-    def label_upper_bounds(self) -> Any:
-        '''Utility function for obtaining current batch of label_upper_bound.
-        '''
-        if self._label_upper_bound is not None:
-            return self._label_upper_bound[self._iter]
-        return None
-
     def reset(self) -> None:
-        '''Reset the iterator'''
+        """Reset the iterator"""
         self._iter = 0
 
     def next(self, input_data: Callable) -> int:
-        '''Yield next batch of data'''
+        """Yield next batch of data"""
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: Optional[Union[List[str], str]] = None
+        feature_names: FeatNamesT = None
         if self._feature_names:
             feature_names = self._feature_names
         else:
-            if hasattr(self.data(), 'columns'):
+            if hasattr(self.data(), "columns"):
                 feature_names = self.data().columns.format()
             else:
                 feature_names = None
-        input_data(data=self.data(), label=self.labels(),
-                   weight=self.weights(), group=None,
-                   qid=self.qids(),
-                   label_lower_bound=self.label_lower_bounds(),
-                   label_upper_bound=self.label_upper_bounds(),
-                   feature_names=feature_names,
-                   feature_types=self._feature_types)
+        input_data(
+            data=self.data(),
+            label=self._get("_label"),
+            weight=self._get("_weight"),
+            group=None,
+            qid=self._get("_qid"),
+            base_margin=self._get("_base_margin"),
+            label_lower_bound=self._get("_label_lower_bound"),
+            label_upper_bound=self._get("_label_upper_bound"),
+            feature_names=feature_names,
+            feature_types=self._feature_types,
+        )
         self._iter += 1
         return 1
 
 
 class DaskDeviceQuantileDMatrix(DaskDMatrix):
-    '''Specialized data type for `gpu_hist` tree method.  This class is used to reduce the
+    """Specialized data type for `gpu_hist` tree method.  This class is used to reduce the
     memory usage by eliminating data copies.  Internally the all partitions/chunks of data
     are merged by weighted GK sketching.  So the number of partitions from dask may affect
     training accuracy as GK generates bounded error for each merge.  See doc string for
@@ -660,7 +659,8 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
     ----------
     max_bin : Number of bins for histogram construction.
 
-    '''
+    """
+
     @_deprecate_positional_args
     def __init__(
         self,
@@ -671,8 +671,8 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
-        silent: bool = False,   # disable=unused-argument
-        feature_names: Optional[Union[str, List[str]]] = None,
+        silent: bool = False,  # disable=unused-argument
+        feature_names: FeatNamesT = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
         max_bin: int = 256,
         group: Optional[_DaskCollection] = None,
@@ -709,10 +709,9 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
 
 
 def _create_device_quantile_dmatrix(
-    feature_names: Optional[Union[str, List[str]]],
+    feature_names: FeatNamesT,
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
-    meta_names: List[str],
     missing: float,
     nthread: int,
     parts: Optional[_DataParts],
@@ -734,24 +733,8 @@ def _create_device_quantile_dmatrix(
         )
         return d
 
-    (
-        data,
-        labels,
-        weights,
-        base_margin,
-        qid,
-        label_lower_bound,
-        label_upper_bound,
-    ) = _get_worker_parts(parts, meta_names)
-    it = DaskPartitionIter(
-        data=data,
-        label=labels,
-        weight=weights,
-        base_margin=base_margin,
-        qid=qid,
-        label_lower_bound=label_lower_bound,
-        label_upper_bound=label_upper_bound,
-    )
+    unzipped_dict = _get_worker_parts(parts)
+    it = DaskPartitionIter(**unzipped_dict)
 
     dmatrix = DeviceQuantileDMatrix(
         it,
@@ -767,22 +750,21 @@ def _create_device_quantile_dmatrix(
 
 
 def _create_dmatrix(
-    feature_names: Optional[Union[str, List[str]]],
+    feature_names: FeatNamesT,
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
-    meta_names: List[str],
     missing: float,
     nthread: int,
     enable_categorical: bool,
-    parts: Optional[_DataParts]
+    parts: Optional[_DataParts],
 ) -> DMatrix:
-    '''Get data that local to worker from DaskDMatrix.
+    """Get data that local to worker from DaskDMatrix.
 
-      Returns
-      -------
-      A DMatrix object.
+    Returns
+    -------
+    A DMatrix object.
 
-    '''
+    """
     worker = distributed.get_worker()
     list_of_parts = parts
     if list_of_parts is None:
@@ -796,39 +778,26 @@ def _create_dmatrix(
         )
         return d
 
-    T = TypeVar('T')
+    T = TypeVar("T")
 
-    def concat_or_none(data: Tuple[Optional[T], ...]) -> Optional[T]:
+    def concat_or_none(data: Sequence[Optional[T]]) -> Optional[T]:
         if any(part is None for part in data):
             return None
         return concat(data)
 
-    (data, labels, weights, base_margin, qid,
-     label_lower_bound, label_upper_bound) = _get_worker_parts(list_of_parts, meta_names)
+    unzipped_dict = _get_worker_parts(list_of_parts)
+    concated_dict: Dict[str, Any] = {}
+    for key, value in unzipped_dict.items():
+        v = concat_or_none(unzipped_dict[key])
+        concated_dict[key] = v
 
-    _labels = concat_or_none(labels)
-    _weights = concat_or_none(weights)
-    _base_margin = concat_or_none(base_margin)
-    _qid = concat_or_none(qid)
-    _label_lower_bound = concat_or_none(label_lower_bound)
-    _label_upper_bound = concat_or_none(label_upper_bound)
-
-    _data = concat(data)
     dmatrix = DMatrix(
-        _data,
-        _labels,
+        **concated_dict,
         missing=missing,
         feature_names=feature_names,
         feature_types=feature_types,
         nthread=nthread,
         enable_categorical=enable_categorical,
-    )
-    dmatrix.set_info(
-        base_margin=_base_margin,
-        qid=_qid,
-        weight=_weights,
-        label_lower_bound=_label_lower_bound,
-        label_upper_bound=_label_upper_bound,
         feature_weights=feature_weights,
     )
     return dmatrix
@@ -845,9 +814,7 @@ def _dmatrix_from_list_of_parts(
 async def _get_rabit_args(
     n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
 ) -> List[bytes]:
-    """Get rabit context arguments from data distribution in DaskDMatrix.
-
-    """
+    """Get rabit context arguments from data distribution in DaskDMatrix."""
     # There are 3 possible different addresses:
     # 1. Provided by user via dask.config
     # 2. Guessed by xgboost `get_host_ip` function
@@ -879,6 +846,7 @@ async def _get_rabit_args(
 def _get_dask_config() -> Optional[Dict[str, Any]]:
     return dask.config.get("xgboost", default=None)
 
+
 # train and predict methods are supposed to be "functional", which meets the
 # dask paradigm.  But as a side effect, the `evals_result` in single-node API
 # is no longer supported since it mutates the input parameter, and it's not
@@ -887,8 +855,7 @@ def _get_dask_config() -> Optional[Dict[str, Any]]:
 
 
 def _get_workers_from_data(
-    dtrain: DaskDMatrix,
-    evals: Optional[Sequence[Tuple[DaskDMatrix, str]]]
+    dtrain: DaskDMatrix, evals: Optional[Sequence[Tuple[DaskDMatrix, str]]]
 ) -> List[str]:
     X_worker_map: Set[str] = set(dtrain.worker_map.keys())
     if evals:
@@ -927,46 +894,40 @@ async def _train_async(
         )
 
     def dispatched_train(
-        worker_addr: str,
+        parameters: Dict,
         rabit_args: List[bytes],
-        dtrain_ref: Dict,
-        dtrain_idt: int,
-        evals_ref: List[Tuple[Dict, str, int]],
-    ) -> Optional[Dict[str, Union[Booster, Dict]]]:
-        """Perform training on a single worker.  A local function prevents pickling."""
-        LOGGER.debug("Training on %s", str(worker_addr))
+        evals_name: List[str],
+        train_ref: dict,
+        *refs: dict,
+    ) -> Optional[TrainReturnT]:
         worker = distributed.get_worker()
-
-        n_threads: int = 0
-        local_param = params.copy()
+        local_param = parameters.copy()
+        n_threads = 0
         for p in ["nthread", "n_jobs"]:
-            if local_param.get(p, worker.nthreads) != worker.nthreads:
+            if (
+                local_param.get(p, None) is not None
+                and local_param.get(p, worker.nthreads) != worker.nthreads
+            ):
                 LOGGER.info("Overriding `nthreads` defined in dask worker.")
                 n_threads = local_param[p]
                 break
-        if n_threads == 0:
+        if n_threads == 0 or n_threads is None:
             n_threads = worker.nthreads
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
-
+        local_history: TrainingCallback.EvalsLog = {}
         with RabitContext(rabit_args), config.config_context(**global_config):
-            local_dtrain = _dmatrix_from_list_of_parts(**dtrain_ref, nthread=n_threads)
-            local_evals = []
-            if evals_ref:
-                for ref, name, idt in evals_ref:
-                    if idt == dtrain_idt:
-                        local_evals.append((local_dtrain, name))
-                        continue
-                    local_evals.append(
-                        (_dmatrix_from_list_of_parts(**ref, nthread=n_threads), name)
-                    )
+            Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
+            evals = []
+            for i, ref in enumerate(refs):
+                eval_Xy = _dmatrix_from_list_of_parts(**ref, nthread=n_threads)
+                evals.append((evals_name[i], eval_Xy))
 
-            local_history: Dict = {}
-            bst = worker_train(
+            booster = worker_train(
                 params=local_param,
-                dtrain=local_dtrain,
+                dtrain=Xy,
                 num_boost_round=num_boost_round,
                 evals_result=local_history,
-                evals=local_evals,
+                evals=evals,
                 obj=obj,
                 feval=feval,
                 custom_metric=custom_metric,
@@ -975,44 +936,36 @@ async def _train_async(
                 xgb_model=xgb_model,
                 callbacks=callbacks,
             )
-            ret: Optional[Dict[str, Union[Booster, Dict]]] = {
-                "booster": bst,
+        if Xy.num_row() != 0:
+            ret: Optional[TrainReturnT] = {
+                "booster": booster,
                 "history": local_history,
             }
-            if local_dtrain.num_row() == 0:
-                ret = None
-            return ret
+        else:
+            ret = None
+        return ret
 
     # Note for function purity:
     # XGBoost is deterministic in most of the cases, which means train function is
     # supposed to be idempotent.  One known exception is gblinear with shotgun updater.
     # We haven't been able to do a full verification so here we keep pure to be False.
     async with _multi_lock()(workers, client):
-        futures = []
-        for worker_addr in workers:
-            if evals:
-                # pylint: disable=protected-access
-                evals_per_worker = [
-                    (e._create_fn_args(worker_addr), name, id(e)) for e, name in evals
-                ]
-            else:
-                evals_per_worker = []
-            f = client.submit(
-                dispatched_train,
-                worker_addr,
-                _rabit_args,
-                # pylint: disable=protected-access
-                dtrain._create_fn_args(worker_addr),
-                id(dtrain),
-                evals_per_worker,
-                pure=False,
-                workers=[worker_addr],
-                allow_other_workers=False,
-            )
-            futures.append(f)
+        if evals is not None:
+            evals_data = [d for d, n in evals]
+            evals_name = [n for d, n in evals]
+        else:
+            evals_data = []
+            evals_name = []
 
-        results = await client.gather(futures, asynchronous=True)
-
+        results = await map_worker_partitions(
+            client,
+            dispatched_train,
+            params,
+            _rabit_args,
+            evals_name,
+            *([dtrain] + evals_data),
+            workers=workers,
+        )
         return list(filter(lambda ret: ret is not None, results))[0]
 
 
@@ -1088,6 +1041,7 @@ def _maybe_dataframe(
         index = getattr(data, "index", None)
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             import cudf
+
             if prediction.size == 0:
                 return cudf.DataFrame({}, columns=columns, dtype=numpy.float32)
 
@@ -1162,7 +1116,7 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
             #  supported in map_blocks.
             chunks: Optional[List[Tuple]] = list(data.chunks)
             assert isinstance(chunks, list)
-            chunks[1] = (output_shape[1], )
+            chunks[1] = (output_shape[1],)
         else:
             chunks = None
         predictions = da.map_blocks(
@@ -1172,7 +1126,6 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
             False,
             columns,
             base_margin_array,
-
             chunks=chunks,
             drop_axis=drop_axis,
             new_axis=new_axis,
@@ -1301,15 +1254,10 @@ async def _predict_async(
     feature_names = data.feature_names
     feature_types = data.feature_types
     missing = data.missing
-    meta_names = data.meta_names
 
-    def dispatched_predict(booster: Booster, part: Tuple) -> numpy.ndarray:
-        data = part[0]
-        assert isinstance(part, tuple), type(part)
-        base_margin = None
-        for i, blob in enumerate(part[1:]):
-            if meta_names[i] == "base_margin":
-                base_margin = blob
+    def dispatched_predict(booster: Booster, part: Dict[str, Any]) -> numpy.ndarray:
+        data = part["data"]
+        base_margin = part.get("base_margin", None)
         with config.config_context(**global_config):
             m = DMatrix(
                 data,
@@ -1333,7 +1281,6 @@ async def _predict_async(
 
     all_parts = []
     all_orders = []
-    all_shapes = []
     all_workers: List[str] = []
     workers_address = list(data.worker_map.keys())
     for worker_addr in workers_address:
@@ -1341,15 +1288,10 @@ async def _predict_async(
         all_parts.extend(list_of_parts)
         all_workers.extend(len(list_of_parts) * [worker_addr])
         all_orders.extend([partition_order[part.key] for part in list_of_parts])
-    for w, part in zip(all_workers, all_parts):
-        s = client.submit(lambda part: part[0].shape[0], part, workers=[w])
-        all_shapes.append(s)
-    all_shapes = await client.gather(all_shapes)
 
-    parts_with_order = list(zip(all_parts, all_shapes, all_orders))
-    parts_with_order = sorted(parts_with_order, key=lambda p: p[2])
-    all_parts = [part for part, shape, order in parts_with_order]
-    all_shapes = [shape for part, shape, order in parts_with_order]
+    parts_with_order = list(zip(all_parts, all_orders))
+    parts_with_order = sorted(parts_with_order, key=lambda p: p[1])
+    all_parts = [part for part, order in parts_with_order]
 
     futures = []
     for w, part in zip(all_workers, all_parts):
@@ -1359,17 +1301,17 @@ async def _predict_async(
     # Constructing a dask array from list of numpy arrays
     # See https://docs.dask.org/en/latest/array-creation.html
     arrays = []
-    for i, rows in enumerate(all_shapes):
+    for i, part in enumerate(all_parts):
         arrays.append(
             da.from_delayed(
-                futures[i], shape=(rows,) + output_shape[1:], dtype=numpy.float32
+                futures[i], shape=(numpy.nan,) + output_shape[1:], dtype=numpy.float32
             )
         )
     predictions = da.concatenate(arrays, axis=0)
     return predictions
 
 
-def predict(                    # pylint: disable=unused-argument
+def predict(  # pylint: disable=unused-argument
     client: "distributed.Client",
     model: Union[TrainReturnT, Booster, "distributed.Future"],
     data: Union[DaskDMatrix, _DaskCollection],
@@ -1383,7 +1325,7 @@ def predict(                    # pylint: disable=unused-argument
     iteration_range: Tuple[int, int] = (0, 0),
     strict_shape: bool = False,
 ) -> Any:
-    '''Run prediction with a trained booster.
+    """Run prediction with a trained booster.
 
     .. note::
 
@@ -1417,7 +1359,7 @@ def predict(                    # pylint: disable=unused-argument
         ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
         shape.
 
-    '''
+    """
     _assert_dask_support()
     client = _xgb_get_client(client)
     return client.sync(_predict_async, global_config=config.get_config(), **locals())
@@ -1445,7 +1387,11 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
         raise TypeError(_expect([da.Array, dd.DataFrame, dd.Series], type(base_margin)))
 
     def mapped_predict(
-        booster: Booster, partition: Any, is_df: bool, columns: List[int], base_margin: Any
+        booster: Booster,
+        partition: Any,
+        is_df: bool,
+        columns: List[int],
+        base_margin: Any,
     ) -> Any:
         with config.config_context(**global_config):
             prediction = booster.inplace_predict(
@@ -1708,7 +1654,9 @@ class DaskScikitLearnBase(XGBModel):
             if in_worker:
                 with distributed.worker_client() as client:
                     with _set_worker_client(self, client) as this:
-                        ret = this.client.sync(func, **kwargs, asynchronous=asynchronous)
+                        ret = this.client.sync(
+                            func, **kwargs, asynchronous=asynchronous
+                        )
                         return ret
                     return ret
 
@@ -1809,12 +1757,15 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
 
 
 @xgboost_model_doc(
-    'Implementation of the scikit-learn API for XGBoost classification.',
-    ['estimators', 'model'])
+    "Implementation of the scikit-learn API for XGBoost classification.",
+    ["estimators", "model"],
+)
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
-        self, X: _DaskCollection, y: _DaskCollection,
+        self,
+        X: _DaskCollection,
+        y: _DaskCollection,
         sample_weight: Optional[_DaskCollection],
         base_margin: Optional[_DaskCollection],
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
@@ -1825,7 +1776,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         verbose: bool,
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
-        callbacks: Optional[Sequence[TrainingCallback]]
+        callbacks: Optional[Sequence[TrainingCallback]],
     ) -> "DaskXGBClassifier":
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
@@ -1855,7 +1806,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
         if self.n_classes_ > 2:
             params["objective"] = "multi:softprob"
-            params['num_class'] = self.n_classes_
+            params["num_class"] = self.n_classes_
         else:
             params["objective"] = "binary:logistic"
 
@@ -1884,7 +1835,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             callbacks=callbacks,
             xgb_model=model,
         )
-        self._Booster = results['booster']
+        self._Booster = results["booster"]
         if not callable(self.objective):
             self.objective = params["objective"]
         self._set_evaluation_result(results["history"])
@@ -1906,7 +1857,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -2101,7 +2052,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRanker":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -2132,14 +2083,14 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         subsample: Optional[float] = 0.8,
         colsample_bynode: Optional[float] = 0.8,
         reg_lambda: Optional[float] = 1e-5,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
-            **kwargs
+            **kwargs,
         )
 
     def get_xgb_params(self) -> Dict[str, Any]:
@@ -2166,7 +2117,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRFRegressor":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -2196,14 +2147,14 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         subsample: Optional[float] = 0.8,
         colsample_bynode: Optional[float] = 0.8,
         reg_lambda: Optional[float] = 1e-5,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             learning_rate=learning_rate,
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
-            **kwargs
+            **kwargs,
         )
 
     def get_xgb_params(self) -> Dict[str, Any]:
@@ -2230,7 +2181,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "DaskXGBRFClassifier":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}

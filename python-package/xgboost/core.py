@@ -25,6 +25,9 @@ from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
+# xgboost accepts some other possible types in practice due to historical reason, which is
+# lesser tested.  For now we encourage users to pass a simple list of string.
+FeatNamesT = Optional[List[str]]
 
 
 class XGBoostError(ValueError):
@@ -328,7 +331,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         self._enable_categorical = False
         self._allow_host = True
         # Stage data in Python until reset or next is called to avoid data being free.
-        self._temporary_data = None
+        self._temporary_data: Optional[Tuple[Any, Any]] = None
 
     def _get_callbacks(
         self, allow_host: bool, enable_categorical: bool
@@ -397,7 +400,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         def data_handle(
             data: Any,
             *,
-            feature_names: Optional[List[str]] = None,
+            feature_names: FeatNamesT = None,
             feature_types: Optional[List[str]] = None,
             **kwargs: Any,
         ) -> None:
@@ -516,7 +519,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin=None,
         missing: Optional[float] = None,
         silent=False,
-        feature_names: Optional[List[str]] = None,
+        feature_names: FeatNamesT = None,
         feature_types: Optional[List[str]] = None,
         nthread: Optional[int] = None,
         group=None,
@@ -673,7 +676,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
-        feature_names: Optional[List[str]] = None,
+        feature_names: FeatNamesT = None,
         feature_types: Optional[List[str]] = None,
         feature_weights=None
     ) -> None:
@@ -978,7 +981,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return feature_names
 
     @feature_names.setter
-    def feature_names(self, feature_names: Optional[Union[List[str], str]]) -> None:
+    def feature_names(self, feature_names: FeatNamesT) -> None:
         """Set feature names (column labels).
 
         Parameters
@@ -1163,7 +1166,7 @@ class DeviceQuantileDMatrix(DMatrix):
         base_margin=None,
         missing=None,
         silent=False,
-        feature_names=None,
+        feature_names: FeatNamesT = None,
         feature_types=None,
         nthread: Optional[int] = None,
         max_bin: int = 256,
@@ -1644,7 +1647,7 @@ class Booster:
         return self._get_feature_info("feature_name")
 
     @feature_names.setter
-    def feature_names(self, features: Optional[List[str]]) -> None:
+    def feature_names(self, features: FeatNamesT) -> None:
         self._set_feature_info(features, "feature_name")
 
     def set_param(self, params, value=None):
