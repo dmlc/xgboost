@@ -896,7 +896,9 @@ async def _train_async(
     def dispatched_train(
         parameters: Dict,
         rabit_args: List[bytes],
+        train_id: int,
         evals_name: List[str],
+        evals_id: List[int],
         train_ref: dict,
         *refs: dict,
     ) -> Optional[TrainReturnT]:
@@ -917,17 +919,20 @@ async def _train_async(
         local_history: TrainingCallback.EvalsLog = {}
         with RabitContext(rabit_args), config.config_context(**global_config):
             Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
-            evals = []
+            evals: List[Tuple[DMatrix, str]] = []
             for i, ref in enumerate(refs):
+                if evals_id[i] == train_id:
+                    evals.append((Xy, evals_name[i]))
+                    continue
                 eval_Xy = _dmatrix_from_list_of_parts(**ref, nthread=n_threads)
-                evals.append((evals_name[i], eval_Xy))
+                evals.append((eval_Xy, evals_name[i]))
 
             booster = worker_train(
                 params=local_param,
                 dtrain=Xy,
                 num_boost_round=num_boost_round,
                 evals_result=local_history,
-                evals=evals,
+                evals=evals if len(evals) != 0 else None,
                 obj=obj,
                 feval=feval,
                 custom_metric=custom_metric,
@@ -953,16 +958,20 @@ async def _train_async(
         if evals is not None:
             evals_data = [d for d, n in evals]
             evals_name = [n for d, n in evals]
+            evals_id = [id(d) for d in evals_data]
         else:
             evals_data = []
             evals_name = []
+            evals_id = []
 
         results = await map_worker_partitions(
             client,
             dispatched_train,
             params,
             _rabit_args,
+            id(dtrain),
             evals_name,
+            evals_id,
             *([dtrain] + evals_data),
             workers=workers,
         )
