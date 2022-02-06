@@ -533,6 +533,7 @@ async def map_worker_partitions(
         args = []
         for ref in refs:
             if isinstance(ref, DaskDMatrix):
+                # pylint: disable=protected-access
                 args.append(ref._create_fn_args(addr))
             else:
                 args.append(ref)
@@ -561,7 +562,7 @@ def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
                 result[name] = []
             result[name].append(part)
 
-    for i, part in enumerate(list_of_parts):
+    for i, _ in enumerate(list_of_parts):
         append(i, "data")
         append(i, "label")
         append(i, "weight")
@@ -795,7 +796,7 @@ def _create_dmatrix(
     unzipped_dict = _get_worker_parts(list_of_parts)
     concated_dict: Dict[str, Any] = {}
     for key, value in unzipped_dict.items():
-        v = concat_or_none(unzipped_dict[key])
+        v = concat_or_none(value)
         concated_dict[key] = v
 
     dmatrix = DMatrix(
@@ -1320,7 +1321,6 @@ async def _predict_async(
     arrays = []
     all_shapes = await client.gather(all_shapes)
     for i, rows in enumerate(all_shapes):
-        distributed.Future
         arrays.append(
             da.from_delayed(
                 futures[i], shape=(rows,) + output_shape[1:], dtype=numpy.float32
