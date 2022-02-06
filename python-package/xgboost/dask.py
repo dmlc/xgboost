@@ -522,6 +522,11 @@ async def map_worker_partitions(
     *refs: Any,
     workers: List[str],
 ) -> List[_MapRetT]:
+    """Map a function onto partitions of each worker."""
+    # Note for function purity:
+    # XGBoost is deterministic in most of the cases, which means train function is
+    # supposed to be idempotent.  One known exception is gblinear with shotgun updater.
+    # We haven't been able to do a full verification so here we keep pure to be False.
     client = _xgb_get_client(client)
     futures = []
     for addr in workers:
@@ -531,7 +536,9 @@ async def map_worker_partitions(
                 args.append(ref._create_fn_args(addr))
             else:
                 args.append(ref)
-        fut = client.submit(func, *args)
+        fut = client.submit(
+            func, *args, pure=False, workers=[addr], allow_other_workers=False
+        )
         futures.append(fut)
     results = await client.gather(futures)
     return results
@@ -950,10 +957,6 @@ async def _train_async(
             ret = None
         return ret
 
-    # Note for function purity:
-    # XGBoost is deterministic in most of the cases, which means train function is
-    # supposed to be idempotent.  One known exception is gblinear with shotgun updater.
-    # We haven't been able to do a full verification so here we keep pure to be False.
     async with _multi_lock()(workers, client):
         if evals is not None:
             evals_data = [d for d, n in evals]
