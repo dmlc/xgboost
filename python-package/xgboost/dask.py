@@ -944,7 +944,7 @@ async def _train_async(
                 LOGGER.info("Overriding `nthreads` defined in dask worker.")
                 n_threads = local_param[p]
                 break
-        if n_threads == 0:
+        if n_threads == 0 or n_threads is None:
             n_threads = worker.nthreads
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
 
