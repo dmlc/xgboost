@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #include "gradient_index_page_source.h"
 
@@ -11,7 +11,7 @@ void GradientIndexPageSource::Fetch() {
     this->page_.reset(new GHistIndexMatrix());
     CHECK_NE(cuts_.Values().size(), 0);
     this->page_->Init(*csr, feature_types_, cuts_, max_bin_per_feat_, is_dense_,
-                      nthreads_);
+                      sparse_thresh_, nthreads_);
     this->WriteCache();
   }
 }

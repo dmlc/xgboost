@@ -4,8 +4,8 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
-#include "../helpers.h"
 #include "../../../src/data/gradient_index.h"
+#include "../helpers.h"
 
 namespace xgboost {
 namespace data {
@@ -13,12 +13,22 @@ TEST(GradientIndex, ExternalMemory) {
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(10000);
   std::vector<size_t> base_rowids;
   std::vector<float> hessian(dmat->Info().num_row_, 1);
-  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>(
-           {GenericParameter::kCpuId, 64, hessian})) {
+  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>({64, hessian, true})) {
     base_rowids.push_back(page.base_rowid);
   }
   size_t i = 0;
-  for (auto const& page : dmat->GetBatches<SparsePage>()) {
+  for (auto const &page : dmat->GetBatches<SparsePage>()) {
+    ASSERT_EQ(base_rowids[i], page.base_rowid);
+    ++i;
+  }
+
+
+  base_rowids.clear();
+  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>({64, hessian, false})) {
+    base_rowids.push_back(page.base_rowid);
+  }
+  i = 0;
+  for (auto const &page : dmat->GetBatches<SparsePage>()) {
     ASSERT_EQ(base_rowids[i], page.base_rowid);
     ++i;
   }
@@ -33,10 +43,10 @@ TEST(GradientIndex, FromCategoricalBasic) {
   auto &h_ft = m->Info().feature_types.HostVector();
   h_ft.resize(kCols, FeatureType::kCategorical);
 
-  BatchParam p(0, max_bins);
+  BatchParam p(max_bins, 0.8);
   GHistIndexMatrix gidx;
 
-  gidx.Init(m.get(), max_bins, false, common::OmpGetNumThreads(0), {});
+  gidx.Init(m.get(), max_bins, p.sparse_thresh, false, common::OmpGetNumThreads(0), {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());

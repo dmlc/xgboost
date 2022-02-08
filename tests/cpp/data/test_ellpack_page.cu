@@ -81,13 +81,13 @@ TEST(EllpackPage, BuildGidxSparse) {
 TEST(EllpackPage, FromCategoricalBasic) {
   using common::AsCat;
   size_t constexpr kRows = 1000, kCats = 13, kCols = 1;
-  size_t max_bins = 8;
+  int32_t max_bins = 8;
   auto x = GenerateRandomCategoricalSingleColumn(kRows, kCats);
   auto m = GetDMatrixFromData(x, kRows, 1);
   auto& h_ft = m->Info().feature_types.HostVector();
   h_ft.resize(kCols, FeatureType::kCategorical);
 
-  BatchParam p(0, max_bins);
+  BatchParam p{0, max_bins};
   auto ellpack = EllpackPage(m.get(), p);
   auto accessor = ellpack.Impl()->GetDeviceAccessor(0);
   ASSERT_EQ(kCats, accessor.NumBins());

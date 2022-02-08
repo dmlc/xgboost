@@ -17,6 +17,7 @@
 #include <xgboost/string_view.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -216,17 +217,23 @@ struct BatchParam {
   common::Span<float> hess;
   /*! \brief Whether should DMatrix regenerate the batch.  Only used for GHistIndex. */
   bool regen {false};
+  /*! \brief Parameter used to generate column matrix for hist. */
+  double sparse_thresh{std::numeric_limits<double>::quiet_NaN()};
 
   BatchParam() = default;
+  // GPU Hist
   BatchParam(int32_t device, int32_t max_bin)
       : gpu_id{device}, max_bin{max_bin} {}
+  // Hist
+  BatchParam(int32_t max_bin, double sparse_thresh)
+      : max_bin{max_bin}, sparse_thresh{sparse_thresh} {}
+  // Approx
   /**
    * \brief Get batch with sketch weighted by hessian.  The batch will be regenerated if
    *        the span is changed, so caller should keep the span for each iteration.
    */
-  BatchParam(int32_t device, int32_t max_bin, common::Span<float> hessian,
-             bool regenerate = false)
-      : gpu_id{device}, max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
+  BatchParam(int32_t max_bin, common::Span<float> hessian, bool regenerate)
+      : max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
   bool operator!=(const BatchParam& other) const {
     if (hess.empty() && other.hess.empty()) {
@@ -471,8 +478,10 @@ class DMatrix {
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
-  template<typename T>
-  BatchSet<T> GetBatches(const BatchParam& param = {});
+  template <typename T>
+  BatchSet<T> GetBatches();
+  template <typename T>
+  BatchSet<T> GetBatches(const BatchParam& param);
   template <typename T>
   bool PageExists() const;
 
@@ -586,7 +595,7 @@ class DMatrix {
 };
 
 template<>
-inline BatchSet<SparsePage> DMatrix::GetBatches(const BatchParam&) {
+inline BatchSet<SparsePage> DMatrix::GetBatches() {
   return GetRowBatches();
 }
 
@@ -601,12 +610,12 @@ inline bool DMatrix::PageExists<SparsePage>() const {
 }
 
 template<>
-inline BatchSet<CSCPage> DMatrix::GetBatches(const BatchParam&) {
+inline BatchSet<CSCPage> DMatrix::GetBatches() {
   return GetColumnBatches();
 }
 
 template<>
-inline BatchSet<SortedCSCPage> DMatrix::GetBatches(const BatchParam&) {
+inline BatchSet<SortedCSCPage> DMatrix::GetBatches() {
   return GetSortedColumnBatches();
 }
 

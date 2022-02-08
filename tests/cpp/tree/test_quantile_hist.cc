@@ -162,11 +162,12 @@ class QuantileHistMock : public QuantileHistMaker {
         // kNRows samples with kNCols features
         auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
 
-        GHistIndexMatrix gmat(dmat.get(), kMaxBins, false, common::OmpGetNumThreads(0));
+        float sparse_th = 0.0;
+        GHistIndexMatrix gmat(dmat.get(), kMaxBins, sparse_th, false, common::OmpGetNumThreads(0));
         ColumnMatrix cm;
 
         // treat everything as dense, as this is what we intend to test here
-        cm.Init(gmat, 0.0, common::OmpGetNumThreads(0));
+        cm.Init(gmat, sparse_th, common::OmpGetNumThreads(0));
         RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
         const size_t num_row = dmat->Info().num_row_;
         // split by feature 0
@@ -248,7 +249,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false, common::OmpGetNumThreads(0));
+    GHistIndexMatrix gmat{dmat_.get(), kMaxBins, 0.0f, false, common::OmpGetNumThreads(0)};
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -265,7 +266,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitDataSampling() {
     size_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat(dmat_.get(), kMaxBins, false, common::OmpGetNumThreads(0));
+    GHistIndexMatrix gmat{dmat_.get(), kMaxBins, 0.0f, false, common::OmpGetNumThreads(0)};
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);

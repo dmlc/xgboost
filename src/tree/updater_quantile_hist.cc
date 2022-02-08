@@ -68,9 +68,7 @@ void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<Gradient
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
-  auto it = dmat->GetBatches<GHistIndexMatrix>(
-                    BatchParam{GenericParameter::kCpuId, param_.max_bin})
-                .begin();
+  auto it = dmat->GetBatches<GHistIndexMatrix>(HistBatch(param_)).begin();
   auto p_gmat = it.Page();
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("GmatInitialization");
@@ -127,8 +125,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
   nodes_for_explicit_hist_build_.push_back(node);
 
   size_t page_id = 0;
-  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(
-           {GenericParameter::kCpuId, param_.max_bin})) {
+  for (auto const& gidx :
+       p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
     this->histogram_builder_->BuildHist(
         page_id, gidx, p_tree, row_set_collection_,
         nodes_for_explicit_hist_build_, nodes_for_subtraction_trick_, gpair_h);
@@ -141,10 +139,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     GradientPairT grad_stat;
     if (data_layout_ == DataLayout::kDenseDataZeroBased ||
         data_layout_ == DataLayout::kDenseDataOneBased) {
-      auto const &gmat = *(p_fmat
-                               ->GetBatches<GHistIndexMatrix>(BatchParam{
-                                   GenericParameter::kCpuId, param_.max_bin})
-                               .begin());
+      auto const& gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_)).begin());
       const std::vector<uint32_t> &row_ptr = gmat.cut.Ptrs();
       const uint32_t ibegin = row_ptr[fid_least_bins_];
       const uint32_t iend = row_ptr[fid_least_bins_ + 1];
@@ -170,8 +165,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     std::vector<CPUExpandEntry> entries{node};
     builder_monitor_.Start("EvaluateSplits");
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(
-             BatchParam{GenericParameter::kCpuId, param_.max_bin})) {
+    for (auto const& gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
       evaluator_->EvaluateSplits(histogram_builder_->Histogram(), gmat.cut, ft,
                                  *p_tree, &entries);
       break;
@@ -264,8 +258,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 
       if (param_.max_depth == 0 || depth < param_.max_depth) {
         size_t i = 0;
-        for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(
-                 {GenericParameter::kCpuId, param_.max_bin})) {
+        for (auto const& gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
           this->histogram_builder_->BuildHist(
               i, gidx, p_tree, row_set_collection_,
               nodes_for_explicit_hist_build_, nodes_for_subtraction_trick_,

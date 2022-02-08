@@ -2,12 +2,26 @@
  * Copyright 2017-2022 by XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
+#include "gradient_index.h"
+
 #include <algorithm>
 #include <limits>
-#include "gradient_index.h"
+#include <memory>
+
+#include "../common/column_matrix.h"
 #include "../common/hist_util.h"
 
 namespace xgboost {
+
+GHistIndexMatrix::GHistIndexMatrix() : columns_{std::make_unique<common::ColumnMatrix>()} {}
+
+GHistIndexMatrix::GHistIndexMatrix(DMatrix *x, int32_t max_bin, double sparse_thresh,
+                                   bool sorted_sketch, int32_t n_threads,
+                                   common::Span<float> hess) {
+  this->Init(x, max_bin, sparse_thresh, sorted_sketch, n_threads, hess);
+}
+
+GHistIndexMatrix::~GHistIndexMatrix() = default;
 
 void GHistIndexMatrix::PushBatch(SparsePage const &batch,
                                  common::Span<FeatureType const> ft,
@@ -90,18 +104,15 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
                    [offsets](auto idx, auto j) {
                      return static_cast<uint8_t>(idx - offsets[j]);
                    });
-
     } else if (curent_bin_size == common::kUint16BinsTypeSize) {
-      common::Span<uint16_t> index_data_span = {index.data<uint16_t>(),
-                                                n_index};
+      common::Span<uint16_t> index_data_span = {index.data<uint16_t>(), n_index};
       SetIndexData(index_data_span, ft, batch_threads, batch, rbegin, nbins,
                    [offsets](auto idx, auto j) {
                      return static_cast<uint16_t>(idx - offsets[j]);
                    });
     } else {
       CHECK_EQ(curent_bin_size, common::kUint32BinsTypeSize);
-      common::Span<uint32_t> index_data_span = {index.data<uint32_t>(),
-                                                n_index};
+      common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
       SetIndexData(index_data_span, ft, batch_threads, batch, rbegin, nbins,
                    [offsets](auto idx, auto j) {
                      return static_cast<uint32_t>(idx - offsets[j]);
@@ -125,8 +136,8 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
   });
 }
 
-void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, bool sorted_sketch, int32_t n_threads,
-                            common::Span<float> hess) {
+void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, double sparse_thresh, bool sorted_sketch,
+                            int32_t n_threads, common::Span<float> hess) {
   // We use sorted sketching for approx tree method since it's more efficient in
   // computation time (but higher memory usage).
   cut = common::SketchOnDMatrix(p_fmat, max_bins, n_threads, sorted_sketch, hess);
@@ -158,11 +169,9 @@ void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, bool sorted_sketch, i
   }
 }
 
-void GHistIndexMatrix::Init(SparsePage const &batch,
-                            common::Span<FeatureType const> ft,
-                            common::HistogramCuts const &cuts,
-                            int32_t max_bins_per_feat, bool isDense,
-                            int32_t n_threads) {
+void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType const> ft,
+                            common::HistogramCuts const &cuts, int32_t max_bins_per_feat,
+                            bool isDense, double sparse_thresh, int32_t n_threads) {
   CHECK_GE(n_threads, 1);
   base_rowid = batch.base_rowid;
   isDense_ = isDense;
@@ -183,13 +192,13 @@ void GHistIndexMatrix::Init(SparsePage const &batch,
   this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
 }
 
-void GHistIndexMatrix::ResizeIndex(const size_t n_index,
-                                   const bool isDense) {
+void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
   if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
     index.SetBinTypeSize(common::kUint8BinsTypeSize);
     index.Resize((sizeof(uint8_t)) * n_index);
-  } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
-    max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense) {
+  } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) &&
+              max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) &&
+             isDense) {
     index.SetBinTypeSize(common::kUint16BinsTypeSize);
     index.Resize((sizeof(uint16_t)) * n_index);
   } else {

@@ -4,12 +4,14 @@
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
 #define XGBOOST_DATA_GRADIENT_INDEX_H_
+#include <memory>
 #include <vector>
-#include "xgboost/base.h"
-#include "xgboost/data.h"
+
 #include "../common/categorical.h"
 #include "../common/hist_util.h"
 #include "../common/threading_utils.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 /*!
@@ -32,20 +34,22 @@ class GHistIndexMatrix {
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
   DMatrix* p_fmat;
+  /*! \brief max_bin for each feature. */
   size_t max_num_bins;
+  /*! \brief base row index for current page (used by external memory) */
   size_t base_rowid{0};
 
-  GHistIndexMatrix() = default;
-  GHistIndexMatrix(DMatrix* x, int32_t max_bin, bool sorted_sketch, int32_t n_threads,
-                   common::Span<float> hess = {}) {
-    this->Init(x, max_bin, sorted_sketch, n_threads, hess);
-  }
+  GHistIndexMatrix();
+  GHistIndexMatrix(DMatrix* x, int32_t max_bin, double sparse_thresh, bool sorted_sketch,
+                   int32_t n_threads, common::Span<float> hess = {});
+  ~GHistIndexMatrix();
+
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins, bool sorted_sketch, int32_t n_threads,
-            common::Span<float> hess);
+  void Init(DMatrix* p_fmat, int max_bins, double sparse_thresh, bool sorted_sketch,
+            int32_t n_threads, common::Span<float> hess);
   void Init(SparsePage const& page, common::Span<FeatureType const> ft,
             common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,
-            int32_t n_threads);
+            double sparse_thresh, int32_t n_threads);
 
   // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>
@@ -74,7 +78,7 @@ class GHistIndexMatrix {
           index_data[ibegin + j] = get_offset(bin_idx, j);
           ++hit_count_tloc_[tid * nbins + bin_idx];
         } else {
-          uint32_t idx = cut.SearchBin(inst[j].fvalue, inst[j].index, ptrs, values);
+          uint32_t idx = cut.SearchBin(e.fvalue, e.index, ptrs, values);
           index_data[ibegin + j] = get_offset(idx, j);
           ++hit_count_tloc_[tid * nbins + idx];
         }
@@ -82,10 +86,9 @@ class GHistIndexMatrix {
     });
   }
 
-  void ResizeIndex(const size_t n_index,
-                   const bool isDense);
+  void ResizeIndex(const size_t n_index, const bool isDense);
 
-  inline void GetFeatureCounts(size_t* counts) const {
+  void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
       auto ibegin = cut.Ptrs()[fid];
@@ -95,7 +98,8 @@ class GHistIndexMatrix {
       }
     }
   }
-  inline bool IsDense() const {
+
+  bool IsDense() const {
     return isDense_;
   }
   void SetDense(bool is_dense) { isDense_ = is_dense; }
@@ -105,6 +109,8 @@ class GHistIndexMatrix {
   }
 
  private:
+  // unused at the moment: https://github.com/dmlc/xgboost/pull/7531
+  std::unique_ptr<common::ColumnMatrix> columns_;
   std::vector<size_t> hit_count_tloc_;
   bool isDense_;
 };
@@ -117,7 +123,19 @@ class GHistIndexMatrix {
  */
 inline bool RegenGHist(BatchParam old, BatchParam p) {
   // parameter is renewed or caller requests a regen
-  return p.regen || (old.gpu_id != p.gpu_id || old.max_bin != p.max_bin);
+  if (!(p != BatchParam{})) {
+    // empty parameter is passed in, don't regenerate so that we can use gindex in
+    // predictor, which doesn't have any training parameter.
+    return false;
+  }
+
+  // Avoid comparing nan values.
+  bool l_nan = std::isnan(old.sparse_thresh);
+  bool r_nan = std::isnan(p.sparse_thresh);
+  // regenerate if parameter is changed.
+  bool st_chg = (l_nan != r_nan) || (!l_nan && !r_nan && (old.sparse_thresh != p.sparse_thresh));
+  bool param_chg = old.gpu_id != p.gpu_id || old.max_bin != p.max_bin;
+  return p.regen || param_chg || (l_nan != r_nan) || st_chg;
 }
 }      // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_
