@@ -1306,10 +1306,11 @@ async def _predict_async(
         s = client.submit(lambda part: part["data"].shape[0], part, workers=[w])
         all_shapes.append(s)
 
-    parts_with_order = list(zip(all_parts, all_shapes, all_orders))
+    parts_with_order = list(zip(all_parts, all_shapes, all_orders, all_workers))
     parts_with_order = sorted(parts_with_order, key=lambda p: p[2])
-    all_parts = [part for part, shape, order in parts_with_order]
-    all_shapes = [shape for part, shape, order in parts_with_order]
+    all_parts = [part for part, shape, order, w in parts_with_order]
+    all_shapes = [shape for part, shape, order, w in parts_with_order]
+    all_workers = [w for part, shape, order, w in parts_with_order]
 
     futures = []
     for w, part in zip(all_workers, all_parts):
