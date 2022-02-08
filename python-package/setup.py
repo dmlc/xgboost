@@ -171,8 +171,13 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
         if system() == 'Windows':
             # Pick up from LGB, just test every possible tool chain.
-            for vs in ('-GVisual Studio 16 2019', '-GVisual Studio 15 2017',
-                       '-GVisual Studio 14 2015', '-GMinGW Makefiles'):
+            for vs in (
+                "-GVisual Studio 17 2022",
+                '-GVisual Studio 16 2019',
+                '-GVisual Studio 15 2017',
+                '-GVisual Studio 14 2015',
+                '-GMinGW Makefiles',
+            ):
                 try:
                     self.build(src_dir, build_dir, vs)
                     self.logger.info(
