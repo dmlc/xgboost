@@ -30,6 +30,17 @@
 
 namespace xgboost {
 namespace obj {
+namespace {
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
+  CHECK_EQ(info.labels.Shape(1), 1);
+  if (!info.weights_.Empty()) {
+    CHECK_EQ(info.weights_.Size(), info.num_row_)
+        << "Number of weights should be equal to number of data points.";
+  }
+}
+}  // anonymous namespace
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
@@ -211,8 +222,33 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
 class RegularizedClassification : public ObjFunction {
   BinaryRegularizationParam param_;
 
+  void ValidateInfo(MetaInfo const& info) const {
+    HostDeviceVector<int32_t> flag(1, 0);
+    flag.SetDevice(ctx_->gpu_id);
+    auto vflag = ctx_->IsCPU() ? flag.HostSpan() : flag.DeviceSpan();
+    auto sensitive_feat = info.sensitive_features.View(ctx_->gpu_id);
+    auto check = [=](size_t i, float y) {
+      if (!LogisticClassification::CheckLabel(y)) {
+        vflag[0] = 1;
+      }
+      if (!LogisticClassification::CheckLabel(sensitive_feat(i))) {
+        vflag[0] = 1;
+      }
+    };
+    if (ctx_->IsCPU()) {
+      linalg::ElementWiseKernelHost(info.labels.HostView(), ctx_->Threads(), check);
+    } else {
+      linalg::ElementWiseKernelDevice(info.labels.HostView(), check);
+    }
+    if (flag.HostVector()[0] == 1) {
+      LOG(FATAL) << LogisticClassification::LabelErrorMsg()
+                 << " and sensitive feature must be in [0, 1] for regularized logistic.";
+    }
+  }
+
  public:
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+
   struct ObjInfo Task() const override {
     return {ObjInfo::kBinary, false};
   }
@@ -221,21 +257,21 @@ class RegularizedClassification : public ObjFunction {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
-  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int,
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CHECK_EQ(info.sensitive_features.Size(), info.num_row_)
         << "Incorrect shape of sensitive features, Expecting: (" << info.num_row_ << "), got: ("
         << info.sensitive_features.Size() << ")";
-    CHECK_EQ(info.labels.Shape(0), info.num_row_);
-    CHECK_EQ(info.labels.Shape(1), 1);
-
-    auto fairness = param_.fairness;
-    if (!info.weights_.Empty()) {
-      CHECK_EQ(info.weights_.Size(), info.num_row_)
-          << "Number of weights should be equal to number of data points.";
+    CheckRegInputs(info, preds);
+    if (iter == 0) {
+      // Unlike other objectives, no validation during gradient calculation.
+      this->ValidateInfo(info);
     }
 
-    auto fn = [fairness] XGBOOST_DEVICE(
+    auto fairness = param_.fairness;
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    auto fn = [fairness, labels] XGBOOST_DEVICE(
                   size_t i, float y, linalg::TensorView<float const, 1> predt_t,
                   common::OptionalWeights weight, linalg::TensorView<float const, 1> sensitive,
                   linalg::TensorView<GradientPair, 1> gpair) {
@@ -243,33 +279,33 @@ class RegularizedClassification : public ObjFunction {
       auto sf = sensitive(i);
       auto grad = (predt - y) + (fairness * (sf - predt));
       auto hess = (1.0f - fairness) * predt * (1.0f - predt);
-      auto w = weight[i];
+      auto w = weight[std::get<1>(linalg::UnravelIndex(i, labels.Shape()))];
       gpair(i) = {grad * w, hess * w};
     };
 
     auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
     out_gpair->SetDevice(ctx_->gpu_id);
     out_gpair->Resize(info.num_row_);
+    auto gpair = linalg::MakeVec(out_gpair);
+
     preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
     info.weights_.SetDevice(ctx_->gpu_id);
-    if (ctx_->gpu_id != GenericParameter::kCpuId) {
+
+    if (ctx_->IsCPU()) {
+      common::OptionalWeights weight{info.weights_.ConstHostSpan()};
+      linalg::ElementWiseKernelHost(labels, ctx_->Threads(), [=] XGBOOST_DEVICE(size_t i, float y) {
+        fn(i, y, predt, weight, sensitive, gpair);
+      });
+    } else {
 #if defined(XGBOOST_USE_CUDA)
-      auto gpair = linalg::MakeVec(out_gpair->DevicePointer(), info.num_row_, ctx_->gpu_id);
-      auto predt = linalg::MakeVec(preds.ConstDevicePointer(), preds.Size(), ctx_->gpu_id);
       common::OptionalWeights weight{info.weights_.ConstDeviceSpan()};
-      linalg::ElementWiseKernelDevice(
-          info.labels.View(ctx_->gpu_id),
-          [=] XGBOOST_DEVICE(size_t i, float y) { fn(i, y, predt, weight, sensitive, gpair); });
+      linalg::ElementWiseKernelDevice(labels, [=] XGBOOST_DEVICE(size_t i, float y) {
+        fn(i, y, predt, weight, sensitive, gpair);
+      });
 #else
       common::AssertGPUSupport();
 #endif  // defined(XGBOOST_USE_CUDA)
-    } else {
-      auto gpair = linalg::MakeVec(out_gpair->HostPointer(), info.num_row_);
-      auto predt = linalg::MakeVec(preds.ConstHostPointer(), preds.Size(), ctx_->gpu_id);
-      common::OptionalWeights weight{info.weights_.ConstHostSpan()};
-      linalg::ElementWiseKernelHost(
-          info.labels.HostView(), ctx_->Threads(),
-          [=] XGBOOST_DEVICE(size_t i, float y) { fn(i, y, predt, weight, sensitive, gpair); });
     }
   }
 

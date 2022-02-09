@@ -228,36 +228,19 @@ class RegularizedLogLoss : public Metric {
               bool distributed) override {
     auto sensitive_features = info.sensitive_features.View(tparam_->gpu_id);
     auto labels = info.labels.View(tparam_->gpu_id);
-    auto predts = tparam_->gpu_id == GenericParameter::kCpuId ? preds.ConstHostSpan()
-                                                              : preds.ConstDeviceSpan();
+    auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
     auto n_targets = std::max(info.labels.Shape(1), static_cast<size_t>(1));
-    common::OptionalWeights weights(tparam_->gpu_id == GenericParameter::kCpuId
-                                        ? info.weights_.ConstHostSpan()
-                                        : info.weights_.ConstDeviceSpan());
+    common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                     : info.weights_.ConstDeviceSpan());
     float fairness = this->param_.fairness;
+    auto n_samples = info.num_row_;
     auto loss = [=] XGBOOST_DEVICE(size_t i, float wt) {
       auto v = (LogLoss(labels(i), predts[i]) * wt) -
                (fairness * LogLoss(sensitive_features(i), predts[i]) * wt);
       return v;
     };
     PackedReduceResult result;
-    if (tparam_->gpu_id != GenericParameter::kCpuId) {
-#if defined(XGBOOST_USE_CUDA)
-      dh::XGBCachingDeviceAllocator<char> alloc;
-      thrust::counting_iterator<size_t> begin(0);
-      thrust::counting_iterator<size_t> end = begin + info.num_row_;
-      result = thrust::transform_reduce(
-          thrust::cuda::par(alloc), begin, end,
-          [=] XGBOOST_DEVICE(size_t idx) {
-            float weight = weights[idx / n_targets];
-            float l = loss(idx, weight);
-            return PackedReduceResult{l, weight};
-          },
-          PackedReduceResult{}, thrust::plus<PackedReduceResult>());
-#else
-      common::AssertGPUSupport();
-#endif  //  defined(XGBOOST_USE_CUDA)
-    } else {
+    if (tparam_->IsCPU()) {
       auto n_threads = tparam_->Threads();
       std::vector<double> score_tloc(n_threads, 0.0);
       std::vector<double> weight_tloc(n_threads, 0.0);
@@ -270,6 +253,23 @@ class RegularizedLogLoss : public Metric {
       double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
       double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
       result = PackedReduceResult{residue_sum, weights_sum};
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      dh::XGBCachingDeviceAllocator<char> alloc;
+      thrust::counting_iterator<size_t> begin(0);
+      thrust::counting_iterator<size_t> end = begin + info.num_row_;
+      result = thrust::transform_reduce(
+          thrust::cuda::par(alloc), begin, end,
+          [=] XGBOOST_DEVICE(size_t idx) {
+            auto sample_id = std::get<0>(linalg::UnravelIndex(idx, labels.Shape()));
+            float weight = weights[sample_id];
+            float l = loss(idx, weight);
+            return PackedReduceResult{l, weight};
+          },
+          PackedReduceResult{}, thrust::plus<PackedReduceResult>());
+#else
+      common::AssertGPUSupport();
+#endif  //  defined(XGBOOST_USE_CUDA)
     }
 
     double dat[2]{result.Residue(), result.Weights()};

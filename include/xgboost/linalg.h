@@ -548,6 +548,18 @@ auto MakeVec(T *ptr, size_t s, int32_t device = -1) {
   return linalg::TensorView<T, 1>{{ptr, s}, {s}, device};
 }
 
+template <typename T>
+auto MakeVec(HostDeviceVector<T> *data) {
+  return MakeVec(data->DeviceIdx() == -1 ? data->HostPointer() : data->DevicePointer(),
+                 data->Size(), data->DeviceIdx());
+}
+
+template <typename T>
+auto MakeVec(HostDeviceVector<T> const *data) {
+  return MakeVec(data->DeviceIdx() == -1 ? data->ConstHostPointer() : data->ConstDevicePointer(),
+                 data->Size(), data->DeviceIdx());
+}
+
 /**
  * \brief A view over a matrix, specialization of Tensor.
  *

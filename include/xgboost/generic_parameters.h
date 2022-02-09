@@ -42,6 +42,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
    */
   int32_t Threads() const;
 
+  bool IsCPU() const { return gpu_id == kCpuId; }
+
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(kDefaultSeed).describe(
