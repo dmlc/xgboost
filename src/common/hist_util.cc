@@ -165,7 +165,6 @@ void BuildHistKernel(const std::vector<GradientPair> &gpair,
         any_missing ? get_row_ptr(rid[i]) : get_rid(rid[i]) * n_features;
     const size_t icol_end =
         any_missing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
-    CHECK_LE(icol_end, gmat.index.Size());
 
     const size_t row_size = icol_end - icol_start;
     const size_t idx_gh = two * rid[i];
