@@ -698,6 +698,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
+        sensitive_feature: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
     ) -> None:
@@ -711,6 +712,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
             qid=qid,
             label_lower_bound=label_lower_bound,
             label_upper_bound=label_upper_bound,
+            sensitive_feature=sensitive_feature,
             missing=missing,
             silent=silent,
             feature_weights=feature_weights,
