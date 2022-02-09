@@ -135,7 +135,7 @@ inline bool RegenGHist(BatchParam old, BatchParam p) {
   // regenerate if parameter is changed.
   bool st_chg = (l_nan != r_nan) || (!l_nan && !r_nan && (old.sparse_thresh != p.sparse_thresh));
   bool param_chg = old.gpu_id != p.gpu_id || old.max_bin != p.max_bin;
-  return p.regen || param_chg || (l_nan != r_nan) || st_chg;
+  return p.regen || param_chg || st_chg;
 }
 }      // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_

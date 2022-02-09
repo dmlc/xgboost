@@ -76,7 +76,7 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
 
 namespace {
 void CheckEmpty(BatchParam const& l, BatchParam const& r) {
-  if (!(l != BatchParam{})) {
+  if (l == BatchParam{}) {
     CHECK(r != BatchParam{}) << "Batch parameter is not initialized.";
   }
 }
