@@ -656,7 +656,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             base_margin=self._get("_base_margin"),
             label_lower_bound=self._get("_label_lower_bound"),
             label_upper_bound=self._get("_label_upper_bound"),
-            sensitive_feature=self._get("sensitive_feature"),
+            sensitive_feature=self._get("_sensitive_feature"),
             feature_names=feature_names,
             feature_types=self._feature_types,
         )
