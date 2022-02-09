@@ -123,7 +123,7 @@ class GHistIndexMatrix {
  */
 inline bool RegenGHist(BatchParam old, BatchParam p) {
   // parameter is renewed or caller requests a regen
-  if (!(p != BatchParam{})) {
+  if (p == BatchParam{}) {
     // empty parameter is passed in, don't regenerate so that we can use gindex in
     // predictor, which doesn't have any training parameter.
     return false;
