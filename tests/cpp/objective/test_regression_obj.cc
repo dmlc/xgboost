@@ -370,7 +370,7 @@ TEST(Objective, DeclareUnifiedTest(RegularizedClassification)) {
     h_sf[i] = i % 2 == 0;
   }
 
-  info.labels = linalg::Tensor<float, 2>{{info.num_row_, static_cast<size_t>(1)}, GPUIDX};
+  info.labels = linalg::Tensor<float, 2>{{info.num_row_, static_cast<uint64_t>(1)}, GPUIDX};
   auto& h_y = info.labels.Data()->HostVector();
   for (size_t i = 0; i < h_y.size(); ++i) {
     h_y[i] = i % 2 != 0;
