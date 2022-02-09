@@ -193,7 +193,7 @@ namespace {
 XGBOOST_DEVICE inline float LogLoss(float y, float py) {
   auto xlogy = [](float x, float y) {
     float eps = 1e-16;
-    return (x - 0.0 == 0.0) ? 0 : (x * std::log(std::max(y, eps)));
+    return (x - 0.0f == 0.0f) ? 0.0f : (x * std::log(std::max(y, eps)));
   };
   const bst_float pneg = 1.0f - py;
   return xlogy(-y, py) + xlogy(-(1.0f - y), pneg);

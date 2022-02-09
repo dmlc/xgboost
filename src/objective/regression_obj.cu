@@ -290,9 +290,8 @@ class RegularizedClassification : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<float>* io_preds) const override {
-    auto eps = kRtEps;  // undefined in device code.
     common::Transform<>::Init(
-        [eps] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
+        [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = common::Sigmoid(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
