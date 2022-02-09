@@ -501,7 +501,7 @@ def _deprecate_positional_args(f):
     return inner_f
 
 
-class DMatrix:  # pylint: disable=too-many-instance-attributes
+class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """Data Matrix used in XGBoost.
 
     DMatrix is an internal data structure that is used by XGBoost,

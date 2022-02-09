@@ -441,13 +441,16 @@ class DaskDMatrix:
                 )
                 parts[name] = m_parts
 
-        append_meta(y_parts, "label")
-        append_meta(w_parts, "weight")
-        append_meta(margin_parts, "base_margin")
-        append_meta(qid_parts, "qid")
-        append_meta(ll_parts, "label_lower_bound")
-        append_meta(lu_parts, "label_upper_bound")
-        append_meta(sf_parts, 'sensitive_feature')
+        for p, n in [
+            (y_parts, "label"),
+            (w_parts, "weight"),
+            (margin_parts, "base_margin"),
+            (qid_parts, "qid"),
+            (ll_parts, "label_lower_bound"),
+            (lu_parts, "label_upper_bound"),
+            (sf_parts, "sensitive_feature"),
+        ]:
+            append_meta(p, n)
         # At this point, `parts` looks like:
         # [(x0, x1, ..), (y0, y1, ..), ..] in delayed form
 
