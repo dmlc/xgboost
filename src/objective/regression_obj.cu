@@ -287,7 +287,7 @@ class RegularizedClassification : public ObjFunction {
       auto sf = sensitive(i);
       auto grad = (p - y) + (fairness * (sf - p));
       auto hess = (1.0f - fairness) * p * (1.0f - p);
-      auto w = weight[std::get<1>(linalg::UnravelIndex(i, labels.Shape()))];
+      auto w = weight[std::get<0>(linalg::UnravelIndex(i, labels.Shape()))];
       gpair(i) = {grad * w, hess * w};
     });
   }

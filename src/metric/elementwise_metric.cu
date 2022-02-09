@@ -245,7 +245,8 @@ class RegularizedLogLoss : public Metric {
       std::vector<double> score_tloc(n_threads, 0.0);
       std::vector<double> weight_tloc(n_threads, 0.0);
       common::ParallelFor(info.num_row_, tparam_->Threads(), [&](size_t i) {
-        float wt = weights[i / n_targets];
+        auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+        float wt = weights[sample_id];
         auto t_idx = omp_get_thread_num();
         score_tloc[t_idx] += loss(i, weights[i]);
         weight_tloc[t_idx] += wt;
