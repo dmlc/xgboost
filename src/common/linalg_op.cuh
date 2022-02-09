@@ -17,7 +17,7 @@ void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_t s
                 "For function with return, use transform instead.");
   if (t.Contiguous()) {
     auto ptr = t.Values().data();
-    dh::LaunchN(t.Size(), s, [=] __device__(size_t i) { fn(i, ptr[i]); });
+    dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable { fn(i, ptr[i]); });
   } else {
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
       T& v = detail::Apply(t, linalg::UnravelIndex(i, t.Shape()));

@@ -222,24 +222,21 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
 class RegularizedClassification : public ObjFunction {
   BinaryRegularizationParam param_;
 
+ public:
   void ValidateInfo(MetaInfo const& info) const {
     HostDeviceVector<int32_t> flag(1, 0);
     flag.SetDevice(ctx_->gpu_id);
     auto vflag = ctx_->IsCPU() ? flag.HostSpan() : flag.DeviceSpan();
-    auto sensitive_feat = info.sensitive_features.View(ctx_->gpu_id);
-    auto check = [=](size_t i, float y) {
+    auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->gpu_id);
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float y) {
       if (!LogisticClassification::CheckLabel(y)) {
         vflag[0] = 1;
       }
-      if (!LogisticClassification::CheckLabel(sensitive_feat(i))) {
+      if (!LogisticClassification::CheckLabel(sensitive(i))) {
         vflag[0] = 1;
       }
-    };
-    if (ctx_->IsCPU()) {
-      linalg::ElementWiseKernelHost(info.labels.HostView(), ctx_->Threads(), check);
-    } else {
-      linalg::ElementWiseKernelDevice(info.labels.HostView(), check);
-    }
+    });
     if (flag.HostVector()[0] == 1) {
       LOG(FATAL) << LogisticClassification::LabelErrorMsg()
                  << " and sensitive feature must be in [0, 1] for regularized logistic.";
@@ -282,7 +279,7 @@ class RegularizedClassification : public ObjFunction {
     common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                  : info.weights_.ConstDeviceSpan()};
 
-    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float y) mutable {
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
       auto p = common::Sigmoid(predt(i));
       auto sf = sensitive(i);
       auto grad = (p - y) + (fairness * (sf - p));
