@@ -1,9 +1,12 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
+
+#include "xgboost/generic_parameters.h"
 #include "device_helpers.cuh"
+#include "linalg_op.h"
 #include "xgboost/linalg.h"
 
 namespace xgboost {
@@ -34,6 +37,11 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_
       v = fn(i, v);
     });
   }
+}
+
+template <typename T, int32_t D, typename Fn>
+void ElementWiseKernel(GenericParameter const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
+  ctx->IsCPU() ? ElementWiseKernelHost(t, ctx->Threads(), fn) : ElementWiseKernelDevice(t, fn);
 }
 }  // namespace linalg
 }  // namespace xgboost

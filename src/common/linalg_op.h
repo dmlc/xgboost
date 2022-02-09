@@ -5,7 +5,9 @@
 #define XGBOOST_COMMON_LINALG_OP_H_
 #include <type_traits>
 
+#include "common.h"
 #include "threading_utils.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/linalg.h"
 
 namespace xgboost {
@@ -37,6 +39,26 @@ void ElementWiseKernelHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& f
     });
   }
 }
+
+#if !defined(XGBOOST_USE_CUDA)
+template <typename T, int32_t D, typename Fn>
+void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, void* s = nullptr) {
+  common::AssertGPUSupport();
+}
+
+template <typename T, int32_t D, typename Fn>
+void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, void* s = nullptr) {
+  common::AssertGPUSupport();
+}
+
+template <typename T, int32_t D, typename Fn>
+void ElementWiseKernel(GenericParameter const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
+  if (!ctx->IsCPU()) {
+    common::AssertGPUSupport();
+  }
+  ElementWiseKernelHost(t, ctx->Threads(), fn);
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace linalg
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_LINALG_OP_H_

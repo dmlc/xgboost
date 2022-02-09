@@ -271,18 +271,6 @@ class RegularizedClassification : public ObjFunction {
     auto fairness = param_.fairness;
     auto labels = info.labels.View(ctx_->gpu_id);
 
-    auto fn = [fairness, labels] XGBOOST_DEVICE(
-                  size_t i, float y, linalg::TensorView<float const, 1> predt_t,
-                  common::OptionalWeights weight, linalg::TensorView<float const, 1> sensitive,
-                  linalg::TensorView<GradientPair, 1> gpair) {
-      auto predt = common::Sigmoid(predt_t(i));
-      auto sf = sensitive(i);
-      auto grad = (predt - y) + (fairness * (sf - predt));
-      auto hess = (1.0f - fairness) * predt * (1.0f - predt);
-      auto w = weight[std::get<1>(linalg::UnravelIndex(i, labels.Shape()))];
-      gpair(i) = {grad * w, hess * w};
-    };
-
     auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
     out_gpair->SetDevice(ctx_->gpu_id);
     out_gpair->Resize(info.num_row_);
@@ -291,22 +279,17 @@ class RegularizedClassification : public ObjFunction {
     preds.SetDevice(ctx_->gpu_id);
     auto predt = linalg::MakeVec(&preds);
     info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
 
-    if (ctx_->IsCPU()) {
-      common::OptionalWeights weight{info.weights_.ConstHostSpan()};
-      linalg::ElementWiseKernelHost(labels, ctx_->Threads(), [=] XGBOOST_DEVICE(size_t i, float y) {
-        fn(i, y, predt, weight, sensitive, gpair);
-      });
-    } else {
-#if defined(XGBOOST_USE_CUDA)
-      common::OptionalWeights weight{info.weights_.ConstDeviceSpan()};
-      linalg::ElementWiseKernelDevice(labels, [=] XGBOOST_DEVICE(size_t i, float y) {
-        fn(i, y, predt, weight, sensitive, gpair);
-      });
-#else
-      common::AssertGPUSupport();
-#endif  // defined(XGBOOST_USE_CUDA)
-    }
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float y) mutable {
+      auto p = common::Sigmoid(predt(i));
+      auto sf = sensitive(i);
+      auto grad = (p - y) + (fairness * (sf - p));
+      auto hess = (1.0f - fairness) * p * (1.0f - p);
+      auto w = weight[std::get<1>(linalg::UnravelIndex(i, labels.Shape()))];
+      gpair(i) = {grad * w, hess * w};
+    });
   }
 
   void PredTransform(HostDeviceVector<float>* io_preds) const override {
