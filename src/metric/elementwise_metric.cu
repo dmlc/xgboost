@@ -229,11 +229,9 @@ class RegularizedLogLoss : public Metric {
     auto sensitive_features = info.sensitive_features.View(tparam_->gpu_id);
     auto labels = info.labels.View(tparam_->gpu_id);
     auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
-    auto n_targets = std::max(info.labels.Shape(1), static_cast<size_t>(1));
     common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
                                                      : info.weights_.ConstDeviceSpan());
     float fairness = this->param_.fairness;
-    auto n_samples = info.num_row_;
     auto loss = [=] XGBOOST_DEVICE(size_t i, float wt) {
       auto v = (LogLoss(labels(i), predts[i]) * wt) -
                (fairness * LogLoss(sensitive_features(i), predts[i]) * wt);
