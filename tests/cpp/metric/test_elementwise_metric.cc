@@ -17,14 +17,16 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
 
   HostDeviceVector<float> predts;
+  size_t n_samples = 2048;
+
   MetaInfo info;
+  info.labels.Reshape(n_samples, 1);
   auto &h_labels = info.labels.Data()->HostVector();
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
 
-  size_t n_samples = 2048;
   h_labels.resize(n_samples);
   h_predts.resize(n_samples);
 

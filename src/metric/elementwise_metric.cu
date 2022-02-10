@@ -363,6 +363,7 @@ struct EvalEWiseBase : public Metric {
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
+    CHECK_NE(info.labels.Shape(1), 0);
     auto labels = info.labels.View(tparam_->gpu_id);
     info.weights_.SetDevice(tparam_->gpu_id);
     common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
