@@ -85,12 +85,9 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
     ValidateBaseMarginShape(info.base_margin_, info.num_row_, n_classes);
     out_preds->Copy(*base_margin);
   } else {
-    if (out_preds->Empty()) {
-      out_preds->Resize(n, model.learner_model_param->base_score);
-    } else {
-      out_preds->Resize(n);
-      out_preds->Fill(model.learner_model_param->base_score);
-    }
+    out_preds->Resize(n);
+    // cannot rely on the Resize to fill as it might skip if the size is already correct.
+    out_preds->Fill(model.learner_model_param->base_score);
   }
 }
 }  // namespace xgboost

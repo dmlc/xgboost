@@ -1062,6 +1062,9 @@ def _maybe_dataframe(
                 prediction, columns=columns, dtype=numpy.float32, index=index
             )
         else:
+            if prediction.size == 0:
+                return DataFrame({}, columns=columns, dtype=numpy.float32, index=index)
+
             prediction = DataFrame(
                 prediction, columns=columns, dtype=numpy.float32, index=index
             )
