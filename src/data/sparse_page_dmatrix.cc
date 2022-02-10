@@ -164,8 +164,8 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(const BatchParam 
     // all index here.
     if (!ghist_index_page_ || (param != batch_param_ && param != BatchParam{})) {
       this->InitializeSparsePage();
-      ghist_index_page_.reset(
-          new GHistIndexMatrix{this, param.max_bin, param.regen, ctx_.Threads()});
+      ghist_index_page_.reset(new GHistIndexMatrix{this, param.max_bin, param.sparse_thresh,
+                                                   param.regen, ctx_.Threads()});
       this->InitializeSparsePage();
       batch_param_ = param;
     }

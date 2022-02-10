@@ -31,8 +31,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
 
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
-
-  GHistIndexMatrix gmat(dmat.get(), kMaxBins, false, common::OmpGetNumThreads(0));
+  GHistIndexMatrix gmat(dmat.get(), kMaxBins, 0.5, false, common::OmpGetNumThreads(0));
   common::RowSetCollection row_set_collection;
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
@@ -127,7 +126,7 @@ TEST(HistEvaluator, CategoricalPartition) {
   auto evaluator = HistEvaluator<GradientSumT, CPUExpandEntry>{
       param, dmat->Info(), n_threads, sampler, ObjInfo{ObjInfo::kRegression}};
 
-  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({GenericParameter::kCpuId, 32})) {
+  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
     common::HistCollection<GradientSumT> hist;
 
     std::vector<CPUExpandEntry> entries(1);
@@ -212,7 +211,7 @@ auto CompareOneHotAndPartition(bool onehot) {
       param, dmat->Info(), n_threads, sampler, ObjInfo{ObjInfo::kRegression}};
   std::vector<CPUExpandEntry> entries(1);
 
-  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({GenericParameter::kCpuId, 32})) {
+  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
     common::HistCollection<GradientSumT> hist;
 
     entries.front().nid = 0;

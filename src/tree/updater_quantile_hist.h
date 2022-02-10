@@ -92,6 +92,10 @@ using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
+inline BatchParam HistBatch(TrainParam const& param) {
+  return {param.max_bin, param.sparse_threshold};
+}
+
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:

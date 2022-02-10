@@ -21,7 +21,7 @@ void TestEquivalent(float sparsity) {
   std::unique_ptr<EllpackPageImpl> page_concatenated {
     new EllpackPageImpl(0, first->Cuts(), first->is_dense,
                         first->row_stride, 1000 * 100)};
-  for (auto& batch : m.GetBatches<EllpackPage>()) {
+  for (auto& batch : m.GetBatches<EllpackPage>({})) {
     auto page = batch.Impl();
     size_t num_elements = page_concatenated->Copy(0, page, offset);
     offset += num_elements;
@@ -93,7 +93,7 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
       0, 256);
   size_t n_batches = 0;
   std::string interface_str = iter.AsArray();
-  for (auto& ellpack : m.GetBatches<EllpackPage>()) {
+  for (auto& ellpack : m.GetBatches<EllpackPage>({})) {
     n_batches ++;
     auto impl = ellpack.Impl();
     common::CompressedIterator<uint32_t> iterator(

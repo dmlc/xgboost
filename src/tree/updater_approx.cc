@@ -31,11 +31,11 @@ namespace {
 template <typename GradientSumT>
 auto BatchSpec(TrainParam const &p, common::Span<float> hess,
                HistEvaluator<GradientSumT, CPUExpandEntry> const &evaluator) {
-  return BatchParam{GenericParameter::kCpuId, p.max_bin, hess, !evaluator.Task().const_hess};
+  return BatchParam{p.max_bin, hess, !evaluator.Task().const_hess};
 }
 
 auto BatchSpec(TrainParam const &p, common::Span<float> hess) {
-  return BatchParam{GenericParameter::kCpuId, p.max_bin, hess, false};
+  return BatchParam{p.max_bin, hess, false};
 }
 }  // anonymous namespace
 

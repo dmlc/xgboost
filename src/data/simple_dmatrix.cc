@@ -74,12 +74,18 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   return BatchSet<SortedCSCPage>(begin_iter);
 }
 
+namespace {
+void CheckEmpty(BatchParam const& l, BatchParam const& r) {
+  if (l == BatchParam{}) {
+    CHECK(r != BatchParam{}) << "Batch parameter is not initialized.";
+  }
+}
+}  // anonymous namespace
+
 BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) {
   // ELLPACK page doesn't exist, generate it
-  if (!(batch_param_ != BatchParam{})) {
-    CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
-  }
-  if (!ellpack_page_  || (batch_param_ != param && param != BatchParam{})) {
+  CheckEmpty(batch_param_, param);
+  if (!ellpack_page_ || RegenGHist(batch_param_, param)) {
     CHECK_GE(param.gpu_id, 0);
     CHECK_GE(param.max_bin, 2);
     ellpack_page_.reset(new EllpackPage(this, param));
@@ -91,17 +97,15 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
 }
 
 BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& param) {
-  if (!(batch_param_ != BatchParam{})) {
-    CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
-  }
+  CheckEmpty(batch_param_, param);
   if (!gradient_index_ || RegenGHist(batch_param_, param)) {
     LOG(INFO) << "Generating new Gradient Index.";
     CHECK_GE(param.max_bin, 2);
     CHECK_EQ(param.gpu_id, -1);
     // Used only by approx.
     auto sorted_sketch = param.regen;
-    gradient_index_.reset(
-        new GHistIndexMatrix(this, param.max_bin, sorted_sketch, this->ctx_.Threads(), param.hess));
+    gradient_index_.reset(new GHistIndexMatrix(this, param.max_bin, param.sparse_thresh,
+                                               sorted_sketch, this->ctx_.Threads(), param.hess));
     batch_param_ = param;
     CHECK_EQ(batch_param_.hess.data(), param.hess.data());
   }

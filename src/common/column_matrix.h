@@ -379,12 +379,11 @@ class ColumnMatrix {
   std::vector<size_t> feature_offsets_;
 
   // index_base_[fid]: least bin id for feature fid
-  uint32_t* index_base_;
+  uint32_t const* index_base_;
   std::vector<bool> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;
 };
-
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COLUMN_MATRIX_H_
