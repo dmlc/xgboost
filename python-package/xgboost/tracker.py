@@ -160,8 +160,7 @@ class RabitTracker:
     def __init__(
         self, hostIP: str,
         n_workers: int,
-        port: int = 9091,
-        port_end: int = 9999,
+        port: int = 0,
         use_logger: bool = False,
     ) -> None:
         """A Python implementation of RABIT tracker.
@@ -174,15 +173,8 @@ class RabitTracker:
 
         """
         sock = socket.socket(get_family(hostIP), socket.SOCK_STREAM)
-        for _port in range(port, port_end):
-            try:
-                sock.bind((hostIP, _port))
-                self.port = _port
-                break
-            except socket.error as e:
-                if e.errno in [98, 48]:
-                    continue
-                raise
+        sock.bind((hostIP, port))
+        self.port = sock.getsockname()[1]
         sock.listen(256)
         self.sock = sock
         self.hostIP = hostIP

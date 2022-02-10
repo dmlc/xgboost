@@ -27,6 +27,8 @@ Optional dask configuration
   .. code-block:: python
 
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
+      # We can also specify the port.
+      dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
 import platform
@@ -34,7 +36,7 @@ import logging
 import collections
 import socket
 from contextlib import contextmanager
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from threading import Thread
 from functools import partial, update_wrapper
 from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
@@ -79,6 +81,7 @@ else:
     distributed = LazyLoader("distributed", globals(), "dask.distributed")
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
+DiagnoseStatus = namedtuple("DiagnoseStatus", ["status", "reason"])
 
 try:
     from mypy_extensions import TypedDict
@@ -94,6 +97,7 @@ except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
 __all__ = [
+    "diagnose",
     "RabitContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
@@ -160,13 +164,25 @@ def _multi_lock() -> Any:
 
 
 def _try_start_tracker(
-    n_workers: int, addrs: List[Optional[str]]
+    n_workers: int,
+    addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
 ) -> Dict[str, Union[int, str]]:
     env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
     try:
-        rabit_context = RabitTracker(
-            hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
-        )
+        if isinstance(addrs[0], tuple):
+            host_ip = addrs[0][0]
+            port = addrs[0][1]
+            rabit_context = RabitTracker(
+                hostIP=get_host_ip(host_ip),
+                n_workers=n_workers,
+                port=port,
+                use_logger=False,
+            )
+        else:
+            assert isinstance(addrs[0], str) or addrs[0] is None
+            rabit_context = RabitTracker(
+                hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+            )
         env.update(rabit_context.worker_envs())
         rabit_context.start(n_workers)
         thread = Thread(target=rabit_context.join)
@@ -186,7 +202,9 @@ def _try_start_tracker(
 
 
 def _start_tracker(
-    n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
+    n_workers: int,
+    addr_from_dask: Optional[str],
+    addr_from_user: Optional[Tuple[str, int]],
 ) -> Dict[str, Union[int, str]]:
     """Start Rabit tracker, recurse to try different addresses."""
     env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
@@ -225,6 +243,73 @@ class RabitContext:
     def __exit__(self, *args: List) -> None:
         rabit.finalize()
         LOGGER.debug("--------------- rabit say bye ------------------")
+
+
+def diagnose(client: "distributed.Client") -> DiagnoseStatus:
+    """Run basic diagnosis to see if XGBoost can run on current cluster.  More advanced
+    tests like GPU training are not performed.  The fucntion returns a namedtuple
+    containing the status of diagnose and possible causes of failures.
+
+    .. versionadded:: 1.6.0
+
+    """
+    workers = client.scheduler_info()["workers"]
+    if workers is None:
+        # GKE cluster seems to have troubles with obtaining this info.
+        # https://github.com/dmlc/xgboost/pull/6343
+        return DiagnoseStatus(
+            status=False,
+            reason=(
+                "Failed to obtain workers from dask scheduler, XGBoost is not able"
+                " to continue the diagnose. This is not necessarily fatal but implies"
+                " that there's something wrong in the cluster setup."
+            ),
+        )
+    try:
+        n_workers = len(workers)
+        rabit_args = client.sync(_get_rabit_args, n_workers, _get_dask_config(), client)
+    except Exception as e:  # pylint: disable=broad-except
+        return DiagnoseStatus(
+            status=False,
+            reason=(
+                "Failed to start rabit tracker, this might be caused by constrained"
+                " network environment. Please try to specify the scheduler address"
+                f" and port manually. Exception:\n{e}\n"
+            ),
+        )
+
+    def fn() -> bool:
+        with RabitContext(rabit_args):
+            ones = numpy.ones((1,), dtype=numpy.int32)
+            results = rabit.allreduce(ones, rabit.Op.SUM)
+            if results[0] != n_workers:
+                return False
+            return True
+
+    addresses = list(workers.keys())
+    futures: List[distributed.Future] = []
+    for worker in addresses:
+        f = client.submit(fn, pure=False, workers=[worker], allow_other_workers=False)
+        futures.append(f)
+    results = client.gather(futures)
+    failed = any(r is False for r in results) or len(results) != n_workers
+    if failed:
+        # successuly binded to address like `127.0.0.1` but the actual scheduler is
+        # running on somewhere else.
+        return DiagnoseStatus(
+            status=False,
+            reason=(
+                "Failed to perform allreduce. Might be caused by network"
+                " connection error between worker and rabit tracker. Please increase"
+                " the verbosity of python `logging` module to see which address is"
+                " the tracker listening to and verify its correctness."
+            ),
+        )
+
+    return DiagnoseStatus(
+        status=True,
+        reason="Basic tests passed. Please open an issue if there are other errors.",
+    )
 
 
 def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
@@ -830,13 +915,22 @@ async def _get_rabit_args(
     # We try 1 and 3 if 1 is available, otherwise 2 and 3.
     valid_config = ["scheduler_address"]
     # See if user config is available
+    host_ip: Optional[str] = None
+    port: int = 0
     if dconfig is not None:
         for k in dconfig:
             if k not in valid_config:
                 raise ValueError(f"Unknown configuration: {k}")
-        host_ip: Optional[str] = dconfig.get("scheduler_address", None)
+        host_ip = dconfig.get("scheduler_address", None)
+        try:
+            host_ip, port = distributed.comm.get_address_host_port(host_ip)
+        except ValueError:
+            pass
+    if host_ip is not None:
+        user_addr = (host_ip, port)
     else:
-        host_ip = None
+        user_addr = None
+
     # Try address from dask scheduler, this might not work, see
     # https://github.com/dask/dask-xgboost/pull/40
     try:
@@ -845,7 +939,9 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
-    env = await client.run_on_scheduler(_start_tracker, n_workers, sched_addr, host_ip)
+    env = await client.run_on_scheduler(
+        _start_tracker, n_workers, sched_addr, user_addr
+    )
 
     rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args

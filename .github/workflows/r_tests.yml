@@ -31,8 +31,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-2-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -79,8 +79,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-2-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -131,8 +131,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-2-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}

@@ -123,6 +123,11 @@ def generate_array(
     return X, y, None
 
 
+def test_diagnose(client: "Client") -> None:
+    status = xgb.dask.diagnose(client)
+    assert status.status, status
+
+
 def test_from_dask_dataframe() -> None:
     with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
@@ -1227,6 +1232,10 @@ class TestWithDask:
         with dask.config.set({'xgboost.foo': "bar"}):
             with pytest.raises(ValueError):
                 xgb.dask.train(client, {}, dtrain, num_boost_round=4)
+
+        with dask.config.set({'xgboost.scheduler_address': "127.0.0.1:22"}):
+            with pytest.raises(PermissionError):
+                xgb.dask.train(client, {}, dtrain, num_boost_round=1)
 
     def run_updater_test(
         self,

@@ -107,6 +107,8 @@ Dask API
 --------
 .. automodule:: xgboost.dask
 
+.. autofunction:: xgboost.dask.diagnose
+
 .. autoclass:: xgboost.dask.DaskDMatrix
     :members:
     :inherited-members:
