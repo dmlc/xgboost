@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file elementwise_metric.cc
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
@@ -227,28 +227,39 @@ class RegularizedLogLoss : public Metric {
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
               bool distributed) override {
     auto sensitive_features = info.sensitive_features.View(tparam_->gpu_id);
+    CHECK_EQ(info.labels.Shape(0), info.num_row_);
     auto labels = info.labels.View(tparam_->gpu_id);
+    preds.SetDevice(tparam_->gpu_id);
     auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
+    info.weights_.SetDevice(tparam_->gpu_id);
     common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
                                                      : info.weights_.ConstDeviceSpan());
     float fairness = this->param_.fairness;
-    auto loss = [=] XGBOOST_DEVICE(size_t i, float wt) {
-      auto v = (LogLoss(labels(i), predts[i]) * wt) -
-               (fairness * LogLoss(sensitive_features(i), predts[i]) * wt);
-      return v;
+    auto loss = [=] XGBOOST_DEVICE(size_t i) {
+      size_t sample_id;
+      size_t target_id;
+      std::tie(sample_id, target_id) = linalg::UnravelIndex(i, labels.Shape());
+      float wt = weights[sample_id];
+      auto sf = sensitive_features(sample_id);
+
+      auto logloss = (LogLoss(labels(sample_id, target_id), predts[i]) * wt);
+      auto reg = (fairness * LogLoss(sf, predts[i]) * wt);
+      auto v = logloss - reg;
+      return std::make_tuple(v, wt);
     };
     PackedReduceResult result;
     if (tparam_->IsCPU()) {
       auto n_threads = tparam_->Threads();
       std::vector<double> score_tloc(n_threads, 0.0);
       std::vector<double> weight_tloc(n_threads, 0.0);
-      common::ParallelFor(info.num_row_, tparam_->Threads(), [&](size_t i) {
-        auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
-        float wt = weights[sample_id];
-        auto t_idx = omp_get_thread_num();
-        score_tloc[t_idx] += loss(i, weights[i]);
-        weight_tloc[t_idx] += wt;
-      });
+      common::ParallelFor(info.labels.Shape(0) * info.labels.Shape(1), tparam_->Threads(),
+                          [&](size_t i) {
+                            auto t_idx = omp_get_thread_num();
+                            float v, wt;
+                            std::tie(v, wt) = loss(i);
+                            score_tloc[t_idx] += v;
+                            weight_tloc[t_idx] += wt;
+                          });
       double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
       double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
       result = PackedReduceResult{residue_sum, weights_sum};
@@ -259,11 +270,10 @@ class RegularizedLogLoss : public Metric {
       thrust::counting_iterator<size_t> end = begin + info.num_row_;
       result = thrust::transform_reduce(
           thrust::cuda::par(alloc), begin, end,
-          [=] XGBOOST_DEVICE(size_t idx) {
-            auto sample_id = std::get<0>(linalg::UnravelIndex(idx, labels.Shape()));
-            float weight = weights[sample_id];
-            float l = loss(idx, weight);
-            return PackedReduceResult{l, weight};
+          [=] XGBOOST_DEVICE(size_t i) {
+            float v, wt;
+            std::tie(v, wt) = loss(i);
+            return PackedReduceResult{v, wt};
           },
           PackedReduceResult{}, thrust::plus<PackedReduceResult>());
 #else

@@ -257,7 +257,7 @@ class RegularizedClassification : public ObjFunction {
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CHECK_EQ(info.sensitive_features.Size(), info.num_row_)
-        << "Incorrect shape of sensitive features, Expecting: (" << info.num_row_ << "), got: ("
+        << "Invalid shape of sensitive features, Expecting: (" << info.num_row_ << "), got: ("
         << info.sensitive_features.Size() << ")";
     CheckRegInputs(info, preds);
     if (iter == 0) {
