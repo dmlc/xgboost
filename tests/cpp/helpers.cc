@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016-2020 XGBoost contributors
+ * Copyright 2016-2022 by XGBoost contributors
  */
 #include <dmlc/filesystem.h>
 #include <xgboost/logging.h>

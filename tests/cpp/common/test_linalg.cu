@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -40,8 +40,6 @@ void TestElementWiseKernel() {
     auto t = l.View(0);
     ElementWiseTransformDevice(t, [] XGBOOST_DEVICE(size_t i, float) { return i; });
     ASSERT_TRUE(t.CContiguous());
-    ;
-    ;
     // CPU view
     t = l.View(GenericParameter::kCpuId);
 
