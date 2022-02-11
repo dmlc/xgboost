@@ -355,12 +355,14 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(RegularizedClassification)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
-  Args args{{"fairness", "0.0"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:regularized", &lparam)};
+  GenericParameter ctx = CreateEmptyGenericParam(GPUIDX);
 
-  obj->Configure(args);
-  CheckConfigReload(obj, "binary:regularized");
+  {
+    Args args{{"fairness", "0.0"}};
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:regularized", &ctx)};
+    obj->Configure(args);
+    CheckConfigReload(obj, "binary:regularized");
+  }
 
   MetaInfo info;
   info.num_row_ = 16;
@@ -369,47 +371,104 @@ TEST(Objective, DeclareUnifiedTest(RegularizedClassification)) {
   for (size_t i = 0; i < h_sf.size(); ++i) {
     h_sf[i] = i % 2 == 0;
   }
-
-  info.labels = linalg::Tensor<float, 2>{{info.num_row_, static_cast<uint64_t>(1)}, GPUIDX};
-  auto& h_y = info.labels.Data()->HostVector();
-  for (size_t i = 0; i < h_y.size(); ++i) {
-    h_y[i] = i % 2 != 0;
-  }
-
-  HostDeviceVector<float> predts;
-  predts.SetDevice(GPUIDX);
-  predts.Resize(info.num_row_);
-  auto& h_predts = predts.HostVector();
-  for (size_t i = 0; i < h_y.size(); ++i) {
-    h_predts[i] = i % 2 != 0;
-  }
-
   HostDeviceVector<GradientPair> reg_gpair;
-  obj->GetGradient(predts, info, 0, &reg_gpair);
-  auto const& h_reg = reg_gpair.ConstHostVector();
 
   // fairness == 0 means unbiased
-  std::unique_ptr<ObjFunction> logistic{ObjFunction::Create("binary:logistic", &lparam)};
-  logistic->Configure({});
-  HostDeviceVector<GradientPair> logistic_gpair;
-  obj->GetGradient(predts, info, 0, &logistic_gpair);
-  auto const& h_logistic = logistic_gpair.ConstHostVector();
-  for (size_t i = 0; i < h_reg.size(); ++i) {
-    ASSERT_EQ(h_logistic[i], h_reg[i]);
-  }
+  auto test_unbiased = [&](HostDeviceVector<float> const& predts,
+                           HostDeviceVector<GradientPair>* reg_gpair) {
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:regularized", &ctx)};
+    obj->Configure({{"fairness", "0.0"}});
+    obj->GetGradient(predts, info, 0, reg_gpair);
+    auto const& h_reg = reg_gpair->ConstHostVector();
 
-  auto test_regularized = [&]() {
-    obj->Configure({{"fairness", "1.0"}});
-    obj->GetGradient(predts, info, 0, &reg_gpair);
-    auto const& h_reg = reg_gpair.ConstHostVector();
+    std::unique_ptr<ObjFunction> logistic{ObjFunction::Create("binary:logistic", &ctx)};
+    logistic->Configure({});
+
+    HostDeviceVector<GradientPair> logistic_gpair;
+    logistic->GetGradient(predts, info, 0, &logistic_gpair);
+    auto const& h_logistic = logistic_gpair.ConstHostVector();
+
     for (size_t i = 0; i < h_reg.size(); ++i) {
-      ASSERT_EQ(h_reg[i].GetHess(), 0.0f);
-      ASSERT_EQ(h_reg[i].GetGrad(), i % 2 == 0 ? 1.0 : -1.0);
+      ASSERT_EQ(h_logistic[i], h_reg[i]);
     }
   };
-  test_regularized();
-  info.weights_.Resize(info.num_row_, 1.0);
-  test_regularized();
+
+  auto test_regularized = [&](HostDeviceVector<float> const& predts,
+                              HostDeviceVector<GradientPair>* reg_gpair) {
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:regularized", &ctx)};
+    obj->Configure({{"fairness", "1.0"}});
+    obj->GetGradient(predts, info, 0, reg_gpair);
+    auto const& h_reg = reg_gpair->ConstHostVector();
+    auto h_y = info.labels.HostView();
+    size_t strides[] = {h_y.Stride(0), h_y.Stride(1)};
+
+    for (size_t i = 0; i < info.labels.Shape(1); ++i) {
+      for (size_t j = 0; j < info.labels.Shape(0); ++j) {
+        auto offset = linalg::detail::Offset<0ul>(strides, 0ul, j, i);
+
+        ASSERT_EQ(h_reg[offset].GetHess(), 0.0f);
+        ASSERT_EQ(h_reg[offset].GetGrad(), j % 2 == 0 ? 1.0 : -1.0);
+      }
+    }
+  };
+
+  {
+    info.labels = linalg::Tensor<float, 2>{{info.num_row_, static_cast<uint64_t>(1)}, GPUIDX};
+    auto& h_y = info.labels.Data()->HostVector();
+    for (size_t i = 0; i < h_y.size(); ++i) {
+      h_y[i] = i % 2 != 0;
+    }
+
+    HostDeviceVector<float> predts;
+    predts.SetDevice(GPUIDX);
+    predts.Resize(info.num_row_);
+    auto& h_predts = predts.HostVector();
+    for (size_t i = 0; i < h_y.size(); ++i) {
+      h_predts[i] = i % 2 != 0;
+    }
+
+    info.weights_.Resize(0);
+    test_unbiased(predts, &reg_gpair);
+    info.weights_.Resize(info.num_row_, 1.0);
+    test_unbiased(predts, &reg_gpair);
+
+    info.weights_.Resize(0);
+    test_regularized(predts, &reg_gpair);
+    info.weights_.Resize(info.num_row_, 1.0);
+    test_regularized(predts, &reg_gpair);
+  }
+
+  {
+    /**
+     * multi-target, change the shape of labels and predictions.
+     */
+    size_t n_targets = 4;
+    info.labels.Reshape(info.num_row_, n_targets);
+    auto h_y = info.labels.HostView();
+
+    HostDeviceVector<float> predts;
+    predts.SetDevice(GPUIDX);
+    predts.Resize(info.labels.Size());
+    auto& h_predts = predts.HostVector();
+    for (size_t i = 0; i < n_targets; ++i) {
+      for (size_t j = 0; j < info.num_row_; ++j) {
+        h_y(j, i) = j % 2 != 0;
+        size_t strides[] = {h_y.Stride(0), h_y.Stride(1)};
+        auto offset = linalg::detail::Offset<0ul>(strides, 0ul, j, i);
+        h_predts[offset] = j % 2 != 0;
+      }
+    }
+
+    info.weights_.Resize(0);
+    test_unbiased(predts, &reg_gpair);
+    info.weights_.Resize(info.num_row_, 1.0);
+    test_unbiased(predts, &reg_gpair);
+
+    info.weights_.Resize(0);
+    test_regularized(predts, &reg_gpair);
+    info.weights_.Resize(info.num_row_, 1.0);
+    test_regularized(predts, &reg_gpair);
+  }
 }
 
 // CoxRegression not implemented in GPU code, no need for testing.

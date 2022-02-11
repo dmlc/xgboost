@@ -34,7 +34,6 @@ namespace {
 void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
   CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
-  CHECK_EQ(info.labels.Shape(1), 1);
   if (!info.weights_.Empty()) {
     CHECK_EQ(info.weights_.Size(), info.num_row_)
         << "Number of weights should be equal to number of data points.";
@@ -80,20 +79,13 @@ class RegLossObj : public ObjFunction {
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_EQ(preds.Size(), info.labels.Size())
-        << " " << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "
-        << "Loss: " << Loss::Name();
+    CheckRegInputs(info, preds);
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = ctx_->gpu_id;
     additional_input_.HostVector().begin()[0] = 1;  // Fill the label_correct flag
 
     bool is_null_weight = info.weights_.Size() == 0;
-    if (!is_null_weight) {
-      CHECK_EQ(info.weights_.Size(), info.labels.Shape(0))
-          << "Number of weights should be equal to number of data points.";
-    }
     auto scale_pos_weight = param_.scale_pos_weight;
     additional_input_.HostVector().begin()[1] = scale_pos_weight;
     additional_input_.HostVector().begin()[2] = is_null_weight;
@@ -233,7 +225,8 @@ class RegularizedClassification : public ObjFunction {
       if (!LogisticClassification::CheckLabel(y)) {
         vflag[0] = 1;
       }
-      if (!LogisticClassification::CheckLabel(sensitive(i))) {
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      if (!LogisticClassification::CheckLabel(sensitive(sample_id))) {
         vflag[0] = 1;
       }
     });
@@ -269,22 +262,25 @@ class RegularizedClassification : public ObjFunction {
     auto labels = info.labels.View(ctx_->gpu_id);
 
     auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
+
     out_gpair->SetDevice(ctx_->gpu_id);
-    out_gpair->Resize(info.num_row_);
+    out_gpair->Resize(info.labels.Size());
     auto gpair = linalg::MakeVec(out_gpair);
 
     preds.SetDevice(ctx_->gpu_id);
     auto predt = linalg::MakeVec(&preds);
+
     info.weights_.SetDevice(ctx_->gpu_id);
     common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                  : info.weights_.ConstDeviceSpan()};
 
     linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
       auto p = common::Sigmoid(predt(i));
-      auto sf = sensitive(i);
+      auto sf = sensitive(sample_id);
       auto grad = (p - y) + (fairness * (sf - p));
       auto hess = (1.0f - fairness) * p * (1.0f - p);
-      auto w = weight[std::get<0>(linalg::UnravelIndex(i, labels.Shape()))];
+      auto w = weight[sample_id];
       gpair(i) = {grad * w, hess * w};
     });
   }
