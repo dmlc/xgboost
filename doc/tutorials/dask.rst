@@ -503,11 +503,6 @@ dask config is used:
     with dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"}):
         reg = dxgb.DaskXGBRegressor()
 
-XGBoost will read configuration before training.  In the case of other errors, users can
-also perform basic diagnosis using :py:func:`xgboost.dask.diagnose` function, which will
-try to establish a basic allreduce group and return the possible causes of failure (if
-any).
-
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors

@@ -36,7 +36,7 @@ import logging
 import collections
 import socket
 from contextlib import contextmanager
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from threading import Thread
 from functools import partial, update_wrapper
 from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
@@ -81,7 +81,6 @@ else:
     distributed = LazyLoader("distributed", globals(), "dask.distributed")
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
-DiagnoseStatus = namedtuple("DiagnoseStatus", ["status", "reason"])
 
 try:
     from mypy_extensions import TypedDict
@@ -97,7 +96,6 @@ except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
 __all__ = [
-    "diagnose",
     "RabitContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
@@ -243,73 +241,6 @@ class RabitContext:
     def __exit__(self, *args: List) -> None:
         rabit.finalize()
         LOGGER.debug("--------------- rabit say bye ------------------")
-
-
-def diagnose(client: "distributed.Client") -> DiagnoseStatus:
-    """Run basic diagnosis to see if XGBoost can run on current cluster.  More advanced
-    tests like GPU training are not performed.  The fucntion returns a namedtuple
-    containing the status of diagnose and possible causes of failures.
-
-    .. versionadded:: 1.6.0
-
-    """
-    workers = client.scheduler_info()["workers"]
-    if workers is None:
-        # GKE cluster seems to have troubles with obtaining this info.
-        # https://github.com/dmlc/xgboost/pull/6343
-        return DiagnoseStatus(
-            status=False,
-            reason=(
-                "Failed to obtain workers from dask scheduler, XGBoost is not able"
-                " to continue the diagnose. This is not necessarily fatal but implies"
-                " that there's something wrong in the cluster setup."
-            ),
-        )
-    try:
-        n_workers = len(workers)
-        rabit_args = client.sync(_get_rabit_args, n_workers, _get_dask_config(), client)
-    except Exception as e:  # pylint: disable=broad-except
-        return DiagnoseStatus(
-            status=False,
-            reason=(
-                "Failed to start rabit tracker, this might be caused by constrained"
-                " network environment. Please try to specify the scheduler address"
-                f" and port manually. Exception:\n{e}\n"
-            ),
-        )
-
-    def fn() -> bool:
-        with RabitContext(rabit_args):
-            ones = numpy.ones((1,), dtype=numpy.int32)
-            results = rabit.allreduce(ones, rabit.Op.SUM)
-            if results[0] != n_workers:
-                return False
-            return True
-
-    addresses = list(workers.keys())
-    futures: List[distributed.Future] = []
-    for worker in addresses:
-        f = client.submit(fn, pure=False, workers=[worker], allow_other_workers=False)
-        futures.append(f)
-    results = client.gather(futures)
-    failed = any(r is False for r in results) or len(results) != n_workers
-    if failed:
-        # successuly binded to address like `127.0.0.1` but the actual scheduler is
-        # running on somewhere else.
-        return DiagnoseStatus(
-            status=False,
-            reason=(
-                "Failed to perform allreduce. Might be caused by network"
-                " connection error between worker and rabit tracker. Please increase"
-                " the verbosity of python `logging` module to see which address is"
-                " the tracker listening to and verify its correctness."
-            ),
-        )
-
-    return DiagnoseStatus(
-        status=True,
-        reason="Basic tests passed. Please open an issue if there are other errors.",
-    )
 
 
 def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements

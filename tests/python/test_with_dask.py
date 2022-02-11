@@ -123,11 +123,6 @@ def generate_array(
     return X, y, None
 
 
-def test_diagnose(client: "Client") -> None:
-    status = xgb.dask.diagnose(client)
-    assert status.status, status
-
-
 def test_from_dask_dataframe() -> None:
     with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
