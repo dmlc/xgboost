@@ -272,7 +272,7 @@ void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_thread
 
   // move all categories into a flatten vector to prepare for allreduce
   size_t total = feature_ptr.back();
-  std::vector<bst_cat_t> flatten(total, 0);
+  std::vector<float> flatten(total, 0);
   auto cursor{flatten.begin()};
   for (auto const &feat : categories) {
     cursor = std::copy(feat.cbegin(), feat.cend(), cursor);
@@ -287,15 +287,15 @@ void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_thread
   auto gtotal = global_worker_ptr.back();
 
   // categories in all workers with all features.
-  std::vector<bst_cat_t> global_categories(gtotal, 0);
+  std::vector<float> global_categories(gtotal, 0);
   auto rank_begin = global_worker_ptr[rank];
   auto rank_size = global_worker_ptr[rank + 1] - rank_begin;
   CHECK_EQ(rank_size, total);
   std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
   // gather values from all workers.
   rabit::Allreduce<rabit::op::Sum>(global_categories.data(), global_categories.size());
-  QuantileAllreduce<bst_cat_t> allreduce_result{global_categories, global_worker_ptr,
-                                                global_feat_ptrs, categories.size()};
+  QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
+                                            categories.size()};
   ParallelFor(categories.size(), n_threads, [&](auto fidx) {
     if (!IsCat(feature_types, fidx)) {
       return;
