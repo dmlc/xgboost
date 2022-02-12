@@ -692,6 +692,9 @@ struct GPUHistMakerDevice {
         if (GPUExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                          num_leaves)) {
           monitor.Start("UpdatePosition");
+          // Update position is only run when child is valid, instead of right after apply
+          // split (as in approx tree method).  Hense we have the finalise position call
+          // in GPU Hist.
           this->UpdatePosition(candidate.nid, p_tree);
           monitor.Stop("UpdatePosition");
 
