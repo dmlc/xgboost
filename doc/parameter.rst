@@ -266,12 +266,12 @@ Additional parameters for Dart Booster (``booster=dart``)
 
   If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
   some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-  not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+  not the training data. To obtain correct results on test sets, set ``iteration_range`` to
   a nonzero value, e.g.
 
   .. code-block:: python
 
-    preds = bst.predict(dtest, ntree_limit=num_round)
+    preds = bst.predict(dtest, iteration_range=(0, num_round))
 
 * ``sample_type`` [default= ``uniform``]
 
