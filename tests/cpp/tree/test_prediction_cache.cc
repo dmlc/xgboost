@@ -67,6 +67,8 @@ class TestPredictionCache : public ::testing::Test {
       ctx.InitAllowUnknown(Args{{"nthread", "8"}});
       if (updater_name == "grow_gpu_hist") {
         ctx.gpu_id = 0;
+      } else {
+        ctx.gpu_id = GenericParameter::kCpuId;
       }
 
       std::unique_ptr<TreeUpdater> updater{
