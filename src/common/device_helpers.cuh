@@ -1558,6 +1558,10 @@ class CUDAEvent {
   cudaEvent_t Get() const { return event_; }
 };
 
+#ifndef cudaEventWaitDefault
+#define cudaEventWaitDefault 0x00
+#endif
+
 class CUDAStreamView {
   cudaStream_t stream_{nullptr};
 
