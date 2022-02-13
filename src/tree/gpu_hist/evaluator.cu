@@ -45,6 +45,7 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
     auto beg = thrust::make_counting_iterator(1ul);
     auto end = thrust::make_counting_iterator(ptrs.size());
     auto to_onehot = param.max_cat_to_onehot;
+    // for some reason, any_of adds 1.5 minutes to compilation time for CUDA 11.x
     has_sort_ = thrust::any_of(thrust::device, beg, end, UseSortOp{to_onehot, ptrs, ft, task});
 
     if (has_sort_) {
@@ -52,7 +53,8 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
       CHECK_NE(bit_storage_size, 0);
       split_cats_.resize(param.MaxNodes() * bit_storage_size);
       h_split_cats_.resize(split_cats_.size());
-      thrust::fill_n(thrust::device, split_cats_.data(), split_cats_.size(), 0);
+      dh::safe_cuda(
+          cudaMemsetAsync(split_cats_.data().get(), '\0', split_cats_.size() * sizeof(CatST)));
 
       cat_sorted_idx_.resize(cuts.cut_values_.Size() * 2);  // evaluate 2 nodes at a time.
     }

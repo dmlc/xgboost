@@ -39,14 +39,14 @@ template <typename GradientSumT>
 class GPUHistEvaluator {
   using CatST = common::CatBitField::value_type;  // categorical storage type
   // use pinned memory to stage the categories, used for sort based splits.
-  using Alloc =
-      thrust::system::cuda::experimental::pinned_allocator<common::CatBitField::value_type>;
+  using Alloc = thrust::system::cuda::experimental::pinned_allocator<CatST>;
 
+ private:
   TreeEvaluator tree_evaluator_;
   // storage for categories for each node, used for sort based splits.
-  dh::device_vector<common::CatBitField::value_type> split_cats_;
+  dh::device_vector<CatST> split_cats_;
   // host storage for categories for each node, used for sort based splits.
-  std::vector<common::CatBitField::value_type, Alloc> h_split_cats_;
+  std::vector<CatST, Alloc> h_split_cats_;
   // stream for copying categories from device back to host for expanding the decision tree.
   dh::CUDAStream copy_stream_;
   // storage for sorted index of feature histogram, used for sort based splits.
@@ -57,8 +57,7 @@ class GPUHistEvaluator {
   bool has_sort_{false};
 
   // Copy the categories from device to host asynchronously.
-  void CopyToHost(EvaluateSplitInputs<GradientSumT> const &input,
-                  common::Span<common::CatBitField::value_type> cats_out);
+  void CopyToHost(EvaluateSplitInputs<GradientSumT> const &input, common::Span<CatST> cats_out);
 
   /**
    * \brief Get host category storage of nidx for internal calculation.
