@@ -41,11 +41,6 @@ struct GPUTrainingParam {
         max_cat_to_onehot{param.max_cat_to_onehot} {}
 };
 
-using NodeIdT = int32_t;
-
-/** used to assign default id to a Node */
-static const bst_node_t kUnusedNode = -1;
-
 /**
  * @enum DefaultDirection node.cuh
  * @brief Default direction to be followed in case of missing values
@@ -132,18 +127,6 @@ struct DeviceSplitCandidate {
        << "left sum: " << c.left_sum << ", "
        << "right sum: " << c.right_sum << std::endl;
     return os;
-  }
-};
-
-struct DeviceSplitCandidateReduceOp {
-  GPUTrainingParam param;
-  explicit DeviceSplitCandidateReduceOp(GPUTrainingParam param) : param(std::move(param)) {}
-  XGBOOST_DEVICE DeviceSplitCandidate operator()(
-      const DeviceSplitCandidate& a, const DeviceSplitCandidate& b) const {
-    DeviceSplitCandidate best;
-    best.Update(a, param);
-    best.Update(b, param);
-    return best;
   }
 };
 

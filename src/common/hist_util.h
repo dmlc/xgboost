@@ -95,8 +95,14 @@ class HistogramCuts {
 
   bool HasCategorical() const { return has_categorical_; }
   float MaxCategory() const { return max_cat_; }
-  void SetCategorical(bool v, float max_cat) {
-    has_categorical_ = v;
+  /**
+   * \brief Set meta info about categorical features.
+   *
+   * \param has_cat Do we have categorical feature in the data?
+   * \param max_cat The maximum categorical value in all features.
+   */
+  void SetCategorical(bool has_cat, float max_cat) {
+    has_categorical_ = has_cat;
     max_cat_ = max_cat;
   }
 

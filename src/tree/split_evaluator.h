@@ -110,6 +110,9 @@ class TreeEvaluator {
 
     template <typename GradientSumT>
     XGBOOST_DEVICE double CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
+      // FIXME(jiamingy): This is a temporary solution until we have categorical feature
+      // specific regularization parameters.  During sorting we should try to avoid any
+      // regularization.
       return ::xgboost::tree::CalcWeight(param, stats);
     }
 

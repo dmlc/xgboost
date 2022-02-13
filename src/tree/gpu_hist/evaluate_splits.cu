@@ -120,6 +120,7 @@ __device__ void EvaluateFeature(
           auto rest = thread_active
                           ? inputs.gradient_histogram[sorted_idx[scan_begin + threadIdx.x] - offset]
                           : GradientSumT();
+          // No min value for cat feature, use inclusive scan.
           ScanT(temp_storage->scan).InclusiveScan(rest, rest, cub::Sum(), prefix_op);
           bin = GradientSumT{inputs.parent_sum - GradientPairPrecise{rest} - missing};  // NOLINT
           break;
@@ -150,7 +151,7 @@ __device__ void EvaluateFeature(
 
     cub::CTA_SYNC();
 
-    // Best thread updates split
+    // Best thread updates the split
     if (threadIdx.x == block_max.key) {
       switch (type) {
         case kNum: {
@@ -171,7 +172,7 @@ __device__ void EvaluateFeature(
           break;
         }
         case kOneHot: {
-          int split_gidx = (scan_begin + threadIdx.x);
+          int32_t split_gidx = (scan_begin + threadIdx.x);
           float fvalue = inputs.feature_values[split_gidx];
           GradientPairPrecise left =
               missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
@@ -181,7 +182,7 @@ __device__ void EvaluateFeature(
           break;
         }
         case kPart: {
-          int split_gidx = (scan_begin + threadIdx.x);
+          int32_t split_gidx = (scan_begin + threadIdx.x);
           float fvalue = inputs.feature_values[split_gidx];
           GradientPairPrecise left =
               missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
@@ -268,6 +269,9 @@ __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
   return b.loss_chg > a.loss_chg ? b : a;
 }
 
+/**
+ * \brief Set the bits for categorical splits based on the split threshold.
+ */
 template <typename GradientSumT>
 __device__ void SortBasedSplit(EvaluateSplitInputs<GradientSumT> const &input,
                                common::Span<bst_feature_t const> d_sorted_idx, bst_feature_t fidx,
@@ -348,9 +352,8 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::CopyToHost(
-    EvaluateSplitInputs<GradientSumT> const &input,
-    common::Span<common::CatBitField::value_type> cats_out) {
+void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs<GradientSumT> const &input,
+                                                common::Span<CatST> cats_out) {
   if (has_sort_) {
     dh::CUDAEvent event;
     event.Record(dh::DefaultStream());
@@ -362,10 +365,10 @@ void GPUHistEvaluator<GradientSumT>::CopyToHost(
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
-    GPUExpandEntry candidate, ObjInfo task,
-    EvaluateSplitInputs<GradientSumT> left, EvaluateSplitInputs<GradientSumT> right,
-    common::Span<GPUExpandEntry> out_entries) {
+void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate, ObjInfo task,
+                                                    EvaluateSplitInputs<GradientSumT> left,
+                                                    EvaluateSplitInputs<GradientSumT> right,
+                                                    common::Span<GPUExpandEntry> out_entries) {
   auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(2);

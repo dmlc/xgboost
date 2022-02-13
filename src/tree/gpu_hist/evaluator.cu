@@ -4,35 +4,16 @@
  * \brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
-#include <thrust/logical.h>
-#include <thrust/sort.h>
+#include <thrust/logical.h>  // thrust::any_of
+#include <thrust/sort.h>     // thrust::stable_sort
 
+#include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
-#include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
 #include "xgboost/data.h"
 
 namespace xgboost {
 namespace tree {
-namespace {
-struct UseSortOp {
-  uint32_t to_onehot;
-  common::Span<uint32_t const> ptrs;
-  common::Span<FeatureType const> ft;
-  ObjInfo task;
-
-  XGBOOST_DEVICE bool operator()(size_t i) {
-    auto idx = i - 1;
-    if (common::IsCat(ft, idx)) {
-      auto n_bins = ptrs[i] - ptrs[idx];
-      bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
-      return use_sort;
-    }
-    return false;
-  }
-};
-}  // anonymous namespace
-
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
                                            common::Span<FeatureType const> ft, ObjInfo task,
@@ -41,16 +22,32 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, device};
   if (cuts.HasCategorical() && !task.UseOneHot()) {
+    dh::XGBCachingDeviceAllocator<char> alloc;
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
-    auto beg = thrust::make_counting_iterator(1ul);
-    auto end = thrust::make_counting_iterator(ptrs.size());
+    auto beg = thrust::make_counting_iterator<size_t>(1ul);
+    auto end = thrust::make_counting_iterator<size_t>(ptrs.size());
     auto to_onehot = param.max_cat_to_onehot;
-    // for some reason, any_of adds 1.5 minutes to compilation time for CUDA 11.x
-    has_sort_ = thrust::any_of(thrust::device, beg, end, UseSortOp{to_onehot, ptrs, ft, task});
+    // This condition avoids sort-based split function calls if the users want
+    // onehot-encoding-based splits.
+    // For some reason, any_of adds 1.5 minutes to compilation time for CUDA 11.x.
+    has_sort_ = thrust::any_of(thrust::cuda::par(alloc), beg, end, [=] XGBOOST_DEVICE(size_t i) {
+      auto idx = i - 1;
+      if (common::IsCat(ft, idx)) {
+        auto n_bins = ptrs[i] - ptrs[idx];
+        bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
+        return use_sort;
+      }
+      return false;
+    });
 
     if (has_sort_) {
       auto bit_storage_size = common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
       CHECK_NE(bit_storage_size, 0);
+      // We need to allocate for all nodes since the updater can grow the tree layer by
+      // layer, all nodes in the same layer must be preserved until that layer is
+      // finished.  We can allocate one layer at a time, but the best case is reducing the
+      // size of the bitset by about a half, at the cost of invoking CUDA malloc many more
+      // times than necessary.
       split_cats_.resize(param.MaxNodes() * bit_storage_size);
       h_split_cats_.resize(split_cats_.size());
       dh::safe_cuda(
