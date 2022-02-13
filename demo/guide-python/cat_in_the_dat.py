@@ -33,7 +33,7 @@ import xgboost as xgb
 def load_cat_in_the_dat() -> tuple[pd.DataFrame, pd.Series]:
     """Assuming you have already downloaded the data into `input` directory."""
 
-    df_train = pd.read_csv("~/Others/datasets/cat-in-the-dat/train.csv")
+    df_train = pd.read_csv("./input/cat-in-the-dat/train.csv")
 
     print(
         "train data set has got {} rows and {} columns".format(
@@ -79,7 +79,7 @@ def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
         **params,
         eval_metric="auc",
         enable_categorical=True,
-        max_cat_to_onehot=1,
+        max_cat_to_onehot=1,    # We use optimal partitioning exclusively
     )
     clf.fit(X_train, y_train, eval_set=[(X_test, y_test), (X_train, y_train)])
     clf.save_model(os.path.join(output_dir, "categorical.json"))

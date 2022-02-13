@@ -207,7 +207,9 @@ __model_doc = f'''
         .. versionadded:: 1.5.0
 
         Experimental support for categorical data.  Do not set to true unless you are
-        interested in development. Only valid when `gpu_hist` and dataframe are used.
+        interested in development. Only valid when `gpu_hist` or `approx` is used along
+        with dataframe as input.  Also, JSON/UBJSON serialization format is
+        required. (XGBoost 1.6 for approx)
 
     max_cat_to_onehot : Optional[int]
 

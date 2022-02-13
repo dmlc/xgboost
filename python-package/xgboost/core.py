@@ -581,10 +581,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
             .. versionadded:: 1.3.0
 
-            Experimental support of specializing for categorical features.  Do not set to
-            True unless you are interested in development.  Currently it's only available
-            for `gpu_hist` tree method with 1 vs rest (one hot) categorical split.  Also,
-            JSON serialization format is required.
+            Experimental support of specializing for categorical features.  Do not set
+            to True unless you are interested in development.  Currently it's only
+            available for `gpu_hist` and `approx` tree methods. Also, JSON/UBJSON
+            serialization format is required. (XGBoost 1.6 for approx)
 
         """
         if group is not None and qid is not None:

@@ -3,15 +3,15 @@ Getting started with categorical data
 =====================================
 
 Experimental support for categorical data.  After 1.5 XGBoost `gpu_hist` tree method has
-experimental support for one-hot encoding based tree split, and in 1.6 `approx` supported
-was added.
+experimental support for one-hot encoding based tree split, and in 1.6 `approx`
+supported was added.
 
 In before, users need to run an encoder themselves before passing the data into XGBoost,
-which creates a sparse matrix and potentially increase memory usage.  This demo showcases
-the experimental categorical data support, more advanced features are planned.
+which creates a sparse matrix and potentially increase memory usage.  This demo
+showcases the experimental categorical data support, more advanced features are planned.
 
-Also, see :doc:`the tutorial </tutorials/categorical>` for using XGBoost with categorical data
-
+Also, see :doc:`the tutorial </tutorials/categorical>` for using XGBoost with
+categorical data.
 
     .. versionadded:: 1.5.0
 
@@ -20,7 +20,6 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 from typing import Tuple
-import argparse
 
 
 def make_categorical(
@@ -51,28 +50,38 @@ def make_categorical(
     return df, label
 
 
-def main(args) -> None:
+def main() -> None:
     # Use builtin categorical data support
     # For scikit-learn interface, the input data must be pandas DataFrame or cudf
     # DataFrame with categorical features
-    X, y = make_categorical(1024, 16, 7, False)
-    # Specify `enable_categorical` to True.
-    # tree_method = "approx"
-    # tree_method = "gpu_hist"
-    tree_method = args.tm
+    X, y = make_categorical(100, 10, 4, False)
+    # Specify `enable_categorical` to True, also we use onehot encoding based split
+    # here for demonstration. For details see the document of `max_cat_to_onehot`.
     reg = xgb.XGBRegressor(
-        tree_method=tree_method,
-        enable_categorical=True,
-        max_cat_to_onehot=1,
-        n_estimators=8,
-        n_jobs=1,
-        # max_depth=3,
+        tree_method="gpu_hist", enable_categorical=True, max_cat_to_onehot=5
     )
     reg.fit(X, y, eval_set=[(X, y)])
 
+    # Pass in already encoded data
+    X_enc, y_enc = make_categorical(100, 10, 4, True)
+    reg_enc = xgb.XGBRegressor(tree_method="gpu_hist")
+    reg_enc.fit(X_enc, y_enc, eval_set=[(X_enc, y_enc)])
+
+    reg_results = np.array(reg.evals_result()["validation_0"]["rmse"])
+    reg_enc_results = np.array(reg_enc.evals_result()["validation_0"]["rmse"])
+
+    # Check that they have same results
+    np.testing.assert_allclose(reg_results, reg_enc_results)
+
+    # Convert to DMatrix for SHAP value
+    booster: xgb.Booster = reg.get_booster()
+    m = xgb.DMatrix(X, enable_categorical=True)  # specify categorical data support.
+    SHAP = booster.predict(m, pred_contribs=True)
+    margin = booster.predict(m, output_margin=True)
+    np.testing.assert_allclose(
+        np.sum(SHAP, axis=len(SHAP.shape) - 1), margin, rtol=1e-3
+    )
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--tm", choices=["approx", "gpu_hist"])
-    args = parser.parse_args()
-    main(args)
+    main()
