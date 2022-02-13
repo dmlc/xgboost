@@ -14,6 +14,25 @@
 
 namespace xgboost {
 namespace tree {
+namespace {
+struct UseSortOp {
+  uint32_t to_onehot;
+  common::Span<uint32_t const> ptrs;
+  common::Span<FeatureType const> ft;
+  ObjInfo task;
+
+  XGBOOST_DEVICE bool operator()(size_t i) {
+    auto idx = i - 1;
+    if (common::IsCat(ft, idx)) {
+      auto n_bins = ptrs[i] - ptrs[idx];
+      bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
+      return use_sort;
+    }
+    return false;
+  }
+};
+}  // anonymous namespace
+
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
                                            common::Span<FeatureType const> ft, ObjInfo task,
@@ -26,15 +45,7 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
     auto beg = thrust::make_counting_iterator(1ul);
     auto end = thrust::make_counting_iterator(ptrs.size());
     auto to_onehot = param.max_cat_to_onehot;
-    has_sort_ = thrust::any_of(thrust::device, beg, end, [=] XGBOOST_DEVICE(size_t i) {
-      auto idx = i - 1;
-      if (common::IsCat(ft, idx)) {
-        auto n_bins = ptrs[i] - ptrs[idx];
-        bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
-        return use_sort;
-      }
-      return false;
-    });
+    has_sort_ = thrust::any_of(thrust::device, beg, end, UseSortOp{to_onehot, ptrs, ft, task});
 
     if (has_sort_) {
       auto bit_storage_size = common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
