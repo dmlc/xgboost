@@ -1,7 +1,7 @@
 /*!
  * Copyright 2022 by XGBoost Contributors
  *
- * \brief Come components of GPU Hist evaluator, this file only exist to reduce nvcc
+ * \brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
  */
 #include <thrust/logical.h>

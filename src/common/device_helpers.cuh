@@ -1555,7 +1555,7 @@ class CUDAEvent {
 
   inline void Record(CUDAStreamView stream);  // NOLINT
 
-  cudaEvent_t Get() const { return event_; }
+  operator cudaEvent_t() const { return event_; }  // NOLINT
 };
 
 class CUDAStreamView {
@@ -1567,13 +1567,13 @@ class CUDAStreamView {
 #if defined(__CUDACC_VER_MAJOR__)
 #if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
     // CUDA == 11.0
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), 0));
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, 0));
 #else
     // CUDA > 11.0
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), cudaEventWaitDefault));
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
 #endif  // __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0:
 #else   // clang
-    dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), cudaEventWaitDefault));
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
 #endif  //  defined(__CUDACC_VER_MAJOR__)
   }
   operator cudaStream_t() const {  // NOLINT
