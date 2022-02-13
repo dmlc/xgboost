@@ -543,17 +543,16 @@ struct GPUHistMakerDevice {
           << "Categorical feature value too large.";
       std::vector<uint32_t> split_cats;
       if (candidate.split.split_cats.Bits().empty()) {
-        auto cat = common::AsCat(candidate.split.fvalue);
-        if (common::InvalidCat(cat)) {
+        if (common::InvalidCat(candidate.split.fvalue)) {
           common::InvalidCategory();
         }
-        split_cats.resize(LBitField32::ComputeStorageSize(std::max(cat + 1, 1)), 0);
+        auto cat = common::AsCat(candidate.split.fvalue);
+        split_cats.resize(LBitField32::ComputeStorageSize(cat + 1), 0);
         common::CatBitField cats_bits(split_cats);
         cats_bits.Set(cat);
         dh::CopyToD(split_cats, &node_categories);
       } else {
         auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nid);
-
         auto max_cat = candidate.split.MaxCat();
         split_cats.resize(common::CatBitField::ComputeStorageSize(max_cat + 1), 0);
         CHECK_LE(split_cats.size(), h_cats.size());
