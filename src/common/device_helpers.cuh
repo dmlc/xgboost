@@ -1563,7 +1563,9 @@ class CUDAStreamView {
 
  public:
   explicit CUDAStreamView(cudaStream_t s) : stream_{s} {}
-  void Wait(CUDAEvent const &e) { dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get())); }
+  void Wait(CUDAEvent const &e) {
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), cudaEventWaitDefault));
+  }
   operator cudaStream_t() const {  // NOLINT
     return stream_;
   }
