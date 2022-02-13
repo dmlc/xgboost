@@ -1564,7 +1564,6 @@ class CUDAStreamView {
  public:
   explicit CUDAStreamView(cudaStream_t s) : stream_{s} {}
   void Wait(CUDAEvent const &e) {
-    // #if CUDA
 #if defined(__CUDACC_VER_MAJOR__)
 #if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
     // CUDA == 11.0
@@ -1574,7 +1573,7 @@ class CUDAStreamView {
     dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), cudaEventWaitDefault));
 #endif  // __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0:
 #else   // clang
-  dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), cudaEventWaitDefault));
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, e.Get(), cudaEventWaitDefault));
 #endif  //  defined(__CUDACC_VER_MAJOR__)
   }
   operator cudaStream_t() const {  // NOLINT
