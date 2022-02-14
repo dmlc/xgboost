@@ -2,10 +2,10 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include "threading_utils.h"
-
+#if defined(__linux__)
 #include <fcntl.h>
 #include <unistd.h>
-
+#endif  // defined(__linux__)
 #include "xgboost/logging.h"
 
 namespace xgboost {
@@ -19,6 +19,7 @@ namespace common {
  * MIT License: Copyright (c) 2016 Domagoj Šarić
  */
 int32_t GetCfsCPUCount() noexcept {
+#if defined(__linux__)
   // https://bugs.openjdk.java.net/browse/JDK-8146115
   // http://hg.openjdk.java.net/jdk/hs/rev/7f22774a5f42
   // RAM limit /sys/fs/cgroup/memory.limit_in_bytes
@@ -39,6 +40,7 @@ int32_t GetCfsCPUCount() noexcept {
     // heurestical rounding.
     return std::max((cfs_quota + cfs_period / 2) / cfs_period, 1);
   }
+#endif  //  defined(__linux__)
   return -1;
 }
 }  // namespace common
