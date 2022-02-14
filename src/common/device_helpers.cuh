@@ -952,22 +952,22 @@ thrust::device_ptr<T const> tcend(xgboost::HostDeviceVector<T> const& vector) { 
 }
 
 template <typename T>
-thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
   return thrust::device_ptr<T>(span.data());
 }
 
 template <typename T>
-thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const& span) {  // NOLINT
   return thrust::device_ptr<T>(span.data());
 }
 
 template <typename T>
-thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 
 template <typename T>
-thrust::device_ptr<T> tend(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T> const& span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 
@@ -982,12 +982,12 @@ XGBOOST_DEVICE auto trend(xgboost::common::Span<T> &span) {  // NOLINT
 }
 
 template <typename T>
-thrust::device_ptr<T const> tcbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcbegin(xgboost::common::Span<T> const& span) {  // NOLINT
   return thrust::device_ptr<T const>(span.data());
 }
 
 template <typename T>
-thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {  // NOLINT
   return tcbegin(span) + span.size();
 }
 
@@ -1536,4 +1536,69 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
   safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
                             sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
+
+class CUDAStreamView;
+
+class CUDAEvent {
+  cudaEvent_t event_{nullptr};
+
+ public:
+  CUDAEvent() { dh::safe_cuda(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming)); }
+  ~CUDAEvent() {
+    if (event_) {
+      dh::safe_cuda(cudaEventDestroy(event_));
+    }
+  }
+
+  CUDAEvent(CUDAEvent const &that) = delete;
+  CUDAEvent &operator=(CUDAEvent const &that) = delete;
+
+  inline void Record(CUDAStreamView stream);  // NOLINT
+
+  operator cudaEvent_t() const { return event_; }  // NOLINT
+};
+
+class CUDAStreamView {
+  cudaStream_t stream_{nullptr};
+
+ public:
+  explicit CUDAStreamView(cudaStream_t s) : stream_{s} {}
+  void Wait(CUDAEvent const &e) {
+#if defined(__CUDACC_VER_MAJOR__)
+#if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
+    // CUDA == 11.0
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, 0));
+#else
+    // CUDA > 11.0
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
+#endif  // __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0:
+#else   // clang
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
+#endif  //  defined(__CUDACC_VER_MAJOR__)
+  }
+  operator cudaStream_t() const {  // NOLINT
+    return stream_;
+  }
+  void Sync() { dh::safe_cuda(cudaStreamSynchronize(stream_)); }
+};
+
+inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
+  dh::safe_cuda(cudaEventRecord(event_, cudaStream_t{stream}));
+}
+
+inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamLegacy}; }
+
+class CUDAStream {
+  cudaStream_t stream_;
+
+ public:
+  CUDAStream() {
+    dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+  }
+  ~CUDAStream() {
+    dh::safe_cuda(cudaStreamDestroy(stream_));
+  }
+
+  CUDAStreamView View() const { return CUDAStreamView{stream_}; }
+};
 }  // namespace dh

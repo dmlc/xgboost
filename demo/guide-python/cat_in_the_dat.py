@@ -61,7 +61,12 @@ def load_cat_in_the_dat() -> tuple[pd.DataFrame, pd.Series]:
     return X, y
 
 
-params = {"tree_method": "gpu_hist", "use_label_encoder": False, "n_estimators": 32}
+params = {
+    "tree_method": "gpu_hist",
+    "use_label_encoder": False,
+    "n_estimators": 32,
+    "colsample_bylevel": 0.7,
+}
 
 
 def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
@@ -70,13 +75,13 @@ def categorical_model(X: pd.DataFrame, y: pd.Series, output_dir: str) -> None:
         X, y, random_state=1994, test_size=0.2
     )
     # Specify `enable_categorical`.
-    clf = xgb.XGBClassifier(**params, enable_categorical=True)
-    clf.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_test, y_test), (X_train, y_train)],
+    clf = xgb.XGBClassifier(
+        **params,
         eval_metric="auc",
+        enable_categorical=True,
+        max_cat_to_onehot=1,    # We use optimal partitioning exclusively
     )
+    clf.fit(X_train, y_train, eval_set=[(X_test, y_test), (X_train, y_train)])
     clf.save_model(os.path.join(output_dir, "categorical.json"))
 
     y_score = clf.predict_proba(X_test)[:, 1]  # proba of positive samples

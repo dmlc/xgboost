@@ -2,6 +2,10 @@
 Categorical Data
 ################
 
+.. note::
+
+   As of XGBoost 1.6, the feature is highly experimental and has limited features
+
 Starting from version 1.5, XGBoost has experimental support for categorical data available
 for public testing.  At the moment, the support is implemented as one-hot encoding based
 categorical tree splits.  For numerical data, the split condition is defined as
@@ -107,6 +111,28 @@ For numerical data, the feature type can be ``"q"`` or ``"float"``, while for ca
 feature it's specified as ``"c"``.  The Dask module in XGBoost has the same interface so
 :class:`dask.Array <dask.Array>` can also be used as categorical data.
 
+********************
+Optimal Partitioning
+********************
+
+.. versionadded:: 1.6
+
+Optimal partitioning is a technique for partitioning the categorical predictors for each
+node split, the proof of optimality for numerical objectives like ``RMSE`` was first
+introduced by `[1] <#references>`__. The algorithm is used in decision trees for handling
+regression and binary classification tasks `[2] <#references>`__, later LightGBM `[3]
+<#references>`__ brought it to the context of gradient boosting trees and now is also
+adopted in XGBoost as an optional feature for handling categorical splits. More
+specifically, the proof by Fisher `[1] <#references>`__ states that, when trying to
+partition a set of discrete values into groups based on the distances between a measure of
+these values, one only needs to look at sorted partitions instead of enumerating all
+possible permutations. In the context of decision trees, the discrete values are
+categories, and the measure is the output leaf value.  Intuitively, we want to group the
+categories that output similar leaf values. During split finding, we first sort the
+gradient histogram to prepare the contiguous partitions then enumerate the splits
+according to these sorted values. One of the related parameters for XGBoost is
+``max_cat_to_one_hot``, which controls whether one-hot encoding or partitioning should be
+used for each feature, see :doc:`/parameter` for details.
 
 *************
 Miscellaneous
@@ -120,10 +146,20 @@ actual number of unique categories.  During training this is validated but for p
 it's treated as the same as missing value for performance reasons.  Lastly, missing values
 are treated as the same as numerical features (using the learned split direction).
 
+
 **********
-Next Steps
+References
 **********
 
-As of XGBoost 1.5, the feature is highly experimental and have limited features like CPU
-training is not yet supported.  Please see `this issue
-<https://github.com/dmlc/xgboost/issues/6503>`_ for progress.
+[1] Walter D. Fisher. "`On Grouping for Maximum Homogeneity`_." Journal of the American Statistical Association. Vol. 53, No. 284 (Dec., 1958), pp. 789-798.
+
+[2] Trevor Hastie, Robert Tibshirani, Jerome Friedman. "`The Elements of Statistical Learning`_". Springer Series in Statistics Springer New York Inc. (2001).
+
+[3] Guolin Ke, Qi Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei Ye, Tie-Yan Liu. "`LightGBM\: A Highly Efficient Gradient Boosting Decision Tree`_." Advances in Neural Information Processing Systems 30 (NIPS 2017), pp. 3149-3157.
+
+
+.. _On Grouping for Maximum Homogeneity: https://www.tandfonline.com/doi/abs/10.1080/01621459.1958.10501479
+
+.. _The Elements of Statistical Learning: https://link.springer.com/book/10.1007/978-0-387-84858-7
+
+.. _LightGBM\: A Highly Efficient Gradient Boosting Decision Tree: https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree.pdf

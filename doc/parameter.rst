@@ -245,8 +245,8 @@ Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
 
   - Use single precision to build histograms instead of double precision.
 
-Additional parameters for ``approx`` tree method
-================================================
+Additional parameters for ``approx`` and ``gpu_hist`` tree method
+=================================================================
 
 * ``max_cat_to_onehot``
 
@@ -257,7 +257,8 @@ Additional parameters for ``approx`` tree method
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
     encoding is chosen, otherwise the categories will be partitioned into children nodes.
-    Only relevant for regression and binary classification with `approx` tree method.
+    Only relevant for regression and binary classification. Also, `approx` or `gpu_hist`
+    tree method is required.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

@@ -110,6 +110,9 @@ class TreeEvaluator {
 
     template <typename GradientSumT>
     XGBOOST_DEVICE double CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
+      // FIXME(jiamingy): This is a temporary solution until we have categorical feature
+      // specific regularization parameters.  During sorting we should try to avoid any
+      // regularization.
       return ::xgboost::tree::CalcWeight(param, stats);
     }
 
@@ -179,6 +182,15 @@ class TreeEvaluator {
         common::Range(0, 1), 1, device_)
         .Eval(&lower_bounds_, &upper_bounds_, &monotone_);
   }
+};
+
+enum SplitType {
+  // numerical split
+  kNum = 0,
+  // onehot encoding based categorical split
+  kOneHot = 1,
+  // partition-based categorical split
+  kPart = 2
 };
 }  // namespace tree
 }  // namespace xgboost

@@ -3,9 +3,11 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
+
+#include "../../../../src/common/hist_util.h"
 #include "../../../../src/tree/hist/evaluate_splits.h"
 #include "../../../../src/tree/updater_quantile_hist.h"
-#include "../../../../src/common/hist_util.h"
+#include "../test_evaluate_splits.h"
 #include "../../helpers.h"
 
 namespace xgboost {
@@ -108,80 +110,17 @@ TEST(HistEvaluator, Apply) {
   ASSERT_EQ(tree.Stat(tree[0].RightChild()).sum_hess, 0.7f);
 }
 
-TEST(HistEvaluator, CategoricalPartition) {
-  int static constexpr kRows = 128, kCols = 1;
-  using GradientSumT = double;
-  std::vector<FeatureType> ft(kCols, FeatureType::kCategorical);
-
-  TrainParam param;
-  param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
-
-  size_t n_cats{8};
-
-  auto dmat =
-      RandomDataGenerator(kRows, kCols, 0).Seed(3).Type(ft).MaxCategory(n_cats).GenerateDMatrix();
-
-  int32_t n_threads = 16;
+TEST_F(TestPartitionBasedSplit, CPUHist) {
+  // check the evaluator is returning the optimal split
+  std::vector<FeatureType> ft{FeatureType::kCategorical};
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator = HistEvaluator<GradientSumT, CPUExpandEntry>{
-      param, dmat->Info(), n_threads, sampler, ObjInfo{ObjInfo::kRegression}};
-
-  for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
-    common::HistCollection<GradientSumT> hist;
-
-    std::vector<CPUExpandEntry> entries(1);
-    entries.front().nid = 0;
-    entries.front().depth = 0;
-
-    hist.Init(gmat.cut.TotalBins());
-    hist.AddHistRow(0);
-    hist.AllocateAllData();
-    auto node_hist = hist[0];
-    ASSERT_EQ(node_hist.size(), n_cats);
-    ASSERT_EQ(node_hist.size(), gmat.cut.Ptrs().back());
-
-    GradientPairPrecise total_gpair;
-    for (size_t i = 0; i < node_hist.size(); ++i) {
-      node_hist[i] = {static_cast<double>(node_hist.size() - i), 1.0};
-      total_gpair += node_hist[i];
-    }
-    SimpleLCG lcg;
-    std::shuffle(node_hist.begin(), node_hist.end(), lcg);
-
-    RegTree tree;
-    evaluator.InitRoot(GradStats{total_gpair});
-    evaluator.EvaluateSplits(hist, gmat.cut, ft, tree, &entries);
-    ASSERT_TRUE(entries.front().split.is_cat);
-
-    auto run_eval = [&](auto fn) {
-      for (size_t i = 1; i < gmat.cut.Ptrs().size(); ++i) {
-        GradStats left, right;
-        for (size_t j = gmat.cut.Ptrs()[i - 1]; j < gmat.cut.Ptrs()[i]; ++j) {
-          auto loss_chg = evaluator.Evaluator().CalcSplitGain(param, 0, i - 1, left, right) -
-                          evaluator.Stats().front().root_gain;
-          fn(loss_chg);
-          left.Add(node_hist[j].GetGrad(), node_hist[j].GetHess());
-          right.SetSubstract(GradStats{total_gpair}, left);
-        }
-      }
-    };
-    // Assert that's the best split
-    auto best_loss_chg = entries.front().split.loss_chg;
-    run_eval([&](auto loss_chg) {
-      // Approximated test that gain returned by optimal partition is greater than
-      // numerical split.
-      ASSERT_GT(best_loss_chg, loss_chg);
-    });
-    // node_hist is captured in lambda.
-    std::sort(node_hist.begin(), node_hist.end(), [&](auto l, auto r) {
-      return evaluator.Evaluator().CalcWeightCat(param, l) <
-             evaluator.Evaluator().CalcWeightCat(param, r);
-    });
-
-    double reimpl = 0;
-    run_eval([&](auto loss_chg) { reimpl = std::max(loss_chg, reimpl); });
-    CHECK_EQ(reimpl, best_loss_chg);
-  }
+  HistEvaluator<double, CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0),
+                                                  sampler, ObjInfo{ObjInfo::kRegression}};
+  evaluator.InitRoot(GradStats{total_gpair_});
+  RegTree tree;
+  std::vector<CPUExpandEntry> entries(1);
+  evaluator.EvaluateSplits(hist_, cuts_, {ft}, tree, &entries);
+  ASSERT_NEAR(entries[0].split.loss_chg, best_score_, 1e-16);
 }
 
 namespace {

@@ -262,7 +262,8 @@ TEST(GpuHist, EvaluateRootSplit) {
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
+  DeviceSplitCandidate res =
+      maker.EvaluateRootSplit({6.4f, 12.8f}, 0, ObjInfo{ObjInfo::kRegression}).split;
 
   ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
@@ -300,11 +301,11 @@ void TestHistogramIndexImpl() {
   const auto &maker = hist_maker.maker;
   auto grad = GenerateRandomGradients(kNRows);
   grad.SetDevice(0);
-  maker->Reset(&grad, hist_maker_dmat.get(), kNCols);
+  maker->Reset(&grad, hist_maker_dmat.get(), kNCols, ObjInfo{ObjInfo::kRegression});
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
   const auto &maker_ext = hist_maker_ext.maker;
-  maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols);
+  maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols, ObjInfo{ObjInfo::kRegression});
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
   ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());

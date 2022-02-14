@@ -33,66 +33,84 @@ namespace common {
  */
 using GHistIndexRow = Span<uint32_t const>;
 
-// A CSC matrix representing histogram cuts, used in CPU quantile hist.
+// A CSC matrix representing histogram cuts.
 // The cut values represent upper bounds of bins containing approximately equal numbers of elements
 class HistogramCuts {
+  bool has_categorical_{false};
+  float max_cat_{-1.0f};
+
  protected:
   using BinIdx = uint32_t;
 
+  void Swap(HistogramCuts&& that) noexcept(true) {
+    std::swap(cut_values_, that.cut_values_);
+    std::swap(cut_ptrs_, that.cut_ptrs_);
+    std::swap(min_vals_, that.min_vals_);
+
+    std::swap(has_categorical_, that.has_categorical_);
+    std::swap(max_cat_, that.max_cat_);
+  }
+
+  void Copy(HistogramCuts const& that) {
+    cut_values_.Resize(that.cut_values_.Size());
+    cut_ptrs_.Resize(that.cut_ptrs_.Size());
+    min_vals_.Resize(that.min_vals_.Size());
+    cut_values_.Copy(that.cut_values_);
+    cut_ptrs_.Copy(that.cut_ptrs_);
+    min_vals_.Copy(that.min_vals_);
+    has_categorical_ = that.has_categorical_;
+    max_cat_ = that.max_cat_;
+  }
+
  public:
-  HostDeviceVector<bst_float> cut_values_;  // NOLINT
-  HostDeviceVector<uint32_t> cut_ptrs_;     // NOLINT
+  HostDeviceVector<float> cut_values_;   // NOLINT
+  HostDeviceVector<uint32_t> cut_ptrs_;  // NOLINT
   // storing minimum value in a sketch set.
   HostDeviceVector<float> min_vals_;  // NOLINT
 
   HistogramCuts();
-  HistogramCuts(HistogramCuts const& that) {
-    cut_values_.Resize(that.cut_values_.Size());
-    cut_ptrs_.Resize(that.cut_ptrs_.Size());
-    min_vals_.Resize(that.min_vals_.Size());
-    cut_values_.Copy(that.cut_values_);
-    cut_ptrs_.Copy(that.cut_ptrs_);
-    min_vals_.Copy(that.min_vals_);
-  }
+  HistogramCuts(HistogramCuts const& that) { this->Copy(that); }
 
   HistogramCuts(HistogramCuts&& that) noexcept(true) {
-    *this = std::forward<HistogramCuts&&>(that);
+    this->Swap(std::forward<HistogramCuts>(that));
   }
 
   HistogramCuts& operator=(HistogramCuts const& that) {
-    cut_values_.Resize(that.cut_values_.Size());
-    cut_ptrs_.Resize(that.cut_ptrs_.Size());
-    min_vals_.Resize(that.min_vals_.Size());
-    cut_values_.Copy(that.cut_values_);
-    cut_ptrs_.Copy(that.cut_ptrs_);
-    min_vals_.Copy(that.min_vals_);
+    this->Copy(that);
     return *this;
   }
 
   HistogramCuts& operator=(HistogramCuts&& that) noexcept(true) {
-    cut_ptrs_ = std::move(that.cut_ptrs_);
-    cut_values_ = std::move(that.cut_values_);
-    min_vals_ = std::move(that.min_vals_);
+    this->Swap(std::forward<HistogramCuts>(that));
     return *this;
   }
 
-  uint32_t FeatureBins(uint32_t feature) const {
-    return cut_ptrs_.ConstHostVector().at(feature + 1) -
-           cut_ptrs_.ConstHostVector()[feature];
+  uint32_t FeatureBins(bst_feature_t feature) const {
+    return cut_ptrs_.ConstHostVector().at(feature + 1) - cut_ptrs_.ConstHostVector()[feature];
   }
 
-  // Getters.  Cuts should be of no use after building histogram indices, but currently
-  // they are deeply linked with quantile_hist, gpu sketcher and gpu_hist, so we preserve
-  // these for now.
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
   std::vector<float>    const& MinValues() const { return min_vals_.ConstHostVector();   }
+
+  bool HasCategorical() const { return has_categorical_; }
+  float MaxCategory() const { return max_cat_; }
+  /**
+   * \brief Set meta info about categorical features.
+   *
+   * \param has_cat Do we have categorical feature in the data?
+   * \param max_cat The maximum categorical value in all features.
+   */
+  void SetCategorical(bool has_cat, float max_cat) {
+    has_categorical_ = has_cat;
+    max_cat_ = max_cat;
+  }
 
   size_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
 
   // Return the index of a cut point that is strictly greater than the input
   // value, or the last available index if none exists
-  BinIdx SearchBin(float value, uint32_t column_id, std::vector<uint32_t> const& ptrs,
+  BinIdx SearchBin(float value, bst_feature_t column_id, std::vector<uint32_t> const& ptrs,
                    std::vector<float> const& values) const {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
@@ -102,7 +120,7 @@ class HistogramCuts {
     return idx;
   }
 
-  BinIdx SearchBin(float value, uint32_t column_id) const {
+  BinIdx SearchBin(float value, bst_feature_t column_id) const {
     return this->SearchBin(value, column_id, Ptrs(), Values());
   }
 

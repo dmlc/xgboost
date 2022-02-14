@@ -207,7 +207,9 @@ __model_doc = f'''
         .. versionadded:: 1.5.0
 
         Experimental support for categorical data.  Do not set to true unless you are
-        interested in development. Only valid when `gpu_hist` and dataframe are used.
+        interested in development. Only valid when `gpu_hist` or `approx` is used along
+        with dataframe as input.  Also, JSON/UBJSON serialization format is
+        required. (XGBoost 1.6 for approx)
 
     max_cat_to_onehot : Optional[int]
 
@@ -216,10 +218,11 @@ __model_doc = f'''
         .. note:: This parameter is experimental
 
         A threshold for deciding whether XGBoost should use one-hot encoding based split
-        for categorical data.  When number of categories is lesser than the threshold then
-        one-hot encoding is chosen, otherwise the categories will be partitioned into
-        children nodes.  Only relevant for regression and binary classification and
-        `approx` tree method.
+        for categorical data.  When number of categories is lesser than the threshold
+        then one-hot encoding is chosen, otherwise the categories will be partitioned
+        into children nodes.  Only relevant for regression and binary
+        classification. Also, ``approx`` or ``gpu_hist`` tree method is required.  See
+        :doc:`Categorical Data </tutorials/categorical>` for details.
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 
