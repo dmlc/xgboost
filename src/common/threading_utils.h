@@ -1,7 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
- * \file common.h
- * \brief Threading utilities
+ * Copyright 2019-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
@@ -237,6 +235,8 @@ inline int32_t OmpGetThreadLimit() {
   CHECK_GE(limit, 1) << "Invalid thread limit for OpenMP.";
   return limit;
 }
+
+int32_t GetCfsCPUCount() noexcept;
 
 inline int32_t OmpGetNumThreads(int32_t n_threads) {
   if (n_threads <= 0) {

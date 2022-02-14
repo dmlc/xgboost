@@ -13,11 +13,18 @@
 namespace xgboost {
 
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
+ private:
+  // cached value for CFS CPU limit. (used in containerized env)
+  int32_t cfs_cpu_count_{-1};
+
+ public:
   // Constant representing the device ID of CPU.
   static int32_t constexpr kCpuId = -1;
   static int64_t constexpr kDefaultSeed = 0;
 
  public:
+  GenericParameter();
+
   // stored random seed
   int64_t seed { kDefaultSeed };
   // whether seed the PRNG each iteration

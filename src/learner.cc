@@ -228,6 +228,8 @@ DMLC_REGISTER_PARAMETER(GenericParameter);
 int constexpr GenericParameter::kCpuId;
 int64_t constexpr GenericParameter::kDefaultSeed;
 
+GenericParameter::GenericParameter() : cfs_cpu_count_{common::GetCfsCPUCount()} {}
+
 void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #if defined(XGBOOST_USE_CUDA)
   if (gpu_id == kCpuId) {  // 0. User didn't specify the `gpu_id'
@@ -262,7 +264,11 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 }
 
 int32_t GenericParameter::Threads() const {
-  return common::OmpGetNumThreads(nthread);
+  auto n_threads = common::OmpGetNumThreads(nthread);
+  if (cfs_cpu_count_ > 0) {
+    n_threads = std::min(n_threads, cfs_cpu_count_);
+  }
+  return n_threads;
 }
 
 using LearnerAPIThreadLocalStore =
