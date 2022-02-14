@@ -26,10 +26,19 @@ parameter_strategy = strategies.fixed_dictionaries({
     x['max_depth'] > 0 or x['grow_policy'] == 'lossguide'))
 
 
-def train_result(param, dmat, num_rounds):
-    result = {}
-    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
-              evals_result=result)
+def train_result(param, dmat: xgb.DMatrix, num_rounds: int) -> dict:
+    result: xgb.callback.TrainingCallback.EvalsLog = {}
+    booster = xgb.train(
+        param,
+        dmat,
+        num_rounds,
+        [(dmat, "train")],
+        verbose_eval=False,
+        evals_result=result,
+    )
+    assert booster.num_features() == dmat.num_col()
+    assert booster.num_boosted_rounds() == num_rounds
+
     return result
 
 

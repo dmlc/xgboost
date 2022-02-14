@@ -216,6 +216,16 @@ class GloablApproxBuilder {
     bst_node_t num_leaves = 1;
     auto expand_set = driver.Pop();
 
+    /**
+     * Note for update position
+     * Root:
+     *   Not applied: No need to update position as initialization has got all the rows ordered.
+     *   Applied: Update position is run on applied nodes so the rows are partitioned.
+     * Non-root:
+     *   Not applied: That node is root of the subtree, same rule as root.
+     *   Applied: Ditto
+     */
+
     while (!expand_set.empty()) {
       // candidates that can be further splited.
       std::vector<CPUExpandEntry> valid_candidates;
