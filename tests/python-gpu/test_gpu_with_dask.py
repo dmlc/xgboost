@@ -7,8 +7,6 @@ import numpy as np
 import asyncio
 import xgboost
 import subprocess
-import tempfile
-import json
 from collections import OrderedDict
 from inspect import signature
 from hypothesis import given, strategies, settings, note
@@ -321,9 +319,9 @@ class TestDistributedGPU:
             mult = 100
             df = cudf.DataFrame(
                 {
-                    "a": [1,2,3,4,5.1] * mult,
-                    "b": [10,15,29.3,30,31] * mult,
-                    "y": [10,20,30,40.,50] * mult,
+                    "a": [1, 2, 3, 4, 5.1] * mult,
+                    "b": [10, 15, 29.3, 30, 31] * mult,
+                    "y": [10, 20, 30, 40., 50] * mult,
                 }
             )
             parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
@@ -350,9 +348,33 @@ class TestDistributedGPU:
             y = ddf[["y"]]
             dtrain = dxgb.DaskDeviceQuantileDMatrix(client, X, y)
             bst = xgb.dask.train(client, parameters, dtrain, evals=[(dtrain, "train")])
-            predt = dxgb.predict(client, bst, X).compute().values
 
+            predt = dxgb.predict(client, bst, X).compute().values
             cupy.testing.assert_allclose(predt, predt_empty)
+
+            predt = dxgb.predict(client, bst, dtrain).compute()
+            cupy.testing.assert_allclose(predt, predt_empty)
+
+            predt = dxgb.inplace_predict(client, bst, X).compute().values
+            cupy.testing.assert_allclose(predt, predt_empty)
+
+            df = df.to_pandas()
+            empty = df.iloc[:0]
+            ddf = dd.concat(
+                [dd.from_pandas(empty, npartitions=1)]
+                + [dd.from_pandas(df, npartitions=3)]
+                + [dd.from_pandas(df, npartitions=3)]
+            )
+            X = ddf[ddf.columns.difference(["y"])]
+            y = ddf[["y"]]
+
+            predt_empty = cupy.asnumpy(predt_empty)
+
+            predt = dxgb.predict(client, bst_empty, X).compute().values
+            np.testing.assert_allclose(predt, predt_empty)
+
+            in_predt = dxgb.inplace_predict(client, bst_empty, X).compute().values
+            np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
