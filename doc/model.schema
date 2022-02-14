@@ -505,47 +505,6 @@
               "properties": {
                 "name": {"const": "binary:hinge"}
               }
-            },
-            {
-              "type": "object",
-              "properties": {
-               "name": {"const": "binary:logistic_oneapi"}
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-               "name": {"const": "binary:logitraw_oneapi"}
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-               "name": {"const": "multi:softmax_oneapi"}
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-               "name": {"const": "multi:softprob_oneapi"}
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-               "name": {"const": "reg:squarederror_oneapi"}
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-               "name": {"const": "reg:squaredlogerror_oneapi"}
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-              "name": {"const": "reg:logistic_oneapi"}
             }
             }
           ]

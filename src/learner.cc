@@ -370,8 +370,29 @@ class LearnerConfiguration : public Learner {
     }
 
     this->ConfigureGBM(old_tparam, args);
-    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+
+
+    /* Start of device_id and gpu_id configuration.
+     * After introducing the unified device dispatching with device_id, 
+     * one needs to keep the backward compatibility of the user code which uses gpu_id. 
+     * One ensures such compatibility by the following steps:
+     * 1. If gpu_id is set, device_id will be reconfigured consistently with the gpu_id. 
+     *    So gpu_id has a higher priority than device_id. After this step device_id has the correct value
+     *    both in cases of device_id or gpu_id is used by the user.
+     */ 
     generic_parameters_.device_id.UpdateByGPUId(generic_parameters_.gpu_id);
+
+    /* 2. gpu_id is set consistently with the device_id. After this step, the value of gpu_id is 
+     *    correct both in cases of device_id or gpu_id is used by the user. 
+     *    After this step doesn't matter did the user use gpu_id or device_id.
+     */
+    generic_parameters_.gpu_id = generic_parameters_.device_id.GetGPUId();
+
+    /* 3. Next step is configuring the gpu_id according to the sets of condition from ConfigureGpuId
+     */
+    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+    /* End of device_id and gpu_id configuration.
+     */
 
     this->ConfigureMetrics(args);
 

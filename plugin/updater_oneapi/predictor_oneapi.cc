@@ -25,20 +25,40 @@ class PredictorOneAPI : public Predictor {
  public:
   explicit PredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {
-    bool is_cpu = generic_param->device_id.Type() == DeviceType::kOneAPI_CPU;
-    std::vector<sycl::device> devices = sycl::device::get_devices();
+    // bool is_cpu = (generic_param->device_id.Type() == DeviceType::kOneAPI_CPU) || 
+    //               (generic_param->device_id.Type() == DeviceType::kDefault);
 
-    for (size_t i = 0; i < devices.size(); i++)
-    {
+    const DeviceId& device_id = generic_param->device_id;
+    std::vector<sycl::device> devices = sycl::device::get_devices();
+    for (size_t i = 0; i < devices.size(); i++) {
       LOG(INFO) << "device_id = " << i << ", name = " << devices[i].get_info<sycl::info::device::name>();
     }
-    if (generic_param->device_id.Index() != DeviceId::kDefaultIndex) {
-      int n_devices = (int)devices.size();
 
-      CHECK_LT(generic_param->device_id.Index(), n_devices);
-      is_cpu = devices[generic_param->device_id.Index()].is_cpu() | devices[generic_param->device_id.Index()].is_host();
+    std::vector<sycl::device> cpu_devices;
+    std::vector<sycl::device> gpu_devices;
+    for (size_t i = 0; i < devices.size(); i++) {
+      if (devices[i].is_cpu()) {
+        cpu_devices.push_back(devices[i]);
+      } else if (devices[i].is_gpu()) {
+        gpu_devices.push_back(devices[i]);
+      }
     }
-    LOG(INFO) << "device_id = " << generic_param->device_id.Index() << ", is_cpu = " << int(is_cpu);
+
+    bool is_cpu = true;
+    if (device_id.Type() == DeviceType::kOneAPI_CPU) {
+      CHECK_LT(device_id.Index(), cpu_devices.size());
+    } else if (device_id.Type() == DeviceType::kOneAPI_GPU) {
+      CHECK_LT(device_id.Index(), gpu_devices.size());
+      is_cpu = gpu_devices[device_id.Index()].is_host();
+    }
+
+    // if (generic_param->device_id.Index() != DeviceId::kDefaultIndex) {
+    //   int n_devices = (int)devices.size();
+
+    //   CHECK_LT(generic_param->device_id.Index(), n_devices);
+    //   is_cpu = devices[generic_param->device_id.Index()].is_cpu() | devices[generic_param->device_id.Index()].is_host();
+    // }
+    LOG(INFO) << "device_id = " << device_id << ", is_cpu = " << int(is_cpu);
     
     if (is_cpu)
     {

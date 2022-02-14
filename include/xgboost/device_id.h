@@ -34,7 +34,6 @@ class DeviceId {
   static int constexpr kDefaultIndex = -1;
 
   void Init(const std::string& user_input_device_id);
-
   DeviceType Type() const;
 
   int Index() const;
@@ -44,6 +43,8 @@ class DeviceId {
   void SaveConfig(Json* p_out) const;
 
   void UpdateByGPUId(int gpu_id);
+
+  int GetGPUId();
 
  private:
   DeviceType type_ = DeviceType::kDefault;

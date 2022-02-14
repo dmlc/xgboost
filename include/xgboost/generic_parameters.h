@@ -16,7 +16,6 @@ namespace xgboost {
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // Constant representing the device ID of CPU.
   static int32_t constexpr kCpuId = -1;
-  static int32_t constexpr kGpuId = -1;
   static int64_t constexpr kDefaultSeed = 0;
 
  public:
@@ -42,6 +41,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
    * \param require_gpu  Whether GPU is explicitly required from user.
    */
   void ConfigureGpuId(bool require_gpu);
+
   /*!
    * Return automatically chosen threads.
    */
@@ -60,8 +60,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_ALIAS(nthread, n_jobs);
 
     DMLC_DECLARE_FIELD(gpu_id)
-        .set_default(kGpuId)
-        .set_lower_bound(kGpuId)
+        .set_default(-1)
+        .set_lower_bound(-1)
         .describe("The primary GPU device ordinal.");
     DMLC_DECLARE_FIELD(fail_on_invalid_gpu_id)
         .set_default(false)

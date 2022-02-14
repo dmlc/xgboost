@@ -46,7 +46,7 @@ class TestOneAPIUpdaters:
     @given(tm.dataset_strategy.filter(lambda x: x.name != "empty"), strategies.integers(0, 1))
     @settings(deadline=None)
     def test_specified_device_id_oneapi_update(self, dataset, device_id):
-        param = {'updater': 'grow_quantile_histmaker', 'device_id': f'oneapi:cpu:{device_id}'}
+        param = {'updater': 'grow_quantile_histmaker', 'device_id': f'oneapi:gpu:{device_id}'}
         param = dataset.set_params(param)
         print(param)
         result = train_result(param, dataset.get_dmat(), 10)

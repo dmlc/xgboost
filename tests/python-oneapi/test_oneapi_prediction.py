@@ -81,7 +81,7 @@ class TestOneAPIPredict(unittest.TestCase):
         params["tree_method"] = "hist"
         params["updater"] = "grow_quantile_histmaker"
 
-        params['predictor'] = "oneapi_predictor"
+#        params['predictor'] = "oneapi_predictor"
         params['device_id'] = "oneapi:cpu:0"
         bst_oneapi_predict = xgb.train(params, dtrain)
 

@@ -69,7 +69,7 @@ std::istream& operator >> (std::istream& is, DeviceId& device_id) {
 }
 
 std::ostream& operator << (std::ostream& os, const DeviceId& device_id) {
-  auto known_device_names = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->ListAllNames();
+  std::vector<std::string> known_device_names = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->ListAllNames();
   for (const std::string& device_name : known_device_names) {
     auto device_type = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name)->body;
     if (device_type == device_id.Type()) {
@@ -79,12 +79,22 @@ std::ostream& operator << (std::ostream& os, const DeviceId& device_id) {
   }
   CHECK(false)
     << "Can't find device name for type enumerated as " << static_cast<int> (device_id.Type());
+
+  return os;
 }
 
 void DeviceId::UpdateByGPUId(int gpu_id) {
-  if (gpu_id != GenericParameter::kGpuId) {
+  if (gpu_id != GenericParameter::kCpuId) {
     type_ = DeviceType::kCUDA;
     index_ = gpu_id;
+  }
+}
+
+int DeviceId::GetGPUId() {
+  if (type_ == DeviceType::kCUDA) {
+    return index_;
+  } else {
+    return GenericParameter::kCpuId;
   }
 }
 
