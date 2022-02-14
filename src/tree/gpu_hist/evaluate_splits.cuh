@@ -129,7 +129,7 @@ class GPUHistEvaluator {
 
   auto GetEvaluator() { return tree_evaluator_.GetEvaluator<GPUTrainingParam>(); }
   /**
-   * \brief Sort the histogram based to obtain contiguous partitions.
+   * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
   common::Span<bst_feature_t const> SortHistogram(
       EvaluateSplitInputs<GradientSumT> const &left, EvaluateSplitInputs<GradientSumT> const &right,
