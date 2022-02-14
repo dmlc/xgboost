@@ -15,7 +15,7 @@ namespace xgboost {
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
  private:
   // cached value for CFS CPU limit. (used in containerized env)
-  int32_t cfs_cpu_count_;
+  int32_t cfs_cpu_count_;  // NOLINT
 
  public:
   // Constant representing the device ID of CPU.
