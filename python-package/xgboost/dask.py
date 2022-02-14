@@ -27,6 +27,8 @@ Optional dask configuration
   .. code-block:: python
 
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
+      # We can also specify the port.
+      dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
 import platform
@@ -160,13 +162,25 @@ def _multi_lock() -> Any:
 
 
 def _try_start_tracker(
-    n_workers: int, addrs: List[Optional[str]]
+    n_workers: int,
+    addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
 ) -> Dict[str, Union[int, str]]:
     env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
     try:
-        rabit_context = RabitTracker(
-            hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
-        )
+        if isinstance(addrs[0], tuple):
+            host_ip = addrs[0][0]
+            port = addrs[0][1]
+            rabit_context = RabitTracker(
+                hostIP=get_host_ip(host_ip),
+                n_workers=n_workers,
+                port=port,
+                use_logger=False,
+            )
+        else:
+            assert isinstance(addrs[0], str) or addrs[0] is None
+            rabit_context = RabitTracker(
+                hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+            )
         env.update(rabit_context.worker_envs())
         rabit_context.start(n_workers)
         thread = Thread(target=rabit_context.join)
@@ -186,7 +200,9 @@ def _try_start_tracker(
 
 
 def _start_tracker(
-    n_workers: int, addr_from_dask: Optional[str], addr_from_user: Optional[str]
+    n_workers: int,
+    addr_from_dask: Optional[str],
+    addr_from_user: Optional[Tuple[str, int]],
 ) -> Dict[str, Union[int, str]]:
     """Start Rabit tracker, recurse to try different addresses."""
     env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
@@ -830,13 +846,22 @@ async def _get_rabit_args(
     # We try 1 and 3 if 1 is available, otherwise 2 and 3.
     valid_config = ["scheduler_address"]
     # See if user config is available
+    host_ip: Optional[str] = None
+    port: int = 0
     if dconfig is not None:
         for k in dconfig:
             if k not in valid_config:
                 raise ValueError(f"Unknown configuration: {k}")
-        host_ip: Optional[str] = dconfig.get("scheduler_address", None)
+        host_ip = dconfig.get("scheduler_address", None)
+        try:
+            host_ip, port = distributed.comm.get_address_host_port(host_ip)
+        except ValueError:
+            pass
+    if host_ip is not None:
+        user_addr = (host_ip, port)
     else:
-        host_ip = None
+        user_addr = None
+
     # Try address from dask scheduler, this might not work, see
     # https://github.com/dask/dask-xgboost/pull/40
     try:
@@ -845,7 +870,9 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
-    env = await client.run_on_scheduler(_start_tracker, n_workers, sched_addr, host_ip)
+    env = await client.run_on_scheduler(
+        _start_tracker, n_workers, sched_addr, user_addr
+    )
 
     rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
     return rabit_args

@@ -12,10 +12,10 @@ if sys.platform.startswith("win"):
 def test_rabit_tracker():
     tracker = RabitTracker(hostIP='127.0.0.1', n_workers=1)
     tracker.start(1)
-    rabit_env = [
-        str.encode('DMLC_TRACKER_URI=127.0.0.1'),
-        str.encode('DMLC_TRACKER_PORT=9091'),
-        str.encode('DMLC_TASK_ID=0')]
+    worker_env = tracker.worker_envs()
+    rabit_env = []
+    for k, v in worker_env.items():
+        rabit_env.append(f"{k}={v}".encode())
     xgb.rabit.init(rabit_env)
     ret = xgb.rabit.broadcast('test1234', 0)
     assert str(ret) == 'test1234'

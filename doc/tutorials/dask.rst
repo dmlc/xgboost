@@ -478,7 +478,7 @@ interface, including callback functions, custom evaluation metric and objective:
 .. _tracker-ip:
 
 ***************
-Tracker Host IP
+Troubleshooting
 ***************
 
 .. versionadded:: 1.6.0
@@ -499,7 +499,10 @@ dask config is used:
     with Client(scheduler_file="sched.json") as client:
         reg = dxgb.DaskXGBRegressor()
 
-XGBoost will read configuration before training.
+    # or we can specify the port too
+    with dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"}):
+        reg = dxgb.DaskXGBRegressor()
+
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors

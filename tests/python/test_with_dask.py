@@ -1228,6 +1228,10 @@ class TestWithDask:
             with pytest.raises(ValueError):
                 xgb.dask.train(client, {}, dtrain, num_boost_round=4)
 
+        with dask.config.set({'xgboost.scheduler_address': "127.0.0.1:22"}):
+            with pytest.raises(PermissionError):
+                xgb.dask.train(client, {}, dtrain, num_boost_round=1)
+
     def run_updater_test(
         self,
         client: "Client",
