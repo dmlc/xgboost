@@ -218,7 +218,7 @@ class TestTreeMethod:
         xgb.train(
             parameters,
             m,
-            num_boost_round=8,
+            num_boost_round=rounds,
             evals=[(m, "Train")],
             evals_result=by_grouping,
         )

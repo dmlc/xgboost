@@ -260,7 +260,7 @@ struct GPUHistMakerDevice {
     hist.Reset();
   }
 
-  DeviceSplitCandidate EvaluateRootSplit(GradientPairPrecise root_sum, ObjInfo task) {
+  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum, float weight, ObjInfo task) {
     int nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
@@ -277,7 +277,7 @@ struct GPUHistMakerDevice {
                                              matrix.gidx_fvalue_map,
                                              matrix.min_fvalue,
                                              hist.GetNodeHistogram(nidx)};
-    auto split = this->evaluator_.EvaluateSingleSplit(inputs, task);
+    auto split = this->evaluator_.EvaluateSingleSplit(inputs, weight, task);
     return split;
   }
 
@@ -605,23 +605,7 @@ struct GPUHistMakerDevice {
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
     // Generate first split
-    auto split = this->EvaluateRootSplit(root_sum, task);
-    dh::TemporaryArray<GPUExpandEntry> entries(1);
-    auto d_entries = entries.data().get();
-    auto tree_evaluator = evaluator_.GetEvaluator();
-    GPUTrainingParam gpu_param(param);
-    auto depth = p_tree->GetDepth(kRootNIdx);
-    dh::LaunchN(1, [=] __device__(size_t idx) {
-      float left_weight =
-          tree_evaluator.CalcWeight(kRootNIdx, gpu_param, GradStats{split.left_sum});
-      float right_weight =
-          tree_evaluator.CalcWeight(kRootNIdx, gpu_param, GradStats{split.right_sum});
-      d_entries[0] = GPUExpandEntry(kRootNIdx, depth, split, weight, left_weight, right_weight);
-    });
-    GPUExpandEntry root_entry;
-    dh::safe_cuda(cudaMemcpyAsync(
-        &root_entry, entries.data().get(),
-        sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
+    auto root_entry = this->EvaluateRootSplit(root_sum, weight, task);
     return root_entry;
   }
 

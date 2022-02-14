@@ -57,7 +57,8 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   GPUHistEvaluator<GradientPair> evaluator{
       tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
   dh::device_vector<common::CatBitField::value_type> out_cats;
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, ObjInfo{ObjInfo::kRegression});
+  DeviceSplitCandidate result =
+      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
 
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
@@ -100,7 +101,8 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator(tparam, feature_set.size(), 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, ObjInfo{ObjInfo::kRegression});
+  DeviceSplitCandidate result =
+      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
 
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
@@ -112,8 +114,10 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
 TEST(GpuHist, EvaluateSingleSplitEmpty) {
   TrainParam tparam = ZeroParam();
   GPUHistEvaluator<GradientPair> evaluator(tparam, 1, 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(EvaluateSplitInputs<GradientPair>{},
-                                                              ObjInfo{ObjInfo::kRegression});
+  DeviceSplitCandidate result = evaluator
+                                    .EvaluateSingleSplit(EvaluateSplitInputs<GradientPair>{}, 0,
+                                                         ObjInfo{ObjInfo::kRegression})
+                                    .split;
   EXPECT_EQ(result.findex, -1);
   EXPECT_LT(result.loss_chg, 0.0f);
 }
@@ -148,7 +152,8 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator(tparam, feature_min_values.size(), 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, ObjInfo{ObjInfo::kRegression});
+  DeviceSplitCandidate result =
+      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
 
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
@@ -186,7 +191,8 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator(tparam, feature_min_values.size(), 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, ObjInfo{ObjInfo::kRegression});
+  DeviceSplitCandidate result =
+      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
 
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
@@ -276,7 +282,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
                                                  cuts_.cut_values_.ConstDeviceSpan(),
                                                  cuts_.min_vals_.ConstDeviceSpan(),
                                                  dh::ToSpan(d_hist)};
-  auto split = evaluator.EvaluateSingleSplit(input, ObjInfo{ObjInfo::kRegression});
+  auto split = evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-16);
 }
 }  // namespace tree

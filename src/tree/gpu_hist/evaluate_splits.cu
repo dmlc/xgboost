@@ -404,15 +404,18 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate, Ob
 }
 
 template <typename GradientSumT>
-DeviceSplitCandidate GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
-    EvaluateSplitInputs<GradientSumT> input, ObjInfo task) {
+GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
+    EvaluateSplitInputs<GradientSumT> input, float weight, ObjInfo task) {
   dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
   auto out_split = dh::ToSpan(splits_out);
-  this->EvaluateSplits(input, {}, task, tree_evaluator_.GetEvaluator<GPUTrainingParam>(),
-                       out_split);
+  auto evaluator = tree_evaluator_.GetEvaluator<GPUTrainingParam>();
+  this->EvaluateSplits(input, {}, task, evaluator, out_split);
+
   auto cats_out = this->DeviceCatStorage(input.nidx);
   auto d_sorted_idx = this->SortedIdx(input);
 
+  dh::TemporaryArray<GPUExpandEntry> entries(1);
+  auto d_entries = entries.data().get();
   dh::LaunchN(1, [=] __device__(size_t i) {
     auto &split = out_split[i];
     auto fidx = out_split[i].findex;
@@ -421,14 +424,17 @@ DeviceSplitCandidate GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
         !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot, task)) {
       SortBasedSplit(input, d_sorted_idx, fidx, true, cats_out, &out_split[i]);
     }
+
+    float left_weight = evaluator.CalcWeight(0, input.param, GradStats{split.left_sum});
+    float right_weight = evaluator.CalcWeight(0, input.param, GradStats{split.right_sum});
+    d_entries[0] = GPUExpandEntry(0, 0, split, weight, left_weight, right_weight);
   });
   this->CopyToHost(input, cats_out);
 
-  DeviceSplitCandidate result;
-  dh::safe_cuda(cudaMemcpy(&result, splits_out.data().get(),
-                           sizeof(DeviceSplitCandidate) * splits_out.size(),
-                           cudaMemcpyDeviceToHost));
-  return result;
+  GPUExpandEntry root_entry;
+  dh::safe_cuda(cudaMemcpyAsync(&root_entry, entries.data().get(),
+                                sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
+  return root_entry;
 }
 
 template class GPUHistEvaluator<GradientPair>;

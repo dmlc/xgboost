@@ -150,7 +150,8 @@ class GPUHistEvaluator {
   /**
    * \brief Evaluate splits for root node.
    */
-  DeviceSplitCandidate EvaluateSingleSplit(EvaluateSplitInputs<GradientSumT> input, ObjInfo task);
+  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs<GradientSumT> input, float weight,
+                                     ObjInfo task);
 };
 }  // namespace tree
 }  // namespace xgboost
