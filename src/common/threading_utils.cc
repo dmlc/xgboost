@@ -11,7 +11,7 @@
 namespace xgboost {
 namespace common {
 /**
- * \brief Get thread limit from docker container
+ * \brief Get thread limit from CFS
  *
  * Modified from
  * github.com/psiha/sweater/blob/master/include/boost/sweater/hardware_concurrency.hpp
@@ -27,7 +27,9 @@ int32_t GetCfsCPUCount() noexcept {
 
   auto read_int = [](char const* const file_path) noexcept {
     auto const fd(::open(file_path, O_RDONLY, 0));
-    if (fd == -1) return -1;
+    if (fd == -1) {
+      return -1;
+    }
     char value[64];
     CHECK(::read(fd, value, sizeof(value)) < signed(sizeof(value)));
     return std::atoi(value);
@@ -36,9 +38,7 @@ int32_t GetCfsCPUCount() noexcept {
   auto const cfs_quota(read_int("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
   auto const cfs_period(read_int("/sys/fs/cgroup/cpu/cpu.cfs_period_us"));
   if ((cfs_quota > 0) && (cfs_period > 0)) {
-    // Docker allows non-whole core quota assignments - use some sort of
-    // heurestical rounding.
-    return std::max((cfs_quota + cfs_period / 2) / cfs_period, 1);
+    return std::max(cfs_quota / cfs_period, 1);
   }
 #endif  //  defined(__linux__)
   return -1;
