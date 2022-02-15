@@ -26,7 +26,6 @@ import org.junit.runners.Parameterized.Parameters;
 
 import java.util.Collection;
 
-import static com.github.stefanbirkner.systemlambda.SystemLambda.restoreSystemProperties;
 import static java.util.Arrays.asList;
 import static junit.framework.TestCase.assertSame;
 import static ml.dmlc.xgboost4j.java.NativeLibLoader.OS.*;
@@ -63,8 +62,8 @@ public class OsDetectionTest {
     }
 
     @Test
-    public void getOS() throws Exception {
-      restoreSystemProperties(() -> {
+    public void getOS() {
+      executeAndRestoreProperty(() -> {
         System.setProperty(OS_NAME_PROPERTY, osNameValue);
         assertSame(detectOS(), expectedOS);
       });
@@ -81,7 +80,7 @@ public class OsDetectionTest {
       setMappedFilesBaseDir(folder.getRoot().toPath());
       folder.newFile("ld-2.23.so");
 
-      restoreSystemProperties(() -> {
+      executeAndRestoreProperty(() -> {
         System.setProperty(OS_NAME_PROPERTY, "linux");
         assertSame(detectOS(), LINUX);
       });
@@ -92,18 +91,33 @@ public class OsDetectionTest {
       setMappedFilesBaseDir(folder.getRoot().toPath());
       folder.newFile("ld-musl-x86_64.so.1");
 
-      restoreSystemProperties(() -> {
+      executeAndRestoreProperty(() -> {
         System.setProperty(OS_NAME_PROPERTY, "linux");
         assertSame(detectOS(), LINUX_MUSL);
       });
     }
 
     @Test
-    public void testUnsupportedOs() throws Exception {
-      restoreSystemProperties(() -> {
+    public void testUnsupportedOs() {
+      executeAndRestoreProperty(() -> {
         System.setProperty(OS_NAME_PROPERTY, "unsupported");
         assertThrows(IllegalStateException.class, OS::detectOS);
       });
     }
   }
+
+  private static void executeAndRestoreProperty(Runnable action) {
+    String oldValue = System.getProperty(OS_NAME_PROPERTY);
+
+    try {
+      action.run();
+    } finally {
+      if (oldValue != null) {
+        System.setProperty(OS_NAME_PROPERTY, oldValue);
+      } else {
+        System.clearProperty(OS_NAME_PROPERTY);
+      }
+    }
+  }
+
 }

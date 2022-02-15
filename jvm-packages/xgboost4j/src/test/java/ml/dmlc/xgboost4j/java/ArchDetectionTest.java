@@ -23,7 +23,6 @@ import org.junit.runners.Parameterized.Parameters;
 
 import java.util.Collection;
 
-import static com.github.stefanbirkner.systemlambda.SystemLambda.restoreSystemProperties;
 import static java.util.Arrays.asList;
 import static junit.framework.TestCase.assertSame;
 import static ml.dmlc.xgboost4j.java.NativeLibLoader.Arch.X86_64;
@@ -63,8 +62,8 @@ public class ArchDetectionTest {
     }
 
     @Test
-    public void testArch() throws Exception {
-      restoreSystemProperties(() -> {
+    public void testArch() {
+      executeAndRestoreProperty(() -> {
         System.setProperty(OS_ARCH_PROPERTY, osArchValue);
         assertSame(detectArch(), expectedArch);
       });
@@ -74,11 +73,25 @@ public class ArchDetectionTest {
   public static class UnsupportedArchDetectionTest {
 
     @Test
-    public void testUnsupportedArch() throws Exception {
-      restoreSystemProperties(() -> {
+    public void testUnsupportedArch() {
+      executeAndRestoreProperty(() -> {
         System.setProperty(OS_ARCH_PROPERTY, "unsupported");
         assertThrows(IllegalStateException.class, NativeLibLoader.Arch::detectArch);
       });
+    }
+  }
+
+  private static void executeAndRestoreProperty(Runnable action) {
+    String oldValue = System.getProperty(OS_ARCH_PROPERTY);
+
+    try {
+      action.run();
+    } finally {
+      if (oldValue != null) {
+        System.setProperty(OS_ARCH_PROPERTY, oldValue);
+      } else {
+        System.clearProperty(OS_ARCH_PROPERTY);
+      }
     }
   }
 
