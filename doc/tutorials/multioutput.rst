@@ -8,8 +8,8 @@ Starting from version 1.6, XGBoost has experimental support for multi-output reg
 and multi-label classification with Python package.  Multi-label classification usually
 refers to targets that have multiple non-exclusive class labels.  For instance, a movie
 can be simultaneously classified as both sci-fi and comedy.  For detailed explanation of
-terminologies related to different multi-output models please refer to the `scikit-learn
-user guide <https://scikit-learn.org/stable/modules/multiclass.HTML>`_.
+terminologies related to different multi-output models please refer to the
+:doc:`scikit-learn user guide <sklearn:modules/multiclass>`.
 
 Internally, XGBoost builds one model for each target similar to sklearn meta estimators,
 with the added benefit of reusing data and other integrated features like SHAP.  For a
