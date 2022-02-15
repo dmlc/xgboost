@@ -27,7 +27,6 @@ import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.stream.Stream;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -57,7 +56,6 @@ class NativeLibLoader {
       this.name = name;
     }
 
-    @VisibleForTesting
     static void setMappedFilesBaseDir(Path baseDir) {
       mappedFilesBaseDir = baseDir;
     }
