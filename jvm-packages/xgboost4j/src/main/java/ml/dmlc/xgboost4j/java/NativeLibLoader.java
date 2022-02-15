@@ -84,7 +84,7 @@ class NativeLibLoader {
 
     /**
      * Checks if the Linux OS is musl based. For this, we check the memory-mapped
-     * files and see if one of those contains the string "musl".
+     * filenames and see if one of those contains the string "musl".
      *
      * @return true if the Linux OS is musl based, false otherwise.
      */
