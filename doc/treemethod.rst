@@ -114,3 +114,32 @@ was never tested and contained some unknown bugs, we decided to remove it and fo
 resources on more promising algorithms instead.  For accuracy, most of the time
 ``approx``, ``hist`` and ``gpu_hist`` are enough with some parameters tuning, so removing
 them don't have any real practical impact.
+
+
+**************
+Feature Matrix
+**************
+
+Following table summarizes some differences in supported features between 4 tree methods,
+`T` means supported while `F` means unsupported.
+
+|------------------+-----------+---------------------+---------------------+------------------------|
+|                  | Exact     | Approx              | Hist                | GPU Hist               |
+|==================+==========-+=====================+=====================+========================|
+| grow_policy      | Depthwise | depthwise/lossguide | depthwise/lossguide | depthwise/lossguide    |
+|------------------+-----------+---------------------+---------------------+------------------------|
+| max_leaves       | F         | T                   | T                   | T                      |
+|------------------+-----------+---------------------+---------------------+------------------------|
+| sampling method  | uniform   | uniform             | uniform             | gradient_based/uniform |
+|------------------+-----------+---------------------+---------------------+------------------------|
+| categorical data | F         | T                   | T                   | T                      |
+|------------------+-----------+---------------------+---------------------+------------------------|
+| External memory  | F         | T                   | P                   | P                      |
+|------------------+-----------+---------------------+---------------------+------------------------|
+| Distributed      | F         | T                   | T                   | T                      |
+|------------------+-----------+---------------------+---------------------+------------------------|
+
+Features/parameters that are not mentioned implies that it's universally supported for all
+4 tree methods (for instance, column sampling and constraints).  The `P` in external
+memory means partially supported.  Please note that both categorical data and external
+memory are experimental.
