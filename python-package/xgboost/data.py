@@ -5,7 +5,7 @@ import ctypes
 import json
 import warnings
 import os
-from typing import Any, Tuple, Callable, Union, Optional, List, cast
+from typing import Any, Tuple, Callable, Union, Optional, List, cast, Sequence
 
 import numpy as np
 
@@ -343,15 +343,17 @@ def _is_pandas_series(data: NativeInput) -> bool:
 
 
 def _meta_from_pandas_series(
-    data, name: str, dtype: Optional[str], handle: ctypes.c_void_p
+    data: DFLike, name: str, dtype: DTypeLike, handle: ctypes.c_void_p
 ) -> None:
     """Help transform pandas series for meta data like labels"""
-    data = data.values.astype('float')
+    import pandas as pd
+    df = cast(pd.Series, data)
+    arr: np.ndarray = df.values.astype('float')
     from pandas.api.types import is_sparse
-    if is_sparse(data):
-        data = data.to_dense()
-    assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
-    _meta_from_numpy(data, name, dtype, handle)
+    if is_sparse(arr):
+        arr = arr.to_dense()
+    assert len(arr.shape) == 1 or arr.shape[1] == 0 or arr.shape[1] == 1
+    _meta_from_numpy(arr, name, dtype, handle)
 
 
 def _is_modin_series(data: NativeInput) -> bool:
@@ -363,8 +365,8 @@ def _is_modin_series(data: NativeInput) -> bool:
 
 
 def _from_pandas_series(
-    data,
-    missing: float,
+    data: DFLike,
+    missing: FloatT,
     nthread: int,
     enable_categorical: bool,
     feature_names: FeatNamesT,
@@ -488,7 +490,7 @@ def _is_cudf_df(data: NativeInput) -> bool:
     return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
-def _cudf_array_interfaces(data: CuDFLike, cat_codes: list) -> bytes:
+def _cudf_array_interfaces(data: CuDFLike, cat_codes: Optional[list]) -> bytes:
     """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
     data and a list of array interfaces.  The data is list of categorical codes that
     caller can safely ignore, but have to keep their reference alive until usage of array
@@ -499,7 +501,6 @@ def _cudf_array_interfaces(data: CuDFLike, cat_codes: list) -> bytes:
         from cudf.api.types import is_categorical_dtype
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
-    import cudf
 
     interfaces = []
     if _is_cudf_ser(data):
@@ -529,15 +530,14 @@ def _transform_cudf_df(
     feature_names: FeatNamesT,
     feature_types: FeatureTypes,
     enable_categorical: bool,
-) -> Tuple[CuDFLike, Optional[List[str]], FeatureTypes]:
-    import cudf
+) -> Tuple[CuDFLike, Optional[list], Optional[List[str]], FeatureTypes]:
     try:
         from cudf.api.types import is_categorical_dtype
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
 
     if _is_cudf_ser(data):
-        dtypes = [data.dtype]
+        dtypes: Sequence = [data.dtype]
     else:
         dtypes = data.dtypes
 
@@ -564,6 +564,7 @@ def _transform_cudf_df(
         else:
             feature_names = data.columns.format()
 
+    feature_types_lst = []
     # handle feature types
     if feature_types is None:
         feature_types = []
@@ -886,7 +887,7 @@ def _validate_meta_shape(data: array_like, name: str) -> None:
 def _meta_from_numpy(
     data: np.ndarray,
     field: str,
-    dtype: Optional[Union[np.dtype, str]],
+    dtype: DTypeLike,
     handle: ctypes.c_void_p,
 ) -> None:
     data, dtype = _ensure_np_dtype(data, dtype)
@@ -910,12 +911,14 @@ def _meta_from_tuple(
     return _meta_from_list(cast(list, data), field, dtype, handle)
 
 
-def _meta_from_cudf_df(data, field: str, handle: ctypes.c_void_p) -> None:
+def _meta_from_cudf_df(data: CuDFLike, field: str, handle: ctypes.c_void_p) -> None:
+    import cudf
+    df = cast(cudf.DataFrame, data)
     if field not in _matrix_meta:
-        _meta_from_cudf_series(data.iloc[:, 0], field, handle)
+        _meta_from_cudf_series(df.iloc[:, 0], field, handle)
     else:
-        data = data.values
-        interface = _cuda_array_interface(data)
+        arr = data.values
+        interface = _cuda_array_interface(arr)
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
@@ -936,14 +939,16 @@ def _meta_from_cupy_array(data: CuArrayLike, field: str, handle: ctypes.c_void_p
                                                    interface))
 
 
-def _meta_from_dt(data, field: str, dtype, handle: ctypes.c_void_p):
+def _meta_from_dt(
+    data: Any, field: str, dtype: DTypeLike, handle: ctypes.c_void_p
+) -> None:
     data, _, _ = _transform_dt_df(data, None, None, field, dtype)
     _meta_from_numpy(data, field, dtype, handle)
 
 
 def dispatch_meta_backend(
-    matrix: DMatrix, data, name: str, dtype: Optional[Union[str, np.dtype]] = None
-):
+    matrix: DMatrix, data: array_like, name: str, dtype: DTypeLike = None
+) -> None:
     '''Dispatch for meta info.'''
     handle = matrix.handle
     assert handle is not None
@@ -985,7 +990,9 @@ def dispatch_meta_backend(
         _meta_from_dt(data, name, dtype, handle)
         return
     if _is_modin_df(data):
-        data, _, _ = _transform_pandas_df(data, False, meta=name, meta_type=dtype)
+        data, _, _ = _transform_pandas_df(
+            cast(DFLike, data), False, meta=name, meta_type=dtype
+        )
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_modin_series(data):
@@ -1024,7 +1031,7 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
 
 
 def _proxy_transform(
-    data,
+    data: array_like,
     feature_names: FeatNamesT,
     feature_types: FeatureTypes,
     enable_categorical: bool,
@@ -1034,7 +1041,7 @@ def _proxy_transform(
             cast(CuDFLike, data), feature_names, feature_types, enable_categorical
         )
     if _is_cupy_array(data):
-        data = _transform_cupy_array(data)
+        data = _transform_cupy_array(cast(CuArrayLike, data))
         return data, None, feature_names, feature_types
     if _is_dlpack(data):
         return _transform_dlpack(data), None, feature_names, feature_types
@@ -1053,7 +1060,7 @@ def _proxy_transform(
 def dispatch_proxy_set_data(
     proxy: _ProxyDMatrix,
     data: Any,
-    cat_codes: Optional[list],
+    cat_codes: Optional[List[CuDFLike]],
     allow_host: bool,
 ) -> None:
     """Dispatch for DeviceQuantileDMatrix."""

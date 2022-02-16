@@ -69,11 +69,14 @@ def from_cstr_to_pystr(data: ctypes.pointer, length: ctypes.c_uint64) -> List[st
     return res
 
 
+IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
+
+
 def _convert_ntree_limit(
     booster: "Booster",
     ntree_limit: Optional[int],
-    iteration_range: Optional[Tuple[int, int]]
-) -> Optional[Tuple[int, int]]:
+    iteration_range: IterRange
+) -> IterRange:
     if ntree_limit is not None and ntree_limit != 0:
         warnings.warn(
             "ntree_limit is deprecated, use `iteration_range` or model "
@@ -241,7 +244,7 @@ def _cuda_array_interface(data: CuArrayLike) -> bytes:
 def ctypes2numpy(cptr: ctypes.pointer, length: int, dtype: DTypeLike) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
     ctype = _numpy2ctypes_type(dtype)
-    if not isinstance(cptr, ctypes.POINTER(ctype)):
+    if not isinstance(cptr, ctypes.POINTER(ctype)):  # type:ignore
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type:ignore
@@ -265,7 +268,7 @@ def ctypes2cupy(cptr: ctypes.pointer, length: int, dtype: DTypeLike) -> CuArrayL
     # The owner field is just used to keep the memory alive with ref count.  As
     # unowned's life time is scoped within this function we don't need that.
     unownd = UnownedMemory(
-        addr, length * ctypes.sizeof(CUPY_TO_CTYPES_MAPPING[dtype]), owner=None
+        addr, length * ctypes.sizeof(CUPY_TO_CTYPES_MAPPING[dtype]), owner=None  # type:ignore
     )
     memptr = MemoryPointer(unownd, 0)
     # pylint: disable=unexpected-keyword-arg
@@ -302,7 +305,7 @@ def c_array(
 
 def _prediction_output(
     shape: ctypes.pointer, dims: ctypes.c_uint64, predts: ctypes.pointer, is_cuda: bool
-) -> Union[NPArrayLike, CuArrayLike]:
+) -> Union[np.ndarray, Any]:
     arr_shape: np.ndarray = ctypes2numpy(shape, dims.value, np.uint64)
     length = int(np.prod(arr_shape))
     if is_cuda:
@@ -637,7 +640,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         if feature_names is not None:
             self.feature_names = feature_names
         if feature_types is not None:
-            self.feature_types = feature_types
+            self.feature_types = feature_types  # type:ignore
 
     def _init_from_iter(self, iterator: DataIter, enable_categorical: bool) -> None:
         it = iterator
@@ -705,7 +708,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         if feature_names is not None:
             self.feature_names = feature_names
         if feature_types is not None:
-            self.feature_types = feature_types
+            self.feature_types = feature_types  # type:ignore
         if feature_weights is not None:
             dispatch_meta_backend(matrix=self, data=feature_weights,
                                   name='feature_weights')
@@ -1047,7 +1050,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @feature_types.setter
-    def feature_types(self, feature_types: Optional[Union[List[str], str]]) -> None:
+    def feature_types(self, feature_types: FeatureTypes) -> None:
         """Set feature types (column types).
 
         This is for displaying the results and categorical data support.  See doc string
@@ -1115,7 +1118,7 @@ class _ProxyDMatrix(DMatrix):
         )
 
     def _set_data_from_cuda_columnar(
-        self, data: CuDFLike, cat_codes: List[CuDFLike]
+        self, data: CuDFLike, cat_codes: Optional[List[CuDFLike]]
     ) -> None:
         """Set data from CUDA columnar format."""
         from .data import _cudf_array_interfaces
@@ -1360,7 +1363,7 @@ class Booster:
         else:
             self.booster = 'gbtree'
 
-    def _configure_metrics(self, params: Union[Dict, List]) -> Union[Dict, List]:
+    def _configure_metrics(self, params: Union[Dict, List]) -> Dict:
         if isinstance(params, dict) and 'eval_metric' in params \
            and isinstance(params['eval_metric'], list):
             params = dict((k, v) for k, v in params.items())
@@ -1412,7 +1415,7 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: Union[Dict, List]) -> Union[Dict, List]:
+    def _configure_constraints(self, params: Union[Dict, List]) -> Dict:
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value:
@@ -1436,6 +1439,7 @@ class Booster:
                     params[idx] = (name, self._transform_monotone_constrains(value))
                 elif name == "interaction_constraints":
                     params[idx] = (name, self._transform_interaction_constraints(value))
+            params = {k: v for k, v in params}
 
         return params
 
@@ -1463,7 +1467,7 @@ class Booster:
         handle = state['handle']
         if handle is not None:
             buf = handle
-            dmats = c_array(ctypes.c_void_p, [])
+            dmats = c_array(ctypes.c_void_p, [])  # type:ignore
             handle = ctypes.c_void_p()
             _check_call(_LIB.XGBoosterCreate(
                 dmats, c_bst_ulong(0), ctypes.byref(handle)))
@@ -2073,7 +2077,7 @@ class Booster:
             else:
                 enable_categorical = any(f == "c" for f in ft)
         if _is_pandas_df(data):
-            data, _, _ = _transform_pandas_df(data, enable_categorical)
+            data, _, _ = _transform_pandas_df(cast(DataFrame, data), enable_categorical)
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
@@ -2129,7 +2133,7 @@ class Booster:
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             from .data import _cudf_array_interfaces, _transform_cudf_df
             data, cat_codes, _, _ = _transform_cudf_df(
-                data, None, None, enable_categorical
+                cast(CuDFLike, data), None, None, enable_categorical
             )
             interfaces_str = _cudf_array_interfaces(data, cat_codes)
             _check_call(

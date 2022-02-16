@@ -107,6 +107,10 @@ class CuDFLike(Protocol, Iterable):
     def dtypes(self) -> Tuple[np.dtype, ...]:
         ...
 
+    @abstractproperty
+    def columns(self) -> List[str]:
+        ...
+
     def __getitem__(self, key: str) -> "CuDFLike":
         ...
 
@@ -118,4 +122,4 @@ array_like = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike]
 NativeInput = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike, str, os.PathLike]
 
 
-FeatureTypes = Optional[Union[List[str], List[DTypeLike]]]
+FeatureTypes = Optional[Union[List[str], List[DTypeLike], str]]
