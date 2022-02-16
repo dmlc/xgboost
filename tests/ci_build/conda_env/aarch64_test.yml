@@ -22,6 +22,8 @@ dependencies:
 - ninja
 - boto3
 - jsonschema
+- boto3
+- awscli
 - numba
 - llvmlite
 - pip:

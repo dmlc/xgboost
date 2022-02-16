@@ -179,8 +179,9 @@ def BuildCPUARM64() {
     stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate aarch64_test && python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress"
+      """
     }
     stash name: 'xgboost_cli_arm64', includes: 'xgboost'
     deleteDir()
@@ -232,8 +233,9 @@ def BuildCUDA(args) {
     stash name: "xgboost_whl_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
     if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
       echo 'Uploading Python wheel...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      """
     }
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: "xgboost_cpp_tests_cuda${args.cuda_version}", includes: 'build/testxgboost'
@@ -268,8 +270,9 @@ def BuildRPackageWithCUDA(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_r_pkg_with_cuda.sh ${commit_id}
       """
       echo 'Uploading R tarball...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_linux_*.tar.gz'
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp xgboost_r_gpu_linux_*.tar.gz s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      """
     }
     deleteDir()
   }
@@ -325,7 +328,9 @@ def BuildJVMDoc() {
     """
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading doc...'
-      s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} python -m awscli s3 cp jvm-packages/${BRANCH_NAME}.tar.bz2 s3://xgboost-docs/${BRANCH_NAME}.tar.bz2 --acl public-read --no-progress
+      """
     }
     deleteDir()
   }
