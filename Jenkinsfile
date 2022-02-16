@@ -234,7 +234,7 @@ def BuildCUDA(args) {
     //if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
       echo 'Uploading Python wheel...'
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read
       """
     //}
     echo 'Stashing C++ test executable (testxgboost)...'
@@ -271,7 +271,7 @@ def BuildRPackageWithCUDA(args) {
       """
       echo 'Uploading R tarball...'
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} python -m awscli s3 cp xgboost_r_gpu_linux_*.tar.gz s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp xgboost_r_gpu_linux_*.tar.gz s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read
       """
     //}
     deleteDir()
