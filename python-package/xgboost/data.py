@@ -1026,9 +1026,9 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
 def _proxy_transform(
     data,
     feature_names: FeatNamesT,
-    feature_types: Optional[List[str]],
+    feature_types: FeatureTypes,
     enable_categorical: bool,
-) -> Tuple[array_like, Optional[List[str]], FeatureTypes]:
+) -> Tuple[array_like, Optional[list], Optional[List[str]], FeatureTypes]:
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             cast(CuDFLike, data), feature_names, feature_types, enable_categorical

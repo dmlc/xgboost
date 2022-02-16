@@ -30,13 +30,14 @@ c_bst_ulong = ctypes.c_uint64
 # xgboost accepts some other possible types in practice due to historical reason, which
 # is lesser tested.  For now we encourage users to pass a simple list of string.
 FeatNamesT = Optional[List[str]]
+Parameters = Union[List[Tuple[str, Any]], Dict[str, Any]]
 
 
 class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
 
 
-def from_pystr_to_cstr(data: Union[str, List[str]]):
+def from_pystr_to_cstr(data: Union[str, List[str]]) -> bytes:
     """Convert a Python str or list of Python str to C pointer
 
     Parameters
@@ -320,8 +321,8 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
     Parameters
     ----------
     cache_prefix:
-        Prefix to the cache files, only used in external memory.  It can be either an URI
-        or a file path.
+        Prefix to the cache files, only used in external memory.  It can be either an
+        URI or a file path.
 
     """
     _T = TypeVar("_T")
@@ -521,6 +522,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         weight: Optional[array_like] = None,
         base_margin: Optional[array_like] = None,
         missing: Optional[float] = None,
+        silent: bool = True,
         feature_names: FeatNamesT = None,
         feature_types: FeatureTypes = None,
         nthread: Optional[int] = None,
@@ -1112,7 +1114,9 @@ class _ProxyDMatrix(DMatrix):
             _LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, interface_str)
         )
 
-    def _set_data_from_cuda_columnar(self, data: CuDFLike) -> None:
+    def _set_data_from_cuda_columnar(
+        self, data: CuDFLike, cat_codes: List[CuDFLike]
+    ) -> None:
         """Set data from CUDA columnar format."""
         from .data import _cudf_array_interfaces
 
@@ -1365,7 +1369,8 @@ class Booster:
             params = list(params.items())
             for eval_metric in eval_metrics:
                 params += [('eval_metric', eval_metric)]
-        return params
+        params_dict = {k: v for k, v in params}
+        return params_dict
 
     def _transform_monotone_constrains(self, value: Union[Dict[str, int], str]) -> str:
         if isinstance(value, str):
@@ -1518,9 +1523,9 @@ class Booster:
         _check_call(_LIB.XGBoosterSaveJsonConfig(
             self.handle,
             ctypes.byref(length),
-            ctypes.byref(json_string)))
-        assert json_string.value is not None
-        result = json_string.value.decode()  # pylint: disable=no-member
+            ctypes.byref(c_json_string)))
+        assert c_json_string.value is not None
+        result = c_json_string.value.decode()  # pylint: disable=no-member
         return result
 
     def load_config(self, config: str) -> None:
@@ -1657,7 +1662,7 @@ class Booster:
     def feature_names(self, features: FeatNamesT) -> None:
         self._set_feature_info(features, "feature_name")
 
-    def set_param(self, params, value=None):
+    def set_param(self, params: Union[str, Parameters], value: Any = None) -> None:
         """Set parameters into the Booster.
 
         Parameters
@@ -1967,7 +1972,7 @@ class Booster:
         validate_features: bool = True,
         base_margin: Any = None,
         strict_shape: bool = False
-    ):
+    ) -> Union[np.ndarray, CuArrayLike]:
         """Run prediction in-place, Unlike :py:meth:`predict` method, inplace prediction does not
         cache the prediction result.
 
@@ -2260,7 +2265,13 @@ class Booster:
         _check_call(_LIB.XGBoosterGetNumFeature(self.handle, ctypes.byref(features)))
         return features.value
 
-    def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
+    def dump_model(
+        self,
+        fout: Union[os.PathLike, TextIO, str],
+        fmap: Union[str, os.PathLike] = '',
+        with_stats: bool = False,
+        dump_format: str = "text"
+    ) -> None:
         """Dump model into a text or JSON file.  Unlike :py:meth:`save_model`, the
         output format is primarily used for visualization or interpretation,
         hence it's more human readable but cannot be loaded back to XGBoost.
@@ -2595,10 +2606,10 @@ class Booster:
         bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)
 
         nph = np.histogram(values, bins=bins)
-        nph = np.column_stack((nph[1][1:], nph[0]))
-        nph = nph[nph[:, 1] > 0]
+        nph_stacked = np.column_stack((nph[1][1:], nph[0]))
+        nph_stacked = nph_stacked[nph_stacked[:, 1] > 0]
 
-        if nph.size == 0:
+        if nph_stacked.size == 0:
             ft = self.feature_types
             fn = self.feature_names
             if fn is None:
@@ -2616,11 +2627,11 @@ class Booster:
                 )
 
         if as_pandas and PANDAS_INSTALLED:
-            return DataFrame(nph, columns=['SplitValue', 'Count'])
+            return DataFrame(nph_stacked, columns=['SplitValue', 'Count'])
         if as_pandas and not PANDAS_INSTALLED:
             warnings.warn(
                 "Returning histogram as ndarray"
                 " (as_pandas == True, but pandas is not installed).",
                 UserWarning
             )
-        return nph
+        return nph_stacked
