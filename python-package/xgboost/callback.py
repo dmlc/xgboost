@@ -19,6 +19,14 @@ from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
 from .compat import STRING_TYPES
 
 
+__all__ = [
+    "TrainingCallback",
+    "LearningRateScheduler",
+    "EarlyStopping",
+    "EvaluationMonitor",
+    "TrainingCheckPoint",
+]
+
 _Score = Union[float, Tuple[float, float]]
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
 
