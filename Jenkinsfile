@@ -180,6 +180,7 @@ def BuildCPUARM64() {
     //if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
       sh """
+      source activate aarch64_test
       ${dockerRun} ${container_type} ${docker_binary} python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
       """
     //}
