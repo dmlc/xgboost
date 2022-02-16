@@ -70,7 +70,7 @@ class TestGPUUpdaters:
         self.cputest.run_categorical_basic(rows, cols, rounds, cats, "gpu_hist")
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_invalid_categorical(self):
+    def test_invalid_category(self):
         self.cputest.run_invalid_category("gpu_hist")
 
     @pytest.mark.skipif(**tm.no_cupy())
