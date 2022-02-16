@@ -64,6 +64,11 @@ class CSRLike(Protocol):
     data: NPArrayLike
 
 
+class IndexLike(Protocol):
+    def format(self) -> List[str]:
+        ...
+
+
 class DFLike(Protocol):
     @abstractproperty
     def values(self) -> NPArrayLike:

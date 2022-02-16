@@ -348,7 +348,7 @@ def _meta_from_pandas_series(
     """Help transform pandas series for meta data like labels"""
     import pandas as pd
     df = cast(pd.Series, data)
-    arr: np.ndarray = df.values.astype('float')
+    arr = df.values.astype('float')
     from pandas.api.types import is_sparse
     if is_sparse(arr):
         arr = arr.to_dense()
@@ -372,17 +372,19 @@ def _from_pandas_series(
     feature_names: FeatNamesT,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
+    import pandas as pd
     from pandas.api.types import is_categorical_dtype
+    series = cast(pd.Series, data)
 
-    if (data.dtype.name not in _pandas_dtype_mapper) and not (
-        is_categorical_dtype(data.dtype) and enable_categorical
+    if (series.dtype.name not in _pandas_dtype_mapper) and not (
+        is_categorical_dtype(series.dtype) and enable_categorical
     ):
-        _invalid_dataframe_dtype(data)
-    if enable_categorical and is_categorical_dtype(data.dtype):
-        data = data.cat.codes
+        _invalid_dataframe_dtype(series)
+    if enable_categorical and is_categorical_dtype(series.dtype):
+        series = series.cat.codes
 
     return _from_numpy_array(
-        data.values.reshape(data.shape[0], 1).astype("float"),
+        series.values.reshape(series.shape[0], 1).astype("float"),
         missing,
         nthread,
         feature_names,
@@ -505,6 +507,7 @@ def _cudf_array_interfaces(data: CuDFLike, cat_codes: Optional[list]) -> bytes:
     interfaces = []
     if _is_cudf_ser(data):
         if is_categorical_dtype(data.dtype):
+            assert cat_codes is not None
             interface = cat_codes[0].__cuda_array_interface__
         else:
             interface = data.__cuda_array_interface__
@@ -514,6 +517,7 @@ def _cudf_array_interfaces(data: CuDFLike, cat_codes: Optional[list]) -> bytes:
     else:
         for i, col in enumerate(data):
             if is_categorical_dtype(data[col].dtype):
+                assert cat_codes is not None
                 codes = cat_codes[i]
                 interface = codes.__cuda_array_interface__
             else:
@@ -536,58 +540,61 @@ def _transform_cudf_df(
     except ImportError:
         from cudf.utils.dtypes import is_categorical_dtype
 
-    if _is_cudf_ser(data):
-        dtypes: Sequence = [data.dtype]
+    import cudf
+    df = cast(cudf.DataFrame, data)
+
+    if _is_cudf_ser(df):
+        dtypes: Sequence = [df.dtype]
     else:
-        dtypes = data.dtypes
+        dtypes = df.dtypes
 
     if not all(
         dtype.name in _pandas_dtype_mapper
         or (is_categorical_dtype(dtype) and enable_categorical)
         for dtype in dtypes
     ):
-        _invalid_dataframe_dtype(data)
+        _invalid_dataframe_dtype(df)
 
     # handle feature names
     if feature_names is None:
-        if _is_cudf_ser(data):
-            feature_names = [data.name]
-        elif lazy_isinstance(data.columns, "cudf.core.multiindex", "MultiIndex"):
-            feature_names = [" ".join([str(x) for x in i]) for i in data.columns]
+        if _is_cudf_ser(df):
+            feature_names = [df.name]
+        elif lazy_isinstance(df.columns, "cudf.core.multiindex", "MultiIndex"):
+            feature_names = [" ".join([str(x) for x in i]) for i in df.columns]
         elif (
-            lazy_isinstance(data.columns, "cudf.core.index", "RangeIndex")
-            or lazy_isinstance(data.columns, "cudf.core.index", "Int64Index")
+            lazy_isinstance(df.columns, "cudf.core.index", "RangeIndex")
+            or lazy_isinstance(df.columns, "cudf.core.index", "Int64Index")
             # Unique to cuDF, no equivalence in pandas 1.3.3
-            or lazy_isinstance(data.columns, "cudf.core.index", "Int32Index")
+            or lazy_isinstance(df.columns, "cudf.core.index", "Int32Index")
         ):
-            feature_names = list(map(str, data.columns))
+            feature_names = list(map(str, df.columns))
         else:
-            feature_names = data.columns.format()
+            feature_names = df.columns.format()
 
-    feature_types_lst = []
     # handle feature types
     if feature_types is None:
-        feature_types = []
+        feature_types_lst = []
         for dtype in dtypes:
             if is_categorical_dtype(dtype) and enable_categorical:
                 feature_types_lst.append(CAT_T)
             else:
-                feature_types.append(_pandas_dtype_mapper[dtype.name])
+                feature_types_lst.append(_pandas_dtype_mapper[dtype.name])
+        feature_types = feature_types_lst
 
     # handle categorical data
     cat_codes = []
-    if _is_cudf_ser(data):
+    if _is_cudf_ser(df):
         # unlike pandas, cuDF uses NA for missing data.
-        if is_categorical_dtype(data.dtype) and enable_categorical:
-            codes = data.cat.codes
+        if is_categorical_dtype(df.dtype) and enable_categorical:
+            codes = df.cat.codes
             cat_codes.append(codes)
     else:
-        for col in data:
-            if is_categorical_dtype(data[col].dtype) and enable_categorical:
-                codes = data[col].cat.codes
+        for col in df:
+            if is_categorical_dtype(df[col].dtype) and enable_categorical:
+                codes = df[col].cat.codes
                 cat_codes.append(codes)
 
-    return data, cat_codes, feature_names, feature_types
+    return df, cat_codes, feature_names, feature_types
 
 
 def _from_cudf_df(
@@ -595,13 +602,13 @@ def _from_cudf_df(
     missing: FloatT,
     nthread: int,
     feature_names: FeatNamesT,
-    feature_types: Optional[List[str]],
+    feature_types: FeatureTypes,
     enable_categorical: bool,
 ) -> _CtorReturnT:
-    data, cat_codes, feature_names, feature_types = _transform_cudf_df(
+    df, cat_codes, feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
-    interfaces_str = _cudf_array_interfaces(data, cat_codes)
+    interfaces_str = _cudf_array_interfaces(df, cat_codes)
     handle = ctypes.c_void_p()
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
@@ -818,7 +825,7 @@ def dispatch_data_backend(
                                feature_names, feature_types)
     if _is_pandas_series(data):
         return _from_pandas_series(
-            data, missing, threads, enable_categorical, feature_names, feature_types
+            cast(DFLike, data), missing, threads, enable_categorical, feature_names, feature_types
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         df = cast(CuDFLike, data)
@@ -848,7 +855,7 @@ def dispatch_data_backend(
         )
     if _is_modin_series(data):
         return _from_pandas_series(
-            data, missing, threads, enable_categorical, feature_names, feature_types
+            cast(DFLike, data), missing, threads, enable_categorical, feature_names, feature_types
         )
     if _has_array_protocol(data):
         array = np.asarray(data)
@@ -971,7 +978,7 @@ def dispatch_meta_backend(
         _meta_from_numpy(arr, name, dtype, handle)
         return
     if _is_pandas_series(data):
-        _meta_from_pandas_series(data, name, dtype, handle)
+        _meta_from_pandas_series(cast(DFLike, data), name, dtype, handle)
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)
