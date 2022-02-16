@@ -287,6 +287,13 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     .Call(XGDMatrixSetInfo_R, object, name, as.integer(info))
     return(TRUE)
   }
+  if (name == "feature_weights") {
+    if (length(info) != ncol(object)) {
+      stop("The number of feature weights must equal to the number of columns in the input data")
+    }
+    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    return(TRUE)
+  }
   stop("setinfo: unknown info name ", name)
   return(FALSE)
 }
