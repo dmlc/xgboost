@@ -86,13 +86,6 @@ Rest is the same as building on Linux.
 
 Building on Windows
 ===================
-You need to first clone the XGBoost repo with ``--recursive`` option, to clone the submodules.
-We recommend you use `Git for Windows <https://git-for-windows.github.io/>`_, as it comes with a standard Bash shell. This will highly ease the installation process.
-
-.. code-block:: bash
-
-  git submodule init
-  git submodule update
 
 XGBoost support compilation with Microsoft Visual Studio and MinGW.  To build with Visual
 Studio, we will need CMake. Make sure to install a recent version of CMake. Then run the
@@ -163,14 +156,6 @@ On Windows, run CMake as follows:
   cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON
 
 (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
-
-.. note:: Visual Studio 2017 Win64 Generator may not work
-
-  Choosing the Visual Studio 2017 generator may cause compilation failure. When it happens, specify the 2015 compiler by adding the ``-T`` option:
-
-  .. code-block:: bash
-
-    cmake .. -G"Visual Studio 15 2017 Win64" -T v140,cuda=8.0 -DUSE_CUDA=ON
 
 The above cmake configuration run will create an ``xgboost.sln`` solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
 
