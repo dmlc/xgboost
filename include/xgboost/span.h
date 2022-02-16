@@ -102,12 +102,26 @@ namespace common {
 
 #define SPAN_CHECK KERNEL_CHECK
 
-#else  // not CUDA
+#else  // ------------------------------ not CUDA ----------------------------
 
-#define KERNEL_CHECK(cond)                                                     \
-  (XGBOOST_EXPECT((cond), true) ? static_cast<void>(0) : std::terminate())
+#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
+
+#define KERNEL_CHECK(cond)                \
+  do {                                    \
+    if (XGBOOST_EXPECT(!(cond), false)) { \
+      printf("[xgboost] fatal error.\n"); \
+    }                                     \
+  } while (0)
 
 #define SPAN_CHECK(cond) KERNEL_CHECK(cond)
+
+#else
+
+#define KERNEL_CHECK(cond) (XGBOOST_EXPECT((cond), true) ? static_cast<void>(0) : std::terminate())
+
+#define SPAN_CHECK(cond) KERNEL_CHECK(cond)
+
+#endif  // defined(XGBOOST_STRICT_R_MODE)
 
 #endif  // __CUDA_ARCH__
 

@@ -114,9 +114,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
           left_sum.SetSubstract(parent.stats, right_sum);
           break;
         }
-        default: {
-          std::terminate();
-        }
       }
     };
 
