@@ -1,19 +1,24 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name,
 # pylint: disable=too-many-branches
-# coding: utf-8
 """Plotting Library."""
 from io import BytesIO
 import json
+from typing import Union
+
 import numpy as np
+
 from .core import Booster
 from .sklearn import XGBModel
+from .typing import PathLike
 
 
-def plot_importance(booster, ax=None, height=0.2,
-                    xlim=None, ylim=None, title='Feature importance',
-                    xlabel='F score', ylabel='Features', fmap='',
-                    importance_type='weight', max_num_features=None,
-                    grid=True, show_values=True, **kwargs):
+def plot_importance(
+    booster: Union[Booster, XGBModel], ax=None, height=0.2,
+    xlim=None, ylim=None, title='Feature importance',
+    xlabel='F score', ylabel='Features', fmap='',
+    importance_type='weight', max_num_features=None,
+    grid=True, show_values=True, **kwargs
+):
     """Plot importance based on fitted trees.
 
     Parameters
@@ -120,9 +125,17 @@ def plot_importance(booster, ax=None, height=0.2,
     return ax
 
 
-def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
-                yes_color=None, no_color=None,
-                condition_node_params=None, leaf_node_params=None, **kwargs):
+def to_graphviz(
+    booster: Union[Booster, XGBModel],
+    fmap: PathLike = "",
+    num_trees: int = 0,
+    rankdir=None,
+    yes_color=None,
+    no_color=None,
+    condition_node_params=None,
+    leaf_node_params=None,
+    **kwargs
+):
     """Convert specified tree to graphviz instance. IPython can automatically plot
     the returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
@@ -212,7 +225,14 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     return g
 
 
-def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
+def plot_tree(
+    booster: Union[Booster, XGBModel],
+    fmap: PathLike = "",
+    num_trees=0,
+    rankdir=None,
+    ax=None,
+    **kwargs
+):
     """Plot specified tree.
 
     Parameters

@@ -1578,6 +1578,7 @@ class Booster:
         _check_call(_LIB.XGBoosterGetAttr(
             self.handle, c_str(key), ctypes.byref(ret), ctypes.byref(success)))
         if success.value != 0:
+            assert ret.value is not None
             return py_str(ret.value)
         return None
 
