@@ -126,5 +126,7 @@ FloatT = Union[float, np.float16, np.float32, np.float64]
 ArrayLike = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike]
 NativeInput = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike, str, os.PathLike]
 
-
+FeatureNames = Optional[List[str]]
 FeatureTypes = Optional[Union[List[str], List[DTypeLike], str]]
+
+PathLike = Union[str, os.PathLike]

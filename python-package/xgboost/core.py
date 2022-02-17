@@ -22,14 +22,16 @@ import scipy.sparse
 from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
                      lazy_isinstance)
 from .libpath import find_lib_path
-from .typing import CuArrayLike, CuDFLike, NPArrayLike, DFLike, CSRLike
-from .typing import FeatureTypes, NativeInput, ArrayLike, DTypeLike
+from .typing import (
+    CuArrayLike, CuDFLike, NPArrayLike, DFLike, CSRLike,
+    PathLike, NativeInput, ArrayLike, DTypeLike
+)
+from .typing import FeatureNames, FeatureTypes
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
 # xgboost accepts some other possible types in practice due to historical reason, which
 # is lesser tested.  For now we encourage users to pass a simple list of string.
-FeatureNames = Optional[List[str]]
 Parameters = Union[List[Tuple[str, Any]], Dict[str, Any]]
 
 
@@ -798,15 +800,15 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, data, field, 'uint32')
 
-    def save_binary(self, fname: os.PathLike, silent: bool = True) -> None:
+    def save_binary(self, fname: PathLike, silent: bool = True) -> None:
         """Save DMatrix to an XGBoost buffer.  Saved binary can be later loaded
         by providing the path to :py:func:`xgboost.DMatrix` as input.
 
         Parameters
         ----------
-        fname : string or os.PathLike
+        fname :
             Name of the output buffer file.
-        silent : bool (optional; default: True)
+        silent :
             If set, the output is suppressed.
         """
         fname_str = os.fspath(os.path.expanduser(fname))
@@ -1314,7 +1316,7 @@ class Booster:
             Parameters for boosters.
         cache : list
             List of cache items.
-        model_file : string/os.PathLike/Booster/bytearray
+        model_file :
             Path to the model file if it's string or PathLike.
         """
         cache = cache if cache is not None else []
@@ -2152,7 +2154,7 @@ class Booster:
             "Data type:" + str(type(data)) + " not supported by inplace prediction."
         )
 
-    def save_model(self, fname: Union[str, os.PathLike]) -> None:
+    def save_model(self, fname: PathLike) -> None:
         """Save the model to a file.
 
         The model is saved in an XGBoost internal format which is universal among the
@@ -2169,7 +2171,7 @@ class Booster:
 
         Parameters
         ----------
-        fname : string or os.PathLike
+        fname :
             Output file name
 
         """
@@ -2271,7 +2273,7 @@ class Booster:
     def dump_model(
         self,
         fout: Union[os.PathLike, TextIO, str],
-        fmap: Union[str, os.PathLike] = '',
+        fmap: PathLike = '',
         with_stats: bool = False,
         dump_format: str = "text"
     ) -> None:
@@ -2281,13 +2283,13 @@ class Booster:
 
         Parameters
         ----------
-        fout : string or os.PathLike
+        fout :
             Output file name.
-        fmap : string or os.PathLike, optional
+        fmap :
             Name of the file containing feature map names.
-        with_stats : bool, optional
+        with_stats :
             Controls whether the split statistics are output.
-        dump_format : string, optional
+        dump_format :
             Format of model dump file. Can be 'text' or 'json'.
         """
         if isinstance(fout, (STRING_TYPES, os.PathLike)):
@@ -2314,7 +2316,7 @@ class Booster:
 
     def get_dump(
         self,
-        fmap: Union[str, os.PathLike] = "",
+        fmap: PathLike = "",
         with_stats: bool = False,
         dump_format: str = "text"
     ) -> List[str]:
@@ -2344,9 +2346,7 @@ class Booster:
         res = from_cstr_to_pystr(sarr, length)
         return res
 
-    def get_fscore(
-        self, fmap: Union[str, os.PathLike] = ""
-    ) -> Dict[str, Union[float, List[float]]]:
+    def get_fscore(self, fmap: PathLike = "") -> Dict[str, Union[float, List[float]]]:
         """Get feature importance of each feature.
 
         .. note:: Zero-importance features will not be included
@@ -2363,7 +2363,7 @@ class Booster:
         return self.get_score(fmap, importance_type='weight')
 
     def get_score(
-        self, fmap: Union[str, os.PathLike] = '', importance_type: str = 'weight'
+        self, fmap: PathLike = '', importance_type: str = 'weight'
     ) -> Dict[str, Union[float, List[float]]]:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
@@ -2431,7 +2431,7 @@ class Booster:
         return results
 
     # pylint: disable=too-many-statements
-    def trees_to_dataframe(self, fmap: Union[str, os.PathLike] = '') -> DataFrame:
+    def trees_to_dataframe(self, fmap: PathLike = '') -> DataFrame:
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -2440,7 +2440,7 @@ class Booster:
 
         Parameters
         ----------
-        fmap: str or os.PathLike (optional)
+        fmap :
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
@@ -2572,7 +2572,7 @@ class Booster:
 
     def get_split_value_histogram(
         self, feature: str,
-        fmap: Union[os.PathLike, str] = '',
+        fmap: PathLike = '',
         bins: Optional[int] = None,
         as_pandas: bool = True
     ) -> Union[np.ndarray, DataFrame]:

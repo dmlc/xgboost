@@ -16,6 +16,7 @@ from .compat import lazy_isinstance
 
 from .typing import ArrayLike, FloatT, CSRLike, NPArrayLike, DFLike, NativeInput
 from .typing import CuArrayLike, CuDFLike, FeatureTypes, DTypeLike
+from .typing import PathLike
 
 c_bst_ulong = ctypes.c_uint64  # pylint: disable=invalid-name
 
@@ -255,7 +256,7 @@ be set to `True`."""
 def _transform_pandas_df(
     df: DFLike,
     enable_categorical: bool,
-    feature_names: Optional[List[str]] = None,
+    feature_names: FeatureNames = None,
     feature_types: FeatureTypes = None,
     meta: str = None,
     meta_type: DTypeLike = None,
@@ -408,7 +409,7 @@ _dt_type_mapper2 = {"bool": "i", "int": "int", "real": "float"}
 
 def _transform_dt_df(
     data: Any,
-    feature_names: Optional[List[str]],
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
     meta: str = None,
     meta_type: DTypeLike = None,
@@ -449,7 +450,7 @@ def _from_dt_df(
     data: Any,
     missing: FloatT,
     nthread: int,
-    feature_names: Optional[List[str]],
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
     enable_categorical: bool,
 ) -> _CtorReturnT:
@@ -666,7 +667,7 @@ def _from_cupy_array(
     data: CuArrayLike,
     missing: FloatT,
     nthread: int,
-    feature_names: Optional[List[str]],
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     """Initialize DMatrix from cupy ndarray."""
@@ -714,7 +715,7 @@ def _from_dlpack(
     data: Any,
     missing: FloatT,
     nthread: int,
-    feature_names: Optional[List[str]],
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     data = _transform_dlpack(data)
@@ -726,7 +727,7 @@ def _is_uri(data: NativeInput) -> bool:
 
 
 def _from_uri(
-    data: Union[os.PathLike, str],
+    data: PathLike,
     missing: FloatT,
     feature_names: FeatureNames,
     feature_types: FeatureTypes,
@@ -833,7 +834,7 @@ def dispatch_data_backend(
         )
     if _is_uri(data):
         return _from_uri(
-            cast(Union[os.PathLike, str], data), missing, feature_names, feature_types
+            cast(PathLike, data), missing, feature_names, feature_types
         )
     if _is_list(data):
         return _from_list(
