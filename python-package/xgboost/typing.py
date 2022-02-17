@@ -123,7 +123,7 @@ class CuDFLike(Protocol, Iterable):
 FloatT = Union[float, np.float16, np.float32, np.float64]
 
 
-array_like = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike]
+ArrayLike = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike]
 NativeInput = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike, str, os.PathLike]
 
 

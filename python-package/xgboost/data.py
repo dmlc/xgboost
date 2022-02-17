@@ -11,10 +11,10 @@ import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
 from .core import _cuda_array_interface
-from .core import DataIter, _ProxyDMatrix, DMatrix, FeatNamesT
-from .compat import lazy_isinstance, DataFrame
+from .core import DataIter, _ProxyDMatrix, DMatrix, FeatureNames
+from .compat import lazy_isinstance
 
-from .typing import array_like, FloatT, CSRLike, NPArrayLike, DFLike, NativeInput
+from .typing import ArrayLike, FloatT, CSRLike, NPArrayLike, DFLike, NativeInput
 from .typing import CuArrayLike, CuDFLike, FeatureTypes, DTypeLike
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -36,7 +36,7 @@ def _warn_unused_missing(data: NativeInput, missing: FloatT) -> None:
             str(type(data)), UserWarning)
 
 
-def _check_complex(data: array_like) -> None:
+def _check_complex(data: ArrayLike) -> None:
     '''Test whether data is complex using `dtype` attribute.'''
     complex_dtypes = (np.complex128, np.complex64,
                       np.cfloat, np.cdouble, np.clongdouble)
@@ -45,7 +45,7 @@ def _check_complex(data: array_like) -> None:
 
 
 def _check_data_shape(data: NativeInput) -> None:
-    if hasattr(data, "shape") and len(cast(array_like, data).shape) != 2:
+    if hasattr(data, "shape") and len(cast(ArrayLike, data).shape) != 2:
         raise ValueError("Please reshape the input data into 2-dimensional matrix.")
 
 
@@ -73,7 +73,7 @@ def _from_scipy_csr(
     data: CSRLike,
     missing: FloatT,
     nthread: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     """Initialize data from a CSR matrix."""
@@ -112,7 +112,7 @@ def _is_scipy_csc(data: NativeInput) -> bool:
 def _from_scipy_csc(
     data: CSRLike,
     missing: FloatT,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     if len(data.indices) != len(data.data):
@@ -172,7 +172,7 @@ def _from_numpy_array(
     data: np.ndarray,
     missing: FloatT,
     nthread: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     """Initialize data from a 2-D numpy matrix.
@@ -323,7 +323,7 @@ def _from_pandas_df(
     enable_categorical: bool,
     missing: FloatT,
     nthread: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     arr, feature_names, feature_types = _transform_pandas_df(
@@ -369,7 +369,7 @@ def _from_pandas_series(
     missing: FloatT,
     nthread: int,
     enable_categorical: bool,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     import pandas as pd
@@ -531,7 +531,7 @@ def _cudf_array_interfaces(data: CuDFLike, cat_codes: Optional[list]) -> bytes:
 
 def _transform_cudf_df(
     data: CuDFLike,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
     enable_categorical: bool,
 ) -> Tuple[CuDFLike, Optional[list], Optional[List[str]], FeatureTypes]:
@@ -601,7 +601,7 @@ def _from_cudf_df(
     data: CuDFLike,
     missing: FloatT,
     nthread: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
     enable_categorical: bool,
 ) -> _CtorReturnT:
@@ -714,7 +714,7 @@ def _is_uri(data: NativeInput) -> bool:
 def _from_uri(
     data: Union[os.PathLike, str],
     missing: FloatT,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     _warn_unused_missing(data, missing)
@@ -734,7 +734,7 @@ def _from_list(
     data: list,
     missing: FloatT,
     n_threads: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     array = np.array(data)
@@ -750,7 +750,7 @@ def _from_tuple(
     data: tuple,
     missing: FloatT,
     n_threads: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
 ) -> _CtorReturnT:
     return _from_list(cast(list, data), missing, n_threads, feature_names, feature_types)
@@ -786,7 +786,7 @@ def dispatch_data_backend(
     data: NativeInput,
     missing: FloatT,
     threads: int,
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
     enable_categorical: bool = False,
 ) -> _CtorReturnT:
@@ -877,7 +877,7 @@ def _to_data_type(dtype: str, name: str) -> int:
     return dtype_map[dtype]
 
 
-def _validate_meta_shape(data: array_like, name: str) -> None:
+def _validate_meta_shape(data: ArrayLike, name: str) -> None:
     if hasattr(data, "shape"):
         msg = f"Invalid shape: {data.shape} for {name}"
         if name in _matrix_meta:
@@ -954,7 +954,7 @@ def _meta_from_dt(
 
 
 def dispatch_meta_backend(
-    matrix: DMatrix, data: array_like, name: str, dtype: DTypeLike = None
+    matrix: DMatrix, data: ArrayLike, name: str, dtype: DTypeLike = None
 ) -> None:
     '''Dispatch for meta info.'''
     handle = matrix.handle
@@ -1038,11 +1038,11 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
 
 
 def _proxy_transform(
-    data: array_like,
-    feature_names: FeatNamesT,
+    data: ArrayLike,
+    feature_names: FeatureNames,
     feature_types: FeatureTypes,
     enable_categorical: bool,
-) -> Tuple[array_like, Optional[list], Optional[List[str]], FeatureTypes]:
+) -> Tuple[ArrayLike, Optional[list], Optional[List[str]], FeatureTypes]:
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             cast(CuDFLike, data), feature_names, feature_types, enable_categorical

@@ -23,13 +23,13 @@ from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
                      lazy_isinstance)
 from .libpath import find_lib_path
 from .typing import CuArrayLike, CuDFLike, NPArrayLike, DFLike, CSRLike
-from .typing import FeatureTypes, NativeInput, array_like, DTypeLike
+from .typing import FeatureTypes, NativeInput, ArrayLike, DTypeLike
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
 # xgboost accepts some other possible types in practice due to historical reason, which
 # is lesser tested.  For now we encourage users to pass a simple list of string.
-FeatNamesT = Optional[List[str]]
+FeatureNames = Optional[List[str]]
 Parameters = Union[List[Tuple[str, Any]], Dict[str, Any]]
 
 
@@ -407,7 +407,7 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         def data_handle(
             data: Any,
             *,
-            feature_names: FeatNamesT = None,
+            feature_names: FeatureNames = None,
             feature_types: FeatureTypes = None,
             **kwargs: Any,
         ) -> None:
@@ -520,20 +520,20 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         data: NativeInput,
-        label: Optional[array_like] = None,
+        label: Optional[ArrayLike] = None,
         *,
-        weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
+        weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = True,
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: FeatureTypes = None,
         nthread: Optional[int] = None,
-        group: Optional[array_like] = None,
-        qid: Optional[array_like] = None,
-        label_lower_bound: Optional[array_like] = None,
-        label_upper_bound: Optional[array_like] = None,
-        feature_weights: Optional[array_like] = None,
+        group: Optional[ArrayLike] = None,
+        qid: Optional[ArrayLike] = None,
+        label_lower_bound: Optional[ArrayLike] = None,
+        label_upper_bound: Optional[ArrayLike] = None,
+        feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
     ) -> None:
         """Parameters
@@ -545,9 +545,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             libsvm format txt file, csv file (by specifying uri parameter
             'path_to_csv?format=csv'), or binary file that xgboost can read
             from.
-        label : array_like
+        label :
             Label of the training data.
-        weight : array_like
+        weight : ArrayLike
             Weight for each instance.
 
             .. note:: For ranking task, weights are per-group.
@@ -557,7 +557,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 ordering of data points within each group, so it doesn't make
                 sense to assign weights to individual data points.
 
-        base_margin: array_like
+        base_margin: ArrayLike
             Base margin used for boosting from existing model.
         missing : float, optional
             Value in the input data which needs to be present as a missing
@@ -574,15 +574,15 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
-        group : array_like
+        group : ArrayLike
             Group size for all ranking group.
-        qid : array_like
+        qid : ArrayLike
             Query ID for data samples, used for ranking.
-        label_lower_bound : array_like
+        label_lower_bound : ArrayLike
             Lower bound for survival training.
-        label_upper_bound : array_like
+        label_upper_bound : ArrayLike
             Upper bound for survival training.
-        feature_weights : array_like, optional
+        feature_weights : ArrayLike, optional
             Set feature weights for column sampling.
         enable_categorical: boolean, optional
 
@@ -677,16 +677,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
     def set_info(
         self,
         *,
-        label: Optional[array_like] = None,
-        weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        group: Optional[array_like] = None,
-        qid: Optional[array_like] = None,
-        label_lower_bound: Optional[array_like] = None,
-        label_upper_bound: Optional[array_like] = None,
-        feature_names: FeatNamesT = None,
+        label: Optional[ArrayLike] = None,
+        weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        group: Optional[ArrayLike] = None,
+        qid: Optional[ArrayLike] = None,
+        label_lower_bound: Optional[ArrayLike] = None,
+        label_upper_bound: Optional[ArrayLike] = None,
+        feature_names: FeatureNames = None,
         feature_types: FeatureTypes = None,
-        feature_weights: Optional[array_like] = None
+        feature_weights: Optional[ArrayLike] = None
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
         from .data import dispatch_meta_backend
@@ -755,7 +755,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                                               ctypes.byref(ret)))
         return ctypes2numpy(ret, length.value, np.uint32)
 
-    def set_float_info(self, field: str, data: array_like) -> None:
+    def set_float_info(self, field: str, data: ArrayLike) -> None:
         """Set float type property into the DMatrix.
 
         Parameters
@@ -769,7 +769,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, data, field, 'float')
 
-    def set_float_info_npy2d(self, field: str, data: array_like) -> None:
+    def set_float_info_npy2d(self, field: str, data: ArrayLike) -> None:
         """Set float type property into the DMatrix
            for numpy 2d array input
 
@@ -784,7 +784,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, data, field, 'float')
 
-    def set_uint_info(self, field: str, data: array_like) -> None:
+    def set_uint_info(self, field: str, data: ArrayLike) -> None:
         """Set uint type property into the DMatrix.
 
         Parameters
@@ -814,7 +814,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                                              c_str(fname_str),
                                              ctypes.c_int(silent)))
 
-    def set_label(self, label: array_like) -> None:
+    def set_label(self, label: ArrayLike) -> None:
         """Set label of dmatrix
 
         Parameters
@@ -825,7 +825,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, label, 'label', 'float')
 
-    def set_weight(self, weight: array_like) -> None:
+    def set_weight(self, weight: ArrayLike) -> None:
         """Set weight of each instance.
 
         Parameters
@@ -844,7 +844,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, weight, 'weight', 'float')
 
-    def set_base_margin(self, margin: array_like) -> None:
+    def set_base_margin(self, margin: ArrayLike) -> None:
         """Set base margin of booster to start from.
 
         This can be used to specify a prediction value of existing model to be
@@ -861,7 +861,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, margin, 'base_margin', 'float')
 
-    def set_group(self, group: array_like) -> None:
+    def set_group(self, group: ArrayLike) -> None:
         """Set group size of DMatrix (used for ranking).
 
         Parameters
@@ -989,7 +989,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return feature_names
 
     @feature_names.setter
-    def feature_names(self, feature_names: FeatNamesT) -> None:
+    def feature_names(self, feature_names: FeatureNames) -> None:
         """Set feature names (column labels).
 
         Parameters
@@ -1165,21 +1165,21 @@ class DeviceQuantileDMatrix(DMatrix):
     def __init__(  # pylint: disable=super-init-not-called
         self,
         data: Union[CuArrayLike, CuDFLike],
-        label: Optional[array_like] = None,
+        label: Optional[ArrayLike] = None,
         *,
-        weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
+        weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: FeatureTypes = None,
         nthread: Optional[int] = None,
         max_bin: int = 256,
-        group: Optional[array_like] = None,
-        qid: Optional[array_like] = None,
-        label_lower_bound: Optional[array_like] = None,
-        label_upper_bound: Optional[array_like] = None,
-        feature_weights: Optional[array_like] = None,
+        group: Optional[ArrayLike] = None,
+        qid: Optional[ArrayLike] = None,
+        label_lower_bound: Optional[ArrayLike] = None,
+        label_upper_bound: Optional[ArrayLike] = None,
+        feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
     ) -> None:
         self.max_bin = max_bin
@@ -1216,7 +1216,7 @@ class DeviceQuantileDMatrix(DMatrix):
         self,
         data: Union[CuArrayLike, CuDFLike],
         enable_categorical: bool,
-        **meta: Union[Optional[array_like], Optional[Sequence]]
+        **meta: Union[Optional[ArrayLike], Optional[Sequence]]
     ) -> None:
         from .data import (
             _is_dlpack,
@@ -1662,7 +1662,7 @@ class Booster:
         return self._get_feature_info("feature_name")
 
     @feature_names.setter
-    def feature_names(self, features: FeatNamesT) -> None:
+    def feature_names(self, features: FeatureNames) -> None:
         self._set_feature_info(features, "feature_name")
 
     def set_param(self, params: Union[str, Parameters], value: Any = None) -> None:
@@ -1968,7 +1968,7 @@ class Booster:
 
     def inplace_predict(
         self,
-        data: array_like,
+        data: ArrayLike,
         iteration_range: Tuple[int, int] = (0, 0),
         predict_type: str = "value",
         missing: float = np.nan,
