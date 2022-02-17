@@ -1363,7 +1363,7 @@ class Booster:
         else:
             self.booster = 'gbtree'
 
-    def _configure_metrics(self, params: Union[Dict, List]) -> Dict:
+    def _configure_metrics(self, params: Union[Dict, List]) -> Union[Dict, List]:
         if isinstance(params, dict) and 'eval_metric' in params \
            and isinstance(params['eval_metric'], list):
             params = dict((k, v) for k, v in params.items())
@@ -1372,8 +1372,7 @@ class Booster:
             params = list(params.items())
             for eval_metric in eval_metrics:
                 params += [('eval_metric', eval_metric)]
-        params_dict = {k: v for k, v in params}
-        return params_dict
+        return params
 
     def _transform_monotone_constrains(self, value: Union[Dict[str, int], str]) -> str:
         if isinstance(value, str):
