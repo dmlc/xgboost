@@ -19,13 +19,12 @@ from .typing import CuArrayLike, CuDFLike, FeatureTypes, DTypeLike
 
 c_bst_ulong = ctypes.c_uint64  # pylint: disable=invalid-name
 
+# return of DMatrix constructor.
 _CtorReturnT = Tuple[ctypes.c_void_p, Optional[List[str]], FeatureTypes]
 
 CAT_T = "c"
 
 # meta info that can be a matrix instead of vector.
-# For now it's base_margin for multi-class, but it can be extended to label once we have
-# multi-output.
 _matrix_meta = {"base_margin", "label"}
 
 
