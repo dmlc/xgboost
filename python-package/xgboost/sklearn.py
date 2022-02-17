@@ -186,7 +186,7 @@ __model_doc = f'''
         allowed to interact with each other.  See :doc:`tutorial
         </tutorials/feature_interaction_constraint>` for more information
     importance_type: Optional[str]
-        The feature importance type for the feature_importances\\_ property:
+        The feature importance type for the :py:attr:`feature_importances_` property:
 
         * For tree model, it's either "gain", "weight", "cover", "total_gain" or
           "total_cover".
@@ -228,27 +228,27 @@ __model_doc = f'''
 
         Metric used for monitoring the training result and early stopping.  It can be a
         string or list of strings as names of predefined metric in XGBoost (See
-        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any other
-        user defined metric that looks like `sklearn.metrics`.
+        :doc:`Parameter </parameter>`), one of the metrics in :py:mod:`sklearn.metrics`,
+        or any other user defined metric that looks like :py:mod:`sklearn.metrics`.
 
-        If custom objective is also provided, then custom metric should implement the
-        corresponding reverse link function.
+        - If custom objective is also provided, then custom metric should implement the
+          corresponding reverse link function.
 
-        Unlike the `scoring` parameter commonly used in scikit-learn, when a callable
-        object is provided, it's assumed to be a cost function and by default XGBoost will
-        minimize the result during early stopping.
+        - Unlike the `scoring` parameter commonly used in scikit-learn, when a callable
+          object is provided, it's assumed to be a cost function and by default XGBoost
+          will minimize the result during early stopping.
 
-        For advanced usage on Early stopping like directly choosing to maximize instead of
-        minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
+        - For advanced usage on Early stopping like directly choosing to maximize
+          instead of minimize, see :py:obj:`xgboost.callback.EarlyStopping`.
 
-        See :doc:`Custom Objective and Evaluation Metric </tutorials/custom_metric_obj>`
-        for more.
+        - See :doc:`Custom Objective and Evaluation Metric
+          </tutorials/custom_metric_obj>` for more.
 
         .. note::
 
-             This parameter replaces `eval_metric` in :py:meth:`fit` method.  The old one
-             receives un-transformed prediction regardless of whether custom objective is
-             being used.
+             This parameter replaces `eval_metric` in :py:meth:`fit` method.  The old
+             one receives un-transformed prediction regardless of whether custom
+             objective is being used.
 
         .. code-block:: python
 
@@ -1075,8 +1075,8 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        X : array_like, shape=[n_samples, n_features]
-            Input features matrix.
+        X :
+            Input features matrix, shape=[n_samples, n_features]
 
         iteration_range :
             See :py:meth:`predict`.

@@ -540,16 +540,19 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         """Parameters
         ----------
-        data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
-               dt.Frame/cudf.DataFrame/cupy.array/dlpack
-            Data source of DMatrix.
+        data :
+            Data source of DMatrix. It can be one of the :
+
+                os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
+                cudf.DataFrame/cupy.array/dlpack
+
             When data is string or os.PathLike type, it represents the path
             libsvm format txt file, csv file (by specifying uri parameter
             'path_to_csv?format=csv'), or binary file that xgboost can read
             from.
         label :
             Label of the training data.
-        weight : ArrayLike
+        weight :
             Weight for each instance.
 
             .. note:: For ranking task, weights are per-group.
@@ -559,34 +562,34 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 ordering of data points within each group, so it doesn't make
                 sense to assign weights to individual data points.
 
-        base_margin: ArrayLike
+        base_margin :
             Base margin used for boosting from existing model.
-        missing : float, optional
+        missing :
             Value in the input data which needs to be present as a missing
             value. If None, defaults to np.nan.
-        silent : boolean, optional
+        silent :
             Whether print messages during construction
-        feature_names : list, optional
+        feature_names :
             Set names for features.
         feature_types :
 
             Set types for features.  When `enable_categorical` is set to `True`, string
             "c" represents categorical data type.
 
-        nthread : integer, optional
+        nthread :
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
-        group : ArrayLike
+        group :
             Group size for all ranking group.
-        qid : ArrayLike
+        qid :
             Query ID for data samples, used for ranking.
-        label_lower_bound : ArrayLike
+        label_lower_bound :
             Lower bound for survival training.
-        label_upper_bound : ArrayLike
+        label_upper_bound :
             Upper bound for survival training.
-        feature_weights : ArrayLike, optional
+        feature_weights :
             Set feature weights for column sampling.
-        enable_categorical: boolean, optional
+        enable_categorical :
 
             .. versionadded:: 1.3.0
 
