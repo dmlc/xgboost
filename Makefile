@@ -92,6 +92,9 @@ endif
 mypy:
 	cd python-package; \
 	mypy ./xgboost/dask.py && \
+	mypy ./xgboost/config.py && \
+	mypy ./xgboost/compat.py && \
+	mypy ./xgboost/data.py && \
 	mypy ./xgboost/rabit.py && \
 	mypy ./xgboost/tracker.py && \
 	mypy ./xgboost/sklearn.py && \
