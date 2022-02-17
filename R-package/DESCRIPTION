@@ -26,6 +26,7 @@ Authors@R: c(
   person("Min", "Lin", role = c("aut")),
   person("Yifeng", "Geng", role = c("aut")),
   person("Yutian", "Li", role = c("aut")),
+  person("Jiaming", "Yuan", role = c("aut")),
   person("XGBoost contributors", role = c("cph"),
          comment = "base XGBoost implementation")
   )
