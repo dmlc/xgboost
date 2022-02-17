@@ -1,12 +1,9 @@
-# coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
-# pylint: disable=no-name-in-module,import-error
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar
-# pylint: enable=no-name-in-module,import-error
 from typing import Callable, Tuple, cast, Sequence
 import ctypes
 import os
@@ -124,9 +121,8 @@ def _log_callback(msg: bytes) -> None:
 
 def _get_log_callback_func() -> Callable:
     """Wrap log_callback() method in ctypes callback type"""
-    # pylint: disable=invalid-name
-    CALLBACK = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
-    return CALLBACK(_log_callback)
+    c_callback = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
+    return c_callback(_log_callback)
 
 
 def _load_lib() -> ctypes.CDLL:
@@ -647,7 +643,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         }
         args = from_pystr_to_cstr(json.dumps(args))
         handle = ctypes.c_void_p()
-        # pylint: disable=protected-access
         reset_callback, next_callback = it.get_callbacks(
             True, enable_categorical
         )
@@ -1229,7 +1224,6 @@ class DeviceQuantileDMatrix(DMatrix):
             it = SingleBatchInternalIter(data=data, **meta)
 
         handle = ctypes.c_void_p()
-        # pylint: disable=protected-access
         reset_callback, next_callback = it.get_callbacks(False, enable_categorical)
         if it.cache_prefix is not None:
             raise ValueError(
@@ -1402,7 +1396,6 @@ class Booster:
                 )
             return s + "]"
         except KeyError as e:
-            # pylint: disable=raise-missing-from
             raise ValueError(
                 "Constrained features are not a subset of training data feature names"
             ) from e
