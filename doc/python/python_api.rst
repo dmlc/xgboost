@@ -147,3 +147,15 @@ Dask API
     :members:
     :inherited-members:
     :show-inheritance:
+
+Types
+-----
+.. automodule:: xgboost.typing
+
+.. autoclass:: xgboost.typing.ArrayLike
+
+.. autoclass:: NativeInput
+
+.. autoclass:: FeatureNames
+
+.. autoclass:: FeatureTypes

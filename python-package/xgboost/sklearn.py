@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
+from __future__ import annotations
 import copy
 import warnings
 import json
@@ -876,7 +877,7 @@ class XGBModel(XGBModelBase):
         Parameters
         ----------
         X :
-            Feature matrix
+            | Feature matrix
         y :
             Labels
         sample_weight :
@@ -888,11 +889,11 @@ class XGBModel(XGBModelBase):
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
 
-        eval_metric : str, list of str, or callable, optional
+        eval_metric :
             .. deprecated:: 1.6.0
                 Use `eval_metric` in :py:meth:`__init__` or :py:meth:`set_params` instead.
 
-        early_stopping_rounds : int
+        early_stopping_rounds :
             .. deprecated:: 1.6.0
                 Use `early_stopping_rounds` in :py:meth:`__init__` or
                 :py:meth:`set_params` instead.
@@ -1465,14 +1466,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Parameters
         ----------
-        X : array_like
+        X :
             Feature matrix.
-        ntree_limit : int
+        ntree_limit :
             Deprecated, use `iteration_range` instead.
-        validate_features : bool
+        validate_features :
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
-        base_margin : array_like
+        base_margin :
             Margin added to prediction.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a

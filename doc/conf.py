@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # documentation build configuration file, created by
 # sphinx-quickstart on Thu Jul 23 19:40:08 2015.
@@ -11,6 +10,7 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+from __future__ import annotations
 from subprocess import call
 from sh.contrib import git
 import urllib.request
@@ -98,6 +98,10 @@ sphinx_gallery_conf = {
 }
 
 autodoc_typehints = "description"
+autodoc_typehints_format = "short"
+autodoc_preserve_defaults = True
+
+autodoc_type_aliases = {"ArrayLike": "xgboost.typing.ArrayLike"}
 
 graphviz_output_format = 'png'
 plot_formats = [('svg', 300), ('png', 100), ('hires.png', 300)]

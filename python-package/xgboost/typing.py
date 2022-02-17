@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import abstractproperty
 import os
 from typing import Union, Dict, Iterable, List, Tuple, Optional
