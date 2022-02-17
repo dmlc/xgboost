@@ -266,9 +266,9 @@ class ColumnMatrix {
   }
 
   template <typename T>
-  inline void SetIndexAllDense(T *index, const GHistIndexMatrix &gmat,
-                               const size_t nrow, const size_t nfeature,
-                               const bool noMissingValues, int32_t n_threads) {
+  inline void SetIndexAllDense(T const* index, const GHistIndexMatrix& gmat, const size_t nrow,
+                               const size_t nfeature, const bool noMissingValues,
+                               int32_t n_threads) {
     T* local_index = reinterpret_cast<T*>(&index_[0]);
 
     /* missing values make sense only for column with type kDenseColumn,
@@ -313,7 +313,7 @@ class ColumnMatrix {
   }
 
   template<typename T>
-  inline void SetIndex(uint32_t* index, const GHistIndexMatrix& gmat,
+  inline void SetIndex(uint32_t const* index, const GHistIndexMatrix& gmat,
                        const size_t nfeature) {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);

@@ -21,6 +21,13 @@ namespace xgboost {
  *  index for CPU histogram.  On GPU ellpack page is used.
  */
 class GHistIndexMatrix {
+  /**
+   * \brief Push a page into index matrix, the function is only necessary because hist has
+   *        partial support for external memory.
+   *
+   * \param rbegin The beginning row index of current page. (total rows in previous pages)
+   * \param prev_sum Total number of entries in previous pages.
+   */
   void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft, size_t rbegin,
                  size_t prev_sum, uint32_t nbins, int32_t n_threads);
 
@@ -64,12 +71,12 @@ class GHistIndexMatrix {
     BinIdxType* index_data = index_data_span.data();
     auto const& ptrs = cut.Ptrs();
     auto const& values = cut.Values();
-    common::ParallelFor(batch_size, batch_threads, [&](omp_ulong i) {
+    common::ParallelFor(batch_size, batch_threads, [&](omp_ulong ridx) {
       const int tid = omp_get_thread_num();
-      size_t ibegin = row_ptr[rbegin + i];
-      size_t iend = row_ptr[rbegin + i + 1];
-      const size_t size = offset_vec[i + 1] - offset_vec[i];
-      SparsePage::Inst inst = {data_ptr + offset_vec[i], size};
+      size_t ibegin = row_ptr[rbegin + ridx];    // index of first entry for current block
+      size_t iend = row_ptr[rbegin + ridx + 1];  // first entry for next block
+      const size_t size = offset_vec[ridx + 1] - offset_vec[ridx];
+      SparsePage::Inst inst = {data_ptr + offset_vec[ridx], size};
       CHECK_EQ(ibegin + inst.size(), iend);
       for (bst_uint j = 0; j < inst.size(); ++j) {
         auto e = inst[j];
@@ -103,6 +110,10 @@ class GHistIndexMatrix {
     return isDense_;
   }
   void SetDense(bool is_dense) { isDense_ = is_dense; }
+  /**
+   * \brief Get the local row index.
+   */
+  size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
 
   bst_row_t Size() const {
     return row_ptr.empty() ? 0 : row_ptr.size() - 1;

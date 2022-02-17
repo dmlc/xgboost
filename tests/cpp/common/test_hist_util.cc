@@ -306,8 +306,8 @@ TEST(HistUtil, IndexBinBound) {
 }
 
 template <typename T>
-void CheckIndexData(T* data_ptr, uint32_t* offsets,
-                    const GHistIndexMatrix& hmat, size_t n_cols) {
+void CheckIndexData(T const* data_ptr, uint32_t const* offsets, const GHistIndexMatrix& hmat,
+                    size_t n_cols) {
   for (size_t i = 0; i < hmat.index.Size(); ++i) {
     EXPECT_EQ(data_ptr[i] + offsets[i % n_cols], hmat.index[i]);
   }
@@ -323,7 +323,7 @@ TEST(HistUtil, IndexBinData) {
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
     GHistIndexMatrix hmat(p_fmat.get(), max_bin, 0.5, false, common::OmpGetNumThreads(0));
-    uint32_t* offsets = hmat.index.Offset();
+    uint32_t const* offsets = hmat.index.Offset();
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {
       case kBinSizes[0]:

@@ -135,7 +135,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
 
   {
     auto nid = RegTree::kRoot;
-    GHistRowT hist = this->histogram_builder_->Histogram()[nid];
+    auto hist = this->histogram_builder_->Histogram()[nid];
     GradientPairT grad_stat;
     if (data_layout_ == DataLayout::kDenseDataZeroBased ||
         data_layout_ == DataLayout::kDenseDataOneBased) {
@@ -149,7 +149,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
         grad_stat.Add(et.GetGrad(), et.GetHess());
       }
     } else {
-      const RowSetCollection::Elem e = row_set_collection_[nid];
+      const common::RowSetCollection::Elem e = row_set_collection_[nid];
       for (const size_t *it = e.begin; it < e.end; ++it) {
         grad_stat.Add(gpair_h[*it].GetGrad(), gpair_h[*it].GetHess());
       }
@@ -229,7 +229,7 @@ template<typename GradientSumT>
 template <bool any_missing>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     const GHistIndexMatrix& gmat,
-    const ColumnMatrix& column_matrix,
+    const common::ColumnMatrix& column_matrix,
     DMatrix* p_fmat,
     RegTree* p_tree,
     const std::vector<GradientPair>& gpair_h) {

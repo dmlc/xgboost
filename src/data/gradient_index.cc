@@ -10,6 +10,7 @@
 
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 
@@ -34,7 +35,6 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
       std::max(static_cast<size_t>(1), std::min(batch.Size(), static_cast<size_t>(n_threads)));
   auto page = batch.GetView();
   common::MemStackAllocator<size_t, 128> partial_sums(batch_threads);
-  size_t *p_part = partial_sums.Get();
 
   size_t block_size = batch.Size() / batch_threads;
 
@@ -48,10 +48,10 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
         size_t iend = (tid == (batch_threads - 1) ? batch.Size()
                                                   : (block_size * (tid + 1)));
 
-        size_t sum = 0;
-        for (size_t i = ibegin; i < iend; ++i) {
-          sum += page[i].size();
-          row_ptr[rbegin + 1 + i] = sum;
+        size_t running_sum = 0;
+        for (size_t ridx = ibegin; ridx < iend; ++ridx) {
+          running_sum += page[ridx].size();
+          row_ptr[rbegin + 1 + ridx] = running_sum;
         }
       });
     }
@@ -59,9 +59,9 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
 #pragma omp single
     {
       exc.Run([&]() {
-        p_part[0] = prev_sum;
+        partial_sums[0] = prev_sum;
         for (size_t i = 1; i < batch_threads; ++i) {
-          p_part[i] = p_part[i - 1] + row_ptr[rbegin + i * block_size];
+          partial_sums[i] = partial_sums[i - 1] + row_ptr[rbegin + i * block_size];
         }
       });
     }
@@ -74,55 +74,52 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
                                                   : (block_size * (tid + 1)));
 
         for (size_t i = ibegin; i < iend; ++i) {
-          row_ptr[rbegin + 1 + i] += p_part[tid];
+          row_ptr[rbegin + 1 + i] += partial_sums[tid];
         }
       });
     }
   }
   exc.Rethrow();
 
-  const size_t n_offsets = cut.Ptrs().size() - 1;
-  const size_t n_index = row_ptr[rbegin + batch.Size()];
+  const size_t n_index = row_ptr[rbegin + batch.Size()];  // number of entries in this page
   ResizeIndex(n_index, isDense_);
 
   CHECK_GT(cut.Values().size(), 0U);
 
-  uint32_t *offsets = nullptr;
   if (isDense_) {
-    index.ResizeOffset(n_offsets);
-    offsets = index.Offset();
-    for (size_t i = 0; i < n_offsets; ++i) {
-      offsets[i] = cut.Ptrs()[i];
-    }
+    index.SetBinOffset(cut.Ptrs());
   }
+  uint32_t const *offsets = index.Offset();
 
   if (isDense_) {
+    // Inside the lambda functions, bin_idx is the index for cut value across all
+    // features. By subtracting it with starting pointer of each feature, we can reduce
+    // it to smaller value and compress it to smaller types.
     common::BinTypeSize curent_bin_size = index.GetBinTypeSize();
     if (curent_bin_size == common::kUint8BinsTypeSize) {
       common::Span<uint8_t> index_data_span = {index.data<uint8_t>(), n_index};
       SetIndexData(index_data_span, ft, batch_threads, batch, rbegin, nbins,
-                   [offsets](auto idx, auto j) {
-                     return static_cast<uint8_t>(idx - offsets[j]);
+                   [offsets](auto bin_idx, auto fidx) {
+                     return static_cast<uint8_t>(bin_idx - offsets[fidx]);
                    });
     } else if (curent_bin_size == common::kUint16BinsTypeSize) {
       common::Span<uint16_t> index_data_span = {index.data<uint16_t>(), n_index};
       SetIndexData(index_data_span, ft, batch_threads, batch, rbegin, nbins,
-                   [offsets](auto idx, auto j) {
-                     return static_cast<uint16_t>(idx - offsets[j]);
+                   [offsets](auto bin_idx, auto fidx) {
+                     return static_cast<uint16_t>(bin_idx - offsets[fidx]);
                    });
     } else {
       CHECK_EQ(curent_bin_size, common::kUint32BinsTypeSize);
       common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
       SetIndexData(index_data_span, ft, batch_threads, batch, rbegin, nbins,
-                   [offsets](auto idx, auto j) {
-                     return static_cast<uint32_t>(idx - offsets[j]);
+                   [offsets](auto bin_idx, auto fidx) {
+                     return static_cast<uint32_t>(bin_idx - offsets[fidx]);
                    });
     }
-
+  } else {
     /* For sparse DMatrix we have to store index of feature for each bin
        in index field to chose right offset. So offset is nullptr and index is
        not reduced */
-  } else {
     common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
     SetIndexData(index_data_span, ft, batch_threads, batch, rbegin, nbins,
                  [](auto idx, auto) { return idx; });
@@ -194,11 +191,13 @@ void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType co
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
   if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
+    // compress dense index to uint8
     index.SetBinTypeSize(common::kUint8BinsTypeSize);
     index.Resize((sizeof(uint8_t)) * n_index);
   } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) &&
               max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) &&
              isDense) {
+    // compress dense index to uint16
     index.SetBinTypeSize(common::kUint16BinsTypeSize);
     index.Resize((sizeof(uint16_t)) * n_index);
   } else {

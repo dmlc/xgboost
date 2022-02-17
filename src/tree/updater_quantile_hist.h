@@ -147,7 +147,7 @@ class QuantileHistMaker: public TreeUpdater {
   // training parameter
   TrainParam param_;
   // column accessor
-  ColumnMatrix column_matrix_;
+  common::ColumnMatrix column_matrix_;
   DMatrix const* p_last_dmat_ {nullptr};
   bool is_gmat_initialized_ {false};
 
@@ -155,7 +155,6 @@ class QuantileHistMaker: public TreeUpdater {
   template<typename GradientSumT>
   struct Builder {
    public:
-    using GHistRowT = GHistRow<GradientSumT>;
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
     explicit Builder(const size_t n_trees, const TrainParam& param,
@@ -164,7 +163,6 @@ class QuantileHistMaker: public TreeUpdater {
         : n_trees_(n_trees),
           param_(param),
           pruner_(std::move(pruner)),
-          p_last_tree_(nullptr),
           p_last_fmat_(fmat),
           histogram_builder_{new HistogramBuilder<GradientSumT, CPUExpandEntry>},
           task_{task},
@@ -172,7 +170,7 @@ class QuantileHistMaker: public TreeUpdater {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
-    void Update(const GHistIndexMatrix& gmat, const ColumnMatrix& column_matrix,
+    void Update(const GHistIndexMatrix& gmat, const common::ColumnMatrix& column_matrix,
                 HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree);
 
     bool UpdatePredictionCache(const DMatrix* data,
