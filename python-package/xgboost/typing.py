@@ -4,16 +4,18 @@ from typing import Union, Dict, Iterable, List, Tuple, Optional
 from typing import SupportsIndex, Sized
 
 import numpy as np
+
 try:
     from numpy import typing as npt
+
     DTypeLike = npt.DTypeLike
 except ImportError:
-    DTypeLike = np.dtype        # type: ignore
+    DTypeLike = Union[np.dtype, str]  # type: ignore
 
 try:
     from typing import Protocol
 except ImportError:
-    Protocol = object           # type: ignore
+    Protocol = object  # type: ignore
 
 
 class NPArrayLike(Protocol, Sized):
@@ -35,7 +37,9 @@ class NPArrayLike(Protocol, Sized):
 
 class CuArrayLike(Protocol):
     @abstractproperty
-    def __cuda_array_interface__(self) -> Dict[str, Union[str, int, Dict, "CuArrayLike"]]:
+    def __cuda_array_interface__(
+        self,
+    ) -> Dict[str, Union[str, int, Dict, "CuArrayLike"]]:
         ...
 
     @abstractproperty
@@ -93,7 +97,9 @@ class CuDFLike(Protocol, Iterable):
         ...
 
     @abstractproperty
-    def __cuda_array_interface__(self) -> Dict[str, Union[str, int, Dict, "CuArrayLike"]]:
+    def __cuda_array_interface__(
+        self,
+    ) -> Dict[str, Union[str, int, Dict, "CuArrayLike"]]:
         ...
 
     @abstractproperty
@@ -124,7 +130,9 @@ FloatT = Union[float, np.float16, np.float32, np.float64]
 
 
 ArrayLike = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike]
-NativeInput = Union[NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike, str, os.PathLike]
+NativeInput = Union[
+    NPArrayLike, DFLike, CuArrayLike, CuDFLike, CSRLike, str, os.PathLike
+]
 
 FeatureNames = Optional[List[str]]
 FeatureTypes = Optional[Union[List[str], List[DTypeLike], str]]

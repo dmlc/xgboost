@@ -833,9 +833,7 @@ def dispatch_data_backend(
             cast(np.ndarray, data), missing, threads, feature_names, feature_types
         )
     if _is_uri(data):
-        return _from_uri(
-            cast(PathLike, data), missing, feature_names, feature_types
-        )
+        return _from_uri(cast(PathLike, data), missing, feature_names, feature_types)
     if _is_list(data):
         return _from_list(
             cast(list, data), missing, threads, feature_names, feature_types
