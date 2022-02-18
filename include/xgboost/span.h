@@ -106,12 +106,7 @@ namespace common {
 
 #if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 
-#define KERNEL_CHECK(cond)                \
-  do {                                    \
-    if (XGBOOST_EXPECT(!(cond), false)) { \
-      printf("[xgboost] fatal error.\n"); \
-    }                                     \
-  } while (0)
+#define KERNEL_CHECK(cond)
 
 #define SPAN_CHECK(cond) KERNEL_CHECK(cond)
 
