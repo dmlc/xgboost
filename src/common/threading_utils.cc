@@ -32,7 +32,11 @@ int32_t GetCfsCPUCount() noexcept {
     }
     char value[64];
     CHECK(::read(fd, value, sizeof(value)) < signed(sizeof(value)));
-    return std::atoi(value);
+    try {
+      return std::stoi(value);
+    } catch (std::exception const&) {
+      return -1;
+    }
   };
   // complete fair scheduler from Linux
   auto const cfs_quota(read_int("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
