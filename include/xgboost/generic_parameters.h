@@ -71,7 +71,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .describe("Enable checking whether parameters are used or not.");
     DMLC_DECLARE_FIELD(device_id)
         .set_default(DeviceId())
-        .describe("The unifyed device descriptor.");
+        .describe("The unified device descriptor.");
   }
 };
 }  // namespace xgboost

@@ -420,7 +420,7 @@ class LearnerConfiguration : public Learner {
 
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
-      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(tparam_.objective), &generic_parameters_));
+      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
     }
     obj_->LoadConfig(objective_fn);
 
@@ -656,10 +656,7 @@ class LearnerConfiguration : public Learner {
   void ConfigureDeviceId() {
     std::stringstream ss;
     ss << generic_parameters_.device_id;
-
-    std::string name;
-    ss >> name;
-    cfg_["device_id"] = name;
+    cfg_["device_id"] = ss.str();
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
@@ -667,7 +664,6 @@ class LearnerConfiguration : public Learner {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
                                          &learner_model_param_));
     }
-
     gbm_->Configure(args);
   }
 
@@ -689,10 +685,13 @@ class LearnerConfiguration : public Learner {
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(tparam_.objective), &generic_parameters_));
+      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
     }
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
+    // for (const auto& elem : args) {
+    //   std::cout << elem.first << " " << elem.second << std::endl;
+    // }
     obj_->Configure(args);
   }
 
@@ -786,7 +785,7 @@ class LearnerIO : public LearnerConfiguration {
 
     name = get<String>(objective_fn["name"]);
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(name), &generic_parameters_));
+    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(name), &generic_parameters_));
     obj_->LoadConfig(objective_fn);
 
     auto const& gradient_booster = learner.at("gradient_booster");
@@ -878,7 +877,6 @@ class LearnerIO : public LearnerConfiguration {
       }
     }
 
-    std::cout << "Trying to load model from dmlc::Stream" << std::endl;
     if (header[0] == '{') {  // Dispatch to JSON
       auto buffer = common::ReadAll(fi, &fp);
       Json model;
@@ -907,7 +905,7 @@ class LearnerIO : public LearnerConfiguration {
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
-    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.GetKernelName(tparam_.objective), &generic_parameters_));
+    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
     gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
                                        &learner_model_param_));
     gbm_->Load(fi);

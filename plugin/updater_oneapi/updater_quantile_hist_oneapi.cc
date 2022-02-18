@@ -9,6 +9,7 @@
 #include "xgboost/tree_updater.h"
 
 #include "./updater_quantile_hist_oneapi.h"
+#include "./device_manager_oneapi.h"
 #include "data_oneapi.h"
 
 namespace xgboost {
@@ -26,37 +27,13 @@ void QuantileHistMakerOneAPI::Configure(const Args& args) {
   GenericParameter param;
   param.UpdateAllowUnknown(args);
 
-  // bool is_cpu = param.device_id.Type() == DeviceType::kOneAPI_CPU;
-  const DeviceId& device_id = param.device_id;
-  std::vector<sycl::device> devices = sycl::device::get_devices();
-  for (size_t i = 0; i < devices.size(); i++) {
-    LOG(INFO) << "device_id = " << i << ", name = " << devices[i].get_info<sycl::info::device::name>();
-  }
+  const DeviceId::Specification& device_spec = param.device_id.Fit();
 
-  std::vector<sycl::device> cpu_devices;
-  std::vector<sycl::device> gpu_devices;
-  for (size_t i = 0; i < devices.size(); i++) {
-    if (devices[i].is_cpu()) {
-      cpu_devices.push_back(devices[i]);
-    } else if (devices[i].is_gpu()) {
-      gpu_devices.push_back(devices[i]);
-    }
-  }
+  bool is_cpu = (device_spec.Type() == DeviceType::kOneAPI_CPU);
+  sycl::device device = device_manager.GetDevice(device_spec);
+  is_cpu = is_cpu || device.is_host();
 
-  bool is_cpu = true;
-  if (device_id.Type() == DeviceType::kOneAPI_CPU) {
-    CHECK_LT(device_id.Index(), cpu_devices.size());
-  } else if (device_id.Type() == DeviceType::kOneAPI_GPU) {
-    CHECK_LT(device_id.Index(), gpu_devices.size());
-    is_cpu = gpu_devices[device_id.Index()].is_host();
-  }
-
-  // if (param.device_id.Index() != DeviceId::kDefaultIndex) {
-  //   int n_devices = (int)devices.size();
-  //   CHECK_LT(param.device_id.Index(), n_devices);
-  //   is_cpu = devices[param.device_id.Index()].is_cpu() | devices[param.device_id.Index()].is_host();
-  // }
-  LOG(INFO) << "device_id = " << device_id << ", is_cpu = " << int(is_cpu);
+  LOG(INFO) << "device_spec = " << device_spec << ", is_cpu = " << int(is_cpu);
 
   if (is_cpu) {
     updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker", tparam_, task_));
@@ -83,14 +60,8 @@ void GPUQuantileHistMakerOneAPI::Configure(const Args& args) {
   GenericParameter param;
   param.UpdateAllowUnknown(args);
 
-  std::vector<sycl::device> devices = sycl::device::get_devices();
-
-  if (param.device_id.Index() != DeviceId::kDefaultIndex) {
-    qu_ = sycl::queue(devices[param.device_id.Index()]);
-  } else {
-    sycl::default_selector selector;
-    qu_ = sycl::queue(selector);
-  }
+  const DeviceId::Specification& device_spec = param.device_id.Fit();
+  qu_ = device_manager.GetQueue(device_spec);
 
   // initialize pruner
   if (!pruner_) {
@@ -1424,7 +1395,7 @@ XGBOOST_REGISTER_TREE_UPDATER(GPUQuantileHistMakerOneAPI, "grow_quantile_histmak
       return new GPUQuantileHistMakerOneAPI(task);
     });
 XGBOOST_REGISTERATE_DEVICEID_KERNEL("grow_quantile_histmaker", DeviceType::kOneAPI_CPU, "grow_quantile_histmaker_oneapi");
-XGBOOST_REGISTERATE_DEVICEID_KERNEL("grow_quantile_histmaker", DeviceType::kOneAPI_GPU, "grow_quantile_histmaker_oneapi_gpu");
+XGBOOST_REGISTERATE_DEVICEID_KERNEL("grow_quantile_histmaker", DeviceType::kOneAPI_GPU, "grow_quantile_histmaker_oneapi");
 
 XGBOOST_REGISTERATE_DEVICE("oneapi:cpu")
 .set_body(DeviceType::kOneAPI_CPU);

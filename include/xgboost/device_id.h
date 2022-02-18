@@ -34,11 +34,33 @@ class DeviceId {
   static int constexpr kDefaultIndex = -1;
 
   void Init(const std::string& user_input_device_id);
-  DeviceType Type() const;
 
-  int Index() const;
+  class Specification {
+    public:
+      Specification(const std::string& prefix) : prefix_(prefix + ':') {}
 
-  std::string GetKernelName(const std::string& method_name) const;
+      void Init(const std::string& specification);
+
+      DeviceType Type() const;
+
+      int Index() const;
+
+      std::string GetKernelName(const std::string& method_name) const;
+      
+      void UpdateByGPUId(int gpu_id);
+
+      int GetGPUId();
+
+      std::string Prefix() const;
+
+      std::string Name() const;
+
+    private:
+      std::string prefix_;
+
+      DeviceType type_ = DeviceType::kDefault;
+      int index_ = DeviceId::kDefaultIndex;
+  };
 
   void SaveConfig(Json* p_out) const;
 
@@ -46,14 +68,24 @@ class DeviceId {
 
   int GetGPUId();
 
+  Specification& Fit();
+
+  Specification& Predict();
+
+  Specification Fit() const;
+
+  Specification Predict() const;
+
  private:
-  DeviceType type_ = DeviceType::kDefault;
-  int index_ = kDefaultIndex;
+  Specification fit = Specification("fit");
+  Specification predict = Specification("predict");
 };
 
 std::istream& operator >> (std::istream& is, DeviceId& device_id);
 
 std::ostream& operator << (std::ostream& os, const DeviceId& device_id);
+
+std::ostream& operator << (std::ostream& os, const DeviceId::Specification& specification);
 
 #define CAT2(a,b) a##b
 #define CAT(a,b) CAT2(a,b)

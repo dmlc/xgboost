@@ -12,6 +12,7 @@
 #include "../../src/common/transform.h"
 #include "../../src/common/common.h"
 #include "./regression_loss_oneapi.h"
+#include "./device_manager_oneapi.h"
 
 #include "CL/sycl.hpp"
 
@@ -31,6 +32,9 @@ struct RegLossParamOneAPI : public XGBoostParameter<RegLossParamOneAPI> {
 
 template<typename Loss>
 class RegLossObjOneAPI : public ObjFunction {
+ private:
+  DeviceManagerOneAPI device_manager;
+
  protected:
   HostDeviceVector<int> label_correct_;
 
@@ -40,8 +44,11 @@ class RegLossObjOneAPI : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
 
-    sycl::default_selector selector;
-    qu_ = sycl::queue(selector);
+    GenericParameter generic_parameter;
+    generic_parameter.UpdateAllowUnknown(args);
+
+    const DeviceId::Specification& device_spec = generic_parameter.device_id.Fit();
+    qu_ = device_manager.GetQueue(device_spec);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -71,11 +78,13 @@ class RegLossObjOneAPI : public ObjFunction {
     sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
                                                is_null_weight ? 1 : info.weights_.Size());
 
-	sycl::buffer<int, 1> additional_input_buf(1);
-	{
-		auto additional_input_acc = additional_input_buf.get_access<sycl::access::mode::write>();
-		additional_input_acc[0] = 1; // Fill the label_correct flag
-	}
+    const size_t n_targets = std::max(info.labels.Shape(1), static_cast<size_t>(1));
+
+    sycl::buffer<int, 1> additional_input_buf(1);
+    {
+      auto additional_input_acc = additional_input_buf.get_access<sycl::access::mode::write>();
+      additional_input_acc[0] = 1; // Fill the label_correct flag
+    }
 
     auto scale_pos_weight = param_.scale_pos_weight;
     if (!is_null_weight) {
@@ -92,7 +101,7 @@ class RegLossObjOneAPI : public ObjFunction {
       cgh.parallel_for<>(sycl::range<1>(ndata), [=](sycl::id<1> pid) {
         int idx = pid[0];
         bst_float p = Loss::PredTransform(preds_acc[idx]);
-        bst_float w = is_null_weight ? 1.0f : weights_acc[idx];
+        bst_float w = is_null_weight ? 1.0f : weights_acc[idx/n_targets];
         bst_float label = labels_acc[idx];
         if (label == 1.0f) {
           w *= scale_pos_weight;
@@ -125,7 +134,6 @@ class RegLossObjOneAPI : public ObjFunction {
 
   void PredTransform(HostDeviceVector<float> *io_preds) const override {
     size_t const ndata = io_preds->Size();
-
     sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 
     qu_.submit([&](sycl::handler& cgh) {
@@ -173,32 +181,27 @@ DMLC_REGISTER_PARAMETER(RegLossParamOneAPI);
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::KernelName())
 .describe("Regression with squared error with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI>(); });
-// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LinearSquareLossOneAPI::Name(), DeviceType::kOneAPI_CPU, LinearSquareLossOneAPI::KernelName());
 XGBOOST_REGISTERATE_DEVICEID_KERNEL(LinearSquareLossOneAPI::Name(), DeviceType::kOneAPI_GPU, LinearSquareLossOneAPI::KernelName());
 
 XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::KernelName())
 .describe("Regression with root mean squared logarithmic error with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI>(); });
-// XGBOOST_REGISTERATE_DEVICEID_KERNEL(SquaredLogErrorOneAPI::Name(), DeviceType::kOneAPI_CPU, SquaredLogErrorOneAPI::KernelName());
 XGBOOST_REGISTERATE_DEVICEID_KERNEL(SquaredLogErrorOneAPI::Name(), DeviceType::kOneAPI_GPU, SquaredLogErrorOneAPI::KernelName());
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::KernelName())
 .describe("Logistic regression for probability regression task with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI>(); });
-// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRegressionOneAPI::Name(), DeviceType::kOneAPI_CPU, LogisticRegressionOneAPI::KernelName());
 XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRegressionOneAPI::Name(), DeviceType::kOneAPI_GPU, LogisticRegressionOneAPI::KernelName());
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::KernelName())
 .describe("Logistic regression for binary classification task with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI>(); });
-// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticClassificationOneAPI::Name(), DeviceType::kOneAPI_CPU, LogisticClassificationOneAPI::KernelName());
 XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticClassificationOneAPI::Name(), DeviceType::kOneAPI_GPU, LogisticClassificationOneAPI::KernelName());
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::KernelName())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI>(); });
-// XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRawOneAPI::Name(), DeviceType::kOneAPI_CPU, LogisticRawOneAPI::KernelName());
 XGBOOST_REGISTERATE_DEVICEID_KERNEL(LogisticRawOneAPI::Name(), DeviceType::kOneAPI_GPU, LogisticRawOneAPI::KernelName());
 
 }  // namespace obj

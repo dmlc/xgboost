@@ -15,28 +15,109 @@ DMLC_REGISTRY_ENABLE(::xgboost::DeviceReg);
 
 namespace xgboost {
 
-void DeviceId::Init(const std::string& user_input_device_id) {
-    size_t position = user_input_device_id.find_last_of(':');
+DeviceId::Specification& DeviceId::Fit() {
+  return fit;
+}
 
-    const std::string device_name = user_input_device_id.substr(0,position);
-    const std::string index_name = user_input_device_id.substr(position+1);
+DeviceId::Specification& DeviceId::Predict() {
+  return predict;
+}
+
+DeviceId::Specification DeviceId::Fit() const {
+  return fit;
+}
+
+DeviceId::Specification DeviceId::Predict() const {
+  return predict;
+}
+
+void DeviceId::Init(const std::string& user_input_device_id) {
+  int fit_position = user_input_device_id.find(fit.Prefix());
+  int predict_position = user_input_device_id.find(predict.Prefix());
+
+  CHECK((fit_position == std::string::npos) == (predict_position == std::string::npos))
+    <<  "Both " << fit.Prefix() << " and " << predict.Prefix() << " or neither of them should be specified";
+
+  if ((fit_position == std::string::npos) && (predict_position == std::string::npos)) {
+    // user_input looks like: device_id='oneapi:cpu:0'
+    fit.Init(user_input_device_id);
+    predict.Init(user_input_device_id);
+  } else {
+    int separator_position = user_input_device_id.find(';');
+    CHECK(separator_position != std::string::npos)
+      <<  fit.Prefix() << " and " << predict.Prefix() << " shuold be separated by \';\'";
+
+    int fit_specification_begin = fit_position + fit.Prefix().size();
+    int predict_specification_begin = predict_position + predict.Prefix().size();
+    if (fit_position < predict_position) {
+      // user_input looks like: device_id='fit:oneapi:gpu:0; predict:oneapi:cpu:0'
+      int fit_specification_lenght = separator_position - fit_specification_begin;
+      fit.Init(user_input_device_id.substr(fit_specification_begin, fit_specification_lenght));
+      predict.Init(user_input_device_id.substr(predict_specification_begin));
+    } else if (fit_position > predict_position) {
+      // user_input looks like: device_id='predict:oneapi:gpu:0; fit:oneapi:cpu:0'
+      int predict_specification_length = separator_position - predict_specification_begin;
+      fit.Init(user_input_device_id.substr(fit_specification_begin));
+      predict.Init(user_input_device_id.substr(predict_specification_begin, predict_specification_length));
+    }
+  }
+
+  // Check constrains on fit and predict
+  if ((fit.Type() == DeviceType::kCUDA) && (predict.Type() == DeviceType::kCUDA)) {
+      CHECK(fit.Index() == predict.Index())
+      <<  "Different cuda devices for fit and predict are not supported: fit = " << fit << "; predict = " << predict << ";";
+  }
+}
+
+std::istream& operator >> (std::istream& is, DeviceId& device_id) {
+    std::string input;
+    std::getline(is, input);
+
+    device_id.Init(input);
+    return is;
+}
+
+std::ostream& operator << (std::ostream& os, const DeviceId& device_id) {
+  os << device_id.Fit().Prefix() << device_id.Fit() << "; " << device_id.Predict().Prefix() << device_id.Predict();
+
+  return os;
+}
+
+void DeviceId::SaveConfig(Json* p_out) const {
+  auto& out = *p_out;
+
+  std::stringstream ss;
+  ss << *this;
+
+  out["name"] = String(ss.str());
+}
+
+std::string DeviceId::Specification::Prefix() const {
+  return prefix_;
+}
+
+void DeviceId::Specification::Init(const std::string& specification) {
+    int position = specification.find_last_of(':');
+
+    const std::string device_name = specification.substr(0,position);
+    const std::string index_name = specification.substr(position+1);
     auto *e = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name);
     CHECK(e != nullptr)
-      << "Specified device: " << user_input_device_id.substr(0,position) << " is unknown.";
+      << "Specified device: " << specification.substr(0,position) << " is unknown.";
 
     type_ = e->body;
     index_ = std::stoi(index_name);
 }
 
-DeviceType DeviceId::Type() const {
+DeviceType DeviceId::Specification::Type() const {
   return type_;
 }
 
-int DeviceId::Index() const {
+int DeviceId::Specification::Index() const {
   return index_;
 }
 
-std::string DeviceId::GetKernelName(const std::string& method_name) const {
+std::string DeviceId::Specification::GetKernelName(const std::string& method_name) const {
   /*
    * Replace the method name, if a specific one is registrated for the current device_id
    */
@@ -50,52 +131,50 @@ std::string DeviceId::GetKernelName(const std::string& method_name) const {
   return method_name;
 }
 
-void DeviceId::SaveConfig(Json* p_out) const {
-  auto& out = *p_out;
-
-  std::stringstream ss;
-  ss << *this;
-
-  std::string name;
-  ss >> name;
-  out["name"] = String(name);
-}
-
-std::istream& operator >> (std::istream& is, DeviceId& device_id) {
-    std::string input;
-    is >> input;
-    device_id.Init(input);
-    return is;
-}
-
-std::ostream& operator << (std::ostream& os, const DeviceId& device_id) {
+std::ostream& operator << (std::ostream& os, const DeviceId::Specification& specification) {
   std::vector<std::string> known_device_names = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->ListAllNames();
   for (const std::string& device_name : known_device_names) {
     auto device_type = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name)->body;
-    if (device_type == device_id.Type()) {
-      os << device_name << ':' << device_id.Index();
+    if (device_type == specification.Type()) {
+      os << device_name << ':' << specification.Index();
       return os;
     }
   }
   CHECK(false)
-    << "Can't find device name for type enumerated as " << static_cast<int> (device_id.Type());
+    << "Can't find device name for type enumerated as " << static_cast<int> (specification.Type());
 
   return os;
 }
 
 void DeviceId::UpdateByGPUId(int gpu_id) {
+  fit.UpdateByGPUId(gpu_id);
+  predict.UpdateByGPUId(gpu_id);
+}
+
+int DeviceId::GetGPUId() {
+  return fit.GetGPUId();
+}
+
+void DeviceId::Specification::UpdateByGPUId(int gpu_id) {
   if (gpu_id != GenericParameter::kCpuId) {
     type_ = DeviceType::kCUDA;
     index_ = gpu_id;
   }
 }
 
-int DeviceId::GetGPUId() {
+int DeviceId::Specification::GetGPUId() {
   if (type_ == DeviceType::kCUDA) {
     return index_;
   } else {
     return GenericParameter::kCpuId;
   }
+}
+
+std::string DeviceId::Specification::Name() const {
+  std::stringstream ss;
+  ss << *this;
+
+  return ss.str();
 }
 
 XGBOOST_REGISTERATE_DEVICE("cpu")

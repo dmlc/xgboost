@@ -13,7 +13,7 @@ class TestOneAPITrainingContinuation:
         y = np.random.randn(kRows)
         dtrain = xgb.DMatrix(X, y)
         params = {'updater': 'grow_quantile_histmaker',
-                  'device_id': 'oneapi:cpu:0',
+                  'device_id': 'oneapi:gpu:0',
                   'max_depth': '2',
                   'gamma': '0.1', 'alpha': '0.01',
                   'enable_experimental_json_serialization': use_json}

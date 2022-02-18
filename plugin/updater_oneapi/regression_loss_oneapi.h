@@ -8,6 +8,8 @@
 #include <xgboost/logging.h>
 #include <algorithm>
 
+#include <regression_loss.h>
+
 #include "CL/sycl.hpp"
 
 namespace xgboost {

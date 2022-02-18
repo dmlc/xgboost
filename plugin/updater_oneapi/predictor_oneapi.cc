@@ -14,6 +14,8 @@
 #include "../../src/common/math.h"
 #include "../../src/gbm/gbtree_model.h"
 
+#include "./device_manager_oneapi.h"
+
 #include "CL/sycl.hpp"
 
 namespace xgboost {
@@ -25,47 +27,18 @@ class PredictorOneAPI : public Predictor {
  public:
   explicit PredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {
-    // bool is_cpu = (generic_param->device_id.Type() == DeviceType::kOneAPI_CPU) || 
-    //               (generic_param->device_id.Type() == DeviceType::kDefault);
+    const DeviceId::Specification& device_spec = generic_param->device_id.Predict();
 
-    const DeviceId& device_id = generic_param->device_id;
-    std::vector<sycl::device> devices = sycl::device::get_devices();
-    for (size_t i = 0; i < devices.size(); i++) {
-      LOG(INFO) << "device_id = " << i << ", name = " << devices[i].get_info<sycl::info::device::name>();
-    }
+    bool is_cpu = (device_spec.Type() == DeviceType::kOneAPI_CPU) || 
+                  (device_spec.Type() == DeviceType::kDefault);
+    sycl::device device = device_manager.GetDevice(device_spec);
+    is_cpu = is_cpu || device.is_host();
 
-    std::vector<sycl::device> cpu_devices;
-    std::vector<sycl::device> gpu_devices;
-    for (size_t i = 0; i < devices.size(); i++) {
-      if (devices[i].is_cpu()) {
-        cpu_devices.push_back(devices[i]);
-      } else if (devices[i].is_gpu()) {
-        gpu_devices.push_back(devices[i]);
-      }
-    }
-
-    bool is_cpu = true;
-    if (device_id.Type() == DeviceType::kOneAPI_CPU) {
-      CHECK_LT(device_id.Index(), cpu_devices.size());
-    } else if (device_id.Type() == DeviceType::kOneAPI_GPU) {
-      CHECK_LT(device_id.Index(), gpu_devices.size());
-      is_cpu = gpu_devices[device_id.Index()].is_host();
-    }
-
-    // if (generic_param->device_id.Index() != DeviceId::kDefaultIndex) {
-    //   int n_devices = (int)devices.size();
-
-    //   CHECK_LT(generic_param->device_id.Index(), n_devices);
-    //   is_cpu = devices[generic_param->device_id.Index()].is_cpu() | devices[generic_param->device_id.Index()].is_host();
-    // }
-    LOG(INFO) << "device_id = " << device_id << ", is_cpu = " << int(is_cpu);
+    LOG(INFO) << "device_spec = " << device_spec << ", is_cpu = " << int(is_cpu);
     
-    if (is_cpu)
-    {
+    if (is_cpu) {
       predictor_backend_.reset(Predictor::Create("cpu_predictor", generic_param));
-    }
-    else
-    {
+    } else {
       predictor_backend_.reset(Predictor::Create("oneapi_predictor_gpu", generic_param));
     }
   }
@@ -123,7 +96,7 @@ class PredictorOneAPI : public Predictor {
   }
  
  private:
-
+  DeviceManagerOneAPI device_manager;
   std::unique_ptr<Predictor> predictor_backend_;
 };
 
@@ -352,13 +325,9 @@ class GPUPredictorOneAPI : public Predictor {
  public:
   explicit GPUPredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param}, cpu_predictor(Predictor::Create("cpu_predictor", generic_param)) {
-    std::vector<sycl::device> devices = sycl::device::get_devices();
-    if (generic_param->device_id.Index() != DeviceId::kDefaultIndex) {
-      qu_ = sycl::queue(devices[generic_param->device_id.Index()]);
-    } else {
-      sycl::default_selector selector;
-      qu_ = sycl::queue(selector);
-    }
+
+    const DeviceId::Specification& device_spec = generic_param->device_id.Predict();
+    qu_ = device_manager.GetQueue(device_spec);
   }
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
@@ -421,6 +390,7 @@ class GPUPredictorOneAPI : public Predictor {
   }
 
  private:
+  DeviceManagerOneAPI device_manager;
   sycl::queue qu_;
 
   std::unique_ptr<Predictor> cpu_predictor;

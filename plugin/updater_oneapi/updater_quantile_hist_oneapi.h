@@ -14,6 +14,7 @@
 #include "hist_util_oneapi.h"
 #include "row_set_oneapi.h"
 #include "split_evaluator_oneapi.h"
+#include "device_manager_oneapi.h"
 
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -137,6 +138,7 @@ class QuantileHistMakerOneAPI: public TreeUpdater {
  protected:
   // training parameter
   TrainParam param_;
+  DeviceManagerOneAPI device_manager;
 
   ObjInfo task_;
   std::unique_ptr<TreeUpdater> updater_backend_;
@@ -515,6 +517,8 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
   FeatureInteractionConstraintHost int_constraint_;
 
   sycl::queue qu_;
+
+  DeviceManagerOneAPI device_manager; 
 
   ObjInfo task_;
 };

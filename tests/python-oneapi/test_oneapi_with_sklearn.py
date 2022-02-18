@@ -24,7 +24,7 @@ def test_oneapi_binary_classification():
         for train_index, test_index in kf.split(X, y):
             xgb_model = cls(
                 random_state=42, updater='grow_quantile_histmaker',
-                device_id='oneapi:cpu:-1',
+                device_id='oneapi:gpu:-1',
                 n_estimators=4).fit(X[train_index], y[train_index])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]

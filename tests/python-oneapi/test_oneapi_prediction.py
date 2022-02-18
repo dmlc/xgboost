@@ -36,7 +36,7 @@ class TestOneAPIPredict(unittest.TestCase):
                 res = {}
                 param = {
                     "objective": "binary:logistic",
-                    "predictor": "oneapi_predictor",
+                    "device_id": "fit:cpu:-1; predict:oneapi:cpu:-1",
                     'eval_metric': 'logloss',
                     'tree_method': 'hist',
                     'updater': 'grow_quantile_histmaker',
@@ -49,7 +49,7 @@ class TestOneAPIPredict(unittest.TestCase):
                 oneapi_pred_test = bst.predict(dtest, output_margin=True)
                 oneapi_pred_val = bst.predict(dval, output_margin=True)
 
-                param["predictor"] = "cpu_predictor"
+                param["device_id"] = "cpu:-1"
                 bst_cpu = xgb.train(param, dtrain, iterations, evals=watchlist)
                 cpu_pred_train = bst_cpu.predict(dtrain, output_margin=True)
                 cpu_pred_test = bst_cpu.predict(dtest, output_margin=True)
@@ -81,12 +81,10 @@ class TestOneAPIPredict(unittest.TestCase):
         params["tree_method"] = "hist"
         params["updater"] = "grow_quantile_histmaker"
 
-#        params['predictor'] = "oneapi_predictor"
-        params['device_id'] = "oneapi:cpu:0"
+        params['device_id'] = "fit:cpu:-1; predict:oneapi:gpu:-1"
         bst_oneapi_predict = xgb.train(params, dtrain)
 
-        params['predictor'] = "cpu_predictor"
-        params['device_id'] = "cpu:0"
+        params['device_id'] = "cpu:-1"
         bst_cpu_predict = xgb.train(params, dtrain)
 
         predict0 = bst_oneapi_predict.predict(dtest)
@@ -107,7 +105,7 @@ class TestOneAPIPredict(unittest.TestCase):
 
         # First with cpu_predictor
         params = {'tree_method': 'hist',
-                  'predictor': 'cpu_predictor',
+                  'device_id': 'cpu:-1',
                   'n_jobs': -1,
                   'seed': 123}
         m = xgb.XGBRegressor(**params).fit(X_train, y_train)
@@ -115,7 +113,7 @@ class TestOneAPIPredict(unittest.TestCase):
         cpu_test_score = m.score(X_test, y_test)
 
         # Now with oneapi_predictor
-        params['predictor'] = 'oneapi_predictor'
+        params['device_id'] = 'fit:cpu:-1; predict:oneapi:gpu:-1'
 
         m = xgb.XGBRegressor(**params).fit(X_train, y_train)
         oneapi_train_score = m.score(X_train, y_train)
@@ -129,7 +127,7 @@ class TestOneAPIPredict(unittest.TestCase):
            tm.dataset_strategy.filter(lambda x: x.name != "empty"), shap_parameter_strategy)
     @settings(deadline=None)
     def test_shap(self, num_rounds, dataset, param):
-        param.update({"predictor": "oneapi_predictor"})
+        param.update({"device_id": "fit:cpu:-1; predict:oneapi:gpu:-1"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
@@ -143,7 +141,7 @@ class TestOneAPIPredict(unittest.TestCase):
            tm.dataset_strategy.filter(lambda x: x.name != "empty"), shap_parameter_strategy)
     @settings(deadline=None, max_examples=20)
     def test_shap_interactions(self, num_rounds, dataset, param):
-        param.update({"predictor": "oneapi_predictor"})
+        param.update({"device_id": "fit:cpu:-1; predict:oneapi:gpu:-1"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)

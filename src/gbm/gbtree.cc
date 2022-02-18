@@ -47,12 +47,24 @@ void GBTree::Configure(const Args& cfg) {
   }
 
   // configure predictors  
+  // bool is_cpu_device = 
+  //       (this->ctx_->device_id.Predict().Type() == DeviceType::kDefault);
+  //   if (is_cpu_device && (tparam_.predictor == PredictorType::kAuto)) {
+  //     tparam_.predictor = PredictorType::kCPUPredictor;
+  //   }
+
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("cpu_predictor", this->ctx_));
   }
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
+  // bool is_cuda_device = 
+  //       (this->ctx_->device_id.Predict().Type() == DeviceType::kCUDA);
+  //   if (is_cuda_device && (tparam_.predictor == PredictorType::kAuto)) {
+  //     tparam_.predictor = PredictorType::kGPUPredictor;
+  //   }
+
   auto n_gpus = common::AllVisibleGPUs();
   if (!gpu_predictor_ && n_gpus != 0) {
     gpu_predictor_ = std::unique_ptr<Predictor>(
@@ -69,8 +81,8 @@ void GBTree::Configure(const Args& cfg) {
    * didn't specifyed predictor, i.e. predictor == PredictorType::kAuto
    */
   bool is_oneapi_device = 
-      (this->ctx_->device_id.Type() == DeviceType::kOneAPI_CPU) ||
-      (this->ctx_->device_id.Type() == DeviceType::kOneAPI_GPU);
+      (this->ctx_->device_id.Predict().Type() == DeviceType::kOneAPI_CPU) ||
+      (this->ctx_->device_id.Predict().Type() == DeviceType::kOneAPI_GPU);
   if (is_oneapi_device && (tparam_.predictor == PredictorType::kAuto)) {
     tparam_.predictor = PredictorType::kOneAPIPredictor;
   }
@@ -323,7 +335,7 @@ void GBTree::InitUpdater(Args const& cfg) {
   // create new updaters
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(ctx_->device_id.GetKernelName(pstr.c_str()), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(ctx_->device_id.Fit().GetKernelName(pstr.c_str()), ctx_, model_.learner_model_param->task));
     up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
@@ -409,7 +421,7 @@ void GBTree::LoadConfig(Json const& in) {
   updaters_.clear();
   for (auto const& kv : j_updaters) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(ctx_->device_id.GetKernelName(kv.first), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(ctx_->device_id.Fit().GetKernelName(kv.first), ctx_, model_.learner_model_param->task));
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
   }
