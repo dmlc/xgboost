@@ -506,7 +506,6 @@
                 "name": {"const": "binary:hinge"}
               }
             }
-            }
           ]
         },
 
