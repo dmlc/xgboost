@@ -668,7 +668,6 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
     Span<byte, detail::ExtentAsBytesValue<T, E>::value> {
   return {reinterpret_cast<byte*>(s.data()), s.size_bytes()};
 }
-
 }  // namespace common
 }  // namespace xgboost
 
