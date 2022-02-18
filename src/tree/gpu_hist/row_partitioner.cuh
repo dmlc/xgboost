@@ -120,12 +120,13 @@ class RowPartitioner {
 
     int64_t* d_left_count = left_counts_.data().get() + nidx;
     // Launch 1 thread for each row
-    dh::LaunchN<1, 128>(segment.Size(), [=] __device__(size_t idx) {
+    dh::LaunchN<1, 128>(segment.Size(), [segment, op, left_nidx, right_nidx, d_ridx, d_left_count,
+                                         d_position] __device__(size_t idx) {
       // LaunchN starts from zero, so we restore the row index by adding segment.begin
       idx += segment.begin;
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx);  // new node id
-      CUDA_KERNEL_CHECK(new_position == left_nidx || new_position == right_nidx);
+      SPAN_CHECK(new_position == left_nidx || new_position == right_nidx);
       AtomicIncrement(d_left_count, new_position == left_nidx);
       d_position[idx] = new_position;
     });
