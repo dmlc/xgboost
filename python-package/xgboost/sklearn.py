@@ -997,7 +997,7 @@ class XGBModel(XGBModelBase):
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
-    ) -> np.ndarray:
+    ) -> Any:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
         is used automatically.  For tree models, when data is on GPU, like cupy array or
         cuDF dataframe and `predictor` is not specified, the prediction is run on GPU
@@ -1070,7 +1070,7 @@ class XGBModel(XGBModelBase):
         self, X: ArrayLike,
         ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None
-    ) -> np.ndarray:
+    ) -> Any:
         """Return the predicted leaf every tree for each sample. If the model is trained with
         early stopping, then `best_iteration` is used automatically.
 
@@ -1421,7 +1421,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
-    ) -> np.ndarray:
+    ) -> Any:
         class_probs = super().predict(
             X=X,
             output_margin=output_margin,
