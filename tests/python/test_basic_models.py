@@ -381,6 +381,29 @@ class TestModels:
                       'objective': 'multi:softmax'}
         validate_model(parameters)
 
+    def test_categorical_model_io(self):
+        X, y = tm.make_categorical(256, 16, 71, False)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        booster = xgb.train({"tree_method": "approx"}, Xy, num_boost_round=16)
+        predt_0 = booster.predict(Xy)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = os.path.join(tempdir, "model.binary")
+            with pytest.raises(ValueError, match=r".*JSON/UBJSON.*"):
+                booster.save_model(path)
+
+            path = os.path.join(tempdir, "model.json")
+            booster.save_model(path)
+            booster = xgb.Booster(model_file=path)
+            predt_1 = booster.predict(Xy)
+            np.testing.assert_allclose(predt_0, predt_1)
+
+            path = os.path.join(tempdir, "model.ubj")
+            booster.save_model(path)
+            booster = xgb.Booster(model_file=path)
+            predt_1 = booster.predict(Xy)
+            np.testing.assert_allclose(predt_0, predt_1)
+
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_attributes(self):
         from sklearn.datasets import load_iris
