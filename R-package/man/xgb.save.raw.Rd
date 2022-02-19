@@ -5,10 +5,19 @@
 \title{Save xgboost model to R's raw vector,
 user can call xgb.load.raw to load the model back from raw vector}
 \usage{
-xgb.save.raw(model)
+xgb.save.raw(model, raw_format = "deprecated")
 }
 \arguments{
 \item{model}{the model object.}
+
+\item{raw_format}{The format for encoding the booster.  Available options are
+\itemize{
+    \item \code{json}: Encode the booster into JSON text document.
+    \item \code{ubj}:  Encode the booster into Universal Binary JSON.
+    \item \code{deprecated}: Encode the booster into old customized binary format.
+}
+
+Right now the default is \code{deprecated} but will be changed to \code{ubj} in upcoming release.}
 }
 \description{
 Save xgboost model from xgboost or xgb.train
