@@ -5,12 +5,13 @@
 import copy
 import os
 import warnings
-from typing import Optional, Dict, Any, Union, Tuple, Sequence
+from typing import Optional, Dict, Any, Union, Tuple, Sequence, List, Callable
 
 import numpy as np
 from .core import (
-    Booster, DMatrix, XGBoostError, _deprecate_positional_args, _PackedBooster
+    Booster, DMatrix, XGBoostError, _deprecate_positional_args, _PackedBooster, CVPack
 )
+from .core import Parameters
 from .core import Metric, Objective
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
@@ -49,7 +50,7 @@ def _configure_custom_metric(
 
 @_deprecate_positional_args
 def train(
-    params: Dict[str, Any],
+    params: Parameters,
     dtrain: DMatrix,
     num_boost_round: int = 10,
     *,
@@ -186,30 +187,7 @@ def train(
     return bst.copy()
 
 
-class CVPack:
-    """"Auxiliary datastruct to hold one fold of CV."""
-    def __init__(self, dtrain, dtest, param):
-        """"Initialize the CVPack"""
-        self.dtrain = dtrain
-        self.dtest = dtest
-        self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
-        self.bst = Booster(param, [dtrain, dtest])
-
-    def __getattr__(self, name):
-        def _inner(*args, **kwargs):
-            return getattr(self.bst, name)(*args, **kwargs)
-        return _inner
-
-    def update(self, iteration, fobj):
-        """"Update the boosters for one iteration"""
-        self.bst.update(self.dtrain, iteration, fobj)
-
-    def eval(self, iteration, feval, output_margin):
-        """"Evaluate the CVPack for one iteration."""
-        return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
-
-
-def groups_to_rows(groups, boundaries):
+def groups_to_rows(groups: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
     """
     Given group row boundaries, convert ground indexes to row indexes
     :param groups: list of groups for testing
@@ -219,7 +197,14 @@ def groups_to_rows(groups, boundaries):
     return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
 
 
-def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
+def mkgroupfold(
+    dall: DMatrix,
+    nfold: int,
+    param: Parameters,
+    evals: Union[str, List[str]],
+    fpreproc: Optional[Callable] = None,
+    shuffle: bool = True
+) -> List[CVPack]:
     """
     Make n folds for cross-validation maintaining groups
     :return: cross-validation folds
@@ -235,11 +220,16 @@ def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
     # list by fold of test group indexes
     out_group_idset = np.array_split(idx, nfold)
     # list by fold of train group indexes
-    in_group_idset = [np.concatenate([out_group_idset[i] for i in range(nfold) if k != i])
-                      for k in range(nfold)]
+    in_group_idset: List[np.ndarray] = [
+        np.concatenate([out_group_idset[i] for i in range(nfold) if k != i]) for k in range(nfold)
+    ]
     # from the group indexes, convert them to row indexes
-    in_idset = [groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset]
-    out_idset = [groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset]
+    in_idset = [
+        groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset
+    ]
+    out_idset = [
+        groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset
+    ]
 
     # build the folds by taking the appropriate slices
     ret = []
@@ -259,18 +249,29 @@ def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
     return ret
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
-            folds=None, shuffle=True):
+def mknfold(
+    dall: DMatrix,
+    nfold: int,
+    param: Parameters,
+    seed: int,
+    evals: Optional[Union[str, List[str]]] = None,
+    fpreproc: Optional[Callable] = None,
+    stratified: bool = False,
+    folds: Any = None,
+    shuffle: bool = True
+) -> List[CVPack]:
     """
     Make an n-fold list of CVPack from random indices.
     """
-    evals = list(evals)
+    evals = list(evals if evals is not None else [])
     np.random.seed(seed)
 
     if stratified is False and folds is None:
         # Do standard k-fold cross validation. Automatically determine the folds.
         if len(dall.get_uint_info('group_ptr')) > 1:
-            return mkgroupfold(dall, nfold, param, evals=evals, fpreproc=fpreproc, shuffle=shuffle)
+            return mkgroupfold(
+                dall, nfold, param, evals=evals, fpreproc=fpreproc, shuffle=shuffle
+            )
 
         if shuffle is True:
             idx = np.random.permutation(dall.num_row())
@@ -313,11 +314,27 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     return ret
 
 
-def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj: Optional[Objective] = None,
-       feval=None, maximize=None, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None, shuffle=True, custom_metric: Optional[Metric] = None):
+def cv(
+    params: Parameters,
+    dtrain: DMatrix,
+    num_boost_round: int = 10,
+    nfold: int = 3,
+    stratified: bool = False,
+    folds: Any = None,
+    metrics: Union[str, List[str]] = None,
+    obj: Optional[Objective] = None,
+    feval: Optional[Metric] = None,
+    maximize: Optional[bool] = None,
+    early_stopping_rounds: Optional[int] = None,
+    fpreproc: Optional[Callable] = None,
+    as_pandas: bool = True,
+    verbose_eval: Optional[Union[bool, int]] = None,
+    show_stdv: bool = True,
+    seed: int = 0,
+    callbacks: Optional[List[callback.TrainingCallback]] = None,
+    shuffle: bool = True,
+    custom_metric: Optional[Metric] = None
+) -> Dict[str, List[float]]:
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
@@ -419,9 +436,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     params.pop("eval_metric", None)
 
-    results = {}
-    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
-                      stratified, folds, shuffle)
+    results: Dict[str, List[float]] = {}
+    cvfolds = mknfold(
+        dtrain, nfold, params, seed, metrics, fpreproc, stratified, folds, shuffle
+    )
 
     metric_fn = _configure_custom_metric(feval, custom_metric)
 
@@ -438,7 +456,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         callbacks.append(
             callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
         )
-    callbacks = callback.CallbackContainer(
+    cb_container = callback.CallbackContainer(
         callbacks,
         metric=metric_fn,
         is_cv=True,
@@ -446,15 +464,16 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     )
 
     booster = _PackedBooster(cvfolds)
-    callbacks.before_training(booster)
+    cb_container.before_training(booster)
 
     for i in range(num_boost_round):
-        if callbacks.before_iteration(booster, i, dtrain, None):
+        if cb_container.before_iteration(booster, i, dtrain, None):
             break
         booster.update(i, obj)
 
-        should_break = callbacks.after_iteration(booster, i, dtrain, None)
-        res = callbacks.aggregated_cv
+        should_break = cb_container.after_iteration(booster, i, dtrain, None)
+        res = cb_container.aggregated_cv
+        assert res is not None
         for key, mean, std in res:
             if key + '-mean' not in results:
                 results[key + '-mean'] = []
@@ -474,6 +493,6 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         except ImportError:
             pass
 
-    callbacks.after_training(booster)
+    cb_container.after_training(booster)
 
     return results

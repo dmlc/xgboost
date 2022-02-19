@@ -1307,7 +1307,7 @@ class Booster:
 
     def __init__(
         self,
-        params: Optional[Dict] = None,
+        params: Parameters = None,
         cache: Optional[Sequence[DMatrix]] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None
     ) -> None:
@@ -2644,44 +2644,73 @@ class Booster:
         return nph_stacked
 
 
+class CVPack:
+    """"Auxiliary datastruct to hold one fold of CV."""
+    def __init__(self, dtrain: DMatrix, dtest: DMatrix, param: Parameters) -> None:
+        """"Initialize the CVPack"""
+        self.dtrain = dtrain
+        self.dtest = dtest
+        self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
+        self.bst = Booster(param, [dtrain, dtest])
+
+    def __getattr__(self, name: str) -> Any:
+        def _inner(*args: Any, **kwargs: Any) -> Any:
+            return getattr(self.bst, name)(*args, **kwargs)
+        return _inner
+
+    def update(self, iteration: int, fobj: Optional[Objective]) -> None:
+        """"Update the boosters for one iteration"""
+        self.bst.update(self.dtrain, iteration, fobj)
+
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> str:
+        """"Evaluate the CVPack for one iteration."""
+        return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
+
+
 class _PackedBooster:
-    def __init__(self, cvfolds) -> None:
+    def __init__(self, cvfolds: List[CVPack]) -> None:
         self.cvfolds = cvfolds
 
-    def update(self, iteration, obj):
+    def update(self, iteration: int, obj: Optional[Objective]) -> None:
         '''Iterate through folds for update'''
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration, feval, output_margin):
+    def eval(
+        self, iteration: int, feval: Optional[Metric], output_margin: bool
+    ) -> List[str]:
         '''Iterate through folds for eval'''
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
 
-    def set_attr(self, **kwargs):
+    def set_attr(self, **kwargs: Any) -> None:
         '''Iterate through folds for setting attributes'''
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
 
-    def attr(self, key):
+    def attr(self, key: str) -> Any:
         '''Redirect to booster attr.'''
         return self.cvfolds[0].bst.attr(key)
 
-    def set_param(self, params, value=None):
+    def set_param(self, params: Union[str, Parameters], value: Any = None) -> None:
         """Iterate through folds for set_param"""
         for f in self.cvfolds:
             f.bst.set_param(params, value)
 
-    def num_boosted_rounds(self):
+    def num_boosted_rounds(self) -> int:
         '''Number of boosted rounds.'''
         return self.cvfolds[0].num_boosted_rounds()
 
     @property
-    def best_iteration(self):
+    def best_iteration(self) -> int:
         '''Get best_iteration'''
-        return int(self.cvfolds[0].bst.attr("best_iteration"))
+        best_iteration = self.cvfolds[0].bst.attr("best_iteration")
+        assert best_iteration is not None
+        return int(best_iteration)
 
     @property
-    def best_score(self):
+    def best_score(self) -> float:
         """Get best_score."""
-        return float(self.cvfolds[0].bst.attr("best_score"))
+        best_score = self.cvfolds[0].bst.attr("best_score")
+        assert best_score is not None
+        return float(best_score)

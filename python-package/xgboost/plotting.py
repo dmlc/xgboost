@@ -3,7 +3,7 @@
 """Plotting Library."""
 from io import BytesIO
 import json
-from typing import Union
+from typing import Union, Optional, Any, Dict
 
 import numpy as np
 
@@ -13,12 +13,21 @@ from .typing import PathLike
 
 
 def plot_importance(
-    booster: Union[Booster, XGBModel], ax=None, height=0.2,
-    xlim=None, ylim=None, title='Feature importance',
-    xlabel='F score', ylabel='Features', fmap='',
-    importance_type='weight', max_num_features=None,
-    grid=True, show_values=True, **kwargs
-):
+    booster: Union[Booster, XGBModel],
+    ax: Any = None,
+    height: float = 0.2,
+    xlim: tuple = None,
+    ylim: tuple = None,
+    title: str = 'Feature importance',
+    xlabel: str = 'F score',
+    ylabel: str = 'Features',
+    fmap: PathLike = '',
+    importance_type: str = 'weight',
+    max_num_features: Optional[int] = None,
+    grid: bool = True,
+    show_values: bool = True,
+    **kwargs: Any
+) -> Any:
     """Plot importance based on fitted trees.
 
     Parameters
@@ -129,13 +138,13 @@ def to_graphviz(
     booster: Union[Booster, XGBModel],
     fmap: PathLike = "",
     num_trees: int = 0,
-    rankdir=None,
-    yes_color=None,
-    no_color=None,
-    condition_node_params=None,
-    leaf_node_params=None,
-    **kwargs
-):
+    rankdir: Optional[str] = None,
+    yes_color: Optional[str] = None,
+    no_color: Optional[str] = None,
+    condition_node_params: Dict[str, str] = None,
+    leaf_node_params: Dict[str, str] = None,
+    **kwargs: Any
+) -> Any:
     """Convert specified tree to graphviz instance. IPython can automatically plot
     the returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
@@ -228,11 +237,11 @@ def to_graphviz(
 def plot_tree(
     booster: Union[Booster, XGBModel],
     fmap: PathLike = "",
-    num_trees=0,
-    rankdir=None,
-    ax=None,
-    **kwargs
-):
+    num_trees: int = 0,
+    rankdir: Optional[str] = None,
+    ax: Any = None,
+    **kwargs: Any
+) -> Any:
     """Plot specified tree.
 
     Parameters

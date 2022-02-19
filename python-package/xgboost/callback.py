@@ -139,7 +139,7 @@ class CallbackContainer:
         self.is_cv = is_cv
 
         if self.is_cv:
-            self.aggregated_cv = None
+            self.aggregated_cv: Optional[List[Tuple[str, float, float]]] = None
 
     def before_training(self, model: _Model) -> _Model:
         """Function called before training."""
@@ -190,7 +190,7 @@ class CallbackContainer:
         model: _Model,
         epoch: int,
         dtrain: DMatrix,
-        evals: List[Tuple[DMatrix, str]],
+        evals: Optional[List[Tuple[DMatrix, str]]],
     ) -> bool:
         """Function called before training iteration."""
         return any(
@@ -238,9 +238,9 @@ class CallbackContainer:
         if self.is_cv:
             assert isinstance(model, _PackedBooster)
             scores = model.eval(epoch, self.metric, self._output_margin)
-            scores = _aggcv(scores)
-            self.aggregated_cv = scores
-            self._update_history(scores, epoch)
+            scores_cv = _aggcv(scores)
+            self.aggregated_cv = scores_cv
+            self._update_history(scores_cv, epoch)
         else:
             assert not isinstance(model, _PackedBooster)
             evals = [] if evals is None else evals
