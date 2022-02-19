@@ -171,7 +171,7 @@ def _try_start_tracker(
             host_ip = addrs[0][0]
             port = addrs[0][1]
             rabit_context = RabitTracker(
-                hostIP=get_host_ip(host_ip),
+                host_ip=get_host_ip(host_ip),
                 n_workers=n_workers,
                 port=port,
                 use_logger=False,
@@ -179,7 +179,7 @@ def _try_start_tracker(
         else:
             assert isinstance(addrs[0], str) or addrs[0] is None
             rabit_context = RabitTracker(
-                hostIP=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+                host_ip=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
             )
         env.update(rabit_context.worker_envs())
         rabit_context.start(n_workers)

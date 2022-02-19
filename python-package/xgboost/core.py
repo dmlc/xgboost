@@ -1,11 +1,9 @@
-# coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
-# pylint: disable=too-many-lines, too-many-locals, no-self-use
+# pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
-# pylint: disable=no-name-in-module,import-error
+from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar
-# pylint: enable=no-name-in-module,import-error
 from typing import Callable, Tuple, cast, Sequence
 import ctypes
 import os
@@ -123,9 +121,8 @@ def _log_callback(msg: bytes) -> None:
 
 def _get_log_callback_func() -> Callable:
     """Wrap log_callback() method in ctypes callback type"""
-    # pylint: disable=invalid-name
-    CALLBACK = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
-    return CALLBACK(_log_callback)
+    c_callback = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
+    return c_callback(_log_callback)
 
 
 def _load_lib() -> ctypes.CDLL:
@@ -311,7 +308,7 @@ def _prediction_output(shape, dims, predts, is_cuda):
     return arr_predict
 
 
-class DataIter:  # pylint: disable=too-many-instance-attributes
+class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     """The interface for user defined data iterator.
 
     Parameters
@@ -333,9 +330,10 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         # Stage data in Python until reset or next is called to avoid data being free.
         self._temporary_data: Optional[Tuple[Any, Any]] = None
 
-    def _get_callbacks(
+    def get_callbacks(
         self, allow_host: bool, enable_categorical: bool
     ) -> Tuple[Callable, Callable]:
+        """Get callback functions for iterating in C."""
         assert hasattr(self, "cache_prefix"), "__init__ is not called."
         self._reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(
             self._reset_wrapper
@@ -369,7 +367,8 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
             self._exception = e.with_traceback(tb)
         return dft_ret
 
-    def _reraise(self) -> None:
+    def reraise(self) -> None:
+        """Reraise the exception thrown during iteration."""
         self._temporary_data = None
         if self._exception is not None:
             #  pylint 2.7.0 believes `self._exception` can be None even with `assert
@@ -424,10 +423,12 @@ class DataIter:  # pylint: disable=too-many-instance-attributes
         # pylint: disable=not-callable
         return self._handle_exception(lambda: self.next(data_handle), 0)
 
+    @abstractmethod
     def reset(self) -> None:
         """Reset the data iterator.  Prototype for user defined function."""
         raise NotImplementedError()
 
+    @abstractmethod
     def next(self, input_data: Callable) -> int:
         """Set the next batch of data.
 
@@ -642,8 +643,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         }
         args = from_pystr_to_cstr(json.dumps(args))
         handle = ctypes.c_void_p()
-        # pylint: disable=protected-access
-        reset_callback, next_callback = it._get_callbacks(
+        reset_callback, next_callback = it.get_callbacks(
             True, enable_categorical
         )
         ret = _LIB.XGDMatrixCreateFromCallback(
@@ -654,8 +654,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             args,
             ctypes.byref(handle),
         )
-        # pylint: disable=protected-access
-        it._reraise()
+        it.reraise()
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
@@ -1225,8 +1224,7 @@ class DeviceQuantileDMatrix(DMatrix):
             it = SingleBatchInternalIter(data=data, **meta)
 
         handle = ctypes.c_void_p()
-        # pylint: disable=protected-access
-        reset_callback, next_callback = it._get_callbacks(False, enable_categorical)
+        reset_callback, next_callback = it.get_callbacks(False, enable_categorical)
         if it.cache_prefix is not None:
             raise ValueError(
                 "DeviceQuantileDMatrix doesn't cache data, remove the cache_prefix "
@@ -1242,8 +1240,7 @@ class DeviceQuantileDMatrix(DMatrix):
             ctypes.c_int(self.max_bin),
             ctypes.byref(handle),
         )
-        # pylint: disable=protected-access
-        it._reraise()
+        it.reraise()
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
@@ -1279,6 +1276,21 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
         raise ValueError(f"Unknown booster: {booster}")
     num_groups = int(config["learner"]["learner_model_param"]["num_class"])
     return num_parallel_tree, num_groups
+
+
+def _configure_metrics(params: Union[Dict, List]) -> Union[Dict, List]:
+    if (
+        isinstance(params, dict)
+        and "eval_metric" in params
+        and isinstance(params["eval_metric"], list)
+    ):
+        params = dict((k, v) for k, v in params.items())
+        eval_metrics = params["eval_metric"]
+        params.pop("eval_metric", None)
+        params = list(params.items())
+        for eval_metric in eval_metrics:
+            params += [("eval_metric", eval_metric)]
+    return params
 
 
 class Booster:
@@ -1339,7 +1351,7 @@ class Booster:
             raise TypeError('Unknown type:', model_file)
 
         params = params or {}
-        params = self._configure_metrics(params.copy())
+        params = _configure_metrics(params.copy())
         params = self._configure_constraints(params)
         if isinstance(params, list):
             params.append(('validate_parameters', True))
@@ -1351,17 +1363,6 @@ class Booster:
             self.booster = params['booster']
         else:
             self.booster = 'gbtree'
-
-    def _configure_metrics(self, params: Union[Dict, List]) -> Union[Dict, List]:
-        if isinstance(params, dict) and 'eval_metric' in params \
-           and isinstance(params['eval_metric'], list):
-            params = dict((k, v) for k, v in params.items())
-            eval_metrics = params['eval_metric']
-            params.pop("eval_metric", None)
-            params = list(params.items())
-            for eval_metric in eval_metrics:
-                params += [('eval_metric', eval_metric)]
-        return params
 
     def _transform_monotone_constrains(self, value: Union[Dict[str, int], str]) -> str:
         if isinstance(value, str):
@@ -1395,7 +1396,6 @@ class Booster:
                 )
             return s + "]"
         except KeyError as e:
-            # pylint: disable=raise-missing-from
             raise ValueError(
                 "Constrained features are not a subset of training data feature names"
             ) from e

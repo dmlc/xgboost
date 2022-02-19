@@ -10,7 +10,7 @@ if sys.platform.startswith("win"):
 
 
 def test_rabit_tracker():
-    tracker = RabitTracker(hostIP='127.0.0.1', n_workers=1)
+    tracker = RabitTracker(host_ip='127.0.0.1', n_workers=1)
     tracker.start(1)
     worker_env = tracker.worker_envs()
     rabit_env = []
