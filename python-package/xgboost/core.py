@@ -5,7 +5,7 @@
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict, TypeVar, Sequence, cast
-from typing import Callable, Tuple, Type, TextIO, cast
+from typing import Callable, Tuple, Type, TextIO
 import ctypes
 import os
 import re
@@ -23,8 +23,8 @@ from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
                      lazy_isinstance)
 from .libpath import find_lib_path
 from .typing import (
-    CuArrayLike, CuDFLike, NPArrayLike, DFLike, CSRLike,
-    PathLike, NativeInput, ArrayLike, DTypeLike
+    CuArrayLike, CuDFLike, NPArrayLike, CSRLike, PathLike, NativeInput, ArrayLike,
+    DTypeLike
 )
 from .typing import FeatureNames, FeatureTypes
 
@@ -2642,3 +2642,46 @@ class Booster:
                 UserWarning
             )
         return nph_stacked
+
+
+class _PackedBooster:
+    def __init__(self, cvfolds) -> None:
+        self.cvfolds = cvfolds
+
+    def update(self, iteration, obj):
+        '''Iterate through folds for update'''
+        for fold in self.cvfolds:
+            fold.update(iteration, obj)
+
+    def eval(self, iteration, feval, output_margin):
+        '''Iterate through folds for eval'''
+        result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
+        return result
+
+    def set_attr(self, **kwargs):
+        '''Iterate through folds for setting attributes'''
+        for f in self.cvfolds:
+            f.bst.set_attr(**kwargs)
+
+    def attr(self, key):
+        '''Redirect to booster attr.'''
+        return self.cvfolds[0].bst.attr(key)
+
+    def set_param(self, params, value=None):
+        """Iterate through folds for set_param"""
+        for f in self.cvfolds:
+            f.bst.set_param(params, value)
+
+    def num_boosted_rounds(self):
+        '''Number of boosted rounds.'''
+        return self.cvfolds[0].num_boosted_rounds()
+
+    @property
+    def best_iteration(self):
+        '''Get best_iteration'''
+        return int(self.cvfolds[0].bst.attr("best_iteration"))
+
+    @property
+    def best_score(self):
+        """Get best_score."""
+        return float(self.cvfolds[0].bst.attr("best_score"))

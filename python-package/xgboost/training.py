@@ -8,7 +8,9 @@ import warnings
 from typing import Optional, Dict, Any, Union, Tuple, Sequence
 
 import numpy as np
-from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
+from .core import (
+    Booster, DMatrix, XGBoostError, _deprecate_positional_args, _PackedBooster
+)
 from .core import Metric, Objective
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
@@ -205,49 +207,6 @@ class CVPack:
     def eval(self, iteration, feval, output_margin):
         """"Evaluate the CVPack for one iteration."""
         return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
-
-
-class _PackedBooster:
-    def __init__(self, cvfolds) -> None:
-        self.cvfolds = cvfolds
-
-    def update(self, iteration, obj):
-        '''Iterate through folds for update'''
-        for fold in self.cvfolds:
-            fold.update(iteration, obj)
-
-    def eval(self, iteration, feval, output_margin):
-        '''Iterate through folds for eval'''
-        result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
-        return result
-
-    def set_attr(self, **kwargs):
-        '''Iterate through folds for setting attributes'''
-        for f in self.cvfolds:
-            f.bst.set_attr(**kwargs)
-
-    def attr(self, key):
-        '''Redirect to booster attr.'''
-        return self.cvfolds[0].bst.attr(key)
-
-    def set_param(self, params, value=None):
-        """Iterate through folds for set_param"""
-        for f in self.cvfolds:
-            f.bst.set_param(params, value)
-
-    def num_boosted_rounds(self):
-        '''Number of boosted rounds.'''
-        return self.cvfolds[0].num_boosted_rounds()
-
-    @property
-    def best_iteration(self):
-        '''Get best_iteration'''
-        return int(self.cvfolds[0].bst.attr("best_iteration"))
-
-    @property
-    def best_score(self):
-        """Get best_score."""
-        return float(self.cvfolds[0].bst.attr("best_score"))
 
 
 def groups_to_rows(groups, boundaries):
