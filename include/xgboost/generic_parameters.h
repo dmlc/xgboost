@@ -13,20 +13,27 @@
 namespace xgboost {
 
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
+ private:
+  // cached value for CFS CPU limit. (used in containerized env)
+  int32_t cfs_cpu_count_;  // NOLINT
+
+ public:
   // Constant representing the device ID of CPU.
   static int32_t constexpr kCpuId = -1;
   static int64_t constexpr kDefaultSeed = 0;
 
  public:
+  GenericParameter();
+
   // stored random seed
   int64_t seed { kDefaultSeed };
   // whether seed the PRNG each iteration
-  bool seed_per_iteration;
+  bool seed_per_iteration{false};
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread{0};
   // primary device, -1 means no gpu.
-  int gpu_id;
+  int gpu_id{kCpuId};
   // fail when gpu_id is invalid
   bool fail_on_invalid_gpu_id {false};
   bool validate_parameters {false};
