@@ -32,7 +32,7 @@ Making a Release
 
    + The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.  There's a helper script for downloading pre-built wheels and R packages ``xgboost/dev/release-pypi-r.py`` along with simple instructions for using ``twine``.
 
-   + The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_.
+   + The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
      Before submitting a release, one should test the package on `R-hub <https://builder.r-hub.io/>`__ and `win-builder <https://win-builder.r-project.org/>`__ first.  Please note that the R-hub Windows instance doesn't have the exact same environment as the one hosted on win-builder.
 

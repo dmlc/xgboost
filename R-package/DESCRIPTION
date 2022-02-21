@@ -6,7 +6,7 @@ Date: 2021-09-25
 Authors@R: c(
   person("Tianqi", "Chen", role = c("aut"),
          email = "tianqi.tchen@gmail.com"),
-  person("Tong", "He", role = c("aut", "cre"),
+  person("Tong", "He", role = c("aut"),
          email = "hetong007@gmail.com"),
   person("Michael", "Benesty", role = c("aut"),
          email = "michael@benesty.fr"),
@@ -26,7 +26,8 @@ Authors@R: c(
   person("Min", "Lin", role = c("aut")),
   person("Yifeng", "Geng", role = c("aut")),
   person("Yutian", "Li", role = c("aut")),
-  person("Jiaming", "Yuan", role = c("aut")),
+  person("Jiaming", "Yuan", role = c("aut", "cre"),
+         email = "jm.yuan@outlook.com"),
   person("XGBoost contributors", role = c("cph"),
          comment = "base XGBoost implementation")
   )
