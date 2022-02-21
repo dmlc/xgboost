@@ -85,6 +85,8 @@ std::istream& operator >> (std::istream& is, DeviceId& device_id);
 
 std::ostream& operator << (std::ostream& os, const DeviceId& device_id);
 
+bool operator != (const DeviceId::Specification& lhs, const DeviceId::Specification& rhs);
+
 std::ostream& operator << (std::ostream& os, const DeviceId::Specification& specification);
 
 #define CAT2(a,b) a##b
@@ -92,8 +94,12 @@ std::ostream& operator << (std::ostream& os, const DeviceId::Specification& spec
 #define UNIQUE_KERNEL_REGISTRAR_NAME_ CAT(__registrate_device_id_kernel,__COUNTER__)
 /*!
  * \brief Macro to register kernel names for specific device.
+ *
+ * \code
+ * // example of registering a device
+ * XGBOOST_REGISTERATE_DEVICEID_KERNEL("grow_quantile_histmaker", DeviceType::kOneAPI_CPU, "grow_quantile_histmaker_oneapi");
+ * \endcode
  */
-
 struct KernelsReg
     : public dmlc::FunctionRegEntryBase<KernelsReg,
                                         ::xgboost::KernelsRegisterEntry_t> {
@@ -105,10 +111,16 @@ struct KernelsReg
 
 
 #define UNIQUE_DEVICE_REGISTRAR_NAME_ CAT(__registrate_device_,__COUNTER__)
+
 /*!
  * \brief Macro to register kernel names for specific device.
+ *
+ * \code
+ * // example of registering a device
+ * XGBOOST_REGISTERATE_DEVICE("cpu")
+ * .set_body(DeviceType::kDefault);
+ * \endcode
  */
-
 struct DeviceReg
     : public dmlc::FunctionRegEntryBase<DeviceReg,
                                         ::xgboost::DeviceType> {

@@ -62,11 +62,25 @@ void DeviceId::Init(const std::string& user_input_device_id) {
     }
   }
 
-  // Check constrains on fit and predict
-  if ((fit.Type() == DeviceType::kCUDA) && (predict.Type() == DeviceType::kCUDA)) {
-      CHECK(fit.Index() == predict.Index())
-      <<  "Different cuda devices for fit and predict are not supported: fit = " << fit << "; predict = " << predict << ";";
+  /* Check constrains on fit and predict
+   * Currently, only oneapi devices support differing specifications for fitting and prediction.
+   * For cuda one still can specify predictor manually.
+   */
+  if (fit != predict) {
+    bool is_fit_oneapi_device = (fit.Type() == DeviceType::kOneAPI_CPU) ||
+                                (fit.Type() == DeviceType::kOneAPI_GPU);
+    bool is_predict_oneapi_device = (predict.Type() == DeviceType::kOneAPI_CPU) ||
+                                    (predict.Type() == DeviceType::kOneAPI_GPU);
+    CHECK(is_fit_oneapi_device && is_predict_oneapi_device)
+      <<  "Currently, only oneapi devices support differing specifications for fitting and prediction. " <<
+          "For cuda one still can specify predictor manually. " <<
+          "fit = " << fit << "; predict = " << predict << ";";
   }
+}
+
+bool operator != (const DeviceId::Specification& lhs, const DeviceId::Specification& rhs) {
+  bool ans = (lhs.Type() != rhs.Type()) || (lhs.Index() != rhs.Index());
+  return ans;
 }
 
 std::istream& operator >> (std::istream& is, DeviceId& device_id) {

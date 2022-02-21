@@ -142,10 +142,6 @@ if (USE_CUDA)
   endif ()
 endif (USE_CUDA)
 
-if (PLUGIN_UPDATER_ONEAPI)
-  target_compile_definitions(xgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
-endif (PLUGIN_UPDATER_ONEAPI)
-
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
     ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
       (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
@@ -211,6 +207,13 @@ else (BUILD_STATIC_LIB)
   add_library(xgboost SHARED)
 endif (BUILD_STATIC_LIB)
 target_link_libraries(xgboost PRIVATE objxgboost)
+target_compile_options(xgboost PUBLIC "-fopenmp")
+target_link_libraries(xgboost PRIVATE ${INTEL_OMP_PATH}/libiomp5.so)
+
+if (PLUGIN_UPDATER_ONEAPI)
+  target_compile_definitions(xgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
+endif (PLUGIN_UPDATER_ONEAPI)
+
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
@@ -220,6 +223,7 @@ target_include_directories(xgboost
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 target_link_libraries(runxgboost PRIVATE objxgboost)
+target_link_libraries(runxgboost PRIVATE ${INTEL_OMP_PATH}/libiomp5.so)
 target_include_directories(runxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
@@ -242,6 +246,7 @@ if (JVM_BINDINGS)
   xgboost_target_defs(xgboost4j)
 endif (JVM_BINDINGS)
 
+target_compile_options(runxgboost PUBLIC "-fopenmp")
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
 set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 # Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names

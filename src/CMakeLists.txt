@@ -16,15 +16,12 @@ if (USE_CUDA)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
 endif (USE_CUDA)
 
-if (PLUGIN_UPDATER_ONEAPI)
-  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
-endif (PLUGIN_UPDATER_ONEAPI)
-
 target_include_directories(objxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
+target_compile_options(objxgboost PUBLIC "-fopenmp")
 
 if (LOG_CAPI_INVOCATION)
   target_compile_definitions(objxgboost PRIVATE -DLOG_CAPI_INVOCATION=1)

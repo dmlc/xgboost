@@ -46,25 +46,13 @@ void GBTree::Configure(const Args& cfg) {
     model_.InitTreesToUpdate();
   }
 
-  // configure predictors  
-  // bool is_cpu_device = 
-  //       (this->ctx_->device_id.Predict().Type() == DeviceType::kDefault);
-  //   if (is_cpu_device && (tparam_.predictor == PredictorType::kAuto)) {
-  //     tparam_.predictor = PredictorType::kCPUPredictor;
-  //   }
-
+  // configure predictors
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("cpu_predictor", this->ctx_));
   }
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
-  // bool is_cuda_device = 
-  //       (this->ctx_->device_id.Predict().Type() == DeviceType::kCUDA);
-  //   if (is_cuda_device && (tparam_.predictor == PredictorType::kAuto)) {
-  //     tparam_.predictor = PredictorType::kGPUPredictor;
-  //   }
-
   auto n_gpus = common::AllVisibleGPUs();
   if (!gpu_predictor_ && n_gpus != 0) {
     gpu_predictor_ = std::unique_ptr<Predictor>(
