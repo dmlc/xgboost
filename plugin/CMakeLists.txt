@@ -39,4 +39,4 @@ if (PLUGIN_UPDATER_ONEAPI)
   target_link_libraries(objxgboost PUBLIC oneapi_plugin)
   # Add all objects of oneapi_plugin to objxgboost
   target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:oneapi_plugin>)
-  endif (PLUGIN_UPDATER_ONEAPI)
+endif (PLUGIN_UPDATER_ONEAPI)
