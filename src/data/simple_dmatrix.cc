@@ -149,10 +149,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
       weights.insert(weights.end(), batch.Weights(), batch.Weights() + batch.Size());
     }
     if (batch.BaseMargin() != nullptr) {
-      info_.base_margin_ = decltype(info_.base_margin_){batch.BaseMargin(),
-                                                        batch.BaseMargin() + batch.Size(),
-                                                        {batch.Size()},
-                                                        GenericParameter::kCpuId};
+      info_.base_margin_ = decltype(info_.base_margin_){
+          batch.BaseMargin(), batch.BaseMargin() + batch.Size(), {batch.Size()}, Context::kCpuId};
     }
     if (batch.Qid() != nullptr) {
       qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());
