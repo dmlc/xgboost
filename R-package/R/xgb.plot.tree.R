@@ -98,18 +98,22 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
     data      = dt$Feature,
     fontcolor = "black")
 
-  edges <- DiagrammeR::create_edge_df(
-    from  = match(rep(dt[Feature != "Leaf", c(ID)], 2), dt$ID),
-    to    = match(dt[Feature != "Leaf", c(Yes, No)], dt$ID),
-    label = c(
-      dt[Feature != "Leaf", paste("<", Split)],
-      rep("", nrow(dt[Feature != "Leaf"]))
-    ),
-    style = c(
-      dt[Feature != "Leaf", ifelse(Missing == Yes, "bold", "solid")],
-      dt[Feature != "Leaf", ifelse(Missing == No, "bold", "solid")]
-    ),
-    rel   = "leading_to")
+  if (nrow(dt[Feature != "Leaf"]) != 0) {
+    edges <- DiagrammeR::create_edge_df(
+      from  = match(rep(dt[Feature != "Leaf", c(ID)], 2), dt$ID),
+      to    = match(dt[Feature != "Leaf", c(Yes, No)], dt$ID),
+      label = c(
+        dt[Feature != "Leaf", paste("<", Split)],
+        rep("", nrow(dt[Feature != "Leaf"]))
+      ),
+      style = c(
+        dt[Feature != "Leaf", ifelse(Missing == Yes, "bold", "solid")],
+        dt[Feature != "Leaf", ifelse(Missing == No, "bold", "solid")]
+      ),
+      rel   = "leading_to")
+  } else {
+    edges <- NULL
+  }
 
   graph <- DiagrammeR::create_graph(
       nodes_df = nodes,
