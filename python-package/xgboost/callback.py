@@ -256,7 +256,7 @@ class LearningRateScheduler(TrainingCallback):
     Parameters
     ----------
 
-    learning_rates : callable/collections.Sequence
+    learning_rates :
         If it's a callable object, then it should accept an integer parameter
         `epoch` and returns the corresponding learning rate.  Otherwise it
         should be a sequence like list or tuple with the same size of boosting

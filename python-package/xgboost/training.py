@@ -123,11 +123,19 @@ def train(
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using
         :ref:`Callback API <callback_api>`.
-        Example:
+
+        .. note::
+
+           States in callback are not preserved during training, which means callback
+           objects can not be reused for multiple training sessions without
+           reinitialization or deepcopy.
 
         .. code-block:: python
 
-            [xgb.callback.LearningRateScheduler(custom_rates)]
+            for params in parameters_grid:
+                # be sure to (re)initialize the callbacks before each run
+                callbacks = [xgb.callback.LearningRateScheduler(custom_rates)]
+                xgboost.train(params, Xy, callbacks=callbacks)
 
     custom_metric:
 
@@ -416,15 +424,24 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Results are not affected, and always contains std.
     seed : int
         Seed used to generate the folds (passed to numpy.random.seed).
-    callbacks : list of callback functions
+    callbacks :
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using
         :ref:`Callback API <callback_api>`.
-        Example:
+
+        .. note::
+
+           States in callback are not preserved during training, which means callback
+           objects can not be reused for multiple training sessions without
+           reinitialization or deepcopy.
 
         .. code-block:: python
 
-            [xgb.callback.LearningRateScheduler(custom_rates)]
+            for params in parameters_grid:
+                # be sure to (re)initialize the callbacks before each run
+                callbacks = [xgb.callback.LearningRateScheduler(custom_rates)]
+                xgboost.train(params, Xy, callbacks=callbacks)
+
     shuffle : bool
         Shuffle data before creating folds.
     custom_metric :
@@ -467,7 +484,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     metric_fn = _configure_custom_metric(feval, custom_metric)
 
     # setup callbacks
-    callbacks = [] if callbacks is None else callbacks
+    callbacks = [] if callbacks is None else copy.copy(list(callbacks))
     _assert_new_callback(callbacks)
 
     if verbose_eval:
