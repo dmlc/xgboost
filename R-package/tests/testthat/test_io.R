@@ -22,15 +22,6 @@ test_that("load/save raw works", {
   from_json <- xgb.load.raw(json_bytes)
   from_ubj <- xgb.load.raw(ubj_bytes)
 
-  ## FIXME(jiamingy): Should we include these 3 lines into `xgb.load.raw`?
-  from_json <- list(handle = from_json, raw = NULL)
-  class(from_json) <- "xgb.Booster"
-  from_json <- xgb.Booster.complete(from_json, saveraw = TRUE)
-
-  from_ubj <- list(handle = from_ubj, raw = NULL)
-  class(from_ubj) <- "xgb.Booster"
-  from_ubj <- xgb.Booster.complete(from_ubj, saveraw = TRUE)
-
   json2old <- xgb.save.raw(from_json, raw_format = "deprecated")
   ubj2old <- xgb.save.raw(from_ubj, raw_format = "deprecated")
 
