@@ -286,13 +286,21 @@ __model_doc = f'''
 
     callbacks : Optional[List[TrainingCallback]]
         List of callback functions that are applied at end of each iteration.
-        It is possible to use predefined callbacks by using :ref:`callback_api`.
-        Example:
+        It is possible to use predefined callbacks by using
+        :ref:`Callback API <callback_api>`.
+
+        .. note::
+
+           States in callback are not preserved during training, which means callback
+           objects can not be reused for multiple training sessions without
+           reinitialization or deepcopy.
 
         .. code-block:: python
 
-            callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                                    save_best=True)]
+            for params in parameters_grid:
+                # be sure to (re)initialize the callbacks before each run
+                callbacks = [xgb.callback.LearningRateScheduler(custom_rates)]
+                xgboost.train(params, Xy, callbacks=callbacks)
 
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters
@@ -916,8 +924,8 @@ class XGBModel(XGBModelBase):
             otherwise a `ValueError` is thrown.
 
         callbacks :
-            .. deprecated: 1.6.0
-                Use `callbacks` in :py:meth:`__init__` or :py:methd:`set_params` instead.
+            .. deprecated:: 1.6.0
+                Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
         """
         evals_result: TrainingCallback.EvalsLog = {}
         train_dmatrix, evals = _wrap_evaluation_matrices(
@@ -1791,8 +1799,8 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             otherwise a `ValueError` is thrown.
 
         callbacks :
-            .. deprecated: 1.6.0
-                Use `callbacks` in :py:meth:`__init__` or :py:methd:`set_params` instead.
+            .. deprecated:: 1.6.0
+                Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
         """
         # check if group information is provided
         if group is None and qid is None:
