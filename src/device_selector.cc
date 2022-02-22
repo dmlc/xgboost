@@ -1,9 +1,9 @@
 /*!
  * Copyright 2014-2022 by Contributors
- * \file device_id.cc
+ * \file device_selector.cc
  */
 
-#include <xgboost/device_id.h>
+#include <xgboost/device_selector.h>
 #include <dmlc/registry.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/json.h>
@@ -15,50 +15,50 @@ DMLC_REGISTRY_ENABLE(::xgboost::DeviceReg);
 
 namespace xgboost {
 
-DeviceId::Specification& DeviceId::Fit() {
+DeviceSelector::Specification& DeviceSelector::Fit() {
   return fit;
 }
 
-DeviceId::Specification& DeviceId::Predict() {
+DeviceSelector::Specification& DeviceSelector::Predict() {
   return predict;
 }
 
-DeviceId::Specification DeviceId::Fit() const {
+DeviceSelector::Specification DeviceSelector::Fit() const {
   return fit;
 }
 
-DeviceId::Specification DeviceId::Predict() const {
+DeviceSelector::Specification DeviceSelector::Predict() const {
   return predict;
 }
 
-void DeviceId::Init(const std::string& user_input_device_id) {
-  int fit_position = user_input_device_id.find(fit.Prefix());
-  int predict_position = user_input_device_id.find(predict.Prefix());
+void DeviceSelector::Init(const std::string& user_input_device_selector) {
+  int fit_position = user_input_device_selector.find(fit.Prefix());
+  int predict_position = user_input_device_selector.find(predict.Prefix());
 
   CHECK((fit_position == std::string::npos) == (predict_position == std::string::npos))
     <<  "Both " << fit.Prefix() << " and " << predict.Prefix() << " or neither of them should be specified";
 
   if ((fit_position == std::string::npos) && (predict_position == std::string::npos)) {
-    // user_input looks like: device_id='oneapi:cpu:0'
-    fit.Init(user_input_device_id);
-    predict.Init(user_input_device_id);
+    // user_input looks like: device_selector='oneapi:cpu:0'
+    fit.Init(user_input_device_selector);
+    predict.Init(user_input_device_selector);
   } else {
-    int separator_position = user_input_device_id.find(';');
+    int separator_position = user_input_device_selector.find(';');
     CHECK(separator_position != std::string::npos)
       <<  fit.Prefix() << " and " << predict.Prefix() << " shuold be separated by \';\'";
 
     int fit_specification_begin = fit_position + fit.Prefix().size();
     int predict_specification_begin = predict_position + predict.Prefix().size();
     if (fit_position < predict_position) {
-      // user_input looks like: device_id='fit:oneapi:gpu:0; predict:oneapi:cpu:0'
+      // user_input looks like: device_selector='fit:oneapi:gpu:0; predict:oneapi:cpu:0'
       int fit_specification_lenght = separator_position - fit_specification_begin;
-      fit.Init(user_input_device_id.substr(fit_specification_begin, fit_specification_lenght));
-      predict.Init(user_input_device_id.substr(predict_specification_begin));
+      fit.Init(user_input_device_selector.substr(fit_specification_begin, fit_specification_lenght));
+      predict.Init(user_input_device_selector.substr(predict_specification_begin));
     } else if (fit_position > predict_position) {
-      // user_input looks like: device_id='predict:oneapi:gpu:0; fit:oneapi:cpu:0'
+      // user_input looks like: device_selector='predict:oneapi:gpu:0; fit:oneapi:cpu:0'
       int predict_specification_length = separator_position - predict_specification_begin;
-      fit.Init(user_input_device_id.substr(fit_specification_begin));
-      predict.Init(user_input_device_id.substr(predict_specification_begin, predict_specification_length));
+      fit.Init(user_input_device_selector.substr(fit_specification_begin));
+      predict.Init(user_input_device_selector.substr(predict_specification_begin, predict_specification_length));
     }
   }
 
@@ -78,26 +78,26 @@ void DeviceId::Init(const std::string& user_input_device_id) {
   }
 }
 
-bool operator != (const DeviceId::Specification& lhs, const DeviceId::Specification& rhs) {
+bool operator != (const DeviceSelector::Specification& lhs, const DeviceSelector::Specification& rhs) {
   bool ans = (lhs.Type() != rhs.Type()) || (lhs.Index() != rhs.Index());
   return ans;
 }
 
-std::istream& operator >> (std::istream& is, DeviceId& device_id) {
+std::istream& operator >> (std::istream& is, DeviceSelector& device_selector) {
     std::string input;
     std::getline(is, input);
 
-    device_id.Init(input);
+    device_selector.Init(input);
     return is;
 }
 
-std::ostream& operator << (std::ostream& os, const DeviceId& device_id) {
-  os << device_id.Fit().Prefix() << device_id.Fit() << "; " << device_id.Predict().Prefix() << device_id.Predict();
+std::ostream& operator << (std::ostream& os, const DeviceSelector& device_selector) {
+  os << device_selector.Fit().Prefix() << device_selector.Fit() << "; " << device_selector.Predict().Prefix() << device_selector.Predict();
 
   return os;
 }
 
-void DeviceId::SaveConfig(Json* p_out) const {
+void DeviceSelector::SaveConfig(Json* p_out) const {
   auto& out = *p_out;
 
   std::stringstream ss;
@@ -106,11 +106,11 @@ void DeviceId::SaveConfig(Json* p_out) const {
   out["name"] = String(ss.str());
 }
 
-std::string DeviceId::Specification::Prefix() const {
+std::string DeviceSelector::Specification::Prefix() const {
   return prefix_;
 }
 
-void DeviceId::Specification::Init(const std::string& specification) {
+void DeviceSelector::Specification::Init(const std::string& specification) {
     int position = specification.find_last_of(':');
 
     const std::string device_name = specification.substr(0,position);
@@ -123,17 +123,17 @@ void DeviceId::Specification::Init(const std::string& specification) {
     index_ = std::stoi(index_name);
 }
 
-DeviceType DeviceId::Specification::Type() const {
+DeviceType DeviceSelector::Specification::Type() const {
   return type_;
 }
 
-int DeviceId::Specification::Index() const {
+int DeviceSelector::Specification::Index() const {
   return index_;
 }
 
-std::string DeviceId::Specification::GetKernelName(const std::string& method_name) const {
+std::string DeviceSelector::Specification::GetKernelName(const std::string& method_name) const {
   /*
-   * Replace the method name, if a specific one is registrated for the current device_id
+   * Replace the method name, if a specific one is registrated for the current device_selector
    */
   auto *e = ::dmlc::Registry< ::xgboost::KernelsReg>::Get()->Find(method_name);
   if (e != nullptr) {
@@ -145,7 +145,7 @@ std::string DeviceId::Specification::GetKernelName(const std::string& method_nam
   return method_name;
 }
 
-std::ostream& operator << (std::ostream& os, const DeviceId::Specification& specification) {
+std::ostream& operator << (std::ostream& os, const DeviceSelector::Specification& specification) {
   std::vector<std::string> known_device_names = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->ListAllNames();
   for (const std::string& device_name : known_device_names) {
     auto device_type = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name)->body;
@@ -160,23 +160,23 @@ std::ostream& operator << (std::ostream& os, const DeviceId::Specification& spec
   return os;
 }
 
-void DeviceId::UpdateByGPUId(int gpu_id) {
+void DeviceSelector::UpdateByGPUId(int gpu_id) {
   fit.UpdateByGPUId(gpu_id);
   predict.UpdateByGPUId(gpu_id);
 }
 
-int DeviceId::GetGPUId() {
+int DeviceSelector::GetGPUId() {
   return fit.GetGPUId();
 }
 
-void DeviceId::Specification::UpdateByGPUId(int gpu_id) {
+void DeviceSelector::Specification::UpdateByGPUId(int gpu_id) {
   if (gpu_id != GenericParameter::kCpuId) {
     type_ = DeviceType::kCUDA;
     index_ = gpu_id;
   }
 }
 
-int DeviceId::Specification::GetGPUId() {
+int DeviceSelector::Specification::GetGPUId() {
   if (type_ == DeviceType::kCUDA) {
     return index_;
   } else {
@@ -184,7 +184,7 @@ int DeviceId::Specification::GetGPUId() {
   }
 }
 
-std::string DeviceId::Specification::Name() const {
+std::string DeviceSelector::Specification::Name() const {
   std::stringstream ss;
   ss << *this;
 

@@ -346,7 +346,7 @@ class LearnerConfiguration : public Learner {
 
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
-    this->ConfigureDeviceId();
+    this->ConfigureDeviceSelector();
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
@@ -372,26 +372,26 @@ class LearnerConfiguration : public Learner {
     this->ConfigureGBM(old_tparam, args);
 
 
-    /* Start of device_id and gpu_id configuration.
-     * After introducing the unified device dispatching with device_id, 
+    /* Start of device_selector and gpu_id configuration.
+     * After introducing the unified device dispatching with device_selector, 
      * one needs to keep the backward compatibility of the user code which uses gpu_id. 
      * One ensures such compatibility by the following steps:
-     * 1. If gpu_id is set, device_id will be reconfigured consistently with the gpu_id. 
-     *    So gpu_id has a higher priority than device_id. After this step device_id has the correct value
-     *    both in cases of device_id or gpu_id is used by the user.
+     * 1. If gpu_id is set, device_selector will be reconfigured consistently with the gpu_id. 
+     *    So gpu_id has a higher priority than device_selector. After this step device_selector has the correct value
+     *    both in cases of device_selector or gpu_id is used by the user.
      */ 
-    generic_parameters_.device_id.UpdateByGPUId(generic_parameters_.gpu_id);
+    generic_parameters_.device_selector.UpdateByGPUId(generic_parameters_.gpu_id);
 
-    /* 2. gpu_id is set consistently with the device_id. After this step, the value of gpu_id is 
-     *    correct both in cases of device_id or gpu_id is used by the user. 
-     *    After this step doesn't matter did the user use gpu_id or device_id.
+    /* 2. gpu_id is set consistently with the device_selector. After this step, the value of gpu_id is 
+     *    correct both in cases of device_selector or gpu_id is used by the user. 
+     *    After this step doesn't matter did the user use gpu_id or device_selector.
      */
-    generic_parameters_.gpu_id = generic_parameters_.device_id.GetGPUId();
+    generic_parameters_.gpu_id = generic_parameters_.device_selector.GetGPUId();
 
     /* 3. Next step is configuring the gpu_id according to the sets of condition from ConfigureGpuId
      */
     generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
-    /* End of device_id and gpu_id configuration.
+    /* End of device_selector and gpu_id configuration.
      */
 
     this->ConfigureMetrics(args);
@@ -420,7 +420,7 @@ class LearnerConfiguration : public Learner {
 
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
-      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
+      obj_.reset(ObjFunction::Create(generic_parameters_.device_selector.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
     }
     obj_->LoadConfig(objective_fn);
 
@@ -653,10 +653,10 @@ class LearnerConfiguration : public Learner {
     cfg_["num_class"] = common::ToString(mparam_.num_class);
   }
 
-  void ConfigureDeviceId() {
+  void ConfigureDeviceSelector() {
     std::stringstream ss;
-    ss << generic_parameters_.device_id;
-    cfg_["device_id"] = ss.str();
+    ss << generic_parameters_.device_selector;
+    cfg_["device_selector"] = ss.str();
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
@@ -685,7 +685,7 @@ class LearnerConfiguration : public Learner {
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
+      obj_.reset(ObjFunction::Create(generic_parameters_.device_selector.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
     }
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
@@ -776,16 +776,16 @@ class LearnerIO : public LearnerConfiguration {
     mparam_.FromJson(learner.at("learner_model_param"));
 
     std::string name;
-    if (learner.count("device_id") > 0) {
-      auto& device_id_fn = learner.at("device_id");
-      name = get<String>(device_id_fn["name"]);
-      generic_parameters_.device_id.Init(name);
+    if (learner.count("device_selector") > 0) {
+      auto& device_selector_fn = learner.at("device_selector");
+      name = get<String>(device_selector_fn["name"]);
+      generic_parameters_.device_selector.Init(name);
     }
     auto const& objective_fn = learner.at("objective");
 
     name = get<String>(objective_fn["name"]);
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(name), &generic_parameters_));
+    obj_.reset(ObjFunction::Create(generic_parameters_.device_selector.Fit().GetKernelName(name), &generic_parameters_));
     obj_->LoadConfig(objective_fn);
 
     auto const& gradient_booster = learner.at("gradient_booster");
@@ -838,9 +838,9 @@ class LearnerIO : public LearnerConfiguration {
     auto& objective_fn = learner["objective"];
     obj_->SaveConfig(&objective_fn);
 
-    learner["device_id"] = Object();
-    auto& device_id_fn = learner["device_id"];
-    generic_parameters_.device_id.SaveConfig(&device_id_fn);
+    learner["device_selector"] = Object();
+    auto& device_selector_fn = learner["device_selector"];
+    generic_parameters_.device_selector.SaveConfig(&device_selector_fn);
 
     learner["attributes"] = Object();
     for (auto const& kv : attributes_) {
@@ -905,7 +905,7 @@ class LearnerIO : public LearnerConfiguration {
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
-    obj_.reset(ObjFunction::Create(generic_parameters_.device_id.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
+    obj_.reset(ObjFunction::Create(generic_parameters_.device_selector.Fit().GetKernelName(tparam_.objective), &generic_parameters_));
     gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
                                        &learner_model_param_));
     gbm_->Load(fi);

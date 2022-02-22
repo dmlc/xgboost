@@ -46,7 +46,7 @@ void GBTree::Configure(const Args& cfg) {
     model_.InitTreesToUpdate();
   }
 
-  // configure predictors
+  // configure predictors  
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("cpu_predictor", this->ctx_));
@@ -65,12 +65,12 @@ void GBTree::Configure(const Args& cfg) {
 
 #if defined(XGBOOST_USE_ONEAPI)
   /* Change predictor type to PredictorType::kOneAPIPredictor in case of 
-   * user specifyed device_id = 'oneapi:gpu:*' or device_id = 'oneapi:cpu:*' and
+   * user specifyed device_selector = 'oneapi:gpu:*' or device_selector = 'oneapi:cpu:*' and
    * didn't specifyed predictor, i.e. predictor == PredictorType::kAuto
    */
   bool is_oneapi_device = 
-      (this->ctx_->device_id.Predict().Type() == DeviceType::kOneAPI_CPU) ||
-      (this->ctx_->device_id.Predict().Type() == DeviceType::kOneAPI_GPU);
+      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_CPU) ||
+      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_GPU);
   if (is_oneapi_device && (tparam_.predictor == PredictorType::kAuto)) {
     tparam_.predictor = PredictorType::kOneAPIPredictor;
   }
@@ -323,7 +323,7 @@ void GBTree::InitUpdater(Args const& cfg) {
   // create new updaters
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(ctx_->device_id.Fit().GetKernelName(pstr.c_str()), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(ctx_->device_selector.Fit().GetKernelName(pstr.c_str()), ctx_, model_.learner_model_param->task));
     up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
@@ -409,7 +409,7 @@ void GBTree::LoadConfig(Json const& in) {
   updaters_.clear();
   for (auto const& kv : j_updaters) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(ctx_->device_id.Fit().GetKernelName(kv.first), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(ctx_->device_selector.Fit().GetKernelName(kv.first), ctx_, model_.learner_model_param->task));
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
   }

@@ -7,7 +7,7 @@
 
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
-#include <xgboost/device_id.h>
+#include <xgboost/device_selector.h>
 
 #include <string>
 
@@ -46,7 +46,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
    * "fit:oneapi:gpu:0; predict:oneapi:cpu:0" for using oneapi:gpu:0 for 
    *  fitting and oneapi:cpu:0 for prediction.
    */
-  DeviceId device_id;
+  DeviceSelector device_selector;
 
   /*!
    * \brief Configure the parameter `gpu_id'.
@@ -81,8 +81,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_FIELD(validate_parameters)
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
-    DMLC_DECLARE_FIELD(device_id)
-        .set_default(DeviceId())
+    DMLC_DECLARE_FIELD(device_selector)
+        .set_default(DeviceSelector())
         .describe("The unified device descriptor.");
   }
 };

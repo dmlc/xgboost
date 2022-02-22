@@ -1,9 +1,9 @@
 /*!
  * Copyright 2014-2022 by Contributors
- * \file device_id.h
+ * \file device_selector.h
  */
-#ifndef XGBOOST_DEVICE_ID_H_
-#define XGBOOST_DEVICE_ID_H_
+#ifndef XGBOOST_DEVICE_SELECTOR_H_
+#define XGBOOST_DEVICE_SELECTOR_H_
 
 #include <dmlc/registry.h>
 #include <xgboost/parameter.h>
@@ -17,10 +17,10 @@ namespace xgboost {
 
 /*!
 * Enum of all supported devices.
-* kDefault    for user entry device_id = "cpu:*" or for not specified device_id
-* kCUDA       for user entry device_id = "cuda:*"
-* kOneAPI_CPU for user entry device_id = "oneapi:cpu:*"
-* kOneAPI_GPU for user entry device_id = "oneapi:gpu:*"
+* kDefault    for user entry device_selector = "cpu:*" or for not specified device_selector
+* kCUDA       for user entry device_selector = "cuda:*"
+* kOneAPI_CPU for user entry device_selector = "oneapi:cpu:*"
+* kOneAPI_GPU for user entry device_selector = "oneapi:gpu:*"
 * 
 */
 enum class DeviceType : size_t {
@@ -29,11 +29,11 @@ kDefault = 0, kCUDA = 1, kOneAPI_CPU = 2, kOneAPI_GPU = 3
 
 using KernelsRegisterEntry_t = std::unordered_map<DeviceType, std::string>;
 
-class DeviceId {
+class DeviceSelector {
  public:
   static int constexpr kDefaultIndex = -1;
 
-  void Init(const std::string& user_input_device_id);
+  void Init(const std::string& user_input_device_selector);
 
   class Specification {
     public:
@@ -59,7 +59,7 @@ class DeviceId {
       std::string prefix_;
 
       DeviceType type_ = DeviceType::kDefault;
-      int index_ = DeviceId::kDefaultIndex;
+      int index_ = DeviceSelector::kDefaultIndex;
   };
 
   void SaveConfig(Json* p_out) const;
@@ -81,23 +81,24 @@ class DeviceId {
   Specification predict = Specification("predict");
 };
 
-std::istream& operator >> (std::istream& is, DeviceId& device_id);
+std::istream& operator >> (std::istream& is, DeviceSelector& device_selector);
 
-std::ostream& operator << (std::ostream& os, const DeviceId& device_id);
+std::ostream& operator << (std::ostream& os, const DeviceSelector& device_selector);
 
-bool operator != (const DeviceId::Specification& lhs, const DeviceId::Specification& rhs);
+bool operator != (const DeviceSelector::Specification& lhs, const DeviceSelector::Specification& rhs);
 
-std::ostream& operator << (std::ostream& os, const DeviceId::Specification& specification);
+std::ostream& operator << (std::ostream& os, const DeviceSelector::Specification& specification);
 
 #define CAT2(a,b) a##b
 #define CAT(a,b) CAT2(a,b)
-#define UNIQUE_KERNEL_REGISTRAR_NAME_ CAT(__registrate_device_id_kernel,__COUNTER__)
+#define UNIQUE_KERNEL_REGISTRAR_NAME_ CAT(__registrate_device_selector_kernel,__COUNTER__)
+
 /*!
  * \brief Macro to register kernel names for specific device.
  *
  * \code
  * // example of registering a device
- * XGBOOST_REGISTERATE_DEVICEID_KERNEL("grow_quantile_histmaker", DeviceType::kOneAPI_CPU, "grow_quantile_histmaker_oneapi");
+ * XGBOOST_REGISTERATE_DEVICE_SELECTOR_KERNEL("grow_quantile_histmaker", DeviceType::kOneAPI_CPU, "grow_quantile_histmaker_oneapi");
  * \endcode
  */
 struct KernelsReg
@@ -105,7 +106,7 @@ struct KernelsReg
                                         ::xgboost::KernelsRegisterEntry_t> {
 };
 
-#define XGBOOST_REGISTERATE_DEVICEID_KERNEL(method_name, device_type, kernel_name)      \
+#define XGBOOST_REGISTERATE_DEVICE_SELECTOR_KERNEL(method_name, device_type, kernel_name)      \
   static DMLC_ATTRIBUTE_UNUSED auto&& UNIQUE_KERNEL_REGISTRAR_NAME_ = ::dmlc::Registry< ::xgboost::KernelsReg>::Get()->__REGISTER__(method_name) \
   .body.insert({device_type, kernel_name}) \
 
@@ -131,4 +132,4 @@ struct DeviceReg
 
 }  // namespace xgboost
 
-#endif  // XGBOOST_DEVICE_ID_H_
+#endif  // XGBOOST_DEVICE_SELECTOR_H_
