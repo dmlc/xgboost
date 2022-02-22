@@ -3,9 +3,10 @@
 #' User can generate raw memory buffer by calling xgb.save.raw
 #'
 #' @param buffer the buffer returned by xgb.save.raw
+#' @param as_booster Return the loaded model as xgb.Booster instead of xgb.Booster.handle.
 #'
 #' @export
-xgb.load.raw <- function(buffer, as_booster = TRUE) {
+xgb.load.raw <- function(buffer, as_booster = FALSE) {
   cachelist <- list()
   handle <- .Call(XGBoosterCreate_R, cachelist)
   .Call(XGBoosterLoadModelFromRaw_R, handle, buffer)
