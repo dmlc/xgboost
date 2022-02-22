@@ -46,7 +46,7 @@ void GBTree::Configure(const Args& cfg) {
     model_.InitTreesToUpdate();
   }
 
-  // configure predictors  
+  // configure predictors
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("cpu_predictor", this->ctx_));
