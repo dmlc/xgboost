@@ -1,5 +1,5 @@
-#ifndef XGBOOST_COMMON_FAIR_PARAM_H_
-#define XGBOOST_COMMON_FAIR_PARAM_H_
+#ifndef XGBOOST_COMMON_REGULARIZED_H_
+#define XGBOOST_COMMON_REGULARIZED_H_
 /*!
  * Copyright 2022 by XGBoost Contributors
  */
@@ -15,4 +15,4 @@ struct BinaryRegularizationParam : public XGBoostParameter<BinaryRegularizationP
   }
 };
 }  // namespace xgboost
-#endif  // XGBOOST_COMMON_FAIR_PARAM_H_
+#endif  // XGBOOST_COMMON_REGULARIZED_H_
