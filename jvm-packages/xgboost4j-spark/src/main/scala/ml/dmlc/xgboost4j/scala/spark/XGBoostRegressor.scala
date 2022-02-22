@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -150,7 +150,7 @@ class XGBoostRegressor (
    *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
    *  all feature columns must be numeric types.
    */
-  def setFeaturesCols(value: Seq[String]): this.type =
+  def setFeaturesCols(value: Array[String]): this.type =
     set(featuresCols, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
@@ -257,7 +257,7 @@ class XGBoostRegressionModel private[ml] (
    *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
    *  all feature columns must be numeric types.
    */
-  def setFeaturesCols(value: Seq[String]): this.type =
+  def setFeaturesCols(value: Array[String]): this.type =
     set(featuresCols, value)
 
   /**

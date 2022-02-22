@@ -35,7 +35,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
     StructField("f3", FloatType),
     StructField(groupName, IntegerType)))
   val featureNames = schema.fieldNames.filter(s =>
-    !(s.equals(labelName) || s.equals(groupName))).toSeq
+    !(s.equals(labelName) || s.equals(groupName)))
 
   test("The transform result should be same for several runs on same model") {
     withGpuSparkSession(enableCsvConf()) { spark =>

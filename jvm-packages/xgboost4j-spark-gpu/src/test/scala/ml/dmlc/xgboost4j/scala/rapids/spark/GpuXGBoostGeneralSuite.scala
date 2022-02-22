@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
   private val labelName = "label_col"
   private val weightName = "weight_col"
   private val baseMarginName = "margin_col"
-  private val featureNames = Seq("f1", "f2", "f3")
+  private val featureNames = Array("f1", "f2", "f3")
   private val allColumnNames = featureNames :+ weightName :+ baseMarginName :+ labelName
   private val trainingData = Seq(
     // f1,  f2,  f3, weight, margin, label
@@ -68,7 +68,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
         "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist")
       new XGBoostClassifier(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .fit(trainingDf)
     }
@@ -84,7 +84,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
         "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist")
       val thrown1 = intercept[IllegalArgumentException] {
         new XGBoostClassifier(xgbParam)
-          .setFeaturesCols(featureNames)
+          .setFeaturesCol(featureNames)
           .setLabelCol(labelName)
           .fit(trainingDf)
       }
@@ -93,7 +93,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
       trainingDf = originalDf.withColumn(labelName, col(labelName).cast(StringType))
       val thrown2 = intercept[IllegalArgumentException] {
         new XGBoostClassifier(xgbParam)
-          .setFeaturesCols(featureNames)
+          .setFeaturesCol(featureNames)
           .setLabelCol(labelName)
           .fit(trainingDf)
       }
@@ -117,7 +117,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
 
       val thrown1 = intercept[IllegalArgumentException] {
         new XGBoostClassifier(xgbParam)
-          .setFeaturesCols(featureNames)
+          .setFeaturesCol(featureNames)
           .fit(trainingDf)
       }
       assert(thrown1.getMessage.contains("label does not exist."))
@@ -132,7 +132,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
         "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "hist")
       val thrown = intercept[IllegalArgumentException] {
         new XGBoostClassifier(xgbParam)
-          .setFeaturesCols(featureNames)
+          .setFeaturesCol(featureNames)
           .setLabelCol(labelName)
           .fit(trainingDf)
       }
@@ -149,7 +149,7 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
         "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist")
       val model1 = new XGBoostClassifier(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setEvalSets(Map("eval1" -> eval1, "eval2" -> eval2))
         .fit(trainingDf)
@@ -166,7 +166,6 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
   test("test persistence of XGBoostClassifier and XGBoostClassificationModel") {
     val xgbcPath = new File(tempDir.toFile, "xgbc").getPath
     withGpuSparkSession() { spark =>
-      import spark.implicits._
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
         "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist",
         "features_cols" -> featureNames, "label_col" -> labelName)
@@ -174,7 +173,10 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
       xgbc.write.overwrite().save(xgbcPath)
       val paramMap2 = XGBoostClassifier.load(xgbcPath).MLlib2XGBoostParams
       xgbParam.foreach {
-        case (k, v) => assert(v.toString == paramMap2(k).toString)
+        case (k, v: Array[String]) =>
+          assert(v.sameElements(paramMap2(k).asInstanceOf[Array[String]]))
+        case (k, v) =>
+          assert(v.toString == paramMap2(k).toString)
       }
     }
   }

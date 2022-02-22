@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
     StructField("f10", FloatType), StructField("f11", FloatType), StructField("f12", FloatType),
     StructField(labelName, FloatType)
   ))
-  val featureNames = schema.fieldNames.filter(s => !s.equals(labelName)).toSeq
+  val featureNames = schema.fieldNames.filter(s => !s.equals(labelName))
 
   test("The transform result should be same for several runs on same model") {
     withGpuSparkSession(enableCsvConf()) { spark =>
@@ -90,7 +90,7 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostClassifier(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setTreeMethod("gpu_hist")
       (classifier.fit(rawInput), testDf)
@@ -155,12 +155,12 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         "please refer to setFeaturesCols"))
 
       val left = cpuModel
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .transform(testDf)
         .collect()
 
       val right = cpuModelFromFile
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .transform(testDf)
         .collect()
 
@@ -177,7 +177,7 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostClassifier(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setTreeMethod("gpu_hist")
       classifier.fit(rawInput)
