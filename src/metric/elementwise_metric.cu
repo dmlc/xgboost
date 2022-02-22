@@ -13,8 +13,8 @@
 #include <cmath>
 
 #include "../common/common.h"
-#include "../common/fair_param.h"
 #include "../common/math.h"
+#include "../common/regularized.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"
 
@@ -421,8 +421,8 @@ XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
 .set_body([](const char* param) { return new EvalEWiseBase<EvalRowLogLoss>(); });
 
 XGBOOST_REGISTER_METRIC(RegularizedLogLoss, "regularized-logloss")
-.describe("Negative loglikelihood for regularized binary classification.")
-.set_body([](const char* param) { return new RegularizedLogLoss(); });
+    .describe("Negative loglikelihood for regularized binary classification.")
+    .set_body([](const char* param) { return new RegularizedLogLoss(); });
 
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
 .describe("Negative loglikelihood for poisson regression.")

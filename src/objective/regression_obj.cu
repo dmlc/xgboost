@@ -14,8 +14,8 @@
 #include <vector>
 
 #include "../common/common.h"
-#include "../common/fair_param.h"
 #include "../common/linalg_op.h"
+#include "../common/regularized.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
