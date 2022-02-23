@@ -89,10 +89,9 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
   return peak;
 }
 
-size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, bst_feature_t columns,
-                              size_t nnz, int device,
-                              size_t num_cuts, bool has_weight) {
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_row_t num_rows,
+                              bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
+                              bool has_weight) {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   // device available memory is not accurate when rmm is used.
   return nnz;
@@ -108,7 +107,8 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
       sketch_batch_num_elements = std::min(num_rows * static_cast<size_t>(columns), nnz);
     }
   }
-  return sketch_batch_num_elements;
+  return std::min(sketch_batch_num_elements,
+                  static_cast<size_t>(std::numeric_limits<uint32_t>::max()));
 }
 
 template <typename Batch>

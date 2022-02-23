@@ -77,7 +77,7 @@ void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feat
 inline size_t constexpr BytesPerElement(bool has_weight) {
   // Double the memory usage for sorting.  We need to assign weight for each element, so
   // sizeof(float) is added to all elements.
-  return (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
+  return (has_weight ? sizeof(uint32_t) + sizeof(float) : sizeof(uint32_t)) * 2;
 }
 
 /* \brief Calcuate the length of sliding window. Returns `sketch_batch_num_elements`
