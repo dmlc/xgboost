@@ -3,12 +3,13 @@
 
 #include <memory>
 
-#include "xgboost/span.h"
-#include "xgboost/data.h"
+#include "../data/device_adapter.cuh"
+#include "categorical.h"
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "timer.h"
-#include "categorical.h"
+#include "xgboost/data.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 namespace common {
@@ -21,6 +22,12 @@ namespace detail {
 struct SketchUnique {
   XGBOOST_DEVICE bool operator()(SketchEntry const& a, SketchEntry const& b) const {
     return a.value - b.value == 0;
+  }
+};
+struct EntryBatch {
+  Span<Entry const> entries;
+  XGBOOST_DEVICE data::COOTuple GetElement(uint32_t idx) const noexcept {
+    return {0, entries[idx].index, entries[idx].fvalue};
   }
 };
 }  // namespace detail
@@ -143,6 +150,11 @@ class SketchContainer {
   void Push(Span<Entry const> entries, Span<size_t> columns_ptr,
             common::Span<OffsetT> cuts_ptr, size_t total_cuts,
             Span<float> weights = {});
+
+  template <typename Batch>
+  void Push(Batch batch, Span<uint32_t const> sorted_idx, Span<size_t> columns_ptr,
+            Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights = {});
+
   /* \brief Prune the quantile structure.
    *
    * \param to The maximum size of pruned quantile.  If the size of quantile

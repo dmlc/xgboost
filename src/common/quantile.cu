@@ -18,6 +18,7 @@
 #include "quantile.cuh"
 #include "quantile.h"
 #include "xgboost/span.h"
+#include "../data/device_adapter.cuh"
 
 namespace xgboost {
 namespace common {
@@ -364,6 +365,74 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
     CopyTo(d_cuts_ptr, cuts_ptr);
   }
 }
+
+template <typename Batch>
+void SketchContainer::Push(Batch batch, Span<uint32_t const> sorted_idx, Span<size_t> columns_ptr,
+                           common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
+  Span<SketchEntry> out;
+  dh::device_vector<SketchEntry> cuts;
+  bool first_window = this->Current().empty();
+  if (!first_window) {
+    cuts.resize(total_cuts);
+    out = dh::ToSpan(cuts);
+  } else {
+    this->Current().resize(total_cuts);
+    out = dh::ToSpan(this->Current());
+  }
+  auto ft = this->feature_types_.ConstDeviceSpan();
+  if (weights.empty()) {
+    auto to_sketch_entry = [=] __device__(size_t sample_idx, Span<uint32_t const> const &column,
+                                          size_t) {
+      float rmin = sample_idx;
+      float rmax = sample_idx + 1;
+      return SketchEntry{rmin, rmax, 1, batch.GetElement(column[sample_idx]).value};
+    };  // NOLINT
+    PruneImpl<uint32_t>(device_, cuts_ptr, sorted_idx, columns_ptr, ft, out, to_sketch_entry);
+  } else {
+    auto to_sketch_entry = [=] __device__(size_t sample_idx, Span<uint32_t const> const &column,
+                                          size_t column_id) {
+      Span<float const> column_weights_scan =
+          weights.subspan(columns_ptr[column_id], column.size());
+      float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
+      float rmax = column_weights_scan[sample_idx];
+      float wmin = rmax - rmin;
+      wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
+      return SketchEntry{rmin, rmax, wmin, batch.GetElement(column[sample_idx]).value};
+    };  // NOLINT
+    PruneImpl<uint32_t>(device_, cuts_ptr, sorted_idx, columns_ptr, ft, out, to_sketch_entry);
+  }
+  auto n_uniques = this->ScanInput(out, cuts_ptr);
+
+  if (!first_window) {
+    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+    out = out.subspan(0, n_uniques);
+    this->Merge(cuts_ptr, out);
+    this->FixError();
+  } else {
+    this->Current().resize(n_uniques);
+    this->columns_ptr_.SetDevice(device_);
+    this->columns_ptr_.Resize(cuts_ptr.size());
+
+    auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
+    CopyTo(d_cuts_ptr, cuts_ptr);
+  }
+}
+
+template void SketchContainer::Push<data::CupyAdapterBatch>(data::CupyAdapterBatch batch,
+                                                            Span<uint32_t const> sorted_idx,
+                                                            Span<size_t> columns_ptr,
+                                                            common::Span<OffsetT> cuts_ptr,
+                                                            size_t total_cuts, Span<float> weights);
+template void SketchContainer::Push<data::CudfAdapterBatch>(data::CudfAdapterBatch batch,
+                                                            Span<uint32_t const> sorted_idx,
+                                                            Span<size_t> columns_ptr,
+                                                            common::Span<OffsetT> cuts_ptr,
+                                                            size_t total_cuts, Span<float> weights);
+template void SketchContainer::Push<detail::EntryBatch>(detail::EntryBatch batch,
+                                                        Span<uint32_t const> sorted_idx,
+                                                        Span<size_t> columns_ptr,
+                                                        common::Span<OffsetT> cuts_ptr,
+                                                        size_t total_cuts, Span<float> weights);
 
 size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_columns_ptr_in) {
   /* There are 2 types of duplication.  First is duplicated feature values, which comes

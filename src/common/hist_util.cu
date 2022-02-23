@@ -111,120 +111,72 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
   return sketch_batch_num_elements;
 }
 
-void SortByWeight(dh::device_vector<float>* weights,
-                  dh::device_vector<Entry>* sorted_entries) {
-  // Sort both entries and wegihts.
+template <typename Batch>
+void SortWithWeight(Batch batch, Span<uint32_t> sorted_idx, Span<float> weights) {
   dh::XGBDeviceAllocator<char> alloc;
-  thrust::sort_by_key(thrust::cuda::par(alloc), sorted_entries->begin(),
-                      sorted_entries->end(), weights->begin(),
-                      detail::EntryCompareOp());
+  thrust::sort_by_key(thrust::cuda::par(alloc), dh::tbegin(sorted_idx), dh::tend(sorted_idx),
+                      dh::tbegin(weights), SortIdxOp<Batch>{batch});
 
   // Scan weights
   dh::XGBCachingDeviceAllocator<char> caching;
-  thrust::inclusive_scan_by_key(thrust::cuda::par(caching),
-                                sorted_entries->begin(), sorted_entries->end(),
-                                weights->begin(), weights->begin(),
-                                [=] __device__(const Entry& a, const Entry& b) {
-                                  return a.index == b.index;
+  thrust::inclusive_scan_by_key(thrust::cuda::par(caching), dh::tbegin(sorted_idx),
+                                dh::tend(sorted_idx), dh::tbegin(weights), dh::tend(weights),
+                                [=] __device__(uint32_t l, uint32_t r) {
+                                  auto le = batch.GetElement(l);
+                                  auto re = batch.GetElement(r);
+                                  return le.column_idx == re.column_idx;
                                 });
 }
 
-void RemoveDuplicatedCategories(
-    int32_t device, MetaInfo const &info, Span<bst_row_t> d_cuts_ptr,
-    dh::device_vector<Entry> *p_sorted_entries,
-    dh::caching_device_vector<size_t> *p_column_sizes_scan) {
-  info.feature_types.SetDevice(device);
-  auto d_feature_types = info.feature_types.ConstDeviceSpan();
-  CHECK(!d_feature_types.empty());
-  auto &column_sizes_scan = *p_column_sizes_scan;
-  auto &sorted_entries = *p_sorted_entries;
-  // Removing duplicated entries in categorical features.
-  dh::caching_device_vector<size_t> new_column_scan(column_sizes_scan.size());
-  dh::SegmentedUnique(column_sizes_scan.data().get(),
-                      column_sizes_scan.data().get() + column_sizes_scan.size(),
-                      sorted_entries.begin(), sorted_entries.end(),
-                      new_column_scan.data().get(), sorted_entries.begin(),
-                      [=] __device__(Entry const &l, Entry const &r) {
-                        if (l.index == r.index) {
-                          if (IsCat(d_feature_types, l.index)) {
-                            return l.fvalue == r.fvalue;
-                          }
-                        }
-                        return false;
-                      });
-
-  // Renew the column scan and cut scan based on categorical data.
-  auto d_old_column_sizes_scan = dh::ToSpan(column_sizes_scan);
-  dh::caching_device_vector<SketchContainer::OffsetT> new_cuts_size(
-      info.num_col_ + 1);
-  CHECK_EQ(new_column_scan.size(), new_cuts_size.size());
-  dh::LaunchN(
-      new_column_scan.size(),
-      [=, d_new_cuts_size = dh::ToSpan(new_cuts_size),
-       d_old_column_sizes_scan = dh::ToSpan(column_sizes_scan),
-       d_new_columns_ptr = dh::ToSpan(new_column_scan)] __device__(size_t idx) {
-        d_old_column_sizes_scan[idx] = d_new_columns_ptr[idx];
-        if (idx == d_new_columns_ptr.size() - 1) {
-          return;
-        }
-        if (IsCat(d_feature_types, idx)) {
-          // Cut size is the same as number of categories in input.
-          d_new_cuts_size[idx] =
-              d_new_columns_ptr[idx + 1] - d_new_columns_ptr[idx];
-        } else {
-          d_new_cuts_size[idx] = d_cuts_ptr[idx + 1] - d_cuts_ptr[idx];
-        }
-      });
-  // Turn size into ptr.
-  thrust::exclusive_scan(thrust::device, new_cuts_size.cbegin(),
-                         new_cuts_size.cend(), d_cuts_ptr.data());
-}
+template void SortWithWeight(data::CupyAdapterBatch, Span<uint32_t>, Span<float>);
+template void SortWithWeight(data::CudfAdapterBatch, Span<uint32_t>, Span<float>);
+template void SortWithWeight(EntryBatch, Span<uint32_t>, Span<float>);
 }  // namespace detail
 
-void ProcessBatch(int device, MetaInfo const &info, const SparsePage &page,
-                  size_t begin, size_t end, SketchContainer *sketch_container,
-                  int num_cuts_per_feature, size_t num_columns) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  dh::device_vector<Entry> sorted_entries;
+void ProcessBatch(int device, MetaInfo const& info, const SparsePage& page, size_t begin,
+                  size_t end, SketchContainer* sketch_container, int num_cuts_per_feature,
+                  size_t num_columns) {
+  dh::device_vector<Entry> sorted_entries_storage;
+  Span<Entry const> sorted_entries;
   if (page.data.DeviceCanRead()) {
     const auto& device_data = page.data.ConstDevicePointer();
-    sorted_entries = dh::device_vector<Entry>(device_data + begin, device_data + end);
+    sorted_entries = Span<Entry const>(device_data + begin, end - begin);
   } else {
     const auto& host_data = page.data.ConstHostVector();
-    sorted_entries = dh::device_vector<Entry>(host_data.begin() + begin,
-                                              host_data.begin() + end);
+    sorted_entries_storage =
+        dh::device_vector<Entry>(host_data.begin() + begin, host_data.begin() + end);
+    sorted_entries = dh::ToSpan(sorted_entries_storage);
   }
-  thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
-               sorted_entries.end(), detail::EntryCompareOp());
+
+  dh::device_vector<uint32_t> sorted_idx(sorted_entries.size());
+  dh::Iota(dh::ToSpan(sorted_idx));
+  detail::EntryBatch adapter{sorted_entries};
+  dh::XGBDeviceAllocator<char> alloc;
+  thrust::sort(thrust::cuda::par(alloc), sorted_idx.begin(), sorted_idx.end(),
+               detail::SortIdxOp<detail::EntryBatch>{adapter});
 
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
   data::IsValidFunctor dummy_is_valid(std::numeric_limits<float>::quiet_NaN());
   auto batch_it = dh::MakeTransformIterator<data::COOTuple>(
-      sorted_entries.data().get(),
-      [] __device__(Entry const &e) -> data::COOTuple {
+      sorted_entries.data(), [] __device__(Entry const& e) -> data::COOTuple {
         return {0, e.index, e.fvalue};  // row_idx is not needed for scanning column size.
       });
-  detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
-                             batch_it, dummy_is_valid,
-                             0, sorted_entries.size(),
-                             &cuts_ptr, &column_sizes_scan);
+  detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature, batch_it, dummy_is_valid, 0,
+                             sorted_entries.size(), &cuts_ptr, &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
   if (sketch_container->HasCategorical()) {
-    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
-                                       &sorted_entries, &column_sizes_scan);
+    detail::RemoveDuplicatedCategories(adapter, info, d_cuts_ptr, &sorted_idx,
+                                         &column_sizes_scan);
   }
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
 
   // add cuts into sketches
-  sketch_container->Push(dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan),
-                         d_cuts_ptr, h_cuts_ptr.back());
-  sorted_entries.clear();
-  sorted_entries.shrink_to_fit();
-  CHECK_EQ(sorted_entries.capacity(), 0);
+  sketch_container->Push(adapter, dh::ToSpan(sorted_idx), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+                         h_cuts_ptr.back());
   CHECK_NE(cuts_ptr.Size(), 0);
 }
 
@@ -235,10 +187,17 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                           bool is_ranking, Span<bst_group_t const> d_group_ptr) {
   auto weights = info.weights_.ConstDeviceSpan();
 
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  const auto& host_data = page.data.ConstHostVector();
-  dh::device_vector<Entry> sorted_entries(host_data.begin() + begin,
-                                          host_data.begin() + end);
+  dh::device_vector<Entry> sorted_entries_storage;
+  Span<Entry const> sorted_entries;
+  if (page.data.DeviceCanRead()) {
+    const auto& device_data = page.data.ConstDevicePointer();
+    sorted_entries = Span<Entry const>(device_data + begin, end - begin);
+  } else {
+    const auto& host_data = page.data.ConstHostVector();
+    sorted_entries_storage =
+        dh::device_vector<Entry>(host_data.begin() + begin, host_data.begin() + end);
+    sorted_entries = dh::ToSpan(sorted_entries_storage);
+  }
 
   // Binary search to assign weights to each element
   dh::device_vector<float> temp_weights(sorted_entries.size());
@@ -264,14 +223,17 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
         d_temp_weights[idx] = weights[ridx + base_rowid];
       });
   }
-  detail::SortByWeight(&temp_weights, &sorted_entries);
+
+  dh::device_vector<uint32_t> sorted_idx(sorted_entries.size());
+  detail::EntryBatch adapter{sorted_entries};
+  dh::Iota(dh::ToSpan(sorted_idx));
+  detail::SortWithWeight(adapter, dh::ToSpan(sorted_idx), dh::ToSpan(temp_weights));
 
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
   data::IsValidFunctor dummy_is_valid(std::numeric_limits<float>::quiet_NaN());
   auto batch_it = dh::MakeTransformIterator<data::COOTuple>(
-      sorted_entries.data().get(),
-      [] __device__(Entry const &e) -> data::COOTuple {
+      sorted_entries.data(), [] __device__(Entry const& e) -> data::COOTuple {
         return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
       });
   detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
@@ -280,18 +242,15 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                              &cuts_ptr, &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   if (sketch_container->HasCategorical()) {
-    detail::RemoveDuplicatedCategories(device, info, d_cuts_ptr,
-                                       &sorted_entries, &column_sizes_scan);
+    info.feature_types.SetDevice(device);
+    detail::RemoveDuplicatedCategories(adapter, info, d_cuts_ptr, &sorted_idx,
+                                         &column_sizes_scan);
   }
-
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
 
   // Extract cuts
-  sketch_container->Push(dh::ToSpan(sorted_entries),
-                         dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+  sketch_container->Push(adapter, dh::ToSpan(sorted_idx), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
                          h_cuts_ptr.back(), dh::ToSpan(temp_weights));
-  sorted_entries.clear();
-  sorted_entries.shrink_to_fit();
 }
 
 HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
