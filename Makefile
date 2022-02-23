@@ -153,6 +153,7 @@ Rpack: clean_all
 	bash R-package/remove_warning_suppression_pragma.sh
 	bash xgboost/remove_warning_suppression_pragma.sh
 	rm xgboost/remove_warning_suppression_pragma.sh
+	rm xgboost/CMakeLists.txt
 	rm -rfv xgboost/tests/helper_scripts/
 
 R ?= R
