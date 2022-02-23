@@ -126,7 +126,7 @@ class HistRowPartitioner {
     this->base_rowid = base_rowid;
   }
 
-  template <bool any_missing>
+  template <bool any_missing, bool any_cat>
   void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
                       common::ColumnMatrix const& column_matrix,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
@@ -160,17 +160,17 @@ class HistRowPartitioner {
       partition_builder_.AllocateForTask(task_id);
       switch (column_matrix.GetTypeSize()) {
         case common::kUint8BinsTypeSize:
-          partition_builder_.template Partition<uint8_t, any_missing>(
+          partition_builder_.template Partition<uint8_t, any_missing, any_cat>(
               node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
               row_set_collection_[nid].begin);
           break;
         case common::kUint16BinsTypeSize:
-          partition_builder_.template Partition<uint16_t, any_missing>(
+          partition_builder_.template Partition<uint16_t, any_missing, any_cat>(
               node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
               row_set_collection_[nid].begin);
           break;
         case common::kUint32BinsTypeSize:
-          partition_builder_.template Partition<uint32_t, any_missing>(
+          partition_builder_.template Partition<uint32_t, any_missing, any_cat>(
               node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
               row_set_collection_[nid].begin);
           break;

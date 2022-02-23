@@ -61,7 +61,11 @@ class PartitionBuilder {
     size_t nright_elems = 0;
     auto state = column.GetInitialState(row_indices.front() - base_rowid);
 
-    for (auto rid : row_indices) {
+    auto p_row_indices = row_indices.data();
+    auto n_samples = row_indices.size();
+
+    for (size_t i = 0; i < n_samples; ++i) {
+      auto rid = p_row_indices[i];
       const int32_t bin_id = column.GetBinIdx(rid - base_rowid, &state);
       if (any_missing && bin_id == ColumnType::kMissingId) {
         if (default_left) {
@@ -100,7 +104,7 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
-  template <typename BinIdxType, bool any_missing>
+  template <typename BinIdxType, bool any_missing, bool any_cat>
   void Partition(const size_t node_in_set, const size_t nid, const common::Range1d range,
                  const int32_t split_cond, GHistIndexMatrix const& gmat,
                  const ColumnMatrix& column_matrix, const RegTree& tree, const size_t* rid) {
@@ -119,8 +123,7 @@ class PartitionBuilder {
     auto const& cut_ptrs = gmat.cut.Ptrs();
 
     auto pred = [&](auto ridx, auto bin_id) {
-      bool go_left;
-      if (is_cat) {
+      if (any_cat && is_cat) {
         auto begin = gmat.RowIdx(ridx);
         auto end = gmat.RowIdx(ridx + 1);
         auto f_begin = cut_ptrs[fid];
@@ -128,15 +131,16 @@ class PartitionBuilder {
         // bypassing the column matrix as we need the cut value instead of bin idx for categorical
         // features.
         auto gidx = BinarySearchBin(begin, end, index, f_begin, f_end);
+        bool go_left;
         if (gidx == -1) {
           go_left = default_left;
         } else {
           go_left = Decision(node_cats, cut_values[gidx], default_left);
         }
+        return go_left;
       } else {
-        go_left = bin_id <= split_cond;
+        return bin_id <= split_cond;
       }
-      return go_left;
     };
 
     std::pair<size_t, size_t> child_nodes_sizes;

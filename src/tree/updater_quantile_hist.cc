@@ -256,8 +256,13 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 
     if (nodes_for_apply_split.size() != 0) {
       HistRowPartitioner &partitioner = this->partitioner_.front();
-      partitioner.UpdatePosition<any_missing>(this->ctx_, gmat, column_matrix,
-                                              nodes_for_apply_split, p_tree);
+      if (gmat.cut.HasCategorical()) {
+        partitioner.UpdatePosition<any_missing, true>(this->ctx_, gmat, column_matrix,
+                                                      nodes_for_apply_split, p_tree);
+      } else {
+        partitioner.UpdatePosition<any_missing, false>(this->ctx_, gmat, column_matrix,
+                                                       nodes_for_apply_split, p_tree);
+      }
 
       SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
 

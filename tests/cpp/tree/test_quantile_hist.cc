@@ -178,7 +178,7 @@ TEST(QuantileHist, Partitioner) {
       RegTree tree;
       HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
       GetSplit(&tree, min_value, &candidates);
-      partitioner.UpdatePosition<false>(&ctx, page, column_indices, candidates, &tree);
+      partitioner.UpdatePosition<false, true>(&ctx, page, column_indices, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
       ASSERT_EQ(partitioner[1].Size(), 0);
       ASSERT_EQ(partitioner[2].Size(), n_samples);
@@ -190,7 +190,7 @@ TEST(QuantileHist, Partitioner) {
       RegTree tree;
       GetSplit(&tree, split_value, &candidates);
       auto left_nidx = tree[RegTree::kRoot].LeftChild();
-      partitioner.UpdatePosition<false>(&ctx, page, column_indices, candidates, &tree);
+      partitioner.UpdatePosition<false, true>(&ctx, page, column_indices, candidates, &tree);
 
       auto elem = partitioner[left_nidx];
       ASSERT_LT(elem.Size(), n_samples);
