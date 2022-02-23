@@ -116,7 +116,7 @@ class PartitionBuilder {
 
     auto const& index = gmat.index;
     auto const& cut_values = gmat.cut.Values();
-    auto cut_ptrs = gmat.cut.Ptrs();
+    auto const& cut_ptrs = gmat.cut.Ptrs();
 
     auto pred = [&](auto ridx, auto bin_id) {
       bool go_left;
