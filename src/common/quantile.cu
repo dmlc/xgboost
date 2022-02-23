@@ -309,63 +309,6 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
   });
 }
 
-void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
-                           common::Span<OffsetT> cuts_ptr,
-                           size_t total_cuts, Span<float> weights) {
-  Span<SketchEntry> out;
-  dh::device_vector<SketchEntry> cuts;
-  bool first_window = this->Current().empty();
-  if (!first_window) {
-    cuts.resize(total_cuts);
-    out = dh::ToSpan(cuts);
-  } else {
-    this->Current().resize(total_cuts);
-    out = dh::ToSpan(this->Current());
-  }
-  auto ft = this->feature_types_.ConstDeviceSpan();
-  if (weights.empty()) {
-    auto to_sketch_entry = [] __device__(size_t sample_idx,
-                                         Span<Entry const> const &column,
-                                         size_t) {
-      float rmin = sample_idx;
-      float rmax = sample_idx + 1;
-      return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
-    }; // NOLINT
-    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, ft, out,
-                     to_sketch_entry);
-  } else {
-    auto to_sketch_entry = [weights, columns_ptr] __device__(
-                               size_t sample_idx,
-                               Span<Entry const> const &column,
-                               size_t column_id) {
-      Span<float const> column_weights_scan =
-          weights.subspan(columns_ptr[column_id], column.size());
-      float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
-      float rmax = column_weights_scan[sample_idx];
-      float wmin = rmax - rmin;
-      wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
-      return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
-    }; // NOLINT
-    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, ft, out,
-                     to_sketch_entry);
-  }
-  auto n_uniques = this->ScanInput(out, cuts_ptr);
-
-  if (!first_window) {
-    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-    out = out.subspan(0, n_uniques);
-    this->Merge(cuts_ptr, out);
-    this->FixError();
-  } else {
-    this->Current().resize(n_uniques);
-    this->columns_ptr_.SetDevice(device_);
-    this->columns_ptr_.Resize(cuts_ptr.size());
-
-    auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
-    CopyTo(d_cuts_ptr, cuts_ptr);
-  }
-}
-
 template <typename Batch>
 void SketchContainer::Push(Batch batch, Span<uint32_t const> sorted_idx, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {

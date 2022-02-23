@@ -141,16 +141,13 @@ class SketchContainer {
 
   /* \brief Push sorted entries.
    *
-   * \param entries Sorted entries.
+   * \param batch Batch from adapter that implements `GetElement`.
+   * \param sorted_idx Sorted entries.
    * \param columns_ptr CSC pointer for entries.
    * \param cuts_ptr CSC pointer for cuts.
    * \param total_cuts Total number of cuts, equal to the back of cuts_ptr.
    * \param weights (optional) data weights.
    */
-  void Push(Span<Entry const> entries, Span<size_t> columns_ptr,
-            common::Span<OffsetT> cuts_ptr, size_t total_cuts,
-            Span<float> weights = {});
-
   template <typename Batch>
   void Push(Batch batch, Span<uint32_t const> sorted_idx, Span<size_t> columns_ptr,
             Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights = {});

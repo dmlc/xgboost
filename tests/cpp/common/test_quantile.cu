@@ -21,7 +21,10 @@ TEST(GPUQuantile, Basic) {
   dh::device_vector<bst_row_t> cuts_ptr(kCols+1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
+  detail::EntryBatch adapter{dh::ToSpan(entries)};
+  dh::device_vector<uint32_t> sorted_idx(entries.size());
+
+  sketch.Push(adapter, dh::ToSpan(sorted_idx), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
@@ -523,7 +526,14 @@ TEST(GPUQuantile, Push) {
 
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
-  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows, {});
+
+  detail::EntryBatch adapter{dh::ToSpan(d_entries)};
+  dh::device_vector<uint32_t> sorted_idx(d_entries.size());
+  dh::Iota(dh::ToSpan(sorted_idx));
+  thrust::sort(sorted_idx.begin(), sorted_idx.end(),
+               detail::SortIdxOp<detail::EntryBatch>{adapter});
+  sketch.Push(adapter, dh::ToSpan(sorted_idx), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr),
+              kRows, {});
 
   auto sketch_data = sketch.Data();
 
@@ -573,8 +583,14 @@ TEST(GPUQuantile, MultiColPush) {
                          columns_ptr.begin());
   dh::device_vector<size_t> cuts_ptr(columns_ptr);
 
-  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr),
-              dh::ToSpan(cuts_ptr), kRows * kCols, {});
+  detail::EntryBatch adapter{dh::ToSpan(d_entries)};
+  dh::device_vector<uint32_t> sorted_idx(entries.size());
+  dh::Iota(dh::ToSpan(sorted_idx));
+  thrust::sort(sorted_idx.begin(), sorted_idx.end(),
+               detail::SortIdxOp<detail::EntryBatch>{adapter});
+
+  sketch.Push(adapter, dh::ToSpan(sorted_idx), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr),
+              kRows * kCols, {});
 
   auto sketch_data = sketch.Data();
   ASSERT_EQ(sketch_data.size(), kCols * 2);
