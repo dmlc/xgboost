@@ -126,7 +126,11 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter, Ran
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto entry_iter = thrust::make_counting_iterator<uint32_t>(0u);
   sorted_idx->resize(num_valid);
-  dh::CopyIf(entry_iter + range.begin(), entry_iter + range.end(), sorted_idx->begin(), is_valid);
+  auto copyif_op = [=] XGBOOST_DEVICE(uint32_t idx) {
+    auto check = data::IsValidFunctor{missing};
+    return check(batch.GetElement(idx).value);
+  };
+  dh::CopyIf(entry_iter + range.begin(), entry_iter + range.end(), sorted_idx->begin(), copyif_op);
 }
 
 template <typename Batch>
