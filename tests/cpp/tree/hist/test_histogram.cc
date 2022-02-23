@@ -6,15 +6,16 @@
 #include <limits>
 
 #include "../../../../src/common/categorical.h"
+#include "../../../../src/common/row_set.h"
+#include "../../../../src/tree/hist/expand_entry.h"
 #include "../../../../src/tree/hist/histogram.h"
-#include "../../../../src/tree/updater_quantile_hist.h"
 #include "../../categorical_helpers.h"
 #include "../../helpers.h"
 
 namespace xgboost {
 namespace tree {
 namespace {
-void InitRowPartitionForTest(RowSetCollection *row_set, size_t n_samples, size_t base_rowid = 0) {
+void InitRowPartitionForTest(common::RowSetCollection *row_set, size_t n_samples, size_t base_rowid = 0) {
   auto &row_indices = *row_set->Data();
   row_indices.resize(n_samples);
   std::iota(row_indices.begin(), row_indices.end(), base_rowid);
@@ -91,7 +92,7 @@ void TestSyncHist(bool is_distributed) {
   uint32_t total_bins = gmat.cut.Ptrs().back();
   histogram.Reset(total_bins, {kMaxBins, 0.5}, omp_get_max_threads(), 1, is_distributed);
 
-  RowSetCollection row_set_collection_;
+  common::RowSetCollection row_set_collection_;
   {
     row_set_collection_.Clear();
     std::vector<size_t> &row_indices = *row_set_collection_.Data();
@@ -256,7 +257,7 @@ void TestBuildHistogram(bool is_distributed) {
 
   RegTree tree;
 
-  RowSetCollection row_set_collection;
+  common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kNRows);
@@ -318,7 +319,7 @@ void TestHistogramCategorical(size_t n_categories) {
 
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
 
-  RowSetCollection row_set_collection;
+  common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
@@ -381,13 +382,13 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
   std::vector<CPUExpandEntry> nodes;
   nodes.emplace_back(0, tree.GetDepth(0), 0.0f);
 
-  GHistRow<double> multi_page;
+  common::GHistRow<double> multi_page;
   HistogramBuilder<double, CPUExpandEntry> multi_build;
   {
     /**
      * Multi page
      */
-    std::vector<RowSetCollection> rows_set;
+    std::vector<common::RowSetCollection> rows_set;
     for (auto const &page : m->GetBatches<GHistIndexMatrix>(batch_param)) {
       CHECK_LT(page.base_rowid, m->Info().num_row_);
       auto n_rows_in_node = page.Size();
@@ -417,12 +418,12 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
   }
 
   HistogramBuilder<double, CPUExpandEntry> single_build;
-  GHistRow<double> single_page;
+  common::GHistRow<double> single_page;
   {
     /**
      * Single page
      */
-    RowSetCollection row_set_collection;
+    common::RowSetCollection row_set_collection;
     InitRowPartitionForTest(&row_set_collection, n_samples);
 
     single_build.Reset(total_bins, batch_param, common::OmpGetNumThreads(0), 1, false);

@@ -24,7 +24,6 @@ class QuantileHistMock : public QuantileHistMaker {
   template <typename GradientSumT>
   struct BuilderMock : public QuantileHistMaker::Builder<GradientSumT> {
     using RealImpl = QuantileHistMaker::Builder<GradientSumT>;
-    using GHistRowT = typename RealImpl::GHistRowT;
 
     BuilderMock(const TrainParam &param, std::unique_ptr<TreeUpdater> pruner,
                 DMatrix const *fmat, GenericParameter const* ctx)
