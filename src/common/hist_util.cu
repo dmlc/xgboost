@@ -119,8 +119,8 @@ void SortWithWeight(Batch batch, Span<uint32_t> sorted_idx, Span<float> weights)
 
   // Scan weights
   dh::XGBCachingDeviceAllocator<char> caching;
-  thrust::inclusive_scan_by_key(thrust::cuda::par(caching), dh::tbegin(sorted_idx),
-                                dh::tend(sorted_idx), dh::tbegin(weights), dh::tend(weights),
+  thrust::inclusive_scan_by_key(thrust::cuda::par(caching), dh::tcbegin(sorted_idx),
+                                dh::tcend(sorted_idx), dh::tbegin(weights), dh::tbegin(weights),
                                 [=] __device__(uint32_t l, uint32_t r) {
                                   auto le = batch.GetElement(l);
                                   auto re = batch.GetElement(r);
@@ -164,14 +164,14 @@ void ProcessBatch(int device, MetaInfo const& info, const SparsePage& page, size
       });
   detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature, batch_it, dummy_is_valid, 0,
                              sorted_entries.size(), &cuts_ptr, &column_sizes_scan);
-  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
   if (sketch_container->HasCategorical()) {
-    detail::RemoveDuplicatedCategories(adapter, info, d_cuts_ptr, &sorted_idx,
-                                         &column_sizes_scan);
+    auto d_cuts_ptr = cuts_ptr.DeviceSpan();
+    detail::RemoveDuplicatedCategories(adapter, info, d_cuts_ptr, &sorted_idx, &column_sizes_scan);
   }
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
 
   // add cuts into sketches
@@ -243,8 +243,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   if (sketch_container->HasCategorical()) {
     info.feature_types.SetDevice(device);
-    detail::RemoveDuplicatedCategories(adapter, info, d_cuts_ptr, &sorted_idx,
-                                         &column_sizes_scan);
+    detail::RemoveDuplicatedCategories(adapter, info, d_cuts_ptr, &sorted_idx, &column_sizes_scan);
   }
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
 
