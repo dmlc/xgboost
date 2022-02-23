@@ -288,10 +288,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
     auto base_weight =
         evaluator.CalcWeight(candidate.nid, param_, GradStats{parent_sum});
 
-    auto left_weight = evaluator.CalcWeight(
-        candidate.nid, param_, GradStats{candidate.split.left_sum});
-    auto right_weight = evaluator.CalcWeight(
-        candidate.nid, param_, GradStats{candidate.split.right_sum});
+    auto left_weight =
+        evaluator.CalcWeight(candidate.nid, param_, GradStats{candidate.split.left_sum});
+    auto right_weight =
+        evaluator.CalcWeight(candidate.nid, param_, GradStats{candidate.split.right_sum});
 
     if (candidate.split.is_cat) {
       std::vector<uint32_t> split_cats;
@@ -308,11 +308,11 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         split_cats = candidate.split.cat_bits;
         common::CatBitField cat_bits{split_cats};
       }
-
       tree.ExpandCategorical(
           candidate.nid, candidate.split.SplitIndex(), split_cats, candidate.split.DefaultLeft(),
-          base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_sum.GetHess(),
-          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+          base_weight, left_weight * param_.learning_rate, right_weight * param_.learning_rate,
+          candidate.split.loss_chg, parent_sum.GetHess(), candidate.split.left_sum.GetHess(),
+          candidate.split.right_sum.GetHess());
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                       candidate.split.DefaultLeft(), base_weight,

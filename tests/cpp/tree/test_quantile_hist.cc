@@ -1,18 +1,19 @@
 /*!
  * Copyright 2018-2022 by XGBoost Contributors
  */
+#include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
-#include <gtest/gtest.h>
 
 #include <algorithm>
-#include <vector>
 #include <string>
+#include <vector>
 
-#include "../helpers.h"
 #include "../../../src/tree/param.h"
-#include "../../../src/tree/updater_quantile_hist.h"
 #include "../../../src/tree/split_evaluator.h"
+#include "../../../src/tree/updater_quantile_hist.h"
+#include "../helpers.h"
+#include "test_partitioner.h"
 #include "xgboost/data.h"
 
 namespace xgboost {
@@ -94,130 +95,6 @@ class QuantileHistMock : public QuantileHistMaker {
         }
       }
     }
-
-    void TestInitDataSampling(const GHistIndexMatrix& gmat,
-                      std::vector<GradientPair>* gpair,
-                      DMatrix* p_fmat,
-                      const RegTree& tree) {
-      // check SimpleSkip
-      size_t initial_seed = 777;
-      std::linear_congruential_engine<std::uint_fast64_t, 16807, 0,
-                                      static_cast<uint64_t>(1) << 63 > eng_first(initial_seed);
-      for (size_t i = 0; i < 100; ++i) {
-        eng_first();
-      }
-      uint64_t initial_seed_th = RandomReplace::SimpleSkip(100, initial_seed, 16807, RandomReplace::kMod);
-      std::linear_congruential_engine<std::uint_fast64_t, RandomReplace::kBase, 0,
-                                      RandomReplace::kMod > eng_second(initial_seed_th);
-      ASSERT_EQ(eng_first(), eng_second());
-
-      const size_t nthreads = omp_get_num_threads();
-      // save state of global rng engine
-      auto initial_rnd = common::GlobalRandom();
-      std::vector<size_t> unused_rows_cpy = this->unused_rows_;
-      RealImpl::InitData(gmat, *p_fmat, tree, gpair);
-      std::vector<size_t> row_indices_initial = *(this->row_set_collection_.Data());
-      std::vector<size_t> unused_row_indices_initial = this->unused_rows_;
-      ASSERT_EQ(row_indices_initial.size(), p_fmat->Info().num_row_);
-      auto check_each_row_occurs_in_one_of_arrays = [](const std::vector<size_t>& first,
-                                                       const std::vector<size_t>& second,
-                                                       size_t nrows) {
-        ASSERT_EQ(first.size(), nrows);
-        ASSERT_EQ(second.size(), 0);
-      };
-      check_each_row_occurs_in_one_of_arrays(row_indices_initial, unused_row_indices_initial,
-                                             p_fmat->Info().num_row_);
-
-      for (size_t i_nthreads = 1; i_nthreads < 4; ++i_nthreads) {
-        omp_set_num_threads(i_nthreads);
-        // return initial state of global rng engine
-        common::GlobalRandom() = initial_rnd;
-        this->unused_rows_ = unused_rows_cpy;
-        RealImpl::InitData(gmat, *p_fmat, tree, gpair);
-        std::vector<size_t>& row_indices = *(this->row_set_collection_.Data());
-        ASSERT_EQ(row_indices_initial.size(), row_indices.size());
-        for (size_t i = 0; i < row_indices_initial.size(); ++i) {
-          ASSERT_EQ(row_indices_initial[i], row_indices[i]);
-        }
-        std::vector<size_t>& unused_row_indices = this->unused_rows_;
-        ASSERT_EQ(unused_row_indices_initial.size(), unused_row_indices.size());
-        for (size_t i = 0; i < unused_row_indices_initial.size(); ++i) {
-          ASSERT_EQ(unused_row_indices_initial[i], unused_row_indices[i]);
-        }
-        check_each_row_occurs_in_one_of_arrays(row_indices, unused_row_indices,
-                                               p_fmat->Info().num_row_);
-      }
-      omp_set_num_threads(nthreads);
-    }
-
-    void TestApplySplit(const RegTree& tree) {
-      std::vector<GradientPair> row_gpairs =
-          { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
-            {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
-      int32_t constexpr kMaxBins = 4;
-
-      // try out different sparsity to get different number of missing values
-      for (double sparsity : {0.0, 0.1, 0.2}) {
-        // kNRows samples with kNCols features
-        auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
-
-        float sparse_th = 0.0;
-        GHistIndexMatrix gmat{dmat.get(), kMaxBins, sparse_th, false, common::OmpGetNumThreads(0)};
-        ColumnMatrix cm;
-
-        // treat everything as dense, as this is what we intend to test here
-        cm.Init(gmat, sparse_th, common::OmpGetNumThreads(0));
-        RealImpl::InitData(gmat, *dmat, tree, &row_gpairs);
-        const size_t num_row = dmat->Info().num_row_;
-        // split by feature 0
-        const size_t bin_id_min = gmat.cut.Ptrs()[0];
-        const size_t bin_id_max = gmat.cut.Ptrs()[1];
-
-        // attempt to split at different bins
-        for (size_t split = 0; split < 4; split++) {
-          size_t left_cnt = 0, right_cnt = 0;
-
-          // manually compute how many samples go left or right
-          for (size_t rid = 0; rid < num_row; ++rid) {
-            for (size_t offset = gmat.row_ptr[rid]; offset < gmat.row_ptr[rid + 1]; ++offset) {
-              const size_t bin_id = gmat.index[offset];
-              if (bin_id >= bin_id_min && bin_id < bin_id_max) {
-                if (bin_id <= split) {
-                  left_cnt++;
-                } else {
-                  right_cnt++;
-                }
-              }
-            }
-          }
-
-          // if any were missing due to sparsity, we add them to the left or to the right
-          size_t missing = kNRows - left_cnt - right_cnt;
-          if (tree[0].DefaultLeft()) {
-            left_cnt += missing;
-          } else {
-            right_cnt += missing;
-          }
-
-          // have one node with kNRows (=8 at the moment) rows, just one task
-          RealImpl::partition_builder_.Init(1, 1, [&](size_t node_in_set) {
-            return 1;
-          });
-          const size_t task_id = RealImpl::partition_builder_.GetTaskIdx(0, 0);
-          RealImpl::partition_builder_.AllocateForTask(task_id);
-          if (cm.AnyMissing()) {
-            RealImpl::partition_builder_.template Partition<uint8_t, true>(0, 0, common::Range1d(0, kNRows),
-                                                    split, cm, tree, this->row_set_collection_[0].begin);
-          } else {
-            RealImpl::partition_builder_.template Partition<uint8_t, false>(0, 0, common::Range1d(0, kNRows),
-                                                    split, cm, tree, this->row_set_collection_[0].begin);
-          }
-          RealImpl::partition_builder_.CalculateRowOffsets();
-          ASSERT_EQ(RealImpl::partition_builder_.GetNLeftElems(0), left_cnt);
-          ASSERT_EQ(RealImpl::partition_builder_.GetNRightElems(0), right_cnt);
-        }
-      }
-    }
   };
 
   int static constexpr kNRows = 8, kNCols = 16;
@@ -262,33 +139,6 @@ class QuantileHistMock : public QuantileHistMaker {
       float_builder_->TestInitData(gmat, &gpair, dmat_.get(), tree);
     }
   }
-
-  void TestInitDataSampling() {
-    int32_t constexpr kMaxBins = 4;
-    GHistIndexMatrix gmat{dmat_.get(), kMaxBins, 0.0f, false, common::OmpGetNumThreads(0)};
-
-    RegTree tree = RegTree();
-    tree.param.UpdateAllowUnknown(cfg_);
-
-    std::vector<GradientPair> gpair =
-        { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
-          {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
-    if (double_builder_) {
-      double_builder_->TestInitDataSampling(gmat, &gpair, dmat_.get(), tree);
-    } else {
-      float_builder_->TestInitDataSampling(gmat, &gpair, dmat_.get(), tree);
-    }
-  }
-
-  void TestApplySplit() {
-    RegTree tree = RegTree();
-    tree.param.UpdateAllowUnknown(cfg_);
-    if (double_builder_) {
-      double_builder_->TestApplySplit(tree);
-    } else {
-      float_builder_->TestApplySplit(tree);
-    }
-  }
 };
 
 TEST(QuantileHist, InitData) {
@@ -301,30 +151,62 @@ TEST(QuantileHist, InitData) {
   maker_float.TestInitData();
 }
 
-TEST(QuantileHist, InitDataSampling) {
-  const float subsample = 0.5;
-  std::vector<std::pair<std::string, std::string>> cfg
-      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
-       {"subsample", std::to_string(subsample)}};
-  QuantileHistMock maker(cfg);
-  maker.TestInitDataSampling();
-  const bool single_precision_histogram = true;
-  QuantileHistMock maker_float(cfg, single_precision_histogram);
-  maker_float.TestInitDataSampling();
-}
+TEST(QuantileHist, Partitioner) {
+  size_t n_samples = 1024, n_features = 1, base_rowid = 0;
+  GenericParameter ctx;
+  ctx.InitAllowUnknown(Args{});
 
-TEST(QuantileHist, ApplySplit) {
-  std::vector<std::pair<std::string, std::string>> cfg
-      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
-       {"split_evaluator", "elastic_net"},
-       {"reg_lambda", "0"}, {"reg_alpha", "0"}, {"max_delta_step", "0"},
-       {"min_child_weight", "0"}};
-  QuantileHistMock maker(cfg);
-  maker.TestApplySplit();
-  const bool single_precision_histogram = true;
-  QuantileHistMock maker_float(cfg, single_precision_histogram);
-  maker_float.TestApplySplit();
-}
+  HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+  ASSERT_EQ(partitioner.base_rowid, base_rowid);
+  ASSERT_EQ(partitioner.Size(), 1);
+  ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
 
+  auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+
+  auto grad = GenerateRandomGradients(n_samples);
+  std::vector<float> hess(grad.Size());
+  std::transform(grad.HostVector().cbegin(), grad.HostVector().cend(), hess.begin(),
+                 [](auto gpair) { return gpair.GetHess(); });
+
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, 0.5})) {
+    bst_feature_t const split_ind = 0;
+    common::ColumnMatrix column_indices;
+    column_indices.Init(page, 0.5, ctx.Threads());
+    {
+      auto min_value = page.cut.MinValues()[split_ind];
+      RegTree tree;
+      HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+      GetSplit(&tree, min_value, &candidates);
+      partitioner.UpdatePosition<false>(&ctx, page, column_indices, candidates, &tree);
+      ASSERT_EQ(partitioner.Size(), 3);
+      ASSERT_EQ(partitioner[1].Size(), 0);
+      ASSERT_EQ(partitioner[2].Size(), n_samples);
+    }
+    {
+      HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+      auto ptr = page.cut.Ptrs()[split_ind + 1];
+      float split_value = page.cut.Values().at(ptr / 2);
+      RegTree tree;
+      GetSplit(&tree, split_value, &candidates);
+      auto left_nidx = tree[RegTree::kRoot].LeftChild();
+      partitioner.UpdatePosition<false>(&ctx, page, column_indices, candidates, &tree);
+
+      auto elem = partitioner[left_nidx];
+      ASSERT_LT(elem.Size(), n_samples);
+      ASSERT_GT(elem.Size(), 1);
+      for (auto it = elem.begin; it != elem.end; ++it) {
+        auto value = page.cut.Values().at(page.index[*it]);
+        ASSERT_LE(value, split_value);
+      }
+      auto right_nidx = tree[RegTree::kRoot].RightChild();
+      elem = partitioner[right_nidx];
+      for (auto it = elem.begin; it != elem.end; ++it) {
+        auto value = page.cut.Values().at(page.index[*it]);
+        ASSERT_GT(value, split_value) << *it;
+      }
+    }
+  }
+}
 }  // namespace tree
 }  // namespace xgboost

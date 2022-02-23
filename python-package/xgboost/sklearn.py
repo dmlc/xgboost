@@ -206,10 +206,11 @@ __model_doc = f'''
 
         .. versionadded:: 1.5.0
 
-        Experimental support for categorical data.  Do not set to true unless you are
-        interested in development. Only valid when `gpu_hist` or `approx` is used along
-        with dataframe as input.  Also, JSON/UBJSON serialization format is
-        required. (XGBoost 1.6 for approx)
+        .. note:: This parameter is experimental
+
+        Experimental support for categorical data.  When enabled, cudf/pandas.DataFrame
+        should be used to specify categorical data type.  Also, JSON/UBJSON
+        serialization format is required.
 
     max_cat_to_onehot : Optional[int]
 
@@ -220,9 +221,8 @@ __model_doc = f'''
         A threshold for deciding whether XGBoost should use one-hot encoding based split
         for categorical data.  When number of categories is lesser than the threshold
         then one-hot encoding is chosen, otherwise the categories will be partitioned
-        into children nodes.  Only relevant for regression and binary
-        classification. Also, ``approx`` or ``gpu_hist`` tree method is required.  See
-        :doc:`Categorical Data </tutorials/categorical>` for details.
+        into children nodes.  Only relevant for regression and binary classification.
+        See :doc:`Categorical Data </tutorials/categorical>` for details.
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 
@@ -846,7 +846,8 @@ class XGBModel(XGBModelBase):
         callbacks = self.callbacks if self.callbacks is not None else callbacks
 
         tree_method = params.get("tree_method", None)
-        if self.enable_categorical and tree_method not in ("gpu_hist", "approx"):
+        cat_support = {"gpu_hist", "approx", "hist"}
+        if self.enable_categorical and tree_method not in cat_support:
             raise ValueError(
                 "Experimental support for categorical data is not implemented for"
                 " current tree method yet."

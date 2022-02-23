@@ -124,11 +124,12 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
   nodes_for_subtraction_trick_.clear();
   nodes_for_explicit_hist_build_.push_back(node);
 
+  auto const& row_set_collection = partitioner_.front().Partitions();
   size_t page_id = 0;
   for (auto const& gidx :
        p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
     this->histogram_builder_->BuildHist(
-        page_id, gidx, p_tree, row_set_collection_,
+        page_id, gidx, p_tree, row_set_collection,
         nodes_for_explicit_hist_build_, nodes_for_subtraction_trick_, gpair_h);
     ++page_id;
   }
@@ -149,7 +150,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
         grad_stat.Add(et.GetGrad(), et.GetHess());
       }
     } else {
-      const common::RowSetCollection::Elem e = row_set_collection_[nid];
+      const common::RowSetCollection::Elem e = row_set_collection[nid];
       for (const size_t *it = e.begin; it < e.end; ++it) {
         grad_stat.Add(gpair_h[*it].GetGrad(), gpair_h[*it].GetHess());
       }
@@ -204,6 +205,7 @@ void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
     const std::vector<CPUExpandEntry> &nodes_for_apply_split,
     std::vector<CPUExpandEntry> *nodes_to_evaluate, RegTree *p_tree) {
   builder_monitor_.Start("SplitSiblings");
+  auto const& row_set_collection = this->partitioner_.front().Partitions();
   for (auto const& entry : nodes_for_apply_split) {
     int nid = entry.nid;
 
@@ -213,7 +215,7 @@ void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
     const CPUExpandEntry right_node = CPUExpandEntry(cright, p_tree->GetDepth(cright), 0.0);
     nodes_to_evaluate->push_back(left_node);
     nodes_to_evaluate->push_back(right_node);
-    if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+    if (row_set_collection[cleft].Size() < row_set_collection[cright].Size()) {
       nodes_for_explicit_hist_build_.push_back(left_node);
       nodes_for_subtraction_trick_.push_back(right_node);
     } else {
@@ -253,16 +255,18 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     AddSplitsToTree(expand, p_tree, &num_leaves, &nodes_for_apply_split);
 
     if (nodes_for_apply_split.size() != 0) {
-      ApplySplit<any_missing>(nodes_for_apply_split, gmat, column_matrix, p_tree);
+      HistRowPartitioner &partitioner = this->partitioner_.front();
+      partitioner.UpdatePosition<any_missing>(this->ctx_, gmat, column_matrix,
+                                              nodes_for_apply_split, p_tree);
+
       SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
 
       if (param_.max_depth == 0 || depth < param_.max_depth) {
         size_t i = 0;
-        for (auto const& gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-          this->histogram_builder_->BuildHist(
-              i, gidx, p_tree, row_set_collection_,
-              nodes_for_explicit_hist_build_, nodes_for_subtraction_trick_,
-              gpair_h);
+        for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+          this->histogram_builder_->BuildHist(i, gidx, p_tree, partitioner_.front().Partitions(),
+                                              nodes_for_explicit_hist_build_,
+                                              nodes_for_subtraction_trick_, gpair_h);
           ++i;
         }
       } else {
@@ -293,7 +297,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::Update(
     const GHistIndexMatrix &gmat,
-    const ColumnMatrix &column_matrix,
+    const common::ColumnMatrix &column_matrix,
     HostDeviceVector<GradientPair> *gpair,
     DMatrix *p_fmat, RegTree *p_tree) {
   builder_monitor_.Start("Update");
@@ -333,14 +337,14 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
 
   CHECK_GT(out_preds.Size(), 0U);
 
-  size_t n_nodes = row_set_collection_.end() - row_set_collection_.begin();
-
-  common::BlockedSpace2d space(n_nodes, [&](size_t node) {
-    return row_set_collection_[node].Size();
-  }, 1024);
+  CHECK_EQ(partitioner_.size(), 1);
+  auto const &row_set_collection = this->partitioner_.front().Partitions();
+  size_t n_nodes = row_set_collection.end() - row_set_collection.begin();
+  common::BlockedSpace2d space(
+      n_nodes, [&](size_t node) { return partitioner_.front()[node].Size(); }, 1024);
   CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
   common::ParallelFor2d(space, this->ctx_->Threads(), [&](size_t node, common::Range1d r) {
-    const RowSetCollection::Elem rowset = row_set_collection_[node];
+    const common::RowSetCollection::Elem rowset = row_set_collection[node];
     if (rowset.begin != nullptr && rowset.end != nullptr) {
       int nid = rowset.node_id;
       bst_float leaf_value;
@@ -354,7 +358,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
       }
       leaf_value = (*p_last_tree_)[nid].LeafValue();
 
-      for (const size_t* it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
+      for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
         out_preds(*it) += leaf_value;
       }
     }
@@ -364,10 +368,9 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
   return true;
 }
 
-template<typename GradientSumT>
+template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const DMatrix& fmat,
-                                                std::vector<GradientPair>* gpair,
-                                                std::vector<size_t>* row_indices) {
+                                                            std::vector<GradientPair>* gpair) {
   const auto& info = fmat.Info();
   auto& rnd = common::GlobalRandom();
   std::vector<GradientPair>& gpair_ref = *gpair;
@@ -410,101 +413,31 @@ template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitData(
     const GHistIndexMatrix &gmat, const DMatrix &fmat, const RegTree &tree,
     std::vector<GradientPair> *gpair) {
-  CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
-      << "max_depth or max_leaves cannot be both 0 (unlimited); "
-      << "at least one should be a positive quantity.";
-  if (param_.grow_policy == TrainParam::kDepthWise) {
-    CHECK(param_.max_depth > 0) << "max_depth cannot be 0 (unlimited) "
-                                << "when grow_policy is depthwise.";
-  }
   builder_monitor_.Start("InitData");
   const auto& info = fmat.Info();
 
   {
-    // initialize the row set
-    row_set_collection_.Clear();
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     // initialize histogram builder
     dmlc::OMPException exc;
-    exc.Rethrow();
     this->histogram_builder_->Reset(nbins, BatchParam{GenericParameter::kCpuId, param_.max_bin},
                                     this->ctx_->Threads(), 1, rabit::IsDistributed());
-
-    std::vector<size_t>& row_indices = *row_set_collection_.Data();
-    row_indices.resize(info.num_row_);
-    size_t* p_row_indices = row_indices.data();
-    // mark subsample and build list of member rows
 
     if (param_.subsample < 1.0f) {
       CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
         << "Only uniform sampling is supported, "
         << "gradient-based sampling is only support by GPU Hist.";
       builder_monitor_.Start("InitSampling");
-      InitSampling(fmat, gpair, &row_indices);
+      InitSampling(fmat, gpair);
       builder_monitor_.Stop("InitSampling");
-      CHECK_EQ(row_indices.size(), info.num_row_);
       // We should check that the partitioning was done correctly
       // and each row of the dataset fell into exactly one of the categories
     }
-    auto n_threads = this->ctx_->Threads();
-    common::MemStackAllocator<bool, 128> buff(n_threads);
-    bool* p_buff = buff.Get();
-    std::fill(p_buff, p_buff + this->ctx_->Threads(), false);
-
-    const size_t block_size = info.num_row_ / n_threads + !!(info.num_row_ % n_threads);
-
-#pragma omp parallel num_threads(n_threads)
-    {
-      exc.Run([&]() {
-        const size_t tid = omp_get_thread_num();
-        const size_t ibegin = tid * block_size;
-        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
-            static_cast<size_t>(info.num_row_));
-
-        for (size_t i = ibegin; i < iend; ++i) {
-          if ((*gpair)[i].GetHess() < 0.0f) {
-            p_buff[tid] = true;
-            break;
-          }
-        }
-      });
-    }
-    exc.Rethrow();
-
-    bool has_neg_hess = false;
-    for (int32_t tid = 0; tid < n_threads; ++tid) {
-      if (p_buff[tid]) {
-        has_neg_hess = true;
-      }
-    }
-
-    if (has_neg_hess) {
-      size_t j = 0;
-      for (size_t i = 0; i < info.num_row_; ++i) {
-        if ((*gpair)[i].GetHess() >= 0.0f) {
-          p_row_indices[j++] = i;
-        }
-      }
-      row_indices.resize(j);
-    } else {
-      #pragma omp parallel num_threads(n_threads)
-      {
-        exc.Run([&]() {
-          const size_t tid = omp_get_thread_num();
-          const size_t ibegin = tid * block_size;
-          const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
-              static_cast<size_t>(info.num_row_));
-          for (size_t i = ibegin; i < iend; ++i) {
-            p_row_indices[i] = i;
-          }
-        });
-      }
-      exc.Rethrow();
-    }
   }
 
-  row_set_collection_.Init();
+  partitioner_.clear();
+  partitioner_.emplace_back(info.num_row_, 0, this->ctx_->Threads());
 
   {
     /* determine layout of data */
@@ -558,12 +491,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
   builder_monitor_.Stop("InitData");
 }
 
-template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
-                                                     const std::vector<CPUExpandEntry>& nodes,
-                                                     const RegTree& tree,
-                                                     const GHistIndexMatrix& gmat,
-                                                     std::vector<int32_t>* split_conditions) {
+void HistRowPartitioner::FindSplitConditions(const std::vector<CPUExpandEntry> &nodes,
+                                             const RegTree &tree, const GHistIndexMatrix &gmat,
+                                             std::vector<int32_t> *split_conditions) {
   const size_t n_nodes = nodes.size();
   split_conditions->resize(n_nodes);
 
@@ -576,8 +506,7 @@ void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
     int32_t split_cond = -1;
     // convert floating-point split_pt into corresponding bin_id
     // split_cond = -1 indicates that split_pt is less than all known cut points
-    CHECK_LT(upper_bound,
-             static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+    CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
     for (uint32_t bound = lower_bound; bound < upper_bound; ++bound) {
       if (split_pt == gmat.cut.Values()[bound]) {
         split_cond = static_cast<int32_t>(bound);
@@ -586,86 +515,18 @@ void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
     (*split_conditions)[i] = split_cond;
   }
 }
-template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToRowSet(
-                                               const std::vector<CPUExpandEntry>& nodes,
-                                               RegTree* p_tree) {
+
+void HistRowPartitioner::AddSplitsToRowSet(const std::vector<CPUExpandEntry> &nodes,
+                                           RegTree const *p_tree) {
   const size_t n_nodes = nodes.size();
   for (unsigned int i = 0; i < n_nodes; ++i) {
     const int32_t nid = nodes[i].nid;
     const size_t n_left = partition_builder_.GetNLeftElems(i);
     const size_t n_right = partition_builder_.GetNRightElems(i);
     CHECK_EQ((*p_tree)[nid].LeftChild() + 1, (*p_tree)[nid].RightChild());
-    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(),
-        (*p_tree)[nid].RightChild(), n_left, n_right);
+    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild(),
+                                 n_left, n_right);
   }
-}
-
-template <typename GradientSumT>
-template <bool any_missing>
-void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<CPUExpandEntry> nodes,
-                                            const GHistIndexMatrix& gmat,
-                                            const ColumnMatrix& column_matrix,
-                                            RegTree* p_tree) {
-  builder_monitor_.Start("ApplySplit");
-  // 1. Find split condition for each split
-  const size_t n_nodes = nodes.size();
-  std::vector<int32_t> split_conditions;
-  FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
-  // 2.1 Create a blocked space of size SUM(samples in each node)
-  common::BlockedSpace2d space(n_nodes, [&](size_t node_in_set) {
-    int32_t nid = nodes[node_in_set].nid;
-    return row_set_collection_[nid].Size();
-  }, kPartitionBlockSize);
-  // 2.2 Initialize the partition builder
-  // allocate buffers for storage intermediate results by each thread
-  partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
-    const int32_t nid = nodes[node_in_set].nid;
-    const size_t size = row_set_collection_[nid].Size();
-    const size_t n_tasks = size / kPartitionBlockSize + !!(size % kPartitionBlockSize);
-    return n_tasks;
-  });
-  // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
-  // Store results in intermediate buffers from partition_builder_
-  common::ParallelFor2d(space, this->ctx_->Threads(), [&](size_t node_in_set, common::Range1d r) {
-    size_t begin = r.begin();
-    const int32_t nid = nodes[node_in_set].nid;
-    const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
-    partition_builder_.AllocateForTask(task_id);
-      switch (column_matrix.GetTypeSize()) {
-      case common::kUint8BinsTypeSize:
-        partition_builder_.template Partition<uint8_t, any_missing>(node_in_set, nid, r,
-                  split_conditions[node_in_set], column_matrix,
-                  *p_tree, row_set_collection_[nid].begin);
-        break;
-      case common::kUint16BinsTypeSize:
-        partition_builder_.template Partition<uint16_t, any_missing>(node_in_set, nid, r,
-                  split_conditions[node_in_set], column_matrix,
-                  *p_tree, row_set_collection_[nid].begin);
-        break;
-      case common::kUint32BinsTypeSize:
-        partition_builder_.template Partition<uint32_t, any_missing>(node_in_set, nid, r,
-                  split_conditions[node_in_set], column_matrix,
-                  *p_tree, row_set_collection_[nid].begin);
-        break;
-      default:
-        CHECK(false);  // no default behavior
-    }
-    });
-  // 3. Compute offsets to copy blocks of row-indexes
-  // from partition_builder_ to row_set_collection_
-  partition_builder_.CalculateRowOffsets();
-
-  // 4. Copy elements from partition_builder_ to row_set_collection_ back
-  // with updated row-indexes for each tree-node
-  common::ParallelFor2d(space, this->ctx_->Threads(), [&](size_t node_in_set, common::Range1d r) {
-    const int32_t nid = nodes[node_in_set].nid;
-    partition_builder_.MergeToArray(node_in_set, r.begin(),
-        const_cast<size_t*>(row_set_collection_[nid].begin));
-  });
-  // 5. Add info about splits into row_set_collection_
-  AddSplitsToRowSet(nodes, p_tree);
-  builder_monitor_.Stop("ApplySplit");
 }
 
 template struct QuantileHistMaker::Builder<float>;
