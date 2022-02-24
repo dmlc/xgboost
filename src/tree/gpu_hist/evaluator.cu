@@ -54,6 +54,18 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
           cudaMemsetAsync(split_cats_.data().get(), '\0', split_cats_.size() * sizeof(CatST)));
 
       cat_sorted_idx_.resize(cuts.cut_values_.Size() * 2);  // evaluate 2 nodes at a time.
+
+      fidx_.resize(cat_sorted_idx_.size());
+      auto d_fidxes = dh::ToSpan(fidx_);
+      auto it = thrust::make_counting_iterator(0ul);
+      auto values = cuts.cut_values_.ConstDeviceSpan();
+      auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
+      thrust::transform(thrust::cuda::par(alloc), it, it + fidx_.size(), fidx_.begin(),
+                        [=] XGBOOST_DEVICE(size_t i) {
+                          auto is_left = i < values.size();
+                          auto fidx = dh::SegmentId(ptrs, i);
+                          return fidx;
+                        });
     }
   }
 }
@@ -64,33 +76,33 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(left);
+  auto d_fidx = dh::ToSpan(this->fidx_);
   dh::Iota(sorted_idx);
   // sort 2 nodes and all the features at the same time, disregarding colmun sampling.
-  thrust::stable_sort(
-      thrust::cuda::par(alloc), dh::tbegin(sorted_idx), dh::tend(sorted_idx),
-      [evaluator, left, right] XGBOOST_DEVICE(size_t l, size_t r) {
-        auto l_is_left = l < left.feature_values.size();
-        auto r_is_left = r < left.feature_values.size();
-        if (l_is_left != r_is_left) {
-          return l_is_left;  // not the same node
-        }
+  auto comp = [=] XGBOOST_DEVICE(size_t l, size_t r) {
+    auto l_is_left = l < left.feature_values.size();
+    auto r_is_left = r < left.feature_values.size();
+    if (l_is_left != r_is_left) {
+      return l_is_left;  // not the same node
+    }
 
-        auto const &input = l_is_left ? left : right;
-        l -= (l_is_left ? 0 : input.feature_values.size());
-        r -= (r_is_left ? 0 : input.feature_values.size());
+    auto const &input = l_is_left ? left : right;
+    l -= (l_is_left ? 0 : input.feature_values.size());
+    r -= (r_is_left ? 0 : input.feature_values.size());
 
-        auto lfidx = dh::SegmentId(input.feature_segments, l);
-        auto rfidx = dh::SegmentId(input.feature_segments, r);
-        if (lfidx != rfidx) {
-          return lfidx < rfidx;  // not the same feature
-        }
-        if (common::IsCat(input.feature_types, lfidx)) {
-          auto lw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[l]);
-          auto rw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[r]);
-          return lw < rw;
-        }
-        return l < r;
-      });
+    auto lfidx = d_fidx[l];
+    auto rfidx = d_fidx[r];
+    if (lfidx != rfidx) {
+      return lfidx < rfidx;  // not the same feature
+    }
+    if (common::IsCat(input.feature_types, lfidx)) {
+      auto lw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[l]);
+      auto rw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[r]);
+      return lw < rw;
+    }
+    return l < r;
+  };
+  thrust::stable_sort(thrust::cuda::par(alloc), dh::tbegin(sorted_idx), dh::tend(sorted_idx), comp);
   return dh::ToSpan(cat_sorted_idx_);
 }
 

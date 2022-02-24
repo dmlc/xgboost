@@ -51,6 +51,8 @@ class GPUHistEvaluator {
   dh::CUDAStream copy_stream_;
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
+  // cache of feature index for each thread in sorting.
+  dh::device_vector<bst_feature_t> fidx_;
   TrainParam param_;
   // whether the input data requires sort based split, which is more complicated so we try
   // to avoid it if possible.
