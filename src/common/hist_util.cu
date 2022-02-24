@@ -218,7 +218,8 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                          h_cuts_ptr.back(), dh::ToSpan(temp_weights));
 }
 
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins, size_t sketch_batch_num_elements) {
+HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
+                           size_t sketch_batch_num_elements) {
   dh::safe_cuda(cudaSetDevice(device));
   dmat->Info().feature_types.SetDevice(device);
   dmat->Info().feature_types.ConstDevicePointer();  // pull to device early
