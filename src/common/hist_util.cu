@@ -52,23 +52,33 @@ size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,
 }
 
 size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz) {
-  // use total so that we don't have to worry about rmm.
+  // Use total memory if compiled with rmm.
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   auto total = dh::TotalMemory(dh::CurrentDevice());
-  size_t constexpr kFactor{1024 * 1024 * 1024};
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  double total = dh::AvailableMemory(dh::CurrentDevice());
+  double constexpr kGB{1024 * 1024 * 1024};
+  double constexpr kRatio = 0.8;
   size_t up;
-  if (total < 4 * kFactor) {
-    // 0.25G elements, about 2 GB memory using u32 as sorted index.
-    up = std::numeric_limits<int32_t>::max() / 8 * 0.8;
-  } else if (total < 8 * kFactor) {
-    // 0.5G elements, about 4 GB memory using u32 as sorted index.
-    up = std::numeric_limits<int32_t>::max() / 4 * 0.8;
-  } else if (total < 16 * kFactor) {
-    // 1G elements, about 8 GB memory using u32 as sorted index.
-    up = std::numeric_limits<int32_t>::max() / 2 * 0.8;
-  } else if (total < 32 * kFactor) {
-    up = std::numeric_limits<int32_t>::max() * 0.8;
+  auto factor = [](int32_t f) { return (1u << f) * kRatio; };
+  if (total < kGB / 4) {                                   // 256 MB available mem
+    up = std::numeric_limits<int32_t>::max() / factor(7);  // 102 MB for sorting
+  } else if (total < kGB / 2) {
+    up = std::numeric_limits<int32_t>::max() / factor(6);
+  } else if (total < kGB) {
+    up = std::numeric_limits<int32_t>::max() / factor(5);
+  } else if (total < 2 * kGB) {
+    up = std::numeric_limits<int32_t>::max() / factor(4);
+  } else if (total < 4 * kGB) {
+    up = std::numeric_limits<int32_t>::max() / factor(3);
+  } else if (total < 8 * kGB) {
+    up = std::numeric_limits<int32_t>::max() / factor(2);
+  } else if (total < 16 * kGB) {
+    up = std::numeric_limits<int32_t>::max() / factor(1);
+  } else if (total < 32 * kGB) {
+    up = std::numeric_limits<int32_t>::max() * kRatio;
   } else {
-    up = std::numeric_limits<uint32_t>::max() * 0.8;
+    up = std::numeric_limits<uint32_t>::max() * kRatio;
   }
   if (sketch_batch_num_elements == 0) {
     return std::min(nnz, up);
