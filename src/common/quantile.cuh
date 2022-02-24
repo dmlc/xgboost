@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2020-2022, XGBoost Contributors
+ */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
 

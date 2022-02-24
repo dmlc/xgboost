@@ -43,18 +43,10 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
   return std::min(num_cuts, num_rows);
 }
 
-size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,
-                          size_t max_bins, size_t nnz) {
-  auto per_column = RequiredSampleCutsPerColumn(max_bins, num_rows);
-  auto if_dense = num_columns * per_column;
-  auto result = std::min(nnz, if_dense);
-  return result;
-}
-
 size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz) {
   // Use total memory if compiled with rmm.
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  auto total = dh::TotalMemory(dh::CurrentDevice());
+  double total = dh::TotalMemory(dh::CurrentDevice());
 #else
   double total = dh::AvailableMemory(dh::CurrentDevice());
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -62,8 +54,8 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz) {
   double constexpr kRatio = 0.8;
   size_t up;
   auto factor = [](int32_t f) { return (1u << f) * kRatio; };
-  if (total < kGB / 4) {                                   // 256 MB available mem
-    up = std::numeric_limits<int32_t>::max() / factor(7);  // 102 MB for sorting
+  if (total < kGB / 4) {  // 256 MB available mem
+    up = std::numeric_limits<int32_t>::max() / factor(7);
   } else if (total < kGB / 2) {
     up = std::numeric_limits<int32_t>::max() / factor(6);
   } else if (total < kGB) {

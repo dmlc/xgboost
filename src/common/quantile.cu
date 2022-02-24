@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2022, XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
