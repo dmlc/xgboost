@@ -123,9 +123,9 @@ def ClangTidy() {
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
     def docker_binary = "docker"
-    def dockerArgs = "--build-arg CUDA_VERSION_ARG=10.1"
+    def dockerArgs = "--build-arg CUDA_VERSION_ARG=11.0"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
+    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py --cuda-archs 75
     """
     deleteDir()
   }
