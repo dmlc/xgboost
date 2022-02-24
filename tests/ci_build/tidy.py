@@ -41,6 +41,7 @@ class ClangTidy(object):
         self.cpp_lint = args.cpp
         self.cuda_lint = args.cuda
         self.use_dmlc_gtest = args.use_dmlc_gtest
+        self.cuda_archs = args.cuda_archs.copy() if args.cuda_archs else []
 
         if args.tidy_version:
             self.exe = 'clang-tidy-' + str(args.tidy_version)
@@ -50,6 +51,7 @@ class ClangTidy(object):
         print('Run linter on CUDA: ', self.cuda_lint)
         print('Run linter on C++:', self.cpp_lint)
         print('Use dmlc gtest:', self.use_dmlc_gtest)
+        print('CUDA archs:', ' '.join(self.cuda_archs))
 
         if not self.cpp_lint and not self.cuda_lint:
             raise ValueError('Both --cpp and --cuda are set to 0.')
@@ -83,6 +85,9 @@ class ClangTidy(object):
 
         if self.cuda_lint:
             cmake_args.extend(['-DUSE_CUDA=ON', '-DUSE_NCCL=ON'])
+            if self.cuda_archs:
+                arch_list = ';'.join(self.cuda_archs)
+                cmake_args.append(f'-DGPU_COMPUTE_VER={arch_list}')
         subprocess.run(cmake_args)
         os.chdir(self.root_path)
 
@@ -274,6 +279,8 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', type=int, default=1)
     parser.add_argument('--use-dmlc-gtest', type=int, default=1,
                         help='Whether to use gtest bundled in dmlc-core.')
+    parser.add_argument('--cuda-archs', action='append',
+                        help='List of CUDA archs to build')
     args = parser.parse_args()
 
     test_tidy(args)
