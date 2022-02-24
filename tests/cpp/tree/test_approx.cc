@@ -1,26 +1,14 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022, XGBoost contributors.
  */
 #include <gtest/gtest.h>
 
 #include "../../../src/tree/updater_approx.h"
 #include "../helpers.h"
+#include "test_partitioner.h"
 
 namespace xgboost {
 namespace tree {
-namespace {
-void GetSplit(RegTree *tree, float split_value, std::vector<CPUExpandEntry> *candidates) {
-  tree->ExpandNode(
-      /*nid=*/RegTree::kRoot, /*split_index=*/0, /*split_value=*/split_value,
-      /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-      /*left_sum=*/0.0f,
-      /*right_sum=*/0.0f);
-  candidates->front().split.split_value = split_value;
-  candidates->front().split.sindex = 0;
-  candidates->front().split.sindex |= (1U << 31);
-}
-}  // anonymous namespace
-
 TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
   ApproxRowPartitioner partitioner{n_samples, base_rowid};

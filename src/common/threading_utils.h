@@ -275,9 +275,6 @@ class MemStackAllocator {
   T& operator[](size_t i) { return ptr_[i]; }
   T const& operator[](size_t i) const { return ptr_[i]; }
 
-  // FIXME(jiamingy): Remove this once we merge partitioner cleanup for hist.
-  auto Get() { return ptr_; }
-
  private:
   T* ptr_ = nullptr;
   size_t required_size_;

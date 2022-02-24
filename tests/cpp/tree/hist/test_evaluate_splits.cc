@@ -40,7 +40,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  auto hist_builder = GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
+  auto hist_builder = common::GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();
@@ -94,7 +94,7 @@ TEST(HistEvaluator, Apply) {
   RegTree tree;
   int static constexpr kNRows = 8, kNCols = 16;
   TrainParam param;
-  param.UpdateAllowUnknown(Args{{}});
+  param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator_ = HistEvaluator<float, CPUExpandEntry>{param, dmat->Info(), 4, sampler,
@@ -102,12 +102,22 @@ TEST(HistEvaluator, Apply) {
 
   CPUExpandEntry entry{0, 0, 10.0f};
   entry.split.left_sum = GradStats{0.4, 0.6f};
-  entry.split.right_sum = GradStats{0.5, 0.7f};
+  entry.split.right_sum = GradStats{0.5, 0.5f};
 
   evaluator_.ApplyTreeSplit(entry, &tree);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
   ASSERT_EQ(tree.Stat(tree[0].LeftChild()).sum_hess, 0.6f);
-  ASSERT_EQ(tree.Stat(tree[0].RightChild()).sum_hess, 0.7f);
+  ASSERT_EQ(tree.Stat(tree[0].RightChild()).sum_hess, 0.5f);
+
+  {
+    RegTree tree;
+    entry.split.is_cat = true;
+    entry.split.split_value = 1.0;
+    evaluator_.ApplyTreeSplit(entry, &tree);
+    auto l = entry.split.left_sum;
+    ASSERT_NEAR(tree[1].LeafValue(), -l.sum_grad / l.sum_hess * param.learning_rate, kRtEps);
+    ASSERT_NEAR(tree[2].LeafValue(), -param.learning_rate, kRtEps);
+  }
 }
 
 TEST_F(TestPartitionBasedSplit, CPUHist) {

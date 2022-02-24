@@ -582,10 +582,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
             .. versionadded:: 1.3.0
 
+            .. note:: This parameter is experimental
+
             Experimental support of specializing for categorical features.  Do not set
-            to True unless you are interested in development.  Currently it's only
-            available for `gpu_hist` and `approx` tree methods. Also, JSON/UBJSON
-            serialization format is required. (XGBoost 1.6 for approx)
+            to True unless you are interested in development. Also, JSON/UBJSON
+            serialization format is required.
 
         """
         if group is not None and qid is not None:
