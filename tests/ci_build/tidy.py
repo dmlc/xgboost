@@ -26,7 +26,7 @@ def call(args):
         return_code = 0
     else:
         return_code = 1
-    return (completed.returncode, return_code, error_msg)
+    return (completed.returncode, return_code, error_msg, args)
 
 
 class ClangTidy(object):
@@ -211,12 +211,13 @@ class ClangTidy(object):
         BAR = '-'*32
         with Pool(cpu_count()) as pool:
             results = pool.map(call, all_files)
-            for i, (process_status, tidy_status, msg) in enumerate(results):
+            for i, (process_status, tidy_status, msg, args) in enumerate(results):
                 # Don't enforce clang-tidy to pass for now due to namespace
                 # for cub in thrust is not correct.
                 if tidy_status == 1:
                     passed = False
                     print(BAR, '\n'
+                          'Command args:', ' '.join(args), ', ',
                           'Process return code:', process_status, ', ',
                           'Tidy result code:', tidy_status, ', ',
                           'Message:\n', msg,
@@ -259,7 +260,7 @@ right keywords?
     else:
         tidy = 'clang-tidy-' + str(args.tidy_version)
     args = [tidy, tidy_config, test_file_path]
-    (proc_code, tidy_status, error_msg) = call(args)
+    (proc_code, tidy_status, error_msg, _) = call(args)
     assert proc_code == 0
     assert tidy_status == 1
     print('clang-tidy is working.')
