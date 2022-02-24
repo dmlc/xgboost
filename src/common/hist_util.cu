@@ -62,9 +62,13 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz) {
   } else if (total < 8 * kFactor) {
     // 0.5G elements, about 4 GB memory using u32 as sorted index.
     up = std::numeric_limits<int32_t>::max() / 4 * 0.8;
-  } else {
+  } else if (total < 16 * kFactor) {
     // 1G elements, about 8 GB memory using u32 as sorted index.
     up = std::numeric_limits<int32_t>::max() / 2 * 0.8;
+  } else if (total < 32 * kFactor) {
+    up = std::numeric_limits<int32_t>::max() * 0.8;
+  } else {
+    up = std::numeric_limits<uint32_t>::max() * 0.8;
   }
   if (sketch_batch_num_elements == 0) {
     return std::min(nnz, up);
