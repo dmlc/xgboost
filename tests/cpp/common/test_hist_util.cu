@@ -47,40 +47,6 @@ TEST(HistUtil, DeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-TEST(HistUtil, SketchBatchNumElements) {
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  LOG(WARNING) << "Test not runnable with RMM enabled.";
-  return;
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  size_t constexpr kCols = 10000;
-  int device;
-  dh::safe_cuda(cudaGetDevice(&device));
-  auto avail = static_cast<size_t>(dh::AvailableMemory(device) * 0.8);
-  auto per_elem = detail::BytesPerElement(false);
-  auto avail_elem = avail / per_elem;
-  size_t rows = avail_elem / kCols * 10;
-  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false);
-  ASSERT_EQ(batch, avail_elem);
-}
-
-TEST(HistUtil, DeviceSketchMemory) {
-  int num_columns = 100;
-  int num_rows = 1000;
-  int num_bins = 256;
-  auto x = GenerateRandom(num_rows, num_columns);
-  auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-}
-
 TEST(HistUtil, DeviceSketchWeightsMemory) {
   int num_columns = 100;
   int num_rows = 1000;
@@ -317,79 +283,6 @@ TEST(HistUtil, AdapterDeviceSketch) {
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
-}
-
-TEST(HistUtil, AdapterDeviceSketchMemory) {
-  int num_columns = 100;
-  int num_rows = 1000;
-  int num_bins = 256;
-  auto x = GenerateRandom(num_rows, num_columns);
-  auto x_device = thrust::device_vector<float>(x);
-  auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto cuts = MakeUnweightedCutsForTest(adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
-}
-
-TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
-  int num_columns = 100;
-  int num_rows = 1000;
-  int num_bins = 256;
-  auto x = GenerateRandom(num_rows, num_columns);
-  auto x_device = thrust::device_vector<float>(x);
-  auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-  MetaInfo info;
-
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
-  HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&cuts);
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-}
-
-TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
-  int num_columns = 100;
-  int num_rows = 1000;
-  int num_bins = 256;
-  auto x = GenerateRandom(num_rows, num_columns);
-  auto x_device = thrust::device_vector<float>(x);
-  auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-  MetaInfo info;
-  auto& h_weights = info.weights_.HostVector();
-  h_weights.resize(num_rows);
-  std::fill(h_weights.begin(), h_weights.end(), 1.0f);
-
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  common::HistogramCuts batched_cuts;
-  HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
-
-  HistogramCuts cuts;
-  sketch_container.MakeCuts(&cuts);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, true);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
 void TestCategoricalSketchAdapter(size_t n, size_t num_categories,

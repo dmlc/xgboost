@@ -51,64 +51,26 @@ size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,
   return result;
 }
 
-size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
-                      size_t num_bins, bool with_weights) {
-  size_t peak = 0;
-  // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
-  size_t total = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 1. Copy and sort: 2 * bytes_per_element * shape
-  total += BytesPerElement(with_weights) * num_rows * num_columns;
-  peak = std::max(peak, total);
-  // 2. Deallocate bytes_per_element * shape due to reusing memory in sort.
-  total -= BytesPerElement(with_weights) * num_rows * num_columns / 2;
-  // 3. Allocate colomn size scan by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 4. Allocate cut pointer by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 5. Allocate cuts: assuming rows is greater than bins: n_columns * limit_size
-  total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
-  // 6. Deallocate copied entries by reducing: bytes_per_element * shape.
-  peak = std::max(peak, total);
-  total -= (BytesPerElement(with_weights) * num_rows * num_columns) / 2;
-  // 7. Deallocate column size scan.
-  peak = std::max(peak, total);
-  total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 8. Deallocate cut size scan.
-  total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 9. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
-  //    n_columns + n_columns + n_columns + 1
-  total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
-  total += num_columns *
-           sizeof(std::remove_reference_t<decltype(
-                      std::declval<HistogramCuts>().MinValues())>::value_type);
-  total += (num_columns + 1) *
-           sizeof(std::remove_reference_t<decltype(
-                      std::declval<HistogramCuts>().Ptrs())>::value_type);
-  peak = std::max(peak, total);
-
-  return peak;
-}
-
-size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_row_t num_rows,
-                              bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
-                              bool has_weight) {
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  // device available memory is not accurate when rmm is used.
-  return nnz;
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-
-  if (sketch_batch_num_elements == 0) {
-    auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
-    // use up to 80% of available space
-    auto avail = dh::AvailableMemory(device) * 0.8;
-    if (required_memory > avail) {
-      sketch_batch_num_elements = avail / BytesPerElement(has_weight);
-    } else {
-      sketch_batch_num_elements = std::min(num_rows * static_cast<size_t>(columns), nnz);
-    }
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz) {
+  // use total so that we don't have to worry about rmm.
+  auto total = dh::TotalMemory(dh::CurrentDevice());
+  size_t constexpr kFactor{1024 * 1024 * 1024};
+  size_t up;
+  if (total < 4 * kFactor) {
+    // 0.25G elements, about 2 GB memory using u32 as sorted index.
+    up = std::numeric_limits<int32_t>::max() / 8 * 0.8;
+  } else if (total < 8 * kFactor) {
+    // 0.5G elements, about 4 GB memory using u32 as sorted index.
+    up = std::numeric_limits<int32_t>::max() / 4 * 0.8;
+  } else {
+    // 1G elements, about 8 GB memory using u32 as sorted index.
+    up = std::numeric_limits<int32_t>::max() / 2 * 0.8;
   }
-  return std::min(sketch_batch_num_elements,
-                  static_cast<size_t>(std::numeric_limits<uint32_t>::max()));
+  if (sketch_batch_num_elements == 0) {
+    return std::min(nnz, up);
+  } else {
+    return std::min(sketch_batch_num_elements, std::min(nnz, up));
+  }
 }
 
 template <typename Batch>
@@ -252,20 +214,16 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                          h_cuts_ptr.back(), dh::ToSpan(temp_weights));
 }
 
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
-                           size_t sketch_batch_num_elements) {
+HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins, size_t sketch_batch_num_elements) {
+  dh::safe_cuda(cudaSetDevice(device));
   dmat->Info().feature_types.SetDevice(device);
   dmat->Info().feature_types.ConstDevicePointer();  // pull to device early
   // Configure batch size based on available memory
   bool has_weights = dmat->Info().weights_.Size() > 0;
   size_t num_cuts_per_feature =
       detail::RequiredSampleCutsPerColumn(max_bins, dmat->Info().num_row_);
-  sketch_batch_num_elements = detail::SketchBatchNumElements(
-      sketch_batch_num_elements,
-      dmat->Info().num_row_,
-      dmat->Info().num_col_,
-      dmat->Info().num_nonzero_,
-      device, num_cuts_per_feature, has_weights);
+  sketch_batch_num_elements =
+      detail::SketchBatchNumElements(sketch_batch_num_elements, dmat->Info().num_nonzero_);
 
   HistogramCuts cuts;
   SketchContainer sketch_container(dmat->Info().feature_types, max_bins, dmat->Info().num_col_,

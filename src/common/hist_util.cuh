@@ -74,19 +74,9 @@ void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feat
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
 
-inline size_t constexpr BytesPerElement(bool has_weight) {
-  // Double the memory usage for sorting.  We need to assign weight for each element, so
-  // sizeof(float) is added to all elements.
-  return (has_weight ? sizeof(uint32_t) + sizeof(float) : sizeof(uint32_t)) * 2;
-}
-
-/* \brief Calcuate the length of sliding window. Returns `sketch_batch_num_elements`
- *        directly if it's not 0.
+/* \brief Calcuate the length of sliding window.
  */
-size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, bst_feature_t columns,
-                              size_t nnz, int device,
-                              size_t num_cuts, bool has_weight);
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz);
 
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
@@ -310,10 +300,8 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
  *                                  testing.
  */
 template <typename Batch>
-void AdapterDeviceSketch(Batch batch, int num_bins,
-                         MetaInfo const& info,
-                         float missing, SketchContainer* sketch_container,
-                         size_t sketch_batch_num_elements = 0) {
+void AdapterDeviceSketch(Batch batch, int num_bins, MetaInfo const& info, float missing,
+                         SketchContainer* sketch_container, size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
   size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
@@ -321,26 +309,21 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
   bool weighted = info.weights_.Size() != 0;
 
   if (weighted) {
-    sketch_batch_num_elements = detail::SketchBatchNumElements(
-        sketch_batch_num_elements,
-        num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device, num_cuts_per_feature, true);
+    sketch_batch_num_elements =
+        detail::SketchBatchNumElements(sketch_batch_num_elements, num_rows * num_cols);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
-      size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
-      ProcessWeightedSlidingWindow(batch, info,
-                                   num_cuts_per_feature,
-                                   HostSketchContainer::UseGroup(info), missing, device, num_cols, begin, end,
-                                   sketch_container);
+      size_t end = std::min(batch.Size(), static_cast<size_t>(begin + sketch_batch_num_elements));
+      ProcessWeightedSlidingWindow(batch, info, num_cuts_per_feature,
+                                   HostSketchContainer::UseGroup(info), missing, device, num_cols,
+                                   begin, end, sketch_container);
     }
   } else {
-    sketch_batch_num_elements = detail::SketchBatchNumElements(
-        sketch_batch_num_elements,
-        num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device, num_cuts_per_feature, false);
+    sketch_batch_num_elements =
+        detail::SketchBatchNumElements(sketch_batch_num_elements, num_rows * num_cols);
     for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
-      size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
-      ProcessSlidingWindow(batch, info, device, num_cols, begin, end, missing,
-                           sketch_container, num_cuts_per_feature);
+      size_t end = std::min(batch.Size(), static_cast<size_t>(begin + sketch_batch_num_elements));
+      ProcessSlidingWindow(batch, info, device, num_cols, begin, end, missing, sketch_container,
+                           num_cuts_per_feature);
     }
   }
 }
