@@ -47,25 +47,6 @@ TEST(HistUtil, DeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-TEST(HistUtil, DeviceSketchWeightsMemory) {
-  int num_columns = 100;
-  int num_rows = 1000;
-  int num_bins = 256;
-  auto x = GenerateRandom(num_rows, num_columns);
-  auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
-  dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
-
-  dh::GlobalMemoryLogger().Clear();
-  ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-
-  size_t bytes_required = detail::RequiredMemory(
-      num_rows, num_columns, num_rows * num_columns, num_bins, true);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
-}
-
 TEST(HistUtil, DeviceSketchDeterminism) {
   int num_rows = 500;
   int num_columns = 5;

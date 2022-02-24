@@ -82,24 +82,6 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz);
 // We take more cuts than needed and then reduce them later
 size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
 
-/* \brief Estimate required memory for each sliding window.
- *
- *   It's not precise as to obtain exact memory usage for sparse dataset we need to walk
- *   through the whole dataset first.  Also if data is from host DMatrix, we copy the
- *   weight, group and offset on first batch, which is not considered in the function.
- *
- * \param num_rows     Number of rows in this worker.
- * \param num_columns  Number of columns for this dataset.
- * \param nnz          Number of non-zero element.  Put in something greater than rows *
- *                     cols if nnz is unknown.
- * \param num_bins     Number of histogram bins.
- * \param with_weights Whether weight is used, works the same for ranking and other models.
- *
- * \return The estimated bytes
- */
-size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
-                      size_t num_bins, bool with_weights);
-
 // Count the valid entries in each column and copy them out.
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter, Range1d range,
