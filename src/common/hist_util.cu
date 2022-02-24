@@ -55,8 +55,9 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements, size_t nnz) {
   // Use total memory if compiled with rmm.
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   auto total = dh::TotalMemory(dh::CurrentDevice());
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#else
   double total = dh::AvailableMemory(dh::CurrentDevice());
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   double constexpr kGB{1024 * 1024 * 1024};
   double constexpr kRatio = 0.8;
   size_t up;
