@@ -134,7 +134,10 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   ]
 
   # assign feature_names when available
-  if (!is.null(feature_names) && !is.na(td$Feature)) {
+  is_stump <- function() {
+    return(length(td$Feature) == 1 && is.na(td$Feature))
+  }
+  if (!is.null(feature_names) && !is_stump()) {
     if (length(feature_names) <= max(as.numeric(td$Feature), na.rm = TRUE))
       stop("feature_names has less elements than there are features used in the model")
     td[isLeaf == FALSE, Feature := feature_names[as.numeric(Feature) + 1]]
