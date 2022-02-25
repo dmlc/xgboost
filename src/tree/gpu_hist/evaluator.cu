@@ -62,34 +62,50 @@ template <typename GradientSumT>
 common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
     EvaluateSplitInputs<GradientSumT> const &left, EvaluateSplitInputs<GradientSumT> const &right,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
-  dh::XGBDeviceAllocator<char> alloc;
+  dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(left);
   dh::Iota(sorted_idx);
-  // sort 2 nodes and all the features at the same time, disregarding colmun sampling.
-  thrust::stable_sort(
-      thrust::cuda::par(alloc), dh::tbegin(sorted_idx), dh::tend(sorted_idx),
-      [evaluator, left, right] XGBOOST_DEVICE(size_t l, size_t r) {
-        auto l_is_left = l < left.feature_values.size();
-        auto r_is_left = r < left.feature_values.size();
+  using Tuple = thrust::tuple<bst_feature_t, uint32_t, double>;
+  auto it = dh::MakeTransformIterator<Tuple>(
+      thrust::make_counting_iterator(0u), [=] XGBOOST_DEVICE(uint32_t i) {
+        auto is_left = i < left.feature_values.size();
+        auto const &input = is_left ? left : right;
+        auto j = i - (is_left ? 0 : input.feature_values.size());
+        auto fidx = dh::SegmentId(input.feature_segments, j);
+        if (common::IsCat(input.feature_types, fidx)) {
+          auto lw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[j]);
+          return thrust::make_tuple(fidx, i, lw);
+        }
+        return thrust::make_tuple(fidx, i, 0.0);
+      });
+  thrust::stable_sort_by_key(
+      thrust::cuda::par(alloc), it, it + sorted_idx.size(), dh::tbegin(sorted_idx),
+      [=] XGBOOST_DEVICE(Tuple const &l, Tuple const &r) {
+        auto lfidx = thrust::get<0>(l);
+        auto rfidx = thrust::get<0>(r);
+
+        auto li = thrust::get<1>(l);
+        auto ri = thrust::get<1>(r);
+
+        auto l_is_left = li < left.feature_values.size();
+        auto r_is_left = ri < left.feature_values.size();
+
         if (l_is_left != r_is_left) {
           return l_is_left;  // not the same node
         }
-
-        auto const &input = l_is_left ? left : right;
-        l -= (l_is_left ? 0 : input.feature_values.size());
-        r -= (r_is_left ? 0 : input.feature_values.size());
-
-        auto lfidx = dh::SegmentId(input.feature_segments, l);
-        auto rfidx = dh::SegmentId(input.feature_segments, r);
         if (lfidx != rfidx) {
           return lfidx < rfidx;  // not the same feature
         }
+
+        auto const &input = l_is_left ? left : right;
+        li -= (l_is_left ? 0 : input.feature_values.size());
+        ri -= (r_is_left ? 0 : input.feature_values.size());
         if (common::IsCat(input.feature_types, lfidx)) {
-          auto lw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[l]);
-          auto rw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[r]);
+          auto lw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[li]);
+          auto rw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[ri]);
           return lw < rw;
         }
-        return l < r;
+        return li < ri;
       });
   return dh::ToSpan(cat_sorted_idx_);
 }
