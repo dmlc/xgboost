@@ -22,7 +22,7 @@ from test_predict import run_predict_leaf      # noqa
 rng = np.random.RandomState(1994)
 
 shap_parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(0, 11),
+    'max_depth': strategies.integers(1, 11),
     'max_leaves': strategies.integers(0, 256),
     'num_parallel_tree': strategies.sampled_from([1, 10]),
 }).filter(lambda x: x['max_depth'] > 0 or x['max_leaves'] > 0)
