@@ -288,10 +288,17 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
     reg.fit(X, y, eval_set=[(X, y)])
     assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
 
+    booster = reg.get_booster()
+    predt = xgb.dask.predict(client, booster, X)
+    inpredt = xgb.dask.inplace_predict(client, booster, X)
+    np.testing.assert_allclose(predt.compute(), inpredt.compute())
+
+
 def test_categorical(client: "Client") -> None:
     X, y = make_categorical(client, 10000, 30, 13)
     X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
     run_categorical(client, "approx", X, X_onehot, y)
+    run_categorical(client, "hist", X, X_onehot, y)
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
