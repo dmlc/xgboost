@@ -467,11 +467,7 @@ def _from_dt_df(
 
 
 def _is_cudf_df(data):
-    try:
-        import cudf
-    except ImportError:
-        return False
-    return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
+    return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
 
 
 def _cudf_array_interfaces(data, cat_codes: list) -> bytes:

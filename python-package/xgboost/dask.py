@@ -56,7 +56,7 @@ from .compat import lazy_isinstance
 
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import Objective, Metric
-from .core import _deprecate_positional_args
+from .core import _deprecate_positional_args, _has_categorical
 from .data import FeatNamesT
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
@@ -1241,7 +1241,11 @@ async def _predict_async(
         booster: Booster, partition: Any, is_df: bool, columns: List[int], _: Any
     ) -> Any:
         with config.config_context(**global_config):
-            m = DMatrix(data=partition, missing=missing)
+            m = DMatrix(
+                data=partition,
+                missing=missing,
+                enable_categorical=_has_categorical(booster, partition)
+            )
             predt = booster.predict(
                 data=m,
                 output_margin=output_margin,
