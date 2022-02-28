@@ -289,9 +289,15 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
     assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
 
     booster = reg.get_booster()
-    predt = xgb.dask.predict(client, booster, X)
-    inpredt = xgb.dask.inplace_predict(client, booster, X)
-    np.testing.assert_allclose(predt.compute(), inpredt.compute())
+    predt = xgb.dask.predict(client, booster, X).compute()
+    inpredt = xgb.dask.inplace_predict(client, booster, X).compute()
+
+    if hasattr(predt, "get"):
+        predt = predt.get()
+    if hasattr(inpredt, "get"):
+        inpredt = inpredt.get()
+
+    np.testing.assert_allclose(predt, inpredt)
 
 
 def test_categorical(client: "Client") -> None:
