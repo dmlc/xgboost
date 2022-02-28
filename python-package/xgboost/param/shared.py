@@ -1,0 +1,322 @@
+#
+# Copyright (c) 2022 by Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+from pyspark.ml.param import Params, Param, TypeConverters
+from pyspark.ml.param.shared import HasWeightCol
+
+
+class HasNumClass(Params):
+    """
+    Mixin for param numClass: the number of classes for classifier.
+    """
+
+    numClass = Param(Params._dummy(),
+                     "numClass",
+                     "number of classes.", typeConverter=TypeConverters.toInt)
+
+    def __init__(self):
+        super(HasNumClass, self).__init__()
+
+    def getNumClass(self):
+        """
+        Gets the value of numClass or its default value.
+        """
+        return self.getOrDefault(self.numClass)
+
+
+class _BoosterParams(Params):
+    """
+    Booster parameters
+    """
+
+    objective = Param(Params._dummy(), "objective",
+                      "The objective function used for training.",
+                      typeConverter=TypeConverters.toString)
+
+    eta = Param(Params._dummy(), "eta",
+                "The step size shrinkage used in update to prevents overfitting. "
+                "After each boosting step, we can directly get the weights of new features. "
+                "and eta actually shrinks the feature weights to make the boosting process more conservative.",
+                typeConverter=TypeConverters.toFloat)
+
+    gamma = Param(Params._dummy(), "gamma",
+                  "minimum loss reduction required to make a further partition on a leaf node of "
+                  "the tree. the larger, the more conservative the algorithm will be.",
+                  typeConverter=TypeConverters.toFloat)
+
+    maxDepth = Param(Params._dummy(), "maxDepth",
+                     "maximum depth of a tree, increase this value will "
+                     "make model more complex/likely to be overfitting.",
+                     typeConverter=TypeConverters.toInt)
+
+    maxLeaves = Param(Params._dummy(), "maxLeaves",
+                      "Maximum number of nodes to be added. Only relevant when grow_policy=lossguide is set.",
+                      typeConverter=TypeConverters.toInt)
+
+    minChildWeight = Param(Params._dummy(), "minChildWeight",
+                           "minimum sum of instance weight(hessian) needed in a child. If the tree partition "
+                           "step results in a leaf node with the sum of instance weight less than min_child_weight, "
+                           "then the building process will give up further partitioning. In linear regression mode, "
+                           "this simply corresponds to minimum number of instances needed to be in each node. "
+                           "The larger, the more conservative the algorithm will be.",
+                           typeConverter=TypeConverters.toFloat)
+
+    maxDeltaStep = Param(Params._dummy(), "maxDeltaStep",
+                         "Maximum delta step we allow each tree's weight estimation to be. If the value is set to 0, "
+                         "it means there is no constraint. If it is set to a positive value, it can help making the "
+                         "update step more conservative. Usually this parameter is not needed, but it might help in "
+                         "logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help "
+                         "control the update",
+                         typeConverter=TypeConverters.toFloat)
+
+    alpha = Param(Params._dummy(), "alpha",
+                  "L1 regularization term on weights, increase this value will make model more conservative.",
+                  typeConverter=TypeConverters.toFloat)
+
+    treeMethod = Param(Params._dummy(), "treeMethod",
+                       "The tree construction algorithm used in XGBoost. "
+                       "Options: {'auto', 'exact', 'approx','gpu_hist'} [default='auto']",
+                       typeConverter=TypeConverters.toString)
+
+    growPolicy = Param(Params._dummy(), "growPolicy",
+                       "Controls a way new nodes are added to the tree. Currently supported only if "
+                       "tree_method is set to hist. Choices: depthwise, lossguide. depthwise: split at nodes "
+                       "closest to the root. lossguide: split at nodes with highest loss change.",
+                       typeConverter=TypeConverters.toString)
+
+    maxBins = Param(Params._dummy(), "maxBins", "maximum number of bins in histogram.",
+                    typeConverter=TypeConverters.toInt)
+
+    def __init__(self, *args):
+        super(_BoosterParams, self).__init__(*args)
+
+    def getObjective(self):
+        """
+        Gets the value of objective or its default value.
+        """
+        return self.getOrDefault(self.objective)
+
+    def getEta(self):
+        """
+        Gets the value of eta or its default value.
+        """
+        return self.getOrDefault(self.eta)
+
+    def getGamma(self):
+        """
+        Gets the value of gamma or its default value.
+        """
+        return self.getOrDefault(self.gamma)
+
+    def getMaxDepth(self):
+        """
+        Gets the value of maxDepth or its default value.
+        """
+        return self.getOrDefault(self.maxDepth)
+
+    def getMaxLeaves(self):
+        """
+        Gets the value of maxLeaves or its default value.
+        """
+        return self.getOrDefault(self.maxLeaves)
+
+    def getMinChildWeight(self):
+        """
+        Gets the value of minChildWeight or its default value.
+        """
+        return self.getOrDefault(self.minChildWeight)
+
+    def getMaxDeltaStep(self):
+        """
+        Gets the value of minChildWeight or its default value.
+        """
+        return self.getOrDefault(self.maxDeltaStep)
+
+    def getAlpha(self):
+        """
+        Gets the value of alpha or its default value.
+        """
+        return self.getOrDefault(self.alpha)
+
+    def getTreeMethod(self):
+        """
+        Gets the value of treeMethod or its default value.
+        """
+        return self.getOrDefault(self.treeMethod)
+
+    def getGrowPolicy(self):
+        """
+        Gets the value of growPolicy or its default value.
+        """
+        return self.getOrDefault(self.growPolicy)
+
+    def getMaxBins(self):
+        """
+        Gets the value of maxBins or its default value.
+        """
+        return self.getOrDefault(self.maxBins)
+
+
+class _GeneralParams(Params):
+    """
+    The general parameters.
+    """
+
+    numRound = Param(Params._dummy(), "numRound",
+                     "The number of rounds for boosting.",
+                     typeConverter=TypeConverters.toInt)
+
+    numWorkers = Param(Params._dummy(), "numWorkers",
+                       "The number of workers used to run xgboost.",
+                       typeConverter=TypeConverters.toInt)
+
+    nthread = Param(Params._dummy(), "nthread",
+                    "The number of threads used by per worker.",
+                    typeConverter=TypeConverters.toInt)
+
+    missing = Param(Params._dummy(), "missing", "The value treated as missing.",
+                    typeConverter=TypeConverters.toFloat)
+
+    allowNonZeroForMissing = Param(Params._dummy(), "allowNonZeroForMissing",
+                                   "Allow to have a non-zero value for missing when training or "
+                                   "predicting on a Sparse or Empty vector. Should only be used if did "
+                                   "not use Spark's VectorAssembler class to construct the feature vector "
+                                   "but instead used a method that preserves zeros in your vector.",
+                                   typeConverter=TypeConverters.toBoolean)
+
+    def __init__(self, *args):
+        super(_GeneralParams, self).__init__(*args)
+
+    def getNumRound(self):
+        """
+        Gets the value of numRound or its default value.
+        """
+        return self.getOrDefault(self.numRound)
+
+    def getNumWorkers(self):
+        """
+        Gets the value of numWorkers or its default value.
+        """
+        return self.getOrDefault(self.numWorkers)
+
+    def getNthread(self):
+        """
+        Gets the value of nthread or its default value.
+        """
+        return self.getOrDefault(self.nthread)
+
+    def getMissing(self):
+        """
+        Gets the value of missing or its default value.
+        """
+        return self.getOrDefault(self.missing)
+
+    def getAllowNonZeroForMissingMissing(self):
+        """
+        Gets the value of allowNonZeroForMissing or its default value.
+        """
+        return self.getOrDefault(self.allowNonZeroForMissing)
+
+
+class HasBaseMarginCol(Params):
+    """
+    Mixin for param baseMarginCol: baseMargin (aka base margin) column name.
+    """
+
+    baseMarginCol = Param(Params._dummy(), "baseMarginCol",
+                          "base margin column name.",
+                          typeConverter=TypeConverters.toString)
+
+    def __init__(self):
+        super(HasBaseMarginCol, self).__init__()
+
+    def getBaseMarginCol(self):
+        """
+        Gets the value of baseMarginCol or its default value.
+        """
+        return self.getOrDefault(self.baseMarginCol)
+
+
+class HasLeafPredictionCol(Params):
+    """
+    Mixin for param leafPredictionCol: leaf prediction column name.
+    """
+
+    leafPredictionCol = Param(Params._dummy(), "leafPredictionCol",
+                              "leaf prediction column name.",
+                              typeConverter=TypeConverters.toString)
+
+    def __init__(self):
+        super(HasBaseMarginCol, self).__init__()
+
+    def getLeafPredictionCol(self):
+        """
+        Gets the value of leafPredictionCol or its default value.
+        """
+        return self.getOrDefault(self.leafPredictionCol)
+
+
+class HasContribPredictionCol(Params):
+    """
+    Mixin for param contribPredictionCol: contribution column name.
+    """
+
+    contribPredictionCol = Param(Params._dummy(), "contribPredictionCol",
+                                 "contribution column name.",
+                                 typeConverter=TypeConverters.toString)
+
+    def __init__(self):
+        super(HasContribPredictionCol, self).__init__()
+
+    def getContribPredictionCol(self):
+        """
+        Gets the value of contribPredictionCol or its default value.
+        """
+        return self.getOrDefault(self.contribPredictionCol)
+
+
+class HasGroupCol(Params):
+    """
+    Mixin for param groupCol: group column name.
+    """
+
+    groupCol = Param(Params._dummy(), "groupCol",
+                     "The group column name.",
+                     typeConverter=TypeConverters.toString)
+
+    def __init__(self):
+        super(HasGroupCol, self).__init__()
+
+    def getGroupCol(self):
+        """
+        Gets the value of groupCol or its default value.
+        """
+        return self.getOrDefault(self.groupCol)
+
+
+class _XGBoostCommonParams(_BoosterParams, _GeneralParams, HasLeafPredictionCol,
+                           HasBaseMarginCol, HasContribPredictionCol, HasWeightCol):
+    """
+    XGBoost common parameters for both XGBoostClassifier and XGBoostRegressor
+    """
+    pass
+
+
+class _XGBoostClassifierParams(_XGBoostCommonParams, HasNumClass):
+    """
+    XGBoostClassifier parameters
+    """
+    pass
