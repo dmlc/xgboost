@@ -466,7 +466,7 @@ def _from_dt_df(
     return handle, feature_names, feature_types
 
 
-def _is_cudf_df(data):
+def _is_cudf_df(data) -> bool:
     return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
 
 

@@ -2062,7 +2062,7 @@ class Booster:
                     f"got {data.shape[1]}"
                 )
 
-        from .data import _is_pandas_df, _transform_pandas_df
+        from .data import _is_pandas_df, _transform_pandas_df, _is_cudf_df
         from .data import _array_interface
         enable_categorical = _has_categorical(self, data)
         if _is_pandas_df(data):
@@ -2119,7 +2119,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, True)
-        if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
+        if _is_cudf_df(data):
             from .data import _cudf_array_interfaces, _transform_cudf_df
             data, cat_codes, _, _ = _transform_cudf_df(
                 data, None, None, enable_categorical
