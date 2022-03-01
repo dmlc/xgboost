@@ -1393,9 +1393,9 @@ class Booster:
                     + ",".join(
                         [feature_idx_mapping[feature_name] for feature_name in constraint]
                     )
-                    + "]"
+                    + "],"
                 )
-            return s + "]"
+            return s[:-1] + "]"
         except KeyError as e:
             raise ValueError(
                 "Constrained features are not a subset of training data feature names"
