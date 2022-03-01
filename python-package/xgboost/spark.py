@@ -156,5 +156,6 @@ class XGBoostClassifier(_XGBoostClassifierParams, _XGBJavaProbabilisticClassifie
 class XGBoostClassificationModel(_XGBJavaProbabilisticClassificationModel, JavaMLWritable, JavaMLReadable):
     """
     The model returned by :func:`xgboost.spark.XGBoostClassifier.fit()`
+
     """
     pass

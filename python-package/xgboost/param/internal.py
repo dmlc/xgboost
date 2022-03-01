@@ -16,9 +16,8 @@
 
 from abc import ABCMeta
 
-from pyspark import since
-from pyspark.ml.classification import Classifier, ProbabilisticClassifier, ProbabilisticClassificationModel, \
-    ClassificationModel
+from pyspark.ml.classification import Classifier, ProbabilisticClassifier, \
+    ProbabilisticClassificationModel, ClassificationModel
 from pyspark.ml.common import inherit_doc
 from pyspark.ml.wrapper import JavaPredictor, JavaPredictionModel
 
@@ -30,7 +29,7 @@ class _XGBJavaClassifier(Classifier, JavaPredictor, metaclass=ABCMeta):
     Classes are indexed {0, 1, ..., numClasses - 1}.
     """
 
-    # copy from _JavaClassifier
+    # Copied from _JavaClassifier
     def setRawPredictionCol(self, value):
         """
         Sets the value of :py:attr:`rawPredictionCol`.

@@ -13,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from xgboost.param.internal import _XGBJavaProbabilisticClassifier, _XGBJavaProbabilisticClassificationModel
+from xgboost.param.internal import _XGBJavaProbabilisticClassifier,\
+    _XGBJavaProbabilisticClassificationModel
 from xgboost.param.shared import _XGBoostClassifierParams
 
-__all__ = ['_XGBoostClassifierParams', '_XGBJavaProbabilisticClassifier', '_XGBJavaProbabilisticClassificationModel']
+__all__ = ['_XGBoostClassifierParams',
+           '_XGBJavaProbabilisticClassifier',
+           '_XGBJavaProbabilisticClassificationModel']
 
