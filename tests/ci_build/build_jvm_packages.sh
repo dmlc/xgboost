@@ -24,5 +24,13 @@ if [ "x$gpu_arch" != "x" ]; then
 fi
 mvn --no-transfer-progress package -Dspark.version=${spark_version} $gpu_options
 
+
+pushd ../python-packages
+python setup.py install
+popd
+
+cd integration-tests
+./run_pyspark_from_build.sh
+
 set +x
 set +e
