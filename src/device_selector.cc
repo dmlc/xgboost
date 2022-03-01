@@ -111,16 +111,52 @@ std::string DeviceSelector::Specification::Prefix() const {
 }
 
 void DeviceSelector::Specification::Init(const std::string& specification) {
-    int position = specification.find_last_of(':');
+  int position = specification.find(':');
 
-    const std::string device_name = specification.substr(0,position);
-    const std::string index_name = specification.substr(position+1);
-    auto *e = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name);
-    CHECK(e != nullptr)
-      << "Specified device: " << specification.substr(0,position) << " is unknown.";
+  std::string device_name;
+  std::string index_name;
+  if (position == std::string::npos) {
+    device_name = specification;
+  } else {
+    device_name = specification.substr(0,position);
+    std::string spec_tail = specification.substr(position+1);
 
-    type_ = e->body;
+    position = spec_tail.find(':');
+    if (position == std::string::npos) {
+      // Check if spec_tail is a number
+      auto it = spec_tail.begin();
+      while (it != spec_tail.end() && std::isdigit(*it)) ++it;
+      bool is_number = (it == spec_tail.end());
+
+      if (is_number) {
+        index_name = spec_tail;
+      } else {
+        device_name += ":" + spec_tail;
+      }
+    } else {
+      device_name += ":" + spec_tail.substr(0,position);
+      index_name = spec_tail.substr(position+1);
+
+      // Check if index_name is a number
+      auto it = index_name.begin();
+      while (it != index_name.end() && std::isdigit(*it)) ++it;
+      bool is_number = (it == index_name.end());
+      CHECK(is_number)
+        << "Incorrect device specification format: " << specification;
+    }
+  }
+
+  auto *e = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name);
+  CHECK(e != nullptr)
+    << "Specified device: " << specification.substr(0,position) << " is unknown.";
+
+  type_ = e->body;
+
+  if (index_name.empty()) {
+    index_ = -1;
+  } else {
     index_ = std::stoi(index_name);
+  }
 }
 
 DeviceType DeviceSelector::Specification::Type() const {
@@ -150,7 +186,10 @@ std::ostream& operator << (std::ostream& os, const DeviceSelector::Specification
   for (const std::string& device_name : known_device_names) {
     auto device_type = ::dmlc::Registry< ::xgboost::DeviceReg>::Get()->Find(device_name)->body;
     if (device_type == specification.Type()) {
-      os << device_name << ':' << specification.Index();
+      os << device_name;
+      if (specification.Index() != DeviceSelector::kDefaultIndex) {
+        os << ':' << specification.Index();
+      }
       return os;
     }
   }

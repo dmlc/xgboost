@@ -17,14 +17,15 @@ namespace xgboost {
 
 /*!
 * Enum of all supported devices.
-* kDefault    for user entry device_selector = "cpu:*" or for not specified device_selector
-* kCUDA       for user entry device_selector = "cuda:*"
-* kOneAPI_CPU for user entry device_selector = "oneapi:cpu:*"
-* kOneAPI_GPU for user entry device_selector = "oneapi:gpu:*"
+* kDefault     for user entry device_selector = "cpu:*" or for not specified device_selector
+* kCUDA        for user entry device_selector = "cuda:*"
+* kOneAPI_Auto for user entry device_selector = "oneapi:*"
+* kOneAPI_CPU  for user entry device_selector = "oneapi:cpu:*"
+* kOneAPI_GPU  for user entry device_selector = "oneapi:gpu:*"
 * 
 */
 enum class DeviceType : size_t {
-kDefault = 0, kCUDA = 1, kOneAPI_CPU = 2, kOneAPI_GPU = 3
+kDefault = 0, kCUDA = 1, kOneAPI_Auto = 2, kOneAPI_CPU = 3, kOneAPI_GPU = 4
 };
 
 using KernelsRegisterEntry_t = std::unordered_map<DeviceType, std::string>;

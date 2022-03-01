@@ -46,6 +46,18 @@ void GBTree::Configure(const Args& cfg) {
     model_.InitTreesToUpdate();
   }
 
+  // check for unsupported train parameters
+#if defined(XGBOOST_USE_ONEAPI)
+  bool is_oneapi_device_fit = 
+      (this->ctx_->device_selector.Fit().Type() == DeviceType::kOneAPI_Auto) ||
+      (this->ctx_->device_selector.Fit().Type() == DeviceType::kOneAPI_CPU)  ||
+      (this->ctx_->device_selector.Fit().Type() == DeviceType::kOneAPI_GPU);
+  if (is_oneapi_device_fit) {
+    CHECK(tparam_.tree_method == TreeMethod::kHist)
+          << "Only tree_method=\"hist\" is currently supported for oneAPI devices";
+  }
+#endif  // defined(XGBOOST_USE_ONEAPI)
+
   // configure predictors
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
@@ -68,10 +80,11 @@ void GBTree::Configure(const Args& cfg) {
    * user specifyed device_selector = 'oneapi:gpu:*' or device_selector = 'oneapi:cpu:*' and
    * didn't specifyed predictor, i.e. predictor == PredictorType::kAuto
    */
-  bool is_oneapi_device = 
-      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_CPU) ||
+  bool is_oneapi_device_predict = 
+      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_Auto) ||
+      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_CPU)  ||
       (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_GPU);
-  if (is_oneapi_device && (tparam_.predictor == PredictorType::kAuto)) {
+  if (is_oneapi_device_predict && (tparam_.predictor == PredictorType::kAuto)) {
     tparam_.predictor = PredictorType::kOneAPIPredictor;
   }
 
