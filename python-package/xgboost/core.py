@@ -2242,7 +2242,7 @@ class Booster:
 
     def num_features(self) -> int:
         '''Number of features in booster.'''
-        features = ctypes.c_int()
+        features = c_bst_ulong()
         assert self.handle is not None
         _check_call(_LIB.XGBoosterGetNumFeature(self.handle, ctypes.byref(features)))
         return features.value
