@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
@@ -88,9 +89,17 @@ class NativeLibLoader {
      */
     static boolean isMuslBased() {
       try (Stream<Path> dirStream = Files.list(mappedFilesBaseDir)) {
-        return dirStream
-          .map(OS::toRealPath)
-          .anyMatch(s -> s.toLowerCase().contains("musl"));
+        Optional<String> muslRelatedMemoryMappedFilename = dirStream
+            .map(OS::toRealPath)
+            .filter(s -> s.toLowerCase().contains("musl"))
+            .findFirst();
+
+        muslRelatedMemoryMappedFilename.ifPresent(muslFilename -> {
+          logger.debug("Assuming that detected Linux OS is musl-based, "
+              + "because a memory-mapped file '" + muslFilename + "' was found.");
+        });
+
+        return muslRelatedMemoryMappedFilename.isPresent();
       } catch (IOException ignored) {
         // ignored
       }
