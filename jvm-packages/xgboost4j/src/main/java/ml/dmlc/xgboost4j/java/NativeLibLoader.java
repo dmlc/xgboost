@@ -175,18 +175,37 @@ class NativeLibLoader {
               platform + "/" + System.mapLibraryName(libName);
           loadLibraryFromJar(libraryPathInJar);
         } catch (UnsatisfiedLinkError ule) {
-          logger.error("Failed to load " + libName + " due to missing native dependencies for " +
-              "platform " + platform + ", this is likely due to a missing OpenMP dependency");
+          String failureMessageIncludingOpenMPHint = "Failed to load " + libName + " " +
+              "due to missing native dependencies for " +
+              "platform " + platform + ", " +
+              "this is likely due to a missing OpenMP dependency";
+
           switch (os) {
             case WINDOWS:
+              logger.error(failureMessageIncludingOpenMPHint);
               logger.error("You may need to install 'vcomp140.dll' or 'libgomp-1.dll'");
               break;
             case MACOS:
-              logger.error("You may need to install 'libomp.dylib', via `brew install libomp`" +
-                  " or similar");
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libomp.dylib', via `brew install libomp` " +
+                  "or similar");
               break;
             case LINUX:
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
+                  "manager.");
+              logger.error("Alternatively, your Linux OS is musl-based " +
+                  "but wasn't detected as such.");
+              break;
+            case LINUX_MUSL:
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
+                  "manager.");
+              logger.error("Alternatively, your Linux OS was wrongly detected as musl-based, " +
+                  "although it is not.");
+              break;
             case SOLARIS:
+              logger.error(failureMessageIncludingOpenMPHint);
               logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
                   "manager.");
               break;
