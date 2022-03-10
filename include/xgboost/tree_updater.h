@@ -32,7 +32,7 @@ class Json;
  */
 class TreeUpdater : public Configurable {
  protected:
-  GenericParameter const* ctx_;
+  GenericParameter const* ctx_ = nullptr;
 
  public:
   /*! \brief virtual destructor */
