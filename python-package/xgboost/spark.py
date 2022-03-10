@@ -23,7 +23,7 @@ from xgboost.param.shared import _XGBoostClassifierParams
 
 
 @inherit_doc
-class XGBoostClassifier(_XGBoostClassifierParams, _XGBJavaProbabilisticClassifier,
+class XGBoostClassifier(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParams,
                         JavaMLWritable, JavaMLReadable):
     """
     XGBoostClassifier is a PySpark ML estimator. It implements the XGBoost classification

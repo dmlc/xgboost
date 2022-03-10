@@ -12,7 +12,7 @@ in the cluster but it is not required.
 - install python dependencies
 
 ``` bash
-pip install pytest numpy
+pip install pytest numpy scipy
 ```
 
 - install xgboost python package
