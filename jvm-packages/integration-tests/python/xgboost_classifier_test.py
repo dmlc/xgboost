@@ -16,12 +16,28 @@
 
 from pyspark.ml.feature import StringIndexer
 from pyspark.ml.linalg import Vectors
-from xgboost.spark import XGBoostClassifier
+from xgboost.spark import XGBoostClassifier, XGBoostClassificationModel
 
 from spark_init_internal import get_spark_i_know_what_i_am_doing
 
 
-def test_training_without_error():
+def test_save_xgboost_classifier():
+    params = {
+        'objective': 'binary:logistic',
+        'numRound': 5,
+        'numWorkers': 2,
+        'treeMethod': 'hist'
+    }
+    classifier = XGBoostClassifier(**params)
+    classifier.write().overwrite().save("/tmp/xgboost-integration-tests/xgboost-classifier")
+    classifier1 = XGBoostClassifier.load("/tmp/xgboost-integration-tests/xgboost-classifier")
+    assert classifier1.getObjective() == 'binary:logistic'
+    assert classifier1.getNumRound() == 5
+    assert classifier1.getNumWorkers() == 2
+    assert classifier1.getTreeMethod() == 'hist'
+
+
+def test_xgboost_regressor_training_without_error():
     spark = get_spark_i_know_what_i_am_doing()
     df = spark.createDataFrame([
         ("a", Vectors.dense([1.0, 2.0, 3.0, 4.0, 5.0])),
@@ -39,10 +55,9 @@ def test_training_without_error():
     classifier = XGBoostClassifier(**params) \
         .setLabelCol(label_name) \
         .setFeaturesCol('features')
-
-    model = classifier.fit(indexed_df)
-
-    print(model.getLabelCol())
-    print(model.getFeaturesCol())
-
-    model.transform(df).show()
+    classifier.write().overwrite().save("/tmp/xgboost-integration-tests/xgboost-classifier")
+    classifier1 = XGBoostClassifier.load("/tmp/xgboost-integration-tests/xgboost-classifier")
+    model = classifier1.fit(indexed_df)
+    model.write().overwrite().save("/tmp/xgboost-integration-tests/xgboost-classifier-model")
+    model1 = XGBoostClassificationModel.load("/tmp/xgboost-integration-tests/xgboost-classifier-model")
+    model1.transform(df).show()

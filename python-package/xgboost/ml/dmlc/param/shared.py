@@ -390,7 +390,7 @@ class HasContribPredictionCol(Params):
 
 class HasGroupCol(Params):
     """
-    Mixin for param groupCol: group column name.
+    Mixin for param groupCol: group column name for regressor.
     """
 
     groupCol = Param(
@@ -413,11 +413,64 @@ class _XGBoostCommonParams(_BoosterParams, _GeneralParams, HasLeafPredictionCol,
     """
     XGBoost common parameters for both XGBoostClassifier and XGBoostRegressor
     """
-    pass
+
+    def setNumRound(self, value):
+        """
+        Sets the value of :py:attr:`numRound`.
+        """
+        self._set(numRound=value)
+        return self
+
+    def setNumWorkers(self, value):
+        """
+        Sets the value of :py:attr:`numWorkers`.
+        """
+        self._set(numWorkers=value)
+        return self
+
+    def setNthread(self, value):
+        """
+        Sets the value of :py:attr:`nthread`.
+        """
+        self._set(nthread=value)
+        return self
+
+    def setObjective(self, value):
+        """
+        Sets the value of :py:attr:`objective`.
+        """
+        self._set(objective=value)
+        return self
+
+    def setTreeMethod(self, value):
+        """
+        Sets the value of :py:attr:`treeMethod`.
+        """
+        self._set(treeMethod=value)
+        return self
 
 
 class _XGBoostClassifierParams(_XGBoostCommonParams, HasNumClass):
     """
     XGBoostClassifier parameters
     """
-    pass
+
+    def setNumClass(self, value):
+        """
+        Sets the value of :py:attr:`numClass`.
+        """
+        self._set(numClass=value)
+        return self
+
+
+class _XGBoostRegressorParams(_XGBoostCommonParams, HasGroupCol):
+    """
+    XGBoostRegressor parameters
+    """
+
+    def setGroupCol(self, value):
+        """
+        Sets the value of :py:attr:`numClass`.
+        """
+        self._set(groupCol=value)
+        return self

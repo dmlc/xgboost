@@ -16,15 +16,13 @@
 
 from pyspark import keyword_only
 from pyspark.ml.common import inherit_doc
-from pyspark.ml.util import JavaMLWritable, JavaMLReadable
 
-from xgboost.param.internal import _XGBJavaProbabilisticClassifier, _XGBJavaProbabilisticClassificationModel
-from xgboost.param.shared import _XGBoostClassifierParams
+from xgboost.ml.dmlc.param import _XGBoostClassifierBase, _XGBoostClassificationModelBase
+from xgboost.ml.dmlc.param.internal import _XGBoostRegressorBase, _XGBoostRegressionModelBase
 
 
 @inherit_doc
-class XGBoostClassifier(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParams,
-                        JavaMLWritable, JavaMLReadable):
+class XGBoostClassifier(_XGBoostClassifierBase):
     """
     XGBoostClassifier is a PySpark ML estimator. It implements the XGBoost classification
     algorithm based on `ml.dmlc.xgboost4j.scala.pyspark.XGBoostClassifier` in XGBoost jvm packages,
@@ -38,9 +36,8 @@ class XGBoostClassifier(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParam
     >>> from pyspark.ml.feature import StringIndexer, VectorAssembler
     >>> from pyspark.sql import SparkSession
     >>> from pyspark.sql.types import *
-    >>> from xgboost.spark import XGBoostClassifier
-    >>> iris_data_path = 'raw-iris.data'
-    >>> spark = SparkSession.builder.appName("xgboost iris").getOrCreate()
+    >>> from xgboost.spark import XGBoostClassifier, XGBoostClassificationModel
+    >>> iris_data_path = 'iris.csv'
     >>> schema = StructType([
     ...     StructField("sepal length", DoubleType(), nullable=True),
     ...     StructField("sepal width", DoubleType(), nullable=True),
@@ -59,27 +56,32 @@ class XGBoostClassifier(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParam
     ...     'objective': 'multi:softprob',
     ...     'treeMethod': 'hist',
     ...     'numWorkers': 1,
-    ...     'numRound': 100,
+    ...     'numRound': 5,
     ...     'numClass': 3,
     ...     'labelCol': 'classIndex',
     ...     'featuresCol': 'features'
     ... }
-    >>> xgb_classifier = XGBoostClassifier(**params)
-    >>> model = xgb_classifier.fit(xgb_input)
-    22/02/28 17:39:22 WARN XGBoostSpark: train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly pass a training and multiple evaluation datasets by passing 'eval_sets' and 'eval_set_names'
-    Tracker started, with env={DMLC_NUM_SERVER=0, DMLC_TRACKER_URI=10.18.132.76, DMLC_TRACKER_PORT=9091, DMLC_NUM_WORKER=1}
-    [17:39:22] task 0 got new rank 0
-    >>> df = model.transform(xgb_input)
+    >>> classifier = XGBoostClassifier(**params)
+    >>> classifier.write().overwrite().save("/tmp/xgboost_classifier")
+    >>> classifier1 = XGBoostClassifier.load("/tmp/xgboost_classifier")
+    >>> model = classifier1.fit(xgb_input)
+    22/03/11 13:25:06 WARN XGBoostSpark: train_test_ratio is deprecated since XGBoost 0.82,
+    we recommend to explicitly pass a training and multiple evaluation datasets by passing 'eval_sets' and 'eval_set_names'
+    Tracker started, with env={DMLC_NUM_SERVER=0, DMLC_TRACKER_URI=xx.xx.xx.xx, DMLC_TRACKER_PORT=38625, DMLC_NUM_WORKER=1}
+    [13:25:06] task 0 got new rank 0
+    >>> model.write().overwrite().save("/tmp/xgboost_classifier_model")
+    >>> model1 = XGBoostClassificationModel.load("/tmp/xgboost_classifier_model")
+    >>> df = model1.transform(xgb_input)
     >>> df.show(2)
     +-----------------+----------+--------------------+--------------------+----------+
     |         features|classIndex|       rawPrediction|         probability|prediction|
     +-----------------+----------+--------------------+--------------------+----------+
-    |[5.1,3.5,1.4,0.2]|       0.0|[3.08765506744384...|[0.99680268764495...|       0.0|
-    |[4.9,3.0,1.4,0.2]|       0.0|[3.08765506744384...|[0.99636262655258...|       0.0|
+    |[5.1,3.5,1.4,0.2]|       0.0|[1.84931623935699...|[0.82763016223907...|       0.0|
+    |[4.9,3.0,1.4,0.2]|       0.0|[1.84931623935699...|[0.82763016223907...|       0.0|
     +-----------------+----------+--------------------+--------------------+----------+
     only showing top 2 rows
 
-    Besides passing dictionary to XGBoostClassifier, users can call set APIs to set the parameters,
+    Besides passing dictionary parameters to XGBoostClassifier, users can call set APIs to set the parameters,
 
     xgb_classifier = XGBoostClassifier() \
         .setFeaturesCol("features") \
@@ -90,6 +92,9 @@ class XGBoostClassifier(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParam
         .setTreeMethod('hist')
 
     """
+
+    # _java_class_name will be used when loading pipeline.
+    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier'
 
     @keyword_only
     def __init__(self, *,
@@ -102,60 +107,119 @@ class XGBoostClassifier(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParam
                  numWorkers=None
                  ):
         super(XGBoostClassifier, self).__init__()
-        self._java_obj = self._new_java_obj(
-            'ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier', self.uid)
+        self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
         kwargs = self._input_kwargs
         self._set(**kwargs)
 
     def _create_model(self, java_model):
         return XGBoostClassificationModel(java_model)
 
-    def setNumRound(self, value):
-        """
-        Sets the value of :py:attr:`numRound`.
-        """
-        self._set(numRound=value)
-        return self
 
-    def setNumWorkers(self, value):
-        """
-        Sets the value of :py:attr:`numWorkers`.
-        """
-        self._set(numWorkers=value)
-        return self
-
-    def setNthread(self, value):
-        """
-        Sets the value of :py:attr:`nthread`.
-        """
-        self._set(nthread=value)
-        return self
-
-    def setNumClass(self, value):
-        """
-        Sets the value of :py:attr:`numClass`.
-        """
-        self._set(numClass=value)
-        return self
-
-    def setObjective(self, value):
-        """
-        Sets the value of :py:attr:`objective`.
-        """
-        self._set(objective=value)
-        return self
-
-    def setTreeMethod(self, value):
-        """
-        Sets the value of :py:attr:`treeMethod`.
-        """
-        self._set(treeMethod=value)
-        return self
-
-
-class XGBoostClassificationModel(_XGBJavaProbabilisticClassificationModel, JavaMLWritable, JavaMLReadable):
+class XGBoostClassificationModel(_XGBoostClassificationModelBase):
     """
     The model returned by :func:`xgboost.spark.XGBoostClassifier.fit()`
 
     """
-    pass
+
+    # _java_class_name will be used when loading pipeline.
+    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel'
+
+    def __init__(self, java_model=None):
+        super(XGBoostClassificationModel, self).__init__(java_model=java_model)
+        if not java_model:
+            self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
+            # transfer jvm default values to python
+            self._transfer_params_from_java()
+
+
+class XGBoostRegressor(_XGBoostRegressorBase):
+    """
+    XGBoostRegressor is a PySpark ML estimator. It implements the XGBoost regression
+    algorithm based on `ml.dmlc.xgboost4j.scala.pyspark.XGBoostRegressor` in XGBoost jvm packages,
+    and it can be used in PySpark Pipeline and PySpark ML meta algorithms like CrossValidator.
+
+    .. versionadded:: 1.6.0
+
+    Examples
+    --------
+
+    >>> from pyspark.ml.linalg import Vectors
+    >>> from pyspark.sql import SparkSession
+    >>> from xgboost.spark import XGBoostRegressor, XGBoostRegressionModel
+    >>> input = spark.createDataFrame([
+    ...     (1.0, Vectors.dense(1.0)),
+    ...     (0.0, Vectors.dense(2.0))], ["label", "features"])
+    >>> params = {
+    ...     'objective': 'reg:squarederror',
+    ...     'treeMethod': 'hist',
+    ...     'numWorkers': 1,
+    ...     'numRound': 100,
+    ...     'labelCol': 'label',
+    ...     'featuresCol': 'features'
+    ... }
+    >>> regressor = XGBoostRegressor(**params)
+    >>> regressor.write().overwrite().save("/tmp/xgboost_regressor")
+    >>> regressor1 = XGBoostRegressor.load("/tmp/xgboost_regressor")
+    >>> model = regressor1.fit(input)
+    22/03/11 13:47:57 WARN XGBoostSpark: train_test_ratio is deprecated since XGBoost 0.82,
+    we recommend to explicitly pass a training and multiple evaluation datasets by passing 'eval_sets' and 'eval_set_names'
+    Tracker started, with env={DMLC_NUM_SERVER=0, DMLC_TRACKER_URI=xx.xx.xx.xx, DMLC_TRACKER_PORT=43619, DMLC_NUM_WORKER=1}
+    [13:47:57] task 0 got new rank 0
+    >>> model.write().overwrite().save("/tmp/xgboost_regressor_model")
+    >>> model1 = XGBoostRegressionModel.load("/tmp/xgboost_regressor_model")
+    >>> df = model1.transform(input)
+    >>> df.show()
+    +-----+--------+--------------------+
+    |label|features|          prediction|
+    +-----+--------+--------------------+
+    |  1.0|   [1.0]|  0.9991162419319153|
+    |  0.0|   [2.0]|8.837578352540731E-4|
+    +-----+--------+--------------------+
+
+    Besides passing dictionary parameters to XGBoostClassifier, users can call set APIs to set the parameters,
+
+    xgb_classifier = XGBoostRegressor() \
+        .setFeaturesCol("features") \
+        .setLabelCol("label") \
+        .setNumRound(100) \
+        .setObjective('reg:squarederror') \
+        .setTreeMethod('hist')
+
+    """
+
+    # _java_class_name will be used when loading pipeline.
+    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor'
+
+    @keyword_only
+    def __init__(self, *,
+                 featuresCol=None,
+                 labelCol=None,
+                 treeMethod=None,
+                 objective=None,
+                 numRound=None,
+                 numWorkers=None
+                 ):
+        super(XGBoostRegressor, self).__init__()
+        self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
+        kwargs = self._input_kwargs
+        self._set(**kwargs)
+
+    def _create_model(self, java_model):
+        return XGBoostRegressionModel(java_model)
+
+
+class XGBoostRegressionModel(_XGBoostRegressionModelBase):
+    """
+    The model returned by :func:`xgboost.spark.XGBoostRegressor.fit()`
+
+    """
+
+    # _java_class_name will be used when loading pipeline.
+    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel'
+
+    def __init__(self, java_model=None):
+        super(XGBoostRegressionModel, self).__init__(java_model=java_model)
+        if not java_model:
+            self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
+            # transfer jvm default values to python
+            self._transfer_params_from_java()

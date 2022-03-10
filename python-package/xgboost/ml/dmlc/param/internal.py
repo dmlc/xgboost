@@ -19,7 +19,34 @@ from abc import ABCMeta
 from pyspark.ml.classification import Classifier, ProbabilisticClassifier, \
     ProbabilisticClassificationModel, ClassificationModel
 from pyspark.ml.common import inherit_doc
+from pyspark.ml.regression import Regressor, RegressionModel
+from pyspark.ml.util import JavaMLReadable, JavaMLReader, JavaMLWritable
 from pyspark.ml.wrapper import JavaPredictor, JavaPredictionModel
+
+from xgboost.ml.dmlc.param.shared import _XGBoostRegressorParams, _XGBoostClassifierParams
+
+
+class _XGBJavaMLReadable(JavaMLReadable):
+    """
+    Mixin a version of xgboost JavaMLReadable
+    """
+
+    @classmethod
+    def read(cls):
+        return _XGBJavaMLReader(cls)
+
+
+class _XGBJavaMLReader(JavaMLReader):
+    """
+    Mixin a version of xgboost JavaMLReader
+    """
+
+    @classmethod
+    def _java_loader_class(cls, clazz):
+        if hasattr(clazz, '_java_class_name') and clazz._java_class_name is not None:
+            return clazz._java_class_name
+        else:
+            return JavaMLReader._java_loader_class(clazz)
 
 
 @inherit_doc
@@ -42,6 +69,14 @@ class _XGBJavaProbabilisticClassifier(ProbabilisticClassifier, _XGBJavaClassifie
                                       metaclass=ABCMeta):
     """
     Java Probabilistic Classifier for classification tasks.
+    """
+    pass
+
+
+class _XGBoostClassifierBase(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParams,
+                             JavaMLWritable, _XGBJavaMLReadable):
+    """
+    The base class of XGBoostClassifier
     """
     pass
 
@@ -80,3 +115,49 @@ class _XGBJavaProbabilisticClassificationModel(ProbabilisticClassificationModel,
         Predict the probability of each class given the features.
         """
         return self._call_java("predictProbability", value)
+
+
+class _XGBoostClassificationModelBase(_XGBJavaProbabilisticClassificationModel, _XGBoostClassifierParams,
+                                      JavaMLWritable, _XGBJavaMLReadable):
+    """
+    The base class of XGBoostClassificationModel
+    """
+    pass
+
+
+@inherit_doc
+class _XGBJavaRegressor(Regressor, JavaPredictor, metaclass=ABCMeta):
+    """
+    Java Regressor for regression tasks.
+
+    .. versionadded:: 3.0.0
+    """
+    # copied from _JavaRegressor
+    pass
+
+
+class _XGBoostRegressorBase(_XGBJavaRegressor, _XGBoostRegressorParams,
+                            JavaMLWritable, _XGBJavaMLReadable):
+    """
+    The base class of XGBoostRegressor
+    """
+    pass
+
+
+@inherit_doc
+class _XGBJavaRegressionModel(RegressionModel, JavaPredictionModel, metaclass=ABCMeta):
+    """
+    Java Model produced by a ``_JavaRegressor``.
+    To be mixed in with :class:`pyspark.ml.JavaModel`
+
+    .. versionadded:: 3.0.0
+    """
+    # copied from _JavaRegressionModel
+    pass
+
+
+class _XGBoostRegressionModelBase(_XGBJavaRegressionModel, JavaMLWritable, _XGBJavaMLReadable):
+    """
+    The base class of XGBoostRegressionModel
+    """
+    pass
