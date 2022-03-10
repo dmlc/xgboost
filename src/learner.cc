@@ -689,9 +689,6 @@ class LearnerConfiguration : public Learner {
     }
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    // for (const auto& elem : args) {
-    //   std::cout << elem.first << " " << elem.second << std::endl;
-    // }
     obj_->Configure(args);
   }
 

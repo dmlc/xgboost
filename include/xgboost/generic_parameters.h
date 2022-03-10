@@ -34,13 +34,13 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
 
   /* Device dispatcher object.
    * For initialization one should use strings like:
-   * "cpu:-1"        for using default cpu
-   * "cpu:0"         for using cpu with index 0
-   * "cuda:-1"       for using default cuda device
+   * "cpu"           for using default cpu
+   * "cuda"          for using default cuda device  
    * "cuda:0"        for using cuda device with index 0
-   * "oneapi:cpu:-1" for using default oneapi cpu device
-   * "oneapi:cpu:0"  for using oneapi cpu device with index 0
-   * "oneapi:gpu:-1" for using defaoult oneapi gpu
+   * "oneapi"        for using default oneapi device
+   * "oneapi:0"      for using oneapi device with index 0
+   * "oneapi:cpu"    for using default oneapi cpu device
+   * "oneapi:gpu"    for using default oneapi gpu
    * "oneapi:gpu:0"  for using oneapi gpu device with index 0
    *
    * "fit:oneapi:gpu:0; predict:oneapi:cpu:0" for using oneapi:gpu:0 for 
