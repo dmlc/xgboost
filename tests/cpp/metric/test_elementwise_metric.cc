@@ -1,12 +1,13 @@
 /*!
- * Copyright 2018-2019 XGBoost contributors
+ * Copyright 2018-2022 by XGBoost contributors
  */
-#include <xgboost/metric.h>
 #include <xgboost/json.h>
+#include <xgboost/metric.h>
 
 #include <map>
 #include <memory>
 
+#include "../../../src/common/linalg_op.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -16,14 +17,16 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
 
   HostDeviceVector<float> predts;
+  size_t n_samples = 2048;
+
   MetaInfo info;
+  info.labels.Reshape(n_samples, 1);
   auto &h_labels = info.labels.Data()->HostVector();
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
 
-  size_t n_samples = 2048;
   h_labels.resize(n_samples);
   h_predts.resize(n_samples);
 
@@ -288,8 +291,8 @@ TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
 
   HostDeviceVector<float> predt(n_samples * n_targets, 0);
 
-  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric{Metric::Create("rmse", &lparam)};
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Metric> metric{Metric::Create("rmse", &ctx)};
   metric->Configure({});
 
   auto loss = GetMultiMetricEval(metric.get(), predt, y);
@@ -300,6 +303,50 @@ TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
   auto ret = std::sqrt(std::accumulate(h_y.cbegin(), h_y.cend(), 1.0, std::plus<>{}) / h_y.size());
   ASSERT_FLOAT_EQ(ret, loss);
   ASSERT_FLOAT_EQ(ret, loss_w);
+}
+
+TEST(Metric, DeclareUnifiedTest(RegularizedLogLoss)) {
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  size_t n_samples = 8, n_targets = 2;
+  MetaInfo info;
+  info.num_row_ = n_samples;
+  float fairness = 0.0;
+
+  std::unique_ptr<Metric> metric{Metric::Create("regularized-logloss", &ctx)};
+  metric->Configure(Args{{"fairness", std::to_string(fairness)}});
+
+  info.labels = linalg::Tensor<float, 2>{{n_samples, n_targets}, GPUIDX};
+  auto h_y = info.labels.HostView();
+  info.sensitive_features = linalg::Tensor<float, 1>{{n_samples}, GPUIDX};
+  auto h_s = info.sensitive_features.HostView();
+
+  HostDeviceVector<float> predt(n_samples * n_targets, 0);
+  linalg::ElementWiseTransformHost(
+      h_y, ctx.Threads(), [](size_t i, float) { return static_cast<float>(i % 2 == 0 ? 0 : 1); });
+  linalg::ElementWiseTransformHost(
+      h_s, ctx.Threads(), [](size_t i, float) { return static_cast<float>(i % 2 == 1 ? 0 : 1); });
+
+  double regularized_res{metric->Eval(predt, info, false)};
+  auto check = [&]() {
+    std::unique_ptr<Metric> logloss{Metric::Create("logloss", &ctx)};
+    logloss->Configure({});
+    auto res = logloss->Eval(predt, info, false);
+    ASSERT_EQ(res, regularized_res);
+  };
+  check();
+
+  info.weights_.Resize(n_samples);
+  auto &h_w = info.weights_.HostVector();
+  std::iota(h_w.begin(), h_w.end(), 0.0f);
+
+  regularized_res = metric->Eval(predt, info, false);
+  check();
+
+  fairness = 0.5;
+  metric->Configure(Args{{"fairness", std::to_string(fairness)}});
+  regularized_res = metric->Eval(predt, info, false);
+  ASSERT_FLOAT_EQ(regularized_res, 10.5261f);
 }
 }  // namespace metric
 }  // namespace xgboost

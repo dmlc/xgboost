@@ -23,7 +23,11 @@ namespace common {
  * \return the transformed value.
  */
 XGBOOST_DEVICE inline float Sigmoid(float x) {
-  return 1.0f / (1.0f + expf(-x));
+  float constexpr kEps = 1e-16;  // avoid 0 div
+  x = std::min(-x, 88.7f);       // avoid exp overflow
+  auto denom = expf(x) + 1.0f + kEps;
+  auto y = 1.0f / denom;
+  return y;
 }
 
 template <typename T>

@@ -347,6 +347,11 @@ Parameters for Tweedie Regression (``objective=reg:tweedie``)
   - Set closer to 2 to shift towards a gamma distribution
   - Set closer to 1 to shift towards a Poisson distribution.
 
+Parameter for Fair Classification (``objective=binary:regularized``)
+====================================================================
+
+* ``fairness``: The strength of regularization, must be greater than 0.
+
 ************************
 Learning Task Parameters
 ************************
@@ -356,9 +361,10 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
-  - ``reg:logistic``: logistic regression
+  - ``reg:logistic``: logistic regression.
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``binary:logistic``: logistic regression for binary classification, output probability
+  - ``binary:regularized`` regularized logistic binary classification, outputs probability.
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
   - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
@@ -395,6 +401,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``mape``: `mean absolute percentage error <https://en.wikipedia.org/wiki/Mean_absolute_percentage_error>`_
     - ``mphe``: `mean Pseudo Huber error <https://en.wikipedia.org/wiki/Huber_loss>`_. Default metric of ``reg:pseudohubererror`` objective.
     - ``logloss``: `negative log-likelihood <http://en.wikipedia.org/wiki/Log-likelihood>`_
+    - ``regularized-logloss``: Default metric for ``binary:regularized``.
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
     - ``merror``: Multiclass classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``.

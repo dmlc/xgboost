@@ -204,6 +204,14 @@
         }
       }
     },
+    "binary_regularized_param": {
+      "type": "object",
+      "properties": {
+        "fairness": {
+          "type": "number"
+        }
+      }
+    },
     "aft_loss_param": {
       "type": "object",
       "properties": {
@@ -376,6 +384,17 @@
               "required": [
                 "name",
                 "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "binary:regularized" },
+                "binary_regularized_param": { "$ref": "#/definitions/binary_regularized_param"}
+              },
+              "required": [
+                "name",
+                "binary_regularized_param"
               ]
             },
             {

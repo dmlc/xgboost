@@ -518,7 +518,7 @@ def _deprecate_positional_args(f):
     return inner_f
 
 
-class DMatrix:  # pylint: disable=too-many-instance-attributes
+class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """Data Matrix used in XGBoost.
 
     DMatrix is an internal data structure that is used by XGBoost,
@@ -543,6 +543,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
+        sensitive_feature=None,
         feature_weights=None,
         enable_categorical: bool = False,
     ) -> None:
@@ -592,6 +593,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             Lower bound for survival training.
         label_upper_bound : array_like
             Upper bound for survival training.
+        sensitive_feature: array_like
+            Sensitive feature for each training sample.
         feature_weights : array_like, optional
             Set feature weights for column sampling.
         enable_categorical: boolean, optional
@@ -643,6 +646,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             qid=qid,
             label_lower_bound=label_lower_bound,
             label_upper_bound=label_upper_bound,
+            sensitive_feature=sensitive_feature,
             feature_weights=feature_weights,
         )
 
@@ -692,6 +696,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
+        sensitive_feature=None,
         feature_names: FeatNamesT = None,
         feature_types: Optional[List[str]] = None,
         feature_weights=None
@@ -703,6 +708,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.set_label(label)
         if weight is not None:
             self.set_weight(weight)
+        if sensitive_feature is not None:
+            self.set_sensitive_feature(sensitive_feature)
         if base_margin is not None:
             self.set_base_margin(base_margin)
         if group is not None:
@@ -852,6 +859,17 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, weight, 'weight', 'float')
 
+    def set_sensitive_feature(self, sensitive_feature) -> None:
+        """Set sensitive_feature of each instance.
+
+        Parameters
+        ----------
+        sensitive_feature : array like
+            Sensitive feature for each data point
+        """
+        from .data import dispatch_meta_backend
+        dispatch_meta_backend(self, sensitive_feature, 'sensitive_feature', 'float')
+
     def set_base_margin(self, margin) -> None:
         """Set base margin of booster to start from.
 
@@ -898,7 +916,15 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         """
         return self.get_float_info('weight')
 
-    def get_base_margin(self) -> np.ndarray:
+    def get_sensitive_feature(self):
+        """Get the sensitive feature of the DMatrix.
+        Returns
+        -------
+        sensitive_feature : array
+        """
+        return self.get_float_info('sensitive_feature')
+
+    def get_base_margin(self):
         """Get the base margin of the DMatrix.
 
         Returns
@@ -1190,6 +1216,7 @@ class DeviceQuantileDMatrix(DMatrix):
         qid=None,
         label_lower_bound=None,
         label_upper_bound=None,
+        sensitive_feature=None,
         feature_weights=None,
         enable_categorical: bool = False,
     ):
@@ -1217,6 +1244,7 @@ class DeviceQuantileDMatrix(DMatrix):
             qid=qid,
             label_lower_bound=label_lower_bound,
             label_upper_bound=label_upper_bound,
+            sensitive_feature=sensitive_feature,
             feature_weights=feature_weights,
             feature_names=feature_names,
             feature_types=feature_types,

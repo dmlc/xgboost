@@ -8,23 +8,38 @@
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+
 #include <cmath>
 #include <memory>
 #include <vector>
 
+#include "../common/common.h"
+#include "../common/linalg_op.h"
+#include "../common/regularized.h"
+#include "../common/threading_utils.h"
+#include "../common/transform.h"
+#include "./regression_loss.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
-#include "../common/transform.h"
-#include "../common/common.h"
-#include "../common/threading_utils.h"
-#include "./regression_loss.h"
-
+#if defined(XGBOOST_USE_CUDA)
+#include "../common/linalg_op.cuh"
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost {
 namespace obj {
+namespace {
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
+  if (!info.weights_.Empty()) {
+    CHECK_EQ(info.weights_.Size(), info.num_row_)
+        << "Number of weights should be equal to number of data points.";
+  }
+}
+}  // anonymous namespace
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
@@ -64,20 +79,13 @@ class RegLossObj : public ObjFunction {
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_EQ(preds.Size(), info.labels.Size())
-        << " " << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "
-        << "Loss: " << Loss::Name();
+    CheckRegInputs(info, preds);
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = ctx_->gpu_id;
     additional_input_.HostVector().begin()[0] = 1;  // Fill the label_correct flag
 
     bool is_null_weight = info.weights_.Size() == 0;
-    if (!is_null_weight) {
-      CHECK_EQ(info.weights_.Size(), info.labels.Shape(0))
-          << "Number of weights should be equal to number of data points.";
-    }
     auto scale_pos_weight = param_.scale_pos_weight;
     additional_input_.HostVector().begin()[1] = scale_pos_weight;
     additional_input_.HostVector().begin()[2] = is_null_weight;
@@ -199,6 +207,112 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
     return new RegLossObj<LinearSquareLoss>(); });
 // End deprecated
+
+/**
+ * \brief Implementation of https://arxiv.org/abs/2009.01442
+ */
+class RegularizedClassification : public ObjFunction {
+  BinaryRegularizationParam param_;
+
+ public:
+  void ValidateInfo(MetaInfo const& info) const {
+    HostDeviceVector<int32_t> flag(1, 0);
+    flag.SetDevice(ctx_->gpu_id);
+    auto vflag = ctx_->IsCPU() ? flag.HostSpan() : flag.DeviceSpan();
+    auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
+    auto labels = info.labels.View(ctx_->gpu_id);
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float y) {
+      if (!LogisticClassification::CheckLabel(y)) {
+        vflag[0] = 1;
+      }
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      if (!LogisticClassification::CheckLabel(sensitive(sample_id))) {
+        vflag[0] = 1;
+      }
+    });
+    if (flag.HostVector()[0] == 1) {
+      LOG(FATAL) << LogisticClassification::LabelErrorMsg()
+                 << " and sensitive feature must be in [0, 1] for regularized logistic.";
+    }
+  }
+
+ public:
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kBinary, false};
+  }
+
+  uint32_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
+
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CHECK_EQ(info.sensitive_features.Size(), info.num_row_)
+        << "Invalid shape of sensitive features, Expecting: (" << info.num_row_ << "), got: ("
+        << info.sensitive_features.Size() << ")";
+    CheckRegInputs(info, preds);
+    if (iter == 0) {
+      // Unlike other objectives, no validation during gradient calculation.
+      this->ValidateInfo(info);
+    }
+
+    auto fairness = param_.fairness;
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    auto sensitive = info.sensitive_features.View(ctx_->gpu_id);
+
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.labels.Size());
+    auto gpair = linalg::MakeVec(out_gpair);
+
+    preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
+
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      auto p = common::Sigmoid(predt(i));
+      auto sf = sensitive(sample_id);
+      auto grad = (p - y) + (fairness * (sf - p));
+      auto hess = (1.0f - fairness) * p * (1.0f - p);
+      auto w = weight[sample_id];
+      gpair(i) = {grad * w, hess * w};
+    });
+  }
+
+  void PredTransform(HostDeviceVector<float>* io_preds) const override {
+    common::Transform<>::Init(
+        [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
+          _preds[_idx] = common::Sigmoid(_preds[_idx]);
+        },
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
+        io_preds->DeviceIdx())
+        .Eval(io_preds);
+  }
+
+  float ProbToMargin(float base_score) const override {
+    return LogisticClassification::ProbToMargin(base_score);
+  }
+
+  const char* DefaultEvalMetric() const override { return "regularized-logloss"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("binary:regularized");
+    out["binary_regularized_param"] = ToJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override { FromJson(in["binary_regularized_param"], &param_); }
+};
+
+XGBOOST_REGISTER_OBJECTIVE(FairClassification, "binary:regularized")
+    .describe("binary classification with fairness.")
+    .set_body([]() { return new RegularizedClassification(); });
 
 // declare parameter
 struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
@@ -608,4 +722,6 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .set_body([]() { return new TweedieRegression(); });
 
 }  // namespace obj
+
+DMLC_REGISTER_PARAMETER(BinaryRegularizationParam);
 }  // namespace xgboost

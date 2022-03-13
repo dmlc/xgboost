@@ -33,7 +33,7 @@ namespace metric {
 template <typename Fn>
 std::tuple<double, double, double>
 BinaryAUC(common::Span<float const> predts, linalg::VectorView<float const> labels,
-          OptionalWeights weights,
+          common::OptionalWeights weights,
           std::vector<size_t> const &sorted_idx, Fn &&area_fn) {
   CHECK_NE(labels.Size(), 0);
   CHECK_EQ(labels.Size(), predts.size());
@@ -93,7 +93,7 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
   auto tp = results.Slice(linalg::All(), 1);
   auto auc = results.Slice(linalg::All(), 2);
 
-  auto weights = OptionalWeights{info.weights_.ConstHostSpan()};
+  auto weights = common::OptionalWeights{info.weights_.ConstHostSpan()};
   auto predts_t = linalg::TensorView<float const, 2>(
       predts, {static_cast<size_t>(info.num_row_), n_classes},
       GenericParameter::kCpuId);
@@ -140,7 +140,7 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
 
 std::tuple<double, double, double> BinaryROCAUC(common::Span<float const> predts,
                                                 linalg::VectorView<float const> labels,
-                                                OptionalWeights weights) {
+                                                common::OptionalWeights weights) {
   auto const sorted_idx = common::ArgSort<size_t>(predts, std::greater<>{});
   return BinaryAUC(predts, labels, weights, sorted_idx, TrapezoidArea);
 }
@@ -186,7 +186,7 @@ double GroupRankingROC(common::Span<float const> predts,
  */
 std::tuple<double, double, double> BinaryPRAUC(common::Span<float const> predts,
                                                linalg::VectorView<float const> labels,
-                                               OptionalWeights weights) {
+                                               common::OptionalWeights weights) {
   auto const sorted_idx = common::ArgSort<size_t>(predts, std::greater<>{});
   double total_pos{0}, total_neg{0};
   for (size_t i = 0; i < labels.Size(); ++i) {
@@ -238,7 +238,7 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
       if (is_roc) {
         auc = GroupRankingROC(g_predts, g_labels, w);
       } else {
-        auc = std::get<2>(BinaryPRAUC(g_predts, g_labels, OptionalWeights{w}));
+        auc = std::get<2>(BinaryPRAUC(g_predts, g_labels, common::OptionalWeights{w}));
       }
       if (std::isnan(auc)) {
         invalid_groups++;
@@ -373,7 +373,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       std::tie(fp, tp, auc) =
           BinaryROCAUC(predts.ConstHostVector(), info.labels.HostView().Slice(linalg::All(), 0),
-                       OptionalWeights{info.weights_.ConstHostSpan()});
+                       common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       std::tie(fp, tp, auc) = GPUBinaryROCAUC(predts.ConstDeviceSpan(), info,
                                               tparam_->gpu_id, &this->d_cache_);
@@ -426,7 +426,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     if (tparam_->gpu_id == GenericParameter::kCpuId) {
       std::tie(pr, re, auc) =
           BinaryPRAUC(predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
-                      OptionalWeights{info.weights_.ConstHostSpan()});
+                      common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       std::tie(pr, re, auc) = GPUBinaryPRAUC(predts.ConstDeviceSpan(), info,
                                              tparam_->gpu_id, &this->d_cache_);

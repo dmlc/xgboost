@@ -332,6 +332,7 @@ class DaskDMatrix:
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
+        sensitive_feature: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
     ) -> None:
@@ -374,6 +375,7 @@ class DaskDMatrix:
             feature_weights=feature_weights,
             label_lower_bound=label_lower_bound,
             label_upper_bound=label_upper_bound,
+            sensitive_feature=sensitive_feature,
         )
 
     def __await__(self) -> Generator:
@@ -390,6 +392,7 @@ class DaskDMatrix:
         feature_weights: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
+        sensitive_feature: Optional[_DaskCollection] = None,
     ) -> "DaskDMatrix":
         """Obtain references to local data."""
 
@@ -443,6 +446,7 @@ class DaskDMatrix:
         qid_parts = flatten_meta(qid)
         ll_parts = flatten_meta(label_lower_bound)
         lu_parts = flatten_meta(label_upper_bound)
+        sf_parts = flatten_meta(sensitive_feature)
 
         parts: Dict[str, List[ddelayed.Delayed]] = {"data": X_parts}
 
@@ -453,12 +457,16 @@ class DaskDMatrix:
                 )
                 parts[name] = m_parts
 
-        append_meta(y_parts, "label")
-        append_meta(w_parts, "weight")
-        append_meta(margin_parts, "base_margin")
-        append_meta(qid_parts, "qid")
-        append_meta(ll_parts, "label_lower_bound")
-        append_meta(lu_parts, "label_upper_bound")
+        for p, n in [
+            (y_parts, "label"),
+            (w_parts, "weight"),
+            (margin_parts, "base_margin"),
+            (qid_parts, "qid"),
+            (ll_parts, "label_lower_bound"),
+            (lu_parts, "label_upper_bound"),
+            (sf_parts, "sensitive_feature"),
+        ]:
+            append_meta(p, n)
         # At this point, `parts` looks like:
         # [(x0, x1, ..), (y0, y1, ..), ..] in delayed form
 
@@ -586,7 +594,7 @@ def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
         append(i, "qid")
         append(i, "label_lower_bound")
         append(i, "label_upper_bound")
-
+        append(i, "sensitive_feature")
     return result
 
 
@@ -602,6 +610,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         qid: Optional[List[Any]] = None,
         label_lower_bound: Optional[List[Any]] = None,
         label_upper_bound: Optional[List[Any]] = None,
+        sensitive_feature: Optional[List[Any]] = None,
         feature_names: FeatNamesT = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
     ) -> None:
@@ -612,6 +621,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         self._qid = qid
         self._label_lower_bound = label_lower_bound
         self._label_upper_bound = label_upper_bound
+        self._sensitive_feature = sensitive_feature
         self._feature_names = feature_names
         self._feature_types = feature_types
 
@@ -662,6 +672,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             base_margin=self._get("_base_margin"),
             label_lower_bound=self._get("_label_lower_bound"),
             label_upper_bound=self._get("_label_upper_bound"),
+            sensitive_feature=self._get("_sensitive_feature"),
             feature_names=feature_names,
             feature_types=self._feature_types,
         )
@@ -703,6 +714,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
+        sensitive_feature: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
     ) -> None:
@@ -716,6 +728,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
             qid=qid,
             label_lower_bound=label_lower_bound,
             label_upper_bound=label_upper_bound,
+            sensitive_feature=sensitive_feature,
             missing=missing,
             silent=silent,
             feature_weights=feature_weights,
