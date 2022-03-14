@@ -211,6 +211,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     info_.num_row_ = adapter->NumRows();
   }
   info_.num_nonzero_ = data_vec.size();
+
+  sparse_page_->SortIndices(this->ctx_.Threads());
 }
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
