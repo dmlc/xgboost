@@ -34,6 +34,8 @@ class DeviceSelector {
  public:
   static int constexpr kDefaultIndex = -1;
 
+  DeviceSelector();
+
   void Init(const std::string& user_input_device_selector);
 
   class Specification {
@@ -77,9 +79,16 @@ class DeviceSelector {
 
   Specification Predict() const;
 
+  std::string GetUserInput() const;
+
  private:
   Specification fit = Specification("fit");
   Specification predict = Specification("predict");
+
+  /* As far as device_selector can be changed during learner configuration, 
+   * we save the initial version of user input
+   */
+  std::string user_input;
 };
 
 std::istream& operator >> (std::istream& is, DeviceSelector& device_selector);

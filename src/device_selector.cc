@@ -31,6 +31,12 @@ DeviceSelector::Specification DeviceSelector::Predict() const {
   return predict;
 }
 
+DeviceSelector::DeviceSelector() {
+  std::stringstream ss;
+  ss << fit.Prefix() << fit << "; " << predict.Prefix() << predict;
+  user_input = ss.str();
+}
+
 void DeviceSelector::Init(const std::string& user_input_device_selector) {
   int fit_position = user_input_device_selector.find(fit.Prefix());
   int predict_position = user_input_device_selector.find(predict.Prefix());
@@ -76,6 +82,11 @@ void DeviceSelector::Init(const std::string& user_input_device_selector) {
           "For cuda one still can specify predictor manually. " <<
           "fit = " << fit << "; predict = " << predict << ";";
   }
+
+  // Save the user input device_selector
+  std::stringstream ss;
+  ss << *this;
+  user_input = ss.str();
 }
 
 bool operator != (const DeviceSelector::Specification& lhs, const DeviceSelector::Specification& rhs) {
@@ -92,18 +103,19 @@ std::istream& operator >> (std::istream& is, DeviceSelector& device_selector) {
 }
 
 std::ostream& operator << (std::ostream& os, const DeviceSelector& device_selector) {
-  os << device_selector.Fit().Prefix() << device_selector.Fit() << "; " << device_selector.Predict().Prefix() << device_selector.Predict();
+  os << device_selector.GetUserInput();
 
   return os;
+}
+
+std::string DeviceSelector::GetUserInput() const {
+  return user_input;
 }
 
 void DeviceSelector::SaveConfig(Json* p_out) const {
   auto& out = *p_out;
 
-  std::stringstream ss;
-  ss << *this;
-
-  out["name"] = String(ss.str());
+  out["name"] = String(user_input);
 }
 
 std::string DeviceSelector::Specification::Prefix() const {

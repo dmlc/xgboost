@@ -654,9 +654,7 @@ class LearnerConfiguration : public Learner {
   }
 
   void ConfigureDeviceSelector() {
-    std::stringstream ss;
-    ss << generic_parameters_.device_selector;
-    cfg_["device_selector"] = ss.str();
+    cfg_["device_selector"] = generic_parameters_.device_selector.GetUserInput();
   }
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
