@@ -431,7 +431,7 @@ void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   auto t = p_out->View(GenericParameter::kCpuId);
   CHECK(t.CContiguous());
   // FIXME(jiamingy): Remove the use of this default thread.
-  linalg::ElementWiseKernelHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
+  linalg::ElementWiseTransformHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
     return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, t.Shape()));
   });
 }
@@ -877,7 +877,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
       dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
                              1, cache_file);
     } else {
-      data::FileIterator iter{fname, uint32_t(partid), uint32_t(npart),
+      data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
                               file_format};
       dmat = new data::SparsePageDMatrix{
           &iter,

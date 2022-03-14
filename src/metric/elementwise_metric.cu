@@ -1,20 +1,22 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file elementwise_metric.cc
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
  *
  *  The expressions like wsum == 0 ? esum : esum / wsum is used to handle empty dataset.
  */
+#include <dmlc/registry.h>
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
-#include <dmlc/registry.h>
+
 #include <cmath>
 
-#include "metric_common.h"
-#include "../common/math.h"
 #include "../common/common.h"
+#include "../common/math.h"
+#include "../common/pseudo_huber.h"
 #include "../common/threading_utils.h"
+#include "metric_common.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
@@ -30,109 +32,63 @@ namespace metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 
-template <typename EvalRow>
-class ElementWiseMetricsReduction {
- public:
-  explicit ElementWiseMetricsReduction(EvalRow policy) : policy_(std::move(policy)) {}
-
-  PackedReduceResult
-  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
-                   linalg::TensorView<float const, 2> labels,
-                   const HostDeviceVector<bst_float> &preds,
-                   int32_t n_threads) const {
-    size_t ndata = labels.Size();
-    auto n_targets = std::max(labels.Shape(1), static_cast<size_t>(1));
-    auto h_labels = labels.Values();
-
-    const auto& h_weights = weights.HostVector();
-    const auto& h_preds = preds.HostVector();
-
+namespace {
+/**
+ * \brief Reduce function for element wise metrics.
+ *
+ *   The loss function should handle all the computation for each sample, including
+ *   applying the weights.  A tuple of {error_i, weight_i} is expected as return.
+ */
+template <typename Fn>
+PackedReduceResult Reduce(GenericParameter const* ctx, MetaInfo const& info, Fn&& loss) {
+  PackedReduceResult result;
+  auto labels = info.labels.View(ctx->gpu_id);
+  if (ctx->IsCPU()) {
+    auto n_threads = ctx->Threads();
     std::vector<double> score_tloc(n_threads, 0.0);
     std::vector<double> weight_tloc(n_threads, 0.0);
-
     // We sum over losses over all samples and targets instead of performing this for each
     // target since the first one approach more accurate while the second approach is used
     // for approximation in distributed setting.  For rmse:
     // - sqrt(1/w(sum_t0 + sum_t1 + ... + sum_tm))       // multi-target
     // - sqrt(avg_t0) + sqrt(avg_t1) + ... sqrt(avg_tm)  // distributed
-    common::ParallelFor(ndata, n_threads, [&](size_t i) {
-      float wt = h_weights.size() > 0 ? h_weights[i / n_targets] : 1.0f;
+    common::ParallelFor(info.labels.Size(), ctx->Threads(), [&](size_t i) {
       auto t_idx = omp_get_thread_num();
-      score_tloc[t_idx] += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
+      size_t sample_id;
+      size_t target_id;
+      std::tie(sample_id, target_id) = linalg::UnravelIndex(i, labels.Shape());
+
+      float v, wt;
+      std::tie(v, wt) = loss(i, sample_id, target_id);
+      score_tloc[t_idx] += v;
       weight_tloc[t_idx] += wt;
     });
     double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
     double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
-
-    PackedReduceResult res { residue_sum, weights_sum };
-    return res;
-  }
-
+    result = PackedReduceResult{residue_sum, weights_sum};
+  } else {
 #if defined(XGBOOST_USE_CUDA)
-
-  PackedReduceResult DeviceReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      linalg::TensorView<float const, 2> labels,
-      const HostDeviceVector<bst_float>& preds) {
-    size_t n_data = preds.Size();
-    auto n_targets = std::max(labels.Shape(1), static_cast<size_t>(1));
-
-    thrust::counting_iterator<size_t> begin(0);
-    thrust::counting_iterator<size_t> end = begin + n_data;
-
-    auto s_label = labels.Values();
-    auto s_preds = preds.DeviceSpan();
-    auto s_weights = weights.DeviceSpan();
-
-    bool const is_null_weight = weights.Size() == 0;
-
-    auto d_policy = policy_;
-
     dh::XGBCachingDeviceAllocator<char> alloc;
-    PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(alloc),
-        begin, end,
-        [=] XGBOOST_DEVICE(size_t idx) {
-          float weight = is_null_weight ? 1.0f : s_weights[idx / n_targets];
-
-          float residue = d_policy.EvalRow(s_label[idx], s_preds[idx]);
-          residue *= weight;
-          return PackedReduceResult{ residue, weight };
+    thrust::counting_iterator<size_t> begin(0);
+    thrust::counting_iterator<size_t> end = begin + labels.Size();
+    result = thrust::transform_reduce(
+        thrust::cuda::par(alloc), begin, end,
+        [=] XGBOOST_DEVICE(size_t i) {
+          auto idx = linalg::UnravelIndex(i, labels.Shape());
+          auto sample_id = std::get<0>(idx);
+          auto target_id = std::get<1>(idx);
+          auto res = loss(i, sample_id, target_id);
+          float v{std::get<0>(res)}, wt{std::get<1>(res)};
+          return PackedReduceResult{v, wt};
         },
-        PackedReduceResult(),
-        thrust::plus<PackedReduceResult>());
-
-    return result;
+        PackedReduceResult{}, thrust::plus<PackedReduceResult>());
+#else
+    common::AssertGPUSupport();
+#endif  //  defined(XGBOOST_USE_CUDA)
   }
-
-#endif  // XGBOOST_USE_CUDA
-
-  PackedReduceResult Reduce(const GenericParameter& ctx, const HostDeviceVector<bst_float>& weights,
-                            linalg::Tensor<float, 2> const& labels,
-                            const HostDeviceVector<bst_float>& preds) {
-    PackedReduceResult result;
-
-    if (ctx.gpu_id < 0) {
-      auto n_threads = ctx.Threads();
-      result = CpuReduceMetrics(weights, labels.HostView(), preds, n_threads);
-    }
-#if defined(XGBOOST_USE_CUDA)
-    else {  // NOLINT
-      preds.SetDevice(ctx.gpu_id);
-      weights.SetDevice(ctx.gpu_id);
-
-      dh::safe_cuda(cudaSetDevice(ctx.gpu_id));
-      result = DeviceReduceMetrics(weights, labels.View(ctx.gpu_id), preds);
-    }
-#endif  // defined(XGBOOST_USE_CUDA)
-    return result;
-  }
-
- private:
-  EvalRow policy_;
-#if defined(XGBOOST_USE_CUDA)
-#endif  // defined(XGBOOST_USE_CUDA)
-};
+  return result;
+}
+}  // anonymous namespace
 
 struct EvalRowRMSE {
   char const *Name() const {
@@ -187,38 +143,64 @@ struct EvalRowMAPE {
   }
 };
 
+namespace {
+XGBOOST_DEVICE inline float LogLoss(float y, float py) {
+  auto xlogy = [](float x, float y) {
+    float eps = 1e-16;
+    return (x - 0.0f == 0.0f) ? 0.0f : (x * std::log(std::max(y, eps)));
+  };
+  const bst_float pneg = 1.0f - py;
+  return xlogy(-y, py) + xlogy(-(1.0f - y), pneg);
+}
+}  // anonymous namespace
+
 struct EvalRowLogLoss {
   const char *Name() const {
     return "logloss";
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
-    const bst_float eps = 1e-16f;
-    const bst_float pneg = 1.0f - py;
-    if (py < eps) {
-      return -y * std::log(eps) - (1.0f - y)  * std::log(1.0f - eps);
-    } else if (pneg < eps) {
-      return -y * std::log(1.0f - eps) - (1.0f - y)  * std::log(eps);
-    } else {
-      return -y * std::log(py) - (1.0f - y) * std::log(pneg);
-    }
-  }
-
+  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const { return LogLoss(y, py); }
   static double GetFinal(double esum, double wsum) {
     return wsum == 0 ? esum : esum / wsum;
   }
 };
 
-struct EvalRowMPHE {
-  char const *Name() const {
-    return "mphe";
+class PseudoErrorLoss : public Metric {
+  PesudoHuberParam param_;
+
+ public:
+  const char* Name() const override { return "mphe"; }
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  void LoadConfig(Json const& in) override { FromJson(in["pseduo_huber_param"], &param_); }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(this->Name());
+    out["pseduo_huber_param"] = ToJson(param_);
   }
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    bst_float diff = label - pred;
-    return std::sqrt( 1 + diff * diff) - 1;
-  }
-  static double GetFinal(double esum, double wsum) {
-    return wsum == 0 ? esum : esum / wsum;
+
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
+              bool distributed) override {
+    CHECK_EQ(info.labels.Shape(0), info.num_row_);
+    auto labels = info.labels.View(tparam_->gpu_id);
+    preds.SetDevice(tparam_->gpu_id);
+    auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
+    info.weights_.SetDevice(tparam_->gpu_id);
+    common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                     : info.weights_.ConstDeviceSpan());
+    float slope = this->param_.huber_slope;
+    CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
+    PackedReduceResult result =
+        Reduce(tparam_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
+          float wt = weights[sample_id];
+          auto a = labels(sample_id, target_id) - predts[i];
+          auto v = common::Sqr(slope) * (std::sqrt((1 + common::Sqr(a / slope))) - 1) * wt;
+          return std::make_tuple(v, wt);
+        });
+    double dat[2]{result.Residue(), result.Weights()};
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
+    return EvalRowMAPE::GetFinal(dat[0], dat[1]);
   }
 };
 
@@ -355,20 +337,36 @@ struct EvalTweedieNLogLik {
  * \brief base class of element-wise evaluation
  * \tparam Derived the name of subclass
  */
-template<typename Policy>
+template <typename Policy>
 struct EvalEWiseBase : public Metric {
   EvalEWiseBase() = default;
-  explicit EvalEWiseBase(char const* policy_param) :
-    policy_{policy_param}, reducer_{policy_} {}
+  explicit EvalEWiseBase(char const* policy_param) : policy_{policy_param} {}
 
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+  double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info,
               bool distributed) override {
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    auto result = reducer_.Reduce(*tparam_, info.weights_, info.labels, preds);
+    if (info.labels.Size() != 0) {
+      CHECK_NE(info.labels.Shape(1), 0);
+    }
+    auto labels = info.labels.View(tparam_->gpu_id);
+    info.weights_.SetDevice(tparam_->gpu_id);
+    common::OptionalWeights weights(tparam_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                     : info.weights_.ConstDeviceSpan());
+    preds.SetDevice(tparam_->gpu_id);
+    auto predts = tparam_->IsCPU() ? preds.ConstHostSpan() : preds.ConstDeviceSpan();
 
-    double dat[2] { result.Residue(), result.Weights() };
+    auto d_policy = policy_;
+    auto result =
+        Reduce(tparam_, info, [=] XGBOOST_DEVICE(size_t i, size_t sample_id, size_t target_id) {
+          float wt = weights[sample_id];
+          float residue = d_policy.EvalRow(labels(sample_id, target_id), predts[i]);
+          residue *= wt;
+          return std::make_tuple(residue, wt);
+        });
+
+    double dat[2]{result.Residue(), result.Weights()};
 
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
@@ -376,13 +374,10 @@ struct EvalEWiseBase : public Metric {
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
-  const char* Name() const override {
-    return policy_.Name();
-  }
+  const char* Name() const override { return policy_.Name(); }
 
  private:
   Policy policy_;
-  ElementWiseMetricsReduction<Policy> reducer_{policy_};
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
@@ -401,13 +396,13 @@ XGBOOST_REGISTER_METRIC(MAPE, "mape")
     .describe("Mean absolute percentage error.")
     .set_body([](const char* param) { return new EvalEWiseBase<EvalRowMAPE>(); });
 
-XGBOOST_REGISTER_METRIC(MPHE, "mphe")
-.describe("Mean Pseudo Huber error.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalRowMPHE>(); });
-
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
 .describe("Negative loglikelihood for logistic regression.")
 .set_body([](const char* param) { return new EvalEWiseBase<EvalRowLogLoss>(); });
+
+XGBOOST_REGISTER_METRIC(PseudoErrorLoss, "mphe")
+    .describe("Mean Pseudo-huber error.")
+    .set_body([](const char* param) { return new PseudoErrorLoss{}; });
 
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
 .describe("Negative loglikelihood for poisson regression.")
@@ -430,6 +425,5 @@ XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
 .set_body([](const char* param) {
   return new EvalEWiseBase<EvalTweedieNLogLik>(param);
 });
-
 }  // namespace metric
 }  // namespace xgboost
