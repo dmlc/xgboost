@@ -28,7 +28,7 @@ enum class DeviceType : size_t {
 kDefault = 0, kCUDA = 1, kOneAPI_Auto = 2, kOneAPI_CPU = 3, kOneAPI_GPU = 4
 };
 
-using KernelsRegisterEntry_t = std::unordered_map<DeviceType, std::string>;
+using KernelsRegisterEntryT = std::unordered_map<DeviceType, std::string>;
 
 class DeviceSelector {
  public:
@@ -40,7 +40,7 @@ class DeviceSelector {
 
   class Specification {
     public:
-      Specification(const std::string& prefix) : prefix_(prefix + ':') {}
+      explicit Specification(const std::string& prefix) : prefix_(prefix + ':') {}
 
       void Init(const std::string& specification);
 
@@ -82,13 +82,13 @@ class DeviceSelector {
   std::string GetUserInput() const;
 
  private:
-  Specification fit = Specification("fit");
-  Specification predict = Specification("predict");
+  Specification fit_ = Specification("fit");
+  Specification predict_ = Specification("predict");
 
   /* As far as device_selector can be changed during learner configuration, 
    * we save the initial version of user input
    */
-  std::string user_input;
+  std::string user_input_;
 };
 
 std::istream& operator >> (std::istream& is, DeviceSelector& device_selector);
@@ -113,7 +113,7 @@ std::ostream& operator << (std::ostream& os, const DeviceSelector::Specification
  */
 struct KernelsReg
     : public dmlc::FunctionRegEntryBase<KernelsReg,
-                                        ::xgboost::KernelsRegisterEntry_t> {
+                                        ::xgboost::KernelsRegisterEntryT> {
 };
 
 #define XGBOOST_REGISTERATE_DEVICE_SELECTOR_KERNEL(method_name, device_type, kernel_name)      \

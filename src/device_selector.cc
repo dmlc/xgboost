@@ -16,55 +16,55 @@ DMLC_REGISTRY_ENABLE(::xgboost::DeviceReg);
 namespace xgboost {
 
 DeviceSelector::Specification& DeviceSelector::Fit() {
-  return fit;
+  return fit_;
 }
 
 DeviceSelector::Specification& DeviceSelector::Predict() {
-  return predict;
+  return predict_;
 }
 
 DeviceSelector::Specification DeviceSelector::Fit() const {
-  return fit;
+  return fit_;
 }
 
 DeviceSelector::Specification DeviceSelector::Predict() const {
-  return predict;
+  return predict_;
 }
 
 DeviceSelector::DeviceSelector() {
   std::stringstream ss;
-  ss << fit.Prefix() << fit << "; " << predict.Prefix() << predict;
-  user_input = ss.str();
+  ss << fit_.Prefix() << fit_ << "; " << predict_.Prefix() << predict_;
+  user_input_ = ss.str();
 }
 
 void DeviceSelector::Init(const std::string& user_input_device_selector) {
-  int fit_position = user_input_device_selector.find(fit.Prefix());
-  int predict_position = user_input_device_selector.find(predict.Prefix());
+  int fit_position = user_input_device_selector.find(fit_.Prefix());
+  int predict_position = user_input_device_selector.find(predict_.Prefix());
 
   CHECK((fit_position == std::string::npos) == (predict_position == std::string::npos))
-    <<  "Both " << fit.Prefix() << " and " << predict.Prefix() << " or neither of them should be specified";
+    <<  "Both " << fit_.Prefix() << " and " << predict_.Prefix() << " or neither of them should be specified";
 
   if ((fit_position == std::string::npos) && (predict_position == std::string::npos)) {
     // user_input looks like: device_selector='oneapi:cpu:0'
-    fit.Init(user_input_device_selector);
-    predict.Init(user_input_device_selector);
+    fit_.Init(user_input_device_selector);
+    predict_.Init(user_input_device_selector);
   } else {
     int separator_position = user_input_device_selector.find(';');
     CHECK(separator_position != std::string::npos)
-      <<  fit.Prefix() << " and " << predict.Prefix() << " shuold be separated by \';\'";
+      <<  fit_.Prefix() << " and " << predict_.Prefix() << " shuold be separated by \';\'";
 
-    int fit_specification_begin = fit_position + fit.Prefix().size();
-    int predict_specification_begin = predict_position + predict.Prefix().size();
+    int fit_specification_begin = fit_position + fit_.Prefix().size();
+    int predict_specification_begin = predict_position + predict_.Prefix().size();
     if (fit_position < predict_position) {
       // user_input looks like: device_selector='fit:oneapi:gpu:0; predict:oneapi:cpu:0'
       int fit_specification_lenght = separator_position - fit_specification_begin;
-      fit.Init(user_input_device_selector.substr(fit_specification_begin, fit_specification_lenght));
-      predict.Init(user_input_device_selector.substr(predict_specification_begin));
+      fit_.Init(user_input_device_selector.substr(fit_specification_begin, fit_specification_lenght));
+      predict_.Init(user_input_device_selector.substr(predict_specification_begin));
     } else if (fit_position > predict_position) {
       // user_input looks like: device_selector='predict:oneapi:gpu:0; fit:oneapi:cpu:0'
       int predict_specification_length = separator_position - predict_specification_begin;
-      fit.Init(user_input_device_selector.substr(fit_specification_begin));
-      predict.Init(user_input_device_selector.substr(predict_specification_begin, predict_specification_length));
+      fit_.Init(user_input_device_selector.substr(fit_specification_begin));
+      predict_.Init(user_input_device_selector.substr(predict_specification_begin, predict_specification_length));
     }
   }
 
@@ -72,21 +72,21 @@ void DeviceSelector::Init(const std::string& user_input_device_selector) {
    * Currently, only oneapi devices support differing specifications for fitting and prediction.
    * For cuda one still can specify predictor manually.
    */
-  if (fit != predict) {
-    bool is_fit_oneapi_device = (fit.Type() == DeviceType::kOneAPI_CPU) ||
-                                (fit.Type() == DeviceType::kOneAPI_GPU);
-    bool is_predict_oneapi_device = (predict.Type() == DeviceType::kOneAPI_CPU) ||
-                                    (predict.Type() == DeviceType::kOneAPI_GPU);
+  if (fit_ != predict_) {
+    bool is_fit_oneapi_device = (fit_.Type() == DeviceType::kOneAPI_CPU) ||
+                                (fit_.Type() == DeviceType::kOneAPI_GPU);
+    bool is_predict_oneapi_device = (predict_.Type() == DeviceType::kOneAPI_CPU) ||
+                                    (predict_.Type() == DeviceType::kOneAPI_GPU);
     CHECK(is_fit_oneapi_device && is_predict_oneapi_device)
       <<  "Currently, only oneapi devices support differing specifications for fitting and prediction. " <<
           "For cuda one still can specify predictor manually. " <<
-          "fit = " << fit << "; predict = " << predict << ";";
+          "fit = " << fit_ << "; predict = " << predict_ << ";";
   }
 
   // Save the user input device_selector
   std::stringstream ss;
   ss << *this;
-  user_input = ss.str();
+  user_input_ = ss.str();
 }
 
 bool operator != (const DeviceSelector::Specification& lhs, const DeviceSelector::Specification& rhs) {
@@ -109,13 +109,13 @@ std::ostream& operator << (std::ostream& os, const DeviceSelector& device_select
 }
 
 std::string DeviceSelector::GetUserInput() const {
-  return user_input;
+  return user_input_;
 }
 
 void DeviceSelector::SaveConfig(Json* p_out) const {
   auto& out = *p_out;
 
-  out["name"] = String(user_input);
+  out["name"] = String(user_input_);
 }
 
 std::string DeviceSelector::Specification::Prefix() const {
@@ -212,12 +212,12 @@ std::ostream& operator << (std::ostream& os, const DeviceSelector::Specification
 }
 
 void DeviceSelector::UpdateByGPUId(int gpu_id) {
-  fit.UpdateByGPUId(gpu_id);
-  predict.UpdateByGPUId(gpu_id);
+  fit_.UpdateByGPUId(gpu_id);
+  predict_.UpdateByGPUId(gpu_id);
 }
 
 int DeviceSelector::GetGPUId() {
-  return fit.GetGPUId();
+  return fit_.GetGPUId();
 }
 
 void DeviceSelector::Specification::UpdateByGPUId(int gpu_id) {
