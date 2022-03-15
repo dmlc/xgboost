@@ -1038,12 +1038,15 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
 bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
   auto& h_offset = this->offset.HostVector();
   auto& h_data = this->data.HostVector();
-  std::atomic<bool> is_sorted{true};
+  std::vector<int32_t> is_sorted_tloc(n_threads, 0);
   common::ParallelFor(this->Size(), n_threads, [&](auto i) {
     auto beg = h_offset[i];
     auto end = h_offset[i + 1];
-    is_sorted &= std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+    is_sorted_tloc[omp_get_thread_num()] +=
+        !!std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
   });
+  auto is_sorted =
+      std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(), 0) == this->Size();
   return is_sorted;
 }
 
