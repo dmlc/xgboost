@@ -84,9 +84,7 @@ void DeviceSelector::Init(const std::string& user_input_device_selector) {
   }
 
   // Save the user input device_selector
-  std::stringstream ss;
-  ss << *this;
-  user_input_ = ss.str();
+  user_input_ = user_input_device_selector;
 }
 
 bool operator != (const DeviceSelector::Specification& lhs, const DeviceSelector::Specification& rhs) {
