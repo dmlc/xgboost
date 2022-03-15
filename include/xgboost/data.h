@@ -316,7 +316,15 @@ class SparsePage {
 
   SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
+  /**
+   * \brief Sort the column index.
+   */
   void SortIndices(int32_t n_threads);
+  /**
+   * \brief Check wether the column index is sorted.
+   */
+  bool IsIndicesSorted(int32_t n_threads) const;
+
   void SortRows(int32_t n_threads);
 
   /**
