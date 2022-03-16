@@ -207,6 +207,15 @@ else (BUILD_STATIC_LIB)
   add_library(xgboost SHARED)
 endif (BUILD_STATIC_LIB)
 target_link_libraries(xgboost PRIVATE objxgboost)
+target_compile_options(xgboost PUBLIC "-fopenmp")
+target_link_libraries(xgboost PRIVATE ${INTEL_OMP_PATH}/libiomp5.so)
+
+if (PLUGIN_UPDATER_ONEAPI)
+  target_compile_definitions(xgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
+  set(CMAKE_CXX_LINK_EXECUTABLE "dpcpp <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
+  set(CMAKE_CXX_CREATE_SHARED_LIBRARY "dpcpp <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> <SONAME_FLAG><TARGET_SONAME> -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
+endif (PLUGIN_UPDATER_ONEAPI)
+
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
@@ -216,6 +225,8 @@ target_include_directories(xgboost
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 target_link_libraries(runxgboost PRIVATE objxgboost)
+target_link_libraries(runxgboost PRIVATE ${INTEL_OMP_PATH}/libiomp5.so)
+
 target_include_directories(runxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
@@ -238,11 +249,12 @@ if (JVM_BINDINGS)
   xgboost_target_defs(xgboost4j)
 endif (JVM_BINDINGS)
 
+target_compile_options(runxgboost PUBLIC "-fopenmp")
+
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
 set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 # Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
 add_dependencies(xgboost runxgboost)
-
 #-- Installing XGBoost
 if (R_LIB)
   include(cmake/RPackageInstallTargetSetup.cmake)
@@ -308,6 +320,7 @@ install(
   ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
 
+
 #-- Test
 if (GOOGLE_TEST)
   enable_testing()
@@ -342,6 +355,7 @@ endif (GOOGLE_TEST)
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags
 msvc_use_static_runtime()
+
 
 # Add xgboost.pc
 if (ADD_PKGCONFIG)

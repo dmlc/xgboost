@@ -2,30 +2,39 @@
 This plugin adds support of OneAPI programming model for tree construction and prediction algorithms to XGBoost.
 
 ## Usage
-Specify the 'objective' parameter as one of the following options to offload computation of objective function on OneAPI device. 
+Specify the 'device_selector' parameter as one of the following options to offload model training on OneAPI device.
+| Value | Description |
+oneapi:cpu | Use default oneapi cpu |
+oneapi:cpu:n | Use oneapi cpu with index n |
+oneapi:gpu | Use default oneapi gpu |
+oneapi:gpu:n | Use oneapi gpu with index n |
+oneapi | Use default oneapi device |
+oneapi:n | Use oneapi device with index n |
+fit:oneapi:gpu; predict:cpu | Use oneapi gpu for fitting, and cpu for prediction
+
+### Algorithms
+| tree_method | Description |
+| --- | --- |
+hist | use hist method  |
 
 ### Algorithms
 | objective | Description |
 | --- | --- |
-reg:squarederror_oneapi | regression with squared loss  |
-reg:squaredlogerror_oneapi | regression with root mean squared logarithmic loss |
-reg:logistic_oneapi | logistic regression for probability regression task |
-binary:logistic_oneapi | logistic regression for binary classification task |
-binary:logitraw_oneapi | logistic regression for classification, output score before logistic transformation |
-
-Specify the 'predictor' parameter as one of the following options to offload prediction stage on OneAPI device. 
-
-### Algorithms
-| predictor | Description |
-| --- | --- |
-predictor_oneapi | prediction using OneAPI device  |
+reg:squarederror | regression with squared loss  |
+reg:squaredlogerror | regression with root mean squared logarithmic loss |
+reg:logistic | logistic regression for probability regression task |
+binary:logistic | logistic regression for binary classification task |
+binary:logitraw | logistic regression for classification, output score before logistic transformation |
+multi:softmax | multiclass classification using the softmax objective |
+multi:softpred | multiclass classification using the softmax objective. Output is a vector of ndata * nclass|
 
 Please note that parameter names are not finalized and can be changed during further integration of OneAPI support.
 
 Python example:
 ```python
-param['predictor'] = 'predictor_oneapi'
-param['objective'] = 'reg:squarederror_oneapi'
+param['device_selector'] = 'oneapi:gpu'
+param['tree_method'] = 'hist'
+param['objective'] = 'reg:squarederror'
 ```
 
 ## Dependencies
@@ -37,6 +46,6 @@ From the command line on Linux starting from the xgboost directory:
 ```bash
 $ mkdir build
 $ cd build
-$ EXPORT CXX=dpcpp && cmake .. -DPLUGIN_UPDATER_ONEAPI=ON
+$ cmake .. -DPLUGIN_UPDATER_ONEAPI=ON -DINTEL_OMP_PATH=${CONDA_PREFIX}/lib
 $ make -j
 ```

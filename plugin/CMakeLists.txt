@@ -16,18 +16,24 @@ if (PLUGIN_RMM)
 endif (PLUGIN_RMM)
 
 if (PLUGIN_UPDATER_ONEAPI)
+  set(CMAKE_CXX_COMPILER dpcpp)
   add_library(oneapi_plugin OBJECT
+	  #    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/hist_util_oneapi.cc
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc
-    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/predictor_oneapi.cc)
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/multiclass_obj_oneapi.cc
+    #    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/updater_quantile_hist_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/predictor_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/device_manager_oneapi.cc)
+
   target_include_directories(oneapi_plugin
     PRIVATE
     ${xgboost_SOURCE_DIR}/include
     ${xgboost_SOURCE_DIR}/dmlc-core/include
     ${xgboost_SOURCE_DIR}/rabit/include)
   target_compile_definitions(oneapi_plugin PUBLIC -DXGBOOST_USE_ONEAPI=1)
-  target_link_libraries(oneapi_plugin PUBLIC -fsycl)
+  target_link_libraries(oneapi_plugin PUBLIC -fsycl -fsycl-device-code-split=per_kernel -lrt)
   set_target_properties(oneapi_plugin PROPERTIES
-    COMPILE_FLAGS -fsycl
+    COMPILE_FLAGS "-fsycl -fsycl-device-code-split=per_kernel"
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)

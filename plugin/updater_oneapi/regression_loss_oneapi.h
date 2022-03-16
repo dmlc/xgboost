@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_ONEAPI_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_ONEAPI_H_
@@ -19,7 +19,7 @@ namespace obj {
  * \return the transformed value.
  */
 inline float SigmoidOneAPI(float x) {
-  return 1.0f / (1.0f + cl::sycl::exp(-x));
+  return 1.0f / (1.0f + sycl::exp(-x));
 }
 
 // common regressions
@@ -37,7 +37,13 @@ struct LinearSquareLossOneAPI {
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
-  static const char* Name() { return "reg:squarederror_oneapi"; }
+  static const char* Name() { return "reg:squarederror"; }
+
+  static const char* KernelName() { return "reg:squarederror_oneapi"; }
+
+  static const char* BackendName() { return "reg:squarederror_oneapi_backend"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
 };
 
 // TODO: DPC++ does not fully support std math inside offloaded kernels
@@ -48,12 +54,12 @@ struct SquaredLogErrorOneAPI {
   }
   static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     predt = std::max(predt, (bst_float)(-1 + 1e-6));  // ensure correct value for log1p
-    return (cl::sycl::log1p(predt) - cl::sycl::log1p(label)) / (predt + 1);
+    return (sycl::log1p(predt) - sycl::log1p(label)) / (predt + 1);
   }
   static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
     predt = std::max(predt, (bst_float)(-1 + 1e-6));
-    float res = (-cl::sycl::log1p(predt) + cl::sycl::log1p(label) + 1) /
-                cl::sycl::pow(predt + 1, (bst_float)2);
+    float res = (-sycl::log1p(predt) + sycl::log1p(label) + 1) /
+                sycl::pow(predt + 1, (bst_float)2);
     res = std::max(res, (bst_float)1e-6f);
     return res;
   }
@@ -63,7 +69,13 @@ struct SquaredLogErrorOneAPI {
   }
   static const char* DefaultEvalMetric() { return "rmsle"; }
 
-  static const char* Name() { return "reg:squaredlogerror_oneapi"; }
+  static const char* Name() { return "reg:squaredlogerror"; }
+
+  static const char* KernelName() { return "reg:squaredlogerror_oneapi"; }
+
+  static const char* BackendName() { return "reg:squaredlogerror_oneapi_backend"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
 };
 
 // logistic loss for probability regression task
@@ -98,13 +110,21 @@ struct LogisticRegressionOneAPI {
   }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
-  static const char* Name() { return "reg:logistic_oneapi"; }
+  static const char* Name() { return "reg:logistic"; }
+
+  static const char* KernelName() { return "reg:logistic_oneapi"; }
+
+  static const char* BackendName() { return "reg:logistic_oneapi_backend"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
 };
 
 // logistic loss for binary classification task
 struct LogisticClassificationOneAPI : public LogisticRegressionOneAPI {
   static const char* DefaultEvalMetric() { return "logloss"; }
-  static const char* Name() { return "binary:logistic_oneapi"; }
+  static const char* Name() { return "binary:logistic"; }
+  static const char* KernelName() { return "binary:logistic_oneapi"; }
+  static const char* BackendName() { return "binary:logistic_oneapi_backend"; }
 };
 
 // logistic loss, but predict un-transformed margin
@@ -136,7 +156,13 @@ struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
   }
   static const char* DefaultEvalMetric() { return "logloss"; }
 
-  static const char* Name() { return "binary:logitraw_oneapi"; }
+  static const char* Name() { return "binary:logitraw"; }
+
+  static const char* KernelName() { return "binary:logitraw_oneapi"; }
+
+  static const char* BackendName() { return "binary:logitraw_oneapi_backend"; }
+
+  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
 };
 
 }  // namespace obj
