@@ -114,34 +114,12 @@ class GloablApproxBuilder {
     return nodes.front();
   }
 
-  void UpdatePredictionCache(const DMatrix *data, linalg::VectorView<float> out_preds) {
+  void UpdatePredictionCache(DMatrix const *data, linalg::VectorView<float> out_preds) const {
     monitor_->Start(__func__);
     // Caching prediction seems redundant for approx tree method, as sketching takes up
     // majority of training time.
     CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    CHECK(p_last_tree_);
-
-    size_t n_nodes = p_last_tree_->GetNodes().size();
-
-    auto evaluator = evaluator_.Evaluator();
-    auto const &tree = *p_last_tree_;
-    auto const &snode = evaluator_.Stats();
-    for (auto &part : partitioner_) {
-      CHECK_EQ(part.Size(), n_nodes);
-      common::BlockedSpace2d space(
-          part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
-      common::ParallelFor2d(space, ctx_->Threads(), [&](size_t nidx, common::Range1d r) {
-        if (tree[nidx].IsLeaf()) {
-          const auto rowset = part[nidx];
-          auto const &stats = snode.at(nidx);
-          auto leaf_value =
-              evaluator.CalcWeight(nidx, param_, GradStats{stats.stats}) * param_.learning_rate;
-          for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
-            out_preds(*it) += leaf_value;
-          }
-        }
-      });
-    }
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, evaluator_, param_, out_preds);
     monitor_->Stop(__func__);
   }
 

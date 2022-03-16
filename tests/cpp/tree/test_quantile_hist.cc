@@ -35,8 +35,7 @@ class QuantileHistMock : public QuantileHistMaker {
                       std::vector<GradientPair>* gpair,
                       DMatrix* p_fmat,
                       const RegTree& tree) {
-      RealImpl::InitData(gmat, *p_fmat, tree, gpair);
-      ASSERT_EQ(this->data_layout_, RealImpl::DataLayout::kSparseData);
+      RealImpl::InitData(gmat, p_fmat, tree, gpair);
 
       /* The creation of HistCutMatrix and GHistIndexMatrix are not technically
        * part of QuantileHist updater logic, but we include it here because

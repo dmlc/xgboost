@@ -266,6 +266,9 @@ class MemStackAllocator {
       throw std::bad_alloc{};
     }
   }
+  MemStackAllocator(size_t required_size, T init) : MemStackAllocator{required_size} {
+    std::fill_n(ptr_, required_size_, init);
+  }
 
   ~MemStackAllocator() {
     if (required_size_ > MaxStackSize) {

@@ -156,9 +156,8 @@ class ColumnSampler {
    * \param colsample_bytree
    * \param skip_index_0      (Optional) True to skip index 0.
    */
-  void Init(int64_t num_col, std::vector<float> feature_weights,
-            float colsample_bynode, float colsample_bylevel,
-            float colsample_bytree, bool skip_index_0 = false) {
+  void Init(int64_t num_col, std::vector<float> feature_weights, float colsample_bynode,
+            float colsample_bylevel, float colsample_bytree) {
     feature_weights_ = std::move(feature_weights);
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
@@ -169,10 +168,8 @@ class ColumnSampler {
     }
     Reset();
 
-    int begin_idx = skip_index_0 ? 1 : 0;
-    feature_set_tree_->Resize(num_col - begin_idx);
-    std::iota(feature_set_tree_->HostVector().begin(),
-              feature_set_tree_->HostVector().end(), begin_idx);
+    feature_set_tree_->Resize(num_col);
+    std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
 
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
