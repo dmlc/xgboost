@@ -125,7 +125,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
       xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
       if (length(xtr) == 0) {
         as.data.table(
-          list(Feature = NA, Split = NA, Yes = NA, No = NA, Missing = NA, Quality = NA, Cover = NA)
+          list(Feature = "NA", Split = "NA", Yes = "NA", No = "NA", Missing = "NA", Quality = "NA", Cover = "NA")
         )
       } else {
         as.data.table(xtr)
