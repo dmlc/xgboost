@@ -1045,8 +1045,8 @@ bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
     is_sorted_tloc[omp_get_thread_num()] +=
         !!std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
   });
-  auto is_sorted =
-      std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(), 0) == this->Size();
+  auto is_sorted = std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(),
+                                   static_cast<size_t>(0)) == this->Size();
   return is_sorted;
 }
 
