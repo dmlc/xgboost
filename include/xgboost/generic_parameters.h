@@ -7,7 +7,6 @@
 
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
-#include <xgboost/device_selector.h>
 
 #include <string>
 
@@ -17,6 +16,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // Constant representing the device ID of CPU.
   static int32_t constexpr kCpuId = -1;
   static int64_t constexpr kDefaultSeed = 0;
+  static int32_t constexpr kDefaultId = -1;
 
  public:
   // stored random seed
@@ -32,21 +32,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   bool fail_on_invalid_gpu_id {false};
   bool validate_parameters {false};
 
-  /* Device dispatcher object.
-   * For initialization one should use strings like:
-   * "cpu"           for using default cpu
-   * "cuda"          for using default cuda device  
-   * "cuda:0"        for using cuda device with index 0
-   * "oneapi"        for using default oneapi device
-   * "oneapi:0"      for using oneapi device with index 0
-   * "oneapi:cpu"    for using default oneapi cpu device
-   * "oneapi:gpu"    for using default oneapi gpu
-   * "oneapi:gpu:0"  for using oneapi gpu device with index 0
-   *
-   * "fit:oneapi:gpu:0; predict:oneapi:cpu:0" for using oneapi:gpu:0 for 
-   *  fitting and oneapi:cpu:0 for prediction.
-   */
-  DeviceSelector device_selector;
+  // primary oneAPI device, -1 means default device
+  int device_id;
 
   /*!
    * \brief Configure the parameter `gpu_id'.
@@ -81,9 +68,10 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_FIELD(validate_parameters)
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
-    DMLC_DECLARE_FIELD(device_selector)
-        .set_default(DeviceSelector())
-        .describe("The unified device descriptor.");
+    DMLC_DECLARE_FIELD(device_id)
+        .set_default(kDefaultId)
+        .set_lower_bound(-1)
+        .describe("The primary oneAPI device ordinal.");
   }
 };
 }  // namespace xgboost

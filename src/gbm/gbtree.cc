@@ -46,18 +46,6 @@ void GBTree::Configure(const Args& cfg) {
     model_.InitTreesToUpdate();
   }
 
-  // check for unsupported train parameters
-#if defined(XGBOOST_USE_ONEAPI)
-  bool is_oneapi_device_fit = 
-      (this->ctx_->device_selector.Fit().Type() == DeviceType::kOneAPI_Auto) ||
-      (this->ctx_->device_selector.Fit().Type() == DeviceType::kOneAPI_CPU)  ||
-      (this->ctx_->device_selector.Fit().Type() == DeviceType::kOneAPI_GPU);
-  if (is_oneapi_device_fit) {
-    CHECK(tparam_.tree_method == TreeMethod::kHist)
-          << "Only tree_method=\"hist\" is currently supported for oneAPI devices";
-  }
-#endif  // defined(XGBOOST_USE_ONEAPI)
-
   // configure predictors
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
@@ -76,25 +64,11 @@ void GBTree::Configure(const Args& cfg) {
 #endif  // defined(XGBOOST_USE_CUDA)
 
 #if defined(XGBOOST_USE_ONEAPI)
-  /* Change predictor type to PredictorType::kOneAPIPredictor in case of 
-   * user specifyed device_selector = 'oneapi:gpu:*' or device_selector = 'oneapi:cpu:*' and
-   * didn't specifyed predictor, i.e. predictor == PredictorType::kAuto
-   */
-  bool is_oneapi_device_predict = 
-      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_Auto) ||
-      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_CPU)  ||
-      (this->ctx_->device_selector.Predict().Type() == DeviceType::kOneAPI_GPU);
-  if (is_oneapi_device_predict && (tparam_.predictor == PredictorType::kAuto)) {
-    tparam_.predictor = PredictorType::kOneAPIPredictor;
+  if (!oneapi_predictor_) {
+    oneapi_predictor_ = std::unique_ptr<Predictor>(
+        Predictor::Create("oneapi_predictor", this->ctx_));
   }
-
-  if (tparam_.predictor == PredictorType::kOneAPIPredictor) {
-    if (!oneapi_predictor_) {
-      oneapi_predictor_ = std::unique_ptr<Predictor>(
-          Predictor::Create("oneapi_predictor", this->ctx_));
-    }
   oneapi_predictor_->Configure(cfg);
-  }
 #endif  // defined(XGBOOST_USE_ONEAPI)
 
   monitor_.Init("GBTree");
@@ -336,7 +310,7 @@ void GBTree::InitUpdater(Args const& cfg) {
   // create new updaters
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(ctx_->device_selector.Fit().GetKernelName(pstr.c_str()), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(pstr.c_str(), ctx_, model_.learner_model_param->task));
     up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
@@ -422,7 +396,7 @@ void GBTree::LoadConfig(Json const& in) {
   updaters_.clear();
   for (auto const& kv : j_updaters) {
     std::unique_ptr<TreeUpdater> up(
-        TreeUpdater::Create(ctx_->device_selector.Fit().GetKernelName(kv.first), ctx_, model_.learner_model_param->task));
+        TreeUpdater::Create(kv.first, ctx_, model_.learner_model_param->task));
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
   }
