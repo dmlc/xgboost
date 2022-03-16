@@ -1037,6 +1037,32 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   return transpose;
 }
 
+bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
+  auto& h_offset = this->offset.HostVector();
+  auto& h_data = this->data.HostVector();
+  std::vector<int32_t> is_sorted_tloc(n_threads, 0);
+  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+    auto beg = h_offset[i];
+    auto end = h_offset[i + 1];
+    is_sorted_tloc[omp_get_thread_num()] +=
+        !!std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  });
+  auto is_sorted = std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(),
+                                   static_cast<size_t>(0)) == this->Size();
+  return is_sorted;
+}
+
+void SparsePage::SortIndices(int32_t n_threads) {
+  auto& h_offset = this->offset.HostVector();
+  auto& h_data = this->data.HostVector();
+
+  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+    auto beg = h_offset[i];
+    auto end = h_offset[i + 1];
+    std::sort(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  });
+}
+
 void SparsePage::SortRows(int32_t n_threads) {
   auto& h_offset = this->offset.HostVector();
   auto& h_data = this->data.HostVector();
@@ -1162,7 +1188,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
-
   return max_columns;
 }
 

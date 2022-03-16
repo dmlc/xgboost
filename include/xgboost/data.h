@@ -201,6 +201,9 @@ struct Entry {
   inline static bool CmpValue(const Entry& a, const Entry& b) {
     return a.fvalue < b.fvalue;
   }
+  static bool CmpIndex(Entry const& a, Entry const& b) {
+    return a.index < b.index;
+  }
   inline bool operator==(const Entry& other) const {
     return (this->index == other.index && this->fvalue == other.fvalue);
   }
@@ -312,6 +315,15 @@ class SparsePage {
   }
 
   SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
+
+  /**
+   * \brief Sort the column index.
+   */
+  void SortIndices(int32_t n_threads);
+  /**
+   * \brief Check wether the column index is sorted.
+   */
+  bool IsIndicesSorted(int32_t n_threads) const;
 
   void SortRows(int32_t n_threads);
 

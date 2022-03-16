@@ -211,6 +211,11 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     info_.num_row_ = adapter->NumRows();
   }
   info_.num_nonzero_ = data_vec.size();
+
+  // Sort the index for row partitioners used by variuos tree methods.
+  if (!sparse_page_->IsIndicesSorted(this->ctx_.Threads())) {
+    sparse_page_->SortIndices(this->ctx_.Threads());
+  }
 }
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
