@@ -66,7 +66,7 @@ void GBTree::Configure(const Args& cfg) {
 #if defined(XGBOOST_USE_ONEAPI)
   if (!oneapi_predictor_) {
     oneapi_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("oneapi_predictor", this->ctx_));
+        Predictor::Create("oneapi_predictor", this->generic_param_));
   }
   oneapi_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_ONEAPI)

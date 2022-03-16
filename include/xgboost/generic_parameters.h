@@ -16,7 +16,6 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // Constant representing the device ID of CPU.
   static int32_t constexpr kCpuId = -1;
   static int64_t constexpr kDefaultSeed = 0;
-  static int32_t constexpr kDefaultId = -1;
 
  public:
   // stored random seed
@@ -31,9 +30,6 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // fail when gpu_id is invalid
   bool fail_on_invalid_gpu_id {false};
   bool validate_parameters {false};
-
-  // primary oneAPI device, -1 means default device
-  int device_id;
 
   /*!
    * \brief Configure the parameter `gpu_id'.
@@ -68,10 +64,6 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_FIELD(validate_parameters)
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
-    DMLC_DECLARE_FIELD(device_id)
-        .set_default(kDefaultId)
-        .set_lower_bound(-1)
-        .describe("The primary oneAPI device ordinal.");
   }
 };
 }  // namespace xgboost
