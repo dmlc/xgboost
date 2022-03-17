@@ -665,7 +665,7 @@ struct GPUHistMakerDevice {
           new_candidates[i * 2 + 1] = GPUExpandEntry();
         }
       }
-      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::DefaultStream().Sync();
       driver.Push(new_candidates.begin(), new_candidates.end());
       expand_set = driver.Pop();
     }
