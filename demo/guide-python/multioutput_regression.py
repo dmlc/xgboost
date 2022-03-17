@@ -80,7 +80,9 @@ def custom_rmse_model(plot_result: bool) -> None:
     X, y = gen_circle()
     Xy = xgb.DMatrix(X, y)
     results: Dict[str, Dict[str, List[float]]] = {}
-    # Make the `num_target` is passed to XGBoost when custom objective is used.
+    # Make sure the `num_target` is passed to XGBoost when custom objective is used.
+    # When builtin objective is used, XGBoost can figure out the number of targets
+    # automatically.
     booster = xgb.train(
         {
             "tree_method": "hist",
