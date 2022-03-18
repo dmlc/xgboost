@@ -21,17 +21,17 @@ import scipy.sparse
 from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
                      lazy_isinstance)
 from .libpath import find_lib_path
-from ._typing import (c_str_pptr_t, c_bst_ulong, c_numeric_t, DataType,
-                      c_numeric_ptr_t, c_str_ptr_t, ctype_t, ArrayLike,
-                      c_float_ptr_t, numpy_or_cupy_t, FeatNamesT, T,
-                      list_or_dict, cupy_t)
+from ._typing import (CStrPptrT, c_bst_ulong, CNumericT, DataType,
+                      CNumericPtrT, CStrPtrT, CTypeT, ArrayLike,
+                      CFloatPtrT, NdarrayOrCupyT, FeatNamesT, _T,
+                      CupyT)
 
 
 class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
 
 
-def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, c_str_pptr_t]:
+def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, CStrPptrT]:
     """Convert a Python str or list of Python str to C pointer
 
     Parameters
@@ -43,14 +43,14 @@ def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, c_str_pptr_t
     if isinstance(data, str):
         return bytes(data, "utf-8")
     if isinstance(data, list):
-        pointers: ctypes.Array = (ctypes.c_char_p * len(data))()
+        pointers: ctypes.pointer = (ctypes.c_char_p * len(data))()
         data_as_bytes = [bytes(d, 'utf-8') for d in data]
         pointers[:] = data_as_bytes
         return pointers
     raise TypeError()
 
 
-def from_cstr_to_pystr(data: c_str_pptr_t, length: c_bst_ulong) -> List[str]:
+def from_cstr_to_pystr(data: CStrPptrT, length: c_bst_ulong) -> List[str]:
     """Revert C pointer to Python str
 
     Parameters
@@ -90,7 +90,7 @@ def _convert_ntree_limit(
     return iteration_range
 
 
-def _expect(expectations: Sequence[Type], got: Sequence[Type]) -> str:
+def _expect(expectations: Sequence[Type], got: Type) -> str:
     """Translate input error into string.
 
     Parameters
@@ -223,8 +223,8 @@ def build_info() -> dict:
     return res
 
 
-def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[c_numeric_t]:
-    _NUMPY_TO_CTYPES_MAPPING: Dict[Type[np.number], Type[c_numeric_t]] = {
+def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumericT]:
+    _NUMPY_TO_CTYPES_MAPPING: Dict[Type[np.number], Type[CNumericT]] = {
         np.float32: ctypes.c_float,
         np.float64: ctypes.c_double,
         np.uint32: ctypes.c_uint,
@@ -252,9 +252,9 @@ def _cuda_array_interface(data: DataType) -> bytes:
     return interface_str
 
 
-def ctypes2numpy(cptr: c_numeric_ptr_t, length: int, dtype: Type[np.number]) -> np.ndarray:
+def ctypes2numpy(cptr: CNumericPtrT, length: int, dtype: Type[np.number]) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
-    ctype: Type[c_numeric_t] = _numpy2ctypes_type(dtype)
+    ctype: Type[CNumericT] = _numpy2ctypes_type(dtype)
     if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
@@ -263,7 +263,7 @@ def ctypes2numpy(cptr: c_numeric_ptr_t, length: int, dtype: Type[np.number]) -> 
     return res
 
 
-def ctypes2cupy(cptr: c_numeric_ptr_t, length: int, dtype: Type[np.number]) -> cupy_t:
+def ctypes2cupy(cptr: CNumericPtrT, length: int, dtype: Type[np.number]) -> CupyT:
     """Convert a ctypes pointer array to a cupy array."""
     # pylint: disable=import-error
     import cupy
@@ -289,7 +289,7 @@ def ctypes2cupy(cptr: c_numeric_ptr_t, length: int, dtype: Type[np.number]) -> c
     return arr
 
 
-def ctypes2buffer(cptr: c_str_ptr_t, length: int) -> bytearray:
+def ctypes2buffer(cptr: CStrPtrT, length: int) -> bytearray:
     """Convert ctypes pointer to buffer type."""
     if not isinstance(cptr, ctypes.POINTER(ctypes.c_char)):
         raise RuntimeError('expected char pointer')
@@ -305,7 +305,7 @@ def c_str(string: str) -> ctypes.c_char_p:
     return ctypes.c_char_p(string.encode('utf-8'))
 
 
-def c_array(ctype: Type[ctype_t], values: ArrayLike) -> ctypes.Array:
+def c_array(ctype: Type[CTypeT], values: ArrayLike) -> ctypes.Array:
     """Convert a python string to c array."""
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return (ctype * len(values)).from_buffer_copy(values)
@@ -313,11 +313,11 @@ def c_array(ctype: Type[ctype_t], values: ArrayLike) -> ctypes.Array:
 
 
 def _prediction_output(
-    shape: c_numeric_ptr_t,
+    shape: CNumericPtrT,
     dims: c_bst_ulong,
-    predts: c_float_ptr_t,
+    predts: CFloatPtrT,
     is_cuda: bool
-) -> numpy_or_cupy_t:
+) -> NdarrayOrCupyT:
     arr_shape = ctypes2numpy(shape, dims.value, np.uint64)
     length = int(np.prod(arr_shape))
     if is_cuda:
@@ -476,7 +476,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 #          Nicolas Tresegnie
 #          Sylvain Marie
 # License: BSD 3 clause
-def _deprecate_positional_args(f: Callable[..., T]) -> Callable[..., T]:
+def _deprecate_positional_args(f: Callable[..., _T]) -> Callable[..., _T]:
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
@@ -500,7 +500,7 @@ def _deprecate_positional_args(f: Callable[..., T]) -> Callable[..., T]:
             kwonly_args.append(name)
 
     @wraps(f)
-    def inner_f(*args: Any, **kwargs: Any) -> T:
+    def inner_f(*args: Any, **kwargs: Any) -> _T:
         extra_args = len(args) - len(all_args)
         if extra_args > 0:
             # ignore first 'self' argument for instance methods
@@ -1422,7 +1422,7 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: list_or_dict) -> list_or_dict:
+    def _configure_constraints(self, params: Union[List, Dict]) -> Union[List, Dict]:
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value:
@@ -1672,7 +1672,7 @@ class Booster:
     def feature_names(self, features: FeatNamesT) -> None:
         self._set_feature_info(features, "feature_name")
 
-    def set_param(self, params: Iterable[Tuple[str, Any]], value: Optional[str] = None) -> None:
+    def set_param(self, params: Union[Dict, Iterable[Tuple[str, Any]], str], value: Optional[str] = None) -> None:
         """Set parameters into the Booster.
 
         Parameters
@@ -1978,7 +1978,7 @@ class Booster:
         validate_features: bool = True,
         base_margin: Any = None,
         strict_shape: bool = False
-    ) -> numpy_or_cupy_t:
+    ) -> NdarrayOrCupyT:
         """Run prediction in-place, Unlike :py:meth:`predict` method, inplace prediction does not
         cache the prediction result.
 

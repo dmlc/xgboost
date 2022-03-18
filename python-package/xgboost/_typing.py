@@ -14,21 +14,20 @@ FeatNamesT = Optional[List[str]]
 
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]
-list_or_dict = Union[List, Dict]
-cupy_t = ArrayLike  # maybe need a stub for cupy arrays
-numpy_or_cupy_t = Union[np.ndarray, cupy_t]
+CupyT = ArrayLike  # maybe need a stub for cupy arrays
+NdarrayOrCupyT = Union[np.ndarray, CupyT]
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
 
-ctype_t = Union[
+CTypeT = Union[
     ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int,
     ctypes.c_float, ctypes.c_uint, ctypes.c_size_t
 ]
 
 # supported numeric types
-c_numeric_t = Union[
+CNumericT = Union[
     ctypes.c_float, ctypes.c_double, ctypes.c_uint,
     ctypes.c_uint64, ctypes.c_int32, ctypes.c_int64
 ]
@@ -37,18 +36,18 @@ c_numeric_t = Union[
 # real type should be, as defined in typeshed
 # but this has to be put in a .pyi file
 # c_str_ptr_t = ctypes.pointer[ctypes.c_char]
-c_str_ptr_t = ctypes.Array
+CStrPtrT = ctypes.pointer
 # c_str_pptr_t = ctypes.pointer[ctypes.c_char_p]
-c_str_pptr_t = ctypes.Array
+CStrPptrT = ctypes.pointer
 # c_float_ptr_t = ctypes.pointer[ctypes.c_float]
-c_float_ptr_t = ctypes.Array
+CFloatPtrT = ctypes.pointer
 
 # c_numeric_ptr_t = Union[
 #  ctypes.pointer[ctypes.c_float], ctypes.pointer[ctypes.c_double],
 #  ctypes.pointer[ctypes.c_uint], ctypes.pointer[ctypes.c_uint64],
 #  ctypes.pointer[ctypes.c_int32], ctypes.pointer[ctypes.c_int64]
 # ]
-c_numeric_ptr_t = ctypes.Array
+CNumericPtrT = ctypes.pointer
 
 # template parameter
-T = TypeVar("T")
+_T = TypeVar("_T")
