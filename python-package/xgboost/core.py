@@ -24,7 +24,7 @@ from .libpath import find_lib_path
 from ._typing import (c_str_pptr_t, c_bst_ulong, c_numeric_t, DataType,
                       c_numeric_ptr_t, c_str_ptr_t, ctype_t, ArrayLike,
                       c_float_ptr_t, numpy_or_cupy_t, FeatNamesT, T,
-                      list_or_dict)
+                      list_or_dict, cupy_t)
 
 
 class XGBoostError(ValueError):
