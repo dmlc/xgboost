@@ -48,7 +48,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: windows-2016, python-version: '3.8'}
+          - {os: windows-latest, python-version: '3.8'}
 
     steps:
     - uses: actions/checkout@v2
