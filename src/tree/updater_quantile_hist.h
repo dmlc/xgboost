@@ -276,21 +276,19 @@ class QuantileHistMaker: public TreeUpdater {
           p_last_fmat_(fmat),
           histogram_builder_{new HistogramBuilder<GradientSumT, CPUExpandEntry>},
           task_{task},
-          ctx_{ctx} {
-      builder_monitor_.Init("Quantile::Builder");
+          ctx_{ctx},
+          builder_monitor_{std::make_unique<common::Monitor>()} {
+      builder_monitor_->Init("Quantile::Builder");
     }
     // update one tree, growing
     void Update(const GHistIndexMatrix& gmat, const common::ColumnMatrix& column_matrix,
                 HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree);
 
-    bool UpdatePredictionCache(const DMatrix* data,
-                               linalg::VectorView<float> out_preds);
+    bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
    protected:
     // initialize temp data structure
-    void InitData(const GHistIndexMatrix& gmat,
-                  const DMatrix& fmat,
-                  const RegTree& tree,
+    void InitData(const GHistIndexMatrix& gmat, DMatrix* fmat, const RegTree& tree,
                   std::vector<GradientPair>* gpair);
 
     size_t GetNumberOfTrees();
@@ -330,10 +328,6 @@ class QuantileHistMaker: public TreeUpdater {
 
     std::vector<GradientPair> gpair_local_;
 
-    /*! \brief feature with least # of bins. to be used for dense specialization
-               of InitNewNode() */
-    uint32_t fid_least_bins_;
-
     std::unique_ptr<TreeUpdater> pruner_;
     std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
     // Right now there's only 1 partitioner in this vector, when external memory is fully
@@ -352,13 +346,12 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
 
     enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
-    DataLayout data_layout_;
     std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>> histogram_builder_;
     ObjInfo task_;
     // Context for number of threads
     GenericParameter const* ctx_;
 
-    common::Monitor builder_monitor_;
+    std::unique_ptr<common::Monitor> builder_monitor_;
   };
   common::Monitor updater_monitor_;
 
