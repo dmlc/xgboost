@@ -129,10 +129,9 @@ def run_data_iterator(
 
     rtol = 1e-2
     # CPU sketching is more memory efficient but less consistent due to small chunks
-    if tree_method == "gpu_hist":
-        it_predt = from_it.predict(Xy)
-        arr_predt = from_arrays.predict(Xy)
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
+    it_predt = from_it.predict(Xy)
+    arr_predt = from_arrays.predict(Xy)
+    np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],
