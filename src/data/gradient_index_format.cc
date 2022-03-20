@@ -50,7 +50,6 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
       page->index.SetBinOffset(page->cut.Ptrs());
     }
 
-
     page->ReadColumnPage(fi);
     return true;
   }
