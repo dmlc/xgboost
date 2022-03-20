@@ -7,7 +7,6 @@
 
 namespace xgboost {
 namespace data {
-// fixme: io for column matrix.
 class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
  public:
   bool Read(GHistIndexMatrix* page, dmlc::SeekStream* fi) override {
