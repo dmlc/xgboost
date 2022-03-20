@@ -269,9 +269,9 @@ class GlobalApproxUpdater : public TreeUpdater {
     out["hist_param"] = ToJson(hist_param_);
   }
 
-  void InitData(TrainParam const &param, HostDeviceVector<GradientPair> *gpair,
+  void InitData(TrainParam const &param, HostDeviceVector<GradientPair> const *gpair,
                 std::vector<GradientPair> *sampled) {
-    auto const &h_gpair = gpair->HostVector();
+    auto const &h_gpair = gpair->ConstHostVector();
     sampled->resize(h_gpair.size());
     std::copy(h_gpair.cbegin(), h_gpair.cend(), sampled->begin());
     auto &rnd = common::GlobalRandom();

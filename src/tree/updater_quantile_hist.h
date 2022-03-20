@@ -267,8 +267,8 @@ class QuantileHistMaker: public TreeUpdater {
           histogram_builder_{new HistogramBuilder<GradientSumT, CPUExpandEntry>},
           task_{task},
           ctx_{ctx},
-          builder_monitor_{std::make_unique<common::Monitor>()} {
-      builder_monitor_->Init("Quantile::Builder");
+          monitor_{std::make_unique<common::Monitor>()} {
+      monitor_->Init("Quantile::Builder");
     }
     // update one tree, growing
     void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree);
@@ -329,14 +329,11 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<GradientPair> gpair_local_;
 
     std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
-    // Right now there's only 1 partitioner in this vector, when external memory is fully
-    // supported we will have number of partitioners equal to number of pages.
     std::vector<HistRowPartitioner> partitioner_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_{nullptr};
     DMatrix const* const p_last_fmat_;
-    DMatrix* p_last_fmat_mutable_;
 
     enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>> histogram_builder_;
@@ -344,7 +341,7 @@ class QuantileHistMaker: public TreeUpdater {
     // Context for number of threads
     GenericParameter const* ctx_;
 
-    std::unique_ptr<common::Monitor> builder_monitor_;
+    std::unique_ptr<common::Monitor> monitor_;
   };
 
  protected:
