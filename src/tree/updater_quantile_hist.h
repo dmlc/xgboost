@@ -207,9 +207,7 @@ inline BatchParam HistBatch(TrainParam const& param) {
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  explicit QuantileHistMaker(ObjInfo task) : task_{task} {
-    updater_monitor_.Init("QuantileHistMaker");
-  }
+  explicit QuantileHistMaker(ObjInfo task) : task_{task} {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -254,7 +252,6 @@ class QuantileHistMaker: public TreeUpdater {
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
-  DMatrix const* p_last_dmat_ {nullptr};
 
   // actual builder that runs the algorithm
   template<typename GradientSumT>
@@ -274,32 +271,26 @@ class QuantileHistMaker: public TreeUpdater {
       builder_monitor_->Init("Quantile::Builder");
     }
     // update one tree, growing
-    void Update(const GHistIndexMatrix& gmat, HostDeviceVector<GradientPair>* gpair,
-                DMatrix* p_fmat, RegTree* p_tree);
+    void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree);
 
     bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
    protected:
     // initialize temp data structure
-    void InitData(const GHistIndexMatrix& gmat, DMatrix* fmat, const RegTree& tree,
-                  std::vector<GradientPair>* gpair);
+    void InitData(DMatrix* fmat, const RegTree& tree, std::vector<GradientPair>* gpair);
 
     size_t GetNumberOfTrees();
 
     void InitSampling(const DMatrix& fmat, std::vector<GradientPair>* gpair);
 
-    void InitRoot(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h,
-                  int* num_leaves, std::vector<CPUExpandEntry>* expand);
+    CPUExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree,
+                            const std::vector<GradientPair>& gpair_h);
 
     void BuildHistogram(DMatrix* p_fmat, RegTree* p_tree,
                         std::vector<CPUExpandEntry> const& valid_candidates,
-                        std::vector<CPUExpandEntry>* p_to_build,
-                        std::vector<CPUExpandEntry>* p_to_sub,
                         std::vector<GradientPair> const& gpair) {
-      std::vector<CPUExpandEntry>& nodes_to_build = *p_to_build;
-      nodes_to_build.resize(valid_candidates.size());
-      std::vector<CPUExpandEntry>& nodes_to_sub = *p_to_sub;
-      nodes_to_sub.resize(valid_candidates.size());
+      std::vector<CPUExpandEntry> nodes_to_build(valid_candidates.size());
+      std::vector<CPUExpandEntry> nodes_to_sub(valid_candidates.size());
 
       size_t n_idx = 0;
       for (auto const& c : valid_candidates) {
@@ -355,17 +346,6 @@ class QuantileHistMaker: public TreeUpdater {
 
     std::unique_ptr<common::Monitor> builder_monitor_;
   };
-  common::Monitor updater_monitor_;
-
-  template<typename GradientSumT>
-  void SetBuilder(const size_t n_trees, std::unique_ptr<Builder<GradientSumT>>*, DMatrix *dmat);
-
-  template<typename GradientSumT>
-  void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
-                         HostDeviceVector<GradientPair> *gpair,
-                         DMatrix *dmat,
-                         GHistIndexMatrix const& gmat,
-                         const std::vector<RegTree *> &trees);
 
  protected:
   std::unique_ptr<Builder<float>> float_builder_;

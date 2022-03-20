@@ -37,28 +37,8 @@ void QuantileHistMaker::Configure(const Args &args) {
   hist_maker_param_.UpdateAllowUnknown(args);
 }
 
-template <typename GradientSumT>
-void QuantileHistMaker::SetBuilder(const size_t n_trees,
-                                   std::unique_ptr<Builder<GradientSumT>> *builder, DMatrix *dmat) {
-  builder->reset(new Builder<GradientSumT>(n_trees, param_, dmat, task_, ctx_));
-}
-
-template<typename GradientSumT>
-void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
-                                          HostDeviceVector<GradientPair> *gpair,
-                                          DMatrix *dmat,
-                                          GHistIndexMatrix const& gmat,
-                                          const std::vector<RegTree *> &trees) {
-  for (auto tree : trees) {
-    builder->Update(gmat, gpair, dmat, tree);
-  }
-}
-
-void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
-                               DMatrix *dmat,
+void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
-  auto it = dmat->GetBatches<GHistIndexMatrix>(HistBatch(param_)).begin();
-  auto p_gmat = it.Page();
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
@@ -67,19 +47,23 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   const size_t n_trees = trees.size();
   if (hist_maker_param_.single_precision_histogram) {
     if (!float_builder_) {
-      this->SetBuilder(n_trees, &float_builder_, dmat);
+      float_builder_.reset(new Builder<float>(n_trees, param_, dmat, task_, ctx_));
     }
-    CallBuilderUpdate(float_builder_, gpair, dmat, *p_gmat, trees);
   } else {
     if (!double_builder_) {
-      SetBuilder(n_trees, &double_builder_, dmat);
+      double_builder_.reset(new Builder<double>(n_trees, param_, dmat, task_, ctx_));
     }
-    CallBuilderUpdate(double_builder_, gpair, dmat, *p_gmat, trees);
+  }
+
+  for (auto p_tree : trees) {
+    if (hist_maker_param_.single_precision_histogram) {
+      this->float_builder_->UpdateTree(gpair, dmat, p_tree);
+    } else {
+      this->double_builder_->UpdateTree(gpair, dmat, p_tree);
+    }
   }
 
   param_.learning_rate = lr;
-
-  p_last_dmat_ = dmat;
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
@@ -94,9 +78,8 @@ bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
 }
 
 template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
-    DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h,
-    int *num_leaves, std::vector<CPUExpandEntry> *expand) {
+CPUExpandEntry QuantileHistMaker::Builder<GradientSumT>::InitRoot(
+    DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h) {
   CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
 
   size_t page_id = 0;
@@ -153,33 +136,24 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     node = entries.front();
   }
 
-  expand->push_back(node);
-  ++(*num_leaves);
+  return node;
 }
 
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h) {
   builder_monitor_->Start("ExpandTree");
-  int num_leaves = 0;
 
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
-  std::vector<CPUExpandEntry> expand_set;
-  InitRoot(p_fmat, p_tree, gpair_h, &num_leaves, &expand_set);
-  driver.Push(expand_set[0]);
-  expand_set = driver.Pop();
-
-  std::vector<CPUExpandEntry> best_splits;
-  // candidates that can be further splited.
-  std::vector<CPUExpandEntry> valid_candidates;
-  // candidaates that can be applied.
-  std::vector<CPUExpandEntry> applied;
-
-  std::vector<CPUExpandEntry> nodes_to_build;
-  // subtraction trick.
-  std::vector<CPUExpandEntry> nodes_to_sub;
+  driver.Push(this->InitRoot(p_fmat, p_tree, gpair_h));
+  bst_node_t num_leaves{1};
+  auto expand_set = driver.Pop();
 
   while (!expand_set.empty()) {
+    // candidates that can be further splited.
+    std::vector<CPUExpandEntry> valid_candidates;
+    // candidaates that can be applied.
+    std::vector<CPUExpandEntry> applied;
     int32_t depth = expand_set.front().depth + 1;
     for (auto const& candidate : expand_set) {
       if (!candidate.IsValid(param_, num_leaves)) {
@@ -188,12 +162,12 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       evaluator_->ApplyTreeSplit(candidate, p_tree);
       applied.push_back(candidate);
       num_leaves++;
-
       if (CPUExpandEntry::ChildIsValid(param_, depth, num_leaves)) {
         valid_candidates.emplace_back(candidate);
       }
     }
 
+    builder_monitor_->Start("UpdatePosition");
     size_t page_id{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
       auto const &column_matrix = page.Transpose();
@@ -211,15 +185,14 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
           part.template UpdatePosition<false, false>(ctx_, page, column_matrix, applied, p_tree);
         }
       }
-
       ++page_id;
     }
-    applied.clear();
+    builder_monitor_->Stop("UpdatePosition");
 
     auto& tree = *p_tree;
+    std::vector<CPUExpandEntry> best_splits;
     if (!valid_candidates.empty()) {
-      this->BuildHistogram(p_fmat, p_tree, valid_candidates, &nodes_to_build, &nodes_to_sub,
-                           gpair_h);
+      this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair_h);
       for (auto const &candidate : valid_candidates) {
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
@@ -235,11 +208,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
         break;
       }
     }
-    valid_candidates.clear();
-
     driver.Push(best_splits.begin(), best_splits.end());
-
-    best_splits.clear();
     expand_set = driver.Pop();
   }
 
@@ -247,9 +216,8 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 }
 
 template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::Update(const GHistIndexMatrix &gmat,
-                                                      HostDeviceVector<GradientPair> *gpair,
-                                                      DMatrix *p_fmat, RegTree *p_tree) {
+void QuantileHistMaker::Builder<GradientSumT>::UpdateTree(HostDeviceVector<GradientPair> *gpair,
+                                                          DMatrix *p_fmat, RegTree *p_tree) {
   builder_monitor_->Start("Update");
 
   std::vector<GradientPair> *gpair_ptr = &(gpair->HostVector());
@@ -261,7 +229,7 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(const GHistIndexMatrix &gm
   }
   p_last_fmat_mutable_ = p_fmat;
 
-  this->InitData(gmat, p_fmat, *p_tree, gpair_ptr);
+  this->InitData(p_fmat, *p_tree, gpair_ptr);
 
   ExpandTree(p_fmat, p_tree, *gpair_ptr);
 
@@ -328,8 +296,7 @@ size_t QuantileHistMaker::Builder<GradientSumT>::GetNumberOfTrees() {
 }
 
 template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix &gmat, DMatrix *fmat,
-                                                        const RegTree &tree,
+void QuantileHistMaker::Builder<GradientSumT>::InitData(DMatrix *fmat, const RegTree &tree,
                                                         std::vector<GradientPair> *gpair) {
   builder_monitor_->Start(__func__);
   const auto& info = fmat->Info();
