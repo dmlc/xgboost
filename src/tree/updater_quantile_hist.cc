@@ -4,31 +4,26 @@
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include <dmlc/timer.h>
+#include "./updater_quantile_hist.h"
+
 #include <rabit/rabit.h>
 
 #include <algorithm>
-#include <cmath>
-#include <iomanip>
 #include <memory>
 #include <numeric>
-#include <queue>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "../common/column_matrix.h"
+#include "../common/hist_util.h"
+#include "../common/random.h"
+#include "../common/threading_utils.h"
+#include "constraints.h"
+#include "hist/evaluate_splits.h"
+#include "param.h"
 #include "xgboost/logging.h"
 #include "xgboost/tree_updater.h"
-
-#include "constraints.h"
-#include "param.h"
-#include "./updater_quantile_hist.h"
-#include "./split_evaluator.h"
-#include "../common/random.h"
-#include "../common/hist_util.h"
-#include "../common/row_set.h"
-#include "../common/column_matrix.h"
-#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace tree {
@@ -62,9 +57,7 @@ void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<Gradient
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
-  auto it = dmat->GetBatches<GHistIndexMatrix>(
-                    BatchParam{param_.max_bin, param_.sparse_threshold})
-                .begin();
+  auto it = dmat->GetBatches<GHistIndexMatrix>(HistBatch(param_)).begin();
   auto p_gmat = it.Page();
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
@@ -108,8 +101,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
 
   size_t page_id = 0;
   auto space = ConstructHistSpace(partitioner_, {node});
-  for (auto const &gidx :
-       p_fmat->GetBatches<GHistIndexMatrix>({param_.max_bin, param_.sparse_threshold})) {
+  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
     std::vector<CPUExpandEntry> nodes_to_build{node};
     std::vector<CPUExpandEntry> nodes_to_sub;
     this->histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
@@ -152,8 +144,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     std::vector<CPUExpandEntry> entries{node};
     builder_monitor_->Start("EvaluateSplits");
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(
-             BatchParam{param_.max_bin, param_.sparse_threshold})) {
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
       evaluator_->EvaluateSplits(histogram_builder_->Histogram(), gmat.cut, ft,
                                  *p_tree, &entries);
       break;
@@ -204,8 +195,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     }
 
     size_t page_id{0};
-    for (auto const &page :
-         p_fmat->GetBatches<GHistIndexMatrix>({param_.max_bin, param_.sparse_threshold})) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
       auto const &column_matrix = page.Transpose();
       auto &part = this->partitioner_.at(page_id);
       if (page.cut.HasCategorical()) {
@@ -240,8 +230,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       }
       auto const &histograms = histogram_builder_->Histogram();
       auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-      for (auto const &gmat :
-           p_fmat->GetBatches<GHistIndexMatrix>({param_.max_bin, param_.sparse_threshold})) {
+      for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
         evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, &best_splits);
         break;
       }
@@ -358,8 +347,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix &
       partitioner_.emplace_back(page.Size(), page.base_rowid, this->ctx_->Threads());
       ++page_id;
     }
-    histogram_builder_->Reset(n_total_bins, BatchParam{param_.max_bin, param_.sparse_threshold},
-                              ctx_->Threads(), page_id, rabit::IsDistributed());
+    histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
+                              rabit::IsDistributed());
 
     if (param_.subsample < 1.0f) {
       CHECK_EQ(param_.sampling_method, TrainParam::kUniform)

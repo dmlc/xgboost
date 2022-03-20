@@ -7,7 +7,6 @@
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 
-#include <dmlc/timer.h>
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
@@ -29,7 +28,6 @@
 #include "constraints.h"
 #include "./param.h"
 #include "./driver.h"
-#include "./split_evaluator.h"
 #include "../common/random.h"
 #include "../common/timer.h"
 #include "../common/hist_util.h"
@@ -321,8 +319,7 @@ class QuantileHistMaker: public TreeUpdater {
 
       size_t page_id {0};
       auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-      for (auto const& gidx :
-           p_fmat->GetBatches<GHistIndexMatrix>({param_.max_bin, param_.sparse_threshold})) {
+      for (auto const& gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
         histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
                                       partitioner_.at(page_id).Partitions(), nodes_to_build,
                                       nodes_to_sub, gpair);
