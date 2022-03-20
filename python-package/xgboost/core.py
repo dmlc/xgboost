@@ -1672,7 +1672,11 @@ class Booster:
     def feature_names(self, features: FeatNamesT) -> None:
         self._set_feature_info(features, "feature_name")
 
-    def set_param(self, params: Union[Dict, Iterable[Tuple[str, Any]], str], value: Optional[str] = None) -> None:
+    def set_param(
+        self,
+        params: Union[Dict, Iterable[Tuple[str, Any]], str],
+        value: Optional[str] = None
+    ) -> None:
         """Set parameters into the Booster.
 
         Parameters

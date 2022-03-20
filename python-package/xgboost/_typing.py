@@ -1,6 +1,7 @@
+"""Shared typing definition."""
 import ctypes
 import os
-from typing import Optional, List, Any, TypeVar, Union, Dict
+from typing import Optional, List, Any, TypeVar, Union
 
 import numpy as np
 
@@ -19,7 +20,7 @@ NdarrayOrCupyT = Union[np.ndarray, CupyT]
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
-c_bst_ulong = ctypes.c_uint64
+c_bst_ulong = ctypes.c_uint64  # pylint: disable=C0103
 
 CTypeT = Union[
     ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int,
