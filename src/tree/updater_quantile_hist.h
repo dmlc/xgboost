@@ -192,6 +192,24 @@ class HistRowPartitioner {
     AddSplitsToRowSet(nodes, p_tree);
   }
 
+  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& page,
+                      std::vector<CPUExpandEntry> const& applied, RegTree const* p_tree) {
+    auto const& column_matrix = page.Transpose();
+    if (page.cut.HasCategorical()) {
+      if (column_matrix.AnyMissing()) {
+        this->template UpdatePosition<true, true>(ctx, page, column_matrix, applied, p_tree);
+      } else {
+        this->template UpdatePosition<false, true>(ctx, page, column_matrix, applied, p_tree);
+      }
+    } else {
+      if (column_matrix.AnyMissing()) {
+        this->template UpdatePosition<true, false>(ctx, page, column_matrix, applied, p_tree);
+      } else {
+        this->template UpdatePosition<false, false>(ctx, page, column_matrix, applied, p_tree);
+      }
+    }
+  }
+
   auto const& Partitions() const { return row_set_collection_; }
   size_t Size() const {
     return std::distance(row_set_collection_.begin(), row_set_collection_.end());

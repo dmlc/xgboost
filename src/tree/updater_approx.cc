@@ -204,10 +204,10 @@ class GloablApproxBuilder {
       }
 
       monitor_->Start("UpdatePosition");
-      size_t i = 0;
+      size_t page_id = 0;
       for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
-        partitioner_.at(i).UpdatePosition(ctx_, page, applied, p_tree);
-        i++;
+        partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
+        page_id++;
       }
       monitor_->Stop("UpdatePosition");
 

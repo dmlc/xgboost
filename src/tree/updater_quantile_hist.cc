@@ -167,29 +167,15 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     monitor_->Start("UpdatePosition");
     size_t page_id{0};
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-      auto const &column_matrix = page.Transpose();
-      auto &part = this->partitioner_.at(page_id);
-      if (page.cut.HasCategorical()) {
-        if (column_matrix.AnyMissing()) {
-          part.template UpdatePosition<true, true>(ctx_, page, column_matrix, applied, p_tree);
-        } else {
-          part.template UpdatePosition<false, true>(ctx_, page, column_matrix, applied, p_tree);
-        }
-      } else {
-        if (column_matrix.AnyMissing()) {
-          part.template UpdatePosition<true, false>(ctx_, page, column_matrix, applied, p_tree);
-        } else {
-          part.template UpdatePosition<false, false>(ctx_, page, column_matrix, applied, p_tree);
-        }
-      }
+      partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
       ++page_id;
     }
     monitor_->Stop("UpdatePosition");
 
-    auto& tree = *p_tree;
     std::vector<CPUExpandEntry> best_splits;
     if (!valid_candidates.empty()) {
       this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair_h);
+      auto const &tree = *p_tree;
       for (auto const &candidate : valid_candidates) {
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
