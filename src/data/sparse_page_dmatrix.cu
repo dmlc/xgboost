@@ -11,6 +11,9 @@ namespace data {
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& param) {
   CHECK_GE(param.gpu_id, 0);
   CHECK_GE(param.max_bin, 2);
+  if (!(batch_param_ != BatchParam{})) {
+    CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
+  }
   auto id = MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
   size_t row_stride = 0;
   this->InitializeSparsePage();

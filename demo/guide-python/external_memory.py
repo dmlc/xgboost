@@ -7,6 +7,9 @@ instead of Quantile DMatrix.  The feature is not ready for production use yet.
 
     .. versionadded:: 1.5.0
 
+
+See :doc:`the tutorial </tutorials/external_memory>` for more details.
+
 """
 import os
 import xgboost
@@ -77,9 +80,14 @@ def main(tmpdir: str) -> xgboost.Booster:
     missing = np.NaN
     Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
 
-    # Other tree methods including ``hist`` and ``gpu_hist`` also work, but has some
-    # caveats.  This is still an experimental feature.
-    booster = xgboost.train({"tree_method": "approx"}, Xy, evals=[(Xy, "Train")])
+    # Other tree methods including ``hist`` and ``gpu_hist`` also work, see tutorial in
+    # doc for details.
+    booster = xgboost.train(
+        {"tree_method": "approx", "max_depth": 2},
+        Xy,
+        evals=[(Xy, "Train")],
+        num_boost_round=10,
+    )
     return booster
 
 
