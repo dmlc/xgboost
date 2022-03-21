@@ -293,7 +293,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
-   protected:
+   private:
     // initialize temp data structure
     void InitData(DMatrix* fmat, const RegTree& tree, std::vector<GradientPair>* gpair);
 
@@ -306,39 +306,11 @@ class QuantileHistMaker: public TreeUpdater {
 
     void BuildHistogram(DMatrix* p_fmat, RegTree* p_tree,
                         std::vector<CPUExpandEntry> const& valid_candidates,
-                        std::vector<GradientPair> const& gpair) {
-      std::vector<CPUExpandEntry> nodes_to_build(valid_candidates.size());
-      std::vector<CPUExpandEntry> nodes_to_sub(valid_candidates.size());
-
-      size_t n_idx = 0;
-      for (auto const& c : valid_candidates) {
-        auto left_nidx = (*p_tree)[c.nid].LeftChild();
-        auto right_nidx = (*p_tree)[c.nid].RightChild();
-        auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
-
-        auto build_nidx = left_nidx;
-        auto subtract_nidx = right_nidx;
-        if (fewer_right) {
-          std::swap(build_nidx, subtract_nidx);
-        }
-        nodes_to_build[n_idx] = CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), {}};
-        nodes_to_sub[n_idx] = CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), {}};
-        n_idx++;
-      }
-
-      size_t page_id {0};
-      auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-      for (auto const& gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-        histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
-                                      partitioner_.at(page_id).Partitions(), nodes_to_build,
-                                      nodes_to_sub, gpair);
-        ++page_id;
-      }
-    }
+                        std::vector<GradientPair> const& gpair);
 
     void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h);
 
-    //  --data fields--
+   private:
     const size_t n_trees_;
     const TrainParam& param_;
     std::shared_ptr<common::ColumnSampler> column_sampler_{
@@ -353,7 +325,6 @@ class QuantileHistMaker: public TreeUpdater {
     const RegTree* p_last_tree_{nullptr};
     DMatrix const* const p_last_fmat_;
 
-    enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>> histogram_builder_;
     ObjInfo task_;
     // Context for number of threads

@@ -137,6 +137,39 @@ CPUExpandEntry QuantileHistMaker::Builder<GradientSumT>::InitRoot(
 }
 
 template <typename GradientSumT>
+void QuantileHistMaker::Builder<GradientSumT>::BuildHistogram(
+    DMatrix *p_fmat, RegTree *p_tree, std::vector<CPUExpandEntry> const &valid_candidates,
+    std::vector<GradientPair> const &gpair) {
+  std::vector<CPUExpandEntry> nodes_to_build(valid_candidates.size());
+  std::vector<CPUExpandEntry> nodes_to_sub(valid_candidates.size());
+
+  size_t n_idx = 0;
+  for (auto const &c : valid_candidates) {
+    auto left_nidx = (*p_tree)[c.nid].LeftChild();
+    auto right_nidx = (*p_tree)[c.nid].RightChild();
+    auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
+
+    auto build_nidx = left_nidx;
+    auto subtract_nidx = right_nidx;
+    if (fewer_right) {
+      std::swap(build_nidx, subtract_nidx);
+    }
+    nodes_to_build[n_idx] = CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), {}};
+    nodes_to_sub[n_idx] = CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), {}};
+    n_idx++;
+  }
+
+  size_t page_id{0};
+  auto space = ConstructHistSpace(partitioner_, nodes_to_build);
+  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
+                                  partitioner_.at(page_id).Partitions(), nodes_to_build,
+                                  nodes_to_sub, gpair);
+    ++page_id;
+  }
+}
+
+template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h) {
   monitor_->Start(__func__);
