@@ -717,7 +717,7 @@ class XGBModel(XGBModelBase):
         return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
-        meta = {}
+        meta: Dict[str, Any] = {}
         for k, v in self.__dict__.items():
             if k == '_le':
                 meta['_le'] = self._le.to_json()
