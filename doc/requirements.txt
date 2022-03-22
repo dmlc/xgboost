@@ -1,8 +1,12 @@
-sphinx>=2.1
+sphinx>=4.4.0
 mock
-guzzle_sphinx_theme
+sphinx_rtd_theme>=1.0.0
 breathe
+scikit-learn
 sh>=1.12.14
 matplotlib>=2.1
 graphviz
 numpy
+recommonmark
+xgboost_ray
+sphinx-gallery

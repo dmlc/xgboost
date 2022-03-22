@@ -1,7 +1,12 @@
-'''Demo for creating customized multi-class objective function.  This demo is
-only applicable after (excluding) XGBoost 1.0.0, as before this version XGBoost
-returns transformed prediction for multi-class objective function.  More
-details in comments.
+'''
+Demo for creating customized multi-class objective function
+===========================================================
+
+This demo is only applicable after (excluding) XGBoost 1.0.0, as before this version
+XGBoost returns transformed prediction for multi-class objective function.  More details
+in comments.
+
+See :doc:`/tutorials/custom_metric_obj` for detailed tutorial and notes.
 
 '''
 
@@ -75,7 +80,7 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
     return grad, hess
 
 
-def predict(booster, X):
+def predict(booster: xgb.Booster, X):
     '''A customized prediction function that converts raw prediction to
     target class.
 
@@ -93,15 +98,39 @@ def predict(booster, X):
     return out
 
 
+def merror(predt: np.ndarray, dtrain: xgb.DMatrix):
+    y = dtrain.get_label()
+    # Like custom objective, the predt is untransformed leaf weight when custom objective
+    # is provided.
+
+    # With the use of `custom_metric` parameter in train function, custom metric receives
+    # raw input only when custom objective is also being used.  Otherwise custom metric
+    # will receive transformed prediction.
+    assert predt.shape == (kRows, kClasses)
+    out = np.zeros(kRows)
+    for r in range(predt.shape[0]):
+        i = np.argmax(predt[r])
+        out[r] = i
+
+    assert y.shape == out.shape
+
+    errors = np.zeros(kRows)
+    errors[y != out] = 1.0
+    return 'PyMError', np.sum(errors) / kRows
+
+
 def plot_history(custom_results, native_results):
     fig, axs = plt.subplots(2, 1)
     ax0 = axs[0]
     ax1 = axs[1]
 
+    pymerror = custom_results['train']['PyMError']
+    merror = native_results['train']['merror']
+
     x = np.arange(0, kRounds, 1)
-    ax0.plot(x, custom_results['train']['merror'], label='Custom objective')
+    ax0.plot(x, pymerror, label='Custom objective')
     ax0.legend()
-    ax1.plot(x, native_results['train']['merror'], label='multi:softmax')
+    ax1.plot(x, merror, label='multi:softmax')
     ax1.legend()
 
     plt.show()
@@ -110,10 +139,12 @@ def plot_history(custom_results, native_results):
 def main(args):
     custom_results = {}
     # Use our custom objective function
-    booster_custom = xgb.train({'num_class': kClasses},
+    booster_custom = xgb.train({'num_class': kClasses,
+                                'disable_default_eval_metric': True},
                                m,
                                num_boost_round=kRounds,
                                obj=softprob_obj,
+                               custom_metric=merror,
                                evals_result=custom_results,
                                evals=[(m, 'train')])
 
@@ -121,7 +152,9 @@ def main(args):
 
     native_results = {}
     # Use the same objective function defined in XGBoost.
-    booster_native = xgb.train({'num_class': kClasses},
+    booster_native = xgb.train({'num_class': kClasses,
+                                "objective": "multi:softmax",
+                                'eval_metric': 'merror'},
                                m,
                                num_boost_round=kRounds,
                                evals_result=native_results,
@@ -131,6 +164,8 @@ def main(args):
     # We are reimplementing the loss function in XGBoost, so it should
     # be the same for normal cases.
     assert np.all(predt_custom == predt_native)
+    np.testing.assert_allclose(custom_results['train']['PyMError'],
+                               native_results['train']['merror'])
 
     if args.plot != 0:
         plot_history(custom_results, native_results)

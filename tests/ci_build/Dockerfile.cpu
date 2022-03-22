@@ -7,25 +7,27 @@ SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
     wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
+ENV CC=gcc-8
+ENV CXX=g++-8
+ENV CPP=cpp-8
 
 ENV GOSU_VERSION 1.10
 
-# Install Python packages in default env
-RUN \
-    pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh \
-    		recommonmark guzzle_sphinx_theme mock breathe graphviz \
-		pytest scikit-learn wheel kubernetes urllib3 jsonschema boto3 && \
-    pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl && \
-    pip install "dask[complete]"
+# Create new Conda environment
+COPY conda_env/cpu_test.yml /scripts/
+RUN conda env create -n cpu_test --file=/scripts/cpu_test.yml
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

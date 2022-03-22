@@ -17,6 +17,8 @@
   predinteraction = FALSE,
   reshape = FALSE,
   training = FALSE,
+  iterationrange = NULL,
+  strict_shape = FALSE,
   ...
 )
 
@@ -25,7 +27,11 @@
 \arguments{
 \item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}}
 
-\item{newdata}{takes \code{matrix}, \code{dgCMatrix}, local data file or \code{xgb.DMatrix}.}
+\item{newdata}{takes \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+       local data file or \code{xgb.DMatrix}.
+
+       For single-row predictions on sparse data, it's recommended to use CSR format. If passing
+       a sparse vector, it will take it as a row vector.}
 
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
@@ -34,8 +40,7 @@ missing values in data (e.g., sometimes 0 or some other extreme value is used).}
 sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
 logistic regression would result in predictions for log-odds instead of probabilities.}
 
-\item{ntreelimit}{limit the number of model's trees or boosting iterations used in prediction (see Details).
-It will use all the trees by default (\code{NULL} value).}
+\item{ntreelimit}{Deprecated, use \code{iterationrange} instead.}
 
 \item{predleaf}{whether predict leaf index.}
 
@@ -52,10 +57,20 @@ or predinteraction flags is TRUE.}
 \item{training}{whether is the prediction result used for training.  For dart booster,
 training predicting will perform dropout.}
 
+\item{iterationrange}{Specifies which layer of trees are used in prediction.  For
+example, if a random forest is trained with 100 rounds.  Specifying
+`iterationrange=(1, 21)`, then only the forests built during [1, 21) (half open set)
+rounds are used in this prediction.  It's 1-based index just like R vector.  When set
+to \code{c(1, 1)} XGBoost will use all trees.}
+
+\item{strict_shape}{Default is \code{FALSE}. When it's set to \code{TRUE}, output
+type and shape of prediction are invariant to model type.}
+
 \item{...}{Parameters passed to \code{predict.xgb.Booster}}
 }
 \value{
-For regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
+The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
+for regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
 For multiclass classification, either a \code{num_class * nrows(newdata)} vector or
 a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on
 the \code{reshape} value.
@@ -76,18 +91,19 @@ two dimensions. The "+ 1" columns corresponds to bias. Summing this array along 
 produce practically the same result as predict with \code{predcontrib = TRUE}.
 For a multiclass case, a list of \code{num_class} elements is returned, where each element is
 such an array.
+
+When \code{strict_shape} is set to \code{TRUE}, the output is always an array.  For
+normal prediction, the output is a 2-dimension array \code{(num_class, nrow(newdata))}.
+
+For \code{predcontrib = TRUE}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
+For \code{predinteraction = TRUE}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
+For \code{predleaf = TRUE}, output is \code{(n_trees_in_forest, num_class, n_iterations, nrow(newdata))}
 }
 \description{
 Predicted values based on either xgboost model or model handle object.
 }
 \details{
-Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
-and it is not necessarily equal to the number of trees in a model.
-E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-But for multiclass classification, while there are multiple trees per iteration,
-\code{ntreelimit} limits the number of boosting iterations.
-
-Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear,
+Note that \code{iterationrange} would currently do nothing for predictions from gblinear,
 since gblinear doesn't keep its boosting history.
 
 One possible practical applications of the \code{predleaf} option is to use the model
@@ -120,7 +136,7 @@ bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
 # use all trees by default
 pred <- predict(bst, test$data)
 # use only the 1st tree
-pred1 <- predict(bst, test$data, ntreelimit = 1)
+pred1 <- predict(bst, test$data, iterationrange = c(1, 2))
 
 # Predicting tree leafs:
 # the result is an nsamples X ntrees matrix
@@ -172,24 +188,8 @@ str(pred)
 all.equal(pred, pred_labels)
 # prediction from using only 5 iterations should result
 # in the same error as seen in iteration 5:
-pred5 <- predict(bst, as.matrix(iris[, -5]), ntreelimit=5)
+pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
 sum(pred5 != lb)/length(lb)
-
-
-## random forest-like model of 25 trees for binary classification:
-
-set.seed(11)
-bst <- xgboost(data = train$data, label = train$label, max_depth = 5,
-               nthread = 2, nrounds = 1, objective = "binary:logistic",
-               num_parallel_tree = 25, subsample = 0.6, colsample_bytree = 0.1)
-# Inspect the prediction error vs number of trees:
-lb <- test$label
-dtest <- xgb.DMatrix(test$data, label=lb)
-err <- sapply(1:25, function(n) {
-  pred <- predict(bst, dtest, ntreelimit=n)
-  sum((pred > 0.5) != lb)/length(lb)
-})
-plot(err, type='l', ylim=c(0,0.1), xlab='#trees')
 
 }
 \references{

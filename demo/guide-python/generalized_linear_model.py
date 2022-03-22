@@ -1,3 +1,7 @@
+"""
+Demo for GLM
+============
+"""
 import os
 import xgboost as xgb
 ##

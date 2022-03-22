@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file metric_registry.cc
  * \brief Registry of objective functions.
  */
@@ -11,7 +11,7 @@
 
 namespace xgboost {
 template <typename MetricRegistry>
-Metric* CreateMetricImpl(const std::string& name, GenericParameter const* tparam) {
+Metric* CreateMetricImpl(const std::string& name) {
   std::string buf = name;
   std::string prefix = name;
   const char* param;
@@ -44,7 +44,7 @@ Metric* CreateMetricImpl(const std::string& name, GenericParameter const* tparam
 
 Metric *
 Metric::Create(const std::string& name, GenericParameter const* tparam) {
-  auto metric = CreateMetricImpl<MetricReg>(name, tparam);
+  auto metric = CreateMetricImpl<MetricReg>(name);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;
   }
@@ -55,7 +55,7 @@ Metric::Create(const std::string& name, GenericParameter const* tparam) {
 
 Metric *
 GPUMetric::CreateGPUMetric(const std::string& name, GenericParameter const* tparam) {
-  auto metric = CreateMetricImpl<MetricGPUReg>(name, tparam);
+  auto metric = CreateMetricImpl<MetricGPUReg>(name);
   if (metric == nullptr) {
     LOG(WARNING) << "Cannot find a GPU metric builder for metric " << name
                  << ". Resorting to the CPU builder";
@@ -80,6 +80,7 @@ namespace metric {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
+DMLC_REGISTRY_LINK_TAG(survival_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);

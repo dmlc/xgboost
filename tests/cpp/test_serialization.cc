@@ -1,15 +1,91 @@
-// Copyright (c) 2019-2020 by Contributors
+// Copyright (c) 2019-2022 by Contributors
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
 #include <string>
 #include <xgboost/learner.h>
 #include <xgboost/data.h>
 #include <xgboost/base.h>
+#include <xgboost/json.h>
 #include "helpers.h"
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
 
 namespace xgboost {
+template <typename Array>
+void CompareIntArray(Json l, Json r) {
+  auto const& l_arr = get<Array const>(l);
+  auto const& r_arr = get<Array const>(r);
+  ASSERT_EQ(l_arr.size(), r_arr.size());
+  for (size_t i = 0; i < l_arr.size(); ++i) {
+    ASSERT_EQ(l_arr[i], r_arr[i]);
+  }
+}
+
+void CompareJSON(Json l, Json r) {
+  switch (l.GetValue().Type()) {
+  case Value::ValueKind::kString: {
+    ASSERT_EQ(l, r);
+    break;
+  }
+  case Value::ValueKind::kNumber: {
+    ASSERT_NEAR(get<Number>(l), get<Number>(r), kRtEps);
+    break;
+  }
+  case Value::ValueKind::kInteger: {
+    ASSERT_EQ(l, r);
+    break;
+  }
+  case Value::ValueKind::kObject: {
+    auto const &l_obj = get<Object const>(l);
+    auto const &r_obj = get<Object const>(r);
+    ASSERT_EQ(l_obj.size(), r_obj.size());
+
+    for (auto const& kv : l_obj) {
+      ASSERT_NE(r_obj.find(kv.first), r_obj.cend());
+      CompareJSON(l_obj.at(kv.first), r_obj.at(kv.first));
+    }
+    break;
+  }
+  case Value::ValueKind::kArray: {
+    auto const& l_arr = get<Array const>(l);
+    auto const& r_arr = get<Array const>(r);
+    ASSERT_EQ(l_arr.size(), r_arr.size());
+    for (size_t i = 0; i < l_arr.size(); ++i) {
+      CompareJSON(l_arr[i], r_arr[i]);
+    }
+    break;
+  }
+  case Value::ValueKind::kNumberArray: {
+    auto const& l_arr = get<F32Array const>(l);
+    auto const& r_arr = get<F32Array const>(r);
+    ASSERT_EQ(l_arr.size(), r_arr.size());
+    for (size_t i = 0; i < l_arr.size(); ++i) {
+      ASSERT_NEAR(l_arr[i], r_arr[i], kRtEps);
+    }
+    break;
+  }
+  case Value::ValueKind::kU8Array: {
+    CompareIntArray<U8Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kI32Array: {
+    CompareIntArray<I32Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kI64Array: {
+    CompareIntArray<I64Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kBoolean: {
+    ASSERT_EQ(l, r);
+    break;
+  }
+  case Value::ValueKind::kNull: {
+    ASSERT_EQ(l, r);
+    break;
+  }
+  }
+}
 
 void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr<DMatrix> p_dmat) {
   for (auto& batch : p_dmat->GetBatches<SparsePage>()) {
@@ -102,9 +178,10 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
       learner->Save(&fo);
     }
 
-    Json m_0 = Json::Load(StringView{continued_model.c_str(), continued_model.size()});
-    Json m_1 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
-    ASSERT_EQ(m_0, m_1);
+    Json m_0 = Json::Load(StringView{continued_model}, std::ios::binary);
+    Json m_1 = Json::Load(StringView{model_at_2kiter}, std::ios::binary);
+
+    CompareJSON(m_0, m_1);
   }
 
   // Test training continuation with data from device.
@@ -137,8 +214,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     common::MemoryBufferStream fo(&serialised_model_tmp);
     learner->Save(&fo);
 
-    Json m_0 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
-    Json m_1 = Json::Load(StringView{serialised_model_tmp.c_str(), serialised_model_tmp.size()});
+    Json m_0 = Json::Load(StringView{model_at_2kiter}, std::ios::binary);
+    Json m_1 = Json::Load(StringView{serialised_model_tmp}, std::ios::binary);
     // GPU ID is changed as data is coming from device.
     ASSERT_EQ(get<Object>(m_0["Config"]["learner"]["generic_param"]).erase("gpu_id"),
               get<Object>(m_1["Config"]["learner"]["generic_param"]).erase("gpu_id"));
@@ -148,8 +225,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 // Binary is not tested, as it is NOT reproducible.
 class SerializationTest : public ::testing::Test {
  protected:
-  size_t constexpr static kRows = 10;
-  size_t constexpr static kCols = 10;
+  size_t constexpr static kRows = 15;
+  size_t constexpr static kCols = 15;
   std::shared_ptr<DMatrix> p_dmat_;
   FeatureMap fmap_;
 
@@ -158,8 +235,8 @@ class SerializationTest : public ::testing::Test {
   void SetUp() override {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix();
 
-    p_dmat_->Info().labels_.Resize(kRows);
-    auto &h_labels = p_dmat_->Info().labels_.HostVector();
+    p_dmat_->Info().labels.Reshape(kRows);
+    auto& h_labels = p_dmat_->Info().labels.Data()->HostVector();
 
     xgboost::SimpleLCG gen(0);
     SimpleRealUniformDistribution<float> dis(0.0f, 1.0f);
@@ -173,29 +250,32 @@ class SerializationTest : public ::testing::Test {
   }
 };
 
+size_t constexpr SerializationTest::kRows;
+size_t constexpr SerializationTest::kCols;
+
 TEST_F(SerializationTest, Exact) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"base_score", "3.14195265"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"base_score", "3.14195265"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "dart"},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"base_score", "3.14195265"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 }
@@ -205,7 +285,6 @@ TEST_F(SerializationTest, Approx) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 
@@ -214,7 +293,6 @@ TEST_F(SerializationTest, Approx) {
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 
@@ -222,7 +300,6 @@ TEST_F(SerializationTest, Approx) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 }
@@ -232,7 +309,6 @@ TEST_F(SerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
@@ -241,7 +317,6 @@ TEST_F(SerializationTest, Hist) {
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
@@ -249,7 +324,6 @@ TEST_F(SerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
@@ -258,7 +332,6 @@ TEST_F(SerializationTest, CPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"updater", "coord_descent"}},
                            fmap_, p_dmat_);
 }
@@ -267,7 +340,6 @@ TEST_F(SerializationTest, CPUCoordDescent) {
 TEST_F(SerializationTest, GpuHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"tree_method", "gpu_hist"}},
@@ -275,7 +347,6 @@ TEST_F(SerializationTest, GpuHist) {
 
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
@@ -284,7 +355,6 @@ TEST_F(SerializationTest, GpuHist) {
 
   TestLearnerSerialization({{"booster", "dart"},
                             {"seed", "0"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"tree_method", "gpu_hist"}},
@@ -304,7 +374,6 @@ TEST_F(SerializationTest, ConfigurationCount) {
     auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
 
     learner->SetParam("tree_method", "gpu_hist");
-    learner->SetParam("enable_experimental_json_serialization", "1");
 
     for (size_t i = 0; i < 10; ++i) {
       learner->UpdateOneIter(i, p_dmat);
@@ -333,7 +402,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
     occureences ++;
     pos += target.size();
   }
-  ASSERT_EQ(occureences, 2);
+  ASSERT_EQ(occureences, 2ul);
 
   xgboost::ConsoleLogger::Configure({{"verbosity", "2"}});
 }
@@ -342,7 +411,6 @@ TEST_F(SerializationTest, GPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"updater", "gpu_coord_descent"}},
                            fmap_, p_dmat_);
 }
@@ -355,8 +423,8 @@ class LogitSerializationTest : public SerializationTest {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix();
 
     std::shared_ptr<DMatrix> p_dmat{p_dmat_};
-    p_dmat->Info().labels_.Resize(kRows);
-    auto &h_labels = p_dmat->Info().labels_.HostVector();
+    p_dmat->Info().labels.Reshape(kRows);
+    auto& h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::bernoulli_distribution flip(0.5);
     auto& rnd = common::GlobalRandom();
@@ -377,7 +445,6 @@ TEST_F(LogitSerializationTest, Exact) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 
@@ -386,7 +453,6 @@ TEST_F(LogitSerializationTest, Exact) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 }
@@ -397,7 +463,6 @@ TEST_F(LogitSerializationTest, Approx) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 
@@ -406,7 +471,6 @@ TEST_F(LogitSerializationTest, Approx) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 }
@@ -417,7 +481,6 @@ TEST_F(LogitSerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
@@ -426,7 +489,6 @@ TEST_F(LogitSerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
@@ -435,7 +497,6 @@ TEST_F(LogitSerializationTest, CPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"updater", "coord_descent"}},
                            fmap_, p_dmat_);
 }
@@ -447,14 +508,12 @@ TEST_F(LogitSerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"objective", "binary:logistic"},
                             {"seed", "0"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
@@ -466,7 +525,6 @@ TEST_F(LogitSerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 }
@@ -476,7 +534,6 @@ TEST_F(LogitSerializationTest, GPUCoordDescent) {
                             {"objective", "binary:logistic"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"updater", "gpu_coord_descent"}},
                            fmap_, p_dmat_);
 }
@@ -490,8 +547,8 @@ class MultiClassesSerializationTest : public SerializationTest {
     p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix();
 
     std::shared_ptr<DMatrix> p_dmat{p_dmat_};
-    p_dmat->Info().labels_.Resize(kRows);
-    auto &h_labels = p_dmat->Info().labels_.HostVector();
+    p_dmat->Info().labels.Reshape(kRows);
+    auto &h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::uniform_int_distribution<size_t> categorical(0, kClasses - 1);
     auto& rnd = common::GlobalRandom();
@@ -512,7 +569,6 @@ TEST_F(MultiClassesSerializationTest, Exact) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 
@@ -522,7 +578,6 @@ TEST_F(MultiClassesSerializationTest, Exact) {
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
                             {"num_parallel_tree", "4"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 
@@ -531,7 +586,6 @@ TEST_F(MultiClassesSerializationTest, Exact) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
                            fmap_, p_dmat_);
 }
@@ -542,7 +596,6 @@ TEST_F(MultiClassesSerializationTest, Approx) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 
@@ -551,7 +604,6 @@ TEST_F(MultiClassesSerializationTest, Approx) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "approx"}},
                            fmap_, p_dmat_);
 }
@@ -562,7 +614,6 @@ TEST_F(MultiClassesSerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
@@ -571,7 +622,6 @@ TEST_F(MultiClassesSerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"num_parallel_tree", "4"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
@@ -581,7 +631,6 @@ TEST_F(MultiClassesSerializationTest, Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
@@ -590,7 +639,6 @@ TEST_F(MultiClassesSerializationTest, CPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"updater", "coord_descent"}},
                            fmap_, p_dmat_);
 }
@@ -606,7 +654,9 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             // different result (1e-7) with CPU predictor for some
                             // entries.
                             {"predictor", "gpu_predictor"},
-                            {"enable_experimental_json_serialization", "1"},
+                            // Mitigate the difference caused by hardware fused multiply
+                            // add to tree weight during update prediction cache.
+                            {"learning_rate", "1.0"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 
@@ -617,8 +667,8 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"max_depth", std::to_string(kClasses)},
                             // GPU_Hist has higher floating point error. 1e-6 doesn't work
                             // after num_parallel_tree goes to 4
-                            {"num_parallel_tree", "3"},
-                            {"enable_experimental_json_serialization", "1"},
+                            {"num_parallel_tree", "4"},
+                            {"learning_rate", "1.0"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 
@@ -626,8 +676,8 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"learning_rate", "1.0"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 }
@@ -637,7 +687,6 @@ TEST_F(MultiClassesSerializationTest, GPUCoordDescent) {
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"enable_experimental_json_serialization", "1"},
                             {"updater", "gpu_coord_descent"}},
                            fmap_, p_dmat_);
 }

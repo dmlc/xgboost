@@ -46,6 +46,7 @@ object XGBoost {
     } else {
       prevBooster.booster
     }
+
     val xgboostInJava = checkpointParams.
       map(cp => {
           JXGBoost.trainAndSaveCheckpoint(

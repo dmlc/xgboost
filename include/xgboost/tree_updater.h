@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file tree_updater.h
  * \brief General primitive for tree learning,
  *   Updating a collection of trees given the information.
@@ -8,18 +8,20 @@
 #ifndef XGBOOST_TREE_UPDATER_H_
 #define XGBOOST_TREE_UPDATER_H_
 
-#include <functional>
-#include <vector>
-#include <utility>
-#include <string>
-
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/linalg.h>
 #include <xgboost/model.h>
+#include <xgboost/task.h>
+#include <xgboost/tree_model.h>
+
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 
@@ -30,7 +32,7 @@ class Json;
  */
 class TreeUpdater : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  GenericParameter const* ctx_ = nullptr;
 
  public:
   /*! \brief virtual destructor */
@@ -70,8 +72,8 @@ class TreeUpdater : public Configurable {
    *         the prediction cache. If true, the prediction cache will have been
    *         updated by the time this function returns.
    */
-  virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     HostDeviceVector<bst_float>* out_preds) {
+  virtual bool UpdatePredictionCache(const DMatrix * /*data*/,
+                                     linalg::VectorView<float> /*out_preds*/) {
     return false;
   }
 
@@ -82,7 +84,7 @@ class TreeUpdater : public Configurable {
    * \param name Name of the tree updater.
    * \param tparam A global runtime parameter
    */
-  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam, ObjInfo task);
 };
 
 /*!
@@ -90,8 +92,7 @@ class TreeUpdater : public Configurable {
  */
 struct TreeUpdaterReg
     : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
-                                        std::function<TreeUpdater* ()> > {
-};
+                                        std::function<TreeUpdater*(ObjInfo task)> > {};
 
 /*!
  * \brief Macro to register tree updater.

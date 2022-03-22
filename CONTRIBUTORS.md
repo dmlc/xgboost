@@ -10,8 +10,8 @@ The Project Management Committee(PMC) consists group of active committers that m
   - Tianqi is a Ph.D. student working on large-scale machine learning. He is the creator of the project.
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Michael is a lawyer and data scientist in France. He is the creator of XGBoost interactive analysis module in R.
-* [Yuan Tang](https://github.com/terrytangyuan), Ant Financial
-  - Yuan is a software engineer in Ant Financial. He contributed mostly in R and Python packages.
+* [Yuan Tang](https://github.com/terrytangyuan), Akuity
+  - Yuan is a founding engineer at Akuity. He contributed mostly in R and Python packages.
 * [Nan Zhu](https://github.com/CodingCat), Uber
   - Nan is a software engineer in Uber. He contributed mostly in JVM packages.
 * [Jiaming Yuan](https://github.com/trivialfis)
@@ -37,11 +37,13 @@ Committers are people who have made substantial contribution to the project and 
   - Sergei is a software engineer in Criteo. He contributed mostly in JVM packages.
 * [Scott Lundberg](http://scottlundberg.com/), University of Washington
   - Scott is a Ph.D. student at University of Washington. He is the creator of SHAP, a unified approach to explain the output of machine learning models such as decision tree ensembles. He also helps maintain the XGBoost Julia package.
+* [Egor Smirnov](https://github.com/SmirnovEgorRu), Intel
+  - Egor has led a major effort to improve the performance of XGBoost on multi-core CPUs.
 
 
 Become a Committer
 ------------------
-XGBoost is a opensource project and we are actively looking for new committers who are willing to help maintaining and lead the project.
+XGBoost is a open source project and we are actively looking for new committers who are willing to help maintaining and lead the project.
 Committers comes from contributors who:
 * Made substantial contribution to the project.
 * Willing to spent time on maintaining and lead the project.
@@ -57,7 +59,7 @@ List of Contributors
 * [Skipper Seabold](https://github.com/jseabold)
   - Skipper is the major contributor to the scikit-learn module of XGBoost.
 * [Zygmunt Zając](https://github.com/zygmuntz)
-  - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
+  - Zygmunt is the master behind the early stopping feature frequently used by Kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Yangqing Men](https://github.com/yanqingmen)
@@ -89,7 +91,7 @@ List of Contributors
 * [Henry Gouk](https://github.com/henrygouk)
 * [Pierre de Sahb](https://github.com/pdesahb)
 * [liuliang01](https://github.com/liuliang01)
-  - liuliang01 added support for the qid column for LibSVM input format. This makes ranking task easier in distributed setting.
+  - liuliang01 added support for the qid column for LIBSVM input format. This makes ranking task easier in distributed setting.
 * [Andrew Thia](https://github.com/BlueTea88)
   - Andrew Thia implemented feature interaction constraints
 * [Wei Tian](https://github.com/weitian)

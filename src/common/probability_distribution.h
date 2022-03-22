@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by Contributors
+ * Copyright 2019-2020 by Contributors
  * \file probability_distribution.h
  * \brief Implementation of a few useful probability distributions
  * \author Avinash Barnwal and Hyunsu Cho
@@ -8,85 +8,115 @@
 #ifndef XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 #define XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 
+#include <cmath>
+
 namespace xgboost {
 namespace common {
 
-namespace probability_constant {
+#ifndef __CUDACC__
+
+using std::exp;
+using std::sqrt;
+using std::isinf;
+using std::isnan;
+
+#endif  // __CUDACC__
 
 /*! \brief Constant PI */
-const double kPI = 3.14159265358979323846;
+constexpr double kPI = 3.14159265358979323846;
 /*! \brief The Euler-Mascheroni_constant */
-const double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
-
-}  // namespace probability_constant
+constexpr double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
 
 /*! \brief Enum encoding possible choices of probability distribution */
 enum class ProbabilityDistributionType : int {
   kNormal = 0, kLogistic = 1, kExtreme = 2
 };
 
-/*! \brief Interface for a probability distribution */
-class ProbabilityDistribution {
- public:
-  /*!
-   * \brief Evaluate Probability Density Function (PDF) at a particular point
-   * \param z point at which to evaluate PDF
-   * \return Value of PDF evaluated
-   */
-  virtual double PDF(double z) = 0;
-  /*!
-   * \brief Evaluate Cumulative Distribution Function (CDF) at a particular point
-   * \param z point at which to evaluate CDF
-   * \return Value of CDF evaluated
-   */
-  virtual double CDF(double z) = 0;
-  /*!
-   * \brief Evaluate first derivative of PDF at a particular point
-   * \param z point at which to evaluate first derivative of PDF
-   * \return Value of first derivative of PDF evaluated
-   */
-  virtual double GradPDF(double z) = 0;
-  /*!
-   * \brief Evaluate second derivative of PDF at a particular point
-   * \param z point at which to evaluate second derivative of PDF
-   * \return Value of second derivative of PDF evaluated
-   */
-  virtual double HessPDF(double z) = 0;
+struct NormalDistribution {
+  XGBOOST_DEVICE static double PDF(double z) {
+    return exp(-z * z / 2.0) / sqrt(2.0 * kPI);
+  }
 
-  /*!
-   * \brief Factory function to instantiate a new probability distribution object
-   * \param dist kind of probability distribution
-   * \return Reference to the newly created probability distribution object
-   */
-  static ProbabilityDistribution* Create(ProbabilityDistributionType dist);
-  virtual ~ProbabilityDistribution() = default;
+  XGBOOST_DEVICE static double CDF(double z) {
+    return 0.5 * (1 + erf(z / sqrt(2.0)));
+  }
+
+  XGBOOST_DEVICE static double GradPDF(double z) {
+    return -z * PDF(z);
+  }
+
+  XGBOOST_DEVICE static double HessPDF(double z) {
+    return (z * z - 1.0) * PDF(z);
+  }
+
+  XGBOOST_DEVICE static ProbabilityDistributionType Type() {
+    return ProbabilityDistributionType::kNormal;
+  }
 };
 
-/*! \brief The (standard) normal distribution */
-class NormalDist : public ProbabilityDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
+struct LogisticDistribution {
+  XGBOOST_DEVICE static double PDF(double z) {
+    const double w = exp(z);
+    const double sqrt_denominator = 1 + w;
+    if (isinf(w) || isinf(w * w)) {
+      return 0.0;
+    } else {
+      return w / (sqrt_denominator * sqrt_denominator);
+    }
+  }
+
+  XGBOOST_DEVICE static double CDF(double z) {
+    const double w = exp(z);
+    return isinf(w) ? 1.0 : (w / (1 + w));
+  }
+
+  XGBOOST_DEVICE static double GradPDF(double z) {
+    const double w = exp(z);
+    return isinf(w) ? 0.0 : (PDF(z) * (1 - w) / (1 + w));
+  }
+
+  XGBOOST_DEVICE static double HessPDF(double z) {
+    const double w = exp(z);
+    if (isinf(w) || isinf(w * w)) {
+      return 0.0;
+    } else {
+      return PDF(z) * (w * w - 4 * w + 1) / ((1 + w) * (1 + w));
+    }
+  }
+
+  XGBOOST_DEVICE static ProbabilityDistributionType Type() {
+    return ProbabilityDistributionType::kLogistic;
+  }
 };
 
-/*! \brief The (standard) logistic distribution */
-class LogisticDist : public ProbabilityDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
-};
+struct ExtremeDistribution {
+  XGBOOST_DEVICE static double PDF(double z) {
+    const double w = exp(z);
+    return isinf(w) ? 0.0 : (w * exp(-w));
+  }
 
-/*! \brief The extreme distribution, also known as the Gumbel (minimum) distribution */
-class ExtremeDist : public ProbabilityDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
+  XGBOOST_DEVICE static double CDF(double z) {
+    const double w = exp(z);
+    return 1 - exp(-w);
+  }
+
+  XGBOOST_DEVICE static double GradPDF(double z) {
+    const double w = exp(z);
+    return isinf(w) ? 0.0 : ((1 - w) * PDF(z));
+  }
+
+  XGBOOST_DEVICE static double HessPDF(double z) {
+    const double w = exp(z);
+    if (isinf(w) || isinf(w * w)) {
+      return 0.0;
+    } else {
+      return (w * w - 3 * w + 1) * PDF(z);
+    }
+  }
+
+  XGBOOST_DEVICE static ProbabilityDistributionType Type() {
+    return ProbabilityDistributionType::kExtreme;
+  }
 };
 
 }  // namespace common

@@ -2,14 +2,14 @@
  * Copyright 2018-2019 by Contributors
  */
 #pragma once
+#include <dmlc/io.h>
+#include <dmlc/parameter.h>
+#include <xgboost/learner.h>
+
 #include <vector>
 #include <string>
 #include <cstring>
 
-#include <dmlc/io.h>
-#include <dmlc/parameter.h>
-
-#include <xgboost/learner.h>
 #include "xgboost/base.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/model.h"
@@ -44,12 +44,13 @@ class GBLinearModel : public Model {
   DeprecatedGBLinearModelParam param_;
 
  public:
+  int32_t num_boosted_rounds;
   LearnerModelParam const* learner_model_param;
 
  public:
   explicit GBLinearModel(LearnerModelParam const* learner_model_param) :
-      learner_model_param {learner_model_param} {}
-  void Configure(Args const &cfg) { }
+      num_boosted_rounds{0}, learner_model_param {learner_model_param} {}
+  void Configure(Args const &) { }
 
   // weight for each of feature, bias is the last one
   std::vector<bst_float> weight;
@@ -95,7 +96,7 @@ class GBLinearModel : public Model {
     return &weight[i * learner_model_param->num_output_group];
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
+  std::vector<std::string> DumpModel(const FeatureMap &, bool,
                                      std::string format) const {
     const int ngroup = learner_model_param->num_output_group;
     const unsigned nfeature = learner_model_param->num_feature;

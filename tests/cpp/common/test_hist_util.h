@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2022 by XGBoost Contributors
+ */
 #pragma once
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
@@ -5,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <fstream>
+
+#include "../helpers.h"
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/adapter.h"
@@ -52,27 +57,13 @@ inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
     Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
     Json(Boolean(false))};
   array_interface["data"] = j_data;
-  array_interface["version"] = Integer(static_cast<Integer::Int>(1));
+  array_interface["version"] = 3;
   array_interface["typestr"] = String("<f4");
-  std::stringstream ss;
-  Json::Dump(array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(array_interface, &str);
   return data::CupyAdapter(str);
 }
 #endif
-
-inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
-                                                                int num_categories) {
-  std::vector<float> x(n);
-  std::mt19937 rng(0);
-  std::uniform_int_distribution<int> dist(0, num_categories - 1);
-  std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
-  // Make sure each category is present
-  for(auto i = 0; i < num_categories; i++) {
-    x[i] = i;
-  }
-  return x;
-}
 
 inline std::shared_ptr<data::SimpleDMatrix>
 GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
@@ -97,7 +88,7 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
   }
   fo.close();
   return std::shared_ptr<DMatrix>(DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto"));
 }
 
 // Test that elements are approximately equally distributed among bins
@@ -118,7 +109,7 @@ inline void TestBinDistribution(const HistogramCuts &cuts, int column_idx,
 
   // First and last bin can have smaller
   for (auto& kv : bin_weights) {
-    EXPECT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight),
+    ASSERT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight),
               allowable_error);
   }
 }
@@ -151,7 +142,8 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            size_t num_bins) {
 
   // Check the endpoints are correct
-  EXPECT_LT(cuts.MinValues()[column_idx], sorted_column.front());
+  CHECK_GT(sorted_column.size(), 0);
+  EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
   EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
   EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
 
@@ -162,7 +154,7 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
 
   // Check all cut points are unique
   EXPECT_EQ(std::set<float>(cuts_begin, cuts_end).size(),
-            cuts_end - cuts_begin);
+            static_cast<size_t>(cuts_end - cuts_begin));
 
   auto unique = std::set<float>(sorted_column.begin(), sorted_column.end());
   if (unique.size() <= num_bins) {
@@ -189,8 +181,10 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
   // Collect data into columns
   std::vector<std::vector<float>> columns(dmat->Info().num_col_);
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
+    ASSERT_GT(batch.Size(), 0ul);
     for (auto i = 0ull; i < batch.Size(); i++) {
-      for (auto e : batch[i]) {
+      for (auto e : page[i]) {
         columns[e.index].push_back(e.fvalue);
       }
     }
@@ -217,5 +211,46 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
   }
 }
 
+/**
+ * \brief Test for sketching on categorical data.
+ *
+ * \param sketch Sketch function, can be on device or on host.
+ */
+template <typename Fn>
+void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins,
+                           bool weighted, Fn sketch) {
+  auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+  auto dmat = GetDMatrixFromData(x, n, 1);
+  dmat->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
+
+  if (weighted) {
+    std::vector<float> weights(n, 0);
+    SimpleLCG lcg;
+    SimpleRealUniformDistribution<float> dist(0, 1);
+    for (auto& v : weights) {
+      v = dist(&lcg);
+    }
+    dmat->Info().weights_.HostVector() = weights;
+  }
+
+  ASSERT_EQ(dmat->Info().feature_types.Size(), 1);
+  auto cuts = sketch(dmat.get(), num_bins);
+  ASSERT_EQ(cuts.MaxCategory(), num_categories - 1);
+  std::sort(x.begin(), x.end());
+  auto n_uniques = std::unique(x.begin(), x.end()) - x.begin();
+  ASSERT_NE(n_uniques, x.size());
+  ASSERT_EQ(cuts.TotalBins(), n_uniques);
+  ASSERT_EQ(n_uniques, num_categories);
+
+  auto& values = cuts.cut_values_.HostVector();
+  ASSERT_TRUE(std::is_sorted(values.cbegin(), values.cend()));
+  auto is_unique = (std::unique(values.begin(), values.end()) - values.begin()) == n_uniques;
+  ASSERT_TRUE(is_unique);
+
+  x.resize(n_uniques);
+  for (decltype(n_uniques) i = 0; i < n_uniques; ++i) {
+    ASSERT_EQ(x[i], values[i]);
+  }
+}
 }  // namespace common
 }  // namespace xgboost

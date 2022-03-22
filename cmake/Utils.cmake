@@ -15,7 +15,7 @@ endfunction(auto_source_group)
 
 # Force static runtime for MSVC
 function(msvc_use_static_runtime)
-  if(MSVC)
+  if(MSVC AND (NOT BUILD_SHARED_LIBS) AND (NOT FORCE_SHARED_CRT))
       set(variables
           CMAKE_C_FLAGS_DEBUG
           CMAKE_C_FLAGS_MINSIZEREL
@@ -54,23 +54,22 @@ endfunction(msvc_use_static_runtime)
 
 # Set output directory of target, ignoring debug or release
 function(set_output_directory target dir)
-	set_target_properties(${target} PROPERTIES
-		RUNTIME_OUTPUT_DIRECTORY ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
-		LIBRARY_OUTPUT_DIRECTORY ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_DEBUG ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
-	)
+  set_target_properties(${target} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
+    LIBRARY_OUTPUT_DIRECTORY ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir})
 endfunction(set_output_directory)
 
 # Set a default build type to release if none was specified
@@ -91,7 +90,11 @@ function(format_gencode_flags flags out)
   endif()
   # Set up architecture flags
   if(NOT flags)
-    if(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
+    if (CUDA_VERSION VERSION_GREATER_EQUAL "11.1")
+      set(flags "50;52;60;61;70;75;80;86")
+    elseif (CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
+      set(flags "35;50;52;60;61;70;75;80")
+    elseif(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
       set(flags "35;50;52;60;61;70;75")
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "9.0")
       set(flags "35;50;52;60;61;70")
@@ -99,48 +102,27 @@ function(format_gencode_flags flags out)
       set(flags "35;50;52;60;61")
     endif()
   endif()
-  # Generate SASS
-  foreach(ver ${flags})
-    set(${out} "${${out}}--generate-code=arch=compute_${ver},code=sm_${ver};")
-  endforeach()
-  # Generate PTX for last architecture
-  list(GET flags -1 ver)
-  set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
 
-  set(${out} "${${out}}" PARENT_SCOPE)
+  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+    cmake_policy(SET CMP0104 NEW)
+    list(POP_BACK flags latest_arch)
+    list(TRANSFORM flags APPEND "-real")
+    list(APPEND flags ${latest_arch})
+    set(CMAKE_CUDA_ARCHITECTURES ${flags})
+    set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" PARENT_SCOPE)
+    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+  else()
+    # Generate SASS
+    foreach(ver ${flags})
+      set(${out} "${${out}}--generate-code=arch=compute_${ver},code=sm_${ver};")
+    endforeach()
+    # Generate PTX for last architecture
+    list(GET flags -1 ver)
+    set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
+    set(${out} "${${out}}" PARENT_SCOPE)
+    message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
+  endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
 endfunction(format_gencode_flags flags)
-
-# Assembles the R-package files in build_dir;
-# if necessary, installs the main R package dependencies;
-# runs R CMD INSTALL.
-function(setup_rpackage_install_target rlib_target build_dir)
-  # backup cmake_install.cmake
-  install(CODE "file(COPY \"${build_dir}/R-package/cmake_install.cmake\"
-DESTINATION \"${build_dir}/bak\")")
-
-  install(CODE "file(REMOVE_RECURSE \"${build_dir}/R-package\")")
-  install(
-    DIRECTORY "${xgboost_SOURCE_DIR}/R-package"
-    DESTINATION "${build_dir}"
-    REGEX "src/*" EXCLUDE
-    REGEX "R-package/configure" EXCLUDE
-  )
-  install(TARGETS ${rlib_target}
-    LIBRARY DESTINATION "${build_dir}/R-package/src/"
-    RUNTIME DESTINATION "${build_dir}/R-package/src/")
-  install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars\" \"all:\")")
-  install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars.win\" \"all:\")")
-  set(XGB_DEPS_SCRIPT
-    "deps = setdiff(c('data.table', 'magrittr', 'stringi'), rownames(installed.packages()));\
-    if(length(deps)>0) install.packages(deps, repo = 'https://cloud.r-project.org/')")
-  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" \"-q\" \"-e\" \"${XGB_DEPS_SCRIPT}\")")
-  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\
-    \"--no-multiarch\" \"--build\" \"${build_dir}/R-package\")")
-
-  # restore cmake_install.cmake
-  install(CODE "file(RENAME \"${build_dir}/bak/cmake_install.cmake\"
- \"${build_dir}/R-package/cmake_install.cmake\")")
-endfunction(setup_rpackage_install_target)
 
 macro(enable_nvtx target)
   find_package(NVTX REQUIRED)
@@ -148,3 +130,154 @@ macro(enable_nvtx target)
   target_link_libraries(${target} PRIVATE "${NVTX_LIBRARY}")
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
 endmacro()
+
+# Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
+function(xgboost_set_cuda_flags target)
+  target_compile_options(${target} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
+
+  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+    set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
+  endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+
+  if (USE_DEVICE_DEBUG)
+    target_compile_options(${target} PRIVATE
+      $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
+  else (USE_DEVICE_DEBUG)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
+  endif (USE_DEVICE_DEBUG)
+
+  if (USE_NVTX)
+    enable_nvtx(${target})
+  endif (USE_NVTX)
+
+  if (NOT BUILD_WITH_CUDA_CUB)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1 -DTHRUST_IGNORE_CUB_VERSION_CHECK=1)
+    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/ ${xgboost_SOURCE_DIR}/gputreeshap)
+  else ()
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
+    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/gputreeshap)
+  endif (NOT BUILD_WITH_CUDA_CUB)
+
+  if (MSVC)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
+  endif (MSVC)
+
+  set_target_properties(${target} PROPERTIES
+    CUDA_STANDARD 14
+    CUDA_STANDARD_REQUIRED ON
+    CUDA_SEPARABLE_COMPILATION OFF)
+endfunction(xgboost_set_cuda_flags)
+
+macro(xgboost_link_nccl target)
+  if (BUILD_STATIC_LIB)
+    target_include_directories(${target} PUBLIC ${NCCL_INCLUDE_DIR})
+    target_compile_definitions(${target} PUBLIC -DXGBOOST_USE_NCCL=1)
+    target_link_libraries(${target} PUBLIC ${NCCL_LIBRARY})
+  else ()
+    target_include_directories(${target} PRIVATE ${NCCL_INCLUDE_DIR})
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NCCL=1)
+    target_link_libraries(${target} PRIVATE ${NCCL_LIBRARY})
+  endif (BUILD_STATIC_LIB)
+endmacro(xgboost_link_nccl)
+
+# compile options
+macro(xgboost_target_properties target)
+  set_target_properties(${target} PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON)
+  if (HIDE_CXX_SYMBOLS)
+    #-- Hide all C++ symbols
+    set_target_properties(${target} PROPERTIES
+      C_VISIBILITY_PRESET hidden
+      CXX_VISIBILITY_PRESET hidden
+      CUDA_VISIBILITY_PRESET hidden
+    )
+  endif (HIDE_CXX_SYMBOLS)
+
+  if (ENABLE_ALL_WARNINGS)
+    target_compile_options(${target} PUBLIC
+      $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>
+    )
+  endif(ENABLE_ALL_WARNINGS)
+
+  target_compile_options(${target}
+    PRIVATE
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
+
+  if (MSVC)
+    target_compile_options(${target} PRIVATE
+      $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+      -D_CRT_SECURE_NO_WARNINGS
+      -D_CRT_SECURE_NO_DEPRECATE
+      )
+  endif (MSVC)
+
+  if (WIN32 AND MINGW)
+    target_compile_options(${target} PUBLIC -static-libstdc++)
+  endif (WIN32 AND MINGW)
+endmacro(xgboost_target_properties)
+
+# Custom definitions used in xgboost.
+macro(xgboost_target_defs target)
+  if (NOT ${target} STREQUAL "dmlc") # skip dmlc core for custom logging.
+    target_compile_definitions(${target}
+      PRIVATE
+      -DDMLC_LOG_CUSTOMIZE=1
+      $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>)
+  endif ()
+  if (USE_DEBUG_OUTPUT)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
+  endif (USE_DEBUG_OUTPUT)
+  if (XGBOOST_MM_PREFETCH_PRESENT)
+    target_compile_definitions(${target}
+      PRIVATE
+      -DXGBOOST_MM_PREFETCH_PRESENT=1)
+  endif(XGBOOST_MM_PREFETCH_PRESENT)
+  if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+    target_compile_definitions(${target}
+      PRIVATE
+      -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
+  endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+endmacro(xgboost_target_defs)
+
+# handles dependencies
+macro(xgboost_target_link_libraries target)
+  if (BUILD_STATIC_LIB)
+    target_link_libraries(${target} PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+  else()
+    target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+  endif (BUILD_STATIC_LIB)
+
+  if (USE_OPENMP)
+    if (BUILD_STATIC_LIB)
+      target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
+    else()
+      target_link_libraries(${target} PRIVATE OpenMP::OpenMP_CXX)
+    endif (BUILD_STATIC_LIB)
+  endif (USE_OPENMP)
+
+  if (USE_CUDA)
+    xgboost_set_cuda_flags(${target})
+  endif (USE_CUDA)
+
+  if (USE_NCCL)
+    xgboost_link_nccl(${target})
+  endif (USE_NCCL)
+
+  if (USE_NVTX)
+    enable_nvtx(${target})
+  endif (USE_NVTX)
+
+  if (RABIT_BUILD_MPI)
+    target_link_libraries(${target} PRIVATE MPI::MPI_CXX)
+  endif (RABIT_BUILD_MPI)
+endmacro(xgboost_target_link_libraries)

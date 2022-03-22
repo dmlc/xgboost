@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -21,14 +21,6 @@ import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 
 import org.apache.spark.ml.param._
 import scala.collection.mutable
-
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Column, DataFrame, Row}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{FloatType, IntegerType}
 
 private[spark] trait GeneralParams extends Params {
 
@@ -261,10 +253,10 @@ private[spark] trait ParamMapFuncs extends Params {
     for ((paramName, paramValue) <- xgboostParams) {
       if ((paramName == "booster" && paramValue != "gbtree") ||
         (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
-          paramValue != "hist")) {
+          paramValue != "grow_quantile_histmaker" && paramValue != "grow_gpu_hist")) {
         throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
-          s" XGBoost-Spark only supports gbtree as booster type" +
-          " and grow_histmaker,prune or hist as the updater type")
+          s" XGBoost-Spark only supports gbtree as booster type and grow_histmaker,prune or" +
+          s" grow_quantile_histmaker or grow_gpu_hist as the updater type")
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
       params.find(_.name == name).foreach {

@@ -5,6 +5,7 @@ import pytest
 
 sys.path.append("tests/python")
 import testing as tm
+from test_dmatrix import set_base_margin_info
 
 
 def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):
@@ -49,9 +50,10 @@ def _test_from_cupy(DMatrixT):
     dmatrix_from_cupy(np.int32, DMatrixT, -2)
     dmatrix_from_cupy(np.int64, DMatrixT, -3)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         X = cp.random.randn(2, 2, dtype="float32")
-        DMatrixT(X, label=X)
+        y = cp.random.randn(2, 2, 3, dtype="float32")
+        DMatrixT(X, label=y)
 
 
 def _test_cupy_training(DMatrixT):
@@ -92,10 +94,10 @@ def _test_cupy_metainfo(DMatrixT):
     dmat.set_float_info('label', floats)
     dmat.set_float_info('base_margin', floats)
     dmat.set_uint_info('group', uints)
-    dmat_cupy.set_interface_info('weight', cupy_floats)
-    dmat_cupy.set_interface_info('label', cupy_floats)
-    dmat_cupy.set_interface_info('base_margin', cupy_floats)
-    dmat_cupy.set_interface_info('group', cupy_uints)
+    dmat_cupy.set_info(weight=cupy_floats)
+    dmat_cupy.set_info(label=cupy_floats)
+    dmat_cupy.set_info(base_margin=cupy_floats)
+    dmat_cupy.set_info(group=cupy_uints)
 
     # Test setting info with cupy
     assert np.array_equal(dmat.get_float_info('weight'),
@@ -106,6 +108,34 @@ def _test_cupy_metainfo(DMatrixT):
                           dmat_cupy.get_float_info('base_margin'))
     assert np.array_equal(dmat.get_uint_info('group_ptr'),
                           dmat_cupy.get_uint_info('group_ptr'))
+
+    set_base_margin_info(cp.asarray, DMatrixT, "gpu_hist")
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_cupy_training_with_sklearn():
+    import cupy as cp
+
+    np.random.seed(1)
+    cp.random.seed(1)
+    X = cp.random.randn(50, 10, dtype="float32")
+    y = (cp.random.randn(50, dtype="float32") > 0).astype("int8")
+    weights = np.random.random(50) + 1
+    cupy_weights = cp.array(weights)
+    base_margin = np.random.random(50)
+    cupy_base_margin = cp.array(base_margin)
+
+    clf = xgb.XGBClassifier(gpu_id=0, tree_method="gpu_hist")
+    clf.fit(
+        X,
+        y,
+        sample_weight=cupy_weights,
+        base_margin=cupy_base_margin,
+        eval_set=[(X, y)],
+    )
+    pred = clf.predict(X)
+    assert np.array_equal(np.unique(pred), np.array([0, 1]))
 
 
 class TestFromCupy:
@@ -144,6 +174,19 @@ Arrow specification.'''
         xgb.DMatrix(X.toDlpack())
 
     @pytest.mark.skipif(**tm.no_cupy())
+    def test_cupy_categorical(self):
+        import cupy as cp
+        n_features = 10
+        X, y = tm.make_categorical(10, n_features, n_categories=4, onehot=False)
+        X = cp.asarray(X.values.astype(cp.float32))
+        y = cp.array(y)
+        feature_types = ['c'] * n_features
+
+        assert isinstance(X, cp.ndarray)
+        Xy = xgb.DMatrix(X, y, feature_types=feature_types)
+        np.testing.assert_equal(np.array(Xy.feature_types), np.array(feature_types))
+
+    @pytest.mark.skipif(**tm.no_cupy())
     def test_dlpack_device_dmat(self):
         import cupy as cp
         n = 100
@@ -151,6 +194,22 @@ Arrow specification.'''
         m = xgb.DeviceQuantileDMatrix(X.toDlpack())
         with pytest.raises(xgb.core.XGBoostError):
             m.slice(rindex=[0, 1, 2])
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_qid(self):
+        import cupy as cp
+        rng = cp.random.RandomState(1994)
+        rows = 100
+        cols = 10
+        X, y = rng.randn(rows, cols), rng.randn(rows)
+        qid = rng.randint(low=0, high=10, size=rows, dtype=np.uint32)
+        qid = cp.sort(qid)
+
+        Xy = xgb.DMatrix(X, y)
+        Xy.set_info(qid=qid)
+        group_ptr = Xy.get_uint_info('group_ptr')
+        assert group_ptr[0] == 0
+        assert group_ptr[-1] == rows
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu

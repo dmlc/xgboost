@@ -4,14 +4,16 @@
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <cmath>
-
 #include <rabit/rabit.h>
-#include "xgboost/metric.h"
+#include <xgboost/metric.h>
+
+#include <atomic>
+#include <cmath>
 
 #include "metric_common.h"
 #include "../common/math.h"
 #include "../common/common.h"
+#include "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include <thrust/execution_policy.h>  // thrust::cuda::par
@@ -38,34 +40,42 @@ class MultiClassMetricsReduction {
  public:
   MultiClassMetricsReduction() = default;
 
-  PackedReduceResult CpuReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds,
-      const size_t n_class) const {
+  PackedReduceResult
+  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
+                   const HostDeviceVector<bst_float> &labels,
+                   const HostDeviceVector<bst_float> &preds,
+                   const size_t n_class, int32_t n_threads) const {
     size_t ndata = labels.Size();
 
     const auto& h_labels = labels.HostVector();
     const auto& h_weights = weights.HostVector();
     const auto& h_preds = preds.HostVector();
 
-    bst_float residue_sum = 0;
-    bst_float weights_sum = 0;
-    int label_error = 0;
+    std::atomic<int> label_error {0};
     bool const is_null_weight = weights.Size() == 0;
 
-#pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
-    for (omp_ulong idx = 0; idx < ndata; ++idx) {
-      bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
-      auto label = static_cast<int>(h_labels[idx]);
-      if (label >= 0 && label < static_cast<int>(n_class)) {
-        residue_sum += EvalRowPolicy::EvalRow(
-            label, h_preds.data() + idx * n_class, n_class) * weight;
-        weights_sum += weight;
-      } else {
-        label_error = label;
-      }
-    }
+    std::vector<double> scores_tloc(n_threads, 0);
+    std::vector<double> weights_tloc(n_threads, 0);
+    common::ParallelFor(ndata, n_threads, [&](size_t idx) {
+        bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
+        auto label = static_cast<int>(h_labels[idx]);
+        if (label >= 0 && label < static_cast<int>(n_class)) {
+          auto t_idx = omp_get_thread_num();
+          scores_tloc[t_idx] +=
+              EvalRowPolicy::EvalRow(label, h_preds.data() + idx * n_class,
+                                     n_class) *
+              weight;
+          weights_tloc[t_idx] += weight;
+        } else {
+          label_error = label;
+        }
+    });
+
+    double residue_sum =
+        std::accumulate(scores_tloc.cbegin(), scores_tloc.cend(), 0.0);
+    double weights_sum =
+        std::accumulate(weights_tloc.cbegin(), weights_tloc.cend(), 0.0);
+
     CheckLabelError(label_error, n_class);
     PackedReduceResult res { residue_sum, weights_sum };
 
@@ -127,7 +137,8 @@ class MultiClassMetricsReduction {
     PackedReduceResult result;
 
     if (device < 0) {
-      result = CpuReduceMetrics(weights, labels, preds, n_class);
+      result =
+          CpuReduceMetrics(weights, labels, preds, n_class, tparam.Threads());
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
@@ -156,21 +167,25 @@ class MultiClassMetricsReduction {
  */
 template<typename Derived>
 struct EvalMClassBase : public Metric {
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK(preds.Size() % info.labels_.Size() == 0)
-        << "label and prediction size not match";
-    const size_t nclass = preds.Size() / info.labels_.Size();
-    CHECK_GE(nclass, 1U)
-        << "mlogloss and merror are only used for multi-class classification,"
-        << " use logloss for binary classification";
-
-    int device = tparam_->gpu_id;
-    auto result = reducer_.Reduce(*tparam_, device, nclass, info.weights_, info.labels_, preds);
-    double dat[2] { result.Residue(), result.Weights() };
-
+  double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info,
+              bool distributed) override {
+    if (info.labels.Size() == 0) {
+      CHECK_EQ(preds.Size(), 0);
+    } else {
+      CHECK(preds.Size() % info.labels.Size() == 0) << "label and prediction size not match";
+    }
+    double dat[2] { 0.0, 0.0 };
+    if (info.labels.Size() != 0) {
+      const size_t nclass = preds.Size() / info.labels.Size();
+      CHECK_GE(nclass, 1U)
+          << "mlogloss and merror are only used for multi-class classification,"
+          << " use logloss for binary classification";
+      int device = tparam_->gpu_id;
+      auto result =
+          reducer_.Reduce(*tparam_, device, nclass, info.weights_, *info.labels.Data(), preds);
+      dat[0] = result.Residue();
+      dat[1] = result.Weights();
+    }
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
     }
@@ -191,7 +206,7 @@ struct EvalMClassBase : public Metric {
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
-  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
+  inline static double GetFinal(double esum, double wsum) {
     return esum / wsum;
   }
 

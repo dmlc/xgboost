@@ -1,0 +1,22 @@
+name: win64_env
+channels:
+- conda-forge
+dependencies:
+- python=3.8
+- wheel
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- matplotlib
+- dask
+- distributed
+- python-graphviz
+- pytest
+- jsonschema
+- hypothesis
+- python-graphviz
+- pip
+- py-ubjson
+- cffi
+- pyarrow

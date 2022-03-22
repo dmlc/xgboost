@@ -1,4 +1,7 @@
-// This converts all tests from CPU to GPU.
+/*!
+ * Copyright 2018-2022 by XGBoost Contributors
+ * \brief This converts all tests from CPU to GPU.
+ */
 #include "test_transform_range.cc"
 
 #if defined(XGBOOST_USE_NCCL)
@@ -15,16 +18,16 @@ TEST(Transform, MGPU_SpecifiedGpuId) {  // NOLINT
   const size_t size {256};
   std::vector<bst_float> h_in(size);
   std::vector<bst_float> h_out(size);
-  InitializeRange(h_in.begin(), h_in.end());
+  std::iota(h_in.begin(), h_in.end(), 0);
   std::vector<bst_float> h_sol(size);
-  InitializeRange(h_sol.begin(), h_sol.end());
+  std::iota(h_sol.begin(), h_sol.end(), 0);
 
   const HostDeviceVector<bst_float> in_vec {h_in, device};
   HostDeviceVector<bst_float> out_vec {h_out, device};
 
-  ASSERT_NO_THROW(
-      Transform<>::Init(TestTransformRange<bst_float>{}, Range{0, size}, device)
-      .Eval(&out_vec, &in_vec));
+  ASSERT_NO_THROW(Transform<>::Init(TestTransformRange<bst_float>{}, Range{0, size},
+                                    common::OmpGetNumThreads(0), device)
+                      .Eval(&out_vec, &in_vec));
   std::vector<bst_float> res = out_vec.HostVector();
   ASSERT_TRUE(std::equal(h_sol.begin(), h_sol.end(), res.begin()));
 }

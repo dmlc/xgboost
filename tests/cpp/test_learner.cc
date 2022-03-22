@@ -1,8 +1,9 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2022 by XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <vector>
+#include <thread>
 #include "helpers.h"
 #include <dmlc/filesystem.h>
 
@@ -10,9 +11,10 @@
 #include <xgboost/version_config.h>
 #include "xgboost/json.h"
 #include "../../src/common/io.h"
+#include "../../src/common/random.h"
+#include "../../src/common/linalg_op.h"
 
 namespace xgboost {
-
 TEST(Learner, Basic) {
   using Arg = std::pair<std::string, std::string>;
   auto args = {Arg("tree_method", "exact")};
@@ -38,7 +40,7 @@ TEST(Learner, ParameterValidation) {
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("validate_parameters", "1");
-  learner->SetParam("Knock Knock", "Who's there?");
+  learner->SetParam("Knock-Knock", "Who's-there?");
   learner->SetParam("Silence", "....");
   learner->SetParam("tree_method", "exact");
 
@@ -46,7 +48,11 @@ TEST(Learner, ParameterValidation) {
   learner->Configure();
   std::string output = testing::internal::GetCapturedStderr();
 
-  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
+  ASSERT_TRUE(output.find(R"(Parameters: { "Knock-Knock", "Silence" })") != std::string::npos);
+
+  // whitespace
+  learner->SetParam("tree method", "exact");
+  EXPECT_THROW(learner->Configure(), dmlc::Error);
 }
 
 TEST(Learner, CheckGroup) {
@@ -92,8 +98,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   const std::string tmp_file = tempdir.path + "/big.libsvm";
   CreateBigTestData(tmp_file, 50000);
   std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 100));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto"));
   EXPECT_FALSE(dmat->SingleColBlock());
   size_t num_row = dmat->Info().num_row_;
   std::vector<bst_float> labels(num_row);
@@ -117,7 +122,7 @@ TEST(Learner, Configuration) {
 
     // eval_metric is not part of configuration
     auto attr_names = learner->GetConfigurationArguments();
-    ASSERT_EQ(attr_names.size(), 1);
+    ASSERT_EQ(attr_names.size(), 1ul);
     ASSERT_EQ(attr_names.find(emetric), attr_names.cend());
     ASSERT_EQ(attr_names.at("foo"), "bar");
   }
@@ -126,7 +131,7 @@ TEST(Learner, Configuration) {
     std::unique_ptr<Learner> learner { Learner::Create({nullptr}) };
     learner->SetParams({{"foo", "bar"}, {emetric, "auc"}, {emetric, "entropy"}, {emetric, "KL"}});
     auto attr_names = learner->GetConfigurationArguments();
-    ASSERT_EQ(attr_names.size(), 1);
+    ASSERT_EQ(attr_names.size(), 1ul);
     ASSERT_EQ(attr_names.at("foo"), "bar");
   }
 }
@@ -136,9 +141,8 @@ TEST(Learner, JsonModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
 
-  std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
-  p_dmat->Info().labels_.Resize(kRows);
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
+  p_dmat->Info().labels.Reshape(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
   {
@@ -147,7 +151,16 @@ TEST(Learner, JsonModelIO) {
     Json out { Object() };
     learner->SaveModel(&out);
 
-    learner->LoadModel(out);
+    dmlc::TemporaryDirectory tmpdir;
+
+    std::ofstream fout (tmpdir.path + "/model.json");
+    fout << out;
+    fout.close();
+
+    auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
+    Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
+
+    learner->LoadModel(loaded);
     learner->Configure();
 
     Json new_in { Object() };
@@ -171,8 +184,53 @@ TEST(Learner, JsonModelIO) {
     learner->SaveModel(&new_in);
 
     ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
-    ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
+    ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1ul);
     ASSERT_EQ(out, new_in);
+  }
+}
+
+// Crashes the test runner if there are race condiditions.
+//
+// Build with additional cmake flags to enable thread sanitizer
+// which definitely catches problems. Note that OpenMP needs to be
+// disabled, otherwise thread sanitizer will also report false
+// positives.
+//
+// ```
+// -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=thread -DUSE_OPENMP=OFF
+// ```
+TEST(Learner, MultiThreadedPredict) {
+  size_t constexpr kRows = 1000;
+  size_t constexpr kCols = 100;
+
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  p_dmat->Info().labels.Reshape(kRows);
+  CHECK_NE(p_dmat->Info().num_col_, 0);
+
+  std::shared_ptr<DMatrix> p_data{
+      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  CHECK_NE(p_data->Info().num_col_, 0);
+
+  std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->Configure();
+
+  std::vector<std::thread> threads;
+  for (uint32_t thread_id = 0;
+       thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
+    threads.emplace_back([learner, p_data] {
+      size_t constexpr kIters = 10;
+      auto &entry = learner->GetThreadLocal().prediction_entry;
+      HostDeviceVector<float> predictions;
+      for (size_t iter = 0; iter < kIters; ++iter) {
+        learner->Predict(p_data, false, &entry.predictions, 0, 0);
+
+        learner->Predict(p_data, false, &predictions, 0, 0, false, true);  // leaf
+        learner->Predict(p_data, false, &predictions, 0, 0, false, false, true);  // contribs
+      }
+    });
+  }
+  for (auto &thread : threads) {
+    thread.join();
   }
 }
 
@@ -180,7 +238,7 @@ TEST(Learner, BinaryModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
   auto p_dmat = RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix();
-  p_dmat->Info().labels_.Resize(kRows);
+  p_dmat->Info().labels.Reshape(kRows);
 
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->SetParam("eval_metric", "rmsle");
@@ -219,26 +277,34 @@ TEST(Learner, GPUConfiguration) {
   for (size_t i = 0; i < labels.size(); ++i) {
     labels[i] = i;
   }
-  p_dmat->Info().labels_.HostVector() = labels;
+  p_dmat->Info().labels.Data()->HostVector() = labels;
+  p_dmat->Info().labels.Reshape(kRows);
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"booster", "gblinear"},
                         Arg{"updater", "gpu_coord_descent"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
+  }
+  {
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->SetParams({Arg{"tree_method", "gpu_hist"},
+                        Arg{"gpu_id", "-1"}});
+    learner->UpdateOneIter(0, p_dmat);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, -1);
+    ASSERT_EQ(learner->Ctx()->gpu_id, -1);
   }
   {
     // with CPU algorithm, but `gpu_id` takes priority
@@ -246,7 +312,7 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"gpu_id", "0"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
   {
     // With CPU algorithm but GPU Predictor, this is to simulate when
@@ -256,7 +322,7 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"predictor", "gpu_predictor"}});
     learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->Ctx()->gpu_id, 0);
   }
 }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -282,4 +348,105 @@ TEST(Learner, Seed) {
             get<String>(config["learner"]["generic_param"]["seed"]));
 }
 
+TEST(Learner, ConstantSeed) {
+  auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  learner->Configure();  // seed the global random
+
+  std::uniform_real_distribution<float> dist;
+  auto& rng = common::GlobalRandom();
+  float v_0 = dist(rng);
+
+  learner->SetParam("", "");
+  learner->Configure();  // check configure doesn't change the seed.
+  float v_1 = dist(rng);
+  CHECK_NE(v_0, v_1);
+
+  {
+    rng.seed(GenericParameter::kDefaultSeed);
+    std::uniform_real_distribution<float> dist;
+    float v_2 = dist(rng);
+    CHECK_EQ(v_0, v_2);
+  }
+}
+
+TEST(Learner, FeatureInfo) {
+  size_t constexpr kCols = 10;
+  auto m = RandomDataGenerator{10, kCols, 0}.GenerateDMatrix(true);
+  std::vector<std::string> names(kCols);
+  for (size_t i = 0; i < kCols; ++i) {
+    names[i] = ("f" + std::to_string(i));
+  }
+
+  std::vector<std::string> types(kCols);
+  for (size_t i = 0; i < kCols; ++i) {
+    types[i] = "q";
+  }
+  types[8] = "f";
+  types[0] = "int";
+  types[3] = "i";
+  types[7] = "i";
+
+  std::vector<char const*> c_names(kCols);
+  for (size_t i = 0; i < names.size(); ++i) {
+    c_names[i] = names[i].c_str();
+  }
+  std::vector<char const*> c_types(kCols);
+  for (size_t i = 0; i < types.size(); ++i) {
+    c_types[i] = names[i].c_str();
+  }
+
+  std::vector<std::string> out_names;
+  std::vector<std::string> out_types;
+
+  Json model{Object()};
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    learner->Configure();
+    learner->SetFeatureNames(names);
+    learner->GetFeatureNames(&out_names);
+
+    learner->SetFeatureTypes(types);
+    learner->GetFeatureTypes(&out_types);
+
+    ASSERT_TRUE(std::equal(out_names.begin(), out_names.end(), names.begin()));
+    ASSERT_TRUE(std::equal(out_types.begin(), out_types.end(), types.begin()));
+
+    learner->SaveModel(&model);
+  }
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    learner->LoadModel(model);
+
+    learner->GetFeatureNames(&out_names);
+    learner->GetFeatureTypes(&out_types);
+    ASSERT_TRUE(std::equal(out_names.begin(), out_names.end(), names.begin()));
+    ASSERT_TRUE(std::equal(out_types.begin(), out_types.end(), types.begin()));
+  }
+}
+
+TEST(Learner, MultiTarget) {
+  size_t constexpr kRows{128}, kCols{10}, kTargets{3};
+  auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+  m->Info().labels.Reshape(kRows, kTargets);
+  linalg::ElementWiseTransformHost(m->Info().labels.HostView(), omp_get_max_threads(),
+                                   [](auto i, auto) { return i; });
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    learner->Configure();
+
+    Json model{Object()};
+    learner->SaveModel(&model);
+    ASSERT_EQ(get<String>(model["learner"]["learner_model_param"]["num_target"]),
+              std::to_string(kTargets));
+  }
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    learner->SetParam("objective", "multi:softprob");
+    // unsupported objective.
+    EXPECT_THROW({ learner->Configure(); }, dmlc::Error);
+  }
+}
 }  // namespace xgboost

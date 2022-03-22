@@ -2,7 +2,15 @@
 set -e
 set -x
 
-suite=$1
+if [ "$#" -lt 1 ]
+then
+  suite=''
+  args=''
+else
+  suite=$1
+  shift 1
+  args="$@"
+fi
 
 # Install XGBoost Python package
 function install_xgboost {
@@ -26,47 +34,48 @@ function install_xgboost {
   fi
 }
 
+function uninstall_xgboost {
+  pip uninstall -y xgboost
+}
+
 # Run specified test suite
 case "$suite" in
   gpu)
     source activate gpu_test
     install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "not mgpu" tests/python-gpu
+    pytest -v -s -rxXs --fulltrace --durations=0 -m "not mgpu" ${args} tests/python-gpu
+    uninstall_xgboost
     ;;
 
   mgpu)
     source activate gpu_test
     install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu
+    pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
 
     cd tests/distributed
     ./runtests-gpu.sh
-    cd -
-    ;;
-
-  cudf)
-    source activate cudf_test
-    install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "not mgpu" \
-           tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py \
-	   tests/python-gpu/test_gpu_prediction.py
-    ;;
-
-  mgpu-cudf)
-    source activate cudf_test
-    install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
+    uninstall_xgboost
     ;;
 
   cpu)
+    source activate cpu_test
     install_xgboost
-    pytest -v -s --fulltrace tests/python
+    export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1
+    pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python
     cd tests/distributed
     ./runtests.sh
+    uninstall_xgboost
+    ;;
+
+  cpu-arm64)
+    source activate aarch64_test
+    install_xgboost
+    pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python/test_basic.py tests/python/test_basic_models.py tests/python/test_model_compatibility.py
+    uninstall_xgboost
     ;;
 
   *)
-    echo "Usage: $0 {gpu|mgpu|cudf|cpu}"
+    echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64} [extra args to pass to pytest]"
     exit 1
     ;;
 esac

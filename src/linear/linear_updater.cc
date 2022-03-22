@@ -17,7 +17,7 @@ LinearUpdater* LinearUpdater::Create(const std::string& name, GenericParameter c
     LOG(FATAL) << "Unknown linear updater " << name;
   }
   auto p_linear = (e->body)();
-  p_linear->learner_param_ = lparam;
+  p_linear->ctx_ = lparam;
   return p_linear;
 }
 

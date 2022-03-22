@@ -98,12 +98,18 @@ struct TestRBeginREnd {
     InitializeRange(arr, arr + 16);
 
     Span<float> s (arr);
-    Span<float>::iterator rbeg { s.rbegin() };
-    Span<float>::iterator rend { s.rend() };
 
-    SPAN_ASSERT_TRUE(rbeg == rend + 16, status_);
-    SPAN_ASSERT_TRUE(*(rbeg - 1) == arr[15], status_);
-    SPAN_ASSERT_TRUE(*rend == arr[0], status_);
+#if defined(__CUDA_ARCH__)
+    auto rbeg = dh::trbegin(s);
+    auto rend = dh::trend(s);
+#else
+    Span<float>::reverse_iterator rbeg{s.rbegin()};
+    Span<float>::reverse_iterator rend{s.rend()};
+#endif
+
+    SPAN_ASSERT_TRUE(rbeg + 16 == rend, status_);
+    SPAN_ASSERT_TRUE(*(rbeg) == arr[15], status_);
+    SPAN_ASSERT_TRUE(*(rend - 1) == arr[0], status_);
   }
 };
 

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright by XGBoost Contributors 2014-2022
  * \file io.h
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
@@ -7,11 +7,11 @@
 
 #ifndef XGBOOST_COMMON_IO_H_
 #define XGBOOST_COMMON_IO_H_
-#include <string>
-#include <cstring>
 
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
+#include <string>
+#include <cstring>
 
 #include "common.h"
 
@@ -32,7 +32,7 @@ class PeekableInStream : public dmlc::Stream {
   size_t Read(void* dptr, size_t size) override;
   virtual size_t PeekRead(void* dptr, size_t size);
 
-  void Write(const void* dptr, size_t size) override {
+  void Write(const void*, size_t) override {
     LOG(FATAL) << "Not implemented";
   }
 
@@ -60,7 +60,7 @@ class FixedSizeStream : public PeekableInStream {
   size_t Tell() const { return pointer_; }
   void Seek(size_t pos);
 
-  void Write(const void* dptr, size_t size) override {
+  void Write(const void*, size_t) override {
     LOG(FATAL) << "Not implemented";
   }
 
@@ -75,18 +75,42 @@ class FixedSizeStream : public PeekableInStream {
   std::string buffer_;
 };
 
-// Optimized for consecutive file loading in unix like systime.
-std::string LoadSequentialFile(std::string fname);
+/*!
+ * \brief Helper function for loading consecutive file to avoid dmlc Stream when possible.
+ *
+ * \param uri    URI or file name to file.
+ * \param stream Use dmlc Stream unconditionally if set to true.  Used for running test
+ *               without remote filesystem.
+ *
+ * \return File content.
+ */
+std::string LoadSequentialFile(std::string uri, bool stream = false);
 
-inline std::string FileExtension(std::string const& fname) {
-  auto splited = Split(fname, '.');
-  if (splited.size() > 1) {
-    return splited.back();
+/**
+ * \brief Get file extension from file name.
+ *
+ * \param  lower Return in lower case.
+ *
+ * \return File extension without the `.`
+ */
+std::string FileExtension(std::string fname, bool lower = true);
+
+/**
+ * \brief Read the whole buffer from dmlc stream.
+ */
+inline std::string ReadAll(dmlc::Stream* fi, PeekableInStream* fp) {
+  std::string buffer;
+  if (auto fixed_size = dynamic_cast<common::MemoryFixSizeBuffer*>(fi)) {
+    fixed_size->Seek(common::MemoryFixSizeBuffer::kSeekEnd);
+    size_t size = fixed_size->Tell();
+    buffer.resize(size);
+    fixed_size->Seek(0);
+    CHECK_EQ(fixed_size->Read(&buffer[0], size), size);
   } else {
-    return "";
+    FixedSizeStream{fp}.Take(&buffer);
   }
+  return buffer;
 }
-
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_

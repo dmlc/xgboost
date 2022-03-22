@@ -1,8 +1,8 @@
 require(xgboost)
 require(methods)
 
-train = read.csv('data/train.csv',header=TRUE,stringsAsFactors = F)
-test = read.csv('data/test.csv',header=TRUE,stringsAsFactors = F)
+train = read.csv('data/train.csv',header=TRUE,stringsAsFactors = FALSE)
+test = read.csv('data/test.csv',header=TRUE,stringsAsFactors = FALSE)
 train = train[,-1]
 test = test[,-1]
 

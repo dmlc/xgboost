@@ -7,24 +7,25 @@
 #ifndef XGBOOST_OBJECTIVE_H_
 #define XGBOOST_OBJECTIVE_H_
 
-#include <vector>
-#include <utility>
-#include <string>
-#include <functional>
-
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/task.h>
+
+#include <vector>
+#include <utility>
+#include <string>
+#include <functional>
 
 namespace xgboost {
 
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  GenericParameter const* ctx_;
 
  public:
   /*! \brief virtual destructor */
@@ -53,7 +54,7 @@ class ObjFunction : public Configurable {
    * \brief transform prediction values, this is only called when Prediction is called
    * \param io_preds prediction values, saves to this vector as well
    */
-  virtual void PredTransform(HostDeviceVector<bst_float> *io_preds) {}
+  virtual void PredTransform(HostDeviceVector<bst_float>*) const {}
 
   /*!
    * \brief transform prediction values, this is only called when Eval is called,
@@ -72,6 +73,21 @@ class ObjFunction : public Configurable {
   virtual bst_float ProbToMargin(bst_float base_score) const {
     return base_score;
   }
+  /*!
+   * \brief Return task of this objective.
+   */
+  virtual struct ObjInfo Task() const = 0;
+  /**
+   * \brief Return number of targets for input matrix.  Right now XGBoost supports only
+   *        multi-target regression.
+   */
+  virtual uint32_t Targets(MetaInfo const& info) const {
+    if (info.labels.Shape(1) > 1) {
+      LOG(FATAL) << "multioutput is not supported by current objective function";
+    }
+    return 1;
+  }
+
   /*!
    * \brief Create an objective function according to name.
    * \param tparam Generic parameters.

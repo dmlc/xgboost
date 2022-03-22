@@ -30,7 +30,7 @@ class CoordinateUpdater : public LinearUpdater {
       tparam_.UpdateAllowUnknown(args)
     };
     cparam_.UpdateAllowUnknown(rest);
-    selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
+    selector_.reset(FeatureSelector::Create(tparam_.feature_selector, ctx_->Threads()));
     monitor_.Init("CoordinateUpdater");
   }
 
@@ -51,13 +51,13 @@ class CoordinateUpdater : public LinearUpdater {
     const int ngroup = model->learner_model_param->num_output_group;
     // update bias
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
-      auto grad = GetBiasGradientParallel(group_idx, ngroup,
-                                          in_gpair->ConstHostVector(), p_fmat);
+      auto grad = GetBiasGradientParallel(group_idx, ngroup, in_gpair->ConstHostVector(), p_fmat,
+                                          ctx_->Threads());
       auto dbias = static_cast<float>(tparam_.learning_rate *
                                       CoordinateDeltaBias(grad.first, grad.second));
       model->Bias()[group_idx] += dbias;
-      UpdateBiasResidualParallel(group_idx, ngroup,
-                                 dbias, &in_gpair->HostVector(), p_fmat);
+      UpdateBiasResidualParallel(group_idx, ngroup, dbias, &in_gpair->HostVector(), p_fmat,
+                                 ctx_->Threads());
     }
     // prepare for updating the weights
     selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
@@ -80,14 +80,15 @@ class CoordinateUpdater : public LinearUpdater {
                             DMatrix *p_fmat, gbm::GBLinearModel *model) {
     const int ngroup = model->learner_model_param->num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
-    auto gradient =
-        GetGradientParallel(group_idx, ngroup, fidx, *in_gpair, p_fmat);
+    auto gradient = GetGradientParallel(ctx_, group_idx, ngroup, fidx,
+                                        *in_gpair, p_fmat);
     auto dw = static_cast<float>(
         tparam_.learning_rate *
         CoordinateDelta(gradient.first, gradient.second, w, tparam_.reg_alpha_denorm,
                         tparam_.reg_lambda_denorm));
     w += dw;
-    UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat);
+    UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat,
+                           ctx_->Threads());
   }
 
  private:

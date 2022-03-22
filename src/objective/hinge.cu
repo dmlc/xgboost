@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2019 by Contributors
+ * Copyright 2018-2022 by XGBoost Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
@@ -27,15 +27,17 @@ class HingeObj : public ObjFunction {
   void Configure(
       const std::vector<std::pair<std::string, std::string> > &args) override {}
 
+  ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
+
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels_.Size())
+    CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels.Size())
         << "labels are not correctly provided"
         << "preds.size=" << preds.Size()
-        << ", label.size=" << info.labels_.Size();
+        << ", label.size=" << info.labels.Size();
 
     const size_t ndata = preds.Size();
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -63,18 +65,18 @@ class HingeObj : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair(g, h);
         },
-        common::Range{0, static_cast<int64_t>(ndata)},
-        tparam_->gpu_id).Eval(
-            out_gpair, &preds, &info.labels_, &info.weights_);
+        common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(),
+        ctx_->gpu_id).Eval(
+            out_gpair, &preds, info.labels.Data(), &info.weights_);
   }
 
-  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
-        tparam_->gpu_id)
+        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, this->ctx_->Threads(),
+        io_preds->DeviceIdx())
         .Eval(io_preds);
   }
 

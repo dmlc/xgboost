@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -8,19 +8,19 @@
 #ifndef XGBOOST_GBM_H_
 #define XGBOOST_GBM_H_
 
-#include <vector>
-#include <utility>
-#include <string>
-#include <functional>
-#include <unordered_map>
-#include <memory>
-
 #include <dmlc/registry.h>
 #include <dmlc/any.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
+
+#include <vector>
+#include <utility>
+#include <string>
+#include <functional>
+#include <unordered_map>
+#include <memory>
 
 namespace xgboost {
 
@@ -38,7 +38,8 @@ class PredictionContainer;
  */
 class GradientBooster : public Model, public Configurable {
  protected:
-  GenericParameter const* generic_param_;
+  GenericParameter const* ctx_;
+  explicit GradientBooster(GenericParameter const* ctx) : ctx_{ctx} {}
 
  public:
   /*! \brief virtual destructor */
@@ -61,6 +62,17 @@ class GradientBooster : public Model, public Configurable {
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
   /*!
+   * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
+   *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
+   * \param out         Output gradient booster
+   */
+  virtual void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+                     GradientBooster *out, bool* out_of_bound) const {
+    LOG(FATAL) << "Slice is not supported by current booster.";
+  }
+  /*!
    * \brief whether the model allow lazy checkpoint
    * return true if model is only updated in DoBoost
    * after all Allreduce calls
@@ -68,6 +80,9 @@ class GradientBooster : public Model, public Configurable {
   virtual bool AllowLazyCheckPoint() const {
     return false;
   }
+  /*! \brief Return number of boosted rounds.
+   */
+  virtual int32_t BoostedRounds() const = 0;
   /*!
    * \brief perform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
@@ -75,8 +90,9 @@ class GradientBooster : public Model, public Configurable {
    * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
-                       PredictionCacheEntry *prediction) = 0;
+  virtual void DoBoost(DMatrix* p_fmat,
+                       HostDeviceVector<GradientPair>* in_gpair,
+                       PredictionCacheEntry*) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix
@@ -84,15 +100,14 @@ class GradientBooster : public Model, public Configurable {
    * \param out_preds output vector to hold the predictions
    * \param training Whether the prediction value is used for training.  For dart booster
    *                 drop out is performed during training.
-   * \param ntree_limit limit the number of trees used in prediction,
-   *                    when it equals 0, this means we do not limit
-   *                    number of trees, this parameter is only valid
-   *                    for gbtree, but not for gblinear
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(DMatrix* dmat,
                             PredictionCacheEntry* out_preds,
                             bool training,
-                            unsigned ntree_limit = 0) = 0;
+                            unsigned layer_begin,
+                            unsigned layer_end) = 0;
 
   /*!
    * \brief Inplace prediction.
@@ -100,13 +115,13 @@ class GradientBooster : public Model, public Configurable {
    * \param           x                      A type erased data adapter.
    * \param           missing                Missing value in the data.
    * \param [in,out]  out_preds              The output preds.
-   * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
+   * \param           layer_begin (Optional) Beginning of boosted tree layer used for prediction.
    * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const &x, float missing,
-                              PredictionCacheEntry *out_preds,
-                              uint32_t layer_begin = 0,
-                              uint32_t layer_end = 0) const {
+  virtual void InplacePredict(dmlc::any const &, std::shared_ptr<DMatrix>, float,
+                              PredictionCacheEntry*,
+                              uint32_t,
+                              uint32_t) const {
     LOG(FATAL) << "Inplace predict is not supported by current booster.";
   }
   /*!
@@ -117,44 +132,45 @@ class GradientBooster : public Model, public Configurable {
    *
    * \param inst the instance you want to predict
    * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \sa Predict
    */
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
-                               unsigned ntree_limit = 0) = 0;
+                               unsigned layer_begin, unsigned layer_end) = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
    * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
-   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    */
-  virtual void PredictLeaf(DMatrix* dmat,
-                           std::vector<bst_float>* out_preds,
-                           unsigned ntree_limit = 0) = 0;
+  virtual void PredictLeaf(DMatrix *dmat,
+                           HostDeviceVector<bst_float> *out_preds,
+                           unsigned layer_begin, unsigned layer_end) = 0;
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector
    *         of length (nfeats + 1) * num_output_group * nsample, arranged in that order
    * \param dmat feature matrix
    * \param out_contribs output vector to hold the contributions
-   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
-   *    we do not limit number of trees
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param approximate use a faster (inconsistent) approximation of SHAP values
    * \param condition condition on the condition_feature (0=no, -1=cond off, 1=cond on).
    * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
-                                   std::vector<bst_float>* out_contribs,
-                                   unsigned ntree_limit = 0,
+                                   HostDeviceVector<bst_float>* out_contribs,
+                                   unsigned layer_begin, unsigned layer_end,
                                    bool approximate = false, int condition = 0,
                                    unsigned condition_feature = 0) = 0;
 
-  virtual void PredictInteractionContributions(DMatrix* dmat,
-                                               std::vector<bst_float>* out_contribs,
-                                               unsigned ntree_limit, bool approximate) = 0;
+  virtual void PredictInteractionContributions(
+      DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
+      unsigned layer_begin, unsigned layer_end, bool approximate) = 0;
 
   /*!
    * \brief dump the model in the requested format
@@ -166,6 +182,11 @@ class GradientBooster : public Model, public Configurable {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) const = 0;
+
+  virtual void FeatureScore(std::string const& importance_type,
+                            common::Span<int32_t const> trees,
+                            std::vector<bst_feature_t>* features,
+                            std::vector<float>* scores) const = 0;
   /*!
    * \brief Whether the current booster uses GPU.
    */
@@ -188,9 +209,9 @@ class GradientBooster : public Model, public Configurable {
  */
 struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
-  GradientBoosterReg,
-  std::function<GradientBooster* (LearnerModelParam const* learner_model_param)> > {
-};
+          GradientBoosterReg,
+          std::function<GradientBooster*(LearnerModelParam const* learner_model_param,
+                                         GenericParameter const* ctx)> > {};
 
 /*!
  * \brief Macro to register gradient booster.

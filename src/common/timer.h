@@ -2,14 +2,13 @@
  * Copyright by Contributors 2017-2019
  */
 #pragma once
+#include <xgboost/logging.h>
 #include <chrono>
 #include <iostream>
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <xgboost/logging.h>
 
 namespace xgboost {
 namespace common {
@@ -60,8 +59,6 @@ struct Monitor {
   std::map<std::string, Statistics> statistics_map_;
   Timer self_timer_;
 
-  /*! \brief Collect time statistics across all workers. */
-  std::vector<StatMap> CollectFromOtherRanks() const;
   void PrintStatistics(StatMap const& statistics) const;
 
  public:

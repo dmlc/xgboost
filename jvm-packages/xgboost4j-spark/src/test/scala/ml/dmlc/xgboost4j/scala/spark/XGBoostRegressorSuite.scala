@@ -24,6 +24,7 @@ import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 class XGBoostRegressorSuite extends FunSuite with PerTest {
+  protected val treeMethod: String = "auto"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
     val trainingDM = new DMatrix(Regression.train.iterator)
@@ -51,7 +52,9 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
-      "objective" -> "reg:squarederror")
+      "objective" -> "reg:squarederror",
+      "max_bin" -> 64,
+      "tree_method" -> treeMethod)
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
@@ -88,6 +91,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "silent" -> "1",
       "objective" -> "reg:squarederror",
       "num_round" -> round,
+      "tree_method" -> treeMethod,
       "num_workers" -> numWorkers)
 
     // Set params in XGBoost way
@@ -99,6 +103,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       .setSilent(1)
       .setObjective("reg:squarederror")
       .setNumRound(round)
+      .setTreeMethod(treeMethod)
       .setNumWorkers(numWorkers)
       .fit(trainingDF)
 
@@ -113,7 +118,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
   test("ranking: use group data") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "num_workers" -> numWorkers, "num_round" -> 5,
-      "group_col" -> "group")
+      "group_col" -> "group", "tree_method" -> treeMethod)
 
     val trainingDF = buildDataFrameWithGroup(Ranking.train)
     val testDF = buildDataFrame(Ranking.test)
@@ -125,9 +130,10 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("use weight") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
 
-    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
+    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f})
     val trainingDF = buildDataFrame(Regression.train)
       .withColumn("weight", getWeightFromId(col("id")))
     val testDF = buildDataFrame(Regression.test)
@@ -140,7 +146,8 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val groundTruth = testDF.count()
@@ -154,7 +161,8 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionLeaf with empty column name") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val xgb = new XGBoostRegressor(paramMap)
@@ -166,7 +174,8 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val groundTruth = testDF.count()
@@ -180,7 +189,8 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionContrib with empty column name") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val xgb = new XGBoostRegressor(paramMap)
@@ -192,7 +202,8 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionLeaf and predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val groundTruth = testDF.count()

@@ -16,7 +16,7 @@ An object of \code{xgb.Booster} class.
 Load xgboost model from the binary model file.
 }
 \details{
-The input file is expected to contain a model saved in an xgboost-internal binary format
+The input file is expected to contain a model saved in an xgboost model format
 using either \code{\link{xgb.save}} or \code{\link{cb.save.model}} in R, or using some
 appropriate methods from other xgboost interfaces. E.g., a model trained in Python and
 saved from there in xgboost format, could be loaded from R.

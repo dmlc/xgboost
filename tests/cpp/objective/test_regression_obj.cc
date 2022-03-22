@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
@@ -57,25 +57,31 @@ TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
 
 TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
   GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
-  std::vector<std::pair<std::string, std::string>> args;
+  Args args;
 
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:pseudohubererror", &tparam) };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", &tparam)};
   obj->Configure(args);
   CheckConfigReload(obj, "reg:pseudohubererror");
 
-  CheckObjFunction(obj,
-                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // weights
-                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
-                   { 0.410660f,  0.476140f,  0.630510f,  0.9428660f, 0.630510f}); // out_hess
-  CheckObjFunction(obj,
-                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
-                   {},                              // empty weights
-                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
-                   { 0.410660f,  0.476140f,  0.630510f,  0.9428660f, 0.630510f}); // out_hess
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
+                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {},                                                           // empty weights
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
+                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
+
+  obj->Configure({{"huber_slope", "0.1"}});
+  CheckConfigReload(obj, "reg:pseudohubererror");
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
+                   {-0.099388f, -0.099228f, -0.098639f, -0.089443f, 0.098639f},  // out_grad
+                   {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
@@ -131,7 +137,6 @@ TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
   std::unique_ptr<ObjFunction>  obj {
     ObjFunction::Create("binary:logitraw", &lparam)
   };
-
   obj->Configure(args);
 
   CheckObjFunction(obj,
@@ -205,16 +210,16 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
   obj->Configure(args);
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
-                   {0,   0,   0, 0, 1,    1,    1,    1},
-                   {1,   1,   1, 1, 1,    1,    1,    1},
-                   {1,   1,   1, 1, 0, 0.09f, 0.59f, 0.63f},
-                   {0,   0,   0, 0, 1, 0.90f, 0.40f, 0.36f});
+                   {2,   2,   2,   2, 1,    1,    1,    1},
+                   {1,   1,   1,   1, 1,    1,    1,    1},
+                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
-                   {0,   0,   0, 0, 1,    1,    1,    1},
+                   {2,   2,   2,   2, 1,    1,    1,    1},
                    {},  // Empty weight
-                   {1,   1,   1, 1, 0, 0.09f, 0.59f, 0.63f},
-                   {0,   0,   0, 0, 1, 0.90f, 0.40f, 0.36f});
+                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
 }
 
 TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
@@ -228,7 +233,9 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
   CheckConfigReload(obj, "reg:gamma");
 
   // test label validation
-  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {0}, {1}, {0}, {0}))
+    << "Expected error when label = 0 for GammaRegression";
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {-1}, {-1}, {1}, {-1}, {-3}))
     << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin
@@ -291,8 +298,8 @@ TEST(Objective, CPU_vs_CUDA) {
   }
   auto& info = pdmat->Info();
 
-  info.labels_.Resize(kRows);
-  auto& h_labels = info.labels_.HostVector();
+  info.labels.Reshape(kRows);
+  auto& h_labels = info.labels.Data()->HostVector();
   for (size_t i = 0; i < h_labels.size(); ++i) {
     h_labels[i] = 1 / (float)(i+1);
   }
@@ -371,5 +378,4 @@ TEST(Objective, CoxRegressionGPair) {
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
 }
 #endif
-
 }  // namespace xgboost

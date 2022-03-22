@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2020 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -8,20 +8,20 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <utility>
-#include <map>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include <dmlc/any.h>
-#include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
-#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
+#include <xgboost/predictor.h>
+#include <xgboost/task.h>
+
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 
@@ -31,10 +31,22 @@ class ObjFunction;
 class DMatrix;
 class Json;
 
+enum class PredictionType : std::uint8_t {  // NOLINT
+  kValue = 0,
+  kMargin = 1,
+  kContribution = 2,
+  kApproxContribution = 3,
+  kInteraction = 4,
+  kApproxInteraction = 5,
+  kLeaf = 6
+};
+
 /*! \brief entry to to easily hold returning information */
 struct XGBAPIThreadLocalEntry {
   /*! \brief result holder for returning string */
   std::string ret_str;
+  /*! \brief result holder for returning raw buffer */
+  std::vector<char> ret_char_vec;
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;
   /*! \brief result holder for returning string pointers */
@@ -43,9 +55,11 @@ struct XGBAPIThreadLocalEntry {
   std::vector<bst_float> ret_vec_float;
   /*! \brief temp variable of gradient pairs. */
   std::vector<GradientPair> tmp_gpair;
+  /*! \brief Temp variable for returning prediction result. */
   PredictionCacheEntry prediction_entry;
+  /*! \brief Temp variable for returning prediction shape. */
+  std::vector<bst_ulong> prediction_shape;
 };
-
 
 /*!
  * \brief Learner class that does training and prediction.
@@ -63,7 +77,7 @@ struct XGBAPIThreadLocalEntry {
  *
  *  \endcode
  */
-class Learner : public Model, public Configurable, public rabit::Serializable {
+class Learner : public Model, public Configurable, public dmlc::Serializable {
  public:
   /*! \brief virtual destructor */
   ~Learner() override;
@@ -103,8 +117,8 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param data input data
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
-   * \param ntree_limit limit number of trees used for boosted tree
-   *   predictor, when it equals 0, this means we are using all the trees
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param training Whether the prediction result is used for training
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
@@ -114,7 +128,8 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
   virtual void Predict(std::shared_ptr<DMatrix> data,
                        bool output_margin,
                        HostDeviceVector<bst_float> *out_preds,
-                       unsigned ntree_limit = 0,
+                       unsigned layer_begin,
+                       unsigned layer_end,
                        bool training = false,
                        bool pred_leaf = false,
                        bool pred_contribs = false,
@@ -125,16 +140,34 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \brief Inplace prediction.
    *
    * \param          x           A type erased data adapter.
+   * \param          p_m         An optional Proxy DMatrix object storing meta info like
+   *                             base margin.  Can be nullptr.
    * \param          type        Prediction type.
    * \param          missing     Missing value in the data.
    * \param [in,out] out_preds   Pointer to output prediction vector.
-   * \param          layer_begin (Optional) Begining of boosted tree layer used for prediction.
-   * \param          layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   * \param          layer_begin Beginning of boosted tree layer used for prediction.
+   * \param          layer_end   End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const& x, std::string const& type,
+  virtual void InplacePredict(dmlc::any const &x,
+                              std::shared_ptr<DMatrix> p_m,
+                              PredictionType type,
                               float missing,
                               HostDeviceVector<bst_float> **out_preds,
-                              uint32_t layer_begin = 0, uint32_t layer_end = 0) = 0;
+                              uint32_t layer_begin, uint32_t layer_end) = 0;
+
+  /*!
+   * \brief Calculate feature score.  See doc in C API for outputs.
+   */
+  virtual void CalcFeatureScore(std::string const& importance_type,
+                                common::Span<int32_t const> trees,
+                                std::vector<bst_feature_t>* features,
+                                std::vector<float>* scores) = 0;
+
+  /*
+   * \brief Get number of boosted rounds from gradient booster.
+   */
+  virtual int32_t BoostedRounds() const = 0;
+  virtual uint32_t Groups() const = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
@@ -157,6 +190,12 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param value The value of parameter
    */
   virtual void SetParam(const std::string& key, const std::string& value) = 0;
+
+  /*!
+   * \brief Get the number of features of the booster.
+   * \return number of features
+   */
+  virtual uint32_t GetNumFeature() const = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.
@@ -187,9 +226,42 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    */
   virtual std::vector<std::string> GetAttrNames() const = 0;
   /*!
+   * \brief Set the feature names for current booster.
+   * \param fn Input feature names
+   */
+  virtual  void SetFeatureNames(std::vector<std::string> const& fn) = 0;
+  /*!
+   * \brief Get the feature names for current booster.
+   * \param fn Output feature names
+   */
+  virtual void GetFeatureNames(std::vector<std::string>* fn) const = 0;
+  /*!
+   * \brief Set the feature types for current booster.
+   * \param ft Input feature types.
+   */
+  virtual void SetFeatureTypes(std::vector<std::string> const& ft) = 0;
+  /*!
+   * \brief Get the feature types for current booster.
+   * \param fn Output feature types
+   */
+  virtual void GetFeatureTypes(std::vector<std::string>* ft) const = 0;
+
+  /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */
   bool AllowLazyCheckPoint() const;
+  /*!
+   * \brief Slice the model.
+   *
+   * See InplacePredict for layer parameters.
+   *
+   * \param step step size between slice.
+   * \param out_of_bound Return true if end layer is out of bound.
+   *
+   * \return a sliced model.
+   */
+  virtual Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
+                         bool *out_of_bound) = 0;
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
@@ -208,8 +280,10 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \return Created learner.
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
-
-  virtual GenericParameter const& GetGenericParameter() const = 0;
+  /**
+   * \brief Return the context object of this Booster.
+   */
+  virtual GenericParameter const* Ctx() const = 0;
   /*!
    * \brief Get configuration arguments currently stored by the learner
    * \return Key-value pairs representing configuration arguments
@@ -239,11 +313,13 @@ struct LearnerModelParam {
   uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
   uint32_t num_output_group { 0 };
+  /* \brief Current task, determined by objective. */
+  ObjInfo task{ObjInfo::kRegression};
 
   LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin, ObjInfo t);
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
   bool Initialized() const { return num_feature != 0; }
 };

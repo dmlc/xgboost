@@ -22,9 +22,8 @@ TEST(SimpleDMatrix, FromColumnarDenseBasic) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
@@ -36,8 +35,9 @@ TEST(SimpleDMatrix, FromColumnarDenseBasic) {
 
 void TestDenseColumn(DMatrix* dmat, size_t n_rows, size_t n_cols) {
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i * 2);
         EXPECT_EQ(inst[j].index, j);
@@ -59,9 +59,8 @@ TEST(SimpleDMatrix, FromColumnarDense) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   // no missing value
   {
@@ -123,13 +122,13 @@ TEST(SimpleDMatrix, FromColumnarWithEmptyRows) {
     col["data"] = j_data;
     std::vector<Json> j_shape{Json(Integer(static_cast<Integer::Int>(kRows)))};
     col["shape"] = Array(j_shape);
-    col["version"] = Integer(static_cast<Integer::Int>(1));
+    col["version"] = 3;
     col["typestr"] = String("<f4");
 
     // Construct the mask object.
     col["mask"] = Object();
     auto& j_mask = col["mask"];
-    j_mask["version"] = Integer(static_cast<Integer::Int>(1));
+    j_mask["version"] = 3;
     auto& mask_storage = column_bitfields[i];
     mask_storage.resize(16);  // 16 bytes
 
@@ -156,16 +155,17 @@ TEST(SimpleDMatrix, FromColumnarWithEmptyRows) {
   }
 
   Json column_arr{Array(v_columns)};
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
+
   data::CudfAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            -1);
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i);
         EXPECT_EQ(inst[j].index, j);
@@ -220,7 +220,7 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
   for (size_t c = 0; c < kCols; ++c) {
     auto& column = j_columns[c];
     column = Object();
-    column["version"] = Integer(static_cast<Integer::Int>(1));
+    column["version"] = 3;
     column["typestr"] = String("<f4");
     auto p_d_data = raw_pointer_cast(columns_data[c].data());
     std::vector<Json> j_data {
@@ -229,12 +229,12 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     column["data"] = j_data;
     std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
     column["shape"] = Array(j_shape);
-    column["version"] = Integer(static_cast<Integer::Int>(1));
+    column["version"] = 3;
     column["typestr"] = String("<f4");
 
     column["mask"] = Object();
     auto& j_mask = column["mask"];
-    j_mask["version"] = Integer(static_cast<Integer::Int>(1));
+    j_mask["version"] = 3;
     j_mask["data"] = std::vector<Json>{
       Json(Integer(reinterpret_cast<Integer::Int>(column_bitfields[c].data().get()))),
       Json(Boolean(false))};
@@ -244,9 +244,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
 
   Json column_arr {Array(j_columns)};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   {
     data::CudfAdapter adapter(str);
@@ -260,8 +259,9 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     data::CudfAdapter adapter(str);
     data::SimpleDMatrix dmat(&adapter, 2.0, -1);
     for (auto& batch : dmat.GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
       for (auto i = 0ull; i < batch.Size(); i++) {
-        auto inst = batch[i];
+        auto inst = page[i];
         for (auto e : inst) {
           ASSERT_NE(e.fvalue, 2.0);
         }
@@ -296,9 +296,8 @@ TEST(SimpleDMatrix, FromColumnarSparseBasic) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
@@ -308,8 +307,9 @@ TEST(SimpleDMatrix, FromColumnarSparseBasic) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 32);
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i * 2);
         EXPECT_EQ(inst[j].index, j);
@@ -324,9 +324,8 @@ TEST(SimpleDMatrix, FromCupy){
   int cols = 10;
   thrust::device_vector< float> data(rows*cols);
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
-  std::stringstream ss;
-  Json::Dump(json_array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(json_array_interface, &str);
   data::CupyAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, -1, 1);
   EXPECT_EQ(dmat.Info().num_col_, cols);
@@ -334,8 +333,9 @@ TEST(SimpleDMatrix, FromCupy){
   EXPECT_EQ(dmat.Info().num_nonzero_, rows*cols);
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i * cols + j);
         EXPECT_EQ(inst[j].index, j);
@@ -351,21 +351,22 @@ TEST(SimpleDMatrix, FromCupySparse){
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
   data[1] = std::numeric_limits<float>::quiet_NaN();
   data[2] = std::numeric_limits<float>::quiet_NaN();
-  std::stringstream ss;
-  Json::Dump(json_array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(json_array_interface, &str);
   data::CupyAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, -1, 1);
   EXPECT_EQ(dmat.Info().num_col_, cols);
   EXPECT_EQ(dmat.Info().num_row_, rows);
   EXPECT_EQ(dmat.Info().num_nonzero_, rows * cols - 2);
   auto& batch = *dmat.GetBatches<SparsePage>().begin();
-  auto inst0 = batch[0];
-  auto inst1 = batch[1];
-  EXPECT_EQ(batch[0].size(), 1);
-  EXPECT_EQ(batch[1].size(), 1);
-  EXPECT_EQ(batch[0][0].fvalue, 0.0f);
-  EXPECT_EQ(batch[0][0].index, 0);
-  EXPECT_EQ(batch[1][0].fvalue, 3.0f);
-  EXPECT_EQ(batch[1][0].index, 1);
+  auto page = batch.GetView();
+
+  auto inst0 = page[0];
+  auto inst1 = page[1];
+  EXPECT_EQ(page[0].size(), 1);
+  EXPECT_EQ(page[1].size(), 1);
+  EXPECT_EQ(page[0][0].fvalue, 0.0f);
+  EXPECT_EQ(page[0][0].index, 0);
+  EXPECT_EQ(page[1][0].fvalue, 3.0f);
+  EXPECT_EQ(page[1][0].index, 1);
 }

@@ -15,15 +15,13 @@ from subprocess import call
 from sh.contrib import git
 import urllib.request
 from urllib.error import HTTPError
-from recommonmark.parser import CommonMarkParser
 import sys
 import re
 import os
 import subprocess
-import guzzle_sphinx_theme
 
 git_branch = os.getenv('SPHINX_GIT_BRANCH', default=None)
-if git_branch is None:
+if not git_branch:
     # If SPHINX_GIT_BRANCH environment variable is not given, run git
     # to determine branch name
     git_branch = [
@@ -31,7 +29,10 @@ if git_branch is None:
             git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')
     ]
     git_branch = [x for x in git_branch if 'HEAD' not in x]
+else:
+    git_branch = [git_branch]
 print('git_branch = {}'.format(git_branch[0]))
+
 try:
     filename, _ = urllib.request.urlretrieve(
         'https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(
@@ -61,18 +62,12 @@ libpath = os.path.join(curr_path, '../python-package/')
 sys.path.insert(0, libpath)
 sys.path.insert(0, curr_path)
 
-# -- mock out modules
-import mock                     # NOQA
-MOCK_MODULES = ['scipy', 'scipy.sparse', 'sklearn', 'pandas']
-for mod_name in MOCK_MODULES:
-    sys.modules[mod_name] = mock.Mock()
-
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
 project = u'xgboost'
 author = u'%s developers' % project
-copyright = u'2020, %s' % author
+copyright = u'2021, %s' % author
 github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
 
 os.environ['XGBOOST_BUILD_DOC'] = '1'
@@ -89,8 +84,20 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx.ext.intersphinx',
-    'breathe'
+    "sphinx_gallery.gen_gallery",
+    'breathe',
+    'recommonmark'
 ]
+
+sphinx_gallery_conf = {
+    # path to your example scripts
+    "examples_dirs": ["../demo/guide-python", "../demo/dask"],
+    # path to where to save gallery generated output
+    "gallery_dirs": ["python/examples", "python/dask-examples"],
+    "matplotlib_animations": True,
+}
+
+autodoc_typehints = "description"
 
 graphviz_output_format = 'png'
 plot_formats = [('svg', 300), ('png', 100), ('hires.png', 300)]
@@ -103,10 +110,6 @@ breathe_default_project = "xgboost"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
-
-source_parsers = {
-  '.md': CommonMarkParser,
-}
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -169,17 +172,13 @@ todo_include_todos = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme_path = guzzle_sphinx_theme.html_theme_path()
-html_theme = 'guzzle_sphinx_theme'
+html_theme = "sphinx_rtd_theme"
+html_theme_options = {"logo_only": True}
 
-# Register the theme as an extension to generate a sitemap.xml
-extensions.append("guzzle_sphinx_theme")
 
-# Guzzle theme options (see theme.conf for more information)
-html_theme_options = {
-    # Set the name of the project to appear in the sidebar
-    "project_nav_name": "XGBoost"
-}
+html_logo = "https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png"
+
+html_css_files = ["css/custom.css"]
 
 html_sidebars = {
   '**': ['logo-text.html', 'globaltoc.html', 'searchbox.html']
@@ -201,16 +200,17 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, '%s.tex' % project, project,
-   author, 'manual'),
+  (master_doc, '%s.tex' % project, project, author, 'manual'),
 ]
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.6', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
-    'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),
-    'sklearn': ('http://scikit-learn.org/stable', None)
+    "python": ("https://docs.python.org/3.6", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "pandas": ("http://pandas-docs.github.io/pandas-docs-travis/", None),
+    "sklearn": ("https://scikit-learn.org/stable", None),
+    "dask": ("https://docs.dask.org/en/stable/", None),
+    "distributed": ("https://distributed.dask.org/en/stable/", None),
 }
 
 
@@ -232,5 +232,6 @@ def generate_doxygen_xml(app):
         run_doxygen('..')
 
 
+# app.add_stylesheet() is deprecated. Use app.add_css_file()
 def setup(app):
-    app.add_stylesheet('custom.css')
+    app.add_css_file('custom.css')

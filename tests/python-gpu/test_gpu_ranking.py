@@ -1,24 +1,27 @@
 import numpy as np
 import xgboost
 import os
-import unittest
 import itertools
 import shutil
 import urllib.request
 import zipfile
+import sys
+sys.path.append("tests/python")
+
+import testing as tm            # noqa
 
 
-class TestRanking(unittest.TestCase):
+class TestRanking:
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         """
         Download and setup the test fixtures
         """
         from sklearn.datasets import load_svmlight_files
         # download the test data
-        cls.dpath = 'demo/rank/'
+        cls.dpath = os.path.join(tm.PROJECT_ROOT, "demo/rank/")
         src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
-        target = cls.dpath + '/MQ2008.zip'
+        target = os.path.join(cls.dpath, "MQ2008.zip")
 
         if os.path.exists(cls.dpath) and os.path.exists(target):
             print("Skipping dataset download...")
@@ -75,13 +78,13 @@ class TestRanking(unittest.TestCase):
                           'predictor': 'cpu_predictor'}
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         """
         Cleanup test artifacts from download and unpacking
         :return:
         """
-        os.remove(cls.dpath + "MQ2008.zip")
-        shutil.rmtree(cls.dpath + "MQ2008")
+        os.remove(os.path.join(cls.dpath, "MQ2008.zip"))
+        shutil.rmtree(os.path.join(cls.dpath, "MQ2008"))
 
     @classmethod
     def __test_training_with_rank_objective(cls, rank_objective, metric_name, tolerance=1e-02):

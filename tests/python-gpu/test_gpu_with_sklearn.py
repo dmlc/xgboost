@@ -1,8 +1,10 @@
+import json
 import xgboost as xgb
 import pytest
+import tempfile
 import sys
 import numpy as np
-import unittest
+import os
 
 sys.path.append("tests/python")
 import testing as tm               # noqa
@@ -17,7 +19,7 @@ def test_gpu_binary_classification():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
@@ -33,8 +35,119 @@ def test_gpu_binary_classification():
             assert err < 0.1
 
 
-class TestGPUBoostFromPrediction(unittest.TestCase):
-    cpu_test = twskl.TestBoostFromPrediction()
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_cudf())
+def test_boost_from_prediction_gpu_hist():
+    from sklearn.datasets import load_breast_cancer, load_digits
+    import cupy as cp
+    import cudf
 
-    def test_boost_from_prediction_gpu_hist(self):
-        self.cpu_test.run_boost_from_prediction('gpu_hist')
+    tree_method = "gpu_hist"
+    X, y = load_breast_cancer(return_X_y=True)
+    X, y = cp.array(X), cp.array(y)
+
+    twskl.run_boost_from_prediction_binary(tree_method, X, y, None)
+    twskl.run_boost_from_prediction_binary(tree_method, X, y, cudf.DataFrame)
+
+    X, y = load_digits(return_X_y=True)
+    X, y = cp.array(X), cp.array(y)
+
+    twskl.run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, X, y, None
+    )
+    twskl.run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, X, y, cudf.DataFrame
+    )
+
+
+def test_num_parallel_tree():
+    twskl.run_calif_housing_rf_regression("gpu_hist")
+
+
+@pytest.mark.skipif(**tm.no_pandas())
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_categorical():
+    import pandas as pd
+    import cudf
+    import cupy as cp
+    from sklearn.datasets import load_svmlight_file
+
+    data_dir = os.path.join(tm.PROJECT_ROOT, "demo", "data")
+    X, y = load_svmlight_file(os.path.join(data_dir, "agaricus.txt.train"))
+    clf = xgb.XGBClassifier(
+        tree_method="gpu_hist",
+        enable_categorical=True,
+        n_estimators=10,
+    )
+    X = pd.DataFrame(X.todense()).astype("category")
+    clf.fit(X, y)
+
+    with tempfile.TemporaryDirectory() as tempdir:
+        model = os.path.join(tempdir, "categorial.json")
+        clf.save_model(model)
+
+        with open(model) as fd:
+            categorical = json.load(fd)
+            categories_sizes = np.array(
+                categorical["learner"]["gradient_booster"]["model"]["trees"][0][
+                    "categories_sizes"
+                ]
+            )
+            assert categories_sizes.shape[0] != 0
+            np.testing.assert_allclose(categories_sizes, 1)
+
+    def check_predt(X, y):
+        reg = xgb.XGBRegressor(
+            tree_method="gpu_hist", enable_categorical=True, n_estimators=64
+        )
+        reg.fit(X, y)
+        predts = reg.predict(X)
+        booster = reg.get_booster()
+        assert "c" in booster.feature_types
+        assert len(booster.feature_types) == 1
+        inp_predts = booster.inplace_predict(X)
+        if isinstance(inp_predts, cp.ndarray):
+            inp_predts = cp.asnumpy(inp_predts)
+        np.testing.assert_allclose(predts, inp_predts)
+
+    y = [1, 2, 3]
+    X = pd.DataFrame({"f0": ["a", "b", "c"]})
+    X["f0"] = X["f0"].astype("category")
+    check_predt(X, y)
+
+    X = cudf.DataFrame(X)
+    check_predt(X, y)
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_cudf())
+def test_classififer():
+    from sklearn.datasets import load_digits
+    import cupy as cp
+    import cudf
+
+    X, y = load_digits(return_X_y=True)
+    y *= 10
+
+    clf = xgb.XGBClassifier(tree_method="gpu_hist", n_estimators=1)
+
+    # numpy
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+    # cupy
+    X, y = cp.array(X), cp.array(y)
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+    # cudf
+    X, y = cudf.DataFrame(X), cudf.DataFrame(y)
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)
+
+    # pandas
+    X, y = load_digits(return_X_y=True, as_frame=True)
+    y *= 10
+    with pytest.raises(ValueError, match=r"Invalid classes.*"):
+        clf.fit(X, y)

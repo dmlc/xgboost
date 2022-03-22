@@ -45,7 +45,7 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
   }
 
   auto page = std::unique_ptr<EllpackPageImpl>(
-      new EllpackPageImpl(0, cmat, batch, dmat->IsDense(), row_stride));
+      new EllpackPageImpl(0, cmat, batch, dmat->IsDense(), row_stride, {}));
 
   return page;
 }

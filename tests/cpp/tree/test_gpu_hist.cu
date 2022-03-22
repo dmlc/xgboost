@@ -1,8 +1,9 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <random>
@@ -80,8 +81,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols,
-                                         true, batch_param);
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param,
+                                         kNCols, kNCols, batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -93,14 +94,18 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-
-
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistogram(0);
   maker.gpair = gpair.DeviceSpan();
+  maker.histogram_rounding = CreateRoundingFactor<GradientSumT>(maker.gpair);;
 
-  maker.BuildHist(0);
-  DeviceHistogram<GradientSumT> d_hist = maker.hist;
+  BuildGradientHistogram(
+      page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
+      gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
+      maker.hist.GetNodeHistogram(0), maker.histogram_rounding,
+      !use_shared_memory_histograms);
+
+  DeviceHistogram<GradientSumT>& d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
@@ -115,6 +120,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   std::cout << std::fixed;
   for (size_t i = 0; i < h_result.size(); ++i) {
+    ASSERT_FALSE(std::isnan(h_result[i].GetGrad()));
     EXPECT_NEAR(h_result[i].GetGrad(), solution[i].GetGrad(), 0.01f);
     EXPECT_NEAR(h_result[i].GetHess(), solution[i].GetHess(), 0.01f);
   }
@@ -128,6 +134,48 @@ TEST(GpuHist, BuildHistGlobalMem) {
 TEST(GpuHist, BuildHistSharedMem) {
   TestBuildHist<GradientPairPrecise>(true);
   TestBuildHist<GradientPair>(true);
+}
+
+TEST(GpuHist, ApplySplit) {
+  RegTree tree;
+  GPUExpandEntry candidate;
+  candidate.nid = 0;
+  candidate.left_weight = 1.0f;
+  candidate.right_weight = 2.0f;
+  candidate.base_weight = 3.0f;
+  candidate.split.is_cat = true;
+  candidate.split.fvalue = 1.0f;  // at cat 1
+
+  size_t n_rows = 10;
+  size_t n_cols = 10;
+
+  auto m = RandomDataGenerator{n_rows, n_cols, 0}.GenerateDMatrix(true);
+  GenericParameter p;
+  p.InitAllowUnknown(Args{});
+
+  TrainParam tparam;
+  tparam.InitAllowUnknown(Args{});
+  BatchParam bparam;
+  bparam.gpu_id = 0;
+  bparam.max_bin = 3;
+
+  for (auto& ellpack : m->GetBatches<EllpackPage>(bparam)){
+    auto impl = ellpack.Impl();
+    HostDeviceVector<FeatureType> feature_types(10, FeatureType::kCategorical);
+    feature_types.SetDevice(bparam.gpu_id);
+    tree::GPUHistMakerDevice<GradientPairPrecise> updater(
+        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols,
+        bparam);
+    updater.ApplySplit(candidate, &tree);
+
+    ASSERT_EQ(tree.GetSplitTypes().size(), 3);
+    ASSERT_EQ(tree.GetSplitTypes()[0], FeatureType::kCategorical);
+    ASSERT_EQ(tree.GetSplitCategories().size(), 1);
+    uint32_t bits = 1u << 30;  // bits: 0, 1, 0, 0, 0, ..., 0
+    ASSERT_EQ(tree.GetSplitCategories().back(), bits);
+
+    ASSERT_EQ(updater.node_categories.size(), 1);
+  }
 }
 
 HistogramCutsWrapper GetHostCutMatrix () {
@@ -154,19 +202,18 @@ TEST(GpuHist, EvaluateRootSplit) {
 
   TrainParam param;
 
-  std::vector<std::pair<std::string, std::string>> args {
-    {"max_depth", "1"},
-  {"max_leaves", "0"},
+  std::vector<std::pair<std::string, std::string>> args{
+      {"max_depth", "1"},
+      {"max_leaves", "0"},
 
-  // Disable all other parameters.
-  {"colsample_bynode", "1"},
-  {"colsample_bylevel", "1"},
-  {"colsample_bytree", "1"},
-  {"min_child_weight", "0.01"},
-  {"reg_alpha", "0"},
-  {"reg_lambda", "0"},
-  {"max_delta_step", "0"}
-  };
+      // Disable all other parameters.
+      {"colsample_bynode", "1"},
+      {"colsample_bylevel", "1"},
+      {"colsample_bytree", "1"},
+      {"min_child_weight", "0.01"},
+      {"reg_alpha", "0"},
+      {"reg_lambda", "0"},
+      {"max_delta_step", "0"}};
   param.Init(args);
   for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
@@ -177,8 +224,8 @@ TEST(GpuHist, EvaluateRootSplit) {
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientPairPrecise>
-    maker(0, page.get(), kNRows, param, kNCols, kNCols, true, batch_param);
+  GPUHistMakerDevice<GradientPairPrecise> maker(
+      0, page.get(), {}, kNRows, param, kNCols, kNCols, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {};
 
@@ -204,23 +251,18 @@ TEST(GpuHist, EvaluateRootSplit) {
   ASSERT_EQ(maker.hist.Data().size(), hist.size());
   thrust::copy(hist.begin(), hist.end(),
     maker.hist.Data().begin());
+  std::vector<float> feature_weights;
 
-  maker.column_sampler.Init(kNCols,
-    param.colsample_bynode,
-    param.colsample_bylevel,
-    param.colsample_bytree,
-    false);
+  maker.column_sampler.Init(kNCols, feature_weights, param.colsample_bynode,
+                            param.colsample_bylevel, param.colsample_bytree);
 
   RegTree tree;
   MetaInfo info;
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  maker.node_value_constraints.resize(1);
-  maker.node_value_constraints[0].lower_bound = -1.0;
-  maker.node_value_constraints[0].upper_bound = 1.0;
-
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
+  DeviceSplitCandidate res =
+      maker.EvaluateRootSplit({6.4f, 12.8f}, 0, ObjInfo{ObjInfo::kRegression}).split;
 
   ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
@@ -233,7 +275,8 @@ void TestHistogramIndexImpl() {
   int constexpr kNRows = 1000, kNCols = 10;
 
   // Build 2 matrices and build a histogram maker with that
-  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker, hist_maker_ext;
+  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker{ObjInfo{ObjInfo::kRegression}},
+      hist_maker_ext{ObjInfo{ObjInfo::kRegression}};
   std::unique_ptr<DMatrix> hist_maker_dmat(
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
 
@@ -255,69 +298,21 @@ void TestHistogramIndexImpl() {
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
   const auto &maker = hist_maker.maker;
+  auto grad = GenerateRandomGradients(kNRows);
+  grad.SetDevice(0);
+  maker->Reset(&grad, hist_maker_dmat.get(), kNCols, ObjInfo{ObjInfo::kRegression});
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
   const auto &maker_ext = hist_maker_ext.maker;
+  maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols, ObjInfo{ObjInfo::kRegression});
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
   ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
   ASSERT_EQ(maker->page->gidx_buffer.Size(), maker_ext->page->gidx_buffer.Size());
-
 }
 
 TEST(GpuHist, TestHistogramIndex) {
   TestHistogramIndexImpl();
-}
-
-// gamma is an alias of min_split_loss
-int32_t TestMinSplitLoss(DMatrix* dmat, float gamma, HostDeviceVector<GradientPair>* gpair) {
-  Args args {
-    {"max_depth", "1"},
-    {"max_leaves", "0"},
-
-    // Disable all other parameters.
-    {"colsample_bynode", "1"},
-    {"colsample_bylevel", "1"},
-    {"colsample_bytree", "1"},
-    {"min_child_weight", "0.01"},
-    {"reg_alpha", "0"},
-    {"reg_lambda", "0"},
-    {"max_delta_step", "0"},
-
-    // test gamma
-    {"gamma", std::to_string(gamma)}
-  };
-
-  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
-  GenericParameter generic_param(CreateEmptyGenericParam(0));
-  hist_maker.Configure(args, &generic_param);
-
-  RegTree tree;
-  hist_maker.Update(gpair, dmat, {&tree});
-
-  auto n_nodes = tree.NumExtraNodes();
-  return n_nodes;
-}
-
-TEST(GpuHist, MinSplitLoss) {
-  constexpr size_t kRows = 32;
-  constexpr size_t kCols = 16;
-  constexpr float kSparsity = 0.6;
-  auto dmat = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
-  auto gpair = GenerateRandomGradients(kRows);
-
-  {
-    int32_t n_nodes = TestMinSplitLoss(dmat.get(), 0.01, &gpair);
-    // This is not strictly verified, meaning the numeber `2` is whatever GPU_Hist retured
-    // when writing this test, and only used for testing larger gamma (below) does prevent
-    // building tree.
-    ASSERT_EQ(n_nodes, 2);
-  }
-  {
-    int32_t n_nodes = TestMinSplitLoss(dmat.get(), 100.0, &gpair);
-    // No new nodes with gamma == 100.
-    ASSERT_EQ(n_nodes, static_cast<decltype(n_nodes)>(0));
-  }
 }
 
 void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
@@ -330,7 +325,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
     // Loop over the batches and count the records
     int64_t batch_count = 0;
     int64_t row_count = 0;
-    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, max_bin, gpu_page_size})) {
+    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, max_bin})) {
       EXPECT_LT(batch.Size(), dmat->Info().num_row_);
       batch_count++;
       row_count += batch.Size();
@@ -349,13 +344,13 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
       {"sampling_method", sampling_method},
   };
 
-  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
+  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker{ObjInfo{ObjInfo::kRegression}};
   GenericParameter generic_param(CreateEmptyGenericParam(0));
-  generic_param.gpu_page_size = gpu_page_size;
   hist_maker.Configure(args, &generic_param);
 
   hist_maker.Update(gpair, dmat, {tree});
-  hist_maker.UpdatePredictionCache(dmat, preds);
+  auto cache = linalg::VectorView<float>{preds->DeviceSpan(), {preds->Size()}, 0};
+  hist_maker.UpdatePredictionCache(dmat, cache);
 }
 
 TEST(GpuHist, UniformSampling) {
@@ -422,13 +417,14 @@ TEST(GpuHist, ExternalMemory) {
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1024;
 
-  // Create an in-memory DMatrix.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+  dmlc::TemporaryDirectory tmpdir;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  std::unique_ptr<DMatrix> dmat_ext(
+      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
+
+  // Create a single batch DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
 
   auto gpair = GenerateRandomGradients(kRows);
 
@@ -457,23 +453,27 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   const std::string kSamplingMethod = "gradient_based";
   common::GlobalRandom().seed(0);
 
-  // Create an in-memory DMatrix.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+  dmlc::TemporaryDirectory tmpdir;
+
+  // Create a single batch DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  std::unique_ptr<DMatrix> dmat_ext(
+      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
 
   auto gpair = GenerateRandomGradients(kRows);
 
   // Build a tree using the in-memory DMatrix.
+  auto rng = common::GlobalRandom();
+
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod,
              kRows);
 
   // Build another tree using multiple ELLPACK pages.
+  common::GlobalRandom() = rng;
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
   UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext,
@@ -483,13 +483,14 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-3);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 1e-3);
   }
 }
 
 TEST(GpuHist, ConfigIO) {
   GenericParameter generic_param(CreateEmptyGenericParam(0));
-  std::unique_ptr<TreeUpdater> updater {TreeUpdater::Create("grow_gpu_hist", &generic_param) };
+  std::unique_ptr<TreeUpdater> updater{
+      TreeUpdater::Create("grow_gpu_hist", &generic_param, ObjInfo{ObjInfo::kRegression})};
   updater->Configure(Args{});
 
   Json j_updater { Object() };
@@ -506,5 +507,17 @@ TEST(GpuHist, ConfigIO) {
   ASSERT_EQ(j_updater, j_updater_roundtrip);
 }
 
+TEST(GpuHist, MaxDepth) {
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  size_t constexpr kRows = 16;
+  size_t constexpr kCols = 4;
+  auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+  learner->SetParam("max_depth", "32");
+  learner->Configure();
+
+  ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
+}
 }  // namespace tree
 }  // namespace xgboost

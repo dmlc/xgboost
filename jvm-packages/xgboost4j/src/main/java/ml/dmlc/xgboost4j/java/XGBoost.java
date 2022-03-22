@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,16 +15,12 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.*;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 
 /**
  * trainer for xgboost
@@ -56,9 +52,28 @@ public class XGBoost {
    * @throws XGBoostError
    * @throws IOException
    */
-  public static Booster loadModel(InputStream in)
-          throws XGBoostError, IOException {
-    return Booster.loadModel(in);
+  public static Booster loadModel(InputStream in) throws XGBoostError, IOException {
+    int size;
+    byte[] buf = new byte[1<<20];
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    while ((size = in.read(buf)) != -1) {
+      os.write(buf, 0, size);
+    }
+    in.close();
+    return Booster.loadModel(os.toByteArray());
+  }
+
+  /**
+   * Load a new Booster model from a byte array buffer.
+   * The assumption is the array only contains one XGBoost Model.
+   * This can be used to load existing booster models saved by other xgboost bindings.
+   *
+   * @param buffer The byte contents of the booster.
+   * @return The create boosted
+   * @throws XGBoostError
+   */
+  public static Booster loadModel(byte[] buffer) throws XGBoostError, IOException {
+    return Booster.loadModel(buffer);
   }
 
   /**
@@ -226,20 +241,25 @@ public class XGBoost {
           if (score > bestScore) {
             bestScore = score;
             bestIteration = iter;
+            booster.setAttr("best_iteration", String.valueOf(bestIteration));
+            booster.setAttr("best_score", String.valueOf(bestScore));
           }
         } else {
           if (score < bestScore) {
             bestScore = score;
             bestIteration = iter;
+            booster.setAttr("best_iteration", String.valueOf(bestIteration));
+            booster.setAttr("best_score", String.valueOf(bestScore));
           }
         }
-        if (earlyStoppingRounds > 0) {
-          if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
+        if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
+          if (shouldPrint(params, iter)) {
             Rabit.trackerPrint(String.format(
-                    "early stopping after %d rounds away from the best iteration",
-                    earlyStoppingRounds));
-            break;
+                "early stopping after %d rounds away from the best iteration",
+                earlyStoppingRounds
+            ));
           }
+          break;
         }
         if (Rabit.getRank() == 0 && shouldPrint(params, iter)) {
           if (shouldPrint(params, iter)){
@@ -332,6 +352,9 @@ public class XGBoost {
   }
 
   static boolean shouldEarlyStop(int earlyStoppingRounds, int iter, int bestIteration) {
+    if (earlyStoppingRounds <= 0) {
+      return false;
+    }
     return iter - bestIteration >= earlyStoppingRounds;
   }
 

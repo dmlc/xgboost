@@ -6,15 +6,20 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
+#include <xgboost/base.h>
+#include <xgboost/logging.h>
+#include <xgboost/span.h>
+
+#include <algorithm>
 #include <exception>
+#include <functional>
 #include <limits>
 #include <type_traits>
 #include <vector>
 #include <string>
 #include <sstream>
-
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
+#include <numeric>
+#include <utility>
 
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>
@@ -51,7 +56,7 @@ namespace xgboost {
 namespace common {
 /*!
  * \brief Split a string by delimiter
- * \param s String to be splitted.
+ * \param s String to be split.
  * \param delim The delimiter.
  */
 inline std::vector<std::string> Split(const std::string& s, char delim) {
@@ -80,6 +85,19 @@ inline std::string ToString(const T& data) {
 template <typename T1, typename T2>
 XGBOOST_DEVICE T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(std::ceil(static_cast<double>(a) / b));
+}
+
+namespace detail {
+template <class T, std::size_t N, std::size_t... Idx>
+constexpr auto UnpackArr(std::array<T, N> &&arr, std::index_sequence<Idx...>) {
+  return std::make_tuple(std::forward<std::array<T, N>>(arr)[Idx]...);
+}
+}  // namespace detail
+
+template <class T, std::size_t N>
+constexpr auto UnpackArr(std::array<T, N> &&arr) {
+  return detail::UnpackArr(std::forward<std::array<T, N>>(arr),
+                           std::make_index_sequence<N>{});
 }
 
 /*
@@ -154,6 +172,32 @@ inline void AssertGPUSupport() {
 #endif  // XGBOOST_USE_CUDA
 }
 
+inline void AssertOneAPISupport() {
+#ifndef XGBOOST_USE_ONEAPI
+    LOG(FATAL) << "XGBoost version not compiled with OneAPI support.";
+#endif  // XGBOOST_USE_ONEAPI
+}
+
+template <typename Idx, typename Container,
+          typename V = typename Container::value_type,
+          typename Comp = std::less<V>>
+std::vector<Idx> ArgSort(Container const &array, Comp comp = std::less<V>{}) {
+  std::vector<Idx> result(array.size());
+  std::iota(result.begin(), result.end(), 0);
+  auto op = [&array, comp](Idx const &l, Idx const &r) { return comp(array[l], array[r]); };
+  XGBOOST_PARALLEL_STABLE_SORT(result.begin(), result.end(), op);
+  return result;
+}
+
+struct OptionalWeights {
+  Span<float const> weights;
+  float dft{1.0f};
+
+  explicit OptionalWeights(Span<float const> w) : weights{w} {}
+  explicit OptionalWeights(float w) : dft{w} {}
+
+  XGBOOST_DEVICE float operator[](size_t i) const { return weights.empty() ? dft : weights[i]; }
+};
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_

@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "../common/categorical.h"
 #include "../common/device_helpers.cuh"
 #include "../common/random.h"
 #include "param.h"
@@ -26,6 +27,8 @@ struct GPUTrainingParam {
   // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
   float max_delta_step;
+  float learning_rate;
+  uint32_t max_cat_to_onehot;
 
   GPUTrainingParam() = default;
 
@@ -33,13 +36,10 @@ struct GPUTrainingParam {
       : min_child_weight(param.min_child_weight),
         reg_lambda(param.reg_lambda),
         reg_alpha(param.reg_alpha),
-        max_delta_step(param.max_delta_step) {}
+        max_delta_step(param.max_delta_step),
+        learning_rate{param.learning_rate},
+        max_cat_to_onehot{param.max_cat_to_onehot} {}
 };
-
-using NodeIdT = int32_t;
-
-/** used to assign default id to a Node */
-static const bst_node_t kUnusedNode = -1;
 
 /**
  * @enum DefaultDirection node.cuh
@@ -58,8 +58,11 @@ struct DeviceSplitCandidate {
   int findex {-1};
   float fvalue {0};
 
-  GradientPair left_sum;
-  GradientPair right_sum;
+  common::CatBitField split_cats;
+  bool is_cat { false };
+
+  GradientPairPrecise left_sum;
+  GradientPairPrecise right_sum;
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
 
@@ -72,11 +75,34 @@ struct DeviceSplitCandidate {
       *this = other;
     }
   }
+  /**
+   * \brief The largest encoded category in the split bitset
+   */
+  bst_cat_t MaxCat() const {
+    // Reuse the fvalue for categorical values.
+    return static_cast<bst_cat_t>(fvalue);
+  }
+  /**
+   * \brief Return the best threshold for cat split, reset the value after return.
+   */
+  XGBOOST_DEVICE size_t PopBestThresh() {
+    // fvalue is also being used for storing the threshold for categorical split
+    auto best_thresh = static_cast<size_t>(this->fvalue);
+    this->fvalue = 0;
+    return best_thresh;
+  }
+
+  template <typename T>
+  XGBOOST_DEVICE void SetCat(T c) {
+    this->split_cats.Set(common::AsCat(c));
+    fvalue = std::max(this->fvalue, static_cast<float>(c));
+  }
 
   XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
                              float fvalue_in, int findex_in,
-                             GradientPair left_sum_in,
-                             GradientPair right_sum_in,
+                             GradientPairPrecise left_sum_in,
+                             GradientPairPrecise right_sum_in,
+                             bool cat,
                              const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
         left_sum_in.GetHess() >= param.min_child_weight &&
@@ -84,6 +110,7 @@ struct DeviceSplitCandidate {
       loss_chg = loss_chg_in;
       dir = dir_in;
       fvalue = fvalue_in;
+      is_cat = cat;
       left_sum = left_sum_in;
       right_sum = right_sum_in;
       findex = findex_in;
@@ -96,73 +123,10 @@ struct DeviceSplitCandidate {
        << "dir: " << c.dir << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
+       << "is_cat: " << c.is_cat << ", "
        << "left sum: " << c.left_sum << ", "
        << "right sum: " << c.right_sum << std::endl;
     return os;
-  }
-};
-
-struct DeviceSplitCandidateReduceOp {
-  GPUTrainingParam param;
-  explicit DeviceSplitCandidateReduceOp(GPUTrainingParam param) : param(std::move(param)) {}
-  XGBOOST_DEVICE DeviceSplitCandidate operator()(
-      const DeviceSplitCandidate& a, const DeviceSplitCandidate& b) const {
-    DeviceSplitCandidate best;
-    best.Update(a, param);
-    best.Update(b, param);
-    return best;
-  }
-};
-
-struct DeviceNodeStats {
-  GradientPair sum_gradients;
-  float root_gain {-FLT_MAX};
-  float weight {-FLT_MAX};
-
-  /** default direction for missing values */
-  DefaultDirection dir {kLeftDir};
-  /** threshold value for comparison */
-  float fvalue {0.0f};
-  GradientPair left_sum;
-  GradientPair right_sum;
-  /** \brief The feature index. */
-  int fidx{kUnusedNode};
-  /** node id (used as key for reduce/scan) */
-  NodeIdT idx{kUnusedNode};
-
-  XGBOOST_DEVICE DeviceNodeStats() {}  // NOLINT
-
-  template <typename ParamT>
-  HOST_DEV_INLINE DeviceNodeStats(GradientPair sum_gradients, NodeIdT nidx,
-                                  const ParamT& param)
-      : sum_gradients(sum_gradients),
-        idx(nidx) {
-    this->root_gain =
-        CalcGain(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
-    this->weight =
-        CalcWeight(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
-  }
-
-  HOST_DEV_INLINE void SetSplit(float fvalue, int fidx, DefaultDirection dir,
-                                GradientPair left_sum, GradientPair right_sum) {
-    this->fvalue = fvalue;
-    this->fidx = fidx;
-    this->dir = dir;
-    this->left_sum = left_sum;
-    this->right_sum = right_sum;
-  }
-
-  HOST_DEV_INLINE void SetSplit(const DeviceSplitCandidate& split) {
-    this->SetSplit(split.fvalue, split.findex, split.dir, split.left_sum,
-                   split.right_sum);
-  }
-
-  /** Tells whether this node is part of the decision tree */
-  HOST_DEV_INLINE bool IsUnused() const { return (idx == kUnusedNode); }
-
-  /** Tells whether this node is a leaf of the decision tree */
-  HOST_DEV_INLINE bool IsLeaf() const {
-    return (!IsUnused() && (fidx == kUnusedNode));
   }
 };
 

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file group_data.h
  * \brief this file defines utils to group data by integer keys
  *     Input: given input sequence (key,value), (k1,v1), (k2,v2)
@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <vector>
 #include <algorithm>
+#include <utility>
 
 #include "xgboost/base.h"
 
@@ -26,8 +27,9 @@ namespace common {
  * \brief multi-thread version of group builder
  * \tparam ValueType type of entries in the sparse matrix
  * \tparam SizeType type of the index range holder
+ * \tparam is_row_major bool value helps to reduce memory for row major
  */
-template<typename ValueType, typename SizeType = bst_ulong>
+template<typename ValueType, typename SizeType = bst_ulong, bool is_row_major = false>
 class ParallelGroupBuilder {
  public:
   /**
@@ -50,16 +52,23 @@ class ParallelGroupBuilder {
   /*!
    * \brief step 1: initialize the helper, with hint of number keys
    *                and thread used in the construction
-   * \param max_key number of keys in the matrix, can be smaller than expected
+   * \param max_key number of keys in the matrix, can be smaller than expected,
+   *                for row major adapter max_key is equal to batch size
    * \param nthread number of thread that will be used in construction
    */
   void InitBudget(std::size_t max_key, int nthread) {
     thread_rptr_.resize(nthread);
-    for (std::size_t i = 0; i < thread_rptr_.size(); ++i) {
-      thread_rptr_[i].resize(max_key - std::min(base_row_offset_, max_key));
-      std::fill(thread_rptr_[i].begin(), thread_rptr_[i].end(), 0);
+    const size_t full_size = is_row_major ? max_key : max_key - std::min(base_row_offset_, max_key);
+    thread_displacement_ = is_row_major ? full_size / nthread : 0;
+    for (std::size_t i = 0; i < thread_rptr_.size() - 1; ++i) {
+      const size_t thread_size = is_row_major ? thread_displacement_ : full_size;
+      thread_rptr_[i].resize(thread_size, 0);
     }
+    const size_t last_thread_size = is_row_major ? (full_size - (nthread - 1)*thread_displacement_)
+                                                 : full_size;
+    thread_rptr_[nthread - 1].resize(last_thread_size, 0);
   }
+
   /*!
    * \brief step 2: add budget to each key
    * \param key the key
@@ -68,39 +77,67 @@ class ParallelGroupBuilder {
    */
   void AddBudget(std::size_t key, int threadid, SizeType nelem = 1) {
     std::vector<SizeType> &trptr = thread_rptr_[threadid];
-    size_t offset_key = key - base_row_offset_;
+    size_t offset_key = is_row_major ? (key - base_row_offset_ - threadid*thread_displacement_)
+                                     : (key - base_row_offset_);
     if (trptr.size() < offset_key + 1) {
       trptr.resize(offset_key + 1, 0);
     }
     trptr[offset_key] += nelem;
   }
+
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
-    // set rptr to correct size
-    SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
-    for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
-      if (rptr_.size() <= thread_rptr_[tid].size() + base_row_offset_) {
-        rptr_.resize(thread_rptr_[tid].size() + base_row_offset_ + 1,
-                     rptr_fill_value);  // key + 1
+    if (is_row_major) {
+      size_t expected_rows = 0;
+      for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+        expected_rows += thread_rptr_[tid].size();
       }
-    }
-    // initialize rptr to be beginning of each segment
-    std::size_t count = 0;
-    for (std::size_t i = base_row_offset_; i + 1 < rptr_.size(); ++i) {
+      // initialize rptr to be beginning of each segment
+      SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
+      rptr_.resize(expected_rows + base_row_offset_ + 1, rptr_fill_value);
+
+      std::size_t count = 0;
+      size_t offset_idx = base_row_offset_ + 1;
       for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
         std::vector<SizeType> &trptr = thread_rptr_[tid];
-        if (i < trptr.size() +
-                    base_row_offset_) {  // i^th row is assigned for this thread
-          std::size_t thread_count =
-              trptr[i - base_row_offset_];  // how many entries in this row
-          trptr[i - base_row_offset_] = count + rptr_.back();
+        for (std::size_t i = 0; i < trptr.size(); ++i) {
+          std::size_t thread_count = trptr[i];  // how many entries in this row
+          trptr[i] = count + rptr_fill_value;
           count += thread_count;
+          if (offset_idx < rptr_.size()) {
+            rptr_[offset_idx++] += count;
+          }
         }
       }
-      rptr_[i + 1] += count;  // pointer accumulated from all thread
+      data_.resize(rptr_.back());  // usage of empty allocator can help to improve performance
+    } else {
+      // set rptr to correct size
+      SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
+      for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+        if (rptr_.size() <= thread_rptr_[tid].size() + base_row_offset_) {
+          rptr_.resize(thread_rptr_[tid].size() + base_row_offset_ + 1,
+                       rptr_fill_value);  // key + 1
+        }
+      }
+      // initialize rptr to be beginning of each segment
+      std::size_t count = 0;
+      for (std::size_t i = base_row_offset_; i + 1 < rptr_.size(); ++i) {
+        for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+          std::vector<SizeType> &trptr = thread_rptr_[tid];
+          if (i < trptr.size() +
+                      base_row_offset_) {  // i^th row is assigned for this thread
+            std::size_t thread_count =
+                trptr[i - base_row_offset_];  // how many entries in this row
+            trptr[i - base_row_offset_] = count + rptr_.back();
+            count += thread_count;
+          }
+        }
+        rptr_[i + 1] += count;  // pointer accumulated from all thread
+      }
+      data_.resize(rptr_.back());
     }
-    data_.resize(rptr_.back());
   }
+
   /*!
    * \brief step 4: add data to the allocated space,
    *   the calls to this function should be exactly match previous call to AddBudget
@@ -109,10 +146,11 @@ class ParallelGroupBuilder {
    * \param value The value to be pushed to the group.
    * \param threadid the id of thread that calls this function
    */
-  void Push(std::size_t key, ValueType value, int threadid) {
-    size_t offset_key = key - base_row_offset_;
+  void Push(std::size_t key, ValueType&& value, int threadid) {
+    size_t offset_key = is_row_major ? (key - base_row_offset_ - threadid * thread_displacement_)
+                                     : (key - base_row_offset_);
     SizeType &rp = thread_rptr_[threadid][offset_key];
-    data_[rp++] = value;
+    data_[rp++] = std::move(value);
   }
 
  private:
@@ -124,6 +162,8 @@ class ParallelGroupBuilder {
   std::vector<std::vector<SizeType> > thread_rptr_;
   /** \brief Used when rows being pushed into the builder are strictly above some number. */
   size_t base_row_offset_;
+  /** \brief Used for row major adapters to handle reduced thread local memory allocation */
+  size_t thread_displacement_;
 };
 }  // namespace common
 }  // namespace xgboost

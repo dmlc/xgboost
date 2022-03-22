@@ -87,7 +87,7 @@ more than 5 distinct values.}
 
 \item{which}{whether to do univariate or bivariate plotting. NOTE: only 1D is implemented so far.}
 
-\item{plot}{whether a plot should be drawn. If FALSE, only a lits of matrices is returned.}
+\item{plot}{whether a plot should be drawn. If FALSE, only a list of matrices is returned.}
 
 \item{...}{other parameters passed to \code{plot}.}
 }
@@ -131,6 +131,7 @@ bst <- xgboost(agaricus.train$data, agaricus.train$label, nrounds = 50,
 xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
 contr <- predict(bst, agaricus.test$data, predcontrib = TRUE)
 xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
+xgb.ggplot.shap.summary(agaricus.test$data, contr, model = bst, top_n = 12)  # Summary plot
 
 # multiclass example - plots for each class separately:
 nclass <- 3
@@ -149,6 +150,7 @@ xgb.plot.shap(x, model = mbst, trees = trees0 + 1, target_class = 1, top_n = 4,
               n_col = 2, col = col, pch = 16, pch_NA = 17)
 xgb.plot.shap(x, model = mbst, trees = trees0 + 2, target_class = 2, top_n = 4,
               n_col = 2, col = col, pch = 16, pch_NA = 17)
+xgb.ggplot.shap.summary(x, model = mbst, target_class = 0, top_n = 4)  # Summary plot
 
 }
 \references{

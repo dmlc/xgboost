@@ -7,14 +7,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
-
-#include <iomanip>
-#include <ctime>
-#include <string>
-#include <cstdio>
-#include <cstring>
-#include <vector>
-
 #include <dmlc/timer.h>
 
 #include <xgboost/learner.h>
@@ -23,10 +15,17 @@
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
+#include <iomanip>
+#include <ctime>
+#include <string>
+#include <cstdio>
+#include <cstring>
+#include <vector>
 #include "common/common.h"
 #include "common/config.h"
 #include "common/io.h"
 #include "common/version.h"
+#include "c_api/c_api_utils.h"
 
 namespace xgboost {
 enum CLITask {
@@ -60,6 +59,8 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
   int dsplit;
   /*!\brief limit number of trees in prediction */
   int ntree_limit;
+  int iteration_begin;
+  int iteration_end;
   /*!\brief whether to directly output margin value */
   bool pred_margin;
   /*! \brief whether dump statistics along with model */
@@ -111,7 +112,11 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
         .add_enum("row", 2)
         .describe("Data split mode.");
     DMLC_DECLARE_FIELD(ntree_limit).set_default(0).set_lower_bound(0)
-        .describe("Number of trees used for prediction, 0 means use all trees.");
+        .describe("(Deprecated) Use iteration_begin/iteration_end instead.");
+    DMLC_DECLARE_FIELD(iteration_begin).set_default(0).set_lower_bound(0)
+        .describe("Begining of boosted tree iteration used for prediction.");
+    DMLC_DECLARE_FIELD(iteration_end).set_default(0).set_lower_bound(0)
+        .describe("End of boosted tree iteration used for prediction.  0 means all the trees.");
     DMLC_DECLARE_FIELD(pred_margin).set_default(false)
         .describe("Whether to predict margin value instead of probability.");
     DMLC_DECLARE_FIELD(dump_stats).set_default(false)
@@ -270,7 +275,7 @@ class CLI {
     // always save final round
     if ((param_.save_period == 0 ||
          param_.num_round % param_.save_period != 0) &&
-        param_.model_out != CLIParam::kNull && rabit::GetRank() == 0) {
+        rabit::GetRank() == 0) {
       std::ostringstream os;
       if (param_.model_out == CLIParam::kNull) {
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
@@ -336,7 +341,13 @@ class CLI {
 
     LOG(INFO) << "Start prediction...";
     HostDeviceVector<bst_float> preds;
-    learner_->Predict(dtest, param_.pred_margin, &preds, param_.ntree_limit);
+    if (param_.ntree_limit != 0) {
+      param_.iteration_end = GetIterationFromTreeLimit(param_.ntree_limit, learner_.get());
+      LOG(WARNING) << "`ntree_limit` is deprecated, use `iteration_begin` and "
+                      "`iteration_end` instead.";
+    }
+    learner_->Predict(dtest, param_.pred_margin, &preds, param_.iteration_begin,
+                      param_.iteration_end);
     LOG(CONSOLE) << "Writing prediction to " << param_.name_pred;
 
     std::unique_ptr<dmlc::Stream> fo(

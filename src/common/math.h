@@ -7,13 +7,13 @@
 #ifndef XGBOOST_COMMON_MATH_H_
 #define XGBOOST_COMMON_MATH_H_
 
+#include <xgboost/base.h>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
 #include <vector>
-
-#include <xgboost/base.h>
 
 namespace xgboost {
 namespace common {
@@ -23,8 +23,15 @@ namespace common {
  * \return the transformed value.
  */
 XGBOOST_DEVICE inline float Sigmoid(float x) {
-  return 1.0f / (1.0f + expf(-x));
+  float constexpr kEps = 1e-16;  // avoid 0 div
+  x = std::min(-x, 88.7f);       // avoid exp overflow
+  auto denom = expf(x) + 1.0f + kEps;
+  auto y = 1.0f / denom;
+  return y;
 }
+
+template <typename T>
+XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
 
 /*!
  * \brief Equality test for both integer and floating point.
@@ -74,7 +81,7 @@ XGBOOST_DEVICE inline void Softmax(Iterator start, Iterator end) {
 
 /*!
  * \brief Find the maximum iterator within the iterators
- * \param begin The begining iterator.
+ * \param begin The beginning iterator.
  * \param end The end iterator.
  * \return the iterator point to the maximum value.
  * \tparam Iterator The type of the iterator.
@@ -104,7 +111,7 @@ inline float LogSum(float x, float y) {
 
 /*!
  * \brief perform numerically safe logsum
- * \param begin The begining iterator.
+ * \param begin The beginning iterator.
  * \param end The end iterator.
  * \return the iterator point to the maximum value.
  * \tparam Iterator The type of the iterator.
@@ -132,7 +139,7 @@ inline static bool CmpSecond(const std::pair<float, unsigned> &a,
   return a.second > b.second;
 }
 
-// Redefined here to workaround a VC bug that doesn't support overloadng for integer
+// Redefined here to workaround a VC bug that doesn't support overloading for integer
 // types.
 template <typename T>
 XGBOOST_DEVICE typename std::enable_if<

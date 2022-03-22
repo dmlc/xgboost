@@ -1,18 +1,20 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
  */
+#include <rabit/rabit.h>
+#include <xgboost/tree_updater.h>
+
 #include <vector>
 #include <limits>
 
-#include <rabit/rabit.h>
-
-#include "xgboost/tree_updater.h"
 #include "xgboost/json.h"
 #include "./param.h"
 #include "../common/io.h"
+#include "../common/threading_utils.h"
+#include "../predictor/predict_fn.h"
 
 namespace xgboost {
 namespace tree {
@@ -49,31 +51,35 @@ class TreeRefresher: public TreeUpdater {
     std::vector<std::vector<GradStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
-    const int nthread = omp_get_max_threads();
+    const int nthread = ctx_->Threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<GradStats>());
-    #pragma omp parallel
+    dmlc::OMPException exc;
+#pragma omp parallel num_threads(nthread)
     {
-      int tid = omp_get_thread_num();
-      int num_nodes = 0;
-      for (auto tree : trees) {
-        num_nodes += tree->param.num_nodes;
-      }
-      stemp[tid].resize(num_nodes, GradStats());
-      std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
-      fvec_temp[tid].Init(trees[0]->param.num_feature);
+      exc.Run([&]() {
+        int tid = omp_get_thread_num();
+        int num_nodes = 0;
+        for (auto tree : trees) {
+          num_nodes += tree->param.num_nodes;
+        }
+        stemp[tid].resize(num_nodes, GradStats());
+        std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
+        fvec_temp[tid].Init(trees[0]->param.num_feature);
+      });
     }
+    exc.Rethrow();
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
     auto lazy_get_stats = [&]() {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+        auto page = batch.GetView();
         CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
-        #pragma omp parallel for schedule(static)
-        for (bst_omp_uint i = 0; i < nbatch; ++i) {
-          SparsePage::Inst inst = batch[i];
+        common::ParallelFor(nbatch, ctx_->Threads(), [&](bst_omp_uint i) {
+          SparsePage::Inst inst = page[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
           RegTree::FVec &feats = fvec_temp[tid];
@@ -85,16 +91,15 @@ class TreeRefresher: public TreeUpdater {
             offset += tree->param.num_nodes;
           }
           feats.Drop(inst);
-        }
+        });
       }
       // aggregate the statistics
       auto num_nodes = static_cast<int>(stemp[0].size());
-      #pragma omp parallel for schedule(static)
-      for (int nid = 0; nid < num_nodes; ++nid) {
+      common::ParallelFor(num_nodes, ctx_->Threads(), [&](int nid) {
         for (int tid = 1; tid < nthread; ++tid) {
           stemp[0][nid].Add(stemp[tid][nid]);
         }
-      }
+      });
     };
     reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size(), lazy_get_stats);
     // rescale learning rate according to size of trees
@@ -113,16 +118,19 @@ class TreeRefresher: public TreeUpdater {
   inline static void AddStats(const RegTree &tree,
                               const RegTree::FVec &feat,
                               const std::vector<GradientPair> &gpair,
-                              const MetaInfo &info,
+                              const MetaInfo&,
                               const bst_uint ridx,
                               GradStats *gstats) {
     // start from groups that belongs to current data
     auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
-    // tranverse tree
+    auto const& cats = tree.GetCategoriesMatrix();
+    // traverse tree
     while (!tree[pid].IsLeaf()) {
       unsigned split_index = tree[pid].SplitIndex();
-      pid = tree.GetNext(pid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+      pid = predictor::GetNextNode<true, true>(
+          tree[pid], pid, feat.GetFvalue(split_index), feat.IsMissing(split_index),
+          cats);
       gstats[pid].Add(gpair[ridx]);
     }
   }
@@ -153,7 +161,7 @@ class TreeRefresher: public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeRefresher, "refresh")
 .describe("Refresher that refreshes the weight and statistics according to data.")
-.set_body([]() {
+.set_body([](ObjInfo) {
     return new TreeRefresher();
   });
 }  // namespace tree

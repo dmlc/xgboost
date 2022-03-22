@@ -3,6 +3,7 @@
 # coding: utf-8
 """Plotting Library."""
 from io import BytesIO
+import json
 import numpy as np
 from .core import Booster, _deprecate_positional_args
 from .sklearn import XGBModel
@@ -59,8 +60,8 @@ def plot_importance(booster, *, ax=None, height=0.2,
     """
     try:
         import matplotlib.pyplot as plt
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot importance')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot importance') from e
 
     if isinstance(booster, XGBModel):
         importance = booster.get_booster().get_score(
@@ -174,8 +175,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     """
     try:
         from graphviz import Source
-    except ImportError:
-        raise ImportError('You must install graphviz to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install graphviz to plot tree') from e
     if isinstance(booster, XGBModel):
         booster = booster.get_booster()
 
@@ -189,7 +190,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
         kwargs['graph_attrs'] = {}
         kwargs['graph_attrs']['rankdir'] = rankdir
     for key, value in extra.items():
-        if 'graph_attrs' in kwargs.keys():
+        if kwargs.get("graph_attrs", None) is not None:
             kwargs['graph_attrs'][key] = value
         else:
             kwargs['graph_attrs'] = {}
@@ -209,7 +210,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
 
     if kwargs:
         parameters += ':'
-        parameters += str(kwargs)
+        parameters += json.dumps(kwargs)
     tree = booster.get_dump(
         fmap=fmap,
         dump_format=parameters)[num_trees]
@@ -243,8 +244,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
     try:
         from matplotlib import pyplot as plt
         from matplotlib import image
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot tree') from e
 
     if ax is None:
         _, ax = plt.subplots(1, 1)

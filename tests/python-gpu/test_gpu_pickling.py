@@ -1,14 +1,16 @@
 '''Test model IO with pickle.'''
 import pickle
-import unittest
 import numpy as np
 import subprocess
 import os
+import sys
 import json
 import pytest
-
 import xgboost as xgb
 from xgboost import XGBClassifier
+
+sys.path.append("tests/python")
+import testing as tm
 
 model_path = './model.pkl'
 
@@ -32,20 +34,14 @@ def load_pickle(path):
     return bst
 
 
-class TestPickling(unittest.TestCase):
+class TestPickling:
     args_template = [
         "pytest",
         "--verbose",
         "-s",
         "--fulltrace"]
 
-    def test_pickling(self):
-        x, y = build_dataset()
-        train_x = xgb.DMatrix(x, label=y)
-        param = {'tree_method': 'gpu_hist',
-                 'verbosity': 1}
-        bst = xgb.train(param, train_x)
-
+    def run_pickling(self, bst) -> None:
         save_pickle(bst, model_path)
         args = [
             "pytest", "--verbose", "-s", "--fulltrace",
@@ -69,6 +65,25 @@ class TestPickling(unittest.TestCase):
         assert status == 0
         os.remove(model_path)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_pickling(self):
+        x, y = build_dataset()
+        train_x = xgb.DMatrix(x, label=y)
+
+        param = {'tree_method': 'gpu_hist', "gpu_id": 0}
+        bst = xgb.train(param, train_x)
+        self.run_pickling(bst)
+
+        bst = xgb.XGBRegressor(**param).fit(x, y)
+        self.run_pickling(bst)
+
+        param = {"booster": "gblinear", "updater": "gpu_coord_descent", "gpu_id": 0}
+        bst = xgb.train(param, train_x)
+        self.run_pickling(bst)
+
+        bst = xgb.XGBRegressor(**param).fit(x, y)
+        self.run_pickling(bst)
+
     @pytest.mark.mgpu
     def test_wrap_gpu_id(self):
         X, y = build_dataset()
@@ -90,7 +105,6 @@ class TestPickling(unittest.TestCase):
         )
         status = subprocess.call(args, env=env)
         assert status == 0
-
         os.remove(model_path)
 
     def test_pickled_predictor(self):
@@ -132,8 +146,10 @@ class TestPickling(unittest.TestCase):
 
         os.remove(model_path)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_predict_sklearn_pickle(self):
-        x, y = build_dataset()
+        from sklearn.datasets import load_digits
+        x, y = load_digits(return_X_y=True)
 
         kwargs = {'tree_method': 'gpu_hist',
                   'predictor': 'gpu_predictor',

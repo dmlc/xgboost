@@ -1,41 +1,18 @@
 # -*- coding: utf-8 -*-
-import sys
-from contextlib import contextmanager
-try:
-    # python 2
-    from StringIO import StringIO
-except ImportError:
-    # python 3
-    from io import StringIO
 import numpy as np
+import os
 import xgboost as xgb
-import unittest
+import pytest
 import json
 from pathlib import Path
+import tempfile
+import testing as tm
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-@contextmanager
-def captured_output():
-    """Reassign stdout temporarily in order to test printed statements
-    Taken from:
-    https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
-
-    Also works for pytest.
-
-    """
-    new_out, new_err = StringIO(), StringIO()
-    old_out, old_err = sys.stdout, sys.stderr
-    try:
-        sys.stdout, sys.stderr = new_out, new_err
-        yield sys.stdout, sys.stderr
-    finally:
-        sys.stdout, sys.stderr = old_out, old_err
-
-
-class TestBasic(unittest.TestCase):
+class TestBasic:
     def test_compat(self):
         from xgboost.compat import lazy_isinstance
         a = np.array([1, 2, 3])
@@ -66,33 +43,38 @@ class TestBasic(unittest.TestCase):
         # error must be smaller than 10%
         assert err < 0.1
 
-        # save dmatrix into binary buffer
-        dtest.save_binary('dtest.buffer')
-        # save model
-        bst.save_model('xgb.model')
-        # load model and data in
-        bst2 = xgb.Booster(model_file='xgb.model')
-        dtest2 = xgb.DMatrix('dtest.buffer')
-        preds2 = bst2.predict(dtest2)
-        # assert they are the same
-        assert np.sum(np.abs(preds2 - preds)) == 0
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dtest_path = os.path.join(tmpdir, 'dtest.dmatrix')
+            # save dmatrix into binary buffer
+            dtest.save_binary(dtest_path)
+            # save model
+            model_path = os.path.join(tmpdir, 'model.booster')
+            bst.save_model(model_path)
+            # load model and data in
+            bst2 = xgb.Booster(model_file=model_path)
+            dtest2 = xgb.DMatrix(dtest_path)
+            preds2 = bst2.predict(dtest2)
+            # assert they are the same
+            assert np.sum(np.abs(preds2 - preds)) == 0
 
-    def test_record_results(self):
+    def test_metric_config(self):
+        # Make sure that the metric configuration happens in booster so the
+        # string `['error', 'auc']` doesn't get passed down to core.
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
-        # specify validations set to watch performance
+                 'objective': 'binary:logistic', 'eval_metric': ['error', 'auc']}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
-        result = {}
-        res2 = {}
-        xgb.train(param, dtrain, num_round, watchlist,
-                  callbacks=[xgb.callback.record_evaluation(result)])
-        xgb.train(param, dtrain, num_round, watchlist,
-                  evals_result=res2)
-        assert result['train']['error'][0] < 0.1
-        assert res2 == result
+        booster = xgb.train(param, dtrain, num_round, watchlist)
+        predt_0 = booster.predict(dtrain)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'model.json')
+            booster.save_model(path)
+
+            booster = xgb.Booster(params=param, model_file=path)
+            predt_1 = booster.predict(dtrain)
+            np.testing.assert_allclose(predt_0, predt_1)
 
     def test_multiclass(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -110,16 +92,19 @@ class TestBasic(unittest.TestCase):
         # error must be smaller than 10%
         assert err < 0.1
 
-        # save dmatrix into binary buffer
-        dtest.save_binary('dtest.buffer')
-        # save model
-        bst.save_model('xgb.model')
-        # load model and data in
-        bst2 = xgb.Booster(model_file='xgb.model')
-        dtest2 = xgb.DMatrix('dtest.buffer')
-        preds2 = bst2.predict(dtest2)
-        # assert they are the same
-        assert np.sum(np.abs(preds2 - preds)) == 0
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dtest_path = os.path.join(tmpdir, 'dtest.buffer')
+            model_path = os.path.join(tmpdir, 'xgb.model')
+            # save dmatrix into binary buffer
+            dtest.save_binary(dtest_path)
+            # save model
+            bst.save_model(model_path)
+            # load model and data in
+            bst2 = xgb.Booster(model_file=model_path)
+            dtest2 = xgb.DMatrix(dtest_path)
+            preds2 = bst2.predict(dtest2)
+            # assert they are the same
+            assert np.sum(np.abs(preds2 - preds)) == 0
 
     def test_dump(self):
         data = np.random.randn(100, 2)
@@ -136,30 +121,53 @@ class TestBasic(unittest.TestCase):
 
         # number of feature importances should == number of features
         dump1 = bst.get_dump()
-        self.assertEqual(len(dump1), 1, "Expected only 1 tree to be dumped.")
-        self.assertEqual(len(dump1[0].splitlines()), 3,
-                         "Expected 1 root and 2 leaves - 3 lines in dump.")
+        assert len(dump1) == 1, 'Expected only 1 tree to be dumped.'
+        len(dump1[0].splitlines()) == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
 
         dump2 = bst.get_dump(with_stats=True)
-        self.assertEqual(dump2[0].count('\n'), 3,
-                         "Expected 1 root and 2 leaves - 3 lines in dump.")
-        self.assertGreater(dump2[0].find('\n'), dump1[0].find('\n'),
-                           "Expected more info when with_stats=True is given.")
+        assert dump2[0].count('\n') == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
+        msg = 'Expected more info when with_stats=True is given.'
+        assert dump2[0].find('\n') > dump1[0].find('\n'), msg
 
         dump3 = bst.get_dump(dump_format="json")
         dump3j = json.loads(dump3[0])
-        self.assertEqual(dump3j["nodeid"], 0, "Expected the root node on top.")
+        assert dump3j['nodeid'] == 0, 'Expected the root node on top.'
 
         dump4 = bst.get_dump(dump_format="json", with_stats=True)
         dump4j = json.loads(dump4[0])
-        self.assertIn("gain", dump4j, "Expected 'gain' to be dumped in JSON.")
+        assert 'gain' in dump4j, "Expected 'gain' to be dumped in JSON."
+
+        with pytest.raises(ValueError):
+            bst.get_dump(fmap="foo")
+
+    def test_feature_score(self):
+        rng = np.random.RandomState(0)
+        data = rng.randn(100, 2)
+        target = np.array([0, 1] * 50)
+        features = ["F0"]
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data, label=target, feature_names=features)
+
+        params = {"objective": "binary:logistic"}
+        dm = xgb.DMatrix(data, label=target, feature_names=["F0", "F1"])
+        booster = xgb.train(params, dm, num_boost_round=1)
+        # no error since feature names might be assigned before the booster seeing data
+        # and booster doesn't known about the actual number of features.
+        booster.feature_names = ["F0"]
+        with pytest.raises(ValueError):
+            booster.get_fscore()
+
+        booster.feature_names = None
+        # Use JSON to make sure the output has native Python type
+        scores = json.loads(json.dumps(booster.get_fscore()))
+        np.testing.assert_allclose(scores["f0"], 6.0)
 
     def test_load_file_invalid(self):
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file='incorrect_path')
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file='incorrect_path')
 
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file=u'不正なパス')
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file=u'不正なパス')
 
     def test_dmatrix_numpy_init_omp(self):
 
@@ -177,7 +185,6 @@ class TestBasic(unittest.TestCase):
             np.testing.assert_array_equal(dm.get_label(), y)
             assert dm.num_row() == row
             assert dm.num_col() == cols
-
 
     def test_cv(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -216,6 +223,7 @@ class TestBasic(unittest.TestCase):
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
+    @pytest.mark.skipif(**tm.skip_s390x())
     def test_cv_explicit_fold_indices_labels(self):
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
                   'reg:squarederror'}
@@ -229,11 +237,21 @@ class TestBasic(unittest.TestCase):
         ]
 
         # Use callback to log the test labels in each fold
-        def cb(cbackenv):
-            print([fold.dtest.get_label() for fold in cbackenv.cvfolds])
+        class Callback(xgb.callback.TrainingCallback):
+            def __init__(self) -> None:
+                super().__init__()
+
+            def after_iteration(
+                self, model,
+                epoch: int,
+                evals_log: xgb.callback.TrainingCallback.EvalsLog
+            ):
+                print([fold.dtest.get_label() for fold in model.cvfolds])
+
+        cb = Callback()
 
         # Run cross validation and capture standard out to test callback result
-        with captured_output() as (out, err):
+        with tm.captured_output() as (out, err):
             xgb.cv(
                 params, dm, num_boost_round=1, folds=folds, callbacks=[cb],
                 as_pandas=False
@@ -244,8 +262,8 @@ class TestBasic(unittest.TestCase):
         assert output == solution
 
 
-class TestBasicPathLike(unittest.TestCase):
-    """Unit tests using the os_fspath and pathlib.Path for file interaction."""
+class TestBasicPathLike:
+    """Unit tests using pathlib.Path for file interaction."""
 
     def test_DMatrix_init_from_path(self):
         """Initialization from the data path."""
@@ -253,7 +271,6 @@ class TestBasicPathLike(unittest.TestCase):
         dtrain = xgb.DMatrix(dpath / 'agaricus.txt.train')
         assert dtrain.num_row() == 6513
         assert dtrain.num_col() == 127
-
 
     def test_DMatrix_save_to_path(self):
         """Saving to a binary file using pathlib from a DMatrix."""
@@ -269,12 +286,10 @@ class TestBasicPathLike(unittest.TestCase):
         assert binary_path.exists()
         Path.unlink(binary_path)
 
-
     def test_Booster_init_invalid_path(self):
         """An invalid model_file path should raise XGBoostError."""
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file=Path("invalidpath"))
-
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file=Path("invalidpath"))
 
     def test_Booster_save_and_load(self):
         """Saving and loading model files from paths."""
@@ -309,24 +324,8 @@ class TestBasicPathLike(unittest.TestCase):
         # load again using load_model
         bst3 = xgb.Booster()
         bst3.load_model(save_path)
-        dump3= bst3.get_dump()
+        dump3 = bst3.get_dump()
         dump_assertions(dump3)
 
         # remove file
         Path.unlink(save_path)
-
-    def test_os_fspath(self):
-        """Core properties of the os_fspath function."""
-        # strings are returned unmodified
-        assert '' == xgb.compat.os_fspath('')
-        assert '/this/path' == xgb.compat.os_fspath('/this/path')
-
-        # bytes are returned unmodified
-        assert b'/this/path' == xgb.compat.os_fspath(b'/this/path')
-
-        # path objects are returned as string representation
-        path_test = Path('this') / 'path'
-        assert str(path_test) == xgb.compat.os_fspath(path_test)
-
-        # invalid values raise Type error
-        self.assertRaises(TypeError, xgb.compat.os_fspath, 123)

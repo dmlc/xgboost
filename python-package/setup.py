@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import logging
 import distutils
+from typing import Optional, List
 import sys
 from platform import system
 from setuptools import setup, find_packages, Extension
@@ -17,6 +18,7 @@ sys.path.insert(0, CURRENT_DIR)
 # Options only effect `python setup.py install`, building `bdist_wheel`
 # requires using CMake directly.
 USER_OPTIONS = {
+    # libxgboost options.
     'use-openmp': (None, 'Build with OpenMP support.', 1),
     'use-cuda':   (None, 'Build with GPU acceleration.', 0),
     'use-nccl':   (None, 'Build with NCCL to enable distributed GPU support.', 0),
@@ -25,8 +27,9 @@ USER_OPTIONS = {
     'use-hdfs':   (None, 'Build with HDFS support', 0),
     'use-azure':  (None, 'Build with AZURE support.', 0),
     'use-s3':     (None, 'Build with S3 support', 0),
-    'plugin-lz4': (None, 'Build lz4 plugin.', 0),
-    'plugin-dense-parser': (None, 'Build dense parser plugin.', 0)
+    'plugin-dense-parser': (None, 'Build dense parser plugin.', 0),
+    # Python specific
+    'use-system-libxgboost': (None, 'Use libxgboost.so in system path.', 0)
 }
 
 NEED_CLEAN_TREE = set()
@@ -34,7 +37,7 @@ NEED_CLEAN_FILE = set()
 BUILD_TEMP_DIR = None
 
 
-def lib_name():
+def lib_name() -> str:
     '''Return platform dependent shared object name.'''
     if system() == 'Linux' or system().upper().endswith('BSD'):
         name = 'libxgboost.so'
@@ -45,13 +48,13 @@ def lib_name():
     return name
 
 
-def copy_tree(src_dir, target_dir):
+def copy_tree(src_dir: str, target_dir: str) -> None:
     '''Copy source tree into build directory.'''
-    def clean_copy_tree(src, dst):
+    def clean_copy_tree(src: str, dst: str) -> None:
         distutils.dir_util.copy_tree(src, dst)
         NEED_CLEAN_TREE.add(os.path.abspath(dst))
 
-    def clean_copy_file(src, dst):
+    def clean_copy_file(src: str, dst: str) -> None:
         distutils.file_util.copy_file(src, dst)
         NEED_CLEAN_FILE.add(os.path.abspath(dst))
 
@@ -75,7 +78,7 @@ def copy_tree(src_dir, target_dir):
     clean_copy_file(lic, os.path.join(target_dir, 'LICENSE'))
 
 
-def clean_up():
+def clean_up() -> None:
     '''Removed copied files.'''
     for path in NEED_CLEAN_TREE:
         shutil.rmtree(path)
@@ -85,7 +88,7 @@ def clean_up():
 
 class CMakeExtension(Extension):  # pylint: disable=too-few-public-methods
     '''Wrapper for extension'''
-    def __init__(self, name):
+    def __init__(self, name: str) -> None:
         super().__init__(name=name, sources=[])
 
 
@@ -95,36 +98,52 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
     logger = logging.getLogger('XGBoost build_ext')
 
     # pylint: disable=too-many-arguments,no-self-use
-    def build(self, src_dir, build_dir, generator, build_tool=None, use_omp=1):
+    def build(
+        self,
+        src_dir: str,
+        build_dir: str,
+        generator: str,
+        build_tool: Optional[str] = None,
+        use_omp: int = 1,
+    ) -> None:
         '''Build the core library with CMake.'''
         cmake_cmd = ['cmake', src_dir, generator]
 
         for k, v in USER_OPTIONS.items():
             arg = k.replace('-', '_').upper()
             value = str(v[2])
-            cmake_cmd.append('-D' + arg + '=' + value)
-            if k == 'USE_OPENMP' and use_omp == 0:
+            if arg == 'USE_SYSTEM_LIBXGBOOST':
                 continue
+            if arg == 'USE_OPENMP' and use_omp == 0:
+                cmake_cmd.append("-D" + arg + "=0")
+                continue
+            cmake_cmd.append('-D' + arg + '=' + value)
+
+        # Flag for cross-compiling for Apple Silicon
+        # We use environment variable because it's the only way to pass down custom flags
+        # through the cibuildwheel package, which otherwise calls `python setup.py bdist_wheel`
+        # command.
+        if 'CIBW_TARGET_OSX_ARM64' in os.environ:
+            cmake_cmd.append("-DCMAKE_OSX_ARCHITECTURES=arm64")
 
         self.logger.info('Run CMake command: %s', str(cmake_cmd))
         subprocess.check_call(cmake_cmd, cwd=build_dir)
 
         if system() != 'Windows':
             nproc = os.cpu_count()
+            assert build_tool is not None
             subprocess.check_call([build_tool, '-j' + str(nproc)],
                                   cwd=build_dir)
         else:
             subprocess.check_call(['cmake', '--build', '.',
                                    '--config', 'Release'], cwd=build_dir)
 
-    def build_cmake_extension(self):
+    def build_cmake_extension(self) -> None:
         '''Configure and build using CMake'''
-        src_dir = 'xgboost'
-        try:
-            copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
-                      os.path.join(self.build_temp, src_dir))
-        except Exception:  # pylint: disable=broad-except
-            copy_tree(src_dir, os.path.join(self.build_temp, src_dir))
+        if USER_OPTIONS['use-system-libxgboost'][2]:
+            self.logger.info('Using system libxgboost.')
+            return
+
         build_dir = self.build_temp
         global BUILD_TEMP_DIR  # pylint: disable=global-statement
         BUILD_TEMP_DIR = build_dir
@@ -134,6 +153,13 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
         if os.path.exists(libxgboost):
             self.logger.info('Found shared library, skipping build.')
             return
+
+        src_dir = 'xgboost'
+        try:
+            copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
+                      os.path.join(self.build_temp, src_dir))
+        except Exception:  # pylint: disable=broad-except
+            copy_tree(src_dir, os.path.join(self.build_temp, src_dir))
 
         self.logger.info('Building from source. %s', libxgboost)
         if not os.path.exists(build_dir):
@@ -145,14 +171,21 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
         if system() == 'Windows':
             # Pick up from LGB, just test every possible tool chain.
-            for vs in ('-GVisual Studio 16 2019', '-GVisual Studio 15 2017',
-                       '-GVisual Studio 14 2015', '-GMinGW Makefiles'):
+            for vs in (
+                "-GVisual Studio 17 2022",
+                '-GVisual Studio 16 2019',
+                '-GVisual Studio 15 2017',
+                '-GVisual Studio 14 2015',
+                '-GMinGW Makefiles',
+            ):
                 try:
                     self.build(src_dir, build_dir, vs)
                     self.logger.info(
                         '%s is used for building Windows distribution.', vs)
                     break
                 except subprocess.CalledProcessError:
+                    shutil.rmtree(build_dir)
+                    os.mkdir(build_dir)
                     continue
         else:
             gen = '-GNinja' if build_tool == 'ninja' else '-GUnix Makefiles'
@@ -162,14 +195,14 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                 self.logger.warning('Disabling OpenMP support.')
                 self.build(src_dir, build_dir, gen, build_tool, use_omp=0)
 
-    def build_extension(self, ext):
+    def build_extension(self, ext: Extension) -> None:
         '''Override the method for dispatching.'''
         if isinstance(ext, CMakeExtension):
             self.build_cmake_extension()
         else:
             super().build_extension(ext)
 
-    def copy_extensions_to_source(self):
+    def copy_extensions_to_source(self) -> None:
         '''Dummy override.  Invoked during editable installation.  Our binary
         should available in `lib`.
 
@@ -184,7 +217,7 @@ class Sdist(sdist.sdist):       # pylint: disable=too-many-ancestors
     '''Copy c++ source into Python directory.'''
     logger = logging.getLogger('xgboost sdist')
 
-    def run(self):
+    def run(self) -> None:
         copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
                   os.path.join(CURRENT_DIR, 'xgboost'))
         libxgboost = os.path.join(
@@ -201,16 +234,25 @@ class InstallLib(install_lib.install_lib):
     '''Copy shared object into installation directory.'''
     logger = logging.getLogger('xgboost install_lib')
 
-    def install(self):
+    def install(self) -> List[str]:
         outfiles = super().install()
+
+        if USER_OPTIONS['use-system-libxgboost'][2] != 0:
+            self.logger.info('Using system libxgboost.')
+            lib_path = os.path.join(sys.prefix, 'lib')
+            msg = 'use-system-libxgboost is specified, but ' + lib_name() + \
+                ' is not found in: ' + lib_path
+            assert os.path.exists(os.path.join(lib_path, lib_name())), msg
+            return []
+
         lib_dir = os.path.join(self.install_dir, 'xgboost', 'lib')
         if not os.path.exists(lib_dir):
             os.mkdir(lib_dir)
         dst = os.path.join(self.install_dir, 'xgboost', 'lib', lib_name())
 
-        global BUILD_TEMP_DIR   # pylint: disable=global-statement
         libxgboost_path = lib_name()
 
+        assert BUILD_TEMP_DIR is not None
         dft_lib_dir = os.path.join(CURRENT_DIR, os.path.pardir, 'lib')
         build_dir = os.path.join(BUILD_TEMP_DIR, 'xgboost', 'lib')
 
@@ -234,7 +276,7 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
     user_options = install.install.user_options + list(
         (k, v[0], v[1]) for k, v in USER_OPTIONS.items())
 
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         super().initialize_options()
         self.use_openmp = 1
         self.use_cuda = 0
@@ -246,10 +288,14 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
         self.use_azure = 0
         self.use_s3 = 0
 
-        self.plugin_lz4 = 0
         self.plugin_dense_parser = 0
 
-    def run(self):
+        self.use_system_libxgboost = 0
+
+    def run(self) -> None:
+        # setuptools will configure the options according to user supplied command line
+        # arguments, then here we propagate them into `USER_OPTIONS` for visibility to
+        # other sub-commands like `build_ext`.
         for k, v in USER_OPTIONS.items():
             arg = k.replace('-', '_')
             if hasattr(self, arg):
@@ -274,12 +320,17 @@ if __name__ == '__main__':
     # - pip install . -e
     # - python setup.py develop   # same as above
     logging.basicConfig(level=logging.INFO)
+
+    with open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8') as fd:
+        description = fd.read()
+    with open(os.path.join(CURRENT_DIR, 'xgboost/VERSION'), encoding="ascii") as fd:
+        version = fd.read().strip()
+
     setup(name='xgboost',
-          version=open(os.path.join(
-              CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+          version=version,
           description="XGBoost Python Package",
-          long_description=open(os.path.join(CURRENT_DIR, 'README.rst'),
-                                encoding='utf-8').read(),
+          long_description=description,
+          long_description_content_type="text/x-rst",
           install_requires=[
               'numpy',
               'scipy',
@@ -309,10 +360,11 @@ if __name__ == '__main__':
                        'Operating System :: OS Independent',
                        'Programming Language :: Python',
                        'Programming Language :: Python :: 3',
-                       'Programming Language :: Python :: 3.6',
                        'Programming Language :: Python :: 3.7',
-                       'Programming Language :: Python :: 3.8'],
-          python_requires='>=3.6',
+                       'Programming Language :: Python :: 3.8',
+                       'Programming Language :: Python :: 3.9',
+                       'Programming Language :: Python :: 3.10'],
+          python_requires=">=3.7",
           url='https://github.com/dmlc/xgboost')
 
     clean_up()

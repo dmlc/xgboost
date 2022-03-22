@@ -1,18 +1,20 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  */
+#include <dmlc/registry.h>
 #include <mutex>
 
-#include <dmlc/registry.h>
 #include "xgboost/predictor.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
 
+#include "../gbm/gbtree.h"
+
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
-namespace xgboost {
 
+namespace xgboost {
 void PredictionContainer::ClearExpiredEntries() {
   std::vector<DMatrix*> expired;
   for (auto& kv : container_) {
@@ -26,7 +28,6 @@ void PredictionContainer::ClearExpiredEntries() {
 }
 
 PredictionCacheEntry &PredictionContainer::Cache(std::shared_ptr<DMatrix> m, int32_t device) {
-  std::lock_guard<std::mutex> guard { cache_lock_ };
   this->ClearExpiredEntries();
   container_[m.get()].ref = m;
   if (device != GenericParameter::kCpuId) {
@@ -48,7 +49,7 @@ decltype(PredictionContainer::container_) const& PredictionContainer::Container(
 }
 
 void Predictor::Configure(
-    const std::vector<std::pair<std::string, std::string>>& cfg) {
+    const std::vector<std::pair<std::string, std::string>>&) {
 }
 Predictor* Predictor::Create(
     std::string const& name, GenericParameter const* generic_param) {
@@ -58,6 +59,36 @@ Predictor* Predictor::Create(
   }
   auto p_predictor = (e->body)(generic_param);
   return p_predictor;
+}
+
+template <int32_t D>
+void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_row_t n_samples,
+                             bst_group_t n_groups) {
+  // FIXME: Bindings other than Python doesn't have shape.
+  std::string expected{"Invalid shape of base_margin. Expected: (" + std::to_string(n_samples) +
+                       ", " + std::to_string(n_groups) + ")"};
+  CHECK_EQ(margin.Shape(0), n_samples) << expected;
+  CHECK_EQ(margin.Shape(1), n_groups) << expected;
+}
+
+void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_preds,
+                                   const gbm::GBTreeModel& model) const {
+  CHECK_NE(model.learner_model_param->num_output_group, 0);
+  size_t n_classes = model.learner_model_param->num_output_group;
+  size_t n = n_classes * info.num_row_;
+  const HostDeviceVector<bst_float>* base_margin = info.base_margin_.Data();
+  if (ctx_->gpu_id >= 0) {
+    out_preds->SetDevice(ctx_->gpu_id);
+  }
+  if (base_margin->Size() != 0) {
+    out_preds->Resize(n);
+    ValidateBaseMarginShape(info.base_margin_, info.num_row_, n_classes);
+    out_preds->Copy(*base_margin);
+  } else {
+    out_preds->Resize(n);
+    // cannot rely on the Resize to fill as it might skip if the size is already correct.
+    out_preds->Fill(model.learner_model_param->base_score);
+  }
 }
 }  // namespace xgboost
 

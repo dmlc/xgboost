@@ -38,6 +38,14 @@ TEST(BitField, Check) {
       ASSERT_FALSE(bits.Check(i));
     }
   }
+
+  {
+    // regression test for correct index type.
+    std::vector<RBitField8::value_type> storage(33, 0);
+    storage[32] = static_cast<uint8_t>(1);
+    auto bits = RBitField8({storage.data(), storage.size()});
+    ASSERT_TRUE(bits.Check(256));
+  }
 }
 
 template <typename BitFieldT, typename VT = typename BitFieldT::value_type>

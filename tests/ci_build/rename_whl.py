@@ -26,10 +26,13 @@ dirname, basename = os.path.dirname(whl_path), os.path.basename(whl_path)
 with cd(dirname):
     tokens = basename.split('-')
     assert len(tokens) == 5
+    version = tokens[1].split('+')[0]
     keywords = {'pkg_name': tokens[0],
-                'version': tokens[1],
+                'version': version,
                 'commit_id': commit_id,
                 'platform_tag': platform_tag}
     new_name = '{pkg_name}-{version}+{commit_id}-py3-none-{platform_tag}.whl'.format(**keywords)
     print('Renaming {} to {}...'.format(basename, new_name))
+    if os.path.isfile(new_name):
+        os.remove(new_name)
     os.rename(basename, new_name)

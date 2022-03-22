@@ -1,14 +1,13 @@
 #' Save xgb.DMatrix object to binary file
-#' 
+#'
 #' Save xgb.DMatrix object to binary file
-#' 
+#'
 #' @param dmatrix the \code{xgb.DMatrix} object
 #' @param fname the name of the file to write.
-#' 
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
@@ -18,7 +17,8 @@ xgb.DMatrix.save <- function(dmatrix, fname) {
     stop("fname must be character")
   if (!inherits(dmatrix, "xgb.DMatrix"))
     stop("dmatrix must be xgb.DMatrix")
-  
+
+  fname <- path.expand(fname)
   .Call(XGDMatrixSaveBinary_R, dmatrix, fname[1], 0L)
   return(TRUE)
 }

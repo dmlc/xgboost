@@ -1,11 +1,11 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
+#include <dmlc/io.h>
+
 #include <string>
 #include <tuple>
 #include <vector>
-
-#include <dmlc/io.h>
 
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
@@ -16,7 +16,7 @@ namespace xgboost {
 
 const Version::TripletT Version::kInvalid {-1, -1, -1};
 
-Version::TripletT Version::Load(Json const& in, bool check) {
+Version::TripletT Version::Load(Json const& in) {
   if (get<Object const>(in).find("version") == get<Object const>(in).cend()) {
     return kInvalid;
   }
@@ -36,7 +36,7 @@ Version::TripletT Version::Load(Json const& in, bool check) {
 
 Version::TripletT Version::Load(dmlc::Stream* fi) {
   XGBoostVersionT major{0}, minor{0}, patch{0};
-  // This is only used in DMatrix serialization, so doesn't break model compability.
+  // This is only used in DMatrix serialization, so doesn't break model compatibility.
   std::string msg { "Incorrect version format found in binary file.  "
                     "Binary file from XGBoost < 1.0.0 is no longer supported. "
                     "Please generate it again." };
@@ -49,9 +49,9 @@ Version::TripletT Version::Load(dmlc::Stream* fi) {
     LOG(FATAL) << msg;
   }
 
-  CHECK_EQ(fi->Read(&major, sizeof(major)), sizeof(major)) << msg;
-  CHECK_EQ(fi->Read(&minor, sizeof(major)), sizeof(minor)) << msg;
-  CHECK_EQ(fi->Read(&patch, sizeof(major)), sizeof(patch)) << msg;
+  CHECK(fi->Read(&major)) << msg;
+  CHECK(fi->Read(&minor)) << msg;
+  CHECK(fi->Read(&patch)) << msg;
 
   return std::make_tuple(major, minor, patch);
 }
@@ -69,9 +69,9 @@ void Version::Save(dmlc::Stream* fo) {
   std::tie(major, minor, patch) = Self();
   std::string verstr { u8"version:" };
   fo->Write(&verstr[0], verstr.size());
-  fo->Write(&major, sizeof(major));
-  fo->Write(&minor, sizeof(minor));
-  fo->Write(&patch, sizeof(patch));
+  fo->Write(major);
+  fo->Write(minor);
+  fo->Write(patch);
 }
 
 std::string Version::String(TripletT const& version) {

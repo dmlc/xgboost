@@ -9,8 +9,8 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     early_stopping_rounds = NULL, maximize = NULL,
                     save_period = NULL, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
-
-  dtrain <- xgb.get.DMatrix(data, label, missing, weight)
+  merged <- check.booster.params(params, ...)
+  dtrain <- xgb.get.DMatrix(data, label, missing, weight, nthread = merged$nthread)
 
   watchlist <- list(train = dtrain)
 
@@ -90,12 +90,8 @@ NULL
 #' @importFrom data.table setkey
 #' @importFrom data.table setkeyv
 #' @importFrom data.table setnames
-#' @importFrom magrittr %>%
-#' @importFrom stringi stri_detect_regex
-#' @importFrom stringi stri_match_first_regex
-#' @importFrom stringi stri_replace_first_regex
-#' @importFrom stringi stri_replace_all_regex
-#' @importFrom stringi stri_split_regex
+#' @importFrom jsonlite fromJSON
+#' @importFrom jsonlite toJSON
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
 #' @importFrom stats median

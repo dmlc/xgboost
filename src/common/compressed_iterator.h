@@ -3,11 +3,11 @@
  * \file compressed_iterator.h
  */
 #pragma once
+#include <xgboost/base.h>
 #include <cmath>
 #include <cstddef>
 #include <algorithm>
 
-#include "xgboost/base.h"
 #include "common.h"
 
 #ifdef __CUDACC__

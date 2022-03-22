@@ -38,6 +38,8 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_dep
                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 saveRDS(bst, "xgb.model.rds")
 
+# Warning: The resulting RDS file is only compatible with the current XGBoost version.
+# Refer to the section titled "a-compatibility-note-for-saveRDS-save".
 bst1 <- readRDS("xgb.model.rds")
 if (file.exists("xgb.model.rds")) file.remove("xgb.model.rds")
 # the handle is invalid:

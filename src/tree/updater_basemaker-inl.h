@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file updater_basemaker-inl.h
  * \brief implement a common tree constructor
  * \author Tianqi Chen
@@ -7,13 +7,15 @@
 #ifndef XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 #define XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 
+#include <rabit/rabit.h>
+
+
 #include <vector>
 #include <algorithm>
 #include <string>
 #include <limits>
 #include <utility>
 
-#include <rabit/rabit.h>
 #include "xgboost/base.h"
 #include "xgboost/json.h"
 #include "xgboost/tree_updater.h"
@@ -23,6 +25,7 @@
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace tree {
@@ -57,8 +60,9 @@ class BaseMaker: public TreeUpdater {
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
-          auto c = batch[fid];
+          auto c = page[fid];
           if (c.size() != 0) {
             CHECK_LT(fid * 2, fminmax_.size());
             fminmax_[fid * 2 + 0] =
@@ -192,8 +196,8 @@ class BaseMaker: public TreeUpdater {
     }
   }
   /*!
-   * \brief this is helper function uses column based data structure,
-   *        reset the positions to the lastest one
+   * \brief This is a helper function that uses a column based data structure
+   *        and reset the positions to the latest one
    * \param nodes the set of nodes that contains the split to be used
    * \param p_fmat feature matrix needed for tree construction
    * \param tree the regression tree structure
@@ -216,10 +220,7 @@ class BaseMaker: public TreeUpdater {
     // set default direct nodes to default
     // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
-    const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
-
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
+    common::ParallelFor(p_fmat->Info().num_row_, ctx_->Threads(), [&](auto ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
         // mark finish when it is not a fresh leaf
@@ -234,7 +235,7 @@ class BaseMaker: public TreeUpdater {
           this->SetEncodePosition(ridx, tree[nid].RightChild());
         }
       }
-    }
+    });
   }
   /*!
    * \brief this is helper function uses column based data structure,
@@ -247,14 +248,13 @@ class BaseMaker: public TreeUpdater {
   inline void CorrectNonDefaultPositionByBatch(
       const SparsePage &batch, const std::vector<bst_uint> &sorted_split_set,
       const RegTree &tree) {
+    auto page = batch.GetView();
     for (size_t fid = 0; fid < batch.Size(); ++fid) {
-      auto col = batch[fid];
+      auto col = page[fid];
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
-        const auto ndata = static_cast<bst_omp_uint>(col.size());
-        #pragma omp parallel for schedule(static)
-        for (bst_omp_uint j = 0; j < ndata; ++j) {
+        common::ParallelFor(col.size(), ctx_->Threads(), [&](auto j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -269,7 +269,7 @@ class BaseMaker: public TreeUpdater {
               this->SetEncodePosition(ridx, tree[pid].RightChild());
             }
           }
-        }
+        });
       }
     }
   }
@@ -306,11 +306,10 @@ class BaseMaker: public TreeUpdater {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
     for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+      auto page = batch.GetView();
       for (auto fid : fsplits) {
-        auto col = batch[fid];
-        const auto ndata = static_cast<bst_omp_uint>(col.size());
-        #pragma omp parallel for schedule(static)
-        for (bst_omp_uint j = 0; j < ndata; ++j) {
+        auto col = page[fid];
+        common::ParallelFor(col.size(), ctx_->Threads(), [&](auto j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -322,7 +321,7 @@ class BaseMaker: public TreeUpdater {
               this->SetEncodePosition(ridx, tree[nid].RightChild());
             }
           }
-        }
+        });
       }
     }
   }
@@ -334,26 +333,28 @@ class BaseMaker: public TreeUpdater {
                            std::vector< std::vector<TStats> > *p_thread_temp,
                            std::vector<TStats> *p_node_stats) {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
-    thread_temp.resize(omp_get_max_threads());
+    thread_temp.resize(ctx_->Threads());
     p_node_stats->resize(tree.param.num_nodes);
-#pragma omp parallel
+    dmlc::OMPException exc;
+#pragma omp parallel num_threads(ctx_->Threads())
     {
-      const int tid = omp_get_thread_num();
-      thread_temp[tid].resize(tree.param.num_nodes, TStats());
-      for (unsigned int nid : qexpand_) {
-        thread_temp[tid][nid] = TStats();
-      }
+      exc.Run([&]() {
+        const int tid = omp_get_thread_num();
+        thread_temp[tid].resize(tree.param.num_nodes, TStats());
+        for (unsigned int nid : qexpand_) {
+          thread_temp[tid][nid] = TStats();
+        }
+      });
     }
+    exc.Rethrow();
     // setup position
-    const auto ndata = static_cast<bst_omp_uint>(fmat.Info().num_row_);
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
+    common::ParallelFor(fmat.Info().num_row_, ctx_->Threads(), [&](auto ridx) {
       const int nid = position_[ridx];
       const int tid = omp_get_thread_num();
       if (nid >= 0) {
         thread_temp[tid][nid].Add(gpair[ridx]);
       }
-    }
+    });
     // sum the per thread statistics together
     for (int nid : qexpand_) {
       TStats &s = (*p_node_stats)[nid];
@@ -363,92 +364,7 @@ class BaseMaker: public TreeUpdater {
       }
     }
   }
-  /*! \brief common helper data structure to build sketch */
-  struct SketchEntry {
-    /*! \brief total sum of amount to be met */
-    double sum_total;
-    /*! \brief statistics used in the sketch */
-    double rmin, wmin;
-    /*! \brief last seen feature value */
-    bst_float last_fvalue;
-    /*! \brief current size of sketch */
-    double next_goal;
-    // pointer to the sketch to put things in
-    common::WXQuantileSketch<bst_float, bst_float> *sketch;
-    // initialize the space
-    inline void Init(unsigned max_size) {
-      next_goal = -1.0f;
-      rmin = wmin = 0.0f;
-      sketch->temp.Reserve(max_size + 1);
-      sketch->temp.size = 0;
-    }
-    /*!
-     * \brief push a new element to sketch
-     * \param fvalue feature value, comes in sorted ascending order
-     * \param w weight
-     * \param max_size
-     */
-    inline void Push(bst_float fvalue, bst_float w, unsigned max_size) {
-      if (next_goal == -1.0f) {
-        next_goal = 0.0f;
-        last_fvalue = fvalue;
-        wmin = w;
-        return;
-      }
-      if (last_fvalue != fvalue) {
-        double rmax = rmin + wmin;
-        if (rmax >= next_goal && sketch->temp.size != max_size) {
-          if (sketch->temp.size == 0 ||
-              last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
-            // push to sketch
-            sketch->temp.data[sketch->temp.size] =
-                common::WXQuantileSketch<bst_float, bst_float>::
-                Entry(static_cast<bst_float>(rmin),
-                      static_cast<bst_float>(rmax),
-                      static_cast<bst_float>(wmin), last_fvalue);
-            CHECK_LT(sketch->temp.size, max_size)
-                << "invalid maximum size max_size=" << max_size
-                << ", stemp.size" << sketch->temp.size;
-            ++sketch->temp.size;
-          }
-          if (sketch->temp.size == max_size) {
-            next_goal = sum_total * 2.0f + 1e-5f;
-          } else {
-            next_goal = static_cast<bst_float>(sketch->temp.size * sum_total / max_size);
-          }
-        } else {
-          if (rmax >= next_goal) {
-            LOG(TRACKER) << "INFO: rmax=" << rmax
-                         << ", sum_total=" << sum_total
-                         << ", naxt_goal=" << next_goal
-                         << ", size=" << sketch->temp.size;
-          }
-        }
-        rmin = rmax;
-        wmin = w;
-        last_fvalue = fvalue;
-      } else {
-        wmin += w;
-      }
-    }
-    /*! \brief push final unfinished value to the sketch */
-    inline void Finalize(unsigned max_size) {
-      double rmax = rmin + wmin;
-      if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
-        CHECK_LE(sketch->temp.size, max_size)
-            << "Finalize: invalid maximum size, max_size=" << max_size
-            << ", stemp.size=" << sketch->temp.size;
-        // push to sketch
-        sketch->temp.data[sketch->temp.size] =
-            common::WXQuantileSketch<bst_float, bst_float>::
-            Entry(static_cast<bst_float>(rmin),
-                  static_cast<bst_float>(rmax),
-                  static_cast<bst_float>(wmin), last_fvalue);
-        ++sketch->temp.size;
-      }
-      sketch->PushTemp();
-    }
-  };
+  using SketchEntry = common::SortedQuantile;
   /*! \brief training parameter of tree grower */
   TrainParam param_;
   /*! \brief queue of nodes to be expanded */

@@ -22,7 +22,7 @@ Non-null \code{feature_names} could be provided to override those in the model.}
 
 \item{trees}{(only for the gbtree booster) an integer vector of tree indices that should be included
 into the importance calculation. If set to \code{NULL}, all trees of the model are parsed.
-It could be useful, e.g., in multiclass classification to get feature importances 
+It could be useful, e.g., in multiclass classification to get feature importances
 for each class separately. IMPORTANT: the tree index in xgboost models
 is zero-based (e.g., use \code{trees = 0:4} for first 5 trees).}
 
@@ -37,7 +37,7 @@ For a tree model, a \code{data.table} with the following columns:
 \itemize{
   \item \code{Features} names of the features used in the model;
   \item \code{Gain} represents fractional contribution of each feature to the model based on
-       the total gain of this feature's splits. Higher percentage means a more important 
+       the total gain of this feature's splits. Higher percentage means a more important
        predictive feature.
   \item \code{Cover} metric of the number of observation related to this feature;
   \item \code{Frequency} percentage representing the relative number of times
@@ -51,7 +51,7 @@ A linear model's importance \code{data.table} has the following columns:
   \item \code{Class} (only for multiclass models) class label.
 }
 
-If \code{feature_names} is not provided and \code{model} doesn't have \code{feature_names}, 
+If \code{feature_names} is not provided and \code{model} doesn't have \code{feature_names},
 index of the features will be used instead. Because the index is extracted from the model dump
 (based on C++ code), it starts at 0 (as in C/C++ or Python) instead of 1 (usual in R).
 }
@@ -61,21 +61,21 @@ Creates a \code{data.table} of feature importances in a model.
 \details{
 This function works for both linear and tree models.
 
-For linear models, the importance is the absolute magnitude of linear coefficients. 
-For that reason, in order to obtain a meaningful ranking by importance for a linear model, 
-the features need to be on the same scale (which you also would want to do when using either 
+For linear models, the importance is the absolute magnitude of linear coefficients.
+For that reason, in order to obtain a meaningful ranking by importance for a linear model,
+the features need to be on the same scale (which you also would want to do when using either
 L1 or L2 regularization).
 }
 \examples{
 
 # binomial classification using gbtree:
 data(agaricus.train, package='xgboost')
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2, 
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 xgb.importance(model = bst)
 
 # binomial classification using gblinear:
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, booster = "gblinear", 
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, booster = "gblinear",
                eta = 0.3, nthread = 1, nrounds = 20, objective = "binary:logistic")
 xgb.importance(model = bst)
 

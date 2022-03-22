@@ -88,6 +88,5 @@ TEST(ParallelFor2dNonUniform, Test) {
 
   omp_set_num_threads(old);
 }
-
 }  // namespace common
 }  // namespace xgboost

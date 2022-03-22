@@ -3,6 +3,7 @@
 
 import os
 import platform
+from typing import List
 import sys
 
 
@@ -10,12 +11,12 @@ class XGBoostLibraryNotFound(Exception):
     """Error thrown by when xgboost is not found"""
 
 
-def find_lib_path():
+def find_lib_path() -> List[str]:
     """Find the path to xgboost dynamic library files.
 
     Returns
     -------
-    lib_path: list(string)
+    lib_path
        List of all found library path to xgboost
     """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
@@ -24,7 +25,11 @@ def find_lib_path():
         os.path.join(curr_path, 'lib'),
         # editable installation, no copying is performed.
         os.path.join(curr_path, os.path.pardir, os.path.pardir, 'lib'),
+        # use libxgboost from a system prefix, if available.  This should be the last
+        # option.
+        os.path.join(sys.prefix, 'lib'),
     ]
+
     if sys.platform == 'win32':
         if platform.architecture()[0] == '64bit':
             dll_path.append(

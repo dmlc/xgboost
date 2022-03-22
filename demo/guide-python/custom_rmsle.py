@@ -1,16 +1,19 @@
-'''Demo for defining customized metric and objective.  Notice that for
-simplicity reason weight is not used in following example. In this
-script, we implement the Squared Log Error (SLE) objective and RMSLE metric as customized
-functions, then compare it with native implementation in XGBoost.
+"""
+Demo for defining a custom regression objective and metric
+==========================================================
 
-See doc/tutorials/custom_metric_obj.rst for a step by step
-walkthrough, with other details.
+Demo for defining customized metric and objective.  Notice that for simplicity reason
+weight is not used in following example. In this script, we implement the Squared Log
+Error (SLE) objective and RMSLE metric as customized functions, then compare it with
+native implementation in XGBoost.
 
-The `SLE` objective reduces impact of outliers in training dataset,
-hence here we also compare its performance with standard squared
-error.
+See :doc:`/tutorials/custom_metric_obj` for a step by step walkthrough, with other
+details.
 
-'''
+The `SLE` objective reduces impact of outliers in training dataset, hence here we also
+compare its performance with standard squared error.
+
+"""
 import numpy as np
 import xgboost as xgb
 from typing import Tuple, Dict, List
@@ -144,7 +147,7 @@ def py_rmsle(dtrain: xgb.DMatrix, dtest: xgb.DMatrix) -> Dict:
               dtrain=dtrain,
               num_boost_round=kBoostRound,
               obj=squared_log,
-              feval=rmsle,
+              custom_metric=rmsle,
               evals=[(dtrain, 'dtrain'), (dtest, 'dtest')],
               evals_result=results)
 
@@ -171,9 +174,6 @@ def plot_history(rmse_evals, rmsle_evals, py_rmsle_evals):
     ax2.plot(x, py_rmsle_evals['dtest']['PyRMSLE'], label='test-PyRMSLE')
     ax2.legend()
 
-    plt.show()
-    plt.close()
-
 
 def main(args):
     dtrain, dtest = generate_data()
@@ -183,9 +183,10 @@ def main(args):
 
     if args.plot != 0:
         plot_history(rmse_evals, rmsle_evals, py_rmsle_evals)
+        plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Arguments for custom RMSLE objective function demo.')
     parser.add_argument(

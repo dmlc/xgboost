@@ -1,15 +1,14 @@
 /*!
  * Copyright 2015-2019 XGBoost contributors
  */
+#include <dmlc/omp.h>
+#include <dmlc/timer.h>
+#include <xgboost/logging.h>
+#include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
 #include <utility>
 
-#include <dmlc/omp.h>
-#include <dmlc/timer.h>
-
-#include "xgboost/logging.h"
-#include "xgboost/objective.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
 
@@ -112,17 +111,17 @@ class PairwiseLambdaWeightComputer {
    * \param list a list that is sorted by pred score
    * \param io_pairs record of pairs, containing the pairs to fill in weights
    */
-  static void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
-                              std::vector<LambdaPair> *io_pairs) {}
+  static void GetLambdaWeight(const std::vector<ListEntry>&,
+                              std::vector<LambdaPair>*) {}
 
   static char const* Name() {
     return "rank:pairwise";
   }
 
 #if defined(__CUDACC__)
-  PairwiseLambdaWeightComputer(const bst_float *dpreds,
-                               const bst_float *dlabels,
-                               const dh::SegmentSorter<float> &segment_label_sorter) {}
+  PairwiseLambdaWeightComputer(const bst_float*,
+                               const bst_float*,
+                               const dh::SegmentSorter<float>&) {}
 
   class PairwiseLambdaWeightMultiplier {
    public:
@@ -271,7 +270,7 @@ class NDCGLambdaWeightComputer
   };
 
   NDCGLambdaWeightComputer(const bst_float *dpreds,
-                           const bst_float *dlabels,
+                           const bst_float*,
                            const dh::SegmentSorter<float> &segment_label_sorter)
     : IndexablePredictionSorter(dpreds, segment_label_sorter),
       dgroup_dcg_(segment_label_sorter.GetNumGroups(), 0.0f),
@@ -294,7 +293,7 @@ class NDCGLambdaWeightComputer
                                              group_segments)),
                             thrust::make_discard_iterator(),  // We don't care for the group indices
                             dgroup_dcg_.begin());  // Sum of the item's DCG values in the group
-    CHECK(end_range.second - dgroup_dcg_.begin() == dgroup_dcg_.size());
+    CHECK_EQ(static_cast<unsigned>(end_range.second - dgroup_dcg_.begin()), dgroup_dcg_.size());
   }
 
   inline const common::Span<const float> GetGroupDcgsSpan() const {
@@ -673,7 +672,7 @@ class SortedLabelList : dh::SegmentSorter<float> {
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
     // For each instance in the group, compute the gradient pair concurrently
-    dh::LaunchN(device_id, niter, nullptr, [=] __device__(uint32_t idx) {
+    dh::LaunchN(niter, nullptr, [=] __device__(uint32_t idx) {
       // First, determine the group 'idx' belongs to
       uint32_t item_idx = idx % total_items;
       uint32_t group_idx =
@@ -755,24 +754,26 @@ class LambdaRankObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
+  ObjInfo Task() const override { return {ObjInfo::kRanking, false}; }
+
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_EQ(preds.Size(), info.labels_.Size()) << "label size predict size not match";
+    CHECK_EQ(preds.Size(), info.labels.Size()) << "label size predict size not match";
 
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels_.Size());
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.Size());
     const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
-    CHECK(gptr.size() != 0 && gptr.back() == info.labels_.Size())
+    CHECK(gptr.size() != 0 && gptr.back() == info.labels.Size())
           << "group structure not consistent with #rows" << ", "
           << "group ponter size: " << gptr.size() << ", "
-          << "labels size: " << info.labels_.Size() << ", "
+          << "labels size: " << info.labels.Size() << ", "
           << "group pointer back: " << (gptr.size() == 0 ? 0 : gptr.back());
 
 #if defined(__CUDACC__)
     // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     if (device >= 0) {
       ComputeGradientsOnGPU(preds, info, iter, out_gpair, gptr);
     } else {
@@ -819,77 +820,85 @@ class LambdaRankObj : public ObjFunction {
     bst_float weight_normalization_factor = ComputeWeightNormalizationFactor(info, gptr);
 
     const auto& preds_h = preds.HostVector();
-    const auto& labels = info.labels_.HostVector();
+    const auto& labels = info.labels.HostView();
     std::vector<GradientPair>& gpair = out_gpair->HostVector();
     const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     out_gpair->Resize(preds.Size());
 
-    #pragma omp parallel
+    dmlc::OMPException exc;
+#pragma omp parallel num_threads(ctx_->Threads())
     {
-      // parallel construct, declare random number generator here, so that each
-      // thread use its own random number generator, seed by thread id and current iteration
-      std::minstd_rand rnd((iter + 1) * 1111);
-      std::vector<LambdaPair> pairs;
-      std::vector<ListEntry>  lst;
-      std::vector< std::pair<bst_float, unsigned> > rec;
+      exc.Run([&]() {
+        // parallel construct, declare random number generator here, so that each
+        // thread use its own random number generator, seed by thread id and current iteration
+        std::minstd_rand rnd((iter + 1) * 1111);
+        std::vector<LambdaPair> pairs;
+        std::vector<ListEntry>  lst;
+        std::vector< std::pair<bst_float, unsigned> > rec;
 
-      #pragma omp for schedule(static)
-      for (bst_omp_uint k = 0; k < ngroup; ++k) {
-        lst.clear(); pairs.clear();
-        for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
-          lst.emplace_back(preds_h[j], labels[j], j);
-          gpair[j] = GradientPair(0.0f, 0.0f);
-        }
-        std::stable_sort(lst.begin(), lst.end(), ListEntry::CmpPred);
-        rec.resize(lst.size());
-        for (unsigned i = 0; i < lst.size(); ++i) {
-          rec[i] = std::make_pair(lst[i].label, i);
-        }
-        std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-        // enumerate buckets with same label, for each item in the lst, grab another sample randomly
-        for (unsigned i = 0; i < rec.size(); ) {
-          unsigned j = i + 1;
-          while (j < rec.size() && rec[j].first == rec[i].first) ++j;
-          // bucket in [i,j), get a sample outside bucket
-          unsigned nleft = i, nright = static_cast<unsigned>(rec.size() - j);
-          if (nleft + nright != 0) {
-            int nsample = param_.num_pairsample;
-            while (nsample --) {
-              for (unsigned pid = i; pid < j; ++pid) {
-                unsigned ridx = std::uniform_int_distribution<unsigned>(0, nleft + nright - 1)(rnd);
-                if (ridx < nleft) {
-                  pairs.emplace_back(rec[ridx].second, rec[pid].second,
-                      info.GetWeight(k) * weight_normalization_factor);
-                } else {
-                  pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second,
-                      info.GetWeight(k) * weight_normalization_factor);
+        #pragma omp for schedule(static)
+        for (bst_omp_uint k = 0; k < ngroup; ++k) {
+          exc.Run([&]() {
+            lst.clear(); pairs.clear();
+            for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
+              lst.emplace_back(preds_h[j], labels(j), j);
+              gpair[j] = GradientPair(0.0f, 0.0f);
+            }
+            std::stable_sort(lst.begin(), lst.end(), ListEntry::CmpPred);
+            rec.resize(lst.size());
+            for (unsigned i = 0; i < lst.size(); ++i) {
+              rec[i] = std::make_pair(lst[i].label, i);
+            }
+            std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+            // enumerate buckets with same label
+            // for each item in the lst, grab another sample randomly
+            for (unsigned i = 0; i < rec.size(); ) {
+              unsigned j = i + 1;
+              while (j < rec.size() && rec[j].first == rec[i].first) ++j;
+              // bucket in [i,j), get a sample outside bucket
+              unsigned nleft = i, nright = static_cast<unsigned>(rec.size() - j);
+              if (nleft + nright != 0) {
+                int nsample = param_.num_pairsample;
+                while (nsample --) {
+                  for (unsigned pid = i; pid < j; ++pid) {
+                    unsigned ridx =
+                        std::uniform_int_distribution<unsigned>(0, nleft + nright - 1)(rnd);
+                    if (ridx < nleft) {
+                      pairs.emplace_back(rec[ridx].second, rec[pid].second,
+                          info.GetWeight(k) * weight_normalization_factor);
+                    } else {
+                      pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second,
+                          info.GetWeight(k) * weight_normalization_factor);
+                    }
+                  }
                 }
               }
+              i = j;
             }
-          }
-          i = j;
+            // get lambda weight for the pairs
+            LambdaWeightComputerT::GetLambdaWeight(lst, &pairs);
+            // rescale each gradient and hessian so that the lst have constant weighted
+            float scale = 1.0f / param_.num_pairsample;
+            if (param_.fix_list_weight != 0.0f) {
+              scale *= param_.fix_list_weight / (gptr[k + 1] - gptr[k]);
+            }
+            for (auto & pair : pairs) {
+              const ListEntry &pos = lst[pair.pos_index];
+              const ListEntry &neg = lst[pair.neg_index];
+              const bst_float w = pair.weight * scale;
+              const float eps = 1e-16f;
+              bst_float p = common::Sigmoid(pos.pred - neg.pred);
+              bst_float g = p - 1.0f;
+              bst_float h = std::max(p * (1.0f - p), eps);
+              // accumulate gradient and hessian in both pid, and nid
+              gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
+              gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
+            }
+          });
         }
-        // get lambda weight for the pairs
-        LambdaWeightComputerT::GetLambdaWeight(lst, &pairs);
-        // rescale each gradient and hessian so that the lst have constant weighted
-        float scale = 1.0f / param_.num_pairsample;
-        if (param_.fix_list_weight != 0.0f) {
-          scale *= param_.fix_list_weight / (gptr[k + 1] - gptr[k]);
-        }
-        for (auto & pair : pairs) {
-          const ListEntry &pos = lst[pair.pos_index];
-          const ListEntry &neg = lst[pair.neg_index];
-          const bst_float w = pair.weight * scale;
-          const float eps = 1e-16f;
-          bst_float p = common::Sigmoid(pos.pred - neg.pred);
-          bst_float g = p - 1.0f;
-          bst_float h = std::max(p * (1.0f - p), eps);
-          // accumulate gradient and hessian in both pid, and nid
-          gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
-          gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
-        }
-      }
+      });
     }
+    exc.Rethrow();
   }
 
 #if defined(__CUDACC__)
@@ -900,14 +909,14 @@ class LambdaRankObj : public ObjFunction {
                              const std::vector<unsigned> &gptr) {
     LOG(DEBUG) << "Computing " << LambdaWeightComputerT::Name() << " gradients on GPU.";
 
-    auto device = tparam_->gpu_id;
+    auto device = ctx_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
 
     bst_float weight_normalization_factor = ComputeWeightNormalizationFactor(info, gptr);
 
     // Set the device ID and copy them to the device
     out_gpair->SetDevice(device);
-    info.labels_.SetDevice(device);
+    info.labels.SetDevice(device);
     preds.SetDevice(device);
     info.weights_.SetDevice(device);
 
@@ -915,19 +924,19 @@ class LambdaRankObj : public ObjFunction {
 
     auto d_preds = preds.ConstDevicePointer();
     auto d_gpair = out_gpair->DevicePointer();
-    auto d_labels = info.labels_.ConstDevicePointer();
+    auto d_labels = info.labels.View(device);
 
     SortedLabelList slist(param_);
 
     // Sort the labels within the groups on the device
-    slist.Sort(info.labels_, gptr);
+    slist.Sort(*info.labels.Data(), gptr);
 
     // Initialize the gradients next
     out_gpair->Fill(GradientPair(0.0f, 0.0f));
 
     // Finally, compute the gradients
-    slist.ComputeGradients<LambdaWeightComputerT>
-      (d_preds, d_labels, info.weights_, iter, d_gpair, weight_normalization_factor);
+    slist.ComputeGradients<LambdaWeightComputerT>(d_preds, d_labels.Values().data(), info.weights_,
+                                                  iter, d_gpair, weight_normalization_factor);
   }
 #endif
 

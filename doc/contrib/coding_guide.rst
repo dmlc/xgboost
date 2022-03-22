@@ -23,7 +23,7 @@ C++ Coding Guideline
 ***********************
 Python Coding Guideline
 ***********************
-- Follow `PEP 8: Style Guide for Python Code <https://www.python.org/dev/peps/pep-0008/>`_. We use PyLint to automatically enforce PEP 8 style across our Python codebase. Before submitting your pull request, you are encouraged to run PyLint on your machine. See :ref:`running_checks_locally`.
+- Follow `PEP 8: Style Guide for Python Code <https://www.python.org/dev/peps/pep-0008/>`_. We use Pylint to automatically enforce PEP 8 style across our Python codebase. Before submitting your pull request, you are encouraged to run Pylint on your machine. See :ref:`running_checks_locally`.
 - Docstrings should be in `NumPy docstring format <https://numpydoc.readthedocs.io/en/latest/format.html>`_.
 
 .. _running_checks_locally:
@@ -134,3 +134,49 @@ Similarly, if you want to exclude C++ source from linting:
   cd /path/to/xgboost/
   python3 tests/ci_build/tidy.py --cpp=0
 
+**********************************
+Guide for handling user input data
+**********************************
+
+This is an in-comprehensive guide for handling user input data.  XGBoost has wide verity
+of native supported data structures, mostly come from higher level language bindings. The
+inputs ranges from basic contiguous 1 dimension memory buffer to more sophisticated data
+structures like columnar data with validity mask.  Raw input data can be used in 2 places,
+firstly it's the construction of various ``DMatrix``, secondly it's the in-place
+prediction.  For plain memory buffer, there's not much to discuss since it's just a
+pointer with a size. But for general n-dimension array and columnar data, there are many
+subtleties.  XGBoost has 3 different data structures for handling optionally masked arrays
+(tensors), for consuming user inputs ``ArrayInterface`` should be chosen.  There are many
+existing functions that accept only plain pointer due to legacy reasons (XGBoost started
+as a much simpler library and didn't care about memory usage that much back then).  The
+``ArrayInterface`` is a in memory representation of ``__array_interface__`` protocol
+defined by numpy or the ``__cuda_array_interface__`` defined by numba.  Following is a
+check list of things to have in mind when accepting related user inputs:
+
+- [ ] Is it strided? (identified by the ``strides`` field)
+- [ ] If it's a vector, is it row vector or column vector? (Identified by both ``shape``
+  and ``strides``).
+- [ ] Is the data type supported? Half type and 128 integer types should be converted
+  before going into XGBoost.
+- [ ] Does it have higher than 1 dimension? (identified by ``shape`` field)
+- [ ] Are some of dimensions trivial? (shape[dim] <= 1)
+- [ ] Does it have mask? (identified by ``mask`` field)
+- [ ] Can the mask be broadcasted? (unsupported at the moment)
+- [ ] Is it on CUDA memory? (identified by ``data`` field, and optionally ``stream``)
+
+Most of the checks are handled by the ``ArrayInterface`` during construction, except for
+the data type issue since it doesn't know how to cast such pointers with C builtin types.
+But for safety reason one should still try to write related tests for the all items. The
+data type issue should be taken care of in language binding for each of the specific data
+input.  For single-chunk columnar format, it's just a masked array for each column so it
+should be treated uniformly as normal array. For input predictor ``X``, we have adapters
+for each type of input. Some are composition of the others. For instance, CSR matrix has 3
+potentially strided arrays for ``indptr``, ``indices`` and ``values``. No assumption
+should be made to these components (all the check boxes should be considered). Slicing row
+of CSR matrix should calculate the offset of each field based on respective strides.
+
+For meta info like labels, which is growing both in size and complexity, we accept only
+masked array at the moment (no specialized adapter).  One should be careful about the
+input data shape. For base margin it can be 2 dim or higher if we have multiple targets in
+the future.  The getters in ``DMatrix`` returns only 1 dimension flatten vectors at the
+moment, which can be improved in the future when it's needed.

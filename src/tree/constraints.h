@@ -17,7 +17,7 @@ namespace xgboost {
 /*!
  * \brief Feature interaction constraint implementation for CPU tree updaters.
  *
- * The interface is similiar to the one for GPU Hist.
+ * The interface is similar to the one for GPU Hist.
  */
 class FeatureInteractionConstraintHost {
  protected:

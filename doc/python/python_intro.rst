@@ -1,16 +1,26 @@
 ###########################
 Python Package Introduction
 ###########################
-This document gives a basic walkthrough of xgboost python package.
+
+This document gives a basic walkthrough of the xgboost package for Python.  The Python
+package is consisted of 3 different interfaces, including native interface, scikit-learn
+interface and dask interface.  For introduction to dask interface please see
+:doc:`/tutorials/dask`.
 
 **List of other Helpful Links**
 
-* `Python walkthrough code collections <https://github.com/tqchen/xgboost/blob/master/demo/guide-python>`_
+* :doc:`/python/examples/index`
 * :doc:`Python API Reference <python_api>`
+
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
 
 Install XGBoost
 ---------------
-To install XGBoost, follow instructions in :doc:`/build`.
+To install XGBoost, follow instructions in :doc:`/install`.
 
 To verify your installation, run the following in Python:
 
@@ -22,44 +32,23 @@ To verify your installation, run the following in Python:
 
 Data Interface
 --------------
-The XGBoost python module is able to load data from:
+The XGBoost python module is able to load data from many different types of data format,
+including:
 
-- LibSVM text format file
-- Comma-separated values (CSV) file
 - NumPy 2D array
 - SciPy 2D sparse array
+- Pandas data frame
 - cuDF DataFrame
-- Pandas data frame, and
+- cupy 2D array
+- dlpack
+- datatable
 - XGBoost binary buffer file.
+- LIBSVM text format file
+- Comma-separated values (CSV) file
 
 (See :doc:`/tutorials/input_format` for detailed description of text input format.)
 
 The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
-
-* To load a libsvm text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    dtrain = xgb.DMatrix('train.svm.txt')
-    dtest = xgb.DMatrix('test.svm.buffer')
-
-* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    # label_column specifies the index of the column containing the true label
-    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
-    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
-
-  .. note:: Categorical features not supported
-
-    Note that XGBoost does not provide specialization for categorical features; if your data contains
-    categorical features, load it as a NumPy array first and then perform corresponding preprocessing steps like
-    `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.
-
-  .. note:: Use Pandas to load CSV files with headers
-
-    Currently, the DMLC data parser cannot parse CSV files with headers. Use Pandas (see below) to read CSV files with headers.
 
 * To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
@@ -95,17 +84,40 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
   .. code-block:: python
 
-    dtrain = xgb.DMatrix(data, label=label, missing=-999.0)
+    dtrain = xgb.DMatrix(data, label=label, missing=np.NaN)
 
 * Weights can be set when needed:
 
   .. code-block:: python
 
     w = np.random.rand(5, 1)
-    dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
+    dtrain = xgb.DMatrix(data, label=label, missing=np.NaN, weight=w)
 
 When performing ranking tasks, the number of weights should be equal
 to number of groups.
+
+* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
+
+  .. code-block:: python
+
+    dtrain = xgb.DMatrix('train.svm.txt')
+    dtest = xgb.DMatrix('test.svm.buffer')
+
+  The parser in XGBoost has limited functionality. When using Python interface, it's
+  recommended to use sklearn ``load_svmlight_file`` or other similar utilites than
+  XGBoost's builtin parser.
+
+* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
+
+  .. code-block:: python
+
+    # label_column specifies the index of the column containing the true label
+    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
+    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
+
+  The parser in XGBoost has limited functionality. When using Python interface, it's
+  recommended to use pandas ``read_csv`` or other similar utilites than XGBoost's builtin
+  parser.
 
 
 Setting Parameters
@@ -183,7 +195,7 @@ Early stopping requires at least one set in ``evals``. If there's more than one,
 
 The model will train until the validation score stops improving. Validation error needs to decrease at least every ``early_stopping_rounds`` to continue training.
 
-If early stopping occurs, the model will have three additional fields: ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``. Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
+If early stopping occurs, the model will have two additional fields: ``bst.best_score``, ``bst.best_iteration``.  Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
 
 This works with both metrics to minimize (RMSE, log loss, etc.) and to maximize (MAP, NDCG, AUC). Note that if you specify more than one evaluation metric the last one in ``param['eval_metric']`` is used for early stopping.
 
@@ -198,11 +210,11 @@ A model that has been trained or loaded can perform predictions on data sets.
   dtest = xgb.DMatrix(data)
   ypred = bst.predict(dtest)
 
-If early stopping is enabled during training, you can get predictions from the best iteration with ``bst.best_ntree_limit``:
+If early stopping is enabled during training, you can get predictions from the best iteration with ``bst.best_iteration``:
 
 .. code-block:: python
 
-  ypred = bst.predict(dtest, ntree_limit=bst.best_ntree_limit)
+  ypred = bst.predict(dtest, iteration_range=(0, bst.best_iteration + 1))
 
 Plotting
 --------
@@ -226,3 +238,25 @@ When you use ``IPython``, you can use the :py:meth:`xgboost.to_graphviz` functio
 .. code-block:: python
 
   xgb.to_graphviz(bst, num_trees=2)
+
+
+Scikit-Learn interface
+----------------------
+
+XGBoost provides an easy to use scikit-learn interface for some pre-defined models
+including regression, classification and ranking.
+
+.. code-block:: python
+
+  # Use "gpu_hist" for training the model.
+  reg = xgb.XGBRegressor(tree_method="gpu_hist")
+  # Fit the model using predictor X and response y.
+  reg.fit(X, y)
+  # Save model into JSON format.
+  reg.save_model("regressor.json")
+
+User can still access the underlying booster model when needed:
+
+.. code-block:: python
+
+   booster: xgb.Booster = reg.get_booster()

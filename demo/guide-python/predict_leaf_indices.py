@@ -1,3 +1,7 @@
+"""
+Demo for obtaining leaf index
+=============================
+"""
 import os
 import xgboost as xgb
 
@@ -12,7 +16,9 @@ bst = xgb.train(param, dtrain, num_round, watchlist)
 
 print('start testing predict the leaf indices')
 # predict using first 2 tree
-leafindex = bst.predict(dtest, ntree_limit=2, pred_leaf=True)
+leafindex = bst.predict(
+    dtest, iteration_range=(0, 2), pred_leaf=True, strict_shape=True
+)
 print(leafindex.shape)
 print(leafindex)
 # predict all trees

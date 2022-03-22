@@ -14,6 +14,7 @@
 #include "../src/metric/elementwise_metric.cc"
 #include "../src/metric/multiclass_metric.cc"
 #include "../src/metric/rank_metric.cc"
+#include "../src/metric/auc.cc"
 #include "../src/metric/survival_metric.cc"
 
 // objectives
@@ -36,29 +37,29 @@
 #include "../src/data/simple_dmatrix.cc"
 #include "../src/data/sparse_page_raw_format.cc"
 #include "../src/data/ellpack_page.cc"
-#include "../src/data/ellpack_page_source.cc"
+#include "../src/data/gradient_index.cc"
+#include "../src/data/gradient_index_page_source.cc"
+#include "../src/data/gradient_index_format.cc"
+#include "../src/data/sparse_page_dmatrix.cc"
+#include "../src/data/proxy_dmatrix.cc"
 
 // prediction
 #include "../src/predictor/predictor.cc"
 #include "../src/predictor/cpu_predictor.cc"
 
-#if DMLC_ENABLE_STD_THREAD
-#include "../src/data/sparse_page_dmatrix.cc"
-#endif
-
 // trees
+#include "../src/tree/constraints.cc"
+#include "../src/tree/hist/param.cc"
 #include "../src/tree/param.cc"
-#include "../src/tree/split_evaluator.cc"
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"
+#include "../src/tree/updater_approx.cc"
 #include "../src/tree/updater_colmaker.cc"
-#include "../src/tree/updater_quantile_hist.cc"
+#include "../src/tree/updater_histmaker.cc"
 #include "../src/tree/updater_prune.cc"
+#include "../src/tree/updater_quantile_hist.cc"
 #include "../src/tree/updater_refresh.cc"
 #include "../src/tree/updater_sync.cc"
-#include "../src/tree/updater_histmaker.cc"
-#include "../src/tree/updater_skmaker.cc"
-#include "../src/tree/constraints.cc"
 
 // linear
 #include "../src/linear/linear_updater.cc"
@@ -68,14 +69,19 @@
 // global
 #include "../src/learner.cc"
 #include "../src/logging.cc"
+#include "../src/global_config.cc"
 #include "../src/common/common.cc"
+#include "../src/common/random.cc"
+#include "../src/common/charconv.cc"
 #include "../src/common/timer.cc"
+#include "../src/common/quantile.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
-#include "../src/common/json.cc"
 #include "../src/common/io.cc"
+#include "../src/common/json.cc"
+#include "../src/common/pseudo_huber.cc"
 #include "../src/common/survival_util.cc"
-#include "../src/common/probability_distribution.cc"
+#include "../src/common/threading_utils.cc"
 #include "../src/common/version.cc"
 
 // c_api

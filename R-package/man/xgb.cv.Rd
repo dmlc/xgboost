@@ -28,7 +28,7 @@ xgb.cv(
 )
 }
 \arguments{
-\item{params}{the list of parameters. The complete list of parameters is 
+\item{params}{the list of parameters. The complete list of parameters is
   available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
   is a shorter summary:
 \itemize{
@@ -70,6 +70,8 @@ from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callb
   \item \code{error} binary classification error rate
   \item \code{rmse} Rooted mean square error
   \item \code{logloss} negative log-likelihood function
+  \item \code{mae} Mean absolute error
+  \item \code{mape} Mean absolute percentage error
   \item \code{auc} Area under curve
   \item \code{aucpr} Area under PR curve
   \item \code{merror} Exact matching error, used to evaluate multi-class classification
@@ -133,9 +135,7 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
         parameter or randomly generated.
   \item \code{best_iteration} iteration number with the best evaluation metric value
         (only available with early stopping).
-  \item \code{best_ntreelimit} the \code{ntreelimit} value corresponding to the best iteration,
-        which could further be used in \code{predict} method
-        (only available with early stopping).
+  \item \code{best_ntreelimit} and the \code{ntreelimit} Deprecated attributes, use \code{best_iteration} instead.
   \item \code{pred} CV prediction values available when \code{prediction} is set.
         It is either vector or matrix (see \code{\link{cb.cv.predict}}).
   \item \code{models} a list of the CV folds' models. It is only available with the explicit
@@ -154,11 +154,11 @@ The cross-validation process is then repeated \code{nrounds} times, with each of
 
 All observations are used for both training and validation.
 
-Adapted from \url{http://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29#k-fold_cross-validation}
+Adapted from \url{https://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29}
 }
 \examples{
 data(agaricus.train, package='xgboost')
-dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 cv <- xgb.cv(data = dtrain, nrounds = 3, nthread = 2, nfold = 5, metrics = list("rmse","auc"),
                   max_depth = 3, eta = 1, objective = "binary:logistic")
 print(cv)

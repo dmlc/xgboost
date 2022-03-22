@@ -1,13 +1,9 @@
 /*!
- * Copyright 2017-2019 by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file gbtree_model.h
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
 #define XGBOOST_GBM_GBTREE_MODEL_H_
-#include <memory>
-#include <utility>
-#include <string>
-#include <vector>
 
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
@@ -16,11 +12,19 @@
 #include <xgboost/parameter.h>
 #include <xgboost/learner.h>
 
+#include <memory>
+#include <utility>
+#include <string>
+#include <vector>
+
+#include "../common/threading_utils.h"
+
 namespace xgboost {
 
 class Json;
 
 namespace gbm {
+
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
  public:
@@ -60,12 +64,27 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .set_default(0)
         .describe("Reserved option for vector tree.");
   }
+
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline GBTreeModelParam ByteSwap() const {
+    GBTreeModelParam x = *this;
+    dmlc::ByteSwap(&x.num_trees, sizeof(x.num_trees), 1);
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.deprecated_num_feature, sizeof(x.deprecated_num_feature), 1);
+    dmlc::ByteSwap(&x.pad_32bit, sizeof(x.pad_32bit), 1);
+    dmlc::ByteSwap(&x.deprecated_num_pbuffer, sizeof(x.deprecated_num_pbuffer), 1);
+    dmlc::ByteSwap(&x.deprecated_num_output_group, sizeof(x.deprecated_num_output_group), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
+  }
 };
 
 struct GBTreeModel : public Model {
  public:
-  explicit GBTreeModel(LearnerModelParam const* learner_model) :
-      learner_model_param{learner_model} {}
+  explicit GBTreeModel(LearnerModelParam const* learner_model, GenericParameter const* ctx)
+      : learner_model_param{learner_model}, ctx_{ctx} {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
@@ -90,12 +109,11 @@ struct GBTreeModel : public Model {
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& p_out) override;
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats, int32_t n_threads,
                                      std::string format) const {
-    std::vector<std::string> dump;
-    for (const auto & tree : trees) {
-      dump.push_back(tree->DumpModel(fmap, with_stats, format));
-    }
+    std::vector<std::string> dump(trees.size());
+    common::ParallelFor(trees.size(), n_threads,
+                        [&](size_t i) { dump[i] = trees[i]->DumpModel(fmap, with_stats, format); });
     return dump;
   }
   void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
@@ -117,6 +135,9 @@ struct GBTreeModel : public Model {
   std::vector<std::unique_ptr<RegTree> > trees_to_update;
   /*! \brief some information indicator of the tree, reserved */
   std::vector<int> tree_info;
+
+ private:
+  GenericParameter const* ctx_;
 };
 }  // namespace gbm
 }  // namespace xgboost

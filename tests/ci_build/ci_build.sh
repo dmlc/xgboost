@@ -90,13 +90,13 @@ WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../../}"
 DOCKER_IMG_NAME="xgb-ci.${CONTAINER_TYPE}"
 
 # Append cuda version if available
-CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CUDA_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
+CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'CUDA_VERSION_ARG=[0-9]+\.[0-9]+' | grep -o -E '[0-9]+\.[0-9]+')
 # Append jdk version if available
-JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'JDK_VERSION=[0-9]+' | egrep -o '[0-9]+')
+JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'JDK_VERSION=[0-9]+' | grep -o -E '[0-9]+')
 # Append cmake version if available
-CMAKE_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CMAKE_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
+CMAKE_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'CMAKE_VERSION=[0-9]+\.[0-9]+' | grep -o -E '[0-9]+\.[0-9]+')
 # Append R version if available
-USE_R35=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'USE_R35=[0-9]+' | egrep -o '[0-9]+$')
+USE_R35=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'USE_R35=[0-9]+' | grep -o -E '[0-9]+$')
 if [[ ${USE_R35} == "1" ]]; then
   USE_R35="_r35"
 elif [[ ${USE_R35} == "0" ]]; then
@@ -187,6 +187,10 @@ then
     # that is associated with the particular branch or pull request
     echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+
+    echo "python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true"
+    python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true
+
     echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     if [[ $? != "0" ]]; then
@@ -210,4 +214,3 @@ ${DOCKER_BINARY} run --rm --pid=host \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
     "${DOCKER_IMG_NAME}" \
     "${COMMAND[@]}"
-

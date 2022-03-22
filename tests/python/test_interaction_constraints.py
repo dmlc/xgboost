@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost
-import unittest
 import testing as tm
 import pytest
 
@@ -9,8 +8,10 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-class TestInteractionConstraints(unittest.TestCase):
-    def run_interaction_constraints(self, tree_method):
+class TestInteractionConstraints:
+    def run_interaction_constraints(
+        self, tree_method, feature_names=None, interaction_constraints='[[0, 1]]'
+    ):
         x1 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x2 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x3 = np.random.choice([1, 2, 3], size=1000, replace=True)
@@ -18,13 +19,13 @@ class TestInteractionConstraints(unittest.TestCase):
             + np.random.normal(
                 loc=0.001, scale=1.0, size=1000) + 3 * np.sin(x1)
         X = np.column_stack((x1, x2, x3))
-        dtrain = xgboost.DMatrix(X, label=y)
+        dtrain = xgboost.DMatrix(X, label=y, feature_names=feature_names)
 
         params = {
             'max_depth': 3,
             'eta': 0.1,
             'nthread': 2,
-            'interaction_constraints': '[[0, 1]]',
+            'interaction_constraints': interaction_constraints,
             'tree_method': tree_method
         }
         num_boost_round = 12
@@ -36,7 +37,7 @@ class TestInteractionConstraints(unittest.TestCase):
         #   by the same amount
         def f(x):
             tmat = xgboost.DMatrix(
-                np.column_stack((x1, x2, np.repeat(x, 1000))))
+                np.column_stack((x1, x2, np.repeat(x, 1000))), feature_names=feature_names)
             return bst.predict(tmat)
 
         preds = [f(x) for x in [1, 2, 3]]
@@ -58,8 +59,34 @@ class TestInteractionConstraints(unittest.TestCase):
     def test_approx_interaction_constraints(self):
         self.run_interaction_constraints(tree_method='approx')
 
+    def test_interaction_constraints_feature_names(self):
+        with pytest.raises(ValueError):
+            constraints = [('feature_0', 'feature_1')]
+            self.run_interaction_constraints(tree_method='exact',
+                                             interaction_constraints=constraints)
+
+        with pytest.raises(ValueError):
+            constraints = [('feature_0', 'feature_3')]
+            feature_names = ['feature_0', 'feature_1', 'feature_2']
+            self.run_interaction_constraints(tree_method='exact',
+                                             feature_names=feature_names,
+                                             interaction_constraints=constraints)
+
+        constraints = [('feature_0', 'feature_1')]
+        feature_names = ['feature_0', 'feature_1', 'feature_2']
+        self.run_interaction_constraints(tree_method='exact',
+                                         feature_names=feature_names,
+                                         interaction_constraints=constraints)
+
+        constraints = [['feature_0', 'feature_1'], ['feature_2']]
+        feature_names = ['feature_0', 'feature_1', 'feature_2']
+        self.run_interaction_constraints(tree_method='exact',
+                                         feature_names=feature_names,
+                                         interaction_constraints=constraints)
+
     @pytest.mark.skipif(**tm.no_sklearn())
     def training_accuracy(self, tree_method):
+        """Test accuracy, reused by GPU tests."""
         from sklearn.metrics import accuracy_score
         dtrain = xgboost.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
         dtest = xgboost.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
@@ -82,11 +109,6 @@ class TestInteractionConstraints(unittest.TestCase):
         pred_dtest = (bst.predict(dtest) < 0.5)
         assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1
 
-    def test_hist_training_accuracy(self):
-        self.training_accuracy(tree_method='hist')
-
-    def test_exact_training_accuracy(self):
-        self.training_accuracy(tree_method='exact')
-
-    def test_approx_training_accuracy(self):
-        self.training_accuracy(tree_method='approx')
+    @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
+    def test_hist_training_accuracy(self, tree_method):
+        self.training_accuracy(tree_method=tree_method)

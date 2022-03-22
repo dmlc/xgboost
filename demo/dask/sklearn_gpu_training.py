@@ -1,6 +1,7 @@
-'''Dask interface demo:
-
-Use scikit-learn regressor interface with GPU histogram tree method.'''
+"""
+Use scikit-learn regressor interface with GPU histogram tree method
+===================================================================
+"""
 
 from dask.distributed import Client
 # It's recommended to use dask_cuda for GPU assignment

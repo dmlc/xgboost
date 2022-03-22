@@ -32,7 +32,8 @@ TEST(Updater, Refresh) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
-  std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &lparam));
+  std::unique_ptr<TreeUpdater> refresher(
+      TreeUpdater::Create("refresh", &lparam, ObjInfo{ObjInfo::kRegression}));
 
   tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);

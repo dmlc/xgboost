@@ -1,10 +1,18 @@
 Python API Reference
 ====================
-This page gives the Python API reference of xgboost, please also refer to Python Package Introduction for more information about python package.
+This page gives the Python API reference of xgboost, please also refer to Python Package Introduction for more information about the Python package.
 
 .. contents::
   :backlinks: none
   :local:
+
+Global Configuration
+--------------------
+.. autofunction:: xgboost.config_context
+
+.. autofunction:: xgboost.set_config
+
+.. autofunction:: xgboost.get_config
 
 Core Data Structure
 -------------------
@@ -69,13 +77,29 @@ Plotting API
 
 Callback API
 ------------
-.. autofunction:: xgboost.callback.print_evaluation
+.. automodule:: xgboost.callback
+.. autoclass:: xgboost.callback.TrainingCallback
+    :members:
 
-.. autofunction:: xgboost.callback.record_evaluation
+.. autoclass:: xgboost.callback.EvaluationMonitor
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.callback.reset_learning_rate
+.. autoclass:: xgboost.callback.EarlyStopping
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.callback.early_stop
+.. autoclass:: xgboost.callback.LearningRateScheduler
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.callback.TrainingCheckPoint
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
 .. _dask_api:
 
@@ -83,12 +107,43 @@ Dask API
 --------
 .. automodule:: xgboost.dask
 
-.. autofunction:: xgboost.dask.DaskDMatrix
+.. autoclass:: xgboost.dask.DaskDMatrix
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.dask.DaskDeviceQuantileDMatrix
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
 .. autofunction:: xgboost.dask.train
 
 .. autofunction:: xgboost.dask.predict
 
-.. autofunction:: xgboost.dask.DaskXGBClassifier
+.. autofunction:: xgboost.dask.inplace_predict
 
-.. autofunction:: xgboost.dask.DaskXGBRegressor
+.. autoclass:: xgboost.dask.DaskXGBClassifier
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.dask.DaskXGBRegressor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.dask.DaskXGBRanker
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.dask.DaskXGBRFRegressor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.dask.DaskXGBRFClassifier
+    :members:
+    :inherited-members:
+    :show-inheritance:

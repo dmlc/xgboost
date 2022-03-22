@@ -1,15 +1,15 @@
-# coding: utf-8
-# pylint: disable= invalid-name
 """Distributed XGBoost Rabit related API."""
-import sys
 import ctypes
+from enum import IntEnum, unique
 import pickle
+from typing import Any, TypeVar, Callable, Optional, cast, List, Union
+
 import numpy as np
 
-from .core import _LIB, c_str, STRING_TYPES
+from .core import _LIB, c_str, STRING_TYPES, _check_call
 
 
-def _init_rabit():
+def _init_rabit() -> None:
     """internal library initializer."""
     if _LIB is not None:
         _LIB.RabitGetRank.restype = ctypes.c_int
@@ -18,21 +18,21 @@ def _init_rabit():
         _LIB.RabitVersionNumber.restype = ctypes.c_int
 
 
-def init(args=None):
+def init(args: Optional[List[bytes]] = None) -> None:
     """Initialize the rabit library with arguments"""
     if args is None:
         args = []
     arr = (ctypes.c_char_p * len(args))()
-    arr[:] = args
+    arr[:] = cast(List[Union[ctypes.c_char_p, bytes, None, int]], args)
     _LIB.RabitInit(len(arr), arr)
 
 
-def finalize():
+def finalize() -> None:
     """Finalize the process, notify tracker everything is done."""
     _LIB.RabitFinalize()
 
 
-def get_rank():
+def get_rank() -> int:
     """Get rank of current process.
 
     Returns
@@ -44,7 +44,7 @@ def get_rank():
     return ret
 
 
-def get_world_size():
+def get_world_size() -> int:
     """Get total number workers.
 
     Returns
@@ -56,13 +56,13 @@ def get_world_size():
     return ret
 
 
-def is_distributed():
+def is_distributed() -> int:
     '''If rabit is distributed.'''
     is_dist = _LIB.RabitIsDistributed()
     return is_dist
 
 
-def tracker_print(msg):
+def tracker_print(msg: Any) -> None:
     """Print message to the tracker.
 
     This function can be used to communicate the information of
@@ -77,13 +77,12 @@ def tracker_print(msg):
         msg = str(msg)
     is_dist = _LIB.RabitIsDistributed()
     if is_dist != 0:
-        _LIB.RabitTrackerPrint(c_str(msg))
+        _check_call(_LIB.RabitTrackerPrint(c_str(msg)))
     else:
-        sys.stdout.write(msg)
-        sys.stdout.flush()
+        print(msg.strip(), flush=True)
 
 
-def get_processor_name():
+def get_processor_name() -> bytes:
     """Get the processor name.
 
     Returns
@@ -98,7 +97,10 @@ def get_processor_name():
     return buf.value
 
 
-def broadcast(data, root):
+T = TypeVar("T")                # pylint:disable=invalid-name
+
+
+def broadcast(data: T, root: int) -> T:
     """Broadcast object from one node to all other nodes.
 
     Parameters
@@ -120,18 +122,18 @@ def broadcast(data, root):
         s = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         length.value = len(s)
     # run first broadcast
-    _LIB.RabitBroadcast(ctypes.byref(length),
-                        ctypes.sizeof(ctypes.c_ulong), root)
+    _check_call(_LIB.RabitBroadcast(ctypes.byref(length),
+                                    ctypes.sizeof(ctypes.c_ulong), root))
     if root != rank:
         dptr = (ctypes.c_char * length.value)()
         # run second
-        _LIB.RabitBroadcast(ctypes.cast(dptr, ctypes.c_void_p),
-                            length.value, root)
+        _check_call(_LIB.RabitBroadcast(ctypes.cast(dptr, ctypes.c_void_p),
+                                        length.value, root))
         data = pickle.loads(dptr.raw)
         del dptr
     else:
-        _LIB.RabitBroadcast(ctypes.cast(ctypes.c_char_p(s), ctypes.c_void_p),
-                            length.value, root)
+        _check_call(_LIB.RabitBroadcast(ctypes.cast(ctypes.c_char_p(s), ctypes.c_void_p),
+                                        length.value, root))
         del s
     return data
 
@@ -149,7 +151,8 @@ DTYPE_ENUM__ = {
 }
 
 
-class Op:                     # pylint: disable=too-few-public-methods
+@unique
+class Op(IntEnum):
     '''Supported operations for rabit.'''
     MAX = 0
     MIN = 1
@@ -157,16 +160,18 @@ class Op:                     # pylint: disable=too-few-public-methods
     OR = 3
 
 
-def allreduce(data, op, prepare_fun=None):
+def allreduce(                  # pylint:disable=invalid-name
+    data: np.ndarray, op: Op, prepare_fun: Optional[Callable[[np.ndarray], None]] = None
+) -> np.ndarray:
     """Perform allreduce, return the result.
 
     Parameters
     ----------
-    data: numpy array
+    data :
         Input data.
-    op: int
+    op :
         Reduction operators, can be MIN, MAX, SUM, BITOR
-    prepare_fun: function
+    prepare_fun :
         Lazy preprocessing function, if it is not None, prepare_fun(data)
         will be called by the function before performing allreduce, to initialize the data
         If the result of Allreduce can be recovered directly,
@@ -174,7 +179,7 @@ def allreduce(data, op, prepare_fun=None):
 
     Returns
     -------
-    result : array_like
+    result :
         The result of allreduce, have same shape as data
 
     Notes
@@ -187,24 +192,25 @@ def allreduce(data, op, prepare_fun=None):
     if buf.base is data.base:
         buf = buf.copy()
     if buf.dtype not in DTYPE_ENUM__:
-        raise Exception('data type %s not supported' % str(buf.dtype))
+        raise Exception(f"data type {buf.dtype} not supported")
     if prepare_fun is None:
-        _LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
-                            buf.size, DTYPE_ENUM__[buf.dtype],
-                            op, None, None)
+        _check_call(_LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
+                                        buf.size, DTYPE_ENUM__[buf.dtype],
+                                        int(op), None, None))
     else:
         func_ptr = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
-        def pfunc(_):
+        def pfunc(_: Any) -> None:
             """prepare function."""
-            prepare_fun(data)
-        _LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
-                            buf.size, DTYPE_ENUM__[buf.dtype],
-                            op, func_ptr(pfunc), None)
+            fn = cast(Callable[[np.ndarray], None], prepare_fun)
+            fn(data)
+        _check_call(_LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
+                                        buf.size, DTYPE_ENUM__[buf.dtype],
+                                        op, func_ptr(pfunc), None))
     return buf
 
 
-def version_number():
+def version_number() -> int:
     """Returns version number of current stored model.
 
     This means how many calls to CheckPoint we made so far.
@@ -218,5 +224,5 @@ def version_number():
     return ret
 
 
-# intialization script
+# initialization script
 _init_rabit()
