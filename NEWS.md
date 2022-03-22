@@ -120,7 +120,7 @@ maximum value of int32. (#7565)
 * Check number of trees in inplace predict, this avoids a potential segfault when an
   incorrect value for `iteration_range` is provided. (#7409)
 
-### Changes in Python the package
+### Changes in the Python package
 Other than the changes in Dask, the XGBoost Python package gained some new features and
 improvements along with small bug fixes.
 
