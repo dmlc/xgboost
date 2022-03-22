@@ -4,6 +4,8 @@
 #ifndef XGBOOST_TASK_H_
 #define XGBOOST_TASK_H_
 
+#include <xgboost/base.h>
+
 #include <cinttypes>
 
 namespace xgboost {
@@ -35,7 +37,7 @@ struct ObjInfo {
   explicit ObjInfo(Task t) : task{t} {}
   ObjInfo(Task t, bool khess) : task{t}, const_hess{khess} {}
 
-  constexpr bool UseOneHot() const {
+  XGBOOST_DEVICE bool UseOneHot() const {
     return (task != ObjInfo::kRegression && task != ObjInfo::kBinary);
   }
 };
