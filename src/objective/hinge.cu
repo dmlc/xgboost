@@ -1,15 +1,17 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2022 by XGBoost Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
  */
-#include <xgboost/objective.h>
+#include "xgboost/objective.h"
+#include "xgboost/json.h"
+#include "xgboost/span.h"
+#include "xgboost/host_device_vector.h"
+
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "../common/common.h"
-#include "../common/span.h"
-#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace obj {
@@ -25,18 +27,24 @@ class HingeObj : public ObjFunction {
   void Configure(
       const std::vector<std::pair<std::string, std::string> > &args) override {}
 
+  ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
+
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels_.Size())
+    CHECK_NE(info.labels.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels.Size())
         << "labels are not correctly provided"
         << "preds.size=" << preds.Size()
-        << ", label.size=" << info.labels_.Size();
+        << ", label.size=" << info.labels.Size();
 
-    const bool is_null_weight = info.weights_.Size() == 0;
     const size_t ndata = preds.Size();
+    const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
     out_gpair->Resize(ndata);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
@@ -57,24 +65,30 @@ class HingeObj : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair(g, h);
         },
-        common::Range{0, static_cast<int64_t>(ndata)},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata)).Eval(
-            out_gpair, &preds, &info.labels_, &info.weights_);
+        common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(),
+        ctx_->gpu_id).Eval(
+            out_gpair, &preds, info.labels.Data(), &info.weights_);
   }
 
-  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, this->ctx_->Threads(),
+        io_preds->DeviceIdx())
         .Eval(io_preds);
   }
 
   const char* DefaultEvalMetric() const override {
     return "error";
   }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("binary:hinge");
+  }
+  void LoadConfig(Json const& in) override {}
 };
 
 // register the objective functions

@@ -5,7 +5,7 @@
  */
 #ifndef XGBOOST_LINEAR_PARAM_H_
 #define XGBOOST_LINEAR_PARAM_H_
-#include <dmlc/parameter.h>
+#include "xgboost/parameter.h"
 
 namespace xgboost {
 namespace linear {
@@ -20,7 +20,7 @@ enum FeatureSelectorEnum {
   kRandom
 };
 
-struct LinearTrainParam : public dmlc::Parameter<LinearTrainParam> {
+struct LinearTrainParam : public XGBoostParameter<LinearTrainParam> {
   /*! \brief learning_rate */
   float learning_rate;
   /*! \brief regularization weight for L2 norm */

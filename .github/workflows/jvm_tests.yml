@@ -1,0 +1,74 @@
+name: XGBoost-JVM-Tests
+
+on: [push, pull_request]
+
+jobs:
+  test-with-jvm:
+    name: Test JVM on OS ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-10.15]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+        architecture: 'x64'
+
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+
+    - name: Install Python packages
+      run: |
+        python -m pip install wheel setuptools
+        python -m pip install awscli
+
+    - name: Cache Maven packages
+      uses: actions/cache@v2
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+
+    - name: Test XGBoost4J
+      run: |
+        cd jvm-packages
+        mvn test -B -pl :xgboost4j_2.12
+
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        matrix.os == 'windows-latest'
+
+    - name: Publish artifact xgboost4j.dll to S3
+      run: |
+        cd lib/
+        Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
+        dir
+        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/ --acl public-read
+      if: |
+        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+        matrix.os == 'windows-latest'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+
+    - name: Test XGBoost4J-Spark
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+      env:
+        RABIT_MOCK: ON

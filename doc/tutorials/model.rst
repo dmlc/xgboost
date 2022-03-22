@@ -2,7 +2,6 @@
 Introduction to Boosted Trees
 #############################
 XGBoost stands for "Extreme Gradient Boosting", where the term "Gradient Boosting" originates from the paper *Greedy Function Approximation: A Gradient Boosting Machine*, by Friedman.
-This is a tutorial on gradient boosted trees, and most of the content is based on `these slides <http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf>`_ by Tianqi Chen, the original author of XGBoost.
 
 The **gradient boosted trees** has been around for a while, and there are a lot of materials on the topic.
 This tutorial will explain boosted trees in a self-contained and principled way using the elements of supervised learning.
@@ -98,15 +97,17 @@ Mathematically, we can write our model in the form
 
   \hat{y}_i = \sum_{k=1}^K f_k(x_i), f_k \in \mathcal{F}
 
-where :math:`K` is the number of trees, :math:`f` is a function in the functional space :math:`\mathcal{F}`, and :math:`\mathcal{F}` is the set of all possible CARTs. The objective function to be optimized is given by
+where :math:`K` is the number of trees, :math:`f_k` is a function in the functional space :math:`\mathcal{F}`, and :math:`\mathcal{F}` is the set of all possible CARTs. The objective function to be optimized is given by
 
 .. math::
 
-  \text{obj}(\theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
+  \text{obj}(\theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \omega(f_k)
+
+where :math:`\omega(f_k)` is the complexity of the tree :math:`f_k`, defined in detail later.
 
 Now here comes a trick question: what is the *model* used in random forests? Tree ensembles! So random forests and boosted trees are really the same models; the
 difference arises from how we train them. This means that, if you write a predictive service for tree ensembles, you only need to write one and it should work
-for both random forests and gradient boosted trees. (See `Treelite <http://treelite.io>`_ for an actual example.) One example of why elements of supervised learning rock.
+for both random forests and gradient boosted trees. (See `Treelite <https://treelite.readthedocs.io/en/latest/index.html>`_ for an actual example.) One example of why elements of supervised learning rock.
 
 *************
 Tree Boosting
@@ -118,7 +119,7 @@ Let the following be the objective function (remember it always needs to contain
 
 .. math::
 
-  \text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i)
+  \text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\omega(f_i)
 
 Additive Training
 =================
@@ -142,15 +143,15 @@ It remains to ask: which tree do we want at each step?  A natural thing is to ad
 
 .. math::
 
-  \text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
-            & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \Omega(f_t) + \mathrm{constant}
+  \text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\omega(f_i) \\
+            & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \omega(f_t) + \mathrm{constant}
 
 If we consider using mean squared error (MSE) as our loss function, the objective becomes
 
 .. math::
 
-  \text{obj}^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\Omega(f_i) \\
-            & = \sum_{i=1}^n [2(\hat{y}_i^{(t-1)} - y_i)f_t(x_i) + f_t(x_i)^2] + \Omega(f_t) + \mathrm{constant}
+  \text{obj}^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\omega(f_i) \\
+            & = \sum_{i=1}^n [2(\hat{y}_i^{(t-1)} - y_i)f_t(x_i) + f_t(x_i)^2] + \omega(f_t) + \mathrm{constant}
 
 The form of MSE is friendly, with a first order term (usually called the residual) and a quadratic term.
 For other losses of interest (for example, logistic loss), it is not so easy to get such a nice form.
@@ -158,7 +159,7 @@ So in the general case, we take the *Taylor expansion of the loss function up to
 
 .. math::
 
-  \text{obj}^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t) + \mathrm{constant}
+  \text{obj}^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \omega(f_t) + \mathrm{constant}
 
 where the :math:`g_i` and :math:`h_i` are defined as
 
@@ -171,7 +172,7 @@ After we remove all the constants, the specific objective at step :math:`t` beco
 
 .. math::
 
-  \sum_{i=1}^n [g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t)
+  \sum_{i=1}^n [g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \omega(f_t)
 
 This becomes our optimization goal for the new tree. One important advantage of this definition is that
 the value of the objective function only depends on :math:`g_i` and :math:`h_i`. This is how XGBoost supports custom loss functions.
@@ -181,7 +182,7 @@ the same solver that takes :math:`g_i` and :math:`h_i` as input!
 Model Complexity
 ================
 We have introduced the training step, but wait, there is one important thing, the **regularization term**!
-We need to define the complexity of the tree :math:`\Omega(f)`. In order to do so, let us first refine the definition of the tree :math:`f(x)` as
+We need to define the complexity of the tree :math:`\omega(f)`. In order to do so, let us first refine the definition of the tree :math:`f(x)` as
 
 .. math::
 
@@ -192,7 +193,7 @@ In XGBoost, we define the complexity as
 
 .. math::
 
-  \Omega(f) = \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2
+  \omega(f) = \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2
 
 Of course, there is more than one way to define the complexity, but this one works well in practice. The regularization is one part most tree packages treat
 less carefully, or simply ignore. This was because the traditional treatment of tree learning only emphasized improving impurity, while the complexity control was left to heuristics.

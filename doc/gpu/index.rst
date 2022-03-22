@@ -3,12 +3,11 @@ XGBoost GPU Support
 ###################
 
 This page contains information about GPU algorithms supported in XGBoost.
-To install GPU support, checkout the :doc:`/build`.
 
-.. note:: CUDA 9.0, Compute Capability 3.5 required
+.. note:: CUDA 10.1, Compute Capability 3.5 required
 
   The GPU algorithms in XGBoost require a graphics card with compute capability 3.5 or higher, with
-  CUDA toolkits 9.0 or later.
+  CUDA toolkits 10.1 or later.
   (See `this list <https://en.wikipedia.org/wiki/CUDA#GPUs_supported>`_ to look up compute capability of your GPU card.)
 
 *********************************************
@@ -26,9 +25,7 @@ Algorithms
 +-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | tree_method           | Description                                                                                                                                                           |
 +=======================+=======================================================================================================================================================================+
-| gpu_exact (deprecated)| The standard XGBoost tree construction algorithm. Performs exact search for splits. Slower and uses considerably more memory than ``gpu_hist``.                       |
-+-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| gpu_hist              | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Will run very slowly on GPUs older than Pascal architecture. |
+| gpu_hist              | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: May run very slowly on GPUs older than Pascal architecture.  |
 +-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Supported parameters
@@ -37,31 +34,33 @@ Supported parameters
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718
 
-+--------------------------------+----------------------------+--------------+
-| parameter                      | ``gpu_exact`` (deprecated) | ``gpu_hist`` |
-+================================+============================+==============+
-| ``subsample``                  | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``colsample_bytree``           | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``colsample_bylevel``          | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``max_bin``                    | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``gpu_id``                     | |tick|                     | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``n_gpus`` (deprecated)        | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``predictor``                  | |tick|                     | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``grow_policy``                | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``monotone_constraints``       | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``interaction_constraints``    | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``single_precision_histogram`` | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
++--------------------------------+--------------+
+| parameter                      | ``gpu_hist`` |
++================================+==============+
+| ``subsample``                  | |tick|       |
++--------------------------------+--------------+
+| ``sampling_method``            | |tick|       |
++--------------------------------+--------------+
+| ``colsample_bytree``           | |tick|       |
++--------------------------------+--------------+
+| ``colsample_bylevel``          | |tick|       |
++--------------------------------+--------------+
+| ``max_bin``                    | |tick|       |
++--------------------------------+--------------+
+| ``gamma``                      | |tick|       |
++--------------------------------+--------------+
+| ``gpu_id``                     | |tick|       |
++--------------------------------+--------------+
+| ``predictor``                  | |tick|       |
++--------------------------------+--------------+
+| ``grow_policy``                | |tick|       |
++--------------------------------+--------------+
+| ``monotone_constraints``       | |tick|       |
++--------------------------------+--------------+
+| ``interaction_constraints``    | |tick|       |
++--------------------------------+--------------+
+| ``single_precision_histogram`` | |tick|       |
++--------------------------------+--------------+
 
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
 
@@ -71,108 +70,135 @@ The device ordinal (which GPU to use if you have many of them) can be selected u
 ``gpu_id`` parameter, which defaults to 0 (the first device reported by CUDA runtime).
 
 
-The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/build` for details.
+The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :doc:`/install` for details.
 
 .. code-block:: python
   :caption: Python example
 
   param['gpu_id'] = 0
-  param['max_bin'] = 16
   param['tree_method'] = 'gpu_hist'
 
+.. code-block:: python
+  :caption: With Scikit-Learn interface
 
-Single Node Multi-GPU
-=====================
-.. note:: Single node multi-GPU training with `n_gpus` parameter is deprecated after 0.90.  Please use distributed GPU training with one process per GPU.
+  XGBRegressor(tree_method='gpu_hist', gpu_id=0)
+
+
+GPU-Accelerated SHAP values
+=============================
+XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU predictor is selected.
+
+.. code-block:: python
+
+  model.set_param({"predictor": "gpu_predictor"})
+  shap_values = model.predict(dtrain, pred_contribs=True)
+  shap_interaction_values = model.predict(dtrain, pred_interactions=True)
+
+See examples `here
+<https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`__.
 
 Multi-node Multi-GPU Training
 =============================
-XGBoost supports fully distributed GPU training using `Dask
-<https://dask.org/>`_. See Python documentation :ref:`dask_api` and worked examples `here
-<https://github.com/dmlc/xgboost/tree/master/demo/dask>`_.
+XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_. For
+getting started see our tutorial :doc:`/tutorials/dask` and worked examples `here
+<https://github.com/dmlc/xgboost/tree/master/demo/dask>`__, also Python documentation
+:ref:`dask_api` for complete reference.
 
 
 Objective functions
 ===================
 Most of the objective functions implemented in XGBoost can be run on GPU.  Following table shows current support status.
 
-+--------------------+-------------+
-| Objectives         | GPU support |
-+--------------------+-------------+
-| reg:squarederror   | |tick|      |
-+--------------------+-------------+
-| reg:squaredlogerror| |tick|      |
-+--------------------+-------------+
-| reg:logistic       | |tick|      |
-+--------------------+-------------+
-| binary:logistic    | |tick|      |
-+--------------------+-------------+
-| binary:logitraw    | |tick|      |
-+--------------------+-------------+
-| binary:hinge       | |tick|      |
-+--------------------+-------------+
-| count:poisson      | |tick|      |
-+--------------------+-------------+
-| reg:gamma          | |tick|      |
-+--------------------+-------------+
-| reg:tweedie        | |tick|      |
-+--------------------+-------------+
-| multi:softmax      | |tick|      |
-+--------------------+-------------+
-| multi:softprob     | |tick|      |
-+--------------------+-------------+
-| survival:cox       | |cross|     |
-+--------------------+-------------+
-| rank:pairwise      | |cross|     |
-+--------------------+-------------+
-| rank:ndcg          | |cross|     |
-+--------------------+-------------+
-| rank:map           | |cross|     |
-+--------------------+-------------+
++----------------------+-------------+
+| Objectives           | GPU support |
++----------------------+-------------+
+| reg:squarederror     | |tick|      |
++----------------------+-------------+
+| reg:squaredlogerror  | |tick|      |
++----------------------+-------------+
+| reg:logistic         | |tick|      |
++----------------------+-------------+
+| reg:pseudohubererror | |tick|      |
++----------------------+-------------+
+| binary:logistic      | |tick|      |
++----------------------+-------------+
+| binary:logitraw      | |tick|      |
++----------------------+-------------+
+| binary:hinge         | |tick|      |
++----------------------+-------------+
+| count:poisson        | |tick|      |
++----------------------+-------------+
+| reg:gamma            | |tick|      |
++----------------------+-------------+
+| reg:tweedie          | |tick|      |
++----------------------+-------------+
+| multi:softmax        | |tick|      |
++----------------------+-------------+
+| multi:softprob       | |tick|      |
++----------------------+-------------+
+| survival:cox         | |cross|     |
++----------------------+-------------+
+| survival:aft         | |tick|      |
++----------------------+-------------+
+| rank:pairwise        | |tick|      |
++----------------------+-------------+
+| rank:ndcg            | |tick|      |
++----------------------+-------------+
+| rank:map             | |tick|      |
++----------------------+-------------+
 
 Objective will run on GPU if GPU updater (``gpu_hist``), otherwise they will run on CPU by
 default.  For unsupported objectives XGBoost will fall back to using CPU implementation by
-default.
+default.  Note that when using GPU ranking objective, the result is not deterministic due
+to the non-associative aspect of floating point summation.
 
 Metric functions
 ===================
 Following table shows current support status for evaluation metrics on the GPU.
 
-+-----------------+-------------+
-| Metric          | GPU Support |
-+=================+=============+
-| rmse            | |tick|      |
-+-----------------+-------------+
-| rmsle           | |tick|      |
-+-----------------+-------------+
-| mae             | |tick|      |
-+-----------------+-------------+
-| logloss         | |tick|      |
-+-----------------+-------------+
-| error           | |tick|      |
-+-----------------+-------------+
-| merror          | |tick|      |
-+-----------------+-------------+
-| mlogloss        | |tick|      |
-+-----------------+-------------+
-| auc             | |cross|     |
-+-----------------+-------------+
-| aucpr           | |cross|     |
-+-----------------+-------------+
-| ndcg            | |cross|     |
-+-----------------+-------------+
-| map             | |cross|     |
-+-----------------+-------------+
-| poisson-nloglik | |tick|      |
-+-----------------+-------------+
-| gamma-nloglik   | |tick|      |
-+-----------------+-------------+
-| cox-nloglik     | |cross|     |
-+-----------------+-------------+
-| gamma-deviance  | |tick|      |
-+-----------------+-------------+
-| tweedie-nloglik | |tick|      |
-+-----------------+-------------+
++------------------------------+-------------+
+| Metric                       | GPU Support |
++==============================+=============+
+| rmse                         | |tick|      |
++------------------------------+-------------+
+| rmsle                        | |tick|      |
++------------------------------+-------------+
+| mae                          | |tick|      |
++------------------------------+-------------+
+| mape                         | |tick|      |
++------------------------------+-------------+
+| mphe                         | |tick|      |
++------------------------------+-------------+
+| logloss                      | |tick|      |
++------------------------------+-------------+
+| error                        | |tick|      |
++------------------------------+-------------+
+| merror                       | |tick|      |
++------------------------------+-------------+
+| mlogloss                     | |tick|      |
++------------------------------+-------------+
+| auc                          | |tick|      |
++------------------------------+-------------+
+| aucpr                        | |tick|      |
++------------------------------+-------------+
+| ndcg                         | |tick|      |
++------------------------------+-------------+
+| map                          | |tick|      |
++------------------------------+-------------+
+| poisson-nloglik              | |tick|      |
++------------------------------+-------------+
+| gamma-nloglik                | |tick|      |
++------------------------------+-------------+
+| cox-nloglik                  | |cross|     |
++------------------------------+-------------+
+| aft-nloglik                  | |tick|      |
++------------------------------+-------------+
+| interval-regression-accuracy | |tick|      |
++------------------------------+-------------+
+| gamma-deviance               | |tick|      |
++------------------------------+-------------+
+| tweedie-nloglik              | |tick|      |
++------------------------------+-------------+
 
 Similar to objective functions, default device for metrics is selected based on tree
 updater and predictor (which is selected based on tree updater).
@@ -183,34 +209,43 @@ You can run benchmarks on synthetic data for binary classification:
 
 .. code-block:: bash
 
-  python tests/benchmark/benchmark.py
+  python tests/benchmark/benchmark_tree.py --tree_method=gpu_hist
+  python tests/benchmark/benchmark_tree.py --tree_method=hist
 
-Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations and 0.25/0.75 test/train split on i7-6700K CPU @ 4.00GHz and Pascal Titan X yields the following results:
+Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and NVIDIA 1080ti yields the following results:
 
 +--------------+----------+
 | tree_method  | Time (s) |
 +==============+==========+
-| gpu_hist     | 13.87    |
+| gpu_hist     | 12.57    |
 +--------------+----------+
-| hist         | 63.55    |
-+--------------+----------+
-| gpu_exact    | 161.08   |
-+--------------+----------+
-| exact        | 1082.20  |
+| hist         | 36.01    |
 +--------------+----------+
 
-See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgboost.html>`_ and `Updates to the XGBoost GPU algorithms <https://xgboost.ai/2018/07/04/gpu-xgboost-update.html>`_ for additional performance benchmarks of the ``gpu_exact`` and ``gpu_hist`` tree methods.
+Memory usage
+============
+The following are some guidelines on the device memory usage of the `gpu_hist` tree method.
+
+Memory inside xgboost training is generally allocated for two reasons - storing the dataset and working memory.
+
+The dataset itself is stored on device in a compressed ELLPACK format. The ELLPACK format is a type of sparse matrix that stores elements with a constant row stride. This format is convenient for parallel computation when compared to CSR because the row index of each element is known directly from its address in memory. The disadvantage of the ELLPACK format is that it becomes less memory efficient if the maximum row length is significantly more than the average row length. Elements are quantised and stored as integers. These integers are compressed to a minimum bit length. Depending on the number of features, we usually don't need the full range of a 32 bit integer to store elements and so compress this down. The compressed, quantised ELLPACK format will commonly use 1/4 the space of a CSR matrix stored in floating point.
+
+Working memory is allocated inside the algorithm proportional to the number of rows to keep track of gradients, tree positions and other per row statistics. Memory is allocated for histogram bins proportional to the number of bins, number of features and nodes in the tree. For performance reasons we keep histograms in memory from previous nodes in the tree, when a certain threshold of memory usage is passed we stop doing this to conserve memory at some performance loss.
+
+If you are getting out-of-memory errors on a big dataset, try the or :py:class:`xgboost.DeviceQuantileDMatrix` or :doc:`external memory version </tutorials/external_memory>`.
 
 Developer notes
 ===============
-The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
+The application may be profiled with annotations by specifying USE_NTVX to cmake. Regions covered by the 'Monitor' class in CUDA code will automatically appear in the nsight profiler when `verbosity` is set to 3.
 
 **********
 References
 **********
 `Mitchell R, Frank E. (2017) Accelerating the XGBoost algorithm using GPU computing. PeerJ Computer Science 3:e127 https://doi.org/10.7717/peerj-cs.127 <https://peerj.com/articles/cs-127/>`_
 
-`Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
+`NVIDIA Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
+
+`Out-of-Core GPU Gradient Boosting <https://arxiv.org/abs/2005.09148>`_
 
 Contributors
 ============
@@ -221,8 +256,10 @@ Many thanks to the following contributors (alphabetical order):
 * Jonathan C. McKinney
 * Matthew Jones
 * Philip Cho
+* Rong Ou
 * Rory Mitchell
 * Shankara Rao Thejaswi Nanditale
+* Sriram Chandramouli
 * Vinay Deshpande
 
 Please report bugs to the XGBoost issues list: https://github.com/dmlc/xgboost/issues.  For general questions please visit our user form: https://discuss.xgboost.ai/.

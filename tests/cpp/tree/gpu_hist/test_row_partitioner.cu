@@ -1,8 +1,13 @@
+/*!
+ * Copyright 2019-2021 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <vector>
 
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <thrust/sequence.h>
+
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 
@@ -91,7 +96,7 @@ void TestUpdatePosition() {
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
   // Check position is as expected
-  EXPECT_EQ(rp.GetPositionHost(), std::vector<RowPartitioner::TreePositionT>({3,3,4,4,4,2,2,2,2,2}));
+  EXPECT_EQ(rp.GetPositionHost(), std::vector<bst_node_t>({3,3,4,4,4,2,2,2,2,2}));
 }
 
 TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
@@ -119,7 +124,7 @@ void TestIncorrectRow() {
   });
 }
 
-TEST(RowPartitioner, IncorrectRow) {
+TEST(RowPartitionerDeathTest, IncorrectRow) {
   ASSERT_DEATH({ TestIncorrectRow(); },".*");
 }
 }  // namespace tree

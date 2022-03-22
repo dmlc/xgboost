@@ -14,5 +14,5 @@ data$STATE = as.factor(data$STATE)
 data$CLASS = as.factor(data$CLASS)
 data$GENDER = as.factor(data$GENDER)
 
-data.dummy <- dummy.data.frame(data, dummy.class='factor', omit.constants=T);
+data.dummy <- dummy.data.frame(data, dummy.class='factor', omit.constants=TRUE);
 write.table(data.dummy, 'autoclaims.csv', sep=',', row.names=F, col.names=F, quote=F)

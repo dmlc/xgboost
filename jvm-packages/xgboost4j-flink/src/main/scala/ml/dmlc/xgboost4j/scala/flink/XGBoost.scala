@@ -49,7 +49,7 @@ object XGBoost {
       Rabit.init(workerEnvs)
       val mapper = (x: LabeledVector) => {
         val (index, value) = x.vector.toSeq.unzip
-        LabeledPoint(x.label.toFloat, index.toArray, value.map(_.toFloat).toArray)
+        LabeledPoint(x.label.toFloat, x.vector.size, index.toArray, value.map(_.toFloat).toArray)
       }
       val dataIter = for (x <- it.iterator().asScala) yield mapper(x)
       val trainMat = new DMatrix(dataIter, null)

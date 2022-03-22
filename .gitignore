@@ -17,7 +17,7 @@
 *.tar.gz
 *conf
 *buffer
-*model
+*.model
 *pyc
 *.train
 *.test
@@ -51,6 +51,7 @@ Debug
 #.Rbuildignore
 R-package.Rproj
 *.cache*
+.mypy_cache/
 # java
 java/xgboost4j/target
 java/xgboost4j/tmp
@@ -62,17 +63,16 @@ nb-configuration*
 # Eclipse
 .project
 .cproject
+.classpath
 .pydevproject
 .settings/
 build
-config.mk
 /xgboost
 *.data
 build_plugin
-.idea
 recommonmark/
 tags
-*.iml
+TAGS
 *.class
 target
 *.swp
@@ -90,12 +90,44 @@ lib/
 # spark
 metastore_db
 
-plugin/updater_gpu/test/cpp/data
 /include/xgboost/build_config.h
 
 # files from R-package source install
 **/config.status
 R-package/src/Makevars
+*.lib
 
-# Python install
-python-package/xgboost/tracker.py
+# Visual Studio Code
+/.vscode/
+
+# IntelliJ/CLion
+.idea
+*.iml
+/cmake-build-debug/
+
+# GDB
+.gdb_history
+
+# Python joblib.Memory used in pytest.
+cachedir/
+
+# Files from local Dask work
+dask-worker-space/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# credentials and key material
+config
+credentials
+credentials.csv
+*.env
+*.pem
+*.pub
+*.rdp
+*_rsa
+
+# Visual Studio code + extensions
+.vscode
+.metals
+.bloop

@@ -9,5 +9,5 @@ max_depth = 3
 
 num_round = 2
 save_period = 0
-data = "@PROJECT_SOURCE_DIR@/demo/data/agaricus.txt.train"
-eval[test] = "@PROJECT_SOURCE_DIR@/demo/data/agaricus.txt.test"
+data = "@PROJECT_SOURCE_DIR@/demo/data/agaricus.txt.train?format=libsvm"
+eval[test] = "@PROJECT_SOURCE_DIR@/demo/data/agaricus.txt.test?format=libsvm"

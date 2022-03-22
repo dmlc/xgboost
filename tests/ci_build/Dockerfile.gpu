@@ -1,23 +1,26 @@
-ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu16.04
+ARG CUDA_VERSION_ARG
+FROM nvidia/cuda:$CUDA_VERSION_ARG-runtime-ubuntu18.04
+ARG CUDA_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y wget unzip bzip2 libgomp1 && \
+    apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
     # Python
-    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
-    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
 
-# Install Python packages
+# Create new Conda environment with cuDF, Dask, and cuPy
 RUN \
-    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
-    conda install dask=2.0.0
+    conda create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
+        python=3.8 cudf=21.10* rmm=21.10* cudatoolkit=$CUDA_VERSION_ARG dask dask-cuda=21.10* dask-cudf=21.10* cupy=9.1* \
+        numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis
 
 ENV GOSU_VERSION 1.10
 

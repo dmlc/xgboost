@@ -16,6 +16,17 @@ Before running XGBoost, we must set three types of parameters: general parameter
   :backlinks: none
   :local:
 
+
+.. _global_config:
+
+********************
+Global Configuration
+********************
+The following parameters can be set in the global scope, using :py:func:`xgboost.config_context()` (Python) or ``xgb.set.config()`` (R).
+
+* ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
+* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate GPU memory. This option is only applicable when XGBoost is built (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``.
+
 ******************
 General Parameters
 ******************
@@ -23,28 +34,27 @@ General Parameters
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
 
-* ``silent`` [default=0] [Deprecated]
-
-  - Deprecated.  Please use ``verbosity`` instead.
-
 * ``verbosity`` [default=1]
 
-  - Verbosity of printing messages.  Valid values are 0 (silent),
-    1 (warning), 2 (info), 3 (debug).  Sometimes XGBoost tries to change
-    configurations based on heuristics, which is displayed as warning message.
-    If there's unexpected behaviour, please try to increase value of verbosity.
+  - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
+    (debug).  Sometimes XGBoost tries to change configurations based on heuristics, which
+    is displayed as warning message.  If there's unexpected behaviour, please try to
+    increase value of verbosity.
+
+* ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
+
+  - When set to True, XGBoost will perform validation of input parameters to check whether
+    a parameter is used or not.  The feature is still experimental.  It's expected to have
+    some false positives.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
-  - Number of parallel threads used to run XGBoost
+  - Number of parallel threads used to run XGBoost.  When choosing it, please keep thread
+    contention and hyperthreading in mind.
 
-* ``disable_default_eval_metric`` [default=0]
+* ``disable_default_eval_metric`` [default= ``false``]
 
-  - Flag to disable default metric. Set to >0 to disable.
-
-* ``num_pbuffer`` [set automatically by XGBoost, no need to be set by user]
-
-  - Size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step.
+  - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
 * ``num_feature`` [set automatically by XGBoost, no need to be set by user]
 
@@ -64,8 +74,8 @@ Parameters for Tree Booster
 
 * ``max_depth`` [default=6]
 
-  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguided`` growing policy when tree_method is set as ``hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
-  - range: [0,∞] (0 is only accepted in ``lossguided`` growing policy when tree_method is set as ``hist``)
+  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. ``exact`` tree method requires non-zero value.
+  - range: [0,∞]
 
 * ``min_child_weight`` [default=1]
 
@@ -82,6 +92,17 @@ Parameters for Tree Booster
   - Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
   - range: (0,1]
 
+* ``sampling_method`` [default= ``uniform``]
+
+  - The method to use to sample the training instances.
+  - ``uniform``: each training instance has an equal probability of being selected. Typically set
+    ``subsample`` >= 0.5 for good results.
+  - ``gradient_based``: the selection probability for each training instance is proportional to the
+    *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
+    ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
+    sampling method is only supported when ``tree_method`` is set to ``gpu_hist``; other tree
+    methods only support ``uniform`` sampling.
+
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
   - This is a family of parameters for subsampling of columns.
@@ -94,6 +115,10 @@ Parameters for Tree Booster
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
     each split.
 
+    Using the Python or the R package, one can set the ``feature_weights`` for DMatrix to
+    define the probability of each feature being selected when using column sampling.
+    There's a similar parameter for ``fit`` method in sklearn interface.
+
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative.
@@ -104,25 +129,31 @@ Parameters for Tree Booster
 
 * ``tree_method`` string [default= ``auto``]
 
-  - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_.
-  - XGBoost supports ``hist`` and ``approx`` for distributed training and only support ``approx`` for external memory version.
-  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``
+  - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_ and :doc:`treemethod`.
+  - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
+
+  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``, this is a
+    combination of commonly used updaters.  For other updaters like ``refresh``, set the
+    parameter ``updater`` directly.
 
     - ``auto``: Use heuristic to choose the fastest method.
 
-      - For small to medium dataset, exact greedy (``exact``) will be used.
-      - For very large dataset, approximate algorithm (``approx``) will be chosen.
-      - Because old behavior is always use exact greedy in single machine,
-        user will get a message when approximate algorithm is chosen to notify this choice.
+      - For small dataset, exact greedy (``exact``) will be used.
+      - For larger dataset, approximate algorithm (``approx``) will be chosen.  It's
+        recommended to try ``hist`` and ``gpu_hist`` for higher performance with large
+        dataset.
+        (``gpu_hist``)has support for ``external memory``.
 
-    - ``exact``: Exact greedy algorithm.
+      - Because old behavior is always use exact greedy in single machine, user will get a
+        message when approximate algorithm is chosen to notify this choice.
+    - ``exact``: Exact greedy algorithm.  Enumerates all split candidates.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
-    - ``hist``: Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
+    - ``hist``: Faster histogram optimized approximate greedy algorithm.
     - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
 * ``sketch_eps`` [default=0.03]
 
-  - Only used for ``tree_method=approx``.
+  - Only used for ``updater=grow_local_histmaker``.
   - This roughly translates into ``O(1 / sketch_eps)`` number of bins.
     Compared to directly select number of bins, this comes with theoretical guarantee with sketch accuracy.
   - Usually user does not have to tune this.
@@ -133,24 +164,22 @@ Parameters for Tree Booster
 
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
 
-* ``updater`` [default= ``grow_colmaker,prune``]
+* ``updater``
 
-  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updater plugins exist:
+  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updaters exist:
 
     - ``grow_colmaker``: non-distributed column-based construction of trees.
-    - ``distcol``: distributed tree construction with column-based data splitting mode.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_local_histmaker``: based on local histogram counting.
-    - ``grow_skmaker``: uses the approximate sketching algorithm.
+    - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
+    - ``grow_gpu_hist``: Grow tree with GPU.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
-    - ``prune``: prunes the splits where loss < min_split_loss (or gamma).
-
-  - In a distributed setting, the implicit updater sequence value would be adjusted to ``grow_histmaker,prune`` by default, and you can set ``tree_method`` as ``hist`` to use ``grow_histmaker``.
+    - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
 
 * ``refresh_leaf`` [default=1]
 
-  - This is a parameter of the ``refresh`` updater plugin. When this flag is 1, tree leafs as well as tree nodes' stats are updated. When it is 0, only node stats are updated.
+  - This is a parameter of the ``refresh`` updater. When this flag is 1, tree leafs as well as tree nodes' stats are updated. When it is 0, only node stats are updated.
 
 * ``process_type`` [default= ``default``]
 
@@ -158,12 +187,12 @@ Parameters for Tree Booster
   - Choices: ``default``, ``update``
 
     - ``default``: The normal boosting process which creates new trees.
-    - ``update``: Starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: ``refresh``, ``prune``. With ``process_type=update``, one cannot use updater plugins that create new trees.
+    - ``update``: Starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updaters is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iterations performed. Currently, the following built-in updaters could be meaningfully used with this process type: ``refresh``, ``prune``. With ``process_type=update``, one cannot use updaters that create new trees.
 
 * ``grow_policy`` [default= ``depthwise``]
 
   - Controls a way new nodes are added to the tree.
-  - Currently supported only if ``tree_method`` is set to ``hist``.
+  - Currently supported only if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
   - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
@@ -171,23 +200,59 @@ Parameters for Tree Booster
 
 * ``max_leaves`` [default=0]
 
-  - Maximum number of nodes to be added. Only relevant when ``grow_policy=lossguide`` is set.
+  - Maximum number of nodes to be added.  Not used by ``exact`` tree method.
 
 * ``max_bin``, [default=256]
 
-  - Only used if ``tree_method`` is set to ``hist``.
+  - Only used if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
-* ``predictor``, [default=``cpu_predictor``]
+* ``predictor``, [default= ``auto``]
 
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
 
+    - ``auto``: Configure predictor based on heuristics.
     - ``cpu_predictor``: Multicore CPU prediction algorithm.
-    - ``gpu_predictor``: Prediction using GPU. Default when ``tree_method`` is ``gpu_exact`` or ``gpu_hist``.
+    - ``gpu_predictor``: Prediction using GPU.  Used when ``tree_method`` is ``gpu_hist``.
+      When ``predictor`` is set to default value ``auto``, the ``gpu_hist`` tree method is
+      able to provide GPU based prediction without copying training data to GPU memory.
+      If ``gpu_predictor`` is explicitly specified, then all data is copied into GPU, only
+      recommended for performing prediction tasks.
 
 * ``num_parallel_tree``, [default=1]
+
   - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.
+
+* ``monotone_constraints``
+
+  - Constraint of variable monotonicity.  See :doc:`/tutorials/monotonic` for more information.
+
+* ``interaction_constraints``
+
+  - Constraints for interaction representing permitted interactions.  The constraints must
+    be specified in the form of a nest list, e.g. ``[[0, 1], [2, 3, 4]]``, where each inner
+    list is a group of indices of features that are allowed to interact with each other.
+    See :doc:`/tutorials/feature_interaction_constraint` for more information.
+
+Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
+===========================================================================
+
+* ``single_precision_histogram``, [default= ``false``]
+
+  - Use single precision to build histograms instead of double precision.
+
+* ``max_cat_to_onehot``
+
+  .. versionadded:: 1.6
+
+  .. note:: The support for this parameter is experimental.
+
+  - A threshold for deciding whether XGBoost should use one-hot encoding based split for
+    categorical data.  When number of categories is lesser than the threshold then one-hot
+    encoding is chosen, otherwise the categories will be partitioned into children nodes.
+    Only relevant for regression and binary classification. Also, ``exact`` tree method is
+    not supported
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
@@ -196,12 +261,12 @@ Additional parameters for Dart Booster (``booster=dart``)
 
   If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
   some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-  not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+  not the training data. To obtain correct results on test sets, set ``iteration_range`` to
   a nonzero value, e.g.
 
   .. code-block:: python
 
-    preds = bst.predict(dtest, ntree_limit=num_round)
+    preds = bst.predict(dtest, iteration_range=(0, num_round))
 
 * ``sample_type`` [default= ``uniform``]
 
@@ -273,15 +338,6 @@ Parameters for Linear Booster (``booster=gblinear``)
 
   - The number of top features to select in ``greedy`` and ``thrifty`` feature selector. The value of 0 means using all the features.
 
-Parameters for Tweedie Regression (``objective=reg:tweedie``)
-=============================================================
-* ``tweedie_variance_power`` [default=1.5]
-
-  - Parameter that controls the variance of the Tweedie distribution ``var(y) ~ E(y)^tweedie_variance_power``
-  - range: (1,2)
-  - Set closer to 2 to shift towards a gamma distribution
-  - Set closer to 1 to shift towards a Poisson distribution.
-
 ************************
 Learning Task Parameters
 ************************
@@ -291,23 +347,27 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
-  - ``reg:logistic``: logistic regression
+  - ``reg:logistic``: logistic regression.
+  - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-  - ``count:poisson`` --poisson regression for count data, output mean of poisson distribution
+  - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
 
-    - ``max_delta_step`` is set to 0.7 by default in poisson regression (used to safeguard optimization)
+    + ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 
   - ``survival:cox``: Cox regression for right censored survival time data (negative values are considered right censored).
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).
+  - ``survival:aft``: Accelerated failure time model for censored survival time data.
+    See :doc:`/tutorials/aft_survival_analysis` for details.
+  - ``aft_loss_distribution``: Probability Density Function used by ``survival:aft`` objective and ``aft-nloglik`` metric.
   - ``multi:softmax``: set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - ``multi:softprob``: same as softmax, but output a vector of ``ndata * nclass``, which can be further reshaped to ``ndata * nclass`` matrix. The result contains predicted probability of each data point belonging to each class.
   - ``rank:pairwise``: Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized
   - ``rank:ndcg``: Use LambdaMART to perform list-wise ranking where `Normalized Discounted Cumulative Gain (NDCG) <http://en.wikipedia.org/wiki/NDCG>`_ is maximized
   - ``rank:map``: Use LambdaMART to perform list-wise ranking where `Mean Average Precision (MAP) <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_ is maximized
-  - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Applications>`_.
-  - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Applications>`_.
+  - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications>`_.
+  - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications>`_.
 
 * ``base_score`` [default=0.5]
 
@@ -316,20 +376,34 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``eval_metric`` [default according to objective]
 
-  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and error for classification, mean average precision for ranking)
+  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, mean average precision for ranking)
   - User can add multiple evaluation metrics. Python users: remember to pass the metrics in as list of parameters pairs instead of map, so that latter ``eval_metric`` won't override previous one
   - The choices are listed below:
 
     - ``rmse``: `root mean square error <http://en.wikipedia.org/wiki/Root_mean_square_error>`_
     - ``rmsle``: root mean square log error: :math:`\sqrt{\frac{1}{N}[log(pred + 1) - log(label + 1)]^2}`. Default metric of ``reg:squaredlogerror`` objective. This metric reduces errors generated by outliers in dataset.  But because ``log`` function is employed, ``rmsle`` might output ``nan`` when prediction value is less than -1.  See ``reg:squaredlogerror`` for other requirements.
     - ``mae``: `mean absolute error <https://en.wikipedia.org/wiki/Mean_absolute_error>`_
+    - ``mape``: `mean absolute percentage error <https://en.wikipedia.org/wiki/Mean_absolute_percentage_error>`_
+    - ``mphe``: `mean Pseudo Huber error <https://en.wikipedia.org/wiki/Huber_loss>`_. Default metric of ``reg:pseudohubererror`` objective.
     - ``logloss``: `negative log-likelihood <http://en.wikipedia.org/wiki/Log-likelihood>`_
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
     - ``merror``: Multiclass classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``.
     - ``mlogloss``: `Multiclass logloss <http://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html>`_.
-    - ``auc``: `Area under the curve <http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve>`_
-    - ``aucpr``: `Area under the PR curve <https://en.wikipedia.org/wiki/Precision_and_recall>`_
+    - ``auc``: `Receiver Operating Characteristic Area under the Curve <https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve>`_.
+      Available for classification and learning-to-rank tasks.
+
+      - When used with binary classification, the objective should be ``binary:logistic`` or similar functions that work on probability.
+      - When used with multi-class classification, objective should be ``multi:softprob`` instead of ``multi:softmax``, as the latter doesn't output probability.  Also the AUC is calculated by 1-vs-rest with reference class weighted by class prevalence.
+      - When used with LTR task, the AUC is computed by comparing pairs of documents to count correctly sorted pairs.  This corresponds to pairwise learning to rank.  The implementation has some issues with average AUC around groups and distributed workers not being well-defined.
+      - On a single machine the AUC calculation is exact. In a distributed environment the AUC is a weighted average over the AUC of training rows on each node - therefore, distributed AUC is an approximation sensitive to the distribution of data across workers. Use another metric in distributed environments if precision and reproducibility are important.
+      - When input dataset contains only negative or positive samples, the output is `NaN`.  The behavior is implementation defined, for instance, ``scikit-learn`` returns :math:`0.5` instead.
+
+    - ``aucpr``: `Area under the PR curve <https://en.wikipedia.org/wiki/Precision_and_recall>`_.
+      Available for classification and learning-to-rank tasks.
+
+      After XGBoost 1.6, both of the requirements and restrictions for using ``aucpr`` in classification problem are similar to ``auc``.  For ranking task, only binary relevance label :math:`y \in [0, 1]` is supported.  Different from ``map (mean average precision)``, ``aucpr`` calculates the *interpolated* area under precision recall curve using continuous interpolation.
+
     - ``ndcg``: `Normalized Discounted Cumulative Gain <http://en.wikipedia.org/wiki/NDCG>`_
     - ``map``: `Mean Average Precision <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_
     - ``ndcg@n``, ``map@n``: 'n' can be assigned as an integer to cut off the top positions in the lists for evaluation.
@@ -339,10 +413,32 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``cox-nloglik``: negative partial log-likelihood for Cox proportional hazards regression
     - ``gamma-deviance``: residual deviance for gamma regression
     - ``tweedie-nloglik``: negative log-likelihood for Tweedie regression (at a specified value of the ``tweedie_variance_power`` parameter)
+    - ``aft-nloglik``: Negative log likelihood of Accelerated Failure Time model.
+      See :doc:`/tutorials/aft_survival_analysis` for details.
+    - ``interval-regression-accuracy``: Fraction of data points whose predicted labels fall in the interval-censored labels.
+      Only applicable for interval-censored data.  See :doc:`/tutorials/aft_survival_analysis` for details.
 
 * ``seed`` [default=0]
 
-  - Random number seed.
+  - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
+
+* ``seed_per_iteration`` [default= ``false``]
+
+  - Seed PRNG determnisticly via iterator number.
+
+Parameters for Tweedie Regression (``objective=reg:tweedie``)
+=============================================================
+* ``tweedie_variance_power`` [default=1.5]
+
+  - Parameter that controls the variance of the Tweedie distribution ``var(y) ~ E(y)^tweedie_variance_power``
+  - range: (1,2)
+  - Set closer to 2 to shift towards a gamma distribution
+  - Set closer to 1 to shift towards a Poisson distribution.
+
+Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
+===========================================================
+
+* ``huber_slope`` : A parameter used for Pseudo-Huber loss to define the :math:`\delta` term. [default = 1.0]
 
 ***********************
 Command Line Parameters

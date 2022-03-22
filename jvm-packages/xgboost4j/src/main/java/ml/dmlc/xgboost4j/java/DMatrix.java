@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.java;
 import java.util.Iterator;
 
 import ml.dmlc.xgboost4j.LabeledPoint;
+import ml.dmlc.xgboost4j.java.util.BigDenseMatrix;
 
 /**
  * DMatrix for xgboost.
@@ -123,11 +124,25 @@ public class DMatrix {
    * @param nrow number of rows
    * @param ncol number of columns
    * @throws XGBoostError native error
+   *
+   * @deprecated Please specify the missing value explicitly using
+   * {@link DMatrix(float[], int, int, float)}
    */
+  @Deprecated
   public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));
     handle = out[0];
+  }
+
+  /**
+   * create DMatrix from a BigDenseMatrix
+   *
+   * @param matrix instance of BigDenseMatrix
+   * @throws XGBoostError native error
+   */
+  public DMatrix(BigDenseMatrix matrix) throws XGBoostError {
+    this(matrix, 0.0f);
   }
 
   /**
@@ -144,12 +159,82 @@ public class DMatrix {
   }
 
   /**
+   * create DMatrix from dense matrix
+   * @param matrix instance of BigDenseMatrix
+   * @param missing the specified value to represent the missing value
+   */
+  public DMatrix(BigDenseMatrix matrix, float missing) throws XGBoostError {
+    long[] out = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMatRef(matrix.address, matrix.nrow,
+        matrix.ncol, missing, out));
+    handle = out[0];
+  }
+
+  /**
    * used for DMatrix slice
    */
   protected DMatrix(long handle) {
     this.handle = handle;
   }
 
+  /**
+   * Create the normal DMatrix from column array interface
+   * @param columnBatch the XGBoost ColumnBatch to provide the cuda array interface
+   *                    of feature columns
+   * @param missing missing value
+   * @param nthread threads number
+   * @throws XGBoostError
+   */
+  public DMatrix(ColumnBatch columnBatch, float missing, int nthread) throws XGBoostError {
+    long[] out = new long[1];
+    String json = columnBatch.getFeatureArrayInterface();
+    if (json == null || json.isEmpty()) {
+      throw new XGBoostError("Expecting non-empty feature columns' array interface");
+    }
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromArrayInterfaceColumns(
+        json, missing, nthread, out));
+    handle = out[0];
+  }
+
+  /**
+   * Set label of DMatrix from cuda array interface
+   *
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of label column
+   * @throws XGBoostError native error
+   */
+  public void setLabel(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("label", column.getArrayInterfaceJson());
+  }
+
+  /**
+   * Set weight of DMatrix from cuda array interface
+   *
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of weight column
+   * @throws XGBoostError native error
+   */
+  public void setWeight(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("weight", column.getArrayInterfaceJson());
+  }
+
+  /**
+   * Set base margin of DMatrix from cuda array interface
+   *
+   * @param column the XGBoost Column to provide the cuda array interface
+   *               of base margin column
+   * @throws XGBoostError native error
+   */
+  public void setBaseMargin(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("base_margin", column.getArrayInterfaceJson());
+  }
+
+  private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {
+    if (json == null || json.isEmpty()) {
+      throw new XGBoostError("Empty " + type + " columns' array interface");
+    }
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, type, json));
+  }
 
   /**
    * set label of dmatrix
@@ -201,7 +286,17 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setGroup(int[] group) throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetGroup(handle, group));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetUIntInfo(handle, "group", group));
+  }
+
+  /**
+   * Get group sizes of DMatrix
+   *
+   * @throws XGBoostError native error
+   * @return group size as array
+   */
+  public int[] getGroup() throws XGBoostError {
+    return getIntInfo("group_ptr");
   }
 
   private float[] getFloatInfo(String field) throws XGBoostError {

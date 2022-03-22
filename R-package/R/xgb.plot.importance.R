@@ -92,28 +92,27 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
     importance_matrix <- head(importance_matrix, top_n)
   }
   if (rel_to_first) {
-    importance_matrix[, Importance := Importance/max(abs(Importance))]
+    importance_matrix[, Importance := Importance / max(abs(Importance))]
   }
   if (is.null(cex)) {
-    cex <- 2.5/log2(1 + nrow(importance_matrix))
+    cex <- 2.5 / log2(1 + nrow(importance_matrix))
   }
 
   if (plot) {
-    op <- par(no.readonly = TRUE)
-    mar <- op$mar
+    original_mar <- par()$mar
+
+    # reset margins so this function doesn't have side effects
+    on.exit({par(mar = original_mar)})
+
+    mar <- original_mar
     if (!is.null(left_margin))
       mar[2] <- left_margin
     par(mar = mar)
 
     # reverse the order of rows to have the highest ranked at the top
-    importance_matrix[nrow(importance_matrix):1,
+    importance_matrix[rev(seq_len(nrow(importance_matrix))),
                       barplot(Importance, horiz = TRUE, border = NA, cex.names = cex,
                               names.arg = Feature, las = 1, ...)]
-    grid(NULL, NA)
-    # redraw over the grid
-    importance_matrix[nrow(importance_matrix):1,
-                      barplot(Importance, horiz = TRUE, border = NA, add = TRUE)]
-    par(op)
   }
 
   invisible(importance_matrix)

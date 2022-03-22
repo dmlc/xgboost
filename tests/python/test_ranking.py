@@ -1,12 +1,9 @@
 import numpy as np
 from scipy.sparse import csr_matrix
+import testing as tm
 import xgboost
-import sys
 import os
-from sklearn.datasets import load_svmlight_files
-import unittest
 import itertools
-import glob
 import shutil
 import urllib.request
 import zipfile
@@ -35,6 +32,7 @@ def test_ranking_with_unweighted_data():
     assert all(p <= q for p, q in zip(auc_rec, auc_rec[1:]))
     auc_rec = evals_result['train']['aucpr']
     assert all(p <= q for p, q in zip(auc_rec, auc_rec[1:]))
+
 
 def test_ranking_with_weighted_data():
     Xrow = np.array([1, 2, 6, 8, 11, 14, 16, 17])
@@ -75,27 +73,17 @@ def test_ranking_with_weighted_data():
         assert all(p <= q for p, q in zip(is_sorted, is_sorted[1:]))
 
 
-class TestRanking(unittest.TestCase):
+class TestRanking:
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         """
         Download and setup the test fixtures
         """
-        # download the test data
         cls.dpath = 'demo/rank/'
-        src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
-        target = cls.dpath + '/MQ2008.zip'
-        urllib.request.urlretrieve(url=src, filename=target)
+        (x_train, y_train, qid_train, x_test, y_test, qid_test,
+         x_valid, y_valid, qid_valid) = tm.get_mq2008(cls.dpath)
 
-        with zipfile.ZipFile(target, 'r') as f:
-            f.extractall(path=cls.dpath)
-
-        x_train, y_train, qid_train, x_test, y_test, qid_test, x_valid, y_valid, qid_valid = load_svmlight_files(
-            (cls.dpath + "MQ2008/Fold1/train.txt",
-             cls.dpath + "MQ2008/Fold1/test.txt",
-             cls.dpath + "MQ2008/Fold1/vali.txt"),
-            query_id=True, zero_based=False)
         # instantiate the matrices
         cls.dtrain = xgboost.DMatrix(x_train, y_train)
         cls.dvalid = xgboost.DMatrix(x_valid, y_valid)
@@ -115,18 +103,21 @@ class TestRanking(unittest.TestCase):
         # model training parameters
         cls.params = {'objective': 'rank:pairwise',
                       'booster': 'gbtree',
-                      'silent': 0,
                       'eval_metric': ['ndcg']
                       }
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         """
         Cleanup test artifacts from download and unpacking
         :return:
         """
-        os.remove(cls.dpath + "MQ2008.zip")
-        shutil.rmtree(cls.dpath + "MQ2008")
+        zip_f = cls.dpath + "MQ2008.zip"
+        if os.path.exists(zip_f):
+            os.remove(zip_f)
+        directory = cls.dpath + "MQ2008"
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
 
     def test_training(self):
         """
@@ -135,7 +126,7 @@ class TestRanking(unittest.TestCase):
         # specify validations set to watch performance
         watchlist = [(self.dtest, 'eval'), (self.dtrain, 'train')]
         bst = xgboost.train(self.params, self.dtrain, num_boost_round=2500,
-                        early_stopping_rounds=10, evals=watchlist)
+                            early_stopping_rounds=10, evals=watchlist)
         assert bst.best_score > 0.98
 
     def test_cv(self):
@@ -143,17 +134,19 @@ class TestRanking(unittest.TestCase):
         Test cross-validation with a group specified
         """
         cv = xgboost.cv(self.params, self.dtrain, num_boost_round=2500,
-                    early_stopping_rounds=10, nfold=10, as_pandas=False)
+                        early_stopping_rounds=10, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
-        self.assertSetEqual(set(cv.keys()), {'test-ndcg-mean', 'train-ndcg-mean', 'test-ndcg-std', 'train-ndcg-std'},
-                            "CV results dict key mismatch")
+        assert set(cv.keys()) == {
+            'test-ndcg-mean', 'train-ndcg-mean', 'test-ndcg-std', 'train-ndcg-std'
+        }, "CV results dict key mismatch."
 
     def test_cv_no_shuffle(self):
         """
         Test cross-validation with a group specified
         """
         cv = xgboost.cv(self.params, self.dtrain, num_boost_round=2500,
-                    early_stopping_rounds=10, shuffle=False, nfold=10, as_pandas=False)
+                        early_stopping_rounds=10, shuffle=False, nfold=10,
+                        as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == 4
 
@@ -161,8 +154,6 @@ class TestRanking(unittest.TestCase):
         """
         Retrieve the group number from the dmatrix
         """
-        # control that should work
-        self.dtrain.get_uint_info('root_index')
         # test the new getter
         self.dtrain.get_uint_info('group_ptr')
 

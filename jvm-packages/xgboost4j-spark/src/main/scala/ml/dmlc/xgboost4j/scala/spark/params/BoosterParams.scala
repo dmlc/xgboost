@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014,2021 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
+import org.apache.spark.ml.param.{DoubleParam, IntParam, BooleanParam, Param, Params}
 
 private[spark] trait BoosterParams extends Params {
 
@@ -145,11 +145,12 @@ private[spark] trait BoosterParams extends Params {
   final def getAlpha: Double = $(alpha)
 
   /**
-   * The tree construction algorithm used in XGBoost. options: {'auto', 'exact', 'approx'}
-   *  [default='auto']
+   * The tree construction algorithm used in XGBoost. options:
+   * {'auto', 'exact', 'approx','gpu_hist'} [default='auto']
    */
   final val treeMethod = new Param[String](this, "treeMethod",
-    "The tree construction algorithm used in XGBoost, options: {'auto', 'exact', 'approx', 'hist'}",
+    "The tree construction algorithm used in XGBoost, options: " +
+      "{'auto', 'exact', 'approx', 'hist', 'gpu_hist'}",
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
 
   final def getTreeMethod: String = $(treeMethod)
@@ -172,6 +173,14 @@ private[spark] trait BoosterParams extends Params {
     (value: Int) => value > 0)
 
   final def getMaxBins: Int = $(maxBins)
+
+  /**
+   * whether to build histograms using single precision floating point values
+   */
+  final val singlePrecisionHistogram = new BooleanParam(this, "singlePrecisionHistogram",
+    "whether to use single precision to build histograms")
+
+  final def getSinglePrecisionHistogram: Boolean = $(singlePrecisionHistogram)
 
   /**
    * This is only used for approximate greedy algorithm.
@@ -273,18 +282,18 @@ private[spark] trait BoosterParams extends Params {
 
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
-    growPolicy -> "depthwise", maxBins -> 16,
+    growPolicy -> "depthwise", maxBins -> 256,
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
     scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
     rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0)
 }
 
-private[spark] object BoosterParams {
+private[scala] object BoosterParams {
 
   val supportedBoosters = HashSet("gbtree", "gblinear", "dart")
 
-  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist")
+  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist", "gpu_hist")
 
   val supportedGrowthPolicies = HashSet("depthwise", "lossguide")
 

@@ -15,16 +15,23 @@ Contents
   :maxdepth: 2
   :titlesonly:
 
+  install
   build
   get_started
   tutorials/index
   faq
   XGBoost User Forum <https://discuss.xgboost.ai>
-  GPU support <gpu/index>
+  GPU Support <gpu/index>
   parameter
-  Python package <python/index>
-  R package <R-package/index>
-  JVM package <jvm/index>
-  Julia package <julia>
-  CLI interface <cli>
+  prediction
+  treemethod
+  Python Package <python/index>
+  R Package <R-package/index>
+  JVM Package <jvm/index>
+  Ruby Package <https://github.com/ankane/xgb>
+  Swift Package <https://github.com/kongzii/SwiftXGBoost>
+  Julia Package <julia>
+  C Package <c>
+  C++ Interface <c++>
+  CLI Interface <cli>
   contrib/index

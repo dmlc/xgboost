@@ -56,7 +56,7 @@ class XGBoostModel (booster: Booster) extends Serializable {
       (it: Iterator[Vector]) => {
         val mapper = (x: Vector) => {
           val (index, value) = x.toSeq.unzip
-          LabeledPoint(0.0f, index.toArray, value.map(_.toFloat).toArray)
+          LabeledPoint(0.0f, x.size, index.toArray, value.map(_.toFloat).toArray)
         }
         val dataIter = for (x <- it) yield mapper(x)
         val dmat = new DMatrix(dataIter, null)

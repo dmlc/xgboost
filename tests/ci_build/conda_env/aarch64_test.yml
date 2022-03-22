@@ -1,0 +1,34 @@
+name: aarch64_test
+channels:
+- conda-forge
+dependencies:
+- python=3.7
+- pip
+- wheel
+- pytest
+- pytest-cov
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- matplotlib
+- dask
+- distributed
+- hypothesis
+- graphviz
+- python-graphviz
+- codecov
+- cmake
+- ninja
+- boto3
+- jsonschema
+- boto3
+- awscli
+- numba
+- llvmlite
+- cffi
+- pyarrow
+- pip:
+  - shap
+  - awscli
+  - auditwheel

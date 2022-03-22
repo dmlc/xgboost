@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2022 by XGBoost Contributors
  * \file tree_updater.h
  * \brief General primitive for tree learning,
  *   Updating a collection of trees given the information.
@@ -11,32 +11,44 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
+#include <xgboost/linalg.h>
+#include <xgboost/model.h>
+#include <xgboost/task.h>
+#include <xgboost/tree_model.h>
 
 #include <functional>
-#include <vector>
-#include <utility>
 #include <string>
-
-#include "../../src/common/host_device_vector.h"
+#include <utility>
+#include <vector>
 
 namespace xgboost {
+
+class Json;
+
 /*!
  * \brief interface of tree update module, that performs update of a tree.
  */
-class TreeUpdater {
+class TreeUpdater : public Configurable {
  protected:
-  LearnerTrainParam const* tparam_;
+  GenericParameter const* ctx_ = nullptr;
 
  public:
   /*! \brief virtual destructor */
-  virtual ~TreeUpdater() = default;
+  ~TreeUpdater() override = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
    */
-  virtual void Init(const std::vector<std::pair<std::string, std::string> >& args) = 0;
+  virtual void Configure(const Args& args) = 0;
+  /*! \brief Whether this updater can be used for updating existing trees.
+   *
+   *  Some updaters are used for building new trees (like `hist`), while some others are
+   *  used for modifying existing trees (like `prune`).  Return true if it can modify
+   *  existing trees.
+   */
+  virtual bool CanModifyTree() const { return false; }
   /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
@@ -60,16 +72,19 @@ class TreeUpdater {
    *         the prediction cache. If true, the prediction cache will have been
    *         updated by the time this function returns.
    */
-  virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     HostDeviceVector<bst_float>* out_preds) {
+  virtual bool UpdatePredictionCache(const DMatrix * /*data*/,
+                                     linalg::VectorView<float> /*out_preds*/) {
     return false;
   }
+
+  virtual char const* Name() const = 0;
 
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
+   * \param tparam A global runtime parameter
    */
-  static TreeUpdater* Create(const std::string& name, LearnerTrainParam const* tparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam, ObjInfo task);
 };
 
 /*!
@@ -77,8 +92,7 @@ class TreeUpdater {
  */
 struct TreeUpdaterReg
     : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
-                                        std::function<TreeUpdater* ()> > {
-};
+                                        std::function<TreeUpdater*(ObjInfo task)> > {};
 
 /*!
  * \brief Macro to register tree updater.

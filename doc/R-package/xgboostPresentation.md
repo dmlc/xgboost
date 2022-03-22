@@ -5,9 +5,9 @@ XGBoost R Tutorial
 ## Introduction
 
 
-**Xgboost** is short for e**X**treme **G**radient **Boost**ing package.
+**XGBoost** is short for e**X**treme **G**radient **Boost**ing package.
 
-The purpose of this Vignette is to show you how to use **Xgboost** to build a model and make predictions.
+The purpose of this Vignette is to show you how to use **XGBoost** to build a model and make predictions.
 
 It is an efficient and scalable implementation of gradient boosting framework by @friedman2000additive and @friedman2001greedy. Two solvers are included:
 
@@ -32,10 +32,10 @@ It has several features:
 ## Installation
 
 
-### Github version
+### GitHub version
 
 
-For weekly updated version (highly recommended), install from *Github*:
+For weekly updated version (highly recommended), install from *GitHub*:
 
 
 ```r
@@ -44,7 +44,7 @@ drat:::addRepo("dmlc")
 install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
 ```
 
-> *Windows* user will need to install [Rtools](http://cran.r-project.org/bin/windows/Rtools/) first.
+> *Windows* users will need to install [Rtools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
 ### CRAN version
 
@@ -97,7 +97,7 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> In the real world, it would be up to you to make this division between `train` and `test` data. The way to do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+> In the real world, it would be up to you to make this division between `train` and `test` data. The way to do it is out of scope for this article, however `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
 
 Each variable is a `list` containing two things, `label` and `data`:
 
@@ -141,7 +141,7 @@ dim(test$data)
 ## [1] 1611  126
 ```
 
-This dataset is very small to not make the **R** package too heavy, however **XGBoost** is built to manage huge dataset very efficiently.
+This dataset is very small to not make the **R** package too heavy, however **XGBoost** is built to manage huge datasets very efficiently.
 
 As seen below, the `data` are stored in a `dgCMatrix` which is a *sparse* matrix and `label` vector is a `numeric` vector (`{0,1}`):
 
@@ -171,13 +171,13 @@ This step is the most critical part of the process for the quality of our model.
 
 We are using the `train` data. As explained above, both `data` and `label` are stored in a `list`.
 
-In a *sparse* matrix, cells containing `0` are not stored in memory. Therefore, in a dataset mainly made of `0`, memory size is reduced. It is very usual to have such dataset.
+In a *sparse* matrix, cells containing `0` are not stored in memory. Therefore, in a dataset mainly made of `0`, memory size is reduced. It is very common to have such a dataset.
 
 We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
 * `max.depth = 2`: the trees won't be deep, because our case is very simple ;
-* `nthread = 2`: the number of cpu threads we are going to use;
+* `nthread = 2`: the number of CPU threads we are going to use;
 * `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 
@@ -190,7 +190,7 @@ bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta 
 ## [1]	train-error:0.022263
 ```
 
-> More complex the relationship between your features and your `label` is, more passes you need.
+> The more complex the relationship between your features and your `label` is, the more passes you need.
 
 #### Parameter variations
 
@@ -210,7 +210,7 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 
 ##### xgb.DMatrix
 
-**XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be useful for the most advanced features we will discover later.
+**XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. This will be useful for the most advanced features we will discover later.
 
 
 ```r
@@ -225,9 +225,9 @@ bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround
 
 ##### Verbose option
 
-**XGBoost** has several features to help you to view how the learning progress internally. The purpose is to help you to set the best parameters, which is the key of your model quality.
+**XGBoost** has several features to help you view the learning progress internally. The purpose is to help you to set the best parameters, which is the key of your model quality.
 
-One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced technics).
+One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced techniques).
 
 
 ```r
@@ -360,11 +360,11 @@ dtest <- xgb.DMatrix(data = test$data, label=test$label)
 
 Both `xgboost` (simple) and `xgb.train` (advanced) functions train models.
 
-One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following techniques will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
+One of the special features of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to overfitting. You can see this feature as a cousin of a cross-validation method. The following techniques will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
 
-One way to measure progress in learning of a model is to provide to **XGBoost** a second dataset already classified. Therefore it can learn on the first dataset and test its model on the second one. Some metrics are measured after each round during the learning.
+One way to measure progress in the learning of a model is to provide to **XGBoost** a second dataset already classified. Therefore it can learn on the first dataset and test its model on the second one. Some metrics are measured after each round during the learning.
 
-> in some way it is similar to what we have done above with the average error. The main difference is that below it was after building the model, and now it is during the construction that we measure errors.
+> in some way it is similar to what we have done above with the average error. The main difference is that above it was after building the model, and now it is during the construction that we measure errors.
 
 For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
@@ -380,11 +380,11 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nrounds=2, watchl
 ## [1]	train-error:0.022263	test-error:0.021726
 ```
 
-**XGBoost** has computed at each round the same average error metric than seen above (we set `nrounds` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
+**XGBoost** has computed at each round the same average error metric seen above (we set `nrounds` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
-If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+If with your own dataset you do not have such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
@@ -403,11 +403,11 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nrounds=2, watchl
 ### Linear boosting
 
 
-Until now, all the learnings we have performed were based on boosting trees. **XGBoost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
+Until now, all the learnings we have performed were based on boosting trees. **XGBoost** implements a second algorithm, based on linear boosting. The only difference with the previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
 
 
 ```r
-bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nrounds=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, booster = "gblinear", nthread = 2, nrounds=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
 
 ```
@@ -415,9 +415,9 @@ bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nr
 ## [1]	train-error:0.004146	train-logloss:0.069885	test-error:0.003724	test-logloss:0.068081
 ```
 
-In this specific case, *linear boosting* gets slightly better performance metrics than decision trees based algorithm.
+In this specific case, *linear boosting* gets slightly better performance metrics than a decision tree based algorithm.
 
-In simple cases, it will happen because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
+In simple cases, this will happen because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
 
 ### Manipulating xgb.DMatrix
 
@@ -457,7 +457,7 @@ bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nthread = 2, nrounds=2, watch
 
 #### Information extraction
 
-Information can be extracted from `xgb.DMatrix` using `getinfo` function. Hereafter we will extract `label` data.
+Information can be extracted from an `xgb.DMatrix` using `getinfo` function. Hereafter we will extract `label` data.
 
 
 ```r
@@ -489,23 +489,23 @@ You can dump the tree you learned using `xgb.dump` into a text file.
 
 
 ```r
-xgb.dump(bst, with.stats = T)
+xgb.dump(bst, with_stats = TRUE)
 ```
 
 ```
-##  [1] "booster[0]"                                                          
+##  [1] "booster[0]"
 ##  [2] "0:[f28<-1.00136e-05] yes=1,no=2,missing=1,gain=4000.53,cover=1628.25"
-##  [3] "1:[f55<-1.00136e-05] yes=3,no=4,missing=3,gain=1158.21,cover=924.5"  
-##  [4] "3:leaf=1.71218,cover=812"                                            
-##  [5] "4:leaf=-1.70044,cover=112.5"                                         
+##  [3] "1:[f55<-1.00136e-05] yes=3,no=4,missing=3,gain=1158.21,cover=924.5"
+##  [4] "3:leaf=1.71218,cover=812"
+##  [5] "4:leaf=-1.70044,cover=112.5"
 ##  [6] "2:[f108<-1.00136e-05] yes=5,no=6,missing=5,gain=198.174,cover=703.75"
-##  [7] "5:leaf=-1.94071,cover=690.5"                                         
-##  [8] "6:leaf=1.85965,cover=13.25"                                          
-##  [9] "booster[1]"                                                          
+##  [7] "5:leaf=-1.94071,cover=690.5"
+##  [8] "6:leaf=1.85965,cover=13.25"
+##  [9] "booster[1]"
 ## [10] "0:[f59<-1.00136e-05] yes=1,no=2,missing=1,gain=832.545,cover=788.852"
-## [11] "1:[f28<-1.00136e-05] yes=3,no=4,missing=3,gain=569.725,cover=768.39" 
-## [12] "3:leaf=0.784718,cover=458.937"                                       
-## [13] "4:leaf=-0.96853,cover=309.453"                                       
+## [11] "1:[f28<-1.00136e-05] yes=3,no=4,missing=3,gain=569.725,cover=768.39"
+## [12] "3:leaf=0.784718,cover=458.937"
+## [13] "4:leaf=-0.96853,cover=309.453"
 ## [14] "2:leaf=-6.23624,cover=20.4624"
 ```
 
@@ -522,7 +522,7 @@ xgb.plot.tree(model = bst)
 
 Maybe your dataset is big, and it takes time to train a model on it? May be you are not a big fan of losing time in redoing the same task again and again? In these very rare cases, you will want to save your model and load it when required.
 
-Hopefully for you, **XGBoost** implements such functions.
+Helpfully for you, **XGBoost** implements such functions.
 
 
 ```r

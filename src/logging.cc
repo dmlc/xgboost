@@ -5,17 +5,19 @@
  * \author Tianqi Chen
  */
 #include <rabit/rabit.h>
-#include <dmlc/parameter.h>
-#include <xgboost/logging.h>
 
 #include <iostream>
 #include <map>
 
+#include "xgboost/parameter.h"
+#include "xgboost/logging.h"
+#include "xgboost/json.h"
+
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 // Override logging mechanism for non-R interfaces
 void dmlc::CustomLogMessage::Log(const std::string& msg) {
-  const xgboost::LogCallbackRegistry* registry
-    = xgboost::LogCallbackRegistryStore::Get();
+  const xgboost::LogCallbackRegistry *registry =
+      xgboost::LogCallbackRegistryStore::Get();
   auto callback = registry->Get();
   callback(msg.c_str());
 }
@@ -39,41 +41,15 @@ TrackerLogger::~TrackerLogger() {
 
 namespace xgboost {
 
-DMLC_REGISTER_PARAMETER(ConsoleLoggerParam);
-
-ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
-    ConsoleLogger::DefaultVerbosity();
-
-ConsoleLoggerParam ConsoleLogger::param_ = ConsoleLoggerParam();
-
 bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
-  return verbosity <= global_verbosity_ || verbosity == LV::kIgnore;
+  return static_cast<int>(verbosity) <=
+             (GlobalConfigThreadLocalStore::Get()->verbosity) ||
+         verbosity == LV::kIgnore;
 }
 
-void ConsoleLogger::Configure(const std::map<std::string, std::string>& args) {
-  param_.InitAllowUnknown(args);
-  // Deprecated, but when trying to display deprecation message some R
-  // tests trying to catch stdout will fail.
-  if (param_.silent) {
-    global_verbosity_ = LogVerbosity::kSilent;
-    return;
-  }
-  switch (param_.verbosity) {
-    case 0:
-      global_verbosity_ = LogVerbosity::kSilent;
-      break;
-    case 1:
-      global_verbosity_ = LogVerbosity::kWarning;
-      break;
-    case 2:
-      global_verbosity_ = LogVerbosity::kInfo;
-      break;
-    case 3:
-      global_verbosity_ = LogVerbosity::kDebug;
-    default:
-      // global verbosity doesn't require kIgnore
-      break;
-  }
+void ConsoleLogger::Configure(Args const& args) {
+  auto& param = *GlobalConfigThreadLocalStore::Get();
+  param.UpdateAllowUnknown(args);
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
@@ -81,7 +57,25 @@ ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::GlobalVerbosity() {
-  return global_verbosity_;
+  LogVerbosity global_verbosity { LogVerbosity::kWarning };
+  switch (GlobalConfigThreadLocalStore::Get()->verbosity) {
+  case 0:
+    global_verbosity = LogVerbosity::kSilent;
+    break;
+  case 1:
+    global_verbosity = LogVerbosity::kWarning;
+    break;
+  case 2:
+    global_verbosity = LogVerbosity::kInfo;
+    break;
+  case 3:
+    global_verbosity = LogVerbosity::kDebug;
+  default:
+    // global verbosity doesn't require kIgnore
+    break;
+  }
+
+  return global_verbosity;
 }
 
 ConsoleLogger::ConsoleLogger(LogVerbosity cur_verb) :

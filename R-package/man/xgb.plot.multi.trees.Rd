@@ -4,8 +4,15 @@
 \alias{xgb.plot.multi.trees}
 \title{Project all trees on one tree and plot it}
 \usage{
-xgb.plot.multi.trees(model, feature_names = NULL, features_keep = 5,
-  plot_width = NULL, plot_height = NULL, render = TRUE, ...)
+xgb.plot.multi.trees(
+  model,
+  feature_names = NULL,
+  features_keep = 5,
+  plot_width = NULL,
+  plot_height = NULL,
+  render = TRUE,
+  ...
+)
 }
 \arguments{
 \item{model}{produced by the \code{xgb.train} function.}

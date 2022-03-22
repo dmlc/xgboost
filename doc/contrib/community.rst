@@ -27,6 +27,8 @@ Committers are individuals who are granted the write access to the project. A co
 
 The Project Management Committee(PMC) consists group of active committers that moderate the discussion, manage the project release, and proposes new committer/PMC members. Potential candidates are usually proposed via an internal discussion among PMCs, followed by a consensus approval, i.e. least 3 +1 votes, and no vetoes. Any veto must be accompanied by reasoning. PMCs should serve the community by upholding the community practices and guidelines XGBoost a better community for everyone. PMCs should strive to only nominate new candidates outside of their own organization.
 
+The PMC is in charge of the project's `continuous integration (CI) <https://en.wikipedia.org/wiki/Continuous_integration>`_ and testing infrastructure. Currently, we host our own Jenkins server at https://xgboost-ci.net. The PMC shall appoint committer(s) to manage the CI infrastructure. The PMC may accept 3rd-party donations and sponsorships that would defray the cost of the CI infrastructure. See :ref:`donation_policy`.
+
 
 Reviewers
 ---------

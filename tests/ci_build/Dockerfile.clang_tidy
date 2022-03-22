@@ -1,5 +1,6 @@
-ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu18.04
+ARG CUDA_VERSION_ARG
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu18.04
+ARG CUDA_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -7,14 +8,19 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential python3 python3-pip llvm-7 clang-tidy-7 clang-7 && \
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    apt-get install -y tar unzip wget git build-essential python3 python3-pip software-properties-common \
+                       apt-transport-https ca-certificates gnupg-agent && \
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    add-apt-repository -u 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main' && \
+    apt-get update && \
+    apt-get install -y llvm-11 clang-tidy-11 clang-11 && \
+    wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # Set default clang-tidy version
 RUN \
-    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-7 100 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-7 100
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-11 100 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-11 100
 
 # Install Python packages
 RUN \

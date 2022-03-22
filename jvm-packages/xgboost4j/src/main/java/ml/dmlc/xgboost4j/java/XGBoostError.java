@@ -24,4 +24,8 @@ public class XGBoostError extends Exception {
   public XGBoostError(String message) {
     super(message);
   }
+
+  public XGBoostError(String message, Throwable cause) {
+    super(message, cause);
+  }
 }

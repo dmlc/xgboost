@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ public class Booster implements Serializable, KryoSerializable {
    */
   Booster(Map<String, Object> params, DMatrix[] cacheMats) throws XGBoostError {
     init(cacheMats);
-    setParam("seed", "0");
     setParams(params);
   }
 
@@ -63,31 +62,23 @@ public class Booster implements Serializable, KryoSerializable {
     if (modelPath == null) {
       throw new NullPointerException("modelPath : null");
     }
-    Booster ret = new Booster(new HashMap<String, Object>(), new DMatrix[0]);
+    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModel(ret.handle, modelPath));
     return ret;
   }
 
   /**
-   * Load a new Booster model from a file opened as input stream.
-   * The assumption is the input stream only contains one XGBoost Model.
+   * Load a new Booster model from a byte array buffer.
+   * The assumption is the array only contains one XGBoost Model.
    * This can be used to load existing booster models saved by other xgboost bindings.
    *
-   * @param in The input stream of the file.
-   * @return The create boosted
+   * @param buffer The byte contents of the booster.
+   * @return The created boosted
    * @throws XGBoostError
-   * @throws IOException
    */
-  static Booster loadModel(InputStream in) throws XGBoostError, IOException {
-    int size;
-    byte[] buf = new byte[1<<20];
-    ByteArrayOutputStream os = new ByteArrayOutputStream();
-    while ((size = in.read(buf)) != -1) {
-      os.write(buf, 0, size);
-    }
-    in.close();
-    Booster ret = new Booster(new HashMap<String, Object>(), new DMatrix[0]);
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(ret.handle,os.toByteArray()));
+  static Booster loadModel(byte[] buffer) throws XGBoostError {
+    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(ret.handle, buffer));
     return ret;
   }
 
@@ -243,7 +234,14 @@ public class Booster implements Serializable, KryoSerializable {
     String stringFormat = evalSet(evalMatrixs, evalNames, iter);
     String[] metricPairs = stringFormat.split("\t");
     for (int i = 1; i < metricPairs.length; i++) {
-      metricsOut[i - 1] = Float.valueOf(metricPairs[i].split(":")[1]);
+      String value = metricPairs[i].split(":")[1];
+      if (value.equalsIgnoreCase("nan")) {
+        metricsOut[i - 1] = Float.NaN;
+      } else if (value.equalsIgnoreCase("-nan")) {
+        metricsOut[i - 1] = -Float.NaN;
+      } else {
+        metricsOut[i - 1] = Float.valueOf(value);
+      }
     }
     return stringFormat;
   }
@@ -438,7 +436,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   public String[] getModelDump(String[] featureNames, boolean withStats, String format)
-    throws XGBoostError {
+      throws XGBoostError {
     int statsFlag = 0;
     if (withStats) {
       statsFlag = 1;
@@ -638,13 +636,27 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * Save model into raw byte array. Currently it's using the deprecated format as
+   * default, which will be changed into `ubj` in future releases.
    *
-   * @return the saved byte array.
+   * @return the saved byte array
    * @throws XGBoostError native error
    */
   public byte[] toByteArray() throws XGBoostError {
+    return this.toByteArray("deprecated");
+  }
+
+  /**
+   * Save model into raw byte array.
+   *
+   * @param format The output format.  Available options are "json", "ubj" and "deprecated".
+   *
+   * @return the saved byte array
+   * @throws XGBoostError native error
+   */
+  public byte[] toByteArray(String format) throws XGBoostError {
     byte[][] bytes = new byte[1][];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetModelRaw(this.handle, bytes));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveModelToBuffer(this.handle, format, bytes));
     return bytes[0];
   }
 
@@ -669,6 +681,17 @@ public class Booster implements Serializable, KryoSerializable {
   void saveRabitCheckpoint() throws XGBoostError {
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
     version += 1;
+  }
+
+  /**
+   * Get number of model features.
+   * @return the number of features.
+   * @throws XGBoostError
+   */
+  public long getNumFeature() throws XGBoostError {
+    long[] numFeature = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetNumFeature(this.handle, numFeature));
+    return numFeature[0];
   }
 
   /**

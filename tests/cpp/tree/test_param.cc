@@ -74,6 +74,12 @@ TEST(Param, VectorStreamRead) {
   ss << "(3,2,1";
   ss >> vals_in;
   EXPECT_NE(vals_in, vals);
+
+  vals_in.clear(); ss.flush(); ss.clear(); ss.str("");
+  vals_in.emplace_back(3);
+  ss << "( )";
+  ss >> vals_in;
+  ASSERT_TRUE(ss.good());
 }
 
 TEST(Param, SplitEntry) {
@@ -82,14 +88,14 @@ TEST(Param, SplitEntry) {
 
   xgboost::tree::SplitEntry se2;
   EXPECT_FALSE(se1.Update(se2));
-  EXPECT_FALSE(se2.Update(-1, 100, 0, true, xgboost::tree::GradStats(),
+  EXPECT_FALSE(se2.Update(-1, 100, 0, true, false, xgboost::tree::GradStats(),
                           xgboost::tree::GradStats()));
-  ASSERT_TRUE(se2.Update(1, 100, 0, true, xgboost::tree::GradStats(),
+  ASSERT_TRUE(se2.Update(1, 100, 0, true, false, xgboost::tree::GradStats(),
                          xgboost::tree::GradStats()));
   ASSERT_TRUE(se1.Update(se2));
 
   xgboost::tree::SplitEntry se3;
-  se3.Update(2, 101, 0, false, xgboost::tree::GradStats(),
+  se3.Update(2, 101, 0, false, false, xgboost::tree::GradStats(),
              xgboost::tree::GradStats());
   xgboost::tree::SplitEntry::Reduce(se2, se3);
   EXPECT_EQ(se2.SplitIndex(), 101);

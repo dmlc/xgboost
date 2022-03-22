@@ -34,8 +34,8 @@ test_dmatrix = DMatrix(x_test)
 train_dmatrix.set_group(group_train)
 valid_dmatrix.set_group(group_valid)
 
-params = {'objective': 'rank:pairwise', 'eta': 0.1, 'gamma': 1.0,
-               'min_child_weight': 0.1, 'max_depth': 6}
+params = {'objective': 'rank:ndcg', 'eta': 0.1, 'gamma': 1.0,
+          'min_child_weight': 0.1, 'max_depth': 6}
 xgb_model = xgb.train(params, train_dmatrix, num_boost_round=4,
-                           evals=[(valid_dmatrix, 'validation')])
+                      evals=[(valid_dmatrix, 'validation')])
 pred = xgb_model.predict(test_dmatrix)

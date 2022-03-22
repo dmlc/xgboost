@@ -8,7 +8,7 @@ on the demo dataset on a binary classification task.
 ********************************
 Links to Other Helpful Resources
 ********************************
-- See :doc:`Installation Guide </build>` on how to install XGBoost.
+- See :doc:`Installation Guide </install>` on how to install XGBoost.
 - See :doc:`Text Input Format </tutorials/input_format>` on using text format for specifying training/testing data.
 - See :doc:`Tutorials </tutorials/index>` for tips and tutorials.
 - See `Learning to use XGBoost by Examples <https://github.com/dmlc/xgboost/tree/master/demo>`_ for more code examples.
@@ -24,7 +24,7 @@ Python
   dtrain = xgb.DMatrix('demo/data/agaricus.txt.train')
   dtest = xgb.DMatrix('demo/data/agaricus.txt.test')
   # specify parameters via map
-  param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
+  param = {'max_depth':2, 'eta':1, 'objective':'binary:logistic' }
   num_round = 2
   bst = xgb.train(param, dtrain, num_round)
   # make prediction
@@ -71,7 +71,7 @@ Scala
 
   import ml.dmlc.xgboost4j.scala.DMatrix
   import ml.dmlc.xgboost4j.scala.XGBoost
-  
+
   object XGBoostScalaExample {
     def main(args: Array[String]) {
       // read trainining data, available at xgboost/demo/data

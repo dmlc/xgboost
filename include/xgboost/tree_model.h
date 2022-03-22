@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file tree_model.h
  * \brief model structure for tree
  * \author Tianqi Chen
@@ -9,33 +9,40 @@
 
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/logging.h>
+#include <xgboost/feature_map.h>
+#include <xgboost/model.h>
+
 #include <limits>
 #include <vector>
 #include <string>
 #include <cstring>
 #include <algorithm>
 #include <tuple>
-#include "./base.h"
-#include "./data.h"
-#include "./logging.h"
-#include "./feature_map.h"
+#include <stack>
 
 namespace xgboost {
 
 struct PathElement;  // forward declaration
 
+class Json;
+// FIXME(trivialfis): Once binary IO is gone, make this parameter internal as it should
+// not be configured by users.
 /*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
-  /*! \brief number of start root */
-  int num_roots;
+  /*! \brief (Deprecated) number of start root */
+  int deprecated_num_roots;
   /*! \brief total number of nodes */
   int num_nodes;
   /*!\brief number of deleted nodes */
   int num_deleted;
   /*! \brief maximum depth, this is a statistics of the tree */
-  int max_depth;
+  int deprecated_max_depth;
   /*! \brief number of features used for tree construction */
-  int num_feature;
+  bst_feature_t num_feature;
   /*!
    * \brief leaf vector size, used for vector tree
    * used to store more than one dimensional information in tree
@@ -49,23 +56,39 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     static_assert(sizeof(TreeParam) == (31 + 6) * sizeof(int),
                   "TreeParam: 64 bit align");
     std::memset(this, 0, sizeof(TreeParam));
-    num_nodes = num_roots = 1;
+    num_nodes = 1;
+    deprecated_num_roots = 1;
   }
+
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline TreeParam ByteSwap() const {
+    TreeParam x = *this;
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.num_nodes, sizeof(x.num_nodes), 1);
+    dmlc::ByteSwap(&x.num_deleted, sizeof(x.num_deleted), 1);
+    dmlc::ByteSwap(&x.deprecated_max_depth, sizeof(x.deprecated_max_depth), 1);
+    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
+  }
+
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {
     // only declare the parameters that can be set by the user.
     // other arguments are set by the algorithm.
-    DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1)
-        .describe("Number of start root of trees.");
+    DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of features used in tree construction.");
+    DMLC_DECLARE_FIELD(num_deleted);
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
         .describe("Size of leaf vector, reserved for vector tree");
   }
 
   bool operator==(const TreeParam& b) const {
-    return num_roots == b.num_roots && num_nodes == b.num_nodes &&
-           num_deleted == b.num_deleted && max_depth == b.max_depth &&
+    return num_nodes == b.num_nodes &&
+           num_deleted == b.num_deleted &&
            num_feature == b.num_feature &&
            size_leaf_vector == b.size_leaf_vector;
   }
@@ -80,10 +103,24 @@ struct RTreeNodeStat {
   /*! \brief weight of current node */
   bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
-  int leaf_child_cnt;
+  int leaf_child_cnt {0};
+
+  RTreeNodeStat() = default;
+  RTreeNodeStat(float loss_chg, float sum_hess, float weight) :
+      loss_chg{loss_chg}, sum_hess{sum_hess}, base_weight{weight} {}
   bool operator==(const RTreeNodeStat& b) const {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
            base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+  }
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline RTreeNodeStat ByteSwap() const {
+    RTreeNodeStat x = *this;
+    dmlc::ByteSwap(&x.loss_chg, sizeof(x.loss_chg), 1);
+    dmlc::ByteSwap(&x.sum_hess, sizeof(x.sum_hess), 1);
+    dmlc::ByteSwap(&x.base_weight, sizeof(x.base_weight), 1);
+    dmlc::ByteSwap(&x.leaf_child_cnt, sizeof(x.leaf_child_cnt), 1);
+    return x;
   }
 };
 
@@ -91,18 +128,28 @@ struct RTreeNodeStat {
  * \brief define regression tree to be the most common tree model.
  *  This is the data structure used in xgboost's major tree models.
  */
-class RegTree {
+class RegTree : public Model {
  public:
-  /*! \brief auxiliary statistics of node to help tree building */
   using SplitCondT = bst_float;
+  static constexpr bst_node_t kInvalidNodeId {-1};
+  static constexpr uint32_t kDeletedNodeMarker = std::numeric_limits<uint32_t>::max();
+  static constexpr bst_node_t kRoot { 0 };
+
   /*! \brief tree node */
   class Node {
    public:
-    Node()  {
+    XGBOOST_DEVICE Node()  {
       // assert compact alignment
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
                     "Node: 64 bit align");
     }
+    Node(int32_t cleft, int32_t cright, int32_t parent,
+         uint32_t split_ind, float split_cond, bool default_left) :
+        parent_{parent}, cleft_{cleft}, cright_{cright} {
+      this->SetParent(parent_);
+      this->SetSplit(split_ind, split_cond, default_left);
+    }
+
     /*! \brief index of left child */
     XGBOOST_DEVICE int LeftChild() const {
       return this->cleft_;
@@ -125,7 +172,7 @@ class RegTree {
     }
     /*! \brief whether current node is leaf node */
     XGBOOST_DEVICE bool IsLeaf() const {
-      return cleft_ == -1;
+      return cleft_ == kInvalidNodeId;
     }
     /*! \return get leaf value of leaf node */
     XGBOOST_DEVICE bst_float LeafValue() const {
@@ -145,10 +192,10 @@ class RegTree {
     }
     /*! \brief whether this node is deleted */
     XGBOOST_DEVICE bool IsDeleted() const {
-      return sindex_ == std::numeric_limits<unsigned>::max();
+      return sindex_ == kDeletedNodeMarker;
     }
     /*! \brief whether current node is root */
-    XGBOOST_DEVICE bool IsRoot() const { return parent_ == -1; }
+    XGBOOST_DEVICE bool IsRoot() const { return parent_ == kInvalidNodeId; }
     /*!
      * \brief set the left child
      * \param nid node id to right child
@@ -181,14 +228,14 @@ class RegTree {
      * \param right right index, could be used to store
      *        additional information
      */
-    XGBOOST_DEVICE void SetLeaf(bst_float value, int right = -1) {
+    XGBOOST_DEVICE void SetLeaf(bst_float value, int right = kInvalidNodeId) {
       (this->info_).leaf_value = value;
-      this->cleft_ = -1;
+      this->cleft_ = kInvalidNodeId;
       this->cright_ = right;
     }
     /*! \brief mark that this node is deleted */
     XGBOOST_DEVICE void MarkDelete() {
-      this->sindex_ = std::numeric_limits<unsigned>::max();
+      this->sindex_ = kDeletedNodeMarker;
     }
     /*! \brief Reuse this deleted node. */
     XGBOOST_DEVICE void Reuse() {
@@ -205,6 +252,16 @@ class RegTree {
              info_.leaf_value == b.info_.leaf_value;
     }
 
+    inline Node ByteSwap() const {
+      Node x = *this;
+      dmlc::ByteSwap(&x.parent_, sizeof(x.parent_), 1);
+      dmlc::ByteSwap(&x.cleft_, sizeof(x.cleft_), 1);
+      dmlc::ByteSwap(&x.cright_, sizeof(x.cright_), 1);
+      dmlc::ByteSwap(&x.sindex_, sizeof(x.sindex_), 1);
+      dmlc::ByteSwap(&x.info_, sizeof(x.info_), 1);
+      return x;
+    }
+
    private:
     /*!
      * \brief in leaf node, we have weights, in non-leaf nodes,
@@ -216,11 +273,11 @@ class RegTree {
     };
     // pointer to parent, highest bit is used to
     // indicate whether it's a left child or not
-    int parent_;
+    int32_t parent_{kInvalidNodeId};
     // pointer to left, right
-    int cleft_, cright_;
+    int32_t cleft_{kInvalidNodeId}, cright_{kInvalidNodeId};
     // split feature index, left split or right split depends on the highest bit
-    unsigned sindex_{0};
+    uint32_t sindex_{0};
     // extra info
     Info info_;
   };
@@ -258,13 +315,14 @@ class RegTree {
   /*! \brief constructor */
   RegTree() {
     param.num_nodes = 1;
-    param.num_roots = 1;
     param.num_deleted = 0;
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
+    split_types_.resize(param.num_nodes, FeatureType::kNumerical);
+    split_categories_segments_.resize(param.num_nodes);
     for (int i = 0; i < param.num_nodes; i ++) {
       nodes_[i].SetLeaf(0.0f);
-      nodes_[i].SetParent(-1);
+      nodes_[i].SetParent(kInvalidNodeId);
     }
   }
   /*! \brief get node given nid */
@@ -279,6 +337,9 @@ class RegTree {
   /*! \brief get const reference to nodes */
   const std::vector<Node>& GetNodes() const { return nodes_; }
 
+  /*! \brief get const reference to stats */
+  const std::vector<RTreeNodeStat>& GetStats() const { return stats_; }
+
   /*! \brief get node statistics given nid */
   RTreeNodeStat& Stat(int nid) {
     return stats_[nid];
@@ -287,43 +348,57 @@ class RegTree {
   const RTreeNodeStat& Stat(int nid) const {
     return stats_[nid];
   }
+
   /*!
    * \brief load model from stream
    * \param fi input stream
    */
-  void Load(dmlc::Stream* fi) {
-    CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
-    nodes_.resize(param.num_nodes);
-    stats_.resize(param.num_nodes);
-    CHECK_NE(param.num_nodes, 0);
-    CHECK_EQ(fi->Read(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size()),
-             sizeof(Node) * nodes_.size());
-    CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * stats_.size()),
-             sizeof(RTreeNodeStat) * stats_.size());
-    // chg deleted nodes
-    deleted_nodes_.resize(0);
-    for (int i = param.num_roots; i < param.num_nodes; ++i) {
-      if (nodes_[i].IsDeleted()) deleted_nodes_.push_back(i);
-    }
-    CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
-  }
+  void Load(dmlc::Stream* fi);
   /*!
    * \brief save model to stream
    * \param fo output stream
    */
-  void Save(dmlc::Stream* fo) const {
-    CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
-    CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
-    fo->Write(&param, sizeof(TreeParam));
-    CHECK_NE(param.num_nodes, 0);
-    fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
-    fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
-  }
+  void Save(dmlc::Stream* fo) const;
+
+  void LoadModel(Json const& in) override;
+  void SaveModel(Json* out) const override;
 
   bool operator==(const RegTree& b) const {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&
            deleted_nodes_ == b.deleted_nodes_ && param == b.param;
   }
+  /* \brief Iterate through all nodes in this tree.
+   *
+   * \param Function that accepts a node index, and returns false when iteration should
+   *        stop, otherwise returns true.
+   */
+  template <typename Func> void WalkTree(Func func) const {
+    std::stack<bst_node_t> nodes;
+    nodes.push(kRoot);
+    auto &self = *this;
+    while (!nodes.empty()) {
+      auto nidx = nodes.top();
+      nodes.pop();
+      if (!func(nidx)) {
+        return;
+      }
+      auto left = self[nidx].LeftChild();
+      auto right = self[nidx].RightChild();
+      if (left != RegTree::kInvalidNodeId) {
+        nodes.push(left);
+      }
+      if (right != RegTree::kInvalidNodeId) {
+        nodes.push(right);
+      }
+    }
+  }
+  /*!
+   * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
+   *        compares only non-deleted nodes.
+   *
+   * \param b The other tree.
+   */
+  bool Equal(const RegTree& b) const;
 
   /**
    * \brief Expands a leaf node into two additional leaf nodes.
@@ -337,28 +412,41 @@ class RegTree {
    * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
    * \param loss_change       The loss change.
    * \param sum_hess          The sum hess.
+   * \param left_sum          The sum hess of left leaf.
+   * \param right_sum         The sum hess of right leaf.
+   * \param leaf_right_child  The right child index of leaf, by default kInvalidNodeId,
+   *                          some updaters use the right child index of leaf as a marker
    */
-  void ExpandNode(int nid, unsigned split_index, bst_float split_value,
+  void ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
                   bool default_left, bst_float base_weight,
                   bst_float left_leaf_weight, bst_float right_leaf_weight,
-                  bst_float loss_change, float sum_hess) {
-    int pleft = this->AllocNode();
-    int pright = this->AllocNode();
-    auto &node = nodes_[nid];
-    CHECK(node.IsLeaf());
-    node.SetLeftChild(pleft);
-    node.SetRightChild(pright);
-    nodes_[node.LeftChild()].SetParent(nid, true);
-    nodes_[node.RightChild()].SetParent(nid, false);
-    node.SetSplit(split_index, split_value,
-                  default_left);
-    // mark right child as 0, to indicate fresh leaf
-    nodes_[pleft].SetLeaf(left_leaf_weight, 0);
-    nodes_[pright].SetLeaf(right_leaf_weight, 0);
+                  bst_float loss_change, float sum_hess, float left_sum,
+                  float right_sum,
+                  bst_node_t leaf_right_child = kInvalidNodeId);
 
-    this->Stat(nid).loss_chg = loss_change;
-    this->Stat(nid).base_weight = base_weight;
-    this->Stat(nid).sum_hess = sum_hess;
+  /**
+   * \brief Expands a leaf node with categories
+   *
+   * \param nid               The node index to expand.
+   * \param split_index       Feature index of the split.
+   * \param split_cat         The bitset containing categories
+   * \param default_left      True to default left.
+   * \param base_weight       The base weight, before learning rate.
+   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
+   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
+   * \param loss_change       The loss change.
+   * \param sum_hess          The sum hess.
+   * \param left_sum          The sum hess of left leaf.
+   * \param right_sum         The sum hess of right leaf.
+   */
+  void ExpandCategorical(bst_node_t nid, unsigned split_index,
+                         common::Span<uint32_t> split_cat, bool default_left,
+                         bst_float base_weight, bst_float left_leaf_weight,
+                         bst_float right_leaf_weight, bst_float loss_change,
+                         float sum_hess, float left_sum, float right_sum);
+
+  bool HasCategoricalSplit() const {
+    return !split_categories_.empty();
   }
 
   /*!
@@ -373,6 +461,7 @@ class RegTree {
     }
     return depth;
   }
+
   /*!
    * \brief get maximum depth
    * \param nid node id
@@ -387,17 +476,17 @@ class RegTree {
    * \brief get maximum depth
    */
   int MaxDepth() {
-    int maxd = 0;
-    for (int i = 0; i < param.num_roots; ++i) {
-      maxd = std::max(maxd, MaxDepth(i));
-    }
-    return maxd;
+    return MaxDepth(0);
   }
 
   /*! \brief number of extra nodes besides the root */
   int NumExtraNodes() const {
-    return param.num_nodes - param.num_roots - param.num_deleted;
+    return param.num_nodes - 1 - param.num_deleted;
   }
+
+  /* \brief Count number of leaves in tree. */
+  bst_node_t GetNumLeaves() const;
+  bst_node_t GetNumSplitNodes() const;
 
   /*!
    * \brief dense feature vector that can be taken by RegTree
@@ -414,6 +503,7 @@ class RegTree {
      * \param inst The sparse instance to fill.
      */
     void Fill(const SparsePage::Inst& inst);
+
     /*!
      * \brief drop the trace after fill, must be called after fill.
      * \param inst The sparse instance to drop.
@@ -429,13 +519,15 @@ class RegTree {
      * \param i feature index.
      * \return the i-th feature value
      */
-    bst_float Fvalue(size_t i) const;
+    bst_float GetFvalue(size_t i) const;
     /*!
      * \brief check whether i-th entry is missing
      * \param i feature index.
      * \return whether i-th value is missing.
      */
     bool IsMissing(size_t i) const;
+    bool HasMissing() const;
+
 
    private:
     /*!
@@ -447,23 +539,18 @@ class RegTree {
       int flag;
     };
     std::vector<Entry> data_;
+    bool has_missing_;
   };
-  /*!
-   * \brief get the leaf index
-   * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
-   * \return the leaf index of the given feature
-   */
-  int GetLeafIndex(const FVec& feat, unsigned root_id = 0) const;
+
   /*!
    * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
    * \param condition_feature the index of the feature to fix
    */
-  void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+  void CalculateContributions(const RegTree::FVec& feat,
+                              std::vector<float>* mean_values,
                               bst_float* out_contribs, int condition = 0,
                               unsigned condition_feature = 0) const;
   /*!
@@ -480,7 +567,7 @@ class RegTree {
    * \param condition_feature the index of the feature to fix
    * \param condition_fraction what fraction of the current weight matches our conditioning feature
    */
-  void TreeShap(const RegTree::FVec& feat, bst_float* phi, unsigned node_index,
+  void TreeShap(const RegTree::FVec& feat, bst_float* phi, bst_node_t node_index,
                 unsigned unique_depth, PathElement* parent_unique_path,
                 bst_float parent_zero_fraction, bst_float parent_one_fraction,
                 int parent_feature_index, int condition,
@@ -489,18 +576,11 @@ class RegTree {
   /*!
    * \brief calculate the approximate feature contributions for the given root
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    */
-  void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+  void CalculateContributionsApprox(const RegTree::FVec& feat,
+                                    std::vector<float>* mean_values,
                                     bst_float* out_contribs) const;
-  /*!
-   * \brief get next position of the tree given current pid
-   * \param pid Current node id.
-   * \param fvalue feature value if not missing.
-   * \param is_unknown Whether current required feature is missing.
-   */
-  inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
   /*!
    * \brief dump the model in the requested format as a text string
    * \param fmap feature map that may help give interpretations of feature
@@ -512,21 +592,72 @@ class RegTree {
                         bool with_stats,
                         std::string format) const;
   /*!
-   * \brief calculate the mean value for each node, required for feature contributions
+   * \brief Get split type for a node.
+   * \param nidx Index of node.
+   * \return The type of this split.  For leaf node it's always kNumerical.
    */
-  void FillNodeMeanValues();
+  FeatureType NodeSplitType(bst_node_t nidx) const {
+    return split_types_.at(nidx);
+  }
+  /*!
+   * \brief Get split types for all nodes.
+   */
+  std::vector<FeatureType> const &GetSplitTypes() const { return split_types_; }
+  common::Span<uint32_t const> GetSplitCategories() const { return split_categories_; }
+  /*!
+   * \brief Get the bit storage for categories
+   */
+  common::Span<uint32_t const> NodeCats(bst_node_t nidx) const {
+    auto node_ptr = GetCategoriesMatrix().node_ptr;
+    auto categories = GetCategoriesMatrix().categories;
+    auto segment = node_ptr[nidx];
+    auto node_cats = categories.subspan(segment.beg, segment.size);
+    return node_cats;
+  }
+  auto const& GetSplitCategoriesPtr() const { return split_categories_segments_; }
+
+  // The fields of split_categories_segments_[i] are set such that
+  // the range split_categories_[beg:(beg+size)] stores the bitset for
+  // the matching categories for the i-th node.
+  struct Segment {
+    size_t beg {0};
+    size_t size {0};
+  };
+
+  struct CategoricalSplitMatrix {
+    common::Span<FeatureType const> split_type;
+    common::Span<uint32_t const> categories;
+    common::Span<Segment const> node_ptr;
+  };
+
+  CategoricalSplitMatrix GetCategoriesMatrix() const {
+    CategoricalSplitMatrix view;
+    view.split_type = common::Span<FeatureType const>(this->GetSplitTypes());
+    view.categories = this->GetSplitCategories();
+    view.node_ptr = common::Span<Segment const>(split_categories_segments_);
+    return view;
+  }
 
  private:
+  template <bool typed>
+  void LoadCategoricalSplit(Json const& in);
+  void SaveCategoricalSplit(Json* p_out) const;
   // vector of nodes
   std::vector<Node> nodes_;
   // free node space, used during training process
   std::vector<int>  deleted_nodes_;
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
-  std::vector<bst_float> node_mean_values_;
+  std::vector<FeatureType> split_types_;
+
+  // Categories for each internal node.
+  std::vector<uint32_t> split_categories_;
+  // Ptr to split categories of each node.
+  std::vector<Segment> split_categories_segments_;
+
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
-  int AllocNode() {
+  bst_node_t AllocNode() {
     if (param.num_deleted != 0) {
       int nid = deleted_nodes_.back();
       deleted_nodes_.pop_back();
@@ -539,43 +670,60 @@ class RegTree {
         << "number of nodes in the tree exceed 2^31";
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
+    split_types_.resize(param.num_nodes, FeatureType::kNumerical);
+    split_categories_segments_.resize(param.num_nodes);
     return nd;
   }
   // delete a tree node, keep the parent field to allow trace back
   void DeleteNode(int nid) {
-    CHECK_GE(nid, param.num_roots);
+    CHECK_GE(nid, 1);
+    auto pid = (*this)[nid].Parent();
+    if (nid == (*this)[pid].LeftChild()) {
+      (*this)[pid].SetLeftChild(kInvalidNodeId);
+    } else {
+      (*this)[pid].SetRightChild(kInvalidNodeId);
+    }
+
     deleted_nodes_.push_back(nid);
     nodes_[nid].MarkDelete();
     ++param.num_deleted;
   }
-  bst_float FillNodeMeanValue(int nid);
 };
 
 inline void RegTree::FVec::Init(size_t size) {
   Entry e; e.flag = -1;
   data_.resize(size);
   std::fill(data_.begin(), data_.end(), e);
+  has_missing_ = true;
 }
 
 inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].fvalue = inst[i].fvalue;
+  size_t feature_count = 0;
+  for (auto const& entry : inst) {
+    if (entry.index >= data_.size()) {
+      continue;
+    }
+    data_[entry.index].fvalue = entry.fvalue;
+    ++feature_count;
   }
+  has_missing_ = data_.size() != feature_count;
 }
 
 inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].flag = -1;
+  for (auto const& entry : inst) {
+    if (entry.index >= data_.size()) {
+      continue;
+    }
+    data_[entry.index].flag = -1;
   }
+  has_missing_ = true;
 }
 
 inline size_t RegTree::FVec::Size() const {
   return data_.size();
 }
 
-inline bst_float RegTree::FVec::Fvalue(size_t i) const {
+inline bst_float RegTree::FVec::GetFvalue(size_t i) const {
   return data_[i].fvalue;
 }
 
@@ -583,28 +731,8 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
   return data_[i].flag == -1;
 }
 
-inline int RegTree::GetLeafIndex(const RegTree::FVec& feat,
-                                 unsigned root_id) const {
-  auto pid = static_cast<int>(root_id);
-  while (!(*this)[pid].IsLeaf()) {
-    unsigned split_index = (*this)[pid].SplitIndex();
-    pid = this->GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
-  }
-  return pid;
-}
-
-/*! \brief get next position of the tree given current pid */
-inline int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
-  bst_float split_value = (*this)[pid].SplitCond();
-  if (is_unknown) {
-    return (*this)[pid].DefaultChild();
-  } else {
-    if (fvalue < split_value) {
-      return (*this)[pid].LeftChild();
-    } else {
-      return (*this)[pid].RightChild();
-    }
-  }
+inline bool RegTree::FVec::HasMissing() const {
+  return has_missing_;
 }
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_

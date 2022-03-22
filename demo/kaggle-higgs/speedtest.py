@@ -36,7 +36,6 @@ param['scale_pos_weight'] = sum_wneg/sum_wpos
 param['bst:eta'] = 0.1
 param['bst:max_depth'] = 6
 param['eval_metric'] = 'auc'
-param['silent'] = 1
 param['nthread'] = 4
 
 plst = param.items()+[('eval_metric', 'ams@0.15')]

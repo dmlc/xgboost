@@ -1,22 +1,25 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015-2019 by Contributors
  * \file logging.h
- * \brief defines console logging options for xgboost.
- *  Use to enforce unified print behavior.
- *  For debug loggers, use LOG(INFO) and LOG(ERROR).
+ *
+ * \brief defines console logging options for xgboost.  Use to enforce unified print
+ *  behavior.
  */
 #ifndef XGBOOST_LOGGING_H_
 #define XGBOOST_LOGGING_H_
 
 #include <dmlc/logging.h>
-#include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+
+#include <xgboost/base.h>
+#include <xgboost/parameter.h>
+#include <xgboost/global_config.h>
+
 #include <sstream>
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
-#include "./base.h"
 
 namespace xgboost {
 
@@ -33,23 +36,6 @@ class BaseLogger {
   std::ostringstream log_stream_;
 };
 
-// Parsing both silent and debug_verbose is to provide backward compatibility.
-struct ConsoleLoggerParam : public dmlc::Parameter<ConsoleLoggerParam> {
-  bool silent;  // deprecated.
-  int verbosity;
-
-  DMLC_DECLARE_PARAMETER(ConsoleLoggerParam) {
-    DMLC_DECLARE_FIELD(silent)
-        .set_default(false)
-        .describe("Do not print information during training.");
-    DMLC_DECLARE_FIELD(verbosity)
-        .set_range(0, 3)
-        .set_default(1)  // shows only warning
-        .describe("Flag to print out detailed breakdown of runtime.");
-    DMLC_DECLARE_ALIAS(verbosity, debug_verbose);
-  }
-};
-
 class ConsoleLogger : public BaseLogger {
  public:
   enum class LogVerbosity {
@@ -62,18 +48,10 @@ class ConsoleLogger : public BaseLogger {
   using LV = LogVerbosity;
 
  private:
-  static LogVerbosity global_verbosity_;
-  static ConsoleLoggerParam param_;
-
   LogVerbosity cur_verbosity_;
-  static void Configure(const std::map<std::string, std::string>& args);
 
  public:
-  template <typename ArgIter>
-  static void Configure(ArgIter begin, ArgIter end) {
-    std::map<std::string, std::string> args(begin, end);
-    Configure(args);
-  }
+  static void Configure(Args const& args);
 
   static LogVerbosity GlobalVerbosity();
   static LogVerbosity DefaultVerbosity();
@@ -159,5 +137,14 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
     ::xgboost::ConsoleLogger::LogVerbosity::kIgnore)
 // Enable LOG(TRACKER) for print messages to tracker
 #define LOG_TRACKER ::xgboost::TrackerLogger()
+
+#if defined(CHECK)
+#undef CHECK
+#define CHECK(cond)                                     \
+  if (XGBOOST_EXPECT(!(cond), false))                   \
+    dmlc::LogMessageFatal(__FILE__, __LINE__).stream()  \
+        << "Check failed: " #cond << ": "
+#endif  // defined(CHECK)
+
 }  // namespace xgboost.
 #endif  // XGBOOST_LOGGING_H_

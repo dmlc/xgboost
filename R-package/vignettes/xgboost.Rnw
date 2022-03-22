@@ -47,15 +47,15 @@ xgboost.version <- packageDescription("xgboost")$Version
 
 \section{Introduction}
 
-This is an introductory document of using the \verb@xgboost@ package in R. 
+This is an introductory document of using the \verb@xgboost@ package in R.
 
 \verb@xgboost@ is short for eXtreme Gradient Boosting package. It is an efficient
- and scalable implementation of gradient boosting framework by \citep{friedman2001greedy} \citep{friedman2000additive}. 
+ and scalable implementation of gradient boosting framework by \citep{friedman2001greedy} \citep{friedman2000additive}.
 The package includes efficient linear model solver and tree learning algorithm.
 It supports various objective functions, including regression, classification
 and ranking. The package is made to be extendible, so that users are also allowed to define their own objectives easily. It has several features:
 \begin{enumerate}
-    \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on 
+    \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on
     Windows and Linux, with openmp. It is generally over 10 times faster than
     \verb@gbm@.}
     \item{Input Type: }{\verb@xgboost@ takes several types of input data:}
@@ -65,9 +65,9 @@ and ranking. The package is made to be extendible, so that users are also allowe
         \item{Data File: }{Local data files}
         \item{xgb.DMatrix: }{\verb@xgboost@'s own class. Recommended.}
     \end{itemize}
-    \item{Sparsity: }{\verb@xgboost@ accepts sparse input for both tree booster 
+    \item{Sparsity: }{\verb@xgboost@ accepts sparse input for both tree booster
     and linear booster, and is optimized for sparse input.}
-    \item{Customization: }{\verb@xgboost@ supports customized objective function 
+    \item{Customization: }{\verb@xgboost@ supports customized objective function
     and evaluation function}
     \item{Performance: }{\verb@xgboost@ has better performance on several different
     datasets.}
@@ -76,8 +76,8 @@ and ranking. The package is made to be extendible, so that users are also allowe
 
 \section{Example with Mushroom data}
 
-In this section, we will illustrate some common usage of \verb@xgboost@. The 
-Mushroom data is cited from UCI Machine Learning Repository. \citep{Bache+Lichman:2013} 
+In this section, we will illustrate some common usage of \verb@xgboost@. The
+Mushroom data is cited from UCI Machine Learning Repository. \citep{Bache+Lichman:2013}
 
 <<Training and prediction with iris>>=
 library(xgboost)
@@ -85,7 +85,7 @@ data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2, eta = 1, 
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2, eta = 1,
                nrounds = 2, objective = "binary:logistic")
 xgb.save(bst, 'model.save')
 bst = xgb.load('model.save')
@@ -97,12 +97,12 @@ pred <- predict(bst, test$data)
 
 Here we can save the model to a binary local file, and load it when needed.
 We can't inspect the trees inside. However we have another function to save the
-model in plain text. 
+model in plain text.
 <<Dump Model>>=
 xgb.dump(bst, 'model.dump')
 @
 
-The output looks like 
+The output looks like
 
 \begin{verbatim}
 booster[0]:
@@ -122,8 +122,8 @@ booster[1]:
 \end{verbatim}
 
 It is important to know \verb@xgboost@'s own data type: \verb@xgb.DMatrix@.
-It speeds up \verb@xgboost@, and is needed for advanced features such as 
-training from initial prediction value, weighted training instance. 
+It speeds up \verb@xgboost@, and is needed for advanced features such as
+training from initial prediction value, weighted training instance.
 
 We can use \verb@xgb.DMatrix@ to construct an \verb@xgb.DMatrix@ object:
 <<xgb.DMatrix>>=
@@ -132,7 +132,7 @@ class(dtrain)
 head(getinfo(dtrain,'label'))
 @
 
-We can also save the matrix to a binary file. Then load it simply with 
+We can also save the matrix to a binary file. Then load it simply with
 \verb@xgb.DMatrix@
 <<save model>>=
 xgb.DMatrix.save(dtrain, 'xgb.DMatrix')
@@ -163,51 +163,51 @@ evalerror <- function(preds, dtrain) {
 
 dtest <- xgb.DMatrix(test$data, label = test$label)
 watchlist <- list(eval = dtest, train = dtrain)
-param <- list(max_depth = 2, eta = 1, silent = 1)
+param <- list(max_depth = 2, eta = 1)
 
 bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, logregobj, evalerror, maximize = FALSE)
 @
 
-The gradient and second order gradient is required for the output of customized 
-objective function. 
+The gradient and second order gradient is required for the output of customized
+objective function.
 
-We also have \verb@slice@ for row extraction. It is useful in 
+We also have \verb@slice@ for row extraction. It is useful in
 cross-validation.
 
-For a walkthrough demo, please see \verb@R-package/demo/@ for further 
+For a walkthrough demo, please see \verb@R-package/demo/@ for further
 details.
 
 \section{The Higgs Boson competition}
 
-We have made a demo for \href{http://www.kaggle.com/c/higgs-boson}{the Higgs 
-Boson Machine Learning Challenge}. 
+We have made a demo for \href{http://www.kaggle.com/c/higgs-boson}{the Higgs
+Boson Machine Learning Challenge}.
 
 Here are the instructions to make a submission
 \begin{enumerate}
     \item Download the \href{http://www.kaggle.com/c/higgs-boson/data}{datasets}
     and extract them to \verb@data/@.
-    \item Run scripts under \verb@xgboost/demo/kaggle-higgs/@: 
-    \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R}{higgs-train.R} 
-    and \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-pred.R}{higgs-pred.R}. 
-    The computation will take less than a minute on Intel i7. 
-    \item Go to the \href{http://www.kaggle.com/c/higgs-boson/submissions/attach}{submission page} 
+    \item Run scripts under \verb@xgboost/demo/kaggle-higgs/@:
+    \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R}{higgs-train.R}
+    and \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-pred.R}{higgs-pred.R}.
+    The computation will take less than a minute on Intel i7.
+    \item Go to the \href{http://www.kaggle.com/c/higgs-boson/submissions/attach}{submission page}
     and submit your result.
 \end{enumerate}
 
 We provide \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/speedtest.R}{a script}
-to compare the time cost on the higgs dataset with \verb@gbm@ and \verb@xgboost@. 
-The training set contains 350000 records and 30 features. 
+to compare the time cost on the higgs dataset with \verb@gbm@ and \verb@xgboost@.
+The training set contains 350000 records and 30 features.
 
 \verb@xgboost@ can automatically do parallel computation. On a machine with Intel
 i7-4700MQ and 24GB memories, we found that \verb@xgboost@ costs about 35 seconds, which is about 20 times faster
-than \verb@gbm@. When we limited \verb@xgboost@ to use only one thread, it was 
-still about two times faster than \verb@gbm@. 
+than \verb@gbm@. When we limited \verb@xgboost@ to use only one thread, it was
+still about two times faster than \verb@gbm@.
 
-Meanwhile, the result from \verb@xgboost@ reaches 
-\href{http://www.kaggle.com/c/higgs-boson/details/evaluation}{3.60@AMS} with a 
-single model. This results stands in the 
-\href{http://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the 
-competition. 
+Meanwhile, the result from \verb@xgboost@ reaches
+\href{http://www.kaggle.com/c/higgs-boson/details/evaluation}{3.60@AMS} with a
+single model. This results stands in the
+\href{http://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the
+competition.
 
 \bibliographystyle{jss}
 \nocite{*} % list uncited references

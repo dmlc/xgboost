@@ -4,10 +4,47 @@
 
 #include "../helpers.h"
 
-inline void TestMultiClassError(xgboost::GPUSet const& devices) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
-  lparam.gpu_id = *devices.begin();
-  lparam.n_gpus = devices.Size();
+namespace xgboost {
+inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) {
+  auto lparam = CreateEmptyGenericParam(device);
+  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
+
+  HostDeviceVector<float> predts;
+  MetaInfo info;
+  auto &h_predts = predts.HostVector();
+
+  SimpleLCG lcg;
+
+  size_t n_samples = 2048, n_classes = 4;
+
+  info.labels.Reshape(n_samples);
+  auto &h_labels = info.labels.Data()->HostVector();
+  h_predts.resize(n_samples * n_classes);
+
+  {
+    SimpleRealUniformDistribution<float> dist{0.0f, static_cast<float>(n_classes)};
+    for (size_t i = 0; i < n_samples; ++i) {
+      h_labels[i] = dist(&lcg);
+    }
+  }
+
+  {
+    SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
+    for (size_t i = 0; i < n_samples * n_classes; ++i) {
+      h_predts[i] = dist(&lcg);
+    }
+  }
+
+  auto result = metric->Eval(predts, info, false);
+  for (size_t i = 0; i < 8; ++i) {
+    ASSERT_EQ(metric->Eval(predts, info, false), result);
+  }
+}
+}  // namespace xgboost
+
+inline void TestMultiClassError(int device) {
+  auto lparam = xgboost::CreateEmptyGenericParam(device);
+  lparam.gpu_id = device;
   xgboost::Metric * metric = xgboost::Metric::Create("merror", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
@@ -18,19 +55,17 @@ inline void TestMultiClassError(xgboost::GPUSet const& devices) {
                             {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}),
               0.666f, 0.001f);
-
   delete metric;
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassError)) {
-  auto devices = xgboost::GPUSet::Range(0, NGPUS);
-  TestMultiClassError(devices);
+  TestMultiClassError(GPUIDX);
+  xgboost::CheckDeterministicMetricMultiClass(xgboost::StringView{"merror"}, GPUIDX);
 }
 
-inline void TestMultiClassLogLoss(xgboost::GPUSet const& devices) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
-  lparam.gpu_id = *devices.begin();
-  lparam.n_gpus = devices.Size();
+inline void TestMultiClassLogLoss(int device) {
+  auto lparam = xgboost::CreateEmptyGenericParam(device);
+  lparam.gpu_id = device;
   xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
@@ -46,27 +81,32 @@ inline void TestMultiClassLogLoss(xgboost::GPUSet const& devices) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
-  auto devices = xgboost::GPUSet::Range(0, NGPUS);
-  TestMultiClassLogLoss(devices);
+  TestMultiClassLogLoss(GPUIDX);
+  xgboost::CheckDeterministicMetricMultiClass(xgboost::StringView{"mlogloss"}, GPUIDX);
 }
 
 #if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
+namespace xgboost {
+namespace common {
 TEST(Metric, MGPU_MultiClassError) {
+  if (AllVisibleGPUs() < 2) {
+    LOG(WARNING) << "Not testing in multi-gpu environment.";
+    return;
+  }
+
   {
-    auto devices = xgboost::GPUSet::All(0, -1);
-    TestMultiClassError(devices);
+    TestMultiClassError(0);
   }
   {
-    auto devices = xgboost::GPUSet::All(1, -1);
-    TestMultiClassError(devices);
+    TestMultiClassError(1);
   }
   {
-    auto devices = xgboost::GPUSet::All(0, -1);
-    TestMultiClassLogLoss(devices);
+    TestMultiClassLogLoss(0);
   }
   {
-    auto devices = xgboost::GPUSet::All(1, -1);
-    TestMultiClassLogLoss(devices);
+    TestMultiClassLogLoss(1);
   }
 }
+}  // namespace common
+}  // namespace xgboost
 #endif  // defined(XGBOOST_USE_NCCL)

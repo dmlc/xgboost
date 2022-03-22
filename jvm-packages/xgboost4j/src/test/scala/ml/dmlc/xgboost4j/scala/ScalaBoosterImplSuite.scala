@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -117,6 +117,7 @@ class ScalaBoosterImplSuite extends FunSuite {
 
     val bst2: Booster = XGBoost.loadModel(temp.getAbsolutePath)
     assert(java.util.Arrays.equals(bst2.toByteArray, booster.toByteArray))
+    assert(java.util.Arrays.equals(bst2.toByteArray("ubj"), booster.toByteArray("ubj")))
     val predicts2: Array[Array[Float]] = bst2.predict(testMat, true, 0)
     TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f)
   }
@@ -159,7 +160,7 @@ class ScalaBoosterImplSuite extends FunSuite {
   test("test with quantile histo lossguide") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
-    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+    val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
@@ -169,7 +170,7 @@ class ScalaBoosterImplSuite extends FunSuite {
   test("test with quantile histo lossguide with max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
-    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+    val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
       "eval_metric" -> "auc").toMap
@@ -209,5 +210,13 @@ class ScalaBoosterImplSuite extends FunSuite {
     val prevBooster = XGBoost.train(trainMat, paramMap, round = 2)
     val nextBooster = XGBoost.train(trainMat, paramMap, round = 4, booster = prevBooster)
     assert(prevBooster == nextBooster)
+  }
+
+  test("test getting number of features from a booster") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val booster = trainBooster(trainMat, testMat)
+
+    TestCase.assertEquals(booster.getNumFeature, 127)
   }
 }

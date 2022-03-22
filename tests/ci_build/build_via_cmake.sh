@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
-# Build gtest via cmake
-rm -rf gtest
-wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
-unzip -n release-1.7.0.zip
-mv googletest-release-1.7.0 gtest && cd gtest
-cmake . && make
-mkdir lib && mv libgtest.a lib
-cd ..
-rm -rf release-1.7.0.zip*
+if [[ "$1" == --conda-env=* ]]
+then
+  conda_env=$(echo "$1" | sed 's/^--conda-env=//g' -)
+  echo "Activating Conda environment ${conda_env}"
+  shift 1
+  cmake_args="$@"
+  source activate ${conda_env}
+  cmake_prefix_flag="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
+else
+  cmake_args="$@"
+  cmake_prefix_flag=''
+fi
 
 rm -rf build
 mkdir build
 cd build
-cmake .. "$@" -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest -DCMAKE_VERBOSE_MAKEFILE=ON
-make clean
-make -j$(nproc)
+cmake .. ${cmake_args} -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_ALL_WARNINGS=ON -GNinja ${cmake_prefix_flag} -DHIDE_CXX_SYMBOLS=ON
+ninja clean
+time ninja -v
 cd ..

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file objective.h
  * \brief interface of objective function used by xgboost.
  * \author Tianqi Chen, Kailong Chen
@@ -10,33 +10,26 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/model.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
+#include <xgboost/task.h>
 
 #include <vector>
 #include <utility>
 #include <string>
 #include <functional>
 
-#include "../../src/common/host_device_vector.h"
-
 namespace xgboost {
 
 /*! \brief interface of objective function */
-class ObjFunction {
+class ObjFunction : public Configurable {
  protected:
-  LearnerTrainParam const* tparam_;
+  GenericParameter const* ctx_;
 
  public:
   /*! \brief virtual destructor */
-  virtual ~ObjFunction() = default;
-  /*!
-   * \brief set configuration from pair iterators.
-   * \param begin The beginning iterator.
-   * \param end The end iterator.
-   * \tparam PairIter iterator<std::pair<std::string, std::string> >
-   */
-  template<typename PairIter>
-  inline void Configure(PairIter begin, PairIter end);
+  ~ObjFunction() override = default;
   /*!
    * \brief Configure the objective with the specified parameters.
    * \param args arguments to the objective function.
@@ -61,7 +54,7 @@ class ObjFunction {
    * \brief transform prediction values, this is only called when Prediction is called
    * \param io_preds prediction values, saves to this vector as well
    */
-  virtual void PredTransform(HostDeviceVector<bst_float> *io_preds) {}
+  virtual void PredTransform(HostDeviceVector<bst_float>*) const {}
 
   /*!
    * \brief transform prediction values, this is only called when Eval is called,
@@ -81,19 +74,27 @@ class ObjFunction {
     return base_score;
   }
   /*!
+   * \brief Return task of this objective.
+   */
+  virtual struct ObjInfo Task() const = 0;
+  /**
+   * \brief Return number of targets for input matrix.  Right now XGBoost supports only
+   *        multi-target regression.
+   */
+  virtual uint32_t Targets(MetaInfo const& info) const {
+    if (info.labels.Shape(1) > 1) {
+      LOG(FATAL) << "multioutput is not supported by current objective function";
+    }
+    return 1;
+  }
+
+  /*!
    * \brief Create an objective function according to name.
    * \param tparam Generic parameters.
    * \param name Name of the objective.
    */
-  static ObjFunction* Create(const std::string& name, LearnerTrainParam const* tparam);
+  static ObjFunction* Create(const std::string& name, GenericParameter const* tparam);
 };
-
-// implementing configure.
-template<typename PairIter>
-inline void ObjFunction::Configure(PairIter begin, PairIter end) {
-  std::vector<std::pair<std::string, std::string> > vec(begin, end);
-  this->Configure(vec);
-}
 
 /*!
  * \brief Registry entry for objective factory functions.

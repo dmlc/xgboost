@@ -56,8 +56,8 @@ private[spark] trait LearningTaskParams extends Params {
   /**
    * evaluation metrics for validation data, a default metric will be assigned according to
    * objective(rmse for regression, and error for classification, mean average precision for
-   * ranking). options: rmse, rmsle, mae, logloss, error, merror, mlogloss, auc, aucpr, ndcg, map,
-   * gamma-deviance
+   * ranking). options: rmse, rmsle, mae, mape, logloss, error, merror, mlogloss, auc, aucpr, ndcg,
+   * map, gamma-deviance
    */
   final val evalMetric = new Param[String](this, "evalMetric", "evaluation metrics for " +
     "validation data, a default metric will be assigned according to objective " +
@@ -81,6 +81,13 @@ private[spark] trait LearningTaskParams extends Params {
     "whether caching training data")
 
   /**
+   * whether cleaning checkpoint, always cleaning by default, having this parameter majorly for
+   * testing
+   */
+  final val skipCleanCheckpoint = new BooleanParam(this, "skipCleanCheckpoint",
+    "whether cleaning checkpoint data")
+
+  /**
    * If non-zero, the training will be stopped after a specified number
    * of consecutive increases in any evaluation metric.
    */
@@ -98,8 +105,14 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getMaximizeEvaluationMetrics: Boolean = $(maximizeEvaluationMetrics)
 
-  setDefault(objective -> "reg:squarederror", baseScore -> 0.5,
-    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0, cacheTrainingSet -> false)
+  /**
+   * whether killing SparkContext when training task fails
+   */
+  final val killSparkContextOnWorkerFailure = new BooleanParam(this,
+    "killSparkContextOnWorkerFailure", "whether killing SparkContext when training task fails")
+
+  setDefault(objective -> "reg:squarederror", baseScore -> 0.5, trainTestRatio -> 1.0,
+    numEarlyStoppingRounds -> 0, cacheTrainingSet -> false, killSparkContextOnWorkerFailure -> true)
 }
 
 private[spark] object LearningTaskParams {
@@ -108,6 +121,6 @@ private[spark] object LearningTaskParams {
 
   val evalMetricsToMaximize = HashSet("auc", "aucpr", "ndcg", "map")
 
-  val evalMetricsToMinimize = HashSet("rmse", "rmsle", "mae", "logloss", "error", "merror",
+  val evalMetricsToMinimize = HashSet("rmse", "rmsle", "mae", "mape", "logloss", "error", "merror",
     "mlogloss", "gamma-deviance")
 }

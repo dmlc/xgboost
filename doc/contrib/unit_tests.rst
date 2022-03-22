@@ -24,7 +24,7 @@ C++: Google Test
 ================
 Add your test under the directory `tests/cpp/ <https://github.com/dmlc/xgboost/tree/master/tests/cpp>`_. Refer to `this excellent tutorial on using Google Test <https://developer.ibm.com/articles/au-googletestingframework/>`_.
 
-You may try running your test by following instructions in :ref:`this section <running_gtest>`.
+You may try running your test by following instructions in :ref:`this section <running_gtest>`. Note. Google Test version 1.8.1 or later is required.
 
 JVM packages: JUnit / scalatest
 ===============================
@@ -104,14 +104,13 @@ In addition, to test CUDA code, run:
 C++: Google Test
 ================
 
-To build and run C++ unit tests, install `Google Test <https://github.com/google/googletest>`_ library with headers
-and then enable tests while running CMake:
+To build and run C++ unit tests enable tests while running CMake:
 
 .. code-block:: bash
 
   mkdir build
   cd build
-  cmake -DGOOGLE_TEST=ON -DGTEST_ROOT=/path/to/google-test ..
+  cmake -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON  ..
   make
   make test
 
@@ -121,7 +120,7 @@ To enable tests for CUDA code, add ``-DUSE_CUDA=ON`` and ``-DUSE_NCCL=ON`` (CUDA
 
   mkdir build
   cd build
-  cmake -DGOOGLE_TEST=ON -DGTEST_ROOT=/path/to/google-test -DUSE_CUDA=ON -DUSE_NCCL=ON ..
+  cmake -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DUSE_CUDA=ON -DUSE_NCCL=ON ..
   make
   make test
 
@@ -135,16 +134,18 @@ One can also run all unit test using ctest tool which provides higher flexibilit
 Sanitizers: Detect memory errors and data races
 ***********************************************
 
-By default, sanitizers are bundled in GCC and Clang/LLVM. One can enable
-sanitizers with GCC >= 4.8 or LLVM >= 3.1, But some distributions might package
-sanitizers separately.  Here is a list of supported sanitizers with
-corresponding library names:
+By default, sanitizers are bundled in GCC and Clang/LLVM. One can enable sanitizers with
+GCC >= 4.8 or LLVM >= 3.1, But some distributions might package sanitizers separately.
+Here is a list of supported sanitizers with corresponding library names:
 
 - Address sanitizer: libasan
+- Undefined sanitizer: libubsan
 - Leak sanitizer:    liblsan
 - Thread sanitizer:  libtsan
 
-Memory sanitizer is exclusive to LLVM, hence not supported in XGBoost.
+Memory sanitizer is exclusive to LLVM, hence not supported in XGBoost.  With latest
+compilers like gcc-9, when sanitizer flags are specified, the compiler driver should be
+able to link the runtime libraries automatically.
 
 How to build XGBoost with sanitizers
 ====================================
@@ -176,5 +177,15 @@ environment variable:
 
   ASAN_OPTIONS=protect_shadow_gap=0 ${BUILD_DIR}/testxgboost
 
-For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
 
+Other sanitizer runtime options
+===============================
+
+By default undefined sanitizer doesn't print out the backtrace.  You can enable it by
+exporting environment variable:
+
+.. code-block::
+
+  UBSAN_OPTIONS=print_stacktrace=1 ${BUILD_DIR}/testxgboost
+
+For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.

@@ -1,77 +1,78 @@
 /*!
  * Copyright 2014-2019 by Contributors
- * \file learner.cc
+ * \file generic_parameters.h
  */
 #ifndef XGBOOST_GENERIC_PARAMETERS_H_
 #define XGBOOST_GENERIC_PARAMETERS_H_
 
-#include <dmlc/parameter.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/logging.h>
+#include <xgboost/parameter.h>
 
 #include <string>
 
 namespace xgboost {
 
-enum class DataSplitMode : int {
-  kAuto = 0, kCol = 1, kRow = 2
-};
-}  // namespace xgboost
+struct GenericParameter : public XGBoostParameter<GenericParameter> {
+ private:
+  // cached value for CFS CPU limit. (used in containerized env)
+  int32_t cfs_cpu_count_;  // NOLINT
 
-DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
+ public:
+  // Constant representing the device ID of CPU.
+  static int32_t constexpr kCpuId = -1;
+  static int64_t constexpr kDefaultSeed = 0;
 
-namespace xgboost {
-struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
+ public:
+  GenericParameter();
+
   // stored random seed
-  int seed;
+  int64_t seed { kDefaultSeed };
   // whether seed the PRNG each iteration
-  bool seed_per_iteration;
-  // data split mode, can be row, col, or none.
-  DataSplitMode dsplit;
+  bool seed_per_iteration{false};
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
-  int nthread;
-  // flag to disable default metric
-  int disable_default_eval_metric;
-  // primary device.
-  int gpu_id;
-  // number of devices to use, -1 implies using all available devices.
-  int n_gpus;
+  int nthread{0};
+  // primary device, -1 means no gpu.
+  int gpu_id{kCpuId};
+  // fail when gpu_id is invalid
+  bool fail_on_invalid_gpu_id {false};
+  bool validate_parameters {false};
 
-  std::string booster;
+  /*!
+   * \brief Configure the parameter `gpu_id'.
+   *
+   * \param require_gpu  Whether GPU is explicitly required from user.
+   */
+  void ConfigureGpuId(bool require_gpu);
+  /*!
+   * Return automatically chosen threads.
+   */
+  int32_t Threads() const;
+
+  bool IsCPU() const { return gpu_id == kCpuId; }
 
   // declare parameters
-  DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
-    DMLC_DECLARE_FIELD(seed).set_default(0).describe(
+  DMLC_DECLARE_PARAMETER(GenericParameter) {
+    DMLC_DECLARE_FIELD(seed).set_default(kDefaultSeed).describe(
         "Random number seed during training.");
+    DMLC_DECLARE_ALIAS(seed, random_state);
     DMLC_DECLARE_FIELD(seed_per_iteration)
         .set_default(false)
-        .describe(
-            "Seed PRNG determnisticly via iterator number, "
-            "this option will be switched on automatically on distributed "
-            "mode.");
-    DMLC_DECLARE_FIELD(dsplit)
-        .set_default(DataSplitMode::kAuto)
-        .add_enum("auto", DataSplitMode::kAuto)
-        .add_enum("col", DataSplitMode::kCol)
-        .add_enum("row", DataSplitMode::kRow)
-        .describe("Data split mode for distributed training.");
+        .describe("Seed PRNG determnisticly via iterator number.");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
-    DMLC_DECLARE_FIELD(disable_default_eval_metric)
-        .set_default(0)
-        .describe("flag to disable default metric. Set to >0 to disable");
+    DMLC_DECLARE_ALIAS(nthread, n_jobs);
+
     DMLC_DECLARE_FIELD(gpu_id)
-        .set_default(0)
-        .describe("The primary GPU device ordinal.");
-    DMLC_DECLARE_FIELD(n_gpus)
-        .set_default(0)
+        .set_default(-1)
         .set_lower_bound(-1)
-        .describe("Deprecated, please use distributed training with one "
-                  "process per GPU. "
-                  "Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(booster)
-        .set_default("gbtree")
-        .describe("Gradient booster used for training.");
+        .describe("The primary GPU device ordinal.");
+    DMLC_DECLARE_FIELD(fail_on_invalid_gpu_id)
+        .set_default(false)
+        .describe("Fail with error when gpu_id is invalid.");
+    DMLC_DECLARE_FIELD(validate_parameters)
+        .set_default(false)
+        .describe("Enable checking whether parameters are used or not.");
   }
 };
 }  // namespace xgboost

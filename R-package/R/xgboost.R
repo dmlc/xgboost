@@ -5,12 +5,12 @@
 #' @export
 xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     params = list(), nrounds,
-                    verbose = 1, print_every_n = 1L, 
-                    early_stopping_rounds = NULL, maximize = NULL, 
+                    verbose = 1, print_every_n = 1L,
+                    early_stopping_rounds = NULL, maximize = NULL,
                     save_period = NULL, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
-
-  dtrain <- xgb.get.DMatrix(data, label, missing, weight)
+  merged <- check.booster.params(params, ...)
+  dtrain <- xgb.get.DMatrix(data, label, missing, weight, nthread = merged$nthread)
 
   watchlist <- list(train = dtrain)
 
@@ -18,16 +18,16 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                    early_stopping_rounds = early_stopping_rounds, maximize = maximize,
                    save_period = save_period, save_name = save_name,
                    xgb_model = xgb_model, callbacks = callbacks, ...)
-  return(bst)
+  return (bst)
 }
 
 #' Training part from Mushroom Data Set
-#' 
+#'
 #' This data set is originally from the Mushroom data set,
 #' UCI Machine Learning Repository.
-#' 
+#'
 #' This data set includes the following fields:
-#' 
+#'
 #' \itemize{
 #'  \item \code{label} the label for each record
 #'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
@@ -35,16 +35,16 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
 #'
 #' @references
 #' https://archive.ics.uci.edu/ml/datasets/Mushroom
-#' 
-#' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository 
-#' [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, 
+#'
+#' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
+#' [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California,
 #' School of Information and Computer Science.
-#' 
+#'
 #' @docType data
 #' @keywords datasets
 #' @name agaricus.train
 #' @usage data(agaricus.train)
-#' @format A list containing a label vector, and a dgCMatrix object with 6513 
+#' @format A list containing a label vector, and a dgCMatrix object with 6513
 #' rows and 127 variables
 NULL
 
@@ -52,9 +52,9 @@ NULL
 #'
 #' This data set is originally from the Mushroom data set,
 #' UCI Machine Learning Repository.
-#' 
+#'
 #' This data set includes the following fields:
-#' 
+#'
 #' \itemize{
 #'  \item \code{label} the label for each record
 #'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
@@ -62,16 +62,16 @@ NULL
 #'
 #' @references
 #' https://archive.ics.uci.edu/ml/datasets/Mushroom
-#' 
-#' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository 
-#' [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, 
+#'
+#' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
+#' [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California,
 #' School of Information and Computer Science.
-#' 
+#'
 #' @docType data
 #' @keywords datasets
 #' @name agaricus.test
 #' @usage data(agaricus.test)
-#' @format A list containing a label vector, and a dgCMatrix object with 1611 
+#' @format A list containing a label vector, and a dgCMatrix object with 1611
 #' rows and 126 variables
 NULL
 
@@ -90,12 +90,8 @@ NULL
 #' @importFrom data.table setkey
 #' @importFrom data.table setkeyv
 #' @importFrom data.table setnames
-#' @importFrom magrittr %>%
-#' @importFrom stringi stri_detect_regex
-#' @importFrom stringi stri_match_first_regex
-#' @importFrom stringi stri_replace_first_regex
-#' @importFrom stringi stri_replace_all_regex
-#' @importFrom stringi stri_split_regex
+#' @importFrom jsonlite fromJSON
+#' @importFrom jsonlite toJSON
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
 #' @importFrom stats median
@@ -107,7 +103,7 @@ NULL
 #' @importFrom graphics par
 #' @importFrom graphics title
 #' @importFrom grDevices rgb
-#' 
+#'
 #' @import methods
 #' @useDynLib xgboost, .registration = TRUE
 NULL

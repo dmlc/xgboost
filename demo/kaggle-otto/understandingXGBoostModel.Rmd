@@ -30,8 +30,8 @@ require(xgboost)
 require(methods)
 require(data.table)
 require(magrittr)
-train <- fread('data/train.csv', header = T, stringsAsFactors = F)
-test <- fread('data/test.csv', header=TRUE, stringsAsFactors = F)
+train <- fread('data/train.csv', header = T, stringsAsFactors = FALSE)
+test <- fread('data/test.csv', header=TRUE, stringsAsFactors = FALSE)
 ```
 > `magrittr` and `data.table` are here to make the code cleaner and much more rapid.
 
@@ -42,13 +42,13 @@ Let's explore the dataset.
 dim(train)
 
 # Training content
-train[1:6,1:5, with =F]
+train[1:6,1:5, with =FALSE]
 
 # Test dataset dimensions
 dim(test)
 
 # Test content
-test[1:6,1:5, with =F]
+test[1:6,1:5, with =FALSE]
 ```
 > We only display the 6 first rows and 5 first columns for convenience
 
@@ -70,7 +70,7 @@ According to its description, the **Otto** challenge is a multi class classifica
 
 ```{r searchLabel}
 # Check the content of the last column
-train[1:6, ncol(train), with  = F]
+train[1:6, ncol(train), with  = FALSE]
 # Save the name of the last column
 nameLastCol <- names(train)[ncol(train)]
 ```
@@ -86,7 +86,7 @@ For that purpose, we will:
 
 ```{r classToIntegers}
 # Convert from classes to numbers
-y <- train[, nameLastCol, with = F][[1]] %>% gsub('Class_','',.) %>% {as.integer(.) -1}
+y <- train[, nameLastCol, with = FALSE][[1]] %>% gsub('Class_','',.) %>% {as.integer(.) -1}
 
 # Display the first 5 levels
 y[1:5]
@@ -95,7 +95,7 @@ y[1:5]
 We remove label column from training dataset, otherwise **XGBoost** would use it to guess the labels!
 
 ```{r deleteCols, results='hide'}
-train[, nameLastCol:=NULL, with = F]
+train[, nameLastCol:=NULL, with = FALSE]
 ```
 
 `data.table` is an awesome implementation of data.frame, unfortunately it is not a format supported natively by **XGBoost**. We need to convert both datasets (training and test) in `numeric` Matrix format.
@@ -163,7 +163,7 @@ Each *split* is done on one feature only at one value.
 Let's see what the model looks like.
 
 ```{r modelDump}
-model <- xgb.dump(bst, with.stats = T)
+model <- xgb.dump(bst, with.stats = TRUE)
 model[1:10]
 ```
 > For convenience, we are displaying the first 10 lines of the model only.

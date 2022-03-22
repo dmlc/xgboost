@@ -1,0 +1,43 @@
+name: cpu_test
+channels:
+- conda-forge
+dependencies:
+- python=3.7
+- pip
+- wheel
+- pyyaml
+- cpplint
+- pylint
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- matplotlib
+- dask
+- distributed
+- python-graphviz
+- hypothesis
+- astroid
+- sphinx
+- sh
+- recommonmark
+- mock
+- breathe
+- pytest
+- pytest-cov
+- python-kubernetes
+- urllib3
+- jsonschema
+- boto3
+- awscli
+- numba
+- llvmlite
+- py-ubjson
+- cffi
+- pyarrow
+- pip:
+  - shap
+  - ipython                     # required by shap at import time.
+  - sphinx_rtd_theme
+  - datatable
+  - modin[all]

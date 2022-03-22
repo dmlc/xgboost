@@ -24,9 +24,9 @@ docker build -t dmlc/xgboost4j-build "${BASEDIR}" # build and tag the Dockerfile
 exec docker run \
   -it \
   --rm  \
-  --memory 8g \
-  --env JAVA_OPTS="-Xmx6g" \
-  --env MAVEN_OPTS="-Xmx2g -Dmaven.repo.local=/xgboost/jvm-packages/dev/.m2" \
+  --memory 12g \
+  --env JAVA_OPTS="-Xmx9g" \
+  --env MAVEN_OPTS="-Xmx3g -Dmaven.repo.local=/xgboost/jvm-packages/dev/.m2" \
   --env CI_BUILD_UID=`id -u` \
   --env CI_BUILD_GID=`id -g` \
   --env CI_BUILD_USER=`id -un` \

@@ -27,14 +27,17 @@ class DataBatch {
   final int[] featureIndex;
   /** value of each non-missing entry in the sparse matrix */
   final float[] featureValue ;
+  /** feature columns */
+  final int featureCols;
 
   DataBatch(long[] rowOffset, float[] weight, float[] label, int[] featureIndex,
-            float[] featureValue) {
+            float[] featureValue, int featureCols) {
     this.rowOffset = rowOffset;
     this.weight = weight;
     this.label = label;
     this.featureIndex = featureIndex;
     this.featureValue = featureValue;
+    this.featureCols = featureCols;
   }
 
   static class BatchIterator implements Iterator<DataBatch> {
@@ -56,9 +59,15 @@ class DataBatch {
       try {
         int numRows = 0;
         int numElem = 0;
+        int numCol  = -1;
         List<LabeledPoint> batch = new ArrayList<>(batchSize);
         while (base.hasNext() && batch.size() < batchSize) {
           LabeledPoint labeledPoint = base.next();
+          if (numCol == -1) {
+            numCol = labeledPoint.size();
+          } else if (numCol != labeledPoint.size()) {
+            throw new RuntimeException("Feature size is not the same");
+          }
           batch.add(labeledPoint);
           numElem += labeledPoint.values().length;
           numRows++;
@@ -91,7 +100,7 @@ class DataBatch {
         }
 
         rowOffset[batch.size()] = offset;
-        return new DataBatch(rowOffset, weight, label, featureIndex, featureValue);
+        return new DataBatch(rowOffset, weight, label, featureIndex, featureValue, numCol);
       } catch (RuntimeException runtimeError) {
         logger.error(runtimeError);
         return null;

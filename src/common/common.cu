@@ -4,17 +4,20 @@
 #include "common.h"
 
 namespace xgboost {
+namespace common {
 
-int AllVisibleImpl::AllVisible() {
+int AllVisibleGPUs() {
   int n_visgpus = 0;
   try {
     // When compiled with CUDA but running on CPU only device,
     // cudaGetDeviceCount will fail.
     dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
-  } catch(const dmlc::Error &except) {
+  } catch (const dmlc::Error &) {
+    cudaGetLastError();  // reset error.
     return 0;
   }
   return n_visgpus;
 }
 
+}  // namespace common
 }  // namespace xgboost

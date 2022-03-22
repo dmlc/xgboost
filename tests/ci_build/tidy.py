@@ -8,6 +8,7 @@ import os
 import sys
 import re
 import argparse
+from time import time
 
 
 def call(args):
@@ -16,30 +17,42 @@ def call(args):
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     error_msg = completed.stdout.decode('utf-8')
-    matched = re.search('(src|tests)/.*warning:', error_msg,
+    # `workspace` is a name used in Jenkins CI.  Normally we should keep the
+    # dir as `xgboost`.
+    matched = re.search('(workspace|xgboost)/.*(src|tests|include)/.*warning:',
+                        error_msg,
                         re.MULTILINE)
     if matched is None:
         return_code = 0
     else:
         return_code = 1
-    return (completed.returncode, return_code, error_msg)
+    return (completed.returncode, return_code, error_msg, args)
 
 
 class ClangTidy(object):
-    '''
-    clang tidy wrapper.
+    ''' clang tidy wrapper.
     Args:
-      gtest_path: Full path of Google Test library.
-      cpp_lint: Run linter on C++ source code.
-      cuda_lint: Run linter on CUDA source code.
+      args:  Command line arguments.
+          cpp_lint: Run linter on C++ source code.
+          cuda_lint: Run linter on CUDA source code.
+          use_dmlc_gtest: Whether to use gtest bundled in dmlc-core.
     '''
-    def __init__(self, gtest_path, cpp_lint, cuda_lint):
-        self.gtest_path = gtest_path
-        self.cpp_lint = cpp_lint
-        self.cuda_lint = cuda_lint
-        print('Using Google Test from {}'.format(self.gtest_path))
+    def __init__(self, args):
+        self.cpp_lint = args.cpp
+        self.cuda_lint = args.cuda
+        self.use_dmlc_gtest = args.use_dmlc_gtest
+        self.cuda_archs = args.cuda_archs.copy() if args.cuda_archs else []
+
+        if args.tidy_version:
+            self.exe = 'clang-tidy-' + str(args.tidy_version)
+        else:
+            self.exe = 'clang-tidy'
+
         print('Run linter on CUDA: ', self.cuda_lint)
         print('Run linter on C++:', self.cpp_lint)
+        print('Use dmlc gtest:', self.use_dmlc_gtest)
+        print('CUDA archs:', ' '.join(self.cuda_archs))
+
         if not self.cpp_lint and not self.cuda_lint:
             raise ValueError('Both --cpp and --cuda are set to 0.')
         self.root_path = os.path.abspath(os.path.curdir)
@@ -47,6 +60,7 @@ class ClangTidy(object):
         self.cdb_path = os.path.join(self.root_path, 'cdb')
 
     def __enter__(self):
+        self.start = time()
         if os.path.exists(self.cdb_path):
             shutil.rmtree(self.cdb_path)
         self._generate_cdb()
@@ -55,16 +69,25 @@ class ClangTidy(object):
     def __exit__(self, *args):
         if os.path.exists(self.cdb_path):
             shutil.rmtree(self.cdb_path)
+        self.end = time()
+        print('Finish running clang-tidy:', self.end - self.start)
 
     def _generate_cdb(self):
         '''Run CMake to generate compilation database.'''
         os.mkdir(self.cdb_path)
         os.chdir(self.cdb_path)
         cmake_args = ['cmake', '..', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
-                      '-DGOOGLE_TEST=ON', '-DGTEST_ROOT={}'.format(
-                          self.gtest_path)]
+                      '-DGOOGLE_TEST=ON']
+        if self.use_dmlc_gtest:
+            cmake_args.append('-DUSE_DMLC_GTEST=ON')
+        else:
+            cmake_args.append('-DUSE_DMLC_GTEST=OFF')
+
         if self.cuda_lint:
             cmake_args.extend(['-DUSE_CUDA=ON', '-DUSE_NCCL=ON'])
+            if self.cuda_archs:
+                arch_list = ';'.join(self.cuda_archs)
+                cmake_args.append(f'-DGPU_COMPUTE_VER={arch_list}')
         subprocess.run(cmake_args)
         os.chdir(self.root_path)
 
@@ -78,7 +101,7 @@ class ClangTidy(object):
         # check each component in a command
         converted_components = [compiler]
 
-        for i in range(len(components)):
+        for i in range(1, len(components)):
             if components[i] == '-lineinfo':
                 continue
             elif components[i] == '-fuse-ld=gold':
@@ -106,10 +129,14 @@ class ClangTidy(object):
                 if pos != -1:
                     converted_components.append(
                         '--cuda-gpu-arch=sm_' + capability)
-            elif components[i].find('--std=c++11') != -1:
-                converted_components.append('-std=c++11')
+            elif components[i].find('--std=c++14') != -1:
+                converted_components.append('-std=c++14')
+            elif components[i].startswith('-isystem='):
+                converted_components.extend(components[i].split('='))
             else:
                 converted_components.append(components[i])
+
+        converted_components.append('-isystem /usr/local/cuda/include/')
 
         command = ''
         for c in converted_components:
@@ -118,8 +145,14 @@ class ClangTidy(object):
         return command
 
     def _configure_flags(self, path, command):
-        common_args = ['clang-tidy',
-                       "-header-filter='(xgboost\\/src|xgboost\\/include)'",
+        src = os.path.join(self.root_path, 'src')
+        src = src.replace('/', '\\/')
+        include = os.path.join(self.root_path, 'include')
+        include = include.replace('/', '\\/')
+
+        header_filter = '(' + src + '|' + include + ')'
+        common_args = [self.exe,
+                       "-header-filter=" + header_filter,
                        '-config='+self.clang_tidy]
         common_args.append(path)
         common_args.append('--')
@@ -156,7 +189,9 @@ class ClangTidy(object):
                 return False
             isxgb = path.find('rabit') == -1
             isxgb = isxgb and path.find('dmlc-core') == -1
+            isxgb = isxgb and (not path.startswith(self.cdb_path))
             if isxgb:
+                print(path)
                 return True
 
         cdb_file = os.path.join(self.cdb_path, 'compile_commands.json')
@@ -170,7 +205,6 @@ class ClangTidy(object):
         for entry in self.compile_commands:
             path = entry['file']
             if should_lint(path):
-                print(path)
                 args = self._configure_flags(path, entry['command'])
                 all_files.extend(args)
         return all_files
@@ -182,22 +216,24 @@ class ClangTidy(object):
         BAR = '-'*32
         with Pool(cpu_count()) as pool:
             results = pool.map(call, all_files)
-            for (process_status, tidy_status, msg) in results:
+            for i, (process_status, tidy_status, msg, args) in enumerate(results):
                 # Don't enforce clang-tidy to pass for now due to namespace
                 # for cub in thrust is not correct.
                 if tidy_status == 1:
                     passed = False
                     print(BAR, '\n'
+                          'Command args:', ' '.join(args), ', ',
                           'Process return code:', process_status, ', ',
                           'Tidy result code:', tidy_status, ', ',
                           'Message:\n', msg,
                           BAR, '\n')
         if not passed:
-            print('Please correct clang-tidy warnings.')
+            print('Errors in `thrust` namespace can be safely ignored.',
+                  'Please address rest of the clang-tidy warnings.')
         return passed
 
 
-def test_tidy():
+def test_tidy(args):
     '''See if clang-tidy and our regex is working correctly.  There are
 many subtleties we need to be careful.  For instances:
 
@@ -224,8 +260,12 @@ right keywords?
         tidy_config = fd.read()
         tidy_config = str(tidy_config)
     tidy_config = '-config='+tidy_config
-    args = ['clang-tidy', tidy_config, test_file_path]
-    (proc_code, tidy_status, error_msg) = call(args)
+    if not args.tidy_version:
+        tidy = 'clang-tidy'
+    else:
+        tidy = 'clang-tidy-' + str(args.tidy_version)
+    args = [tidy, tidy_config, test_file_path]
+    (proc_code, tidy_status, error_msg, _) = call(args)
     assert proc_code == 0
     assert tidy_status == 1
     print('clang-tidy is working.')
@@ -234,14 +274,18 @@ right keywords?
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run clang-tidy.')
     parser.add_argument('--cpp', type=int, default=1)
+    parser.add_argument('--tidy-version', type=int, default=None,
+                        help='Specify the version of preferred clang-tidy.')
     parser.add_argument('--cuda', type=int, default=1)
-    parser.add_argument('--gtest-path', required=True,
-                        help='Full path of Google Test library directory')
+    parser.add_argument('--use-dmlc-gtest', type=int, default=1,
+                        help='Whether to use gtest bundled in dmlc-core.')
+    parser.add_argument('--cuda-archs', action='append',
+                        help='List of CUDA archs to build')
     args = parser.parse_args()
 
-    test_tidy()
+    test_tidy(args)
 
-    with ClangTidy(args.gtest_path, args.cpp, args.cuda) as linter:
+    with ClangTidy(args) as linter:
         passed = linter.run()
     if not passed:
         sys.exit(1)

@@ -28,8 +28,7 @@ original xgb.DMatrix object
 }
 \examples{
 data(agaricus.train, package='xgboost')
-train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 
 dsub <- slice(dtrain, 1:42)
 labels1 <- getinfo(dsub, 'label')

@@ -31,11 +31,12 @@ trait TrainTestData {
     Source.fromInputStream(is).getLines()
   }
 
-  protected def getLabeledPoints(resource: String, zeroBased: Boolean): Seq[XGBLabeledPoint] = {
+  protected def getLabeledPoints(resource: String, featureSize: Int, zeroBased: Boolean):
+      Seq[XGBLabeledPoint] = {
     getResourceLines(resource).map { line =>
       val labelAndFeatures = line.split(" ")
       val label = labelAndFeatures.head.toFloat
-      val values = new Array[Float](126)
+      val values = new Array[Float](featureSize)
       for (feature <- labelAndFeatures.tail) {
         val idAndValue = feature.split(":")
         if (!zeroBased) {
@@ -45,7 +46,7 @@ trait TrainTestData {
         }
       }
 
-      XGBLabeledPoint(label, null, values)
+      XGBLabeledPoint(label, featureSize, null, values)
     }.toList
   }
 
@@ -56,14 +57,14 @@ trait TrainTestData {
       val label = original.head.toFloat
       val group = original.last.toInt
       val values = original.slice(1, length - 1).map(_.toFloat)
-      XGBLabeledPoint(label, null, values, 1f, group, Float.NaN)
+      XGBLabeledPoint(label, values.size, null, values, 1f, group, Float.NaN)
     }.toList
   }
 }
 
 object Classification extends TrainTestData {
-  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.train", zeroBased = false)
-  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
+  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.train", 126, zeroBased = false)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.test", 126, zeroBased = false)
 }
 
 object MultiClassification extends TrainTestData {
@@ -80,19 +81,24 @@ object MultiClassification extends TrainTestData {
         values(i) = featuresAndLabel(i).toFloat
       }
 
-      XGBLabeledPoint(label, null, values.take(values.length - 1))
+      XGBLabeledPoint(label, values.length - 1, null, values.take(values.length - 1))
     }.toList
   }
 }
 
 object Regression extends TrainTestData {
-  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/machine.txt.train", zeroBased = true)
-  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/machine.txt.test", zeroBased = true)
+  val MACHINE_COL_NUM = 36
+  val train: Seq[XGBLabeledPoint] = getLabeledPoints(
+    "/machine.txt.train", MACHINE_COL_NUM, zeroBased = true)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints(
+    "/machine.txt.test", MACHINE_COL_NUM, zeroBased = true)
 }
 
 object Ranking extends TrainTestData {
+  val RANK_COL_NUM = 3
   val train: Seq[XGBLabeledPoint] = getLabeledPointsWithGroup("/rank.train.csv")
-  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/rank.test.txt", zeroBased = false)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints(
+    "/rank.test.txt", RANK_COL_NUM, zeroBased = false)
 
   private def getGroups(resource: String): Seq[Int] = {
     getResourceLines(resource).map(_.toInt).toList
@@ -100,10 +106,17 @@ object Ranking extends TrainTestData {
 }
 
 object Synthetic extends {
+  val TRAIN_COL_NUM = 3
+  val TRAIN_WRONG_COL_NUM = 2
   val train: Seq[XGBLabeledPoint] = Seq(
-    XGBLabeledPoint(1.0f, Array(0, 1), Array(1.0f, 2.0f)),
-    XGBLabeledPoint(0.0f, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
-    XGBLabeledPoint(0.0f, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
-    XGBLabeledPoint(1.0f, Array(0, 1), Array(1.0f, 2.0f))
+    XGBLabeledPoint(1.0f, TRAIN_COL_NUM, Array(0, 1), Array(1.0f, 2.0f)),
+    XGBLabeledPoint(0.0f, TRAIN_COL_NUM, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(0.0f, TRAIN_COL_NUM, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(1.0f, TRAIN_COL_NUM, Array(0, 1), Array(1.0f, 2.0f))
+  )
+
+  val trainWithDiffFeatureSize: Seq[XGBLabeledPoint] = Seq(
+    XGBLabeledPoint(1.0f, TRAIN_WRONG_COL_NUM, Array(0, 1), Array(1.0f, 2.0f)),
+    XGBLabeledPoint(0.0f, TRAIN_COL_NUM, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f))
   )
 }

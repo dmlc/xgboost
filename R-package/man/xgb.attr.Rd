@@ -55,7 +55,7 @@ than for \code{xgb.Booster}, since only just a handle (pointer) would need to be
 That would only matter if attributes need to be set many times.
 Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
 the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
-and it would be user's responsibility to call \code{xgb.save.raw} to update it.
+and it would be user's responsibility to call \code{xgb.serialize} to update it.
 
 The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 but it doesn't delete the other existing attributes.
@@ -73,6 +73,7 @@ xgb.attributes(bst) <- list(a = 123, b = "abc")
 
 xgb.save(bst, 'xgb.model')
 bst1 <- xgb.load('xgb.model')
+if (file.exists('xgb.model')) file.remove('xgb.model')
 print(xgb.attr(bst1, "my_attribute"))
 print(xgb.attributes(bst1))
 

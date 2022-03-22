@@ -62,11 +62,11 @@ cb.print.evaluation <- function(period = 1, showsd = TRUE) {
   callback <- function(env = parent.frame()) {
     if (length(env$bst_evaluation) == 0 ||
         period == 0 ||
-        NVL(env$rank, 0) != 0 )
+        NVL(env$rank, 0) != 0)
       return()
 
     i <- env$iteration
-    if ((i-1) %% period == 0 ||
+    if ((i - 1) %% period == 0 ||
         i == env$begin_iteration ||
         i == env$end_iteration) {
       stdev <- if (showsd) env$bst_evaluation_err else NULL
@@ -115,7 +115,7 @@ cb.evaluation.log <- function() {
       stop("bst_evaluation must have non-empty names")
 
     mnames <<- gsub('-', '_', names(env$bst_evaluation))
-    if(!is.null(env$bst_evaluation_err))
+    if (!is.null(env$bst_evaluation_err))
       mnames <<- c(paste0(mnames, '_mean'), paste0(mnames, '_std'))
   }
 
@@ -123,12 +123,12 @@ cb.evaluation.log <- function() {
     env$evaluation_log <- as.data.table(t(simplify2array(env$evaluation_log)))
     setnames(env$evaluation_log, c('iter', mnames))
 
-    if(!is.null(env$bst_evaluation_err)) {
+    if (!is.null(env$bst_evaluation_err)) {
       # rearrange col order from _mean,_mean,...,_std,_std,...
       # to be _mean,_std,_mean,_std,...
       len <- length(mnames)
-      means <- mnames[seq_len(len/2)]
-      stds <- mnames[(len/2 + 1):len]
+      means <- mnames[seq_len(len / 2)]
+      stds <- mnames[(len / 2 + 1):len]
       cnames <- numeric(len)
       cnames[c(TRUE, FALSE)] <- means
       cnames[c(FALSE, TRUE)] <- stds
@@ -144,7 +144,7 @@ cb.evaluation.log <- function() {
       return(finalizer(env))
 
     ev <- env$bst_evaluation
-    if(!is.null(env$bst_evaluation_err))
+    if (!is.null(env$bst_evaluation_err))
       ev <- c(ev, env$bst_evaluation_err)
     env$evaluation_log <- c(env$evaluation_log,
                             list(c(iter = env$iteration, ev)))
@@ -188,7 +188,7 @@ cb.reset.parameters <- function(new_params) {
   pnames <- gsub("\\.", "_", names(new_params))
   nrounds <- NULL
 
-  # run some checks in the begining
+  # run some checks in the beginning
   init <- function(env) {
     nrounds <<- env$end_iteration - env$begin_iteration + 1
 
@@ -263,10 +263,7 @@ cb.reset.parameters <- function(new_params) {
 #' \itemize{
 #' \item \code{best_score} the evaluation score at the best iteration
 #' \item \code{best_iteration} at which boosting iteration the best score has occurred (1-based index)
-#' \item \code{best_ntreelimit} to use with the \code{ntreelimit} parameter in \code{predict}.
-#'      It differs from \code{best_iteration} in multiclass or random forest settings.
 #' }
-#'
 #' The Same values are also stored as xgb-attributes:
 #' \itemize{
 #' \item \code{best_iteration} is stored as a 0-based iteration index (for interoperability of binary models)
@@ -351,13 +348,19 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
 
   finalizer <- function(env) {
     if (!is.null(env$bst)) {
-      attr_best_score = as.numeric(xgb.attr(env$bst$handle, 'best_score'))
-      if (best_score != attr_best_score)
-        stop("Inconsistent 'best_score' values between the closure state: ", best_score,
-             " and the xgb.attr: ", attr_best_score)
-      env$bst$best_iteration = best_iteration
-      env$bst$best_ntreelimit = best_ntreelimit
-      env$bst$best_score = best_score
+      attr_best_score <- as.numeric(xgb.attr(env$bst$handle, 'best_score'))
+      if (best_score != attr_best_score) {
+        # If the difference is too big, throw an error
+        if (abs(best_score - attr_best_score) >= 1e-14) {
+          stop("Inconsistent 'best_score' values between the closure state: ", best_score,
+               " and the xgb.attr: ", attr_best_score)
+        }
+        # If the difference is due to floating-point truncation, update best_score
+        best_score <- attr_best_score
+      }
+      env$bst$best_iteration <- best_iteration
+      env$bst$best_ntreelimit <- best_ntreelimit
+      env$bst$best_score <- best_score
     } else {
       env$basket$best_iteration <- best_iteration
       env$basket$best_ntreelimit <- best_ntreelimit
@@ -372,9 +375,9 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
       return(finalizer(env))
 
     i <- env$iteration
-    score = env$bst_evaluation[metric_idx]
+    score <- env$bst_evaluation[metric_idx]
 
-    if (( maximize && score > best_score) ||
+    if ((maximize && score > best_score) ||
         (!maximize && score < best_score)) {
 
       best_msg <<- format.eval.string(i, env$bst_evaluation, env$bst_evaluation_err)
@@ -492,15 +495,14 @@ cb.cv.predict <- function(save_models = FALSE) {
         rep(NA_real_, N)
       }
 
-    ntreelimit <- NVL(env$basket$best_ntreelimit,
-                      env$end_iteration * env$num_parallel_tree)
+    iterationrange <- c(1, NVL(env$basket$best_iteration, env$end_iteration) + 1)
     if (NVL(env$params[['booster']], '') == 'gblinear') {
-      ntreelimit <- 0 # must be 0 for gblinear
+      iterationrange <- c(1, 1)  # must be 0 for gblinear
     }
     for (fd in env$bst_folds) {
-      pr <- predict(fd$bst, fd$watchlist[[2]], ntreelimit = ntreelimit, reshape = TRUE)
+      pr <- predict(fd$bst, fd$watchlist[[2]], iterationrange = iterationrange, reshape = TRUE)
       if (is.matrix(pred)) {
-        pred[fd$index,] <- pr
+        pred[fd$index, ] <- pr
       } else {
         pred[fd$index] <- pr
       }
@@ -527,7 +529,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' Callback closure for collecting the model coefficients history of a gblinear booster
 #' during its training.
 #'
-#' @param sparse when set to FALSE/TURE, a dense/sparse matrix is used to store the result.
+#' @param sparse when set to FALSE/TRUE, a dense/sparse matrix is used to store the result.
 #'       Sparse format is useful when one expects only a subset of coefficients to be non-zero,
 #'       when using the "thrifty" feature selector with fairly small number of top features
 #'       selected per iteration.
@@ -554,7 +556,6 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' #
 #' # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
 #' # without considering the 2nd order interactions:
-#' require(magrittr)
 #' x <- model.matrix(Species ~ .^2, iris)[,-1]
 #' colnames(x)
 #' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"))
@@ -575,7 +576,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 200, eta = 0.8,
 #'                  updater = 'coord_descent', feature_selector = 'thrifty', top_k = 1,
 #'                  callbacks = list(cb.gblinear.history()))
-#' xgb.gblinear.history(bst) %>% matplot(type = 'l')
+#' matplot(xgb.gblinear.history(bst), type = 'l')
 #' #  Componentwise boosting is known to have similar effect to Lasso regularization.
 #' # Try experimenting with various values of top_k, eta, nrounds,
 #' # as well as different feature_selectors.
@@ -584,7 +585,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 100, eta = 0.8,
 #'              callbacks = list(cb.gblinear.history()))
 #' # coefficients in the CV fold #3
-#' xgb.gblinear.history(bst)[[3]] %>% matplot(type = 'l')
+#' matplot(xgb.gblinear.history(bst)[[3]], type = 'l')
 #'
 #'
 #' #### Multiclass classification:
@@ -597,15 +598,15 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 70, eta = 0.5,
 #'                  callbacks = list(cb.gblinear.history()))
 #' # Will plot the coefficient paths separately for each class:
-#' xgb.gblinear.history(bst, class_index = 0) %>% matplot(type = 'l')
-#' xgb.gblinear.history(bst, class_index = 1) %>% matplot(type = 'l')
-#' xgb.gblinear.history(bst, class_index = 2) %>% matplot(type = 'l')
+#' matplot(xgb.gblinear.history(bst, class_index = 0), type = 'l')
+#' matplot(xgb.gblinear.history(bst, class_index = 1), type = 'l')
+#' matplot(xgb.gblinear.history(bst, class_index = 2), type = 'l')
 #'
 #' # CV:
 #' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 70, eta = 0.5,
 #'               callbacks = list(cb.gblinear.history(FALSE)))
-#' # 1st forld of 1st class
-#' xgb.gblinear.history(bst, class_index = 0)[[1]] %>% matplot(type = 'l')
+#' # 1st fold of 1st class
+#' matplot(xgb.gblinear.history(bst, class_index = 0)[[1]], type = 'l')
 #'
 #' @export
 cb.gblinear.history <- function(sparse=FALSE) {
@@ -613,9 +614,7 @@ cb.gblinear.history <- function(sparse=FALSE) {
 
   init <- function(env) {
     if (!is.null(env$bst)) { # xgb.train:
-      coef_path <- list()
     } else if (!is.null(env$bst_folds)) { # xgb.cv:
-      coef_path <- rep(list(), length(env$bst_folds))
     } else stop("Parent frame has neither 'bst' nor 'bst_folds'")
   }
 
@@ -638,9 +637,14 @@ cb.gblinear.history <- function(sparse=FALSE) {
     if (!is.null(env$bst)) { # # xgb.train:
       coefs <<- list2mat(coefs)
     } else { # xgb.cv:
-      # first lapply transposes the list
-      coefs <<- lapply(seq_along(coefs[[1]]), function(i) lapply(coefs, "[[", i)) %>%
-                lapply(function(x) list2mat(x))
+      # second lapply transposes the list
+      coefs <<- lapply(
+        X = lapply(
+          X = seq_along(coefs[[1]]),
+          FUN = function(i) lapply(coefs, "[[", i)
+        ),
+        FUN = list2mat
+      )
     }
   }
 
@@ -705,11 +709,11 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
   if (!is_cv) {
     # extract num_class & num_feat from the internal model
     dmp <- xgb.dump(model)
-    if(length(dmp) < 2 || dmp[2] != "bias:")
+    if (length(dmp) < 2 || dmp[2] != "bias:")
       stop("It does not appear to be a gblinear model")
-    dmp <- dmp[-c(1,2)]
+    dmp <- dmp[-c(1, 2)]
     n <- which(dmp == 'weight:')
-    if(length(n) != 1)
+    if (length(n) != 1)
       stop("It does not appear to be a gblinear model")
     num_class <- n - 1
     num_feat <- (length(dmp) - 4) / num_class
@@ -732,9 +736,9 @@ xgb.gblinear.history <- function(model, class_index = NULL) {
   if (!is.null(class_index) && num_class > 1) {
     coef_path <- if (is.list(coef_path)) {
       lapply(coef_path,
-             function(x) x[, seq(1 + class_index, by=num_class, length.out=num_feat)])
+             function(x) x[, seq(1 + class_index, by = num_class, length.out = num_feat)])
     } else {
-      coef_path <- coef_path[, seq(1 + class_index, by=num_class, length.out=num_feat)]
+      coef_path <- coef_path[, seq(1 + class_index, by = num_class, length.out = num_feat)]
     }
   }
   coef_path

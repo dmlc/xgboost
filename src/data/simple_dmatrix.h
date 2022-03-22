@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file simple_dmatrix.h
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
@@ -10,42 +10,60 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 
-#include <algorithm>
-#include <cstring>
 #include <memory>
-#include <utility>
-#include <vector>
+#include <string>
 
-#include "simple_csr_source.h"
+#include "gradient_index.h"
 
 namespace xgboost {
 namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
-  explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
-      : source_(std::move(source)) {}
+  SimpleDMatrix() = default;
+  template <typename AdapterT>
+  explicit SimpleDMatrix(AdapterT* adapter, float missing, int nthread);
+
+  explicit SimpleDMatrix(dmlc::Stream* in_stream);
+  ~SimpleDMatrix() override = default;
+
+  void SaveToLocalFile(const std::string& fname);
 
   MetaInfo& Info() override;
-
   const MetaInfo& Info() const override;
+  GenericParameter const* Ctx() const override { return &ctx_; }
 
-  float GetColDensity(size_t cidx) override;
+  bool SingleColBlock() const override { return true; }
+  DMatrix* Slice(common::Span<int32_t const> ridxs) override;
 
-  bool SingleColBlock() const override;
+  /*! \brief magic number used to identify SimpleDMatrix binary files */
+  static const int kMagic = 0xffffab01;
 
-  BatchSet GetRowBatches() override;
+ protected:
+  BatchSet<SparsePage> GetRowBatches() override;
+  BatchSet<CSCPage> GetColumnBatches() override;
+  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
+  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
+  BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) override;
 
-  BatchSet GetColumnBatches() override;
+  MetaInfo info_;
+  // Primary storage type
+  std::shared_ptr<SparsePage> sparse_page_ = std::make_shared<SparsePage>();
+  std::shared_ptr<CSCPage> column_page_{nullptr};
+  std::shared_ptr<SortedCSCPage> sorted_column_page_{nullptr};
+  std::shared_ptr<EllpackPage> ellpack_page_{nullptr};
+  std::shared_ptr<GHistIndexMatrix> gradient_index_{nullptr};
+  BatchParam batch_param_;
 
-  BatchSet GetSortedColumnBatches() override;
+  bool EllpackExists() const override {
+    return static_cast<bool>(ellpack_page_);
+  }
+  bool SparsePageExists() const override {
+    return true;
+  }
 
  private:
-  // source data pointer.
-  std::unique_ptr<DataSource> source_;
-
-  std::unique_ptr<SparsePage> sorted_column_page_;
-  std::unique_ptr<SparsePage> column_page_;
+  GenericParameter ctx_;
 };
 }  // namespace data
 }  // namespace xgboost

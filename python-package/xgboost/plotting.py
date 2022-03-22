@@ -3,6 +3,7 @@
 # coding: utf-8
 """Plotting Library."""
 from io import BytesIO
+import json
 import numpy as np
 from .core import Booster
 from .sklearn import XGBModel
@@ -10,7 +11,7 @@ from .sklearn import XGBModel
 
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
-                    xlabel='F score', ylabel='Features',
+                    xlabel='F score', ylabel='Features', fmap='',
                     importance_type='weight', max_num_features=None,
                     grid=True, show_values=True, **kwargs):
     """Plot importance based on fitted trees.
@@ -43,6 +44,8 @@ def plot_importance(booster, ax=None, height=0.2,
         X axis title label. To disable, pass None.
     ylabel : str, default "Features"
         Y axis title label. To disable, pass None.
+    fmap: str or os.PathLike (optional)
+        The name of feature map file.
     show_values : bool, default True
         Show values on plot. To disable, pass False.
     kwargs :
@@ -54,21 +57,23 @@ def plot_importance(booster, ax=None, height=0.2,
     """
     try:
         import matplotlib.pyplot as plt
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot importance')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot importance') from e
 
     if isinstance(booster, XGBModel):
         importance = booster.get_booster().get_score(
-            importance_type=importance_type)
+            importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, Booster):
-        importance = booster.get_score(importance_type=importance_type)
+        importance = booster.get_score(importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, dict):
         importance = booster
     else:
         raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if not importance:
-        raise ValueError('Booster.get_score() results in empty')
+        raise ValueError(
+            'Booster.get_score() results in empty.  ' +
+            'This maybe caused by having all trees as decision dumps.')
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
@@ -136,26 +141,26 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
         Edge color when meets the node condition.
     no_color : str, default '#FF0000'
         Edge color when doesn't meet the node condition.
-    condition_node_params : dict (optional)
+    condition_node_params : dict, optional
         Condition node configuration for for graphviz.  Example:
 
         .. code-block:: python
 
-        {'shape': 'box',
-         'style': 'filled,rounded',
-         'fillcolor': '#78bceb'}
+            {'shape': 'box',
+             'style': 'filled,rounded',
+             'fillcolor': '#78bceb'}
 
-    leaf_node_params : dict (optional)
+    leaf_node_params : dict, optional
         Leaf node configuration for graphviz. Example:
 
         .. code-block:: python
 
-        {'shape': 'box',
-         'style': 'filled',
-         'fillcolor': '#e48038'}
+            {'shape': 'box',
+             'style': 'filled',
+             'fillcolor': '#e48038'}
 
-    kwargs : Other keywords passed to graphviz graph_attr, E.g.:
-        ``graph [ {key} = {value} ]``
+    \\*\\*kwargs: dict, optional
+        Other keywords passed to graphviz graph_attr, e.g. ``graph [ {key} = {value} ]``
 
     Returns
     -------
@@ -164,8 +169,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     """
     try:
         from graphviz import Source
-    except ImportError:
-        raise ImportError('You must install graphviz to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install graphviz to plot tree') from e
     if isinstance(booster, XGBModel):
         booster = booster.get_booster()
 
@@ -179,7 +184,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
         kwargs['graph_attrs'] = {}
         kwargs['graph_attrs']['rankdir'] = rankdir
     for key, value in extra.items():
-        if 'graph_attrs' in kwargs.keys():
+        if kwargs.get("graph_attrs", None) is not None:
             kwargs['graph_attrs'][key] = value
         else:
             kwargs['graph_attrs'] = {}
@@ -199,7 +204,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
 
     if kwargs:
         parameters += ':'
-        parameters += str(kwargs)
+        parameters += json.dumps(kwargs)
     tree = booster.get_dump(
         fmap=fmap,
         dump_format=parameters)[num_trees]
@@ -233,8 +238,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
     try:
         from matplotlib import pyplot as plt
         from matplotlib import image
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot tree') from e
 
     if ax is None:
         _, ax = plt.subplots(1, 1)

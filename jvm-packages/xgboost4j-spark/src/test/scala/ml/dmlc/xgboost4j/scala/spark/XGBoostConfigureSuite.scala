@@ -16,7 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+
+import scala.collection.JavaConverters._
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
@@ -28,7 +31,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
 
   test("nthread configuration must be no larger than spark.task.cpus") {
     val training = buildDataFrame(Classification.train)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_workers" -> numWorkers,
       "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
     intercept[IllegalArgumentException] {
@@ -40,7 +43,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     // TODO write an isolated test for Booster.
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator, null)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
 
     val model = new XGBoostClassifier(paramMap).fit(training)
@@ -52,7 +55,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     val originalSslConfOpt = ss.conf.getOption("spark.ssl.enabled")
     ss.conf.set("spark.ssl.enabled", true)
 
-    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 2, "num_workers" -> numWorkers)
     val training = buildDataFrame(Classification.train)
 

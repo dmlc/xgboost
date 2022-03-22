@@ -1,0 +1,142 @@
+name: XGBoost-Python-Tests
+
+on: [push, pull_request]
+
+jobs:
+  python-sdist-test:
+    runs-on: ${{ matrix.os }}
+    name: Test installing XGBoost Python source package on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-10.15, windows-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install osx system dependencies
+      if: matrix.os == 'macos-10.15'
+      run: |
+        brew install ninja libomp
+    - name: Install Ubuntu system dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get install -y --no-install-recommends ninja-build
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: test
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py sdist
+        pip install -v ./dist/xgboost-*.tar.gz
+        cd ..
+        python -c 'import xgboost'
+
+  python-tests-on-win:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        config:
+          - {os: windows-latest, python-version: '3.8'}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.config.python-version }}
+        activate-environment: win64_env
+        environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
+
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+
+    - name: Build XGBoost on Windows
+      shell: bash -l {0}
+      run: |
+        mkdir build_msvc
+        cd build_msvc
+        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
+        cmake --build . --config Release --parallel $(nproc)
+
+    - name: Install Python package
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py bdist_wheel --universal
+        pip install ./dist/*.whl
+
+    - name: Test Python package
+      shell: bash -l {0}
+      run: |
+        pytest -s -v ./tests/python
+
+  python-tests-on-macos:
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        config:
+          - {os: macos-10.15, python-version "3.8" }
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.config.python-version }}
+        activate-environment: macos_test
+        environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
+
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+
+    - name: Build XGBoost on macos
+      shell: bash -l {0}
+      run: |
+        brew install ninja
+
+        mkdir build
+        cd build
+        # Set prefix, to use OpenMP library from Conda env
+        # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
+        # to learn why we don't use libomp from Homebrew.
+        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja
+
+    - name: Install Python package
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py bdist_wheel --universal
+        pip install ./dist/*.whl
+
+    - name: Test Python package
+      shell: bash -l {0}
+      run: |
+        pytest -s -v ./tests/python

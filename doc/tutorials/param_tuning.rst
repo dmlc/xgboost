@@ -38,6 +38,11 @@ There are in general two ways that you can control overfitting in XGBoost:
   - This includes ``subsample`` and ``colsample_bytree``.
   - You can also reduce stepsize ``eta``. Remember to increase ``num_round`` when you do so.
 
+***************************
+Faster training performance
+***************************
+There's a parameter called ``tree_method``, set it to ``hist`` or ``gpu_hist`` for faster computation.
+
 *************************
 Handle Imbalanced Dataset
 *************************

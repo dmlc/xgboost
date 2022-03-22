@@ -1,9 +1,9 @@
-#########################
-Random Forests in XGBoost
-#########################
+#############################
+Random Forests(TM) in XGBoost
+#############################
 
 XGBoost is normally used to train gradient-boosted decision trees and other gradient
-boosted models. Random forests use the same model representation and inference, as
+boosted models. Random Forests use the same model representation and inference, as
 gradient-boosted decision trees, but a different training algorithm.  One can use XGBoost
 to train a standalone random forest or use random forest as a base model for gradient
 boosting.  Here we focus on training standalone random forest.

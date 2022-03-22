@@ -1,0 +1,12 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+version=@xgboost_VERSION@
+exec_prefix=${prefix}/bin
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: xgboost
+Description: XGBoost - Scalable and Flexible Gradient Boosting.
+Version: ${version}
+
+Cflags: -I${includedir}
+Libs: -L${libdir} -lxgboost
