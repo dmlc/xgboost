@@ -18,20 +18,30 @@ from inspect import signature, Parameter
 import numpy as np
 import scipy.sparse
 
-from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
-                     lazy_isinstance)
+from .compat import STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED, lazy_isinstance
 from .libpath import find_lib_path
-from ._typing import (CStrPptrT, c_bst_ulong, CNumericT, DataType,
-                      CNumericPtrT, CStrPtrT, CTypeT, ArrayLike,
-                      CFloatPtrT, NdarrayOrCupyT, FeatNamesT, _T,
-                      CupyT)
+from ._typing import (
+    CStrPptr,
+    c_bst_ulong,
+    CNumeric,
+    DataType,
+    CNumericPtr,
+    CStrPtr,
+    CTypeT,
+    ArrayLike,
+    CFloatPtr,
+    NdarrayOrCupyT,
+    FeatureNames,
+    _T,
+    CupyT,
+)
 
 
 class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
 
 
-def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, CStrPptrT]:
+def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, CStrPptr]:
     """Convert a Python str or list of Python str to C pointer
 
     Parameters
@@ -50,7 +60,7 @@ def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, CStrPptrT]:
     raise TypeError()
 
 
-def from_cstr_to_pystr(data: CStrPptrT, length: c_bst_ulong) -> List[str]:
+def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     """Revert C pointer to Python str
 
     Parameters
@@ -223,8 +233,8 @@ def build_info() -> dict:
     return res
 
 
-def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumericT]:
-    _NUMPY_TO_CTYPES_MAPPING: Dict[Type[np.number], Type[CNumericT]] = {
+def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
+    _NUMPY_TO_CTYPES_MAPPING: Dict[Type[np.number], Type[CNumeric]] = {
         np.float32: ctypes.c_float,
         np.float64: ctypes.c_double,
         np.uint32: ctypes.c_uint,
@@ -252,9 +262,9 @@ def _cuda_array_interface(data: DataType) -> bytes:
     return interface_str
 
 
-def ctypes2numpy(cptr: CNumericPtrT, length: int, dtype: Type[np.number]) -> np.ndarray:
+def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
-    ctype: Type[CNumericT] = _numpy2ctypes_type(dtype)
+    ctype: Type[CNumeric] = _numpy2ctypes_type(dtype)
     if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
@@ -263,7 +273,7 @@ def ctypes2numpy(cptr: CNumericPtrT, length: int, dtype: Type[np.number]) -> np.
     return res
 
 
-def ctypes2cupy(cptr: CNumericPtrT, length: int, dtype: Type[np.number]) -> CupyT:
+def ctypes2cupy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> CupyT:
     """Convert a ctypes pointer array to a cupy array."""
     # pylint: disable=import-error
     import cupy
@@ -289,7 +299,7 @@ def ctypes2cupy(cptr: CNumericPtrT, length: int, dtype: Type[np.number]) -> Cupy
     return arr
 
 
-def ctypes2buffer(cptr: CStrPtrT, length: int) -> bytearray:
+def ctypes2buffer(cptr: CStrPtr, length: int) -> bytearray:
     """Convert ctypes pointer to buffer type."""
     if not isinstance(cptr, ctypes.POINTER(ctypes.c_char)):
         raise RuntimeError('expected char pointer')
@@ -313,9 +323,9 @@ def c_array(ctype: Type[CTypeT], values: ArrayLike) -> ctypes.Array:
 
 
 def _prediction_output(
-    shape: CNumericPtrT,
+    shape: CNumericPtr,
     dims: c_bst_ulong,
-    predts: CFloatPtrT,
+    predts: CFloatPtr,
     is_cuda: bool
 ) -> NdarrayOrCupyT:
     arr_shape = ctypes2numpy(shape, dims.value, np.uint64)
@@ -419,7 +429,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         def data_handle(
             data: Any,
             *,
-            feature_names: FeatNamesT = None,
+            feature_names: FeatureNames = None,
             feature_types: Optional[List[str]] = None,
             **kwargs: Any,
         ) -> None:
@@ -540,7 +550,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: Optional[List[str]] = None,
         nthread: Optional[int] = None,
         group: Optional[ArrayLike] = None,
@@ -696,7 +706,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid: Optional[ArrayLike] = None,
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: Optional[List[str]] = None,
         feature_weights: Optional[ArrayLike] = None
     ) -> None:
@@ -1001,7 +1011,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return feature_names
 
     @feature_names.setter
-    def feature_names(self, feature_names: FeatNamesT) -> None:
+    def feature_names(self, feature_names: FeatureNames) -> None:
         """Set feature names (column labels).
 
         Parameters
@@ -1186,7 +1196,7 @@ class DeviceQuantileDMatrix(DMatrix):
         base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: Optional[List[str]] = None,
         nthread: Optional[int] = None,
         max_bin: int = 256,
@@ -1669,7 +1679,7 @@ class Booster:
         return self._get_feature_info("feature_name")
 
     @feature_names.setter
-    def feature_names(self, features: FeatNamesT) -> None:
+    def feature_names(self, features: FeatureNames) -> None:
         self._set_feature_info(features, "feature_name")
 
     def set_param(
