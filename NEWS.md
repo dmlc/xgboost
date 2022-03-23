@@ -7,45 +7,46 @@ This file records the changes in xgboost library in reverse chronological order.
 
 After a long period of development, XGBoost v1.6.0 is heavy with many new features and
 improvements. We summarize them in the following sections starting with an introduction to
-some significant new features, then move onto language binding specific changes including
-new features and notable bug fixes for that binding.
+some significant new features, then moving onto language binding specific changes
+including new features and notable bug fixes for that binding.
 
 ### Development on categorical data support
 This version of XGBoost features new improvements and full coverage of experimental
 categorical data support in Python and C package with tree model.  Both `hist`, `approx`
 and `gpu_hist` now supports training with categorical data.  Also, partition-based
-categorical split is featured in this release. This feature is first available in LightGBM
-in the context of gradient boosting. In previous version, only `gpu_hist` supports one-hot
-encoding based split which has the form of `x \in {c}` where `{c}` is the set of all
-categories. In this new release the `{c}` can be split into 2 sets for the left and right
-nodes using any of the aforementioned tree methods. For more details, please see our
-tutorial on [categorical data](https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html):
-along with examples linked in that page. (#7380, #7708, #7695, #7330, #7307, #7322, #7705,
+categorical split is featured in this release. This split type is first available in
+LightGBM in the context of gradient boosting. In the previous version, only `gpu_hist`
+supports one-hot encoding based split which has the form of `x \in {c}` where `{c}` is the
+set of all categories. In this new release, the `{c}` can be optionally split into 2 sets
+for the left and right nodes using any of the aforementioned tree methods. For more
+information, please see our tutorial on [categorical
+data](https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html), along with
+examples linked on that page. (#7380, #7708, #7695, #7330, #7307, #7322, #7705,
 #7652, #7592, #7666, #7576, #7569, #7529, #7575, #7393, #7465, #7385, #7371)
 
 In the future, we will continue to improve categorical data support with new features and
-optimizations. Also, we might look forward to bring the feature beyond Python binding,
-contributions and feedback are welcomed! Lastly, as a result of experimental status,
+optimizations. Also, we are looking forward to bringing the feature beyond Python binding,
+contributions and feedback are welcomed! Lastly, as a result of experimental status, the
 behavior might be subject to change, especially the default value of related
 hyper-parameters.
 
 ### Experimental support for multi-output model
 
-XGBoost 1.6 features an initial support for the multi-output model, which includes
-multi-output regression and multi-label classification. Along with which, XGBoost
-classifier has proper support for base-margin without to need for user to flatten the
-input. Right now, XGBoost builds one model for each target similar to sklearn meta
-estimator, for more details, please see our
-[quick introduction](https://xgboost.readthedocs.io/en/latest/tutorials/multioutput.html).
+XGBoost 1.6 features initial support for the multi-output model, which includes
+multi-output regression and multi-label classification. Along with this, the XGBoost
+classifier has proper support for base-margin without to need for the user to flatten the
+input. Right now, XGBoost builds one model for each target similar to the sklearn meta
+estimator, for more details, please see our [quick
+introduction](https://xgboost.readthedocs.io/en/latest/tutorials/multioutput.html).
 
 (#7365, #7736, #7607, #7574, #7521, #7514, #7456, #7453, #7455, #7434, #7429, #7405, #7381)
 
 ### External memory support
 External memory support for both approx and hist tree method is considered feature
-complete in XGBoost 1.6.  Building upon the iterator-based interface introduced in
+complete in XGBoost 1.6.  Building upon the iterator-based interface introduced in the
 previous version, now both `hist` and `approx` iterates over each batch of data during
 training and prediction.  In previous versions, `hist` concatenates all the batches into
-an internal representation, which is removed in this version.  As a result, user can
+an internal representation, which is removed in this version.  As a result, users can
 expect higher scalability in terms of data size but might experience lower performance due
 to disk IO. (#7531, #7320, #7638, #7372)
 
@@ -54,7 +55,7 @@ to disk IO. (#7531, #7320, #7638, #7372)
 The `approx` tree method is rewritten based on the existing `hist` tree method, the
 rewrite closes the feature gap between `approx` and `hist` and improves the performance.
 Now the behavior and `approx` should be more aligned with `hist` and `gpu_hist`, here's a
-list of user visible changes:
+list of user-visible changes:
 
 - Supports both `max_leaves` and `max_depth`.
 - Supports `grow_policy`.
@@ -72,12 +73,13 @@ list of user visible changes:
 Based on the existing JSON serialization format, we introduced UBJSON support as a more
 efficient alternative. Both formats will be available in the future and we plan to
 gradually [phase out](https://github.com/dmlc/xgboost/issues/7547) support for the old
-binary model format.  Users can opt to use the different formats in serialization function
-by providing the file extension `json` or `ubj`. Also, the `save_raw` function in all
-supported languages bindings gain a new parameter for exporting model in different
+binary model format.  Users can opt to use the different formats in the serialization
+function by providing the file extension `json` or `ubj`. Also, the `save_raw` function in
+all supported languages bindings gain a new parameter for exporting the model in different
 formats, available options are `json`, `ubj` and `deprecated`, see document for the
-language binding you are using for details. Lastly, default internal serialization format
-is set to UBJSON, which affects Python pickle and R RDS. (#7572, #7570, #7358, #7571,
+language binding you are using for details. Lastly, the default internal serialization
+format is set to UBJSON, which affects Python pickle and R RDS. (#7572, #7570, #7358,
+#7571,
 #7556, #7549, #7416)
 
 ### General new features
@@ -85,37 +87,38 @@ Other than the major new features mentioned above, some others are summarized he
 
 * Users can now access the build information of XGBoost binary in Python and C
   interface. (#7399, #7553)
-* Remove auto configuration of `seed_per_iteration`, now distributed training should
-  generate closer result to single node training when sampling is used. (#7009)
+* Remove auto-configuration of `seed_per_iteration`, now distributed training should
+  generate closer results to single node training when sampling is used. (#7009)
 * A new parameter `huber_slope` is introduced for the `Pseudo-Huber` objective.
-* During source build, XGBoost can choose cub in system path automatically. (#7579)
+* During source build, XGBoost can choose cub in the system path automatically. (#7579)
 * XGBoost now honors the CPU counts from CFS, which is usually set in docker
-  environment. (#7654, #7704)
+  environments. (#7654, #7704)
 * The metric `aucpr` is rewritten for better performance and GPU support. (#7297, #7368)
 * Metric calculation is now performed in double precision. (#7364)
-* XGBoost no longer mutate the global OpenMP thread limit. (#7537, #7519, #7608, #7590, #7589, #7588)
+* XGBoost no longer mutates the global OpenMP thread limit. (#7537, #7519, #7608, #7590,
+  #7589, #7588)
 * The default behavior of `max_leave` and `max_depth` is now unified (#7302, #7551).
 * CUDA fat binary is now compressed. (#7601)
 * Use double for GPU Hist node sum, which improves the accuracy of `gpu_hist`. (#7507)
 
 ### Deterministic result for evaluation metric and linear model
-In previous versions of XGBoost, evaluation result might differ slightly for each run due
-to parallel reduction for floating point values, which is now addressed. (#7362, #7303,
+In previous versions of XGBoost, evaluation results might differ slightly for each run due
+to parallel reduction for floating-point values, which is now addressed. (#7362, #7303,
 #7316, #7349)
 
 ### Performance improvements
 Most of the performance improvements are integrated into other refactors during feature
 developments. The `approx` should see significant performance gain for many datasets as
-mentioned in previous section, while the `hist` tree method also enjoys improved
+mentioned in the previous section, while the `hist` tree method also enjoys improved
 performance with the removal of the internal `pruner` along with some other
-refactoring. Lastly, `gpu_hist` no longer synchronize the device during training. (#7737)
+refactoring. Lastly, `gpu_hist` no longer synchronizes the device during training. (#7737)
 
 ### General bug fixes
 * Fixes in CMake script for exporting configuration. (#7730)
-* XGBoost can now handle unsorted sparse input. This includes text file format like libsvm
-  and scipy sparse matrix where column index is not sorted. (#7731)
-* Fix tree param feature type, this affects inputs with number of columns greater than the
-maximum value of int32. (#7565)
+* XGBoost can now handle unsorted sparse input. This includes text file formats like
+  libsvm and scipy sparse matrix where column index might not be sorted. (#7731)
+* Fix tree param feature type, this affects inputs with the number of columns greater than
+  the maximum value of int32. (#7565)
 * Fix external memory with gpu_hist and subsampling. (#7481)
 * Check number of trees in inplace predict, this avoids a potential segfault when an
   incorrect value for `iteration_range` is provided. (#7409)
@@ -127,23 +130,25 @@ improvements along with small bug fixes.
 * Python 3.7 is required as the lowest Python version. (#7682)
 * Binary package Support Apple Silicon. (#7621, #7612)
 * There are new parameters for users to specify the custom metric with new
-  behavior. XGBoost can now output transformed prediction value when custom objective is
-  not supplied.  See our explanation in
+  behavior. XGBoost can now output transformed prediction values when a custom objective is
+  not supplied.  See our explanation in the
   [tutorial](https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html#reverse-link-function)
   for details.
 * For sklearn interface, following the estimator guideline from scikit-learn, all
-  parameters in `fit` that are not related to input data are moved into constructor and
-  can be set by `set_params`. (#6751, #7420, #7375, #7369)
-* A new function `get_group` is introduced for `DMatrix` to allow users get the group
-  information in custom objective. (#7564)
-* More training parameters are exposed in sklearn interface instead of relying on the `**kwargs`. (#7629)
+  parameters in `fit` that are not related to input data are moved into the constructor
+  and can be set by `set_params`. (#6751, #7420, #7375, #7369)
+* A new function `get_group` is introduced for `DMatrix` to allow users to get the group
+  information in the custom objective function. (#7564)
+* More training parameters are exposed in the sklearn interface instead of relying on the
+  `**kwargs`. (#7629)
 * A new attribute `feature_names_in_` is defined for all sklearn estimators like
   `XGBRegressor` to follow the convention of sklearn. (#7526)
 * More work on Python type hint. (#7432, #7348, #7338, #7513)
-* Support latest pandas Index type. (#7595)
+* Support the latest pandas Index type. (#7595)
 * Fix for Feature shape mismatch error on s390x platform (#7715)
 * Fix using feature names for constraints with multiple groups (#7711)
-* We clarified the behavior of callback function when it contains mutable states. (#7685)
+* We clarified the behavior of the callback function when it contains mutable
+  states. (#7685)
 * Lastly, there are some code cleanups and maintenance work. (#7585, #7426, #7634, #7665, #7667, #7377, #7360, #7498, #7438, #7667)
 
 ### Changes in Dask interface
@@ -155,15 +160,15 @@ improvements along with small bug fixes.
 * A fix for `nthread` configuration using the Dask sklearn interface. (#7633)
 * Apache arrow format is now supported, which can bring better performance to users'
   pipeline (#7512)
-* The Dask interface can now handle empty partition.  Empty partition is different from
-  empty worker, the later refers the to case when a worker has no partition of a input
-  dataset, while the former refers to some partitions on a worker has zero size. (#7644,
-  #7510)
+* The Dask interface can now handle empty partitions.  An empty partition is different
+  from an empty worker, the latter refers to the case when a worker has no partition of an
+  input dataset, while the former refers to some partitions on a worker that has zero
+  sizes. (#7644, #7510)
 * Scipy sparse matrix is supported as Dask array partition. (#7457)
 * Dask interface is no longer considered experimental. (#7509)
 
 ### Changes in R package
-This section summaries the new features, improvements and bug fixes to the R package.
+This section summarizes the new features, improvements, and bug fixes to the R package.
 
 * `load.raw` can optionally construct a booster as return. (#7686)
 * Fix parsing decision stump, which affects both transforming text representation to data
@@ -175,8 +180,8 @@ This section summaries the new features, improvements and bug fixes to the R pac
 * New maintainer for the CRAN package (#7691, #7649)
 
 ### JVM-packages
-Some new features for JVM-packages are introduced for more integrated GPU pipeline and
-better compatibility with musl-based Linux. Aside from which, we have a few notable bug
+Some new features for JVM-packages are introduced for a more integrated GPU pipeline and
+better compatibility with musl-based Linux. Aside from this, we have a few notable bug
 fixes.
 
 * Add support for detecting musl-based Linux (#7624)
@@ -193,22 +198,22 @@ fixes.
 * Maintenance. (#7550, #7335, #7641, #7523)
 
 ### Deprecation
-Other than the changes in Python package and serialization, we removed some deprecated
-feature in previous releases. Also, as mentioned in the previous section, we plan to phase
-out the old binary format in future releases.
+Other than the changes in the Python package and serialization, we removed some deprecated
+features in previous releases. Also, as mentioned in the previous section, we plan to
+phase out the old binary format in future releases.
 
 * Remove old warning in 1.3 (#7279)
 * Remove label encoder deprecated in 1.3. (#7357)
 * Remove old callback deprecated in 1.3. (#7280)
 
 ### Maintenance
-This is a brief summary of maintenance work that are not specific to any language binding.
+This is a summary of maintenance work that is not specific to any language binding.
 
 * Add CMake option to use /MD runtime (#7277)
 * Add clang-format config. (#7383)
 * Code cleanups (#7539, #7536, #7466, #7499, #7533, #7735, #7722, #7668, #7304, #7293,
   #7321, #7356, #7345, #7387, #7577, #7548, #7469, #7680, #7433, #7398)
-* Improved tests with better converge and latest dependency (#7573, #7446, #7650, #7520,
+* Improved tests with better coverage and latest dependency (#7573, #7446, #7650, #7520,
   #7373, #7723, #7611)
 * Improved automation of the release process. (#7278, #7332, #7470)
 * Compiler workarounds (#7673)
@@ -217,8 +222,8 @@ This is a brief summary of maintenance work that are not specific to any languag
 
 
 ### Documentation
-This section lists some of the general change in document, for language binding specific
-change please visit related sections.
+This section lists some of the general changes related to document, for language binding
+specific change please visit related sections.
 
 * Document is overhauled to use the new rtd theme, along with integration of Python
   examples. Also, we replaced most of the hardcoded URLs with sphinx references. (#7347,
