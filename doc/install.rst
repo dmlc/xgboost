@@ -16,7 +16,7 @@ Stable Release
 Python
 ------
 
-Pre-built binary are uploaded to PyPI (Python Package Index) for each release.  Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64).
+Pre-built binary are uploaded to PyPI (Python Package Index) for each release.  Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
 
 .. code-block:: bash
 
@@ -29,23 +29,38 @@ into permission errors.  Python pre-built binary capability for each platform:
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718
 
-+-------------------+---------+----------------------+
-| Platform          | GPU     | Multi-Node-Multi-GPU |
-+===================+=========+======================+
-| Linux x86_64      | |tick|  |  |tick|              |
-+-------------------+---------+----------------------+
-| Linux aarch64     | |cross| |  |cross|             |
-+-------------------+---------+----------------------+
-| MacOS             | |cross| |  |cross|             |
-+-------------------+---------+----------------------+
-| Windows           | |tick|  |  |cross|             |
-+-------------------+---------+----------------------+
++---------------------+---------+----------------------+
+| Platform            | GPU     | Multi-Node-Multi-GPU |
++=====================+=========+======================+
+| Linux x86_64        | |tick|  |  |tick|              |
++---------------------+---------+----------------------+
+| Linux aarch64       | |cross| |  |cross|             |
++---------------------+---------+----------------------+
+| MacOS x86_64        | |cross| |  |cross|             |
++---------------------+---------+----------------------+
+| MacOS Apple Silicon | |cross| |  |cross|             |
++---------------------+---------+----------------------+
+| Windows             | |tick|  |  |cross|             |
++---------------------+---------+----------------------+
 
-If you are using **Apple Silicon**, please use the Conda packaging manager to install XGBoost:
+Conda
+*****
+
+You may use the Conda packaging manager to install XGBoost:
 
 .. code-block:: bash
 
    conda install -c conda-forge py-xgboost
+
+Conda should be able to detect the existence of a GPU on your machine and install the correct variant of XGBoost. If you run into issues, try indicating the variant explicitly:
+
+.. code-block:: bash
+
+   # CPU only
+   conda install -c conda-forge py-xgboost-cpu
+   # Use NVIDIA GPU
+   conda install -c conda-forge py-xgboost-gpu
+
 
 Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
 
