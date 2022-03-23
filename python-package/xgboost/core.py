@@ -1,4 +1,3 @@
-# coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
