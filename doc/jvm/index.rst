@@ -35,7 +35,6 @@ Contents
 
   java_intro
   XGBoost4J-Spark Tutorial <xgboost4j_spark_tutorial>
-  XGBoost-PySpark Tutorial <xgboost_pyspark_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
   XGBoost4J Java API <javadocs/index>
   XGBoost4J Scala API <scaladocs/xgboost4j/index>

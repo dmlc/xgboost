@@ -15,3 +15,4 @@ Contents
   model
   examples/index
   dask-examples/index
+  xgboost_pyspark_tutorial
