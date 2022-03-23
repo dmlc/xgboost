@@ -14,7 +14,7 @@ FeatureNames = Optional[List[str]]
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
-NdarrayOrCupyT = Any
+NumpyOrCupy = Any
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h

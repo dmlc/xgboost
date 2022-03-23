@@ -30,7 +30,7 @@ from ._typing import (
     CTypeT,
     ArrayLike,
     CFloatPtr,
-    NdarrayOrCupyT,
+    NumpyOrCupy,
     FeatureNames,
     _T,
     CupyT,
@@ -327,7 +327,7 @@ def _prediction_output(
     dims: c_bst_ulong,
     predts: CFloatPtr,
     is_cuda: bool
-) -> NdarrayOrCupyT:
+) -> NumpyOrCupy:
     arr_shape = ctypes2numpy(shape, dims.value, np.uint64)
     length = int(np.prod(arr_shape))
     if is_cuda:
@@ -1992,7 +1992,7 @@ class Booster:
         validate_features: bool = True,
         base_margin: Any = None,
         strict_shape: bool = False
-    ) -> NdarrayOrCupyT:
+    ) -> NumpyOrCupy:
         """Run prediction in-place, Unlike :py:meth:`predict` method, inplace prediction does not
         cache the prediction result.
 
