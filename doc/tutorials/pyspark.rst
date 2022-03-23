@@ -1,6 +1,6 @@
-########################
-XGBoost PySpark Tutorial
-########################
+################################
+Distributed XGBoost with PySpark
+################################
 
 .. versionadded:: 1.6.0
 
