@@ -201,7 +201,7 @@ def _check_call(ret: int) -> None:
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
-def _has_categorical(booster: "Booster", data: Any) -> bool:
+def _has_categorical(booster: "Booster", data: DataType) -> bool:
     """Check whether the booster and input data for prediction contain categorical data.
 
     """

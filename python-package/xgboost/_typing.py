@@ -3,8 +3,6 @@ import ctypes
 import os
 from typing import Optional, List, Any, TypeVar, Union
 
-import numpy as np
-
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
 DataType = Any
@@ -16,7 +14,7 @@ FeatureNames = Optional[List[str]]
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
-NdarrayOrCupyT = Union[np.ndarray, CupyT]
+NdarrayOrCupyT = Any
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
