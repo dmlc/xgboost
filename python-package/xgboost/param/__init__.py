@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from xgboost.ml.dmlc.param.internal import _XGBoostClassifierBase, _XGBoostClassificationModelBase, \
+from .internal import _XGBoostClassifierBase, _XGBoostClassificationModelBase, \
     _XGBoostRegressionModelBase, _XGBoostRegressorBase
 
 __all__ = ['_XGBoostClassifierBase', '_XGBoostClassificationModelBase',

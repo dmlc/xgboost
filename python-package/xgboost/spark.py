@@ -17,8 +17,8 @@
 from pyspark import keyword_only
 from pyspark.ml.common import inherit_doc
 
-from xgboost.ml.dmlc.param import _XGBoostClassifierBase, _XGBoostClassificationModelBase
-from xgboost.ml.dmlc.param.internal import _XGBoostRegressorBase, _XGBoostRegressionModelBase
+from .param import _XGBoostClassifierBase, _XGBoostClassificationModelBase
+from .param import _XGBoostRegressorBase, _XGBoostRegressionModelBase
 
 
 @inherit_doc

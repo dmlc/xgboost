@@ -23,7 +23,7 @@ from pyspark.ml.regression import Regressor, RegressionModel
 from pyspark.ml.util import JavaMLReadable, JavaMLReader, JavaMLWritable
 from pyspark.ml.wrapper import JavaPredictor, JavaPredictionModel
 
-from xgboost.ml.dmlc.param.shared import _XGBoostRegressorParams, _XGBoostClassifierParams
+from .shared import _XGBoostRegressorParams, _XGBoostClassifierParams
 
 
 class _XGBJavaMLReadable(JavaMLReadable):
