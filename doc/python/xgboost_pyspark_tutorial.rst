@@ -1,6 +1,8 @@
-#######################################
-XGBoost PySpark Tutorial (version 1.6.0+)
-#######################################
+########################
+XGBoost PySpark Tutorial
+########################
+
+.. versionadded:: 1.6.0
 
 **XGBoost PySpark** is a project allowing XGBoost running on PySpark environment. Alougth the code
 of **XGBoost PySpark** is shipping in the **XGBoost Python package**, it is the wrapper of XGBoost4j-Spark
@@ -214,4 +216,3 @@ With the above code snippet, we get a result DataFrame, result containing margin
   |[5.7,3.8,1.7,0.3]|       0.0|[3.08765506744384...|[0.99072486162185...|       0.0|
   |[5.1,3.8,1.5,0.3]|       0.0|[3.08765506744384...|[0.99680268764495...|       0.0|
   +-----------------+----------+--------------------+--------------------+----------+
-
