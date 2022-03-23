@@ -16,6 +16,8 @@
 
 import pytest
 
+from python.spark_init_internal import get_spark
+
 
 @pytest.fixture
 def platform(request):
@@ -28,3 +30,17 @@ def skip_by_platform(request, platform):
     if request.node.get_closest_marker('skip_platform'):
         if request.node.get_closest_marker('skip_platform').args[0] == platform:
             pytest.skip('skipped on this platform: {}'.format(platform))
+
+
+
+@pytest.fixture
+def xgboost_tmp_path(request):
+    ret = '/tmp/xgboost-integration-tests/'
+    # Make sure it is there and accessible
+    sc = get_spark().sparkContext
+    config = sc._jsc.hadoopConfiguration()
+    path = sc._jvm.org.apache.hadoop.fs.Path(ret)
+    fs = sc._jvm.org.apache.hadoop.fs.FileSystem.get(config)
+    fs.mkdirs(path)
+    yield ret
+    fs.delete(path)

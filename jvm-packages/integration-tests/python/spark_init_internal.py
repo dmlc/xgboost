@@ -79,15 +79,13 @@ def _handle_event_log_dir(sb, wid):
         .config('spark.eventLog.enabled', True) \
         .config('spark.eventLog.compression.codec', event_log_codec)
 
+
 _spark = _spark__init()
 
 
-def get_spark_i_know_what_i_am_doing():
+def get_spark():
     """
     Get the current SparkSession.
-    This should almost never be called directly instead you should call
-    with_spark_session, with_cpu_session, or with_gpu_session for spark_session.
-    This is to guarantee that the session and it's config is setup in a repeatable way.
     """
     return _spark
 

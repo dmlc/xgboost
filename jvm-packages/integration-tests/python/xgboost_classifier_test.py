@@ -18,10 +18,10 @@ from pyspark.ml.feature import StringIndexer
 from pyspark.ml.linalg import Vectors
 from xgboost.spark import XGBoostClassifier, XGBoostClassificationModel
 
-from spark_init_internal import get_spark_i_know_what_i_am_doing
+from spark_init_internal import get_spark
 
 
-def test_save_xgboost_classifier():
+def test_save_xgboost_classifier(xgboost_tmp_path):
     params = {
         'objective': 'binary:logistic',
         'numRound': 5,
@@ -29,16 +29,19 @@ def test_save_xgboost_classifier():
         'treeMethod': 'hist'
     }
     classifier = XGBoostClassifier(**params)
-    classifier.write().overwrite().save("/tmp/xgboost-integration-tests/xgboost-classifier")
-    classifier1 = XGBoostClassifier.load("/tmp/xgboost-integration-tests/xgboost-classifier")
+
+    classifier_path = xgboost_tmp_path + "xgboost-classifier"
+
+    classifier.write().overwrite().save(classifier_path)
+    classifier1 = XGBoostClassifier.load(classifier_path)
     assert classifier1.getObjective() == 'binary:logistic'
     assert classifier1.getNumRound() == 5
     assert classifier1.getNumWorkers() == 2
     assert classifier1.getTreeMethod() == 'hist'
 
 
-def test_xgboost_regressor_training_without_error():
-    spark = get_spark_i_know_what_i_am_doing()
+def test_xgboost_regressor_training_without_error(xgboost_tmp_path):
+    spark = get_spark()
     df = spark.createDataFrame([
         ("a", Vectors.dense([1.0, 2.0, 3.0, 4.0, 5.0])),
         ("b", Vectors.dense([5.0, 6.0, 7.0, 8.0, 9.0]))],
@@ -55,9 +58,13 @@ def test_xgboost_regressor_training_without_error():
     classifier = XGBoostClassifier(**params) \
         .setLabelCol(label_name) \
         .setFeaturesCol('features')
-    classifier.write().overwrite().save("/tmp/xgboost-integration-tests/xgboost-classifier")
-    classifier1 = XGBoostClassifier.load("/tmp/xgboost-integration-tests/xgboost-classifier")
+
+    classifier_path = xgboost_tmp_path + "xgboost-classifier"
+    classifier.write().overwrite().save(classifier_path)
+    classifier1 = XGBoostClassifier.load(classifier_path)
+
+    model_path = xgboost_tmp_path + "xgboost-classifier-model"
     model = classifier1.fit(indexed_df)
-    model.write().overwrite().save("/tmp/xgboost-integration-tests/xgboost-classifier-model")
-    model1 = XGBoostClassificationModel.load("/tmp/xgboost-integration-tests/xgboost-classifier-model")
+    model.write().overwrite().save(model_path)
+    model1 = XGBoostClassificationModel.load(model_path)
     model1.transform(df).show()
