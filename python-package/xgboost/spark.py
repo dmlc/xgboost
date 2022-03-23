@@ -23,10 +23,10 @@ from .param import _XGBoostRegressorBase, _XGBoostRegressionModelBase
 
 @inherit_doc
 class XGBoostClassifier(_XGBoostClassifierBase):
-    """
-    XGBoostClassifier is a PySpark ML estimator. It implements the XGBoost classification
-    algorithm based on `ml.dmlc.xgboost4j.scala.pyspark.XGBoostClassifier` in XGBoost jvm packages,
-    and it can be used in PySpark Pipeline and PySpark ML meta algorithms like CrossValidator.
+    """XGBoostClassifier is a PySpark ML estimator. It implements the XGBoost
+    classification algorithm based on
+    `ml.dmlc.xgboost4j.scala.pyspark.XGBoostClassifier` in XGBoost jvm packages, and it
+    can be used in PySpark Pipeline and PySpark ML meta algorithms like CrossValidator.
 
     .. versionadded:: 1.6.0
 
@@ -113,7 +113,7 @@ class XGBoostClassifier(_XGBoostClassifierBase):
         kwargs = self._input_kwargs
         self._set(**kwargs)
 
-    def _create_model(self, java_model):
+    def _create_model(self, java_model) -> "XGBoostClassificationModel":
         return XGBoostClassificationModel(java_model)
 
 

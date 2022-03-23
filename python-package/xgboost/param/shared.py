@@ -12,7 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+"""
+Shared parameters between pyspark components.
+"""
 
 from pyspark.ml.param import Params, Param, TypeConverters
 from pyspark.ml.param.shared import HasWeightCol
@@ -30,7 +33,7 @@ class HasNumClass(Params):
         typeConverter=TypeConverters.toInt,
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(HasNumClass, self).__init__()
 
     def getNumClass(self):

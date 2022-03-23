@@ -139,8 +139,6 @@ class _XGBoostClassificationModelBase(
     The base class of XGBoostClassificationModel
     """
 
-    pass
-
 
 @inherit_doc
 class _XGBJavaRegressor(Regressor, JavaPredictor, metaclass=ABCMeta):
@@ -150,9 +148,6 @@ class _XGBJavaRegressor(Regressor, JavaPredictor, metaclass=ABCMeta):
     .. versionadded:: 3.0.0
     """
 
-    # copied from _JavaRegressor
-    pass
-
 
 class _XGBoostRegressorBase(
     _XGBJavaRegressor, _XGBoostRegressorParams, JavaMLWritable, _XGBJavaMLReadable
@@ -160,8 +155,6 @@ class _XGBoostRegressorBase(
     """
     The base class of XGBoostRegressor
     """
-
-    pass
 
 
 @inherit_doc
@@ -173,9 +166,6 @@ class _XGBJavaRegressionModel(RegressionModel, JavaPredictionModel, metaclass=AB
     .. versionadded:: 3.0.0
     """
 
-    # copied from _JavaRegressionModel
-    pass
-
 
 class _XGBoostRegressionModelBase(
     _XGBJavaRegressionModel, JavaMLWritable, _XGBJavaMLReadable
@@ -183,5 +173,3 @@ class _XGBoostRegressionModelBase(
     """
     The base class of XGBoostRegressionModel
     """
-
-    pass
