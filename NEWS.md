@@ -128,8 +128,10 @@ Other than the changes in Dask, the XGBoost Python package gained some new featu
 improvements along with small bug fixes.
 
 * Python 3.7 is required as the lowest Python version. (#7682)
-* Pre-built binary wheel for Apple Silicon. (#7621, #7612) Apple Silicon users will now be able to run `pip install xgboost` to install XGBoost.
-* MacOS users no longer need to install `libomp` from Homebrew, as the XGBoost wheel now bundles `libomp.dylib` library.
+* Pre-built binary wheel for Apple Silicon. (#7621, #7612) Apple Silicon users will now be
+  able to run `pip install xgboost` to install XGBoost.
+* MacOS users no longer need to install `libomp` from Homebrew, as the XGBoost wheel now
+  bundles `libomp.dylib` library.
 * There are new parameters for users to specify the custom metric with new
   behavior. XGBoost can now output transformed prediction values when a custom objective is
   not supplied.  See our explanation in the
