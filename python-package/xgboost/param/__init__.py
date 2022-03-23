@@ -14,12 +14,16 @@
 # limitations under the License.
 #
 
-from .internal import _XGBoostClassifierBase, _XGBoostClassificationModelBase, \
-    _XGBoostRegressionModelBase, _XGBoostRegressorBase
+from .internal import (
+    _XGBoostClassifierBase,
+    _XGBoostClassificationModelBase,
+    _XGBoostRegressionModelBase,
+    _XGBoostRegressorBase,
+)
 
-__all__ = ['_XGBoostClassifierBase', '_XGBoostClassificationModelBase',
-           '_XGBoostRegressionModelBase', '_XGBoostRegressorBase']
-
-
-
-
+__all__ = [
+    "_XGBoostClassifierBase",
+    "_XGBoostClassificationModelBase",
+    "_XGBoostRegressionModelBase",
+    "_XGBoostRegressorBase",
+]

@@ -94,18 +94,20 @@ class XGBoostClassifier(_XGBoostClassifierBase):
     """
 
     # _java_class_name will be used when loading pipeline.
-    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier'
+    _java_class_name = "ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier"
 
     @keyword_only
-    def __init__(self, *,
-                 featuresCol=None,
-                 labelCol=None,
-                 treeMethod=None,
-                 objective=None,
-                 numClass=None,
-                 numRound=None,
-                 numWorkers=None
-                 ):
+    def __init__(
+        self,
+        *,
+        featuresCol=None,
+        labelCol=None,
+        treeMethod=None,
+        objective=None,
+        numClass=None,
+        numRound=None,
+        numWorkers=None
+    ):
         super(XGBoostClassifier, self).__init__()
         self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
         kwargs = self._input_kwargs
@@ -122,12 +124,14 @@ class XGBoostClassificationModel(_XGBoostClassificationModelBase):
     """
 
     # _java_class_name will be used when loading pipeline.
-    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel'
+    _java_class_name = "ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel"
 
     def __init__(self, java_model=None):
         super(XGBoostClassificationModel, self).__init__(java_model=java_model)
         if not java_model:
-            self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
+            self._java_obj = self._new_java_obj(
+                self.__class__._java_class_name, self.uid
+            )
             # transfer jvm default values to python
             self._transfer_params_from_java()
 
@@ -188,17 +192,19 @@ class XGBoostRegressor(_XGBoostRegressorBase):
     """
 
     # _java_class_name will be used when loading pipeline.
-    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor'
+    _java_class_name = "ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor"
 
     @keyword_only
-    def __init__(self, *,
-                 featuresCol=None,
-                 labelCol=None,
-                 treeMethod=None,
-                 objective=None,
-                 numRound=None,
-                 numWorkers=None
-                 ):
+    def __init__(
+        self,
+        *,
+        featuresCol=None,
+        labelCol=None,
+        treeMethod=None,
+        objective=None,
+        numRound=None,
+        numWorkers=None
+    ):
         super(XGBoostRegressor, self).__init__()
         self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
         kwargs = self._input_kwargs
@@ -215,11 +221,13 @@ class XGBoostRegressionModel(_XGBoostRegressionModelBase):
     """
 
     # _java_class_name will be used when loading pipeline.
-    _java_class_name = 'ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel'
+    _java_class_name = "ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel"
 
     def __init__(self, java_model=None):
         super(XGBoostRegressionModel, self).__init__(java_model=java_model)
         if not java_model:
-            self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
+            self._java_obj = self._new_java_obj(
+                self.__class__._java_class_name, self.uid
+            )
             # transfer jvm default values to python
             self._transfer_params_from_java()

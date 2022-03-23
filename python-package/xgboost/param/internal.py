@@ -16,8 +16,12 @@
 
 from abc import ABCMeta
 
-from pyspark.ml.classification import Classifier, ProbabilisticClassifier, \
-    ProbabilisticClassificationModel, ClassificationModel
+from pyspark.ml.classification import (
+    Classifier,
+    ProbabilisticClassifier,
+    ProbabilisticClassificationModel,
+    ClassificationModel,
+)
 from pyspark.ml.common import inherit_doc
 from pyspark.ml.regression import Regressor, RegressionModel
 from pyspark.ml.util import JavaMLReadable, JavaMLReader, JavaMLWritable
@@ -43,7 +47,7 @@ class _XGBJavaMLReader(JavaMLReader):
 
     @classmethod
     def _java_loader_class(cls, clazz):
-        if hasattr(clazz, '_java_class_name') and clazz._java_class_name is not None:
+        if hasattr(clazz, "_java_class_name") and clazz._java_class_name is not None:
             return clazz._java_class_name
         else:
             return JavaMLReader._java_loader_class(clazz)
@@ -65,19 +69,26 @@ class _XGBJavaClassifier(Classifier, JavaPredictor, metaclass=ABCMeta):
 
 
 @inherit_doc
-class _XGBJavaProbabilisticClassifier(ProbabilisticClassifier, _XGBJavaClassifier,
-                                      metaclass=ABCMeta):
+class _XGBJavaProbabilisticClassifier(
+    ProbabilisticClassifier, _XGBJavaClassifier, metaclass=ABCMeta
+):
     """
     Java Probabilistic Classifier for classification tasks.
     """
+
     pass
 
 
-class _XGBoostClassifierBase(_XGBJavaProbabilisticClassifier, _XGBoostClassifierParams,
-                             JavaMLWritable, _XGBJavaMLReadable):
+class _XGBoostClassifierBase(
+    _XGBJavaProbabilisticClassifier,
+    _XGBoostClassifierParams,
+    JavaMLWritable,
+    _XGBJavaMLReadable,
+):
     """
     The base class of XGBoostClassifier
     """
+
     pass
 
 
@@ -104,8 +115,9 @@ class _XGBJavaClassificationModel(ClassificationModel, JavaPredictionModel):
 
 
 @inherit_doc
-class _XGBJavaProbabilisticClassificationModel(ProbabilisticClassificationModel,
-                                               _XGBJavaClassificationModel):
+class _XGBJavaProbabilisticClassificationModel(
+    ProbabilisticClassificationModel, _XGBJavaClassificationModel
+):
     """
     Java Model produced by a ``ProbabilisticClassifier``.
     """
@@ -117,11 +129,16 @@ class _XGBJavaProbabilisticClassificationModel(ProbabilisticClassificationModel,
         return self._call_java("predictProbability", value)
 
 
-class _XGBoostClassificationModelBase(_XGBJavaProbabilisticClassificationModel, _XGBoostClassifierParams,
-                                      JavaMLWritable, _XGBJavaMLReadable):
+class _XGBoostClassificationModelBase(
+    _XGBJavaProbabilisticClassificationModel,
+    _XGBoostClassifierParams,
+    JavaMLWritable,
+    _XGBJavaMLReadable,
+):
     """
     The base class of XGBoostClassificationModel
     """
+
     pass
 
 
@@ -132,15 +149,18 @@ class _XGBJavaRegressor(Regressor, JavaPredictor, metaclass=ABCMeta):
 
     .. versionadded:: 3.0.0
     """
+
     # copied from _JavaRegressor
     pass
 
 
-class _XGBoostRegressorBase(_XGBJavaRegressor, _XGBoostRegressorParams,
-                            JavaMLWritable, _XGBJavaMLReadable):
+class _XGBoostRegressorBase(
+    _XGBJavaRegressor, _XGBoostRegressorParams, JavaMLWritable, _XGBJavaMLReadable
+):
     """
     The base class of XGBoostRegressor
     """
+
     pass
 
 
@@ -152,12 +172,16 @@ class _XGBJavaRegressionModel(RegressionModel, JavaPredictionModel, metaclass=AB
 
     .. versionadded:: 3.0.0
     """
+
     # copied from _JavaRegressionModel
     pass
 
 
-class _XGBoostRegressionModelBase(_XGBJavaRegressionModel, JavaMLWritable, _XGBJavaMLReadable):
+class _XGBoostRegressionModelBase(
+    _XGBJavaRegressionModel, JavaMLWritable, _XGBJavaMLReadable
+):
     """
     The base class of XGBoostRegressionModel
     """
+
     pass
