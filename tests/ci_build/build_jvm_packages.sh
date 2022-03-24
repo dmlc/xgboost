@@ -25,7 +25,7 @@ fi
 mvn --no-transfer-progress package -Dspark.version=${spark_version} $gpu_options
 
 
-pushd ../python-packages
+pushd ../python-package
 python setup.py install
 popd
 
