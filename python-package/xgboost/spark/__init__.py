@@ -13,17 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Internal parameters defined for PySpark module"""
-from .internal import (
-    _XGBoostClassifierBase,
-    _XGBoostClassificationModelBase,
-    _XGBoostRegressionModelBase,
-    _XGBoostRegressorBase,
+"""
+PySpark extenstions for distrbuted training
+-------------------------------------------
+
+See :doc:`Distributed XGBoost with PySpark </tutorials/pyspark>` for a quick start.
+"""
+from .estimator import (
+    XGBoostClassifier,
+    XGBoostClassificationModel,
+    XGBoostRegressor,
+    XGBoostRegressionModel,
 )
 
 __all__ = [
-    "_XGBoostClassifierBase",
-    "_XGBoostClassificationModelBase",
-    "_XGBoostRegressionModelBase",
-    "_XGBoostRegressorBase",
+    "XGBoostClassifier",
+    "XGBoostClassificationModel",
+    "XGBoostRegressor",
+    "XGBoostRegressionModel",
 ]

@@ -16,10 +16,7 @@
 
 # pylint: disable=too-many-ancestors, invalid-name
 """
-PySpark extenstions for distrbuted training
--------------------------------------------
-
-See :doc:`Distributed XGBoost with PySpark </tutorials/pyspark>` for a quick start.
+Estimators for PySpark interface.
 """
 
 import sys
@@ -31,8 +28,8 @@ import py4j
 from pyspark import keyword_only
 from pyspark.ml.common import inherit_doc
 
-from .param import _XGBoostClassifierBase, _XGBoostClassificationModelBase
-from .param import _XGBoostRegressorBase, _XGBoostRegressionModelBase
+from .internal import _XGBoostClassifierBase, _XGBoostClassificationModelBase
+from .internal import _XGBoostRegressorBase, _XGBoostRegressionModelBase
 
 
 def _init_module() -> None:
