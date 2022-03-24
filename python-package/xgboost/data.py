@@ -14,8 +14,7 @@ from .core import _cuda_array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix, FeatureNames
 from ._typing import FeatureTypes
 from .compat import lazy_isinstance, DataFrame
-
-c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
+from ._typing import c_bst_ulong
 
 CAT_T = "c"
 

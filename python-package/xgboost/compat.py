@@ -8,12 +8,12 @@ import importlib.util
 import logging
 import numpy as np
 
-from xgboost._typing import CStrPtrT
+from xgboost._typing import CStrPtr
 
 assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
 
-def py_str(x: CStrPtrT) -> str:
+def py_str(x: CStrPtr) -> str:
     """convert c string back to python string"""
     return x.decode('utf-8')  # type: ignore
 
