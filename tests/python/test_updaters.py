@@ -38,7 +38,7 @@ def train_result(param, dmat, num_rounds):
 class TestTreeMethod:
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_exact(self, param, num_rounds, dataset):
         param['tree_method'] = 'exact'
         param = dataset.set_params(param)
@@ -51,7 +51,7 @@ class TestTreeMethod:
         strategies.integers(1, 20),
         tm.dataset_strategy,
     )
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_approx(self, param, hist_param, num_rounds, dataset):
         param["tree_method"] = "approx"
         param = dataset.set_params(param)
@@ -86,7 +86,7 @@ class TestTreeMethod:
 
     @given(exact_parameter_strategy, hist_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_hist(self, param, hist_param, num_rounds, dataset):
         param['tree_method'] = 'hist'
         param = dataset.set_params(param)
@@ -241,7 +241,7 @@ class TestTreeMethod:
 
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self, rows, cols, rounds, cats):
         self.run_categorical_basic(rows, cols, rounds, cats, "approx")

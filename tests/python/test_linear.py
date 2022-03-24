@@ -26,7 +26,7 @@ def train_result(param, dmat, num_rounds):
 class TestLinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, coord_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
         param['updater'] = 'coord_descent'
         param.update(coord_param)
@@ -41,7 +41,7 @@ class TestLinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, coord_strategy, strategies.floats(1e-5, 1.0),
            strategies.floats(1e-5, 1.0))
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_coordinate_regularised(self, param, num_rounds, dataset, coord_param, alpha, lambd):
         param['updater'] = 'coord_descent'
         param['alpha'] = alpha
@@ -54,7 +54,7 @@ class TestLinear:
 
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_shotgun(self, param, num_rounds, dataset):
         param['updater'] = 'shotgun'
         param = dataset.set_params(param)
@@ -71,7 +71,7 @@ class TestLinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, strategies.floats(1e-5, 1.0),
            strategies.floats(1e-5, 1.0))
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_shotgun_regularised(self, param, num_rounds, dataset, alpha, lambd):
         param['updater'] = 'shotgun'
         param['alpha'] = alpha
