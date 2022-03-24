@@ -141,7 +141,7 @@ jobs:
     - name: Install Python packages
       run: |
         python -m pip install wheel setuptools
-        python -m pip install pylint cpplint numpy scipy scikit-learn
+        python -m pip install pylint cpplint numpy scipy scikit-learn pyspark dask[all]
     - name: Run lint
       run: |
         make lint
