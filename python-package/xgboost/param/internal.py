@@ -14,6 +14,10 @@
 # limitations under the License.
 #
 
+# pylint: disable=invalid-name, too-many-ancestors, protected-access
+"""
+Interal mixins for pyspark module.
+"""
 from abc import ABCMeta
 
 from pyspark.ml.classification import (
@@ -49,8 +53,7 @@ class _XGBJavaMLReader(JavaMLReader):
     def _java_loader_class(cls, clazz):
         if hasattr(clazz, "_java_class_name") and clazz._java_class_name is not None:
             return clazz._java_class_name
-        else:
-            return JavaMLReader._java_loader_class(clazz)
+        return JavaMLReader._java_loader_class(clazz)
 
 
 @inherit_doc
@@ -76,20 +79,17 @@ class _XGBJavaProbabilisticClassifier(
     Java Probabilistic Classifier for classification tasks.
     """
 
-    pass
-
 
 class _XGBoostClassifierBase(
     _XGBJavaProbabilisticClassifier,
     _XGBoostClassifierParams,
     JavaMLWritable,
     _XGBJavaMLReadable,
+    metaclass=ABCMeta,
 ):
     """
     The base class of XGBoostClassifier
     """
-
-    pass
 
 
 @inherit_doc
@@ -150,7 +150,11 @@ class _XGBJavaRegressor(Regressor, JavaPredictor, metaclass=ABCMeta):
 
 
 class _XGBoostRegressorBase(
-    _XGBJavaRegressor, _XGBoostRegressorParams, JavaMLWritable, _XGBJavaMLReadable
+    _XGBJavaRegressor,
+    _XGBoostRegressorParams,
+    JavaMLWritable,
+    _XGBJavaMLReadable,
+    metaclass=ABCMeta,
 ):
     """
     The base class of XGBoostRegressor

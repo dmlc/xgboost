@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=invalid-name, too-many-ancestors
 """
 Shared parameters between pyspark components.
 """
@@ -32,9 +33,6 @@ class HasNumClass(Params):
         "number of classes.",
         typeConverter=TypeConverters.toInt,
     )
-
-    def __init__(self) -> None:
-        super(HasNumClass, self).__init__()
 
     def getNumClass(self):
         """
@@ -146,9 +144,6 @@ class _BoosterParams(Params):
         "maximum number of bins in histogram.",
         typeConverter=TypeConverters.toInt,
     )
-
-    def __init__(self, *args):
-        super(_BoosterParams, self).__init__(*args)
 
     def getObjective(self):
         """
@@ -307,9 +302,6 @@ class _GeneralParams(Params):
         Params._dummy(), "seed", "Random seed", typeConverter=TypeConverters.toInt
     )
 
-    def __init__(self, *args):
-        super(_GeneralParams, self).__init__(*args)
-
     def getNumRound(self):
         """
         Gets the value of numRound or its default value.
@@ -389,9 +381,6 @@ class HasBaseMarginCol(Params):
         typeConverter=TypeConverters.toString,
     )
 
-    def __init__(self):
-        super(HasBaseMarginCol, self).__init__()
-
     def getBaseMarginCol(self):
         """
         Gets the value of baseMarginCol or its default value.
@@ -410,9 +399,6 @@ class HasLeafPredictionCol(Params):
         "leaf prediction column name.",
         typeConverter=TypeConverters.toString,
     )
-
-    def __init__(self):
-        super(HasBaseMarginCol, self).__init__()
 
     def getLeafPredictionCol(self):
         """
@@ -433,9 +419,6 @@ class HasContribPredictionCol(Params):
         typeConverter=TypeConverters.toString,
     )
 
-    def __init__(self):
-        super(HasContribPredictionCol, self).__init__()
-
     def getContribPredictionCol(self):
         """
         Gets the value of contribPredictionCol or its default value.
@@ -454,9 +437,6 @@ class HasGroupCol(Params):
         "The group column name.",
         typeConverter=TypeConverters.toString,
     )
-
-    def __init__(self):
-        super(HasGroupCol, self).__init__()
 
     def getGroupCol(self):
         """

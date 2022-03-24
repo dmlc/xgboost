@@ -13,8 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# pylint: disable=too-many-ancestors, invalid-name
+"""
+PySpark extenstions for distrbuted training
+-------------------------------------------
+
+See :doc:`Distributed XGBoost with PySpark </tutorials/pyspark>` for a quick start.
+"""
+
 import sys
-import imp
+import importlib
 import types
 from typing import Optional
 
@@ -32,11 +41,15 @@ def _init_module() -> None:
 
     """
     if "ml" not in sys.modules:
-        sys.modules["ml"] = imp.new_module("ml")
+        sys.modules["ml"] = importlib.util.module_from_spec(
+            importlib.machinery.ModuleSpec(name="ml", loader=None)
+        )
 
     def dummy_module(parent: types.ModuleType, name: str) -> None:
         if not hasattr(parent, name):
-            setattr(parent, name, imp.new_module(name))
+            setattr(
+                parent, name, importlib.machinery.ModuleSpec(name=name, loader=None)
+            )
 
     dummy_module(sys.modules["ml"], "dmlc")
     dummy_module(sys.modules["ml"].dmlc, "xgboost4j")
@@ -121,6 +134,7 @@ class XGBoostClassifier(_XGBoostClassifierBase):
     # _java_class_name will be used when loading pipeline.
     _java_class_name = "ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier"
 
+    # pylint: disable=unused-argument
     @keyword_only
     def __init__(
         self,
@@ -133,9 +147,9 @@ class XGBoostClassifier(_XGBoostClassifierBase):
         numRound: Optional[int] = None,
         numWorkers: Optional[int] = None
     ):
-        super(XGBoostClassifier, self).__init__()
+        super().__init__()
         self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
-        kwargs = self._input_kwargs
+        kwargs = self._input_kwargs  # pylint: disable=no-member
         self._set(**kwargs)
 
     def _create_model(
@@ -220,6 +234,7 @@ class XGBoostRegressor(_XGBoostRegressorBase):
     # _java_class_name will be used when loading pipeline.
     _java_class_name = "ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor"
 
+    # pylint: disable=unused-argument
     @keyword_only
     def __init__(
         self,
@@ -231,9 +246,9 @@ class XGBoostRegressor(_XGBoostRegressorBase):
         numRound: Optional[int] = None,
         numWorkers: Optional[int] = None
     ):
-        super(XGBoostRegressor, self).__init__()
+        super().__init__()
         self._java_obj = self._new_java_obj(self.__class__._java_class_name, self.uid)
-        kwargs = self._input_kwargs
+        kwargs = self._input_kwargs  # pylint: disable=no-member
         self._set(**kwargs)
 
     def _create_model(
@@ -254,7 +269,7 @@ class XGBoostRegressionModel(_XGBoostRegressionModelBase):
     def __init__(
         self, java_model: Optional[py4j.java_gateway.JavaObject] = None
     ) -> None:
-        super(XGBoostRegressionModel, self).__init__(java_model=java_model)
+        super().__init__(java_model=java_model)
         if not java_model:
             self._java_obj = self._new_java_obj(
                 self.__class__._java_class_name, self.uid
