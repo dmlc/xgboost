@@ -149,8 +149,7 @@ TEST(CutsBuilder, SearchGroupInd) {
   group[2] = 7;
   group[3] = 5;
 
-  p_mat->Info().SetInfo(
-      "group", group.data(), DataType::kUInt32, kNumGroups);
+  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups);
 
   HistogramCuts hmat;
 
@@ -350,6 +349,7 @@ void TestSketchFromWeights(bool with_group) {
   common::HistogramCuts cuts = SketchOnDMatrix(m.get(), kBins, common::OmpGetNumThreads(0));
 
   MetaInfo info;
+  Context ctx;
   auto& h_weights = info.weights_.HostVector();
   if (with_group) {
     h_weights.resize(kGroups);
@@ -363,7 +363,7 @@ void TestSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < kGroups; ++i) {
       groups[i] = kRows / kGroups;
     }
-    info.SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+    info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
   }
 
   info.num_row_ = kRows;
@@ -371,10 +371,10 @@ void TestSketchFromWeights(bool with_group) {
 
   // Assign weights.
   if (with_group) {
-    m->Info().SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+    m->SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
   }
 
-  m->Info().SetInfo("weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+  m->SetInfo("weight", h_weights.data(), DataType::kFloat32, h_weights.size());
   m->Info().num_col_ = kCols;
   m->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);

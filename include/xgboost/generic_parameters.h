@@ -75,6 +75,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .describe("Enable checking whether parameters are used or not.");
   }
 };
+
+using Context = GenericParameter;
 }  // namespace xgboost
 
 #endif  // XGBOOST_GENERIC_PARAMETERS_H_

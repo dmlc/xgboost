@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020-2021 XGBoost contributors
+ * Copyright 2020-2022, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_PROXY_DMATRIX_H_
 #define XGBOOST_DATA_PROXY_DMATRIX_H_
@@ -45,7 +45,7 @@ class DataIterProxy {
 class DMatrixProxy : public DMatrix {
   MetaInfo info_;
   dmlc::any batch_;
-  int32_t device_ { xgboost::GenericParameter::kCpuId };
+  Context ctx_;
 
 #if defined(XGBOOST_USE_CUDA)
   void FromCudaColumnar(std::string interface_str);
@@ -53,7 +53,7 @@ class DMatrixProxy : public DMatrix {
 #endif  // defined(XGBOOST_USE_CUDA)
 
  public:
-  int DeviceIdx() const { return device_; }
+  int DeviceIdx() const { return ctx_.gpu_id; }
 
   void SetData(char const* c_interface) {
     common::AssertGPUSupport();
@@ -67,7 +67,7 @@ class DMatrixProxy : public DMatrix {
       this->FromCudaArray(interface_str);
     }
     if (this->info_.num_row_ == 0) {
-      this->device_ = GenericParameter::kCpuId;
+      this->ctx_.gpu_id = Context::kCpuId;
     }
 #endif  // defined(XGBOOST_USE_CUDA)
   }
@@ -79,10 +79,7 @@ class DMatrixProxy : public DMatrix {
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }
-  GenericParameter const* Ctx() const override {
-    LOG(FATAL) << "`ProxyDMatrix` doesn't have context.";
-    return nullptr;
-  }
+  Context const* Ctx() const override { return &ctx_; }
 
   bool SingleColBlock() const override { return true; }
   bool EllpackExists() const override { return true; }

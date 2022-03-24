@@ -115,7 +115,8 @@ void CopyQidImpl(ArrayInterface<1> array_interface, std::vector<bst_group_t>* p_
 }
 }  // namespace
 
-void MetaInfo::SetInfoFromCUDA(StringView key, Json array) {
+// Context is not used until we have CUDA stream.
+void MetaInfo::SetInfoFromCUDA(Context const&, StringView key, Json array) {
   // multi-dim float info
   if (key == "base_margin") {
     CopyTensorInfoImpl(array, &base_margin_);
