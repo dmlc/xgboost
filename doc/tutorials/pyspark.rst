@@ -4,6 +4,10 @@ Distributed XGBoost with PySpark
 
 .. versionadded:: 1.6.0
 
+.. note::
+
+   The feature is highly experimental and has limited features.
+
 **XGBoost PySpark** is a project allowing XGBoost running on PySpark environment. Alougth the code
 of **XGBoost PySpark** is shipping in the **XGBoost Python package**, it is the wrapper of XGBoost4j-Spark
 and XGBoost4j-Spark-Gpu, which means all the data preparation and training or infering will be routed
