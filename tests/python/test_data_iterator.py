@@ -108,7 +108,8 @@ def run_data_iterator(
         evals_result=results_from_it,
         verbose_eval=False,
     )
-    assert non_increasing(results_from_it["Train"]["rmse"])
+    if not subsample:
+        assert non_increasing(results_from_it["Train"]["rmse"])
 
     X, y = it.as_arrays()
     Xy = xgb.DMatrix(X, y)
