@@ -164,7 +164,7 @@ Equivalently, we can call the corresponding **setXXX** API to set the parameter,
       .setTreeMethod("hist")\
       .setNumClass(3)\
       .setNumRound(100)\
-      .setObjective("multi:softpro")
+      .setObjective("multi:softprob")
   classifier.setNumWorkers(1)
 
 
@@ -172,7 +172,7 @@ After we set XGBoostClassifier parameters and feature/label column, we can build
 
 .. code-block:: python
 
-  model = classifier.fit(xgbInput)
+  model = classifier.fit(xgb_input)
 
 Prediction
 ==========

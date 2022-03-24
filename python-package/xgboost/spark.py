@@ -13,12 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import sys
+import imp
+import types
 from pyspark import keyword_only
 from pyspark.ml.common import inherit_doc
 
 from .param import _XGBoostClassifierBase, _XGBoostClassificationModelBase
 from .param import _XGBoostRegressorBase, _XGBoostRegressionModelBase
+
+
+def _init_module() -> None:
+    if "ml" not in sys.modules:
+        sys.modules["ml"] = imp.new_module("ml")
+
+    def dummy_module(parent: types.ModuleType, name: str) -> None:
+        if not hasattr(parent, name):
+            setattr(parent, name, imp.new_module(name))
+
+    dummy_module(sys.modules["ml"], "dmlc")
+    dummy_module(sys.modules["ml"].dmlc, "xgboost4j")
+    dummy_module(sys.modules["ml"].dmlc.xgboost4j, "scala")
+
+    setattr(sys.modules["ml"].dmlc.xgboost4j.scala, "spark", sys.modules[__name__])
+    sys.modules["ml.dmlc.xgboost4j.scala.spark"] = sys.modules[__name__]
+
+
+_init_module()
 
 
 @inherit_doc
