@@ -45,6 +45,7 @@ including:
 - XGBoost binary buffer file.
 - LIBSVM text format file
 - Comma-separated values (CSV) file
+- Arrow table.
 
 (See :doc:`/tutorials/input_format` for detailed description of text input format.)
 
