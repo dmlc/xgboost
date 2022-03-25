@@ -688,12 +688,10 @@ def _is_cudf_ser(data):
     return isinstance(data, cudf.Series)
 
 
-def _is_cupy_array(data):
-    try:
-        import cupy
-    except ImportError:
-        return False
-    return isinstance(data, cupy.ndarray)
+def _is_cupy_array(data: Any) -> bool:
+    return lazy_isinstance(data, "cupy.core.core", "ndarray") or lazy_isinstance(
+        data, "cupy._core.core", "ndarray"
+    )
 
 
 def _transform_cupy_array(data):
