@@ -537,9 +537,9 @@ class TestModels:
         total_trees = num_parallel_tree * num_classes * num_boost_round
         booster = xgb.train(
             {
-                "num_parallel_tree": 4,
+                "num_parallel_tree": num_parallel_tree,
                 "subsample": 0.5,
-                "num_class": 3,
+                "num_class": num_classes,
                 "booster": booster,
                 "objective": "multi:softprob",
             },
@@ -553,6 +553,10 @@ class TestModels:
         self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round)
 
         bytesarray = booster.save_raw(raw_format="ubj")
+        booster = xgb.Booster(model_file=bytesarray)
+        self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round)
+
+        bytesarray = booster.save_raw(raw_format="deprecated")
         booster = xgb.Booster(model_file=bytesarray)
         self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round)
 
