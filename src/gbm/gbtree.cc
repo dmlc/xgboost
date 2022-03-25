@@ -464,6 +464,7 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   std::vector<int32_t> &out_trees_info = out_model.tree_info;
   out_trees_info.resize(layer_trees * n_layers);
   out_model.param.num_trees = out_model.trees.size();
+  out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
   if (!this->model_.trees_to_update.empty()) {
     CHECK_EQ(this->model_.trees_to_update.size(), this->model_.trees.size())
         << "Not all trees are updated, "
