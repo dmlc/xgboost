@@ -124,7 +124,7 @@ class MetaInfo {
     label_order_cache_.resize(labels.Size());
     std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
     const auto& l = labels.Data()->HostVector();
-    XGBOOST_PARALLEL_SORT(label_order_cache_.begin(), label_order_cache_.end(),
+    XGBOOST_PARALLEL_STABLE_SORT(label_order_cache_.begin(), label_order_cache_.end(),
               [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
 
     return label_order_cache_;
