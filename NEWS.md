@@ -5,7 +5,7 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ## v1.6.0 (2022 Mar 24)
 
-After a long period of development, XGBoost v1.6.0 is heavy with many new features and
+After a long period of development, XGBoost v1.6.0 is packed with many new features and
 improvements. We summarize them in the following sections starting with an introduction to
 some significant new features, then moving onto language binding specific changes
 including new features and notable bug fixes for that binding.
@@ -22,7 +22,7 @@ for the left and right nodes using any of the aforementioned tree methods. For m
 information, please see our tutorial on [categorical
 data](https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html), along with
 examples linked on that page. (#7380, #7708, #7695, #7330, #7307, #7322, #7705,
-#7652, #7592, #7666, #7576, #7569, #7529, #7575, #7393, #7465, #7385, #7371)
+#7652, #7592, #7666, #7576, #7569, #7529, #7575, #7393, #7465, #7385, #7371, #7745)
 
 In the future, we will continue to improve categorical data support with new features and
 optimizations. Also, we are looking forward to bringing the feature beyond Python binding,
@@ -96,7 +96,7 @@ Other than the major new features mentioned above, some others are summarized he
 * The metric `aucpr` is rewritten for better performance and GPU support. (#7297, #7368)
 * Metric calculation is now performed in double precision. (#7364)
 * XGBoost no longer mutates the global OpenMP thread limit. (#7537, #7519, #7608, #7590,
-  #7589, #7588)
+  #7589, #7588, #7687)
 * The default behavior of `max_leave` and `max_depth` is now unified (#7302, #7551).
 * CUDA fat binary is now compressed. (#7601)
 * Use double for GPU Hist node sum, which improves the accuracy of `gpu_hist`. (#7507)
@@ -128,8 +128,8 @@ Other than the changes in Dask, the XGBoost Python package gained some new featu
 improvements along with small bug fixes.
 
 * Python 3.7 is required as the lowest Python version. (#7682)
-* Pre-built binary wheel for Apple Silicon. (#7621, #7612) Apple Silicon users will now be
-  able to run `pip install xgboost` to install XGBoost.
+* Pre-built binary wheel for Apple Silicon. (#7621, #7612, #7747) Apple Silicon users will
+  now be able to run `pip install xgboost` to install XGBoost.
 * MacOS users no longer need to install `libomp` from Homebrew, as the XGBoost wheel now
   bundles `libomp.dylib` library.
 * There are new parameters for users to specify the custom metric with new
@@ -146,7 +146,7 @@ improvements along with small bug fixes.
   `**kwargs`. (#7629)
 * A new attribute `feature_names_in_` is defined for all sklearn estimators like
   `XGBRegressor` to follow the convention of sklearn. (#7526)
-* More work on Python type hint. (#7432, #7348, #7338, #7513)
+* More work on Python type hint. (#7432, #7348, #7338, #7513, #7707)
 * Support the latest pandas Index type. (#7595)
 * Fix for Feature shape mismatch error on s390x platform (#7715)
 * Fix using feature names for constraints with multiple groups (#7711)
@@ -198,7 +198,7 @@ fixes.
 * Update documentation about Python tracker (#7396)
 * Some refactoring to the training pipeline for better compatibility between CPU and
   GPU. (#7440, #7401)
-* Maintenance. (#7550, #7335, #7641, #7523)
+* Maintenance work. (#7550, #7335, #7641, #7523, #6792, #4676)
 
 ### Deprecation
 Other than the changes in the Python package and serialization, we removed some deprecated
