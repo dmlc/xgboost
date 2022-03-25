@@ -2080,8 +2080,13 @@ class Booster:
                     f"got {data.shape[1]}"
                 )
 
-        from .data import _is_pandas_df, _transform_pandas_df, _is_cudf_df
-        from .data import _array_interface
+        from .data import (
+            _is_pandas_df,
+            _transform_pandas_df,
+            _is_cudf_df,
+            _is_cupy_array,
+            _array_interface,
+        )
         enable_categorical = _has_categorical(self, data)
         if _is_pandas_df(data):
             data, _, _ = _transform_pandas_df(data, enable_categorical)
@@ -2118,9 +2123,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if lazy_isinstance(data, "cupy.core.core", "ndarray") or lazy_isinstance(
-            data, "cupy._core.core", "ndarray"
-        ):
+        if _is_cupy_array(data):
             from .data import _transform_cupy_array
 
             data = _transform_cupy_array(data)
