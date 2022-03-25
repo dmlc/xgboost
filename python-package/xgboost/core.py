@@ -17,7 +17,7 @@ from inspect import signature, Parameter
 import numpy as np
 import scipy.sparse
 
-from .compat import STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED, lazy_isinstance
+from .compat import STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED
 from .libpath import find_lib_path
 from ._typing import (
     CStrPptr,
