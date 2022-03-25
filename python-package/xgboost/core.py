@@ -1292,16 +1292,23 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
         num_parallel_tree = 0
     elif booster == "dart":
         num_parallel_tree = int(
-            config["learner"]["gradient_booster"]["gbtree"]["gbtree_train_param"][
+            config["learner"]["gradient_booster"]["gbtree"]["gbtree_model_param"][
                 "num_parallel_tree"
             ]
         )
     elif booster == "gbtree":
-        num_parallel_tree = int(
-            config["learner"]["gradient_booster"]["gbtree_train_param"][
-                "num_parallel_tree"
-            ]
-        )
+        try:
+            num_parallel_tree = int(
+                config["learner"]["gradient_booster"]["gbtree_model_param"][
+                    "num_parallel_tree"
+                ]
+            )
+        except KeyError:
+            num_parallel_tree = int(
+                config["learner"]["gradient_booster"]["gbtree_train_param"][
+                    "num_parallel_tree"
+                ]
+            )
     else:
         raise ValueError(f"Unknown booster: {booster}")
     num_groups = int(config["learner"]["learner_model_param"]["num_class"])

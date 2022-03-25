@@ -414,6 +414,10 @@ void GBTree::SaveConfig(Json* p_out) const {
   // e.g. updating a model, then saving and loading it would result in an empty
   // model
   out["gbtree_train_param"]["process_type"] = String("default");
+  // Duplicated from SaveModel so that user can get `num_parallel_tree` without parsing
+  // the model. We might remove this once we can deprecate `best_ntree_limit` so that the
+  // language binding doesn't need to know about the forest size.
+  out["gbtree_model_param"] = ToJson(model_.param);
 
   out["updater"] = Object();
 
