@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022 XGBoost contributors
  */
 #include "sparse_page_writer.h"
 #include "gradient_index.h"
@@ -7,7 +7,6 @@
 
 namespace xgboost {
 namespace data {
-
 class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
  public:
   bool Read(GHistIndexMatrix* page, dmlc::SeekStream* fi) override {
@@ -50,6 +49,8 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     if (is_dense) {
       page->index.SetBinOffset(page->cut.Ptrs());
     }
+
+    page->ReadColumnPage(fi);
     return true;
   }
 
@@ -81,6 +82,8 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     bytes += sizeof(page.base_rowid);
     fo->Write(page.IsDense());
     bytes += sizeof(page.IsDense());
+
+    bytes += page.WriteColumnPage(fo);
     return bytes;
   }
 };

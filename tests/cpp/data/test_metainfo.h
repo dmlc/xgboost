@@ -16,6 +16,8 @@
 namespace xgboost {
 inline void TestMetaInfoStridedData(int32_t device) {
   MetaInfo info;
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"gpu_id", std::to_string(device)}});
   {
     // labels
     linalg::Tensor<float, 3> labels;
@@ -25,18 +27,17 @@ inline void TestMetaInfoStridedData(int32_t device) {
     auto t_labels = labels.View(device).Slice(linalg::All(), 0, linalg::All());
     ASSERT_EQ(t_labels.Shape().size(), 2);
 
-    info.SetInfo("label", StringView{ArrayInterfaceStr(t_labels)});
+    info.SetInfo(ctx, "label", StringView{ArrayInterfaceStr(t_labels)});
     auto const& h_result = info.labels.View(-1);
     ASSERT_EQ(h_result.Shape().size(), 2);
     auto in_labels = labels.View(-1);
-    linalg::ElementWiseKernelHost(h_result, omp_get_max_threads(), [&](size_t i, float v_0) {
+    linalg::ElementWiseKernelHost(h_result, omp_get_max_threads(), [&](size_t i, float& v_0) {
       auto tup = linalg::UnravelIndex(i, h_result.Shape());
       auto i0 = std::get<0>(tup);
       auto i1 = std::get<1>(tup);
       // Sliced at second dimension.
       auto v_1 = in_labels(i0, 0, i1);
       CHECK_EQ(v_0, v_1);
-      return v_0;
     });
   }
   {
@@ -47,7 +48,7 @@ inline void TestMetaInfoStridedData(int32_t device) {
     std::iota(h_qid.begin(), h_qid.end(), 0);
     auto s = qid.View(device).Slice(linalg::All(), 0);
     auto str = ArrayInterfaceStr(s);
-    info.SetInfo("qid", StringView{str});
+    info.SetInfo(ctx, "qid", StringView{str});
     auto const& h_result = info.group_ptr_;
     ASSERT_EQ(h_result.size(), s.Size() + 1);
   }
@@ -60,7 +61,7 @@ inline void TestMetaInfoStridedData(int32_t device) {
     auto t_margin = base_margin.View(device).Slice(linalg::All(), 0, linalg::All());
     ASSERT_EQ(t_margin.Shape().size(), 2);
 
-    info.SetInfo("base_margin", StringView{ArrayInterfaceStr(t_margin)});
+    info.SetInfo(ctx, "base_margin", StringView{ArrayInterfaceStr(t_margin)});
     auto const& h_result = info.base_margin_.View(-1);
     ASSERT_EQ(h_result.Shape().size(), 2);
     auto in_margin = base_margin.View(-1);
@@ -71,7 +72,6 @@ inline void TestMetaInfoStridedData(int32_t device) {
       // Sliced at second dimension.
       auto v_1 = in_margin(i0, 0, i1);
       CHECK_EQ(v_0, v_1);
-      return v_0;
     });
   }
 }

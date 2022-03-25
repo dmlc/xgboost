@@ -254,8 +254,7 @@ TEST(GpuHist, EvaluateRootSplit) {
   std::vector<float> feature_weights;
 
   maker.column_sampler.Init(kNCols, feature_weights, param.colsample_bynode,
-                            param.colsample_bylevel, param.colsample_bytree,
-                            false);
+                            param.colsample_bylevel, param.colsample_bytree);
 
   RegTree tree;
   MetaInfo info;

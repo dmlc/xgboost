@@ -1,7 +1,7 @@
 import xgboost as xgb
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 import numpy as np
-from testing import IteratorForTest
+from testing import IteratorForTest, non_increasing
 from typing import Tuple, List
 import pytest
 from hypothesis import given, strategies, settings
@@ -108,7 +108,7 @@ def run_data_iterator(
         evals_result=results_from_it,
         verbose_eval=False,
     )
-    it_predt = from_it.predict(Xy)
+    assert non_increasing(results_from_it["Train"]["rmse"])
 
     X, y = it.as_arrays()
     Xy = xgb.DMatrix(X, y)
@@ -125,13 +125,13 @@ def run_data_iterator(
         verbose_eval=False,
     )
     arr_predt = from_arrays.predict(Xy)
+    assert non_increasing(results_from_arrays["Train"]["rmse"])
 
-    if tree_method != "gpu_hist":
-        rtol = 1e-1  # flaky
-    else:
-        # Model can be sensitive to quantiles, use 1e-2 to relax the test.
-        np.testing.assert_allclose(it_predt, arr_predt, rtol=1e-2)
-        rtol = 1e-6
+    rtol = 1e-2
+    # CPU sketching is more memory efficient but less consistent due to small chunks
+    it_predt = from_it.predict(Xy)
+    arr_predt = from_arrays.predict(Xy)
+    np.testing.assert_allclose(it_predt, arr_predt, rtol=rtol)
 
     np.testing.assert_allclose(
         results_from_it["Train"]["rmse"],

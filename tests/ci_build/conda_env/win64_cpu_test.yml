@@ -15,7 +15,8 @@ dependencies:
 - pytest
 - jsonschema
 - hypothesis
-- jsonschema
 - python-graphviz
 - pip
 - py-ubjson
+- cffi
+- pyarrow

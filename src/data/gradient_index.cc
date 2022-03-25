@@ -144,7 +144,6 @@ void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, double sparse_thresh,
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(n_threads * nbins, 0);
 
-  this->p_fmat = p_fmat;
   size_t new_size = 1;
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
     new_size += batch.Size();
@@ -163,6 +162,16 @@ void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, double sparse_thresh,
     this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
     prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
+  }
+  this->columns_ = std::make_unique<common::ColumnMatrix>();
+
+  // hessian is empty when hist tree method is used or when dataset is empty
+  if (hess.empty() && !std::isnan(sparse_thresh)) {
+    // hist
+    CHECK(!sorted_sketch);
+    for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
+      this->columns_->Init(page, *this, sparse_thresh, n_threads);
+    }
   }
 }
 
@@ -187,6 +196,10 @@ void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType co
   size_t prev_sum = 0;
 
   this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
+  this->columns_ = std::make_unique<common::ColumnMatrix>();
+  if (!std::isnan(sparse_thresh)) {
+    this->columns_->Init(batch, *this, sparse_thresh, n_threads);
+  }
 }
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
@@ -204,5 +217,18 @@ void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
     index.SetBinTypeSize(common::kUint32BinsTypeSize);
     index.Resize((sizeof(uint32_t)) * n_index);
   }
+}
+
+common::ColumnMatrix const &GHistIndexMatrix::Transpose() const {
+  CHECK(columns_);
+  return *columns_;
+}
+
+bool GHistIndexMatrix::ReadColumnPage(dmlc::SeekStream *fi) {
+  return this->columns_->Read(fi, this->cut.Ptrs().data());
+}
+
+size_t GHistIndexMatrix::WriteColumnPage(dmlc::Stream *fo) const {
+  return this->columns_->Write(fo);
 }
 }  // namespace xgboost

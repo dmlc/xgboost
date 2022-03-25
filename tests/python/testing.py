@@ -53,6 +53,15 @@ def no_pandas():
             'reason': 'Pandas is not installed.'}
 
 
+def no_arrow():
+    reason = "pyarrow is not installed"
+    try:
+        import pyarrow  # noqa
+        return {"condition": False, "reason": reason}
+    except ImportError:
+        return {"condition": True, "reason": reason}
+
+
 def no_modin():
     reason = 'Modin is not installed.'
     try:

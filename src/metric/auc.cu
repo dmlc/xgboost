@@ -99,7 +99,7 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
   /**
    * Linear scan
    */
-  auto get_weight = OptionalWeights{weights};
+  auto get_weight = common::OptionalWeights{weights};
   auto get_fp_tp = [=]XGBOOST_DEVICE(size_t i) {
     size_t idx = d_sorted_idx[i];
 
@@ -353,7 +353,7 @@ double GPUMultiClassAUCOVR(common::Span<float const> predts,
    * Linear scan
    */
   dh::caching_device_vector<double> d_auc(n_classes, 0);
-  auto get_weight = OptionalWeights{weights};
+  auto get_weight = common::OptionalWeights{weights};
   auto d_fptp = dh::ToSpan(cache->fptp);
   auto get_fp_tp = [=]XGBOOST_DEVICE(size_t i) {
     size_t idx = d_sorted_idx[i];
@@ -633,7 +633,7 @@ GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
 
   auto labels = info.labels.View(device);
   auto d_weights = info.weights_.ConstDeviceSpan();
-  auto get_weight = OptionalWeights{d_weights};
+  auto get_weight = common::OptionalWeights{d_weights};
   auto it = dh::MakeTransformIterator<Pair>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
         auto w = get_weight[d_sorted_idx[i]];
@@ -687,7 +687,7 @@ double GPUMultiClassPRAUC(common::Span<float const> predts,
                                         [n_samples] XGBOOST_DEVICE(size_t i) {
                                           return i / n_samples;  // class id
                                         });
-  auto get_weight = OptionalWeights{d_weights};
+  auto get_weight = common::OptionalWeights{d_weights};
   auto val_it = dh::MakeTransformIterator<thrust::pair<double, double>>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
         auto idx = d_sorted_idx[i] % n_samples;
@@ -736,7 +736,7 @@ GPURankingPRAUCImpl(common::Span<float const> predts, MetaInfo const &info,
    */
   size_t n_samples = labels.Shape(0);
   dh::caching_device_vector<double> d_auc(n_groups, 0);
-  auto get_weight = OptionalWeights{weights};
+  auto get_weight = common::OptionalWeights{weights};
   auto d_fptp = dh::ToSpan(cache->fptp);
   auto get_fp_tp = [=] XGBOOST_DEVICE(size_t i) {
     size_t idx = d_sorted_idx[i];

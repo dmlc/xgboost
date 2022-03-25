@@ -94,7 +94,7 @@ class GloablApproxBuilder {
     rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double *>(&root_sum), 2);
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
-    auto space = this->ConstructHistSpace(nodes);
+    auto space = ConstructHistSpace(partitioner_, nodes);
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(), nodes,
                                    {}, gpair);
@@ -114,54 +114,13 @@ class GloablApproxBuilder {
     return nodes.front();
   }
 
-  void UpdatePredictionCache(const DMatrix *data, linalg::VectorView<float> out_preds) {
+  void UpdatePredictionCache(DMatrix const *data, linalg::VectorView<float> out_preds) const {
     monitor_->Start(__func__);
     // Caching prediction seems redundant for approx tree method, as sketching takes up
     // majority of training time.
     CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    CHECK(p_last_tree_);
-
-    size_t n_nodes = p_last_tree_->GetNodes().size();
-
-    auto evaluator = evaluator_.Evaluator();
-    auto const &tree = *p_last_tree_;
-    auto const &snode = evaluator_.Stats();
-    for (auto &part : partitioner_) {
-      CHECK_EQ(part.Size(), n_nodes);
-      common::BlockedSpace2d space(
-          part.Size(), [&](size_t node) { return part[node].Size(); }, 1024);
-      common::ParallelFor2d(space, ctx_->Threads(), [&](size_t nidx, common::Range1d r) {
-        if (tree[nidx].IsLeaf()) {
-          const auto rowset = part[nidx];
-          auto const &stats = snode.at(nidx);
-          auto leaf_value =
-              evaluator.CalcWeight(nidx, param_, GradStats{stats.stats}) * param_.learning_rate;
-          for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
-            out_preds(*it) += leaf_value;
-          }
-        }
-      });
-    }
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, evaluator_, param_, out_preds);
     monitor_->Stop(__func__);
-  }
-
-  // Construct a work space for building histogram.  Eventually we should move this
-  // function into histogram builder once hist tree method supports external memory.
-  common::BlockedSpace2d ConstructHistSpace(
-      std::vector<CPUExpandEntry> const &nodes_to_build) const {
-    std::vector<size_t> partition_size(nodes_to_build.size(), 0);
-    for (auto const &partition : partitioner_) {
-      size_t k = 0;
-      for (auto node : nodes_to_build) {
-        auto n_rows_in_node = partition.Partitions()[node.nid].Size();
-        partition_size[k] = std::max(partition_size[k], n_rows_in_node);
-        k++;
-      }
-    }
-    common::BlockedSpace2d space{nodes_to_build.size(),
-                                 [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; },
-                                 256};
-    return space;
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
@@ -186,7 +145,7 @@ class GloablApproxBuilder {
     }
 
     size_t i = 0;
-    auto space = this->ConstructHistSpace(nodes_to_build);
+    auto space = ConstructHistSpace(partitioner_, nodes_to_build);
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(),
                                    nodes_to_build, nodes_to_sub, gpair);
@@ -213,7 +172,7 @@ class GloablApproxBuilder {
     Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
     auto &tree = *p_tree;
     driver.Push({this->InitRoot(p_fmat, gpair, hess, p_tree)});
-    bst_node_t num_leaves = 1;
+    bst_node_t num_leaves{1};
     auto expand_set = driver.Pop();
 
     /**
@@ -245,10 +204,10 @@ class GloablApproxBuilder {
       }
 
       monitor_->Start("UpdatePosition");
-      size_t i = 0;
+      size_t page_id = 0;
       for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
-        partitioner_.at(i).UpdatePosition(ctx_, page, applied, p_tree);
-        i++;
+        partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
+        page_id++;
       }
       monitor_->Stop("UpdatePosition");
 
@@ -310,9 +269,9 @@ class GlobalApproxUpdater : public TreeUpdater {
     out["hist_param"] = ToJson(hist_param_);
   }
 
-  void InitData(TrainParam const &param, HostDeviceVector<GradientPair> *gpair,
+  void InitData(TrainParam const &param, HostDeviceVector<GradientPair> const *gpair,
                 std::vector<GradientPair> *sampled) {
-    auto const &h_gpair = gpair->HostVector();
+    auto const &h_gpair = gpair->ConstHostVector();
     sampled->resize(h_gpair.size());
     std::copy(h_gpair.cbegin(), h_gpair.cend(), sampled->begin());
     auto &rnd = common::GlobalRandom();

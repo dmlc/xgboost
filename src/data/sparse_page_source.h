@@ -23,6 +23,7 @@
 #include "proxy_dmatrix.h"
 
 #include "../common/common.h"
+#include "../common/timer.h"
 
 namespace xgboost {
 namespace data {
@@ -118,26 +119,30 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     size_t n_prefetch_batches = std::min(kPreFetch, n_batches_);
     CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
     size_t fetch_it = count_;
+
     for (size_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
       fetch_it %= n_batches_;  // ring
-      if (ring_->at(fetch_it).valid()) { continue; }
+      if (ring_->at(fetch_it).valid()) {
+        continue;
+      }
       auto const *self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
       ring_->at(fetch_it) = std::async(std::launch::async, [fetch_it, self]() {
+        common::Timer timer;
+        timer.Start();
         std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
         auto n = self->cache_info_->ShardName();
         size_t offset = self->cache_info_->offset.at(fetch_it);
-        std::unique_ptr<dmlc::SeekStream> fi{
-            dmlc::SeekStream::CreateForRead(n.c_str())};
+        std::unique_ptr<dmlc::SeekStream> fi{dmlc::SeekStream::CreateForRead(n.c_str())};
         fi->Seek(offset);
         CHECK_EQ(fi->Tell(), offset);
         auto page = std::make_shared<S>();
         CHECK(fmt->Read(page.get(), fi.get()));
+        LOG(INFO) << "Read a page in " << timer.ElapsedSeconds() << " seconds.";
         return page;
       });
     }
-    CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(),
-                           [](auto const &f) { return f.valid(); }),
+    CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
     page_ = (*ring_)[count_].get();
@@ -146,12 +151,18 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 
   void WriteCache() {
     CHECK(!cache_info_->written);
+    common::Timer timer;
+    timer.Start();
     std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
     if (!fo_) {
       auto n = cache_info_->ShardName();
       fo_.reset(dmlc::Stream::Create(n.c_str(), "w"));
     }
     auto bytes = fmt->Write(*page_, fo_.get());
+    timer.Stop();
+
+    LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
+              << timer.ElapsedSeconds() << " seconds.";
     cache_info_->offset.push_back(bytes);
   }
 
@@ -280,15 +291,24 @@ template <typename S>
 class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
  protected:
   std::shared_ptr<SparsePageSource> source_;
+  using Super = SparsePageSourceImpl<S>;
+  // synchronize the row page, `hist` and `gpu_hist` don't need the original sparse page
+  // so we avoid fetching it.
+  bool sync_{true};
 
  public:
-  using SparsePageSourceImpl<S>::SparsePageSourceImpl;
+  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
+                     std::shared_ptr<Cache> cache, bool sync)
+      : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
+
   PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
-    ++(*source_);
+    if (sync_) {
+      ++(*source_);
+    }
 
     ++this->count_;
-    this->at_end_ = source_->AtEnd();
+    this->at_end_ = this->count_ == this->n_batches_;
 
     if (this->at_end_) {
       this->cache_info_->Commit();
@@ -299,7 +319,10 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
     } else {
       this->Fetch();
     }
-    CHECK_EQ(source_->Iter(), this->count_);
+
+    if (sync_) {
+      CHECK_EQ(source_->Iter(), this->count_);
+    }
     return *this;
   }
 };
@@ -318,12 +341,9 @@ class CSCPageSource : public PageSourceIncMixIn<CSCPage> {
   }
 
  public:
-  CSCPageSource(
-      float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
-      std::shared_ptr<Cache> cache,
-      std::shared_ptr<SparsePageSource> source)
-      : PageSourceIncMixIn(missing, nthreads, n_features,
-                                     n_batches, cache) {
+  CSCPageSource(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
+                std::shared_ptr<Cache> cache, std::shared_ptr<SparsePageSource> source)
+      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, true) {
     this->source_ = source;
     this->Fetch();
   }
@@ -349,7 +369,7 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
   SortedCSCPageSource(float missing, int nthreads, bst_feature_t n_features,
                       uint32_t n_batches, std::shared_ptr<Cache> cache,
                       std::shared_ptr<SparsePageSource> source)
-      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache) {
+      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, true) {
     this->source_ = source;
     this->Fetch();
   }

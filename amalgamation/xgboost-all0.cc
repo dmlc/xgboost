@@ -48,17 +48,18 @@
 #include "../src/predictor/cpu_predictor.cc"
 
 // trees
+#include "../src/tree/constraints.cc"
+#include "../src/tree/hist/param.cc"
 #include "../src/tree/param.cc"
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"
+#include "../src/tree/updater_approx.cc"
 #include "../src/tree/updater_colmaker.cc"
-#include "../src/tree/updater_quantile_hist.cc"
+#include "../src/tree/updater_histmaker.cc"
 #include "../src/tree/updater_prune.cc"
+#include "../src/tree/updater_quantile_hist.cc"
 #include "../src/tree/updater_refresh.cc"
 #include "../src/tree/updater_sync.cc"
-#include "../src/tree/updater_histmaker.cc"
-#include "../src/tree/updater_approx.cc"
-#include "../src/tree/constraints.cc"
 
 // linear
 #include "../src/linear/linear_updater.cc"
@@ -76,8 +77,9 @@
 #include "../src/common/quantile.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
-#include "../src/common/json.cc"
 #include "../src/common/io.cc"
+#include "../src/common/json.cc"
+#include "../src/common/pseudo_huber.cc"
 #include "../src/common/survival_util.cc"
 #include "../src/common/threading_utils.cc"
 #include "../src/common/version.cc"

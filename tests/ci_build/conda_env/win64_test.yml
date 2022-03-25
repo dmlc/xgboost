@@ -17,3 +17,5 @@ dependencies:
 - modin-ray
 - pip
 - py-ubjson
+- cffi
+- pyarrow

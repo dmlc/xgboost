@@ -21,6 +21,7 @@ namespace data {
 
 class IterativeDeviceDMatrix : public DMatrix {
   MetaInfo info_;
+  Context ctx_;
   BatchParam batch_param_;
   std::shared_ptr<EllpackPage> page_;
 
@@ -72,10 +73,7 @@ class IterativeDeviceDMatrix : public DMatrix {
   MetaInfo &Info() override { return info_; }
   MetaInfo const &Info() const override { return info_; }
 
-  GenericParameter const *Ctx() const override {
-    LOG(FATAL) << "`IterativeDMatrix` doesn't have context.";
-    return nullptr;
-  }
+  Context const *Ctx() const override { return &ctx_; }
 };
 
 #if !defined(XGBOOST_USE_CUDA)

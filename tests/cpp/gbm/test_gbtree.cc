@@ -257,7 +257,7 @@ TEST(Dart, Prediction) {
   for (size_t i = 0; i < kRows; ++i) {
     labels[i] = i % 2;
   }
-  p_mat->Info().SetInfo("label", labels.data(), DataType::kFloat32, kRows);
+  p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("booster", "dart");

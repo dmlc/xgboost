@@ -446,6 +446,12 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
 TEST(CPUHistogram, ExternalMemory) {
   int32_t constexpr kBins = 256;
   TestHistogramExternalMemory(BatchParam{kBins, common::Span<float>{}, false}, true);
+
+  float sparse_thresh{0.5};
+  TestHistogramExternalMemory({kBins, sparse_thresh}, false);
+  sparse_thresh = std::numeric_limits<float>::quiet_NaN();
+  TestHistogramExternalMemory({kBins, sparse_thresh}, false);
+
 }
 }  // namespace tree
 }  // namespace xgboost
