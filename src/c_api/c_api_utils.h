@@ -129,18 +129,16 @@ inline uint32_t GetIterationFromTreeLimit(uint32_t ntree_limit, Learner *learner
 
     Json config{Object()};
     learner->SaveConfig(&config);
-    auto const &booster =
-        get<String const>(config["learner"]["gradient_booster"]["name"]);
+    auto const &booster = get<String const>(config["learner"]["gradient_booster"]["name"]);
     if (booster == "gblinear") {
       num_parallel_tree = 0;
     } else if (booster == "dart") {
-      num_parallel_tree = std::stoi(
-          get<String const>(config["learner"]["gradient_booster"]["gbtree"]
-                                  ["gbtree_train_param"]["num_parallel_tree"]));
+      num_parallel_tree =
+          std::stoi(get<String const>(config["learner"]["gradient_booster"]["gbtree"]
+                                            ["gbtree_model_param"]["num_parallel_tree"]));
     } else if (booster == "gbtree") {
       num_parallel_tree = std::stoi(get<String const>(
-          (config["learner"]["gradient_booster"]["gbtree_train_param"]
-                 ["num_parallel_tree"])));
+          (config["learner"]["gradient_booster"]["gbtree_model_param"]["num_parallel_tree"])));
     } else {
       LOG(FATAL) << "Unknown booster:" << booster;
     }
