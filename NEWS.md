@@ -3,12 +3,12 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-## v1.6.0 (2022 Mar 24)
+## v1.6.0 (2022 Mar 26)
 
 After a long period of development, XGBoost v1.6.0 is packed with many new features and
 improvements. We summarize them in the following sections starting with an introduction to
-some significant new features, then moving onto language binding specific changes
-including new features and notable bug fixes for that binding.
+some major new features, then moving onto language binding specific changes including new
+features and notable bug fixes for that binding.
 
 ### Development on categorical data support
 This version of XGBoost features new improvements and full coverage of experimental
@@ -35,8 +35,8 @@ hyper-parameters.
 XGBoost 1.6 features initial support for the multi-output model, which includes
 multi-output regression and multi-label classification. Along with this, the XGBoost
 classifier has proper support for base-margin without to need for the user to flatten the
-input. Right now, XGBoost builds one model for each target similar to the sklearn meta
-estimator, for more details, please see our [quick
+input. In this initial support, XGBoost builds one model for each target similar to the
+sklearn meta estimator, for more details, please see our [quick
 introduction](https://xgboost.readthedocs.io/en/latest/tutorials/multioutput.html).
 
 (#7365, #7736, #7607, #7574, #7521, #7514, #7456, #7453, #7455, #7434, #7429, #7405, #7381)
@@ -70,7 +70,7 @@ list of user-visible changes:
 - Unites the code base between approx and hist.
 
 ### New serialization format
-Based on the existing JSON serialization format, we introduced UBJSON support as a more
+Based on the existing JSON serialization format, we introduce UBJSON support as a more
 efficient alternative. Both formats will be available in the future and we plan to
 gradually [phase out](https://github.com/dmlc/xgboost/issues/7547) support for the old
 binary model format.  Users can opt to use the different formats in the serialization
@@ -79,15 +79,14 @@ all supported languages bindings gain a new parameter for exporting the model in
 formats, available options are `json`, `ubj` and `deprecated`, see document for the
 language binding you are using for details. Lastly, the default internal serialization
 format is set to UBJSON, which affects Python pickle and R RDS. (#7572, #7570, #7358,
-#7571,
-#7556, #7549, #7416)
+#7571, #7556, #7549, #7416)
 
-### General new features
-Other than the major new features mentioned above, some others are summarized here:
+### General new features and improvements
+Aside from the major new features mentioned above, some others are summarized here:
 
 * Users can now access the build information of XGBoost binary in Python and C
   interface. (#7399, #7553)
-* Remove auto-configuration of `seed_per_iteration`, now distributed training should
+* Auto-configuration of `seed_per_iteration` is removed, now distributed training should
   generate closer results to single node training when sampling is used. (#7009)
 * A new parameter `huber_slope` is introduced for the `Pseudo-Huber` objective.
 * During source build, XGBoost can choose cub in the system path automatically. (#7579)
@@ -99,12 +98,11 @@ Other than the major new features mentioned above, some others are summarized he
   #7589, #7588, #7687)
 * The default behavior of `max_leave` and `max_depth` is now unified (#7302, #7551).
 * CUDA fat binary is now compressed. (#7601)
-* Use double for GPU Hist node sum, which improves the accuracy of `gpu_hist`. (#7507)
-
-### Deterministic result for evaluation metric and linear model
-In previous versions of XGBoost, evaluation results might differ slightly for each run due
-to parallel reduction for floating-point values, which is now addressed. (#7362, #7303,
-#7316, #7349)
+* Deterministic result for evaluation metric and linear model In previous versions of
+  XGBoost, evaluation results might differ slightly for each run due to parallel reduction
+  for floating-point values, which is now addressed. (#7362, #7303, #7316, #7349)
+* XGBoost now uses double for GPU Hist node sum, which improves the accuracy of
+  `gpu_hist`. (#7507)
 
 ### Performance improvements
 Most of the performance improvements are integrated into other refactors during feature
@@ -114,6 +112,8 @@ performance with the removal of the internal `pruner` along with some other
 refactoring. Lastly, `gpu_hist` no longer synchronizes the device during training. (#7737)
 
 ### General bug fixes
+This section lists bug fixes that are not specific to any language binding.
+
 * Fixes in CMake script for exporting configuration. (#7730)
 * XGBoost can now handle unsorted sparse input. This includes text file formats like
   libsvm and scipy sparse matrix where column index might not be sorted. (#7731)
@@ -140,6 +140,8 @@ improvements along with small bug fixes.
 * For sklearn interface, following the estimator guideline from scikit-learn, all
   parameters in `fit` that are not related to input data are moved into the constructor
   and can be set by `set_params`. (#6751, #7420, #7375, #7369)
+* Apache arrow format is now supported, which can bring better performance to users'
+  pipeline (#7512)
 * A new function `get_group` is introduced for `DMatrix` to allow users to get the group
   information in the custom objective function. (#7564)
 * More training parameters are exposed in the sklearn interface instead of relying on the
@@ -152,7 +154,8 @@ improvements along with small bug fixes.
 * Fix using feature names for constraints with multiple groups (#7711)
 * We clarified the behavior of the callback function when it contains mutable
   states. (#7685)
-* Lastly, there are some code cleanups and maintenance work. (#7585, #7426, #7634, #7665, #7667, #7377, #7360, #7498, #7438, #7667)
+* Lastly, there are some code cleanups and maintenance work. (#7585, #7426, #7634, #7665,
+  #7667, #7377, #7360, #7498, #7438, #7667)
 
 ### Changes in Dask interface
 * Dask module now supports user-supplied host IP and port address of scheduler node.
@@ -161,8 +164,6 @@ improvements along with small bug fixes.
   for reference. (#7645, #7581)
 * Internal `DMatrix` construction in dask now honers thread configuration. (#7337)
 * A fix for `nthread` configuration using the Dask sklearn interface. (#7633)
-* Apache arrow format is now supported, which can bring better performance to users'
-  pipeline (#7512)
 * The Dask interface can now handle empty partitions.  An empty partition is different
   from an empty worker, the latter refers to the case when a worker has no partition of an
   input dataset, while the former refers to some partitions on a worker that has zero
@@ -209,11 +210,25 @@ phase out the old binary format in future releases.
 * Remove label encoder deprecated in 1.3. (#7357)
 * Remove old callback deprecated in 1.3. (#7280)
 
+### Documentation
+This section lists some of the general changes to XGBoost's document, for language binding
+specific change please visit related sections.
+
+* Document is overhauled to use the new RTD theme, along with integration of Python
+  examples using Sphinx gallery. Also, we replaced most of the hard-coded URLs with sphinx
+  references. (#7347, #7346, #7468, #7522, #7530)
+* Small update along with fixes for broken links, typos, etc. (#7684, #7324, #7334, #7655,
+  #7628, #7623, #7487, #7532, #7500, #7341, #7648, #7311)
+* Update document for GPU. [skip ci] (#7403)
+* Document the status of RTD hosting. (#7353)
+* Update document for building from source. (#7664)
+* Add note about CRAN release [skip ci] (#7395)
+
 ### Maintenance
 This is a summary of maintenance work that is not specific to any language binding.
 
 * Add CMake option to use /MD runtime (#7277)
-* Add clang-format config. (#7383)
+* Add clang-format configuration. (#7383)
 * Code cleanups (#7539, #7536, #7466, #7499, #7533, #7735, #7722, #7668, #7304, #7293,
   #7321, #7356, #7345, #7387, #7577, #7548, #7469, #7680, #7433, #7398)
 * Improved tests with better coverage and latest dependency (#7573, #7446, #7650, #7520,
@@ -223,24 +238,10 @@ This is a summary of maintenance work that is not specific to any language bindi
 * Change shebang used in CLI demo. (#7389)
 * Update affiliation (#7289)
 
-
-### Documentation
-This section lists some of the general changes related to document, for language binding
-specific change please visit related sections.
-
-* Document is overhauled to use the new rtd theme, along with integration of Python
-  examples. Also, we replaced most of the hardcoded URLs with sphinx references. (#7347,
-  #7346, #7468, #7522, #7530)
-* Small update along with some fixes for broken links, typos, etc. (#7684, #7324, #7334,
-  #7655, #7628, #7623, #7487, #7532, #7500, #7341, #7648, #7311)
-* Update document for GPU. [skip ci] (#7403)
-* Document the status of RTD hosting. (#7353)
-* Update document for building from source. (#7664)
-* Add note about CRAN release [skip ci] (#7395)
-
 ### CI
 Some fixes and update to XGBoost's CI infrastructure. (#7739, #7701, #7382, #7662, #7646,
 #7582, #7407, #7417, #7475, #7474, #7479, #7472, #7626)
+
 
 ## v1.5.0 (2021 Oct 11)
 
