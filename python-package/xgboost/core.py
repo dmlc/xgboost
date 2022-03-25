@@ -78,11 +78,14 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     return res
 
 
+IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
+
+
 def _convert_ntree_limit(
     booster: "Booster",
     ntree_limit: Optional[int],
-    iteration_range: Optional[Tuple[int, int]]
-) -> Optional[Tuple[int, int]]:
+    iteration_range: IterRange
+) -> IterRange:
     if ntree_limit is not None and ntree_limit != 0:
         warnings.warn(
             "ntree_limit is deprecated, use `iteration_range` or model "
