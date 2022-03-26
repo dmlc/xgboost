@@ -1,10 +1,12 @@
 """Shared typing definition."""
 import ctypes
 import os
-from typing import Optional, Any, TypeVar, Union, Sequence
+from typing import Optional, List, Any, TypeVar, Union, Type, Sequence
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
+import numpy as np
+
 DataType = Any
 
 # xgboost accepts some other possible types in practice due to historical reason, which is
@@ -16,6 +18,7 @@ ArrayLike = Any
 PathLike = Union[str, os.PathLike]
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
 NumpyOrCupy = Any
+NumpyDType = Union[str, Type[np.number]]
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h

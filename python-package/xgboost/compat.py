@@ -18,7 +18,7 @@ def py_str(x: CStrPtr) -> str:
     return x.decode('utf-8')  # type: ignore
 
 
-def lazy_isinstance(instance: Type, module: str, name: str) -> bool:
+def lazy_isinstance(instance: Type[object], module: str, name: str) -> bool:
     """Use string representation to identify a type."""
 
     # Notice, we use .__class__ as opposed to type() in order
