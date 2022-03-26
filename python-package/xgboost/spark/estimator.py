@@ -63,7 +63,7 @@ _init_module()
 class XGBoostClassifier(_XGBoostClassifierBase):
     """XGBoostClassifier is a PySpark ML estimator. It implements the XGBoost
     classification algorithm based on
-    `ml.dmlc.xgboost4j.scala.pyspark.XGBoostClassifier` in XGBoost jvm packages, and it
+    `ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier` in XGBoost jvm packages, and it
     can be used in PySpark Pipeline and PySpark ML meta algorithms like CrossValidator.
 
     .. versionadded:: 1.6.0
@@ -178,7 +178,7 @@ class XGBoostClassificationModel(_XGBoostClassificationModelBase):
 
 class XGBoostRegressor(_XGBoostRegressorBase):
     """XGBoostRegressor is a PySpark ML estimator. It implements the XGBoost regression
-    algorithm based on `ml.dmlc.xgboost4j.scala.pyspark.XGBoostRegressor` in XGBoost jvm
+    algorithm based on `ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor` in XGBoost jvm
     packages, and it can be used in PySpark Pipeline and PySpark ML meta algorithms like
     CrossValidator.
 

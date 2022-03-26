@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 """
-PySpark extenstions for distrbuted training
+PySpark extenstions for distributed training
 -------------------------------------------
 
 See :doc:`Distributed XGBoost with PySpark </tutorials/pyspark>` for a quick start.
