@@ -2449,9 +2449,7 @@ class Booster:
                                'Install pandas before calling again.'))
         booster = json.loads(self.save_config())["learner"]["gradient_booster"]["name"]
         if booster not in {"gbtree", "dart"}:
-            raise ValueError(
-                f"This method is not defined for Booster type {self.booster}"
-            )
+            raise ValueError(f"This method is not defined for Booster type {booster}")
 
         tree_ids = []
         node_ids = []
