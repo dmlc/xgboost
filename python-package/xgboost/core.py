@@ -1385,9 +1385,9 @@ class Booster:
         params_processed = _configure_metrics(params.copy())
         params_processed = self._configure_constraints(params_processed)
         if isinstance(params_processed, list):
-            params_processed.append(('validate_parameters', True))
+            params_processed.append(("validate_parameters", True))
         else:
-            params_processed['validate_parameters'] = True
+            params_processed["validate_parameters"] = True
 
         self.set_param(params_processed or {})
 
@@ -1431,9 +1431,9 @@ class Booster:
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value is not None:
-                params[
-                    "monotone_constraints"
-                ] = self._transform_monotone_constrains(value)
+                params["monotone_constraints"] = self._transform_monotone_constrains(
+                    value
+                )
 
             value = params.get("interaction_constraints")
             if value is not None:
