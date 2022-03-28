@@ -168,6 +168,9 @@
         "num_trees": {
           "type": "string"
         },
+        "num_parallel_tree": {
+          "type": "string"
+        },
         "size_leaf_vector": {
           "type": "string"
         }

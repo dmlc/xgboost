@@ -429,9 +429,11 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   this->GatherSketchInfo(reduced, &worker_segments, &sketches_scan, &global_sketches);
 
   std::vector<typename WQSketch::SummaryContainer> final_sketches(n_columns);
-  QuantileAllreduce<typename WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
-                                                               sketches_scan, n_columns};
+
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
+    // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
+    QuantileAllreduce<typename WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
+                                                                 sketches_scan, n_columns};
     int32_t intermediate_num_cuts = num_cuts[fidx];
     auto nbytes = WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
     if (IsCat(feature_types_, fidx)) {

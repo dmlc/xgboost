@@ -78,11 +78,14 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     return res
 
 
+IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
+
+
 def _convert_ntree_limit(
     booster: "Booster",
     ntree_limit: Optional[int],
-    iteration_range: Optional[Tuple[int, int]]
-) -> Optional[Tuple[int, int]]:
+    iteration_range: IterRange
+) -> IterRange:
     if ntree_limit is not None and ntree_limit != 0:
         warnings.warn(
             "ntree_limit is deprecated, use `iteration_range` or model "
@@ -1292,16 +1295,23 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
         num_parallel_tree = 0
     elif booster == "dart":
         num_parallel_tree = int(
-            config["learner"]["gradient_booster"]["gbtree"]["gbtree_train_param"][
+            config["learner"]["gradient_booster"]["gbtree"]["gbtree_model_param"][
                 "num_parallel_tree"
             ]
         )
     elif booster == "gbtree":
-        num_parallel_tree = int(
-            config["learner"]["gradient_booster"]["gbtree_train_param"][
-                "num_parallel_tree"
-            ]
-        )
+        try:
+            num_parallel_tree = int(
+                config["learner"]["gradient_booster"]["gbtree_model_param"][
+                    "num_parallel_tree"
+                ]
+            )
+        except KeyError:
+            num_parallel_tree = int(
+                config["learner"]["gradient_booster"]["gbtree_train_param"][
+                    "num_parallel_tree"
+                ]
+            )
     else:
         raise ValueError(f"Unknown booster: {booster}")
     num_groups = int(config["learner"]["learner_model_param"]["num_class"])

@@ -530,7 +530,7 @@ def test_dask_regressor(model: str, client: "Client") -> None:
     forest = int(
         json.loads(regressor.get_booster().save_config())["learner"][
             "gradient_booster"
-        ]["gbtree_train_param"]["num_parallel_tree"]
+        ]["gbtree_model_param"]["num_parallel_tree"]
     )
 
     if model == "boosting":
@@ -584,7 +584,7 @@ def run_dask_classifier(
     assert n_threads != 0 and n_threads != os.cpu_count()
 
     forest = int(
-        config["learner"]["gradient_booster"]["gbtree_train_param"]["num_parallel_tree"]
+        config["learner"]["gradient_booster"]["gbtree_model_param"]["num_parallel_tree"]
     )
     if model == "boosting":
         assert len(history["validation_0"][metric]) == 2
