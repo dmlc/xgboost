@@ -918,7 +918,7 @@ void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stre
   stream->push_back('#');
   stream->push_back('L');
 
-  auto n = arr->Size();
+  int64_t n = arr->Size();
   WritePrimitive(n, stream);
   auto s = stream->size();
   stream->resize(s + arr->Size() * sizeof(T));

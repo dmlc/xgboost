@@ -1,6 +1,6 @@
 ### configure.ac					-*- Autoconf -*-
 
-AC_PREREQ(2.71)
+AC_PREREQ(2.69)
 
 AC_INIT([xgboost],[1.6-0],[],[xgboost],[])
 
