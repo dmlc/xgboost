@@ -174,6 +174,14 @@ parameter:
                                      num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
 
+**************************
+Using feature name instead
+**************************
+
+XGBoost's Python package supports using feature names instead of feature index for
+specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
+feature interaction constraint can be specified as ``[["f0", "f2"]]``.
+
 **************
 Advanced topic
 **************
