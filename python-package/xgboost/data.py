@@ -247,6 +247,7 @@ be set to `True`.""" + err
     raise ValueError(msg)
 
 
+# pylint: disable=too-many-locals
 def _transform_pandas_df(
     data: DataFrame,
     enable_categorical: bool,
@@ -263,9 +264,10 @@ def _transform_pandas_df(
         is_bool_dtype,
     )
 
+    nullable_alias = {"Int16", "Int32", "Int64"}
+
     # dtype: pd.core.arrays.numeric.NumericDtype
     def is_nullable_dtype(dtype: Any) -> bool:
-        nullable_alias = {"Int16", "Int32", "Int64"}
         is_int = is_integer_dtype(dtype) and dtype.name in nullable_alias
         # np.bool has alias `bool`, while pd.BooleanDtype has `boolean`.
         is_bool = is_bool_dtype(dtype) and dtype.name == "boolean"
@@ -297,8 +299,6 @@ def _transform_pandas_df(
                 feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
             elif is_categorical_dtype(dtype) and enable_categorical:
                 feature_types.append(CAT_T)
-            elif is_nullable_dtype(dtype):
-                feature_types.append(_pandas_dtype_mapper[dtype.name])
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 
