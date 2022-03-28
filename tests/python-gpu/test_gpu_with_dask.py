@@ -27,7 +27,7 @@ from test_with_dask import run_empty_dmatrix_reg      # noqa
 from test_with_dask import run_empty_dmatrix_auc      # noqa
 from test_with_dask import run_auc                    # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
-from test_with_dask import run_boost_from_prediction_multi_clasas  # noqa
+from test_with_dask import run_boost_from_prediction_multi_class  # noqa
 from test_with_dask import run_dask_classifier        # noqa
 from test_with_dask import run_empty_dmatrix_cls      # noqa
 from test_with_dask import _get_client_workers        # noqa
@@ -216,7 +216,7 @@ def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
         X_, y_ = load_digits(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction_multi_clasas(X, y, "gpu_hist", client)
+        run_boost_from_prediction_multi_class(X, y, "gpu_hist", client)
 
 
 class TestDistributedGPU:
@@ -231,7 +231,7 @@ class TestDistributedGPU:
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
     )
-    @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
+    @settings(deadline=duration(seconds=120), suppress_health_check=suppress, print_blob=True)
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
         "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]

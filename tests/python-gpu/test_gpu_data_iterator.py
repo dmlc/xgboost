@@ -22,7 +22,7 @@ def test_gpu_single_batch() -> None:
     strategies.integers(0, 13),
     strategies.booleans(),
 )
-@settings(deadline=None)
+@settings(deadline=None, print_blob=True)
 def test_gpu_data_iterator(
     n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool
 ) -> None:

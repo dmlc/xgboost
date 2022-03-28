@@ -108,7 +108,8 @@ def run_data_iterator(
         evals_result=results_from_it,
         verbose_eval=False,
     )
-    assert non_increasing(results_from_it["Train"]["rmse"])
+    if not subsample:
+        assert non_increasing(results_from_it["Train"]["rmse"])
 
     X, y = it.as_arrays()
     Xy = xgb.DMatrix(X, y)
@@ -125,7 +126,8 @@ def run_data_iterator(
         verbose_eval=False,
     )
     arr_predt = from_arrays.predict(Xy)
-    assert non_increasing(results_from_arrays["Train"]["rmse"])
+    if not subsample:
+        assert non_increasing(results_from_arrays["Train"]["rmse"])
 
     rtol = 1e-2
     # CPU sketching is more memory efficient but less consistent due to small chunks
@@ -146,7 +148,7 @@ def run_data_iterator(
     strategies.integers(0, 13),
     strategies.booleans(),
 )
-@settings(deadline=None)
+@settings(deadline=None, print_blob=True)
 def test_data_iterator(
     n_samples_per_batch: int,
     n_features: int,

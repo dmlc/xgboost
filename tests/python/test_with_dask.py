@@ -337,14 +337,14 @@ def test_dask_predict_shape_infer(client: "Client") -> None:
     assert prediction.shape[1] == 3
 
 
-def run_boost_from_prediction_multi_clasas(
+def run_boost_from_prediction_multi_class(
     X: xgb.dask._DaskCollection,
     y: xgb.dask._DaskCollection,
     tree_method: str,
-    client: "Client"
+    client: "Client",
 ) -> None:
     model_0 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=768
     )
     model_0.fit(X=X, y=y)
     margin = xgb.dask.inplace_predict(
@@ -352,18 +352,18 @@ def run_boost_from_prediction_multi_clasas(
     )
 
     model_1 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=768
     )
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
         xgb.dask.DaskDMatrix(client, X, base_margin=margin),
-        output_margin=True
+        output_margin=True,
     )
 
     model_2 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+        learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=768
     )
     model_2.fit(X=X, y=y)
     predictions_2 = xgb.dask.inplace_predict(
@@ -382,26 +382,29 @@ def run_boost_from_prediction_multi_clasas(
 
 
 def run_boost_from_prediction(
-    X: xgb.dask._DaskCollection, y: xgb.dask._DaskCollection, tree_method: str, client: "Client"
+    X: xgb.dask._DaskCollection,
+    y: xgb.dask._DaskCollection,
+    tree_method: str,
+    client: "Client",
 ) -> None:
     X = client.persist(X)
     y = client.persist(y)
 
     model_0 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=512
+    )
     model_0.fit(X=X, y=y)
     margin = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=512
+    )
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = model_1.predict(X, base_margin=margin)
 
     cls_2 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8,
-        tree_method=tree_method)
+        learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=512
+    )
     cls_2.fit(X=X, y=y)
     predictions_2 = cls_2.predict(X)
 
@@ -415,8 +418,8 @@ def run_boost_from_prediction(
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
-    margined_res = margined.evals_result()['validation_0']['logloss']
-    unmargined_res = unmargined.evals_result()['validation_0']['logloss']
+    margined_res = margined.evals_result()["validation_0"]["logloss"]
+    unmargined_res = unmargined.evals_result()["validation_0"]["logloss"]
 
     assert len(margined_res) == len(unmargined_res)
     for i in range(len(margined_res)):
@@ -429,12 +432,11 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
     X_, y_ = load_breast_cancer(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-
     run_boost_from_prediction(X, y, tree_method, client)
 
     X_, y_ = load_digits(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    run_boost_from_prediction_multi_clasas(X, y, tree_method, client)
+    run_boost_from_prediction_multi_class(X, y, tree_method, client)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -1292,7 +1294,7 @@ class TestWithDask:
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=suppress)
+    @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -1301,7 +1303,7 @@ class TestWithDask:
 
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=suppress)
+    @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
     def test_approx(
             self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
