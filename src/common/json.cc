@@ -864,7 +864,7 @@ Json UBJReader::Parse() {
 namespace {
 template <typename T>
 void WritePrimitive(T v, std::vector<char>* stream) {
-  v = ByteSwap(v);
+  v = ToBigEndian(v);
   auto s = stream->size();
   stream->resize(s + sizeof(v));
   auto ptr = stream->data() + s;
@@ -924,7 +924,7 @@ void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stre
   stream->resize(s + arr->Size() * sizeof(T));
   auto const& vec = arr->GetArray();
   for (size_t i = 0; i < n; ++i) {
-    auto v = ByteSwap(vec[i]);
+    auto v = ToBigEndian(vec[i]);
     std::memcpy(stream->data() + s, &v, sizeof(v));
     s += sizeof(v);
   }
