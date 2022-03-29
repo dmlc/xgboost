@@ -49,9 +49,7 @@ class Driver {
   void Push(const std::vector<ExpandEntryT> &entries) {
     this->Push(entries.begin(), entries.end());
   }
-  void Push(const ExpandEntryT e) {
-    queue_.push(e);
-  }
+  void Push(ExpandEntryT const& e) { queue_.push(e); }
 
   bool IsEmpty() {
     return queue_.empty();
