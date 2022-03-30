@@ -247,7 +247,7 @@
       "items": [
         {
           "type": "number",
-          "const": 1
+          "minimum": 1
         },
         {
           "type": "number",
