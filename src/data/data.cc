@@ -265,9 +265,11 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << " is no longer supported. "
       << "Please process and save your data in current version: "
       << Version::String(Version::Self()) << " again.";
-  CHECK_EQ(major, 1) << msg.str();
-  auto minor = std::get<1>(version);
-  CHECK_GE(minor, 6) << msg.str();
+  CHECK_GE(major, 1) << msg.str();
+  if (major == 1) {
+    auto minor = std::get<1>(version);
+    CHECK_GE(minor, 6) << msg.str();
+  }
 
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
