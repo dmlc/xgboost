@@ -211,9 +211,9 @@ def BuildCUDA(args) {
     def docker_binary = "docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=${args.cuda_version}"
     def arch_flag = ""
-    //if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
-    //  arch_flag = "-DGPU_COMPUTE_VER=75"
-    //}
+    if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
+      arch_flag = "-DGPU_COMPUTE_VER=75"
+    }
     def wheel_tag = "manylinux2014_x86_64"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON ${arch_flag}
