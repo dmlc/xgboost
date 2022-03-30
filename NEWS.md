@@ -113,7 +113,8 @@ refactoring. Lastly, `gpu_hist` no longer synchronizes the device during trainin
 
 ### General bug fixes
 This section lists bug fixes that are not specific to any language binding.
-
+* The `num_parallel_tree` is now a model parameter instead of training hyper-parameter,
+  which fixes model IO with random forest. (#7751)
 * Fixes in CMake script for exporting configuration. (#7730)
 * XGBoost can now handle unsorted sparse input. This includes text file formats like
   libsvm and scipy sparse matrix where column index might not be sorted. (#7731)
@@ -122,6 +123,7 @@ This section lists bug fixes that are not specific to any language binding.
 * Fix external memory with gpu_hist and subsampling. (#7481)
 * Check number of trees in inplace predict, this avoids a potential segfault when an
   incorrect value for `iteration_range` is provided. (#7409)
+* Fix non-stable result in cox regression (#7756)
 
 ### Changes in the Python package
 Other than the changes in Dask, the XGBoost Python package gained some new features and
@@ -142,6 +144,7 @@ improvements along with small bug fixes.
   and can be set by `set_params`. (#6751, #7420, #7375, #7369)
 * Apache arrow format is now supported, which can bring better performance to users'
   pipeline (#7512)
+* Pandas nullable types is now supported (#7760)
 * A new function `get_group` is introduced for `DMatrix` to allow users to get the group
   information in the custom objective function. (#7564)
 * More training parameters are exposed in the sklearn interface instead of relying on the
@@ -155,7 +158,7 @@ improvements along with small bug fixes.
 * We clarified the behavior of the callback function when it contains mutable
   states. (#7685)
 * Lastly, there are some code cleanups and maintenance work. (#7585, #7426, #7634, #7665,
-  #7667, #7377, #7360, #7498, #7438, #7667)
+  #7667, #7377, #7360, #7498, #7438, #7667, #7752, #7749, #7751)
 
 ### Changes in Dask interface
 * Dask module now supports user-supplied host IP and port address of scheduler node.
@@ -178,10 +181,11 @@ This section summarizes the new features, improvements, and bug fixes to the R p
 * Fix parsing decision stump, which affects both transforming text representation to data
   table and plotting. (#7689)
 * Implement feature weights. (#7660)
-* Some improvements for complying the CRAN release policy. (#7672, #7661)
+* Some improvements for complying the CRAN release policy. (#7672, #7661, #7763)
 * Support CSR data for predictions (#7615)
 * Document update (#7263, #7606)
 * New maintainer for the CRAN package (#7691, #7649)
+* Handle non-standard installation of toolchain on macos (#7759)
 
 ### JVM-packages
 Some new features for JVM-packages are introduced for a more integrated GPU pipeline and
