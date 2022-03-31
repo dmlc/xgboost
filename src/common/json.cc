@@ -923,7 +923,7 @@ void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stre
   auto s = stream->size();
   stream->resize(s + arr->Size() * sizeof(T));
   auto const& vec = arr->GetArray();
-  for (size_t i = 0; i < n; ++i) {
+  for (int64_t i = 0; i < n; ++i) {
     auto v = ToBigEndian(vec[i]);
     std::memcpy(stream->data() + s, &v, sizeof(v));
     s += sizeof(v);
