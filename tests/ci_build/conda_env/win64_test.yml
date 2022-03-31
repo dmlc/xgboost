@@ -8,13 +8,13 @@ dependencies:
 - matplotlib
 - scikit-learn
 - pandas
+- matplotlib
 - pytest
 - boto3
 - hypothesis
 - jsonschema
 - cupy
 - python-graphviz
-- modin-ray
 - pip
 - py-ubjson
 - cffi
