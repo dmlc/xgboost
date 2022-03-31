@@ -153,9 +153,9 @@ def TestWin64() {
     conda activate ${env_name} && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
     echo "Running Python tests..."
-    bat "conda activate ${env_name} && python -m pytest -v -s -rxXs --fulltrace tests\\python"
+    bat "conda activate ${env_name} && python -X faulthandler -m pytest -v -s -rxXs --fulltrace tests\\python"
     bat """
-    conda activate ${env_name} && python -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
+    conda activate ${env_name} && python -X faulthandler -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
     """
     bat "conda env remove --name ${env_name}"
     deleteDir()
