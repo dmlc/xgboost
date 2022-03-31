@@ -3,11 +3,10 @@
 tqdm, sh are required to run this script.
 """
 from urllib.request import urlretrieve
-from typing import cast, Tuple
 import argparse
-from typing import List
+from typing import List, Optional
 from sh.contrib import git
-from distutils import version
+from packaging import version
 import subprocess
 import tqdm
 import os
@@ -27,7 +26,8 @@ def show_progress(block_num, block_size, total_size):
 
     downloaded = block_num * block_size
     if downloaded < total_size:
-        pbar.update(block_size / 1024)
+        upper = (total_size - downloaded) / 1024
+        pbar.update(min(block_size / 1024, upper))
     else:
         pbar.close()
         pbar = None
@@ -136,19 +136,25 @@ def check_path():
 def main(args: argparse.Namespace) -> None:
     check_path()
 
-    rel = version.LooseVersion(args.release)
+    rel = version.parse(args.release)
+    assert isinstance(rel, version.Version)
+
+    major = rel.major
+    minor = rel.minor
+    patch = rel.micro
 
     print("Release:", rel)
-    if len(rel.version) == 3:
+    if not rel.is_prerelease:
         # Major release
-        major, minor, patch = version.StrictVersion(args.release).version
-        rc = None
-        rc_ver = None
+        rc: Optional[str] = None
+        rc_ver: Optional[int] = None
     else:
         # RC release
-        major, minor, patch, rc, rc_ver = cast(
-            Tuple[int, int, int, str, int], rel.version
-        )
+        major = rel.major
+        minor = rel.minor
+        patch = rel.micro
+        assert rel.pre is not None
+        rc, rc_ver = rel.pre
         assert rc == "rc"
 
     release = str(major) + "." + str(minor) + "." + str(patch)
