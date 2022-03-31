@@ -565,12 +565,14 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         """Parameters
         ----------
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
-               dt.Frame/cudf.DataFrame/cupy.array/dlpack
+               dt.Frame/cudf.DataFrame/cupy.array/dlpack/arrow.Table
+
             Data source of DMatrix.
-            When data is string or os.PathLike type, it represents the path
-            libsvm format txt file, csv file (by specifying uri parameter
-            'path_to_csv?format=csv'), or binary file that xgboost can read
-            from.
+
+            When data is string or os.PathLike type, it represents the path libsvm
+            format txt file, csv file (by specifying uri parameter
+            'path_to_csv?format=csv'), or binary file that xgboost can read from.
+
         label : array_like
             Label of the training data.
         weight : array_like
