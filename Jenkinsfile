@@ -132,7 +132,7 @@ def ClangTidy() {
 }
 
 def BuildCPU() {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Build CPU"
     def container_type = "cpu"
@@ -189,7 +189,7 @@ def BuildCPUARM64() {
 }
 
 def BuildCPUMock() {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Build CPU with rabit mock"
     def container_type = "cpu"
