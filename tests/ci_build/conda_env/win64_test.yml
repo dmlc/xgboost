@@ -8,7 +8,6 @@ dependencies:
 - matplotlib
 - scikit-learn
 - pandas
-- matplotlib
 - pytest
 - boto3
 - hypothesis
