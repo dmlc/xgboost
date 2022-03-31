@@ -11,7 +11,7 @@ In order to run a XGBoost job in a Kubernetes cluster, perform the following ste
 
 1. Install XGBoost Operator on the Kubernetes cluster.
 
-   a. XGBoost Operator is designed to manage the scheduling and monitoring of XGBoost jobs. Follow `this installation guide <https://github.com/kubeflow/xgboost-operator#install-xgboost-operator>`_ to install XGBoost Operator.
+   a. XGBoost Operator is designed to manage the scheduling and monitoring of XGBoost jobs. Follow `this installation guide <https://www.kubeflow.org/docs/components/training/xgboost/#installing-xgboost-operator>`_ to install XGBoost Operator.
 
 2. Write application code that will be executed by the XGBoost Operator.
 
@@ -31,4 +31,4 @@ In order to run a XGBoost job in a Kubernetes cluster, perform the following ste
 Support
 *******
 
-Please submit an issue on `XGBoost Operator repo <https://github.com/kubeflow/xgboost-operator>`_ for any feature requests or problems.
+Please submit an issue on `XGBoost Operator repo <https://github.com/kubeflow/training-operator/issues>`_ for any feature requests or problems.
