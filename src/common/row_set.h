@@ -15,7 +15,6 @@
 
 namespace xgboost {
 namespace common {
-
 /*! \brief collection of rowset */
 class RowSetCollection {
  public:
@@ -38,19 +37,16 @@ class RowSetCollection {
       return end - begin;
     }
   };
-  /* \brief specifies how to split a rowset into two */
-  struct Split {
-    std::vector<size_t> left;
-    std::vector<size_t> right;
-  };
 
-  inline std::vector<Elem>::const_iterator begin() const {  // NOLINT
+  std::vector<Elem>::const_iterator begin() const {  // NOLINT
     return elem_of_each_node_.begin();
   }
 
-  inline std::vector<Elem>::const_iterator end() const {  // NOLINT
+  std::vector<Elem>::const_iterator end() const {  // NOLINT
     return elem_of_each_node_.end();
   }
+
+  size_t Size() const { return std::distance(begin(), end()); }
 
   /*! \brief return corresponding element set given the node_id */
   inline const Elem& operator[](unsigned node_id) const {
@@ -123,7 +119,6 @@ class RowSetCollection {
   // vector: node_id -> elements
   std::vector<Elem> elem_of_each_node_;
 };
-
 }  // namespace common
 }  // namespace xgboost
 

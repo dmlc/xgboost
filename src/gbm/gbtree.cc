@@ -232,8 +232,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
   auto out = linalg::TensorView<float, 2>{
       device == GenericParameter::kCpuId ? predt->predictions.HostSpan()
                                          : predt->predictions.DeviceSpan(),
-      {static_cast<size_t>(p_fmat->Info().num_row_),
-       static_cast<size_t>(ngroup)},
+      {static_cast<size_t>(p_fmat->Info().num_row_), static_cast<size_t>(ngroup)},
       device};
   CHECK_NE(ngroup, 0);
   if (ngroup == 1) {
@@ -271,6 +270,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
       predt->Update(1);
     }
   }
+
   monitor_.Stop("BoostNewTrees");
   this->CommitModel(std::move(new_trees), p_fmat, predt);
 }

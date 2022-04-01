@@ -164,8 +164,8 @@ class GloablApproxBuilder {
         ctx_{ctx},
         monitor_{monitor} {}
 
-  void UpdateTree(RegTree *p_tree, std::vector<GradientPair> const &gpair, common::Span<float> hess,
-                  DMatrix *p_fmat) {
+  void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
+                  RegTree *p_tree, std::vector<RowIndexCache> *p_out_row_indices) {
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, hess);
 
@@ -231,6 +231,29 @@ class GloablApproxBuilder {
       driver.Push(best_splits.begin(), best_splits.end());
       expand_set = driver.Pop();
     }
+
+    CHECK(p_out_row_indices->empty());
+    for (auto const &part : partitioner_) {
+      p_out_row_indices->emplace_back();
+      auto row_set = part.Partitions();
+      auto n_leaf = row_set.Size();
+      // fixme: subsample
+      auto &h_row_index = p_out_row_indices->back().row_index.HostVector();
+
+      auto begin = row_set.Data()->data();
+      for (auto node : row_set) {
+        CHECK(node.begin);
+        CHECK(tree[node.node_id].IsLeaf());
+        size_t offset = node.begin - begin;
+        auto size = node.Size();
+        auto seg = RowIndexCache::Segment{offset, size, node.node_id};
+        size_t k = seg.begin;
+        for (auto idx = node.begin; idx != node.end; ++idx) {
+          h_row_index[k] = *idx;
+        }
+        p_out_row_indices->back().indptr.push_back(seg);
+      }
+    }
   }
 };
 
@@ -249,6 +272,8 @@ class GlobalApproxUpdater : public TreeUpdater {
   DMatrix *cached_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_ =
       std::make_shared<common::ColumnSampler>();
+  // cache for row partitions
+  std::vector<std::vector<RowIndexCache>> row_set_collection_;
   ObjInfo task_;
 
  public:
@@ -275,6 +300,8 @@ class GlobalApproxUpdater : public TreeUpdater {
     sampled->resize(h_gpair.size());
     std::copy(h_gpair.cbegin(), h_gpair.cend(), sampled->begin());
     auto &rnd = common::GlobalRandom();
+    row_set_collection_.clear();
+
     if (param.subsample != 1.0) {
       CHECK(param.sampling_method != TrainParam::kGradientBased)
           << "Gradient based sampling is not supported for approx tree method.";
@@ -314,10 +341,12 @@ class GlobalApproxUpdater : public TreeUpdater {
     cached_ = m;
 
     for (auto p_tree : trees) {
+      row_set_collection_.emplace_back();
+      auto &row_indices = row_set_collection_.back();
       if (hist_param_.single_precision_histogram) {
-        this->f32_impl_->UpdateTree(p_tree, h_gpair, hess, m);
+        this->f32_impl_->UpdateTree(m, h_gpair, hess, p_tree, &row_indices);
       } else {
-        this->f64_impl_->UpdateTree(p_tree, h_gpair, hess, m);
+        this->f64_impl_->UpdateTree(m, h_gpair, hess, p_tree, &row_indices);
       }
     }
     param_.learning_rate = lr;
@@ -334,6 +363,10 @@ class GlobalApproxUpdater : public TreeUpdater {
       this->f64_impl_->UpdatePredictionCache(data, out_preds);
     }
     return true;
+  }
+
+  common::Span<RowIndexCache> GetRowIndexCache(size_t tree_idx) override {
+    return row_set_collection_.at(tree_idx);
   }
 };
 

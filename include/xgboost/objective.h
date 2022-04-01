@@ -22,6 +22,9 @@
 
 namespace xgboost {
 
+struct RowIndexCache;
+class RegTree;
+
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
  protected:
@@ -87,6 +90,9 @@ class ObjFunction : public Configurable {
     }
     return 1;
   }
+
+  virtual void UpdateTreeLeaf(RowIndexCache const& row_index, MetaInfo const& info, uint32_t target,
+                              RegTree* p_tree);
 
   /*!
    * \brief Create an objective function according to name.

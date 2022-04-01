@@ -78,6 +78,13 @@ class TreeUpdater : public Configurable {
   }
 
   virtual char const* Name() const = 0;
+  /*!
+   * \brief Get the partition of rows based on the last iteration.
+   */
+  virtual common::Span<RowIndexCache> GetRowIndexCache(size_t tree_idx) {
+    LOG(FATAL) << "Objective is not supported by current tree method:" << this->Name();
+    return {};
+  }
 
   /*!
    * \brief Create a tree updater given name

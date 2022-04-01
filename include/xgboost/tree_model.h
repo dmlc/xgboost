@@ -734,5 +734,24 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
 inline bool RegTree::FVec::HasMissing() const {
   return has_missing_;
 }
+
+struct RowIndexCache {
+  struct Segment {
+    size_t begin;
+    size_t n;
+    bst_node_t nidx;
+  };
+
+  HostDeviceVector<size_t> row_index;
+  std::vector<Segment> indptr;
+
+  RowIndexCache(Context const* ctx, size_t n_leaf, size_t n_samples) {
+    indptr.resize(n_leaf + 1);
+    if (!ctx->IsCPU()) {
+      row_index.SetDevice(ctx->gpu_id);
+    }
+    row_index.Resize(n_samples);
+  }
+};
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_
