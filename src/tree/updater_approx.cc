@@ -365,7 +365,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     return true;
   }
 
-  common::Span<RowIndexCache> GetRowIndexCache(size_t tree_idx) override {
+  common::Span<RowIndexCache const> GetRowIndexCache(size_t tree_idx) const override {
     return row_set_collection_.at(tree_idx);
   }
 };

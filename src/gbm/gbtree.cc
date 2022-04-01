@@ -1,33 +1,34 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
  */
+#include "gbtree.h"
+
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 
-#include <vector>
-#include <memory>
-#include <utility>
-#include <string>
-#include <limits>
 #include <algorithm>
+#include <limits>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "xgboost/data.h"
-#include "xgboost/gbm.h"
-#include "xgboost/logging.h"
-#include "xgboost/json.h"
-#include "xgboost/predictor.h"
-#include "xgboost/tree_updater.h"
-#include "xgboost/host_device_vector.h"
-
-#include "gbtree.h"
-#include "gbtree_model.h"
 #include "../common/common.h"
 #include "../common/random.h"
-#include "../common/timer.h"
 #include "../common/threading_utils.h"
+#include "../common/timer.h"
+#include "gbtree_model.h"
+#include "xgboost/data.h"
+#include "xgboost/gbm.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/json.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
+#include "xgboost/predictor.h"
+#include "xgboost/tree_updater.h"
 
 namespace xgboost {
 namespace gbm {
@@ -216,9 +217,8 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
   }
 }
 
-void GBTree::DoBoost(DMatrix* p_fmat,
-                     HostDeviceVector<GradientPair>* in_gpair,
-                     PredictionCacheEntry* predt) {
+void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+                     PredictionCacheEntry* predt, ObjFunction const* obj) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
   const int ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
@@ -271,6 +271,14 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     }
   }
 
+  bst_group_t gidx {0};
+  for (auto& tree_group : new_trees) {
+    for (size_t t = 0; t < tree_group.size(); ++t) {
+      auto row_idx = updaters_.back()->GetRowIndexCache(t);
+      auto target = p_fmat->Info().labels.Shape(1) > 1 ? gidx : 0;
+      obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), gidx, tree_group[t].get());
+    }
+  }
   monitor_.Stop("BoostNewTrees");
   this->CommitModel(std::move(new_trees), p_fmat, predt);
 }

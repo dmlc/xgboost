@@ -191,7 +191,7 @@ std::vector<Idx> ArgSort(Container const &array, Comp comp = std::less<V>{}) {
 
 struct OptionalWeights {
   Span<float const> weights;
-  float dft{1.0f};
+  float dft{1.0f};  // fixme: make this compile time constant
 
   explicit OptionalWeights(Span<float const> w) : weights{w} {}
   explicit OptionalWeights(float w) : dft{w} {}

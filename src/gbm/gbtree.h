@@ -203,9 +203,8 @@ class GBTree : public GradientBooster {
   void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
   /*! \brief Carry out one iteration of boosting */
-  void DoBoost(DMatrix* p_fmat,
-               HostDeviceVector<GradientPair>* in_gpair,
-               PredictionCacheEntry* predt) override;
+  void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+               PredictionCacheEntry* predt, ObjFunction const* obj) override;
 
   bool UseGPU() const override {
     return

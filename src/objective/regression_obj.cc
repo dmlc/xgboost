@@ -20,13 +20,37 @@ DMLC_REGISTRY_FILE_TAG(regression_obj);
 float WeightedQuantile(float quantile, common::Span<size_t const> row_set,
                        linalg::VectorView<float const> labels,
                        linalg::VectorView<float const> weights) {
-  float result;
-  // fixme: pick an algorithm from R quantile.
-  return result;
+  std::vector<size_t> sorted_idx(row_set.size());
+  std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
+  std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                   [&](size_t i, size_t j) { return labels(row_set[i]) < labels(row_set[j]); });
+  std::vector<float> weighted_cdf(row_set.size());
+  weighted_cdf[0] = weights(row_set[sorted_idx[0]]);
+  for (size_t i = 1; i < row_set.size(); ++i) {
+    weighted_cdf[i] = weighted_cdf[i - 1] + weights(row_set[sorted_idx[i]]);
+  }
+  float thresh = weighted_cdf.back() * quantile;
+  size_t pos =
+      std::upper_bound(weighted_cdf.cbegin(), weighted_cdf.cend(), thresh) - weighted_cdf.cbegin();
+  pos = std::min(pos, static_cast<size_t>(row_set.size() - 1));
+  if (pos == 0 || pos == static_cast<size_t>(row_set.size() - 1)) {
+    return labels(row_set[sorted_idx[pos]]);
+  }
+  CHECK_GE(thresh, weighted_cdf[pos - 1]);
+  CHECK_LT(thresh, weighted_cdf[pos]);
+  float v1 = labels(row_set[sorted_idx[pos - 1]]);
+  float v2 = labels(row_set[sorted_idx[pos]]);
+  if (weighted_cdf[pos + 1] - weighted_cdf[pos] >= 1.0f) {
+    return (thresh - weighted_cdf[pos]) / (weighted_cdf[pos + 1] - weighted_cdf[pos]) * (v2 - v2) +
+           v1;
+  } else {
+    return v2;
+  }
 };
 
 float Quantile(float quantile, common::Span<size_t const> row_set, linalg::VectorView<float const> labels) {
   float result;
+  LOG(FATAL) << "Not implemented";
   // fixme: pick an algorithm from R quantile.
   return result;
 }
@@ -39,6 +63,10 @@ class MeanAbsoluteError : public ObjFunction {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, true};
+  }
+
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     out_gpair->SetDevice(ctx_->gpu_id);
@@ -47,34 +75,57 @@ class MeanAbsoluteError : public ObjFunction {
 
     preds.SetDevice(ctx_->gpu_id);
     auto predt = linalg::MakeVec(&preds);
+    auto sign = [](auto x) {
+      return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
+    };
+
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
 
     linalg::ElementWiseKernel(ctx_, info.labels.View(ctx_->gpu_id),
-                              [=] XGBOOST_DEVICE(size_t i, float const y) {});
+                              [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+                                auto grad = sign(predt(i) - y) * weight[i];
+                                auto hess = weight[i];
+                                gpair(i) = GradientPair{grad, hess};
+                              });
   }
 
-  void UpdateTreeLeaf(RowIndexCache const& row_index, MetaInfo const& info, uint32_t target,
-                      RegTree* p_tree) override {
+  void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
+                      uint32_t target, RegTree* p_tree) const override {
     auto& tree = *p_tree;
-    std::vector<float> results;
-    for (auto const& seg : row_index.indptr) {
-      auto h_row_set = row_index.row_index.HostSpan().subspan(seg.begin, seg.n);
-      float q{0};
-      if (info.weights_.Empty()) {
-        q = Quantile(0.5f, h_row_set, info.labels.HostView().Slice(linalg::All(), target));
-      } else {
-        q = WeightedQuantile(0.5f, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
-                             linalg::MakeVec(&info.weights_));
+    std::vector<float> quantiles;
+    for (auto const& part : row_index) {
+      std::vector<float> results;
+      for (auto const& seg : part.indptr) {
+        auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
+        float q{0};
+        if (info.weights_.Empty()) {
+          q = Quantile(0.5f, h_row_set, info.labels.HostView().Slice(linalg::All(), target));
+        } else {
+          q = WeightedQuantile(0.5f, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
+                               linalg::MakeVec(&info.weights_));
+        }
+        results.push_back(q);
       }
-      results.push_back(q);
+      // fixme: verify this is correct for external memory
+      if (quantiles.empty()) {
+        quantiles.resize(results.size(), 0);
+      }
+      for (size_t i = 0; i < results.size(); ++i) {
+        quantiles[i] += results[i];
+      }
+      // use the mean value
+      rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
+      auto world = rabit::GetWorldSize();
+      std::transform(results.begin(), results.end(), results.begin(),
+                     [&](float q) { return q / world; });
     }
-    // use the mean value
-    rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
-    auto world = rabit::GetWorldSize();
-    std::transform(results.begin(), results.end(), results.begin(),
-                   [&](float q) { return q / world; });
-    for (size_t i = 0; i < row_index.indptr.size(); ++i) {
-      auto seg = row_index.indptr[i];
-      auto q = results[i];
+
+    // fixme: verify this is correct for external memory
+    for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
+      auto seg = row_index.front().indptr[i];
+      auto q = quantiles[i];
       tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
     }
   }
@@ -88,6 +139,10 @@ class MeanAbsoluteError : public ObjFunction {
 
   void LoadConfig(Json const& in) override {}
 };
+
+XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
+    .describe("Regression Pseudo Huber error.")
+    .set_body([]() { return new MeanAbsoluteError(); });
 }  // namespace obj
 }  // namespace xgboost
 
