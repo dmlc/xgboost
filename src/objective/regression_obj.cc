@@ -150,7 +150,7 @@ XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
     .set_body([]() { return new MeanAbsoluteError(); });
 
 struct QuantileRegressionParameter : public XGBoostParameter<QuantileRegressionParameter> {
-  float quantile;
+  float quantile{0.5};
 };
 
 class QuantileRegression : public ObjFunction {
