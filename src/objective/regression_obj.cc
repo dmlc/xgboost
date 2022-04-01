@@ -55,6 +55,45 @@ float Quantile(float quantile, common::Span<size_t const> row_set, linalg::Vecto
   return result;
 }
 
+void UpdateTreeLeafHost(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
+                        uint32_t target, float alpha, RegTree* p_tree) {
+  auto& tree = *p_tree;
+  std::vector<float> quantiles;
+  for (auto const& part : row_index) {
+    std::vector<float> results;
+    for (auto const& seg : part.indptr) {
+      auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
+      float q{0};
+      if (info.weights_.Empty()) {
+        q = Quantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target));
+      } else {
+        q = WeightedQuantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
+                             linalg::MakeVec(&info.weights_));
+      }
+      results.push_back(q);
+    }
+    // fixme: verify this is correct for external memory
+    if (quantiles.empty()) {
+      quantiles.resize(results.size(), 0);
+    }
+    for (size_t i = 0; i < results.size(); ++i) {
+      quantiles[i] += results[i];
+    }
+    // use the mean value
+    rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
+    auto world = rabit::GetWorldSize();
+    std::transform(results.begin(), results.end(), results.begin(),
+                   [&](float q) { return q / world; });
+  }
+
+  // fixme: verify this is correct for external memory
+  for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
+    auto seg = row_index.front().indptr[i];
+    auto q = quantiles[i];
+    tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
+  }
+}
+
 class MeanAbsoluteError : public ObjFunction {
  public:
   void Configure(Args const&) override {}
@@ -93,56 +132,62 @@ class MeanAbsoluteError : public ObjFunction {
 
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
                       uint32_t target, RegTree* p_tree) const override {
-    auto& tree = *p_tree;
-    std::vector<float> quantiles;
-    for (auto const& part : row_index) {
-      std::vector<float> results;
-      for (auto const& seg : part.indptr) {
-        auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
-        float q{0};
-        if (info.weights_.Empty()) {
-          q = Quantile(0.5f, h_row_set, info.labels.HostView().Slice(linalg::All(), target));
-        } else {
-          q = WeightedQuantile(0.5f, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
-                               linalg::MakeVec(&info.weights_));
-        }
-        results.push_back(q);
-      }
-      // fixme: verify this is correct for external memory
-      if (quantiles.empty()) {
-        quantiles.resize(results.size(), 0);
-      }
-      for (size_t i = 0; i < results.size(); ++i) {
-        quantiles[i] += results[i];
-      }
-      // use the mean value
-      rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
-      auto world = rabit::GetWorldSize();
-      std::transform(results.begin(), results.end(), results.begin(),
-                     [&](float q) { return q / world; });
-    }
-
-    // fixme: verify this is correct for external memory
-    for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
-      auto seg = row_index.front().indptr[i];
-      auto q = quantiles[i];
-      tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
-    }
+    UpdateTreeLeafHost(row_index, info, target, 0.5, p_tree);
   }
 
   const char* DefaultEvalMetric() const override { return "mae"; }
 
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("reg:mae");
+    out["name"] = String("reg:absoluteerror");
   }
 
   void LoadConfig(Json const& in) override {}
 };
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
-    .describe("Regression Pseudo Huber error.")
+    .describe("Mean absoluate error.")
     .set_body([]() { return new MeanAbsoluteError(); });
+
+struct QuantileRegressionParameter : public XGBoostParameter<QuantileRegressionParameter> {
+  float quantile;
+};
+
+class QuantileRegression : public ObjFunction {
+  QuantileRegressionParameter param_;
+
+ public:
+  void Configure(Args const&) override {}
+
+  uint32_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
+
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, true};
+  }
+
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {}
+
+  void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
+                      uint32_t target, RegTree* p_tree) const override {
+    UpdateTreeLeafHost(row_index, info, target, param_.quantile, p_tree);
+  }
+
+  const char* DefaultEvalMetric() const override { return "undefined"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:quantile");
+    out["quantile_regression_param"] = ToJson(param_);
+  }
+  void LoadConfig(Json const& in) override { FromJson(in["quantile_regression_param"], &param_); }
+};
+
+XGBOOST_REGISTER_OBJECTIVE(QuantileRegression, "reg:quantile")
+    .describe("Quantile regression.")
+    .set_body([]() { return new QuantileRegression(); });
 }  // namespace obj
 }  // namespace xgboost
 
