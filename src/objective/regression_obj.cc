@@ -108,6 +108,8 @@ class MeanAbsoluteError : public ObjFunction {
 
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
+    auto labels = info.labels.View(ctx_->gpu_id);
+
     out_gpair->SetDevice(ctx_->gpu_id);
     out_gpair->Resize(info.labels.Size());
     auto gpair = linalg::MakeVec(out_gpair);
@@ -122,12 +124,12 @@ class MeanAbsoluteError : public ObjFunction {
     common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
                                                  : info.weights_.ConstDeviceSpan()};
 
-    linalg::ElementWiseKernel(ctx_, info.labels.View(ctx_->gpu_id),
-                              [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
-                                auto grad = sign(predt(i) - y) * weight[i];
-                                auto hess = weight[i];
-                                gpair(i) = GradientPair{grad, hess};
-                              });
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      auto grad = sign(predt(i) - y) * weight[i];
+      auto hess = weight[sample_id];
+      gpair(i) = GradientPair{grad, hess};
+    });
   }
 
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
@@ -168,7 +170,30 @@ class QuantileRegression : public ObjFunction {
   }
 
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
-                   HostDeviceVector<GradientPair>* out_gpair) override {}
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.labels.Size());
+    auto gpair = linalg::MakeVec(out_gpair);
+
+    preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
+    auto quantile = param_.quantile;
+
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      auto res = predt(i) - y;
+      auto grad = res >= 0 ? (1.0f - quantile) : -quantile;
+      grad *= weight[sample_id];
+      auto hess = weight[sample_id];
+      gpair(i) = GradientPair{grad, hess};
+    });
+  }
 
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
                       uint32_t target, RegTree* p_tree) const override {
