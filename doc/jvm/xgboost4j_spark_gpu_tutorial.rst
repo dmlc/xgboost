@@ -66,7 +66,7 @@ Spark also contains many built-in readers for other format. eg ORC, Parquet, Avr
 Transform Raw Iris Dataset
 --------------------------
 
-To make Iris dataset be recognizable to XGBoost, we need to transform String-typed
+To make Iris dataset be recognizable to XGBoost, we need to encode String-typed
 label, i.e. "class", to Double-typed label.
 
 To convert String-typed label to Double, we can use Spark's built-in feature transformer
