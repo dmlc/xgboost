@@ -151,7 +151,7 @@ you can do it through setters in XGBoostClassifer:
 
 After we set XGBoostClassifier parameters and feature/label columns, we can build a transformer,
 XGBoostClassificationModel by fitting XGBoostClassifier with the input DataFrame. This ``fit``
-operation is essentially the training process and the generated model can then be used in prediction.
+operation is essentially the training process and the generated model can then be used in other tasks like prediction.
 
 .. code-block:: scala
 
