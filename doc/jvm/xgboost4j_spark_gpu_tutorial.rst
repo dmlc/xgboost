@@ -5,7 +5,7 @@ XGBoost4J-Spark-GPU Tutorial (version 1.6.0+)
 **XGBoost4J-Spark-GPU** is a project aiming to accelerate XGBoost distributed training on Spark from
 end to end with GPUs by leveraging the ``Spark-Rapids`` project.
 
-``Spark-Rapids`` is the RAPIDS Accelerator for Apache Spark leverages GPUs to accelerate processing
+``Spark-Rapids`` is the RAPIDS Accelerator for Apache Spark, which leverages GPUs to accelerate processing
 via the `RAPIDS libraries <https://rapids.ai/>`_, for more details, please refer to the
 `spark-rapids <https://nvidia.github.io/spark-rapids/>`_ page.
 
