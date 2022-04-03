@@ -147,9 +147,7 @@ you can do it through setters in XGBoostClassifer:
 
 .. note::
 
-  XGBoost4J-Spark first needs to assemble the numeric feature columns into one column with VectorUDF
-  type by VectorAssembler, but XGBoost4J-Spark-GPU does not need such transformation, it accepts an
-  array of feature column names by ``setFeaturesCol(featuresNames)``.
+  In contrast to the XGBoost4J-Spark package, which needs to first assemble the numeric feature columns into one column with VectorUDF type by VectorAssembler, the XGBoost4J-Spark-GPU does not require such transformation, it accepts an array of feature column names by ``setFeaturesCol(featuresNames)``.
 
 After we set XGBoostClassifier parameters and feature/label columns, we can build a transformer,
 XGBoostClassificationModel by fitting XGBoostClassifier with the input DataFrame. This ``fit``
