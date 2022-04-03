@@ -173,7 +173,7 @@ with the following columns by default:
   val results = xgbClassificationModel.transform(test)
   results.show()
 
-With the above code snippet, we get a result DataFrame, result containing margin, probability for each class and the prediction for each instance
+With the above code snippet, we get a DataFrame as result, which contains the margin, probability for each class, and the prediction for each instance
 
 .. code-block:: none
 
