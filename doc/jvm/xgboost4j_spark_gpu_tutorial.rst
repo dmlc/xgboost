@@ -11,12 +11,16 @@ via the `RAPIDS libraries <https://rapids.ai/>`_, for more details, please refer
 
 This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 
+.. contents::
+  :backlinks: none
+  :local:
+
 ************************************************
 Build an ML Application with XGBoost4J-Spark-GPU
 ************************************************
 
-Refer to XGBoost4J-Spark-GPU related Dependencies
-=================================================
+Refer to XGBoost4J-Spark-GPU for the related Dependencies
+=========================================================
 
 Before we go into the tour of how to use XGBoost4J-Spark-GPU, you should first consult
 :ref:`Installation from Maven repository <install_jvm_packages>` in order to add XGBoost4J-Spark-GPU as
