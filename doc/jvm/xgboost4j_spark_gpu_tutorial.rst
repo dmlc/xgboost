@@ -229,7 +229,7 @@ Take submitting the spark job to Spark Standalone cluster as an example
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
 
 * First, we need to specify the spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu packages by ``--packages``
-* Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by ``spark.plugins=com.nvidia.spark.SQLPlugin``
+* Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
 For ``spark.executor.resource.gpu.amount` and `spark.task.resource.gpu.amount``, which is related to GPU scheduling, please refer
 to `Spark GPU Scheduling Overview <https://nvidia.github.io/spark-rapids/Getting-Started/#spark-gpu-scheduling-overview>`_
