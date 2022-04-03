@@ -234,7 +234,7 @@ Take submitting the spark job to Spark Standalone cluster as an example
 For ``spark.executor.resource.gpu.amount` and `spark.task.resource.gpu.amount``, which is related to GPU scheduling, please refer
 to `Spark GPU Scheduling Overview <https://nvidia.github.io/spark-rapids/Getting-Started/#spark-gpu-scheduling-overview>`_
 
-when enabling `spark.rapids.sql.explain=ALL`, we can get some useful information about whether some spark physical plans can be
+when `spark.rapids.sql.explain=ALL` is enabled, we can get some useful information about whether some spark physical plans can be
 replaced by GPU implementaion or not. Eg,
 
 .. code-block:: none
