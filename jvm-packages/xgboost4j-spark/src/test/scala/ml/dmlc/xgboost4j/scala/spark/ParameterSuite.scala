@@ -40,18 +40,6 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     assert(xgbCopy2.MLlib2XGBoostParams("eval_metric").toString === "logloss")
   }
 
-  test("fail training elegantly with unsupported objective function") {
-    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "wrong_objective_function", "num_class" -> "6", "num_round" -> 5,
-      "num_workers" -> numWorkers)
-    val trainingDF = buildDataFrame(MultiClassification.train)
-    val xgb = new XGBoostClassifier(paramMap)
-    intercept[SparkException] {
-      xgb.fit(trainingDF)
-    }
-
-  }
-
   test("fail training elegantly with unsupported eval metrics") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6", "num_round" -> 5,
