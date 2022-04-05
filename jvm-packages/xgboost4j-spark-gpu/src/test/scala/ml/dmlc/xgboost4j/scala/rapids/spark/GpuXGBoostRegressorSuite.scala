@@ -86,7 +86,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostRegressor(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setTreeMethod("gpu_hist")
       (classifier.fit(rawInput), testDf)
@@ -143,20 +143,21 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
 
       // Since CPU model does not know the information about the features cols that GPU transform
-      // pipeline requires. End user needs to setFeaturesCols in the model manually
+      // pipeline requires. End user needs to setFeaturesCol(features: Array[String]) in the model
+      // manually
       val thrown = intercept[IllegalArgumentException](cpuModel
         .transform(testDf)
         .collect())
       assert(thrown.getMessage.contains("Gpu transform requires features columns. " +
-        "please refer to setFeaturesCols"))
+        "please refer to `setFeaturesCol(value: Array[String])`"))
 
       val left = cpuModel
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .transform(testDf)
         .collect()
 
       val right = cpuModelFromFile
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .transform(testDf)
         .collect()
 
@@ -173,7 +174,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostRegressor(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setTreeMethod("gpu_hist")
       classifier.fit(rawInput)

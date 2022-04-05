@@ -147,12 +147,13 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
 
       // Since CPU model does not know the information about the features cols that GPU transform
-      // pipeline requires. End user needs to setFeaturesCols in the model manually
+      // pipeline requires. End user needs to setFeaturesCol(features: Array[String]) in the model
+      // manually
       val thrown = intercept[IllegalArgumentException](cpuModel
         .transform(testDf)
         .collect())
       assert(thrown.getMessage.contains("Gpu transform requires features columns. " +
-        "please refer to setFeaturesCols"))
+        "please refer to `setFeaturesCol(value: Array[String])`"))
 
       val left = cpuModel
         .setFeaturesCol(featureNames)
