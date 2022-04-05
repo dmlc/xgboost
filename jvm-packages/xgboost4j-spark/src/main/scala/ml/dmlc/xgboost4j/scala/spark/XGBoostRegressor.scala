@@ -150,7 +150,7 @@ class XGBoostRegressor (
    *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
    *  all feature columns must be numeric types.
    */
-  def setFeaturesCols(value: Array[String]): this.type =
+  def setFeaturesCol(value: Array[String]): this.type =
     set(featuresCols, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
@@ -257,7 +257,7 @@ class XGBoostRegressionModel private[ml] (
    *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
    *  all feature columns must be numeric types.
    */
-  def setFeaturesCols(value: Array[String]): this.type =
+  def setFeaturesCol(value: Array[String]): this.type =
     set(featuresCols, value)
 
   /**
