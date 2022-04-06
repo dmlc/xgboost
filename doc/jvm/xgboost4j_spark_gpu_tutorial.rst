@@ -242,7 +242,7 @@ is ``Iris`` and the application jar is ``iris-1.0.0.jar``
     --conf spark.rapids.sql.explain=ALL \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --class ${main_class} \
-     ${app_jar} \
+     ${app_jar}
 
 * First, we need to specify the ``spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
 * Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
