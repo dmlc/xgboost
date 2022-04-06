@@ -19,8 +19,8 @@ This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 Build an ML Application with XGBoost4J-Spark-GPU
 ************************************************
 
-Refer to XGBoost4J-Spark-GPU for the related Dependencies
-=========================================================
+Adding XGBoost to Your Project
+==============================
 
 Before we go into the tour of how to use XGBoost4J-Spark-GPU, you should first consult
 :ref:`Installation from Maven repository <install_jvm_packages>` in order to add XGBoost4J-Spark-GPU as
@@ -111,9 +111,10 @@ With window operations, we have mapped string column of labels to label indices.
 Training
 ========
 
-The GPU version of XGBoost-Spark supports both regression and classification models. Although we use the Iris dataset in
-this tutorial to show how we use XGBoost/XGBoost4J-Spark-GPU to resolve a multi-classes
-classification problem, the usage in Regression is very similar to classification.
+The GPU version of XGBoost-Spark supports both regression and classification
+models. Although we use the Iris dataset in this tutorial to show how we use
+``XGBoost/XGBoost4J-Spark-GPU`` to resolve a multi-classes classification problem, the
+usage in Regression is very similar to classification.
 
 To train a XGBoost model for classification, we need to claim a XGBoostClassifier first:
 
@@ -134,7 +135,9 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
       .setLabelCol(labelName)
 
 The available parameters for training a XGBoost model can be found in :doc:`here </parameter>`.
-Similar to the XGBoost4J-Spark package, in addition to the default set of parameters, XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be consistent with Spark's MLLIB naming convention.
+Similar to the XGBoost4J-Spark package, in addition to the default set of parameters,
+XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be
+consistent with Spark's MLLIB naming convention.
 
 Specifically, each parameter in :doc:`this page </parameter>` has its equivalent form in
 XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you can pass
@@ -150,13 +153,15 @@ you can do it through setters in XGBoostClassifer:
 
 .. note::
 
-  In contrast to the XGBoost4J-Spark package, which needs to first assemble the numeric feature
-  columns into one column with VectorUDF type by VectorAssembler, the XGBoost4J-Spark-GPU does
-  not require such transformation, it accepts an array of feature column names by ``setFeaturesCol(value: Array[String])``.
+  In contrast to the XGBoost4J-Spark package, which needs to first assemble the numeric
+  feature columns into one column with VectorUDF type by VectorAssembler, the
+  XGBoost4J-Spark-GPU does not require such transformation, it accepts an array of feature
+  column names by ``setFeaturesCol(value: Array[String])``.
 
-After we set XGBoostClassifier parameters and feature/label columns, we can build a transformer,
-XGBoostClassificationModel by fitting XGBoostClassifier with the input DataFrame. This ``fit``
-operation is essentially the training process and the generated model can then be used in other tasks like prediction.
+After we set XGBoostClassifier parameters and feature/label columns, we can build a
+transformer, XGBoostClassificationModel by fitting XGBoostClassifier with the input
+DataFrame. This ``fit`` operation is essentially the training process and the generated
+model can then be used in other tasks like prediction.
 
 .. code-block:: scala
 
@@ -224,25 +229,25 @@ is ``Iris`` and the application jar is ``iris-1.0.0.jar``
   app_jar=iris-1.0.0.jar
 
   spark-submit \
-    --master $master\
-    --packages ai.rapids:cudf:${cudf_version},com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version}\
+    --master $master \
+    --packages ai.rapids:cudf:${cudf_version},com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
     --conf spark.executor.cores=12 \
     --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=0.08 \
     --conf spark.rapids.sql.enabled=true \
     --conf spark.rapids.sql.csv.read.double.enabled=true \
-    --conf spark.rapids.sql.hasNans=false\
+    --conf spark.rapids.sql.hasNans=false \
     --conf spark.sql.adaptive.enabled=false \
     --conf spark.rapids.sql.explain=ALL \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
-    --class ${main_class}\
-     ${app_jar}\
+    --class ${main_class} \
+     ${app_jar} \
 
 * First, we need to specify the ``spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
 * Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
-For ``spark-rapids`` other configurations, please refer to `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
+For details about ``spark-rapids`` other configurations, please refer to `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
 
 For ``spark-rapids Frequently Asked Questions``, please refer to
 `frequently-asked-questions <https://nvidia.github.io/spark-rapids/docs/FAQ.html#frequently-asked-questions>`_.
