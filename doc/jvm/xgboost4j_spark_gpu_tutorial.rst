@@ -73,9 +73,9 @@ Transform Raw Iris Dataset
 To make Iris dataset be recognizable to XGBoost, we need to encode String-typed
 label, i.e. "class", to Double-typed label.
 
-To convert String-typed label to Double, we can use Spark's built-in feature transformer
+One way to convert the String-typed label to Double is to use Spark's built-in feature transformer
 `StringIndexer <https://spark.apache.org/docs/2.3.1/api/scala/index.html#org.apache.spark.ml.feature.StringIndexer>`_.
-but it has not been accelerated by by Spark-Rapids, which means it will be fallen back
+but it has not been accelerated by Spark-Rapids yet, which means it will fall back
 to CPU to run and cause performance issue. Instead, we use an alternative way to acheive
 the same goal by the following code
 
@@ -111,7 +111,7 @@ With window operations, we have mapped string column of labels to label indices.
 Training
 ========
 
-XGBoost supports both regression and classification. While we use Iris dataset in
+The GPU version of XGBoost-Spark supports both regression and classification models. Although we use the Iris dataset in
 this tutorial to show how we use XGBoost/XGBoost4J-Spark-GPU to resolve a multi-classes
 classification problem, the usage in Regression is very similar to classification.
 
@@ -134,8 +134,7 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
       .setLabelCol(labelName)
 
 The available parameters for training a XGBoost model can be found in :doc:`here </parameter>`.
-Same with XGBoost4J-Spark, XGBoost4J-Spark-GPU also supports not only the default set of parameters
-but also the camel-case variant of these parameters to keep consistent with Spark's MLLIB parameters.
+Similar to the XGBoost4J-Spark package, in addition to the default set of parameters, XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be consistent with Spark's MLLIB naming convention.
 
 Specifically, each parameter in :doc:`this page </parameter>` has its equivalent form in
 XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you can pass
