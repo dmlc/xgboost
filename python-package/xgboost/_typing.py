@@ -11,8 +11,9 @@ DataType = Any
 
 # xgboost accepts some other possible types in practice due to historical reason, which is
 # lesser tested.  For now we encourage users to pass a simple list of string.
-FeatureNames = Optional[Sequence[str]]
-FeatureTypes = Optional[Sequence[str]]
+FeatureInfo = Optional[Sequence[str]]
+FeatureNames = FeatureInfo
+FeatureTypes = FeatureInfo
 
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]

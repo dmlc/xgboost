@@ -13,7 +13,15 @@ from .core import c_array, _LIB, _check_call, c_str
 from .core import _cuda_array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance, DataFrame
-from ._typing import c_bst_ulong, DataType, FeatureTypes, FeatureNames, NumpyDType, CupyT, FloatCompatible
+from ._typing import (
+    c_bst_ulong,
+    DataType,
+    FeatureTypes,
+    FeatureNames,
+    NumpyDType,
+    CupyT,
+    FloatCompatible
+)
 
 DispatchedDataBackendReturnType = Tuple[ctypes.c_void_p, FeatureNames, FeatureTypes]
 
