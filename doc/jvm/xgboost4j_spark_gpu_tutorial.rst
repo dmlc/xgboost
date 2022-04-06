@@ -77,7 +77,7 @@ To convert String-typed label to Double, we can use Spark's built-in feature tra
 `StringIndexer <https://spark.apache.org/docs/2.3.1/api/scala/index.html#org.apache.spark.ml.feature.StringIndexer>`_.
 but it has not been accelerated by by Spark-Rapids, which means it will be fallen back
 to CPU to run and cause performance issue. Instead, we use an alternative way to acheive
-this goal by the following code
+the same goal by the following code
 
 .. code-block:: scala
 
@@ -112,7 +112,7 @@ Training
 ========
 
 XGBoost supports both regression and classification. While we use Iris dataset in
-this tutorial to show how we use XGBoost/XGBoost4J-Spark to resolve a multi-classes
+this tutorial to show how we use XGBoost/XGBoost4J-Spark-GPU to resolve a multi-classes
 classification problem, the usage in Regression is very similar to classification.
 
 To train a XGBoost model for classification, we need to claim a XGBoostClassifier first:
@@ -151,7 +151,9 @@ you can do it through setters in XGBoostClassifer:
 
 .. note::
 
-  In contrast to the XGBoost4J-Spark package, which needs to first assemble the numeric feature columns into one column with VectorUDF type by VectorAssembler, the XGBoost4J-Spark-GPU does not require such transformation, it accepts an array of feature column names by ``setFeaturesCol(featuresNames)``.
+  In contrast to the XGBoost4J-Spark package, which needs to first assemble the numeric feature
+  columns into one column with VectorUDF type by VectorAssembler, the XGBoost4J-Spark-GPU does
+  not require such transformation, it accepts an array of feature column names by ``setFeaturesCol(value: Array[String])``.
 
 After we set XGBoostClassifier parameters and feature/label columns, we can build a transformer,
 XGBoostClassificationModel by fitting XGBoostClassifier with the input DataFrame. This ``fit``
@@ -177,7 +179,8 @@ with the following columns by default:
   val results = xgbClassificationModel.transform(test)
   results.show()
 
-With the above code snippet, we get a DataFrame as result, which contains the margin, probability for each class, and the prediction for each instance
+With the above code snippet, we get a DataFrame as result, which contains the margin, probability for each class,
+and the prediction for each instance
 
 .. code-block:: none
 
@@ -210,13 +213,16 @@ With the above code snippet, we get a DataFrame as result, which contains the ma
 Submit the application
 **********************
 
-Take submitting the spark job to Spark Standalone cluster as an example
+Take submitting the spark job to Spark Standalone cluster as an example, and assuming your application main class
+is ``Iris`` and the application jar is ``iris-1.0.0.jar``
 
 .. code-block:: bash
 
   cudf_version=22.02.0
   rapids_version=22.02.0
   xgboost_version=1.6.0
+  main_class=Iris
+  app_jar=iris-1.0.0.jar
 
   spark-submit \
     --master $master\
@@ -231,53 +237,13 @@ Take submitting the spark job to Spark Standalone cluster as an example
     --conf spark.sql.adaptive.enabled=false \
     --conf spark.rapids.sql.explain=ALL \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
+    --class ${main_class}\
+     ${app_jar}\
 
-* First, we need to specify the spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu packages by ``--packages``
+* First, we need to specify the ``spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
 * Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
-For ``spark.executor.resource.gpu.amount` and `spark.task.resource.gpu.amount``, which is related to GPU scheduling, please refer
-to `Spark GPU Scheduling Overview <https://nvidia.github.io/spark-rapids/Getting-Started/#spark-gpu-scheduling-overview>`_
-
-when `spark.rapids.sql.explain=ALL` is enabled, we can get some useful information about whether some spark physical plans can be
-replaced by GPU implementaion or not. Eg,
-
-.. code-block:: none
-
-  ! <DeserializeToObjectExec> cannot run on GPU because not all expressions can be replaced; GPU does not currently support the operator class org.apache.spark.sql.execution.DeserializeToObjectExec
-    ! <CreateExternalRow> createexternalrow(sepal length#0, sepal width#1, petal length#2, petal width#3, class#31, StructField(sepal length,DoubleType,true), StructField(sepal width,DoubleType,true), StructField(petal length,DoubleType,true), StructField(petal width,DoubleType,true), StructField(class,IntegerType,false)) cannot run on GPU because GPU does not currently support the operator class org.apache.spark.sql.catalyst.expressions.objects.CreateExternalRow
-      @Expression <AttributeReference> sepal length#0 could run on GPU
-      @Expression <AttributeReference> sepal width#1 could run on GPU
-      @Expression <AttributeReference> petal length#2 could run on GPU
-      @Expression <AttributeReference> petal width#3 could run on GPU
-      @Expression <AttributeReference> class#31 could run on GPU
-    !Expression <AttributeReference> obj#113 cannot run on GPU because expression AttributeReference obj#113 produces an unsupported type ObjectType(interface org.apache.spark.sql.Row)
-    *Exec <SampleExec> will run on GPU
-      *Exec <SortExec> will run on GPU
-        *Expression <SortOrder> sepal length#0 ASC NULLS FIRST will run on GPU
-        *Expression <SortOrder> sepal width#1 ASC NULLS FIRST will run on GPU
-        *Expression <SortOrder> petal length#2 ASC NULLS FIRST will run on GPU
-        *Expression <SortOrder> petal width#3 ASC NULLS FIRST will run on GPU
-        *Expression <SortOrder> class#31 ASC NULLS FIRST will run on GPU
-        *Exec <ProjectExec> will run on GPU
-          *Expression <Alias> (_we0#13 - 1) AS class#31 will run on GPU
-            *Expression <Subtract> (_we0#13 - 1) will run on GPU
-          *Exec <WindowExec> will run on GPU
-            *Expression <Alias> dense_rank(class#4) windowspecdefinition(class#4 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS _we0#13 will run on GPU
-              *Expression <WindowExpression> dense_rank(class#4) windowspecdefinition(class#4 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) will run on GPU
-                *Expression <DenseRank> dense_rank(class#4) will run on GPU
-                *Expression <WindowSpecDefinition> windowspecdefinition(class#4 ASC NULLS FIRST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) will run on GPU
-                  *Expression <SortOrder> class#4 ASC NULLS FIRST will run on GPU
-                  *Expression <SpecifiedWindowFrame> specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$()) will run on GPU
-                    *Expression <UnboundedPreceding$> unboundedpreceding$() will run on GPU
-                    *Expression <CurrentRow$> currentrow$() will run on GPU
-            *Expression <SortOrder> class#4 ASC NULLS FIRST will run on GPU
-            *Exec <SortExec> will run on GPU
-              *Expression <SortOrder> class#4 ASC NULLS FIRST will run on GPU
-              *Exec <ShuffleExchangeExec> will run on GPU
-                *Partitioning <SinglePartition$> will run on GPU
-                *Exec <FileSourceScanExec> will run on GPU
-
-For ``spark-rapids`` other configurations, please refer to `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_
+For ``spark-rapids`` other configurations, please refer to `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
 
 For ``spark-rapids Frequently Asked Questions``, please refer to
-`frequently-asked-questions <https://nvidia.github.io/spark-rapids/docs/FAQ.html#frequently-asked-questions>`_
+`frequently-asked-questions <https://nvidia.github.io/spark-rapids/docs/FAQ.html#frequently-asked-questions>`_.
