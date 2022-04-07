@@ -150,69 +150,6 @@ class MeanAbsoluteError : public ObjFunction {
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
     .describe("Mean absoluate error.")
     .set_body([]() { return new MeanAbsoluteError(); });
-
-struct QuantileRegressionParameter : public XGBoostParameter<QuantileRegressionParameter> {
-  float quantile{0.5};
-};
-
-class QuantileRegression : public ObjFunction {
-  QuantileRegressionParameter param_;
-
- public:
-  void Configure(Args const&) override {}
-
-  uint32_t Targets(MetaInfo const& info) const override {
-    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
-  }
-
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, true};
-  }
-
-  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
-                   HostDeviceVector<GradientPair>* out_gpair) override {
-    auto labels = info.labels.View(ctx_->gpu_id);
-
-    out_gpair->SetDevice(ctx_->gpu_id);
-    out_gpair->Resize(info.labels.Size());
-    auto gpair = linalg::MakeVec(out_gpair);
-
-    preds.SetDevice(ctx_->gpu_id);
-    auto predt = linalg::MakeVec(&preds);
-    auto quantile = param_.quantile;
-
-    info.weights_.SetDevice(ctx_->gpu_id);
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
-
-    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
-      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
-      auto res = predt(i) - y;
-      auto grad = res >= 0 ? (1.0f - quantile) : -quantile;
-      grad *= weight[sample_id];
-      auto hess = weight[sample_id];
-      gpair(i) = GradientPair{grad, hess};
-    });
-  }
-
-  void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                      uint32_t target, RegTree* p_tree) const override {
-    UpdateTreeLeafHost(row_index, info, target, param_.quantile, p_tree);
-  }
-
-  const char* DefaultEvalMetric() const override { return "undefined"; }
-
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("reg:quantile");
-    out["quantile_regression_param"] = ToJson(param_);
-  }
-  void LoadConfig(Json const& in) override { FromJson(in["quantile_regression_param"], &param_); }
-};
-
-XGBOOST_REGISTER_OBJECTIVE(QuantileRegression, "reg:quantile")
-    .describe("Quantile regression.")
-    .set_body([]() { return new QuantileRegression(); });
 }  // namespace obj
 }  // namespace xgboost
 

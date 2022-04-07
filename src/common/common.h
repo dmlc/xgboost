@@ -7,6 +7,7 @@
 #define XGBOOST_COMMON_COMMON_H_
 
 #include <xgboost/base.h>
+#include <xgboost/linalg.h>
 #include <xgboost/logging.h>
 #include <xgboost/span.h>
 
@@ -14,12 +15,12 @@
 #include <exception>
 #include <functional>
 #include <limits>
-#include <type_traits>
-#include <vector>
-#include <string>
-#include <sstream>
 #include <numeric>
+#include <sstream>
+#include <string>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>
@@ -185,6 +186,15 @@ std::vector<Idx> ArgSort(Container const &array, Comp comp = std::less<V>{}) {
   std::vector<Idx> result(array.size());
   std::iota(result.begin(), result.end(), 0);
   auto op = [&array, comp](Idx const &l, Idx const &r) { return comp(array[l], array[r]); };
+  XGBOOST_PARALLEL_STABLE_SORT(result.begin(), result.end(), op);
+  return result;
+}
+
+template <typename V, typename Comp = std::less<V>>
+std::vector<size_t> ArgSort(linalg::TensorView<V, 1> array, Comp comp = std::less<V>{}) {
+  std::vector<size_t> result(array.Size());
+  std::iota(result.begin(), result.end(), 0);
+  auto op = [&array, comp](size_t const &l, size_t const &r) { return comp(array(l), array(r)); };
   XGBOOST_PARALLEL_STABLE_SORT(result.begin(), result.end(), op);
   return result;
 }

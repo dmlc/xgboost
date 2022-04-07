@@ -92,7 +92,7 @@ class ObjFunction : public Configurable {
   }
 
   virtual void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                              uint32_t target, RegTree* p_tree) const;
+                              uint32_t target, RegTree* p_tree) const {}
 
   /*!
    * \brief Create an objective function according to name.
