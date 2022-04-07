@@ -101,7 +101,7 @@ R
 JVM
 ---
 
-You can use XGBoost4J in your Java/Scala application by adding XGBoost4J as a dependency:
+* XGBoost4j/XGBoost4j-Spark
 
 .. code-block:: xml
   :caption: Maven
@@ -132,6 +132,39 @@ You can use XGBoost4J in your Java/Scala application by adding XGBoost4J as a de
   libraryDependencies ++= Seq(
     "ml.dmlc" %% "xgboost4j" % "latest_version_num",
     "ml.dmlc" %% "xgboost4j-spark" % "latest_version_num"
+  )
+
+* XGBoost4j-GPU/XGBoost4j-Spark-GPU
+
+.. code-block:: xml
+  :caption: Maven
+
+  <properties>
+    ...
+    <!-- Specify Scala version in package name -->
+    <scala.binary.version>2.12</scala.binary.version>
+  </properties>
+
+  <dependencies>
+    ...
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num</version>
+    </dependency>
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-spark-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num</version>
+    </dependency>
+  </dependencies>
+
+.. code-block:: scala
+  :caption: sbt
+
+  libraryDependencies ++= Seq(
+    "ml.dmlc" %% "xgboost4j-gpu" % "latest_version_num",
+    "ml.dmlc" %% "xgboost4j-spark-gpu" % "latest_version_num"
   )
 
 This will check out the latest stable version from the Maven Central.
@@ -185,7 +218,7 @@ and Windows.) Download it and run the following commands:
 JVM
 ---
 
-First add the following Maven repository hosted by the XGBoost project:
+* XGBoost4j/XGBoost4j-Spark
 
 .. code-block:: xml
   :caption: Maven
@@ -233,6 +266,40 @@ Then add XGBoost4J as a dependency:
     "ml.dmlc" %% "xgboost4j" % "latest_version_num-SNAPSHOT",
     "ml.dmlc" %% "xgboost4j-spark" % "latest_version_num-SNAPSHOT"
   )
+
+* XGBoost4j-GPU/XGBoost4j-Spark-GPU
+
+.. code-block:: xml
+  :caption: maven
+
+  <properties>
+    ...
+    <!-- Specify Scala version in package name -->
+    <scala.binary.version>2.12</scala.binary.version>
+  </properties>
+
+  <dependencies>
+    ...
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-spark-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+
+.. code-block:: scala
+  :caption: sbt
+
+  libraryDependencies ++= Seq(
+    "ml.dmlc" %% "xgboost4j-gpu" % "latest_version_num-SNAPSHOT",
+    "ml.dmlc" %% "xgboost4j-spark-gpu" % "latest_version_num-SNAPSHOT"
+  )
+
 
 Look up the ``version`` field in `pom.xml <https://github.com/dmlc/xgboost/blob/master/jvm-packages/pom.xml>`_ to get the correct version number.
 
