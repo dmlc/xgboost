@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -245,6 +245,27 @@ trait HasNumClass extends Params {
 
   /** @group getParam */
   final def getNumClass: Int = $(numClass)
+}
+
+/**
+ * Trait for shared param featuresCols.
+ */
+trait HasFeaturesCols extends Params {
+  /**
+   * Param for the names of feature columns.
+   * @group param
+   */
+  final val featuresCols: StringArrayParam = new StringArrayParam(this, "featuresCols",
+    "an array of feature column names.")
+
+  /** @group getParam */
+  final def getFeaturesCols: Array[String] = $(featuresCols)
+
+  /** Check if featuresCols is valid */
+  def isFeaturesColsValid: Boolean = {
+    isDefined(featuresCols) && $(featuresCols) != Array.empty
+  }
+
 }
 
 private[spark] trait ParamMapFuncs extends Params {

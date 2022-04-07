@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
-import org.apache.spark.ml.linalg.Vector
+
+import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
@@ -215,5 +216,53 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     assert(resultDF.count === groundTruth)
     assert(resultDF.columns.contains("predictLeaf"))
     assert(resultDF.columns.contains("predictContrib"))
+  }
+
+  test("featuresCols with features column can work") {
+    val spark = ss
+    import spark.implicits._
+    val xgbInput = Seq(
+      (Vectors.dense(1.0, 7.0), true, 10.1, 100.2, 0),
+      (Vectors.dense(2.0, 20.0), false, 2.1, 2.2, 1))
+      .toDF("f1", "f2", "f3", "features", "label")
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> 1)
+
+    val featuresName = Array("f1", "f2", "f3", "features")
+    val xgbClassifier = new XGBoostRegressor(paramMap)
+      .setFeaturesCol(featuresName)
+      .setLabelCol("label")
+
+    val model = xgbClassifier.fit(xgbInput)
+    assert(model.getFeaturesCols.sameElements(featuresName))
+
+    val df = model.transform(xgbInput)
+    assert(df.schema.fieldNames.contains("features_" + model.uid))
+    df.show()
+  }
+
+  test("featuresCols without features column can work") {
+    val spark = ss
+    import spark.implicits._
+    val xgbInput = Seq(
+      (Vectors.dense(1.0, 7.0), true, 10.1, 100.2, 0),
+      (Vectors.dense(2.0, 20.0), false, 2.1, 2.2, 1))
+      .toDF("f1", "f2", "f3", "f4", "label")
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> 1)
+
+    val featuresName = Array("f1", "f2", "f3", "f4")
+    val xgbClassifier = new XGBoostRegressor(paramMap)
+      .setFeaturesCol(featuresName)
+      .setLabelCol("label")
+
+    val model = xgbClassifier.fit(xgbInput)
+    assert(model.getFeaturesCols.sameElements(featuresName))
+
+    val df = model.transform(xgbInput)
+    assert(df.schema.fieldNames.contains("features"))
+    df.show()
   }
 }

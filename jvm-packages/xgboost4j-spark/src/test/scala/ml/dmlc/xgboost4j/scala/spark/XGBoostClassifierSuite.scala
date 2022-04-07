@@ -316,4 +316,52 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     xgb.fit(repartitioned)
   }
 
+  test("featuresCols with features column can work") {
+    val spark = ss
+    import spark.implicits._
+    val xgbInput = Seq(
+      (Vectors.dense(1.0, 7.0), true, 10.1, 100.2, 0),
+      (Vectors.dense(2.0, 20.0), false, 2.1, 2.2, 1))
+      .toDF("f1", "f2", "f3", "features", "label")
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> 1)
+
+    val featuresName = Array("f1", "f2", "f3", "features")
+    val xgbClassifier = new XGBoostClassifier(paramMap)
+      .setFeaturesCol(featuresName)
+      .setLabelCol("label")
+
+    val model = xgbClassifier.fit(xgbInput)
+    assert(model.getFeaturesCols.sameElements(featuresName))
+
+    val df = model.transform(xgbInput)
+    assert(df.schema.fieldNames.contains("features_" + model.uid))
+    df.show()
+  }
+
+  test("featuresCols without features column can work") {
+    val spark = ss
+    import spark.implicits._
+    val xgbInput = Seq(
+      (Vectors.dense(1.0, 7.0), true, 10.1, 100.2, 0),
+      (Vectors.dense(2.0, 20.0), false, 2.1, 2.2, 1))
+      .toDF("f1", "f2", "f3", "f4", "label")
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> 1)
+
+    val featuresName = Array("f1", "f2", "f3", "f4")
+    val xgbClassifier = new XGBoostClassifier(paramMap)
+      .setFeaturesCol(featuresName)
+      .setLabelCol("label")
+
+    val model = xgbClassifier.fit(xgbInput)
+    assert(model.getFeaturesCols.sameElements(featuresName))
+
+    val df = model.transform(xgbInput)
+    assert(df.schema.fieldNames.contains("features"))
+    df.show()
+  }
+
 }

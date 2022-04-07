@@ -144,13 +144,6 @@ class XGBoostClassifier (
   def setSinglePrecisionHistogram(value: Boolean): this.type =
     set(singlePrecisionHistogram, value)
 
-  /**
-   *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
-   *  all feature columns must be numeric types.
-   */
-  def setFeaturesCol(value: Array[String]): this.type =
-    set(featuresCols, value)
-
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -165,7 +158,12 @@ class XGBoostClassifier (
 
   // Callback from PreXGBoost
   private[spark] def transformSchemaInternal(schema: StructType): StructType = {
-    super.transformSchema(schema)
+    if (isFeaturesColSet(schema)) {
+      // User has vectorized the features into VectorUDT.
+      super.transformSchema(schema)
+    } else {
+      transformSchemaWithFeaturesCols(true, schema)
+    }
   }
 
   override def transformSchema(schema: StructType): StructType = {
@@ -261,13 +259,6 @@ class XGBoostClassificationModel private[ml](
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
-   *  This API is only used in GPU train pipeline of xgboost4j-spark-gpu, which requires
-   *  all feature columns must be numeric types.
-   */
-  def setFeaturesCol(value: Array[String]): this.type =
-    set(featuresCols, value)
-
-  /**
    * Single instance prediction.
    * Note: The performance is not ideal, use it carefully!
    */
@@ -359,7 +350,12 @@ class XGBoostClassificationModel private[ml](
   }
 
   private[spark] def transformSchemaInternal(schema: StructType): StructType = {
-    super.transformSchema(schema)
+    if (isFeaturesColSet(schema)) {
+      // User has vectorized the features into VectorUDT.
+      super.transformSchema(schema)
+    } else {
+      transformSchemaWithFeaturesCols(false, schema)
+    }
   }
 
   override def transformSchema(schema: StructType): StructType = {
@@ -384,8 +380,6 @@ class XGBoostClassificationModel private[ml](
       val rawPredictions = if (numClasses == 2) Array(-raw(0), raw(0)) else raw
       Vectors.dense(rawPredictions)
     }
-
-
 
     if ($(rawPredictionCol).nonEmpty) {
       outputData = outputData
