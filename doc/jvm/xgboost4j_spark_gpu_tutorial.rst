@@ -3,11 +3,7 @@ XGBoost4J-Spark-GPU Tutorial (version 1.6.0+)
 #############################################
 
 **XGBoost4J-Spark-GPU** is a project aiming to accelerate XGBoost distributed training on Spark from
-end to end with GPUs by leveraging the ``Spark-Rapids`` project.
-
-``Spark-Rapids`` is the RAPIDS Accelerator for Apache Spark, which leverages GPUs to accelerate processing
-via the `RAPIDS libraries <https://rapids.ai/>`_, for more details, please refer to the
-`spark-rapids <https://nvidia.github.io/spark-rapids/>`_ page.
+end to end with GPUs by leveraging the `Spark-Rapids <https://nvidia.github.io/spark-rapids/>`_ project.
 
 This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 
@@ -165,7 +161,7 @@ model can then be used in other tasks like prediction.
 
 .. code-block:: scala
 
-  val xgbClassificationModel = xgbClassifier.fit(xgbInput)
+  val xgbClassificationModel = xgbClassifier.fit(train)
 
 Prediction
 ==========
@@ -235,11 +231,8 @@ is ``Iris`` and the application jar is ``iris-1.0.0.jar``
     --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=0.08 \
-    --conf spark.rapids.sql.enabled=true \
     --conf spark.rapids.sql.csv.read.double.enabled=true \
     --conf spark.rapids.sql.hasNans=false \
-    --conf spark.sql.adaptive.enabled=false \
-    --conf spark.rapids.sql.explain=ALL \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --class ${main_class} \
      ${app_jar}
