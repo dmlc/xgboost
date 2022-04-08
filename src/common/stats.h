@@ -70,14 +70,14 @@ auto MakeIndexTransformIter(Fn&& fn) {
  *
  *   https://www.itl.nist.gov/div898/handbook/prc/section2/prc262.htm
  *
- * \param alpha percentile, must be in range [0, 1].
- * \param index The index of valid elements in arr.
- * \param arr   Input values.
+ * \param alpha Percentile, must be in range [0, 1].
+ * \param begin Iterator begin for input array.
+ * \param end   Iterator end for input array.
  *
  * \return The result of interpolation.
  */
 template <typename Iter>
-float Percentile(double alpha, Iter begin, Iter end) {
+float Percentile(double alpha, Iter const& begin, Iter const& end) {
   CHECK(alpha >= 0 && alpha <= 1);
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {

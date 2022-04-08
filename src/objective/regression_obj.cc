@@ -58,13 +58,14 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     std::vector<float> results(part.indptr.size());
     common::ParallelFor(part.indptr.size(), ctx->Threads(), [&](size_t k) {
       auto const& seg = part.indptr[k];
+      CHECK(tree[seg.nidx].IsLeaf());
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
       float q{0};
       auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
       auto const& h_prediction = prediction.ConstHostVector();
       auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
         auto row_idx = h_row_set[i];
-        return h_labels(h_row_set[i]) - h_prediction[row_idx];
+        return h_labels(row_idx) - h_prediction[row_idx];
       });
 
       if (info.weights_.Empty()) {
@@ -73,8 +74,9 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
         q = WeightedQuantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
                              linalg::MakeVec(&info.weights_));
       }
-      results.at(k++) = q;
+      results.at(k) = q;
     });
+
     // fixme: verify this is correct for external memory
     if (quantiles.empty()) {
       quantiles.resize(results.size(), 0);
@@ -82,12 +84,13 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     for (size_t i = 0; i < results.size(); ++i) {
       quantiles[i] += results[i];
     }
-    // use the mean value
-    rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
-    auto world = rabit::GetWorldSize();
-    std::transform(results.begin(), results.end(), results.begin(),
-                   [&](float q) { return q / world; });
   }
+
+  // use the mean value
+  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
+  auto world = rabit::GetWorldSize();
+  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
+                 [&](float q) { return q / world; });
 
   // fixme: verify this is correct for external memory
   for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
