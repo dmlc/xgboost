@@ -217,6 +217,21 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
   }
 }
 
+void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, ObjFunction const* obj, size_t gidx,
+                            std::vector<std::unique_ptr<RegTree>>* p_trees) {
+  if (!obj) {
+    return;
+  }
+  auto& trees = *p_trees;
+  auto targets = obj->Targets(p_fmat->Info());
+  for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
+    auto row_idx = updaters_.back()->GetRowIndexCache(tree_idx);
+    // distinguish the difference between multi-class and multi-target.
+    auto target = targets > 1 ? gidx : 0;
+    obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), target, trees[tree_idx].get());
+  }
+}
+
 void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt, ObjFunction const* obj) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
@@ -235,11 +250,11 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
+    UpdateTreeLeaf(p_fmat, obj, 0, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     auto v_predt = out.Slice(linalg::All(), 0);
-    if (updaters_.size() > 0 && num_new_trees == 1 &&
-        predt->predictions.Size() > 0 &&
+    if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
         updaters_.back()->UpdatePredictionCache(p_fmat, v_predt)) {
       predt->Update(1);
     }
@@ -254,6 +269,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
+      UpdateTreeLeaf(p_fmat, obj, gid, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), gid);
@@ -268,19 +284,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
     }
   }
 
-  if (obj) {
-    // Update tree leaf value at the end of boosting.
-    bst_group_t gidx{0};
-    auto targets = obj->Targets(p_fmat->Info());
-    for (auto& tree_group : new_trees) {
-      for (size_t t = 0; t < tree_group.size(); ++t) {
-        // within a forest
-        auto row_idx = updaters_.back()->GetRowIndexCache(t);
-        auto target = targets > 1 ? gidx : 0;
-        obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), gidx, tree_group[t].get());
-      }
-    }
-  }
   monitor_.Stop("BoostNewTrees");
   this->CommitModel(std::move(new_trees), p_fmat, predt);
 }

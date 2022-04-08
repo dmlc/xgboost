@@ -91,6 +91,15 @@ class ObjFunction : public Configurable {
     return 1;
   }
 
+  /**
+   * \brief Update the leaf values after a tree is built. Needed for objectives with 0
+   *        hessian.
+   *
+   * \param row_index The index of rows for each output leaf.
+   * \param info MetaInfo providing labels and weights.
+   * \param target The index for target if we are training multi-target models, 0 otherwise.
+   * \param p_tree Tree that needs to be updated.
+   */
   virtual void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
                               uint32_t target, RegTree* p_tree) const {}
 
