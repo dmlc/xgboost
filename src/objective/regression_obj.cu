@@ -8,6 +8,7 @@
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+#include <xgboost/tree_model.h>
 
 #include <cmath>
 #include <memory>
@@ -16,6 +17,7 @@
 #include "../common/common.h"
 #include "../common/linalg_op.h"
 #include "../common/pseudo_huber.h"
+#include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
@@ -68,9 +70,7 @@ class RegLossObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
-  struct ObjInfo Task() const override {
-    return Loss::Info();
-  }
+  ObjInfo Task() const override { return Loss::Info(); }
 
   uint32_t Targets(MetaInfo const& info) const override {
     // Multi-target regression.
@@ -210,7 +210,7 @@ class PseudoHuberRegression : public ObjFunction {
 
  public:
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
-  struct ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
   uint32_t Targets(MetaInfo const& info) const override {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
@@ -287,9 +287,7 @@ class PoissonRegression : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -379,12 +377,8 @@ XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public ObjFunction {
  public:
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >&) override {}
-
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  void Configure(Args const&) override {}
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -480,12 +474,8 @@ XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
 // gamma regression
 class GammaRegression : public ObjFunction {
  public:
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >&) override {}
-
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  void Configure(Args const&) override {}
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info, int,
@@ -583,9 +573,7 @@ class TweedieRegression : public ObjFunction {
     metric_ = os.str();
   }
 
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -681,14 +669,125 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
                           uint32_t target, float alpha, RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   CHECK_EQ(row_index.size(), 1);
-  auto part = row_index.front();
+  auto const& part = row_index.front();
 
   dh::caching_device_vector<float> quantiles;
   auto d_quantiles = dh::ToSpan(quantiles);
+
+  auto rows = part.row_index.ConstDeviceSpan();
   dh::LaunchN(part.row_index.Size(), [=]XGBOOST_DEVICE(size_t i) {
 
   });
 }
 
+void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
+                        MetaInfo const& info, HostDeviceVector<float> const& prediction,
+                        uint32_t target, float alpha, RegTree* p_tree) {
+  auto& tree = *p_tree;
+  std::vector<float> quantiles;
+  for (auto const& part : row_index) {
+    std::vector<float> results(part.indptr.size());
+    common::ParallelFor(part.indptr.size(), ctx->Threads(), [&](size_t k) {
+      auto const& seg = part.indptr[k];
+      CHECK(tree[seg.nidx].IsLeaf());
+      auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
+      float q{0};
+      auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
+      auto const& h_prediction = prediction.ConstHostVector();
+      auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_labels(row_idx) - h_prediction[row_idx];
+      });
+
+      if (info.weights_.Empty()) {
+        q = common::Percentile(alpha, iter, iter + h_row_set.size());
+      } else {
+        q = common::WeightedPercentile(alpha, h_row_set,
+                                       info.labels.HostView().Slice(linalg::All(), target),
+                                       linalg::MakeVec(&info.weights_));
+      }
+      results.at(k) = q;
+    });
+
+    // fixme: verify this is correct for external memory
+    if (quantiles.empty()) {
+      quantiles.resize(results.size(), 0);
+    }
+    for (size_t i = 0; i < results.size(); ++i) {
+      quantiles[i] += results[i];
+    }
+  }
+
+  // use the mean value
+  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
+  auto world = rabit::GetWorldSize();
+  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
+                 [&](float q) { return q / world; });
+
+  // fixme: verify this is correct for external memory
+  for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
+    auto seg = row_index.front().indptr[i];
+    auto q = quantiles[i];
+    CHECK(tree[seg.nidx].IsLeaf());
+    tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
+  }
+}
+
+class MeanAbsoluteError : public ObjFunction {
+ public:
+  void Configure(Args const&) override {}
+
+  uint32_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
+
+  struct ObjInfo Task() const override {
+    return {ObjInfo::kRegression, true, true};
+  }
+
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.labels.Size());
+    auto gpair = linalg::MakeVec(out_gpair);
+
+    preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sign = [](auto x) {
+        return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
+      };
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      auto grad = sign(predt(i) - y) * weight[i];
+      auto hess = weight[sample_id];
+      gpair(i) = GradientPair{grad, hess};
+    });
+  }
+
+  void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
+                      HostDeviceVector<float> const& prediction, uint32_t target,
+                      RegTree* p_tree) const override {
+    UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+  }
+
+  const char* DefaultEvalMetric() const override { return "mae"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:absoluteerror");
+  }
+
+  void LoadConfig(Json const& in) override {}
+};
+
+XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
+    .describe("Mean absoluate error.")
+    .set_body([]() { return new MeanAbsoluteError(); });
 }  // namespace obj
 }  // namespace xgboost

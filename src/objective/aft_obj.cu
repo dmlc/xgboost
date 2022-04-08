@@ -34,11 +34,11 @@ DMLC_REGISTRY_FILE_TAG(aft_obj_gpu);
 
 class AFTObj : public ObjFunction {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
   }
 
-  ObjInfo Task() const override { return {ObjInfo::kSurvival, false}; }
+  ObjInfo Task() const override { return ObjInfo::kSurvival; }
 
   template <typename Distribution>
   void GetGradientImpl(const HostDeviceVector<bst_float> &preds,

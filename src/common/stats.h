@@ -27,9 +27,9 @@ class IndexTransformIter {
 
  public:
   XGBOOST_DEVICE explicit IndexTransformIter(Fn&& fn) : fn_{fn} {}
-  XGBOOST_DEVICE IndexTransformIter(IndexTransformIter const&) = default;
+  IndexTransformIter(IndexTransformIter const&) = default;
 
-  XGBOOST_DEVICE value_type operator*() const { return fn_(iter_); }
+  value_type operator*() const { return fn_(iter_); }
 
   XGBOOST_DEVICE auto operator-(IndexTransformIter const& that) const { return iter_ - that.iter_; }
 
@@ -107,6 +107,37 @@ float Percentile(double alpha, Iter const& begin, Iter const& end) {
   auto v0 = val(static_cast<size_t>(k));
   auto v1 = val(static_cast<size_t>(k) + 1);
   return v0 + d * (v1 - v0);
+}
+
+inline float WeightedPercentile(float quantile, common::Span<size_t const> row_set,
+                                linalg::VectorView<float const> labels,
+                                linalg::VectorView<float const> weights) {
+  std::vector<size_t> sorted_idx(row_set.size());
+  std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
+  std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
+                   [&](size_t i, size_t j) { return labels(row_set[i]) < labels(row_set[j]); });
+  std::vector<float> weighted_cdf(row_set.size());
+  weighted_cdf[0] = weights(row_set[sorted_idx[0]]);
+  for (size_t i = 1; i < row_set.size(); ++i) {
+    weighted_cdf[i] = weighted_cdf[i - 1] + weights(row_set[sorted_idx[i]]);
+  }
+  float thresh = weighted_cdf.back() * quantile;
+  size_t pos =
+      std::upper_bound(weighted_cdf.cbegin(), weighted_cdf.cend(), thresh) - weighted_cdf.cbegin();
+  pos = std::min(pos, static_cast<size_t>(row_set.size() - 1));
+  if (pos == 0 || pos == static_cast<size_t>(row_set.size() - 1)) {
+    return labels(row_set[sorted_idx[pos]]);
+  }
+  CHECK_GE(thresh, weighted_cdf[pos - 1]);
+  CHECK_LT(thresh, weighted_cdf[pos]);
+  float v1 = labels(row_set[sorted_idx[pos - 1]]);
+  float v2 = labels(row_set[sorted_idx[pos]]);
+  if (weighted_cdf[pos + 1] - weighted_cdf[pos] >= 1.0f) {
+    return (thresh - weighted_cdf[pos]) / (weighted_cdf[pos + 1] - weighted_cdf[pos]) * (v2 - v2) +
+           v1;
+  } else {
+    return v2;
+  }
 }
 }  // namespace common
 }  // namespace xgboost

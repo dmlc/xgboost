@@ -750,11 +750,8 @@ class SortedLabelList : dh::SegmentSorter<float> {
 template <typename LambdaWeightComputerT>
 class LambdaRankObj : public ObjFunction {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
-
-  ObjInfo Task() const override { return {ObjInfo::kRanking, false}; }
+  void Configure(Args const &args) override { param_.UpdateAllowUnknown(args); }
+  ObjInfo Task() const override { return ObjInfo::kRanking; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,

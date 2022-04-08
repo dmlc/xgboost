@@ -7,6 +7,7 @@
 #include <xgboost/base.h>
 
 #include <cinttypes>
+#include <cstdint>
 
 namespace xgboost {
 /*!
@@ -33,9 +34,10 @@ struct ObjInfo {
   } task;
   // Does the objective have constant hessian value?
   bool const_hess{false};
+  bool zero_hess{false};
 
-  explicit ObjInfo(Task t) : task{t} {}
-  ObjInfo(Task t, bool khess) : task{t}, const_hess{khess} {}
+  ObjInfo(Task t) : task{t} {}  // NOLINT
+  ObjInfo(Task t, bool khess, bool zhess) : task{t}, const_hess{khess}, zero_hess(zhess) {}
 
   XGBOOST_DEVICE bool UseOneHot() const {
     return (task != ObjInfo::kRegression && task != ObjInfo::kBinary);

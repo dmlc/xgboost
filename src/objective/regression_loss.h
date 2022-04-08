@@ -38,7 +38,7 @@ struct LinearSquareLoss {
   static const char* DefaultEvalMetric() { return "rmse"; }
 
   static const char* Name() { return "reg:squarederror"; }
-  static ObjInfo Info() { return {ObjInfo::kRegression, true}; }
+  static ObjInfo Info() { return ObjInfo::kRegression; }
 };
 
 struct SquaredLogError {
@@ -65,7 +65,7 @@ struct SquaredLogError {
 
   static const char* Name() { return "reg:squaredlogerror"; }
 
-  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
+  static ObjInfo Info() { return ObjInfo::kRegression; }
 };
 
 // logistic loss for probability regression task
@@ -102,14 +102,14 @@ struct LogisticRegression {
 
   static const char* Name() { return "reg:logistic"; }
 
-  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
+  static ObjInfo Info() { return ObjInfo::kRegression; }
 };
 
 // logistic loss for binary classification task
 struct LogisticClassification : public LogisticRegression {
   static const char* DefaultEvalMetric() { return "logloss"; }
   static const char* Name() { return "binary:logistic"; }
-  static ObjInfo Info() { return {ObjInfo::kBinary, false}; }
+  static ObjInfo Info() { return ObjInfo::kBinary; }
 };
 
 // logistic loss, but predict un-transformed margin
@@ -146,7 +146,7 @@ struct LogisticRaw : public LogisticRegression {
 
   static const char* Name() { return "binary:logitraw"; }
 
-  static ObjInfo Info() { return {ObjInfo::kRegression, false}; }
+  static ObjInfo Info() { return ObjInfo::kRegression; }
 };
 
 }  // namespace obj

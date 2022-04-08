@@ -31,13 +31,9 @@ DMLC_REGISTER_PARAMETER(MyLogisticParam);
 // Implement the interface.
 class MyLogistic : public ObjFunction {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
+  void Configure(const Args& args) override { param_.UpdateAllowUnknown(args); }
 
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
