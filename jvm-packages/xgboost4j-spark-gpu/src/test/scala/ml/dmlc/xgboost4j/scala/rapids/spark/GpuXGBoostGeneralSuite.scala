@@ -108,12 +108,15 @@ class GpuXGBoostGeneralSuite extends GpuTestSuite {
       val trainingDf = trainingData.toDF(allColumnNames: _*)
       val xgbParam = Map("eta" -> 0.1f, "max_depth" -> 2, "objective" -> "multi:softprob",
         "num_class" -> 3, "num_round" -> 5, "num_workers" -> 1, "tree_method" -> "gpu_hist")
-      val thrown = intercept[IllegalArgumentException] {
+
+      // GPU train requires featuresCols. If not specified,
+      // then NoSuchElementException will be thrown
+      val thrown = intercept[NoSuchElementException] {
         new XGBoostClassifier(xgbParam)
           .setLabelCol(labelName)
           .fit(trainingDf)
       }
-      assert(thrown.getMessage.contains("Gpu train requires features columns."))
+      assert(thrown.getMessage.contains("Failed to find a default value for featuresCols"))
 
       val thrown1 = intercept[IllegalArgumentException] {
         new XGBoostClassifier(xgbParam)
