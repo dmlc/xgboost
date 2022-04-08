@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,15 +16,7 @@
 
 package ml.dmlc.xgboost4j.gpu.java;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.ArrayList;
 
 /**
  * Cudf utilities to build cuda array interface against {@link CudfColumn}
@@ -42,58 +34,64 @@ class CudfUtils {
 
   // Helper class to build array interface string
   private static class Builder {
-    private JsonNodeFactory nodeFactory = new JsonNodeFactory(false);
-    private ArrayNode rootArrayNode = nodeFactory.arrayNode();
+    private ArrayList<String> colArrayInterfaces = new ArrayList<String>();
 
     private Builder add(CudfColumn... columns) {
       if (columns == null || columns.length <= 0) {
         throw new IllegalArgumentException("At least one ColumnData is required.");
       }
       for (CudfColumn cd : columns) {
-        rootArrayNode.add(buildColumnObject(cd));
+        colArrayInterfaces.add(buildColumnObject(cd));
       }
       return this;
     }
 
     private String build() {
-      try {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        JsonGenerator jsonGen = new JsonFactory().createGenerator(bos);
-        new ObjectMapper().writeTree(jsonGen, rootArrayNode);
-        return bos.toString();
-      } catch (IOException ie) {
-        ie.printStackTrace();
-        throw new RuntimeException("Failed to build array interface. Error: " + ie);
+      StringBuilder builder = new StringBuilder();
+      builder.append("[");
+      for (int i = 0; i < colArrayInterfaces.size(); i++) {
+        builder.append(colArrayInterfaces.get(i));
+        if (i != colArrayInterfaces.size() - 1) {
+          builder.append(",");
+        }
       }
+      builder.append("]");
+      return builder.toString();
     }
 
-    private ObjectNode buildColumnObject(CudfColumn column) {
+    /** build the whole column information including data and valid info */
+    private String buildColumnObject(CudfColumn column) {
       if (column.getDataPtr() == 0) {
         throw new IllegalArgumentException("Empty column data is NOT accepted!");
       }
       if (column.getTypeStr() == null || column.getTypeStr().isEmpty()) {
         throw new IllegalArgumentException("Empty type string is NOT accepted!");
       }
-      ObjectNode colDataObj = buildMetaObject(column.getDataPtr(), column.getShape(),
-          column.getTypeStr());
 
+      StringBuilder builder = new StringBuilder();
+      String colData = buildMetaObject(column.getDataPtr(), column.getShape(),
+          column.getTypeStr());
+      builder.append("{");
+      builder.append(colData);
       if (column.getValidPtr() != 0 && column.getNullCount() != 0) {
-        ObjectNode validObj = buildMetaObject(column.getValidPtr(), column.getShape(), "<t1");
-        colDataObj.set("mask", validObj);
+        String validString = buildMetaObject(column.getValidPtr(), column.getShape(), "<t1");
+        builder.append(",\"mask\":");
+        builder.append("{");
+        builder.append(validString);
+        builder.append("}");
       }
-      return colDataObj;
+      builder.append("}");
+      return builder.toString();
     }
 
-    private ObjectNode buildMetaObject(long ptr, long shape, final String typeStr) {
-      ObjectNode objNode = nodeFactory.objectNode();
-      ArrayNode shapeNode = objNode.putArray("shape");
-      shapeNode.add(shape);
-      ArrayNode dataNode = objNode.putArray("data");
-      dataNode.add(ptr)
-          .add(false);
-      objNode.put("typestr", typeStr)
-          .put("version", 1);
-      return objNode;
+    /** build the base information of a column */
+    private String buildMetaObject(long ptr, long shape, final String typeStr) {
+      StringBuilder builder = new StringBuilder();
+      builder.append("\"shape\":[" + shape + "],");
+      builder.append("\"data\":[" + ptr + "," + "false" + "],");
+      builder.append("\"typestr\":\"" + typeStr + "\",");
+      builder.append("\"version\":" + 1);
+      return builder.toString();
     }
   }
 
