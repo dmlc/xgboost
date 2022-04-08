@@ -24,6 +24,8 @@ import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
+import org.apache.spark.ml.feature.VectorAssembler
+
 class XGBoostRegressorSuite extends FunSuite with PerTest {
   protected val treeMethod: String = "auto"
 
@@ -240,6 +242,20 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val df = model.transform(xgbInput)
     assert(df.schema.fieldNames.contains("features_" + model.uid))
     df.show()
+
+    val newFeatureName = "features_new"
+    // transform also can work for vectorized dataset
+    val vectorizedInput = new VectorAssembler()
+      .setInputCols(featuresName)
+      .setOutputCol(newFeatureName)
+      .transform(xgbInput)
+      .select(newFeatureName, "label")
+
+    val df1 = model
+      .setFeaturesCol(newFeatureName)
+      .transform(vectorizedInput)
+    assert(df1.schema.fieldNames.contains(newFeatureName))
+    df1.show()
   }
 
   test("featuresCols without features column can work") {
@@ -261,8 +277,19 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val model = xgbClassifier.fit(xgbInput)
     assert(model.getFeaturesCols.sameElements(featuresName))
 
+    // transform should work for the dataset which includes the feature column names.
     val df = model.transform(xgbInput)
     assert(df.schema.fieldNames.contains("features"))
     df.show()
+
+    // transform also can work for vectorized dataset
+    val vectorizedInput = new VectorAssembler()
+      .setInputCols(featuresName)
+      .setOutputCol("features")
+      .transform(xgbInput)
+      .select("features", "label")
+
+    val df1 = model.transform(vectorizedInput)
+    df1.show()
   }
 }
