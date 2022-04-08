@@ -252,7 +252,7 @@ class GloablApproxBuilder {
         auto seg = RowIndexCache::Segment{offset, size, node.node_id};
         size_t k = seg.begin;
         for (auto idx = node.begin; idx != node.end; ++idx) {
-          h_row_index[k] = *idx;
+          h_row_index[k++] = *idx;
         }
         p_out_row_indices->back().indptr.push_back(seg);
         CHECK(tree[seg.nidx].IsLeaf());
