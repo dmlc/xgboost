@@ -160,7 +160,7 @@ improvements along with small bug fixes.
 * Lastly, there are some code cleanups and maintenance work. (#7585, #7426, #7634, #7665,
   #7667, #7377, #7360, #7498, #7438, #7667, #7752, #7749, #7751)
 
-### Changes in Dask interface
+### Changes in the Dask interface
 * Dask module now supports user-supplied host IP and port address of scheduler node.
   Please see [introduction](https://xgboost.readthedocs.io/en/latest/tutorials/dask.html#troubleshooting) and
   [API document](https://xgboost.readthedocs.io/en/latest/python/python_api.html#optional-dask-configuration)
@@ -174,7 +174,7 @@ improvements along with small bug fixes.
 * Scipy sparse matrix is supported as Dask array partition. (#7457)
 * Dask interface is no longer considered experimental. (#7509)
 
-### Changes in R package
+### Changes in the R package
 This section summarizes the new features, improvements, and bug fixes to the R package.
 
 * `load.raw` can optionally construct a booster as return. (#7686)
@@ -187,22 +187,23 @@ This section summarizes the new features, improvements, and bug fixes to the R p
 * New maintainer for the CRAN package (#7691, #7649)
 * Handle non-standard installation of toolchain on macos (#7759)
 
-### JVM-packages
+### Changes in JVM-packages
 Some new features for JVM-packages are introduced for a more integrated GPU pipeline and
 better compatibility with musl-based Linux. Aside from this, we have a few notable bug
 fixes.
 
 * Add support for detecting musl-based Linux (#7624)
 * Add `DeviceQuantileDMatrix` to Scala binding (#7459)
-* Add Rapids plugin support (#7491)
+* Add Rapids plugin support (#7491, #7779)
 * The setters for CPU and GPU are more aligned (#7692)
 * Control logging for early stopping (#7326)
 * Do not repartition when nWorker = 1 (#7676)
 * Fix the prediction issue for `multi:softmax` (#7694)
 * Fix for serialization of custom objective and eval (#7274)
 * Update documentation about Python tracker (#7396)
+* Remove jackson from dependency, which fixes CVE-2020-36518. (#7791)
 * Some refactoring to the training pipeline for better compatibility between CPU and
-  GPU. (#7440, #7401)
+  GPU. (#7440, #7401, #7789, #7784)
 * Maintenance work. (#7550, #7335, #7641, #7523, #6792, #4676)
 
 ### Deprecation
@@ -213,6 +214,8 @@ phase out the old binary format in future releases.
 * Remove old warning in 1.3 (#7279)
 * Remove label encoder deprecated in 1.3. (#7357)
 * Remove old callback deprecated in 1.3. (#7280)
+* Pre-built binary will no longer support deprecated CUDA architectures including sm35 and
+  sm50. Users can continue to use these platforms with source build. (#7767)
 
 ### Documentation
 This section lists some of the general changes to XGBoost's document, for language binding
@@ -236,7 +239,7 @@ This is a summary of maintenance work that is not specific to any language bindi
 * Code cleanups (#7539, #7536, #7466, #7499, #7533, #7735, #7722, #7668, #7304, #7293,
   #7321, #7356, #7345, #7387, #7577, #7548, #7469, #7680, #7433, #7398)
 * Improved tests with better coverage and latest dependency (#7573, #7446, #7650, #7520,
-  #7373, #7723, #7611)
+  #7373, #7723, #7611, #7771)
 * Improved automation of the release process. (#7278, #7332, #7470)
 * Compiler workarounds (#7673)
 * Change shebang used in CLI demo. (#7389)
