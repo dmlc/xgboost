@@ -62,12 +62,11 @@ list of user-visible changes:
 - Supports monotonic constraint.
 - Supports feature weights.
 - Use `max_bin` to replace `sketch_eps`.
-- Supports for categorical data.
+- Supports categorical data.
 - Faster performance for many of the datasets.
 - Improved performance and robustness for distributed training.
 - Supports prediction cache.
-- Significantly better performance for external memory.
-- Unites the code base between approx and hist.
+- Significantly better performance for external memory when `depthwise` policy is used.
 
 ### New serialization format
 Based on the existing JSON serialization format, we introduce UBJSON support as a more
@@ -98,7 +97,7 @@ Aside from the major new features mentioned above, some others are summarized he
   #7589, #7588, #7687)
 * The default behavior of `max_leave` and `max_depth` is now unified (#7302, #7551).
 * CUDA fat binary is now compressed. (#7601)
-* Deterministic result for evaluation metric and linear model In previous versions of
+* Deterministic result for evaluation metric and linear model. In previous versions of
   XGBoost, evaluation results might differ slightly for each run due to parallel reduction
   for floating-point values, which is now addressed. (#7362, #7303, #7316, #7349)
 * XGBoost now uses double for GPU Hist node sum, which improves the accuracy of
