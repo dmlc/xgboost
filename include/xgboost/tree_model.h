@@ -745,8 +745,7 @@ struct RowIndexCache {
   HostDeviceVector<size_t> row_index;
   std::vector<Segment> indptr;
 
-  RowIndexCache(Context const* ctx, size_t n_leaf, size_t n_samples) {
-    indptr.resize(n_leaf + 1);
+  RowIndexCache(Context const* ctx, size_t n_samples) {
     if (!ctx->IsCPU()) {
       row_index.SetDevice(ctx->gpu_id);
     }

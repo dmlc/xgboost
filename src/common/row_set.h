@@ -18,6 +18,12 @@ namespace common {
 /*! \brief collection of rowset */
 class RowSetCollection {
  public:
+  RowSetCollection() = default;
+  RowSetCollection(RowSetCollection const&) = delete;
+  RowSetCollection(RowSetCollection&&) = default;
+  RowSetCollection& operator=(RowSetCollection const&) = delete;
+  RowSetCollection& operator=(RowSetCollection&&) = default;
+
   /*! \brief data structure to store an instance set, a subset of
    *  rows (instances) associated with a particular node in a decision
    *  tree. */
@@ -82,6 +88,8 @@ class RowSetCollection {
   }
 
   std::vector<size_t>* Data() { return &row_indices_; }
+  std::vector<size_t> const* Data() const { return &row_indices_; }
+
   // split rowset into two
   inline void AddSplit(unsigned node_id, unsigned left_node_id, unsigned right_node_id,
                        size_t n_left, size_t n_right) {

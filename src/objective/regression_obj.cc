@@ -49,13 +49,14 @@ float WeightedQuantile(float quantile, common::Span<size_t const> row_set,
   }
 };
 
-void UpdateTreeLeafHost(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                        uint32_t target, float alpha, RegTree* p_tree) {
+void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
+                        MetaInfo const& info, uint32_t target, float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
   std::vector<float> quantiles;
   for (auto const& part : row_index) {
-    std::vector<float> results;
-    for (auto const& seg : part.indptr) {
+    std::vector<float> results(part.indptr.size());
+    common::ParallelFor(part.indptr.size(), ctx->Threads(), [&](size_t k) {
+      auto const& seg = part.indptr[k];
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
       float q{0};
       if (info.weights_.Empty()) {
@@ -65,8 +66,8 @@ void UpdateTreeLeafHost(common::Span<RowIndexCache const> row_index, MetaInfo co
         q = WeightedQuantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
                              linalg::MakeVec(&info.weights_));
       }
-      results.push_back(q);
-    }
+      results.at(k++) = q;
+    });
     // fixme: verify this is correct for external memory
     if (quantiles.empty()) {
       quantiles.resize(results.size(), 0);
@@ -85,7 +86,10 @@ void UpdateTreeLeafHost(common::Span<RowIndexCache const> row_index, MetaInfo co
   for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
     auto seg = row_index.front().indptr[i];
     auto q = quantiles[i];
+    auto l = tree[seg.nidx].LeafValue();
+    CHECK(tree[seg.nidx].IsLeaf());
     tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
+    l = tree[seg.nidx].LeafValue();
   }
 }
 
@@ -129,7 +133,7 @@ class MeanAbsoluteError : public ObjFunction {
 
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
                       uint32_t target, RegTree* p_tree) const override {
-    UpdateTreeLeafHost(row_index, info, target, 0.5, p_tree);
+    UpdateTreeLeafHost(ctx_, row_index, info, target, 0.5, p_tree);
   }
 
   const char* DefaultEvalMetric() const override { return "mae"; }

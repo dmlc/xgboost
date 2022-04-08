@@ -226,6 +226,11 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, ObjFunction const* obj, size_
   auto targets = obj->Targets(p_fmat->Info());
   for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
     auto row_idx = updaters_.back()->GetRowIndexCache(tree_idx);
+    for (auto const& part : row_idx) {
+      for (auto const& seg : part.indptr) {
+        CHECK((*trees[tree_idx])[seg.nidx].IsLeaf()) << "trees.size():" << trees.size();
+      }
+    }
     // distinguish the difference between multi-class and multi-target.
     auto target = targets > 1 ? gidx : 0;
     obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), target, trees[tree_idx].get());
@@ -259,22 +264,19 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       predt->Update(1);
     }
   } else {
-    CHECK_EQ(in_gpair->Size() % ngroup, 0U)
-        << "must have exactly ngroup * nrow gpairs";
-    HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
-                                       GradientPair(),
+    CHECK_EQ(in_gpair->Size() % ngroup, 0U) << "must have exactly ngroup * nrow gpairs";
+    HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup, GradientPair(),
                                        in_gpair->DeviceIdx());
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
       CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
-      std::vector<std::unique_ptr<RegTree> > ret;
+      std::vector<std::unique_ptr<RegTree>> ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
       UpdateTreeLeaf(p_fmat, obj, gid, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), gid);
-      if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 &&
-            num_new_trees == 1 &&
+      if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
             updaters_.back()->UpdatePredictionCache(p_fmat, v_predt))) {
         update_predict = false;
       }
