@@ -11,12 +11,24 @@
 
 namespace xgboost {
 namespace common {
-inline float Percentile(float percentile, Span<size_t const> index,
+/**
+ * \brief Percentile with masked array using linear interpolation.
+ *
+ *   https://www.itl.nist.gov/div898/handbook/prc/section2/prc262.htm
+ *
+ * \param alpha percentile, must be in range [0, 1].
+ * \param index The index of valid elements in arr.
+ * \param arr   Input values.
+ *
+ * \return The result of interpolation.
+ */
+inline float Percentile(double alpha, Span<size_t const> index,
                         linalg::TensorView<float const, 1> arr) {
-  size_t n = index.size();
-  if (n == 0) {
+  CHECK(alpha >= 0 && alpha <= 1);
+  if (index.size() == 0) {
     return std::numeric_limits<float>::quiet_NaN();
   }
+  auto n = static_cast<double>(index.size());
   std::vector<size_t> sorted_idx(index.size());
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
   std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
@@ -24,15 +36,17 @@ inline float Percentile(float percentile, Span<size_t const> index,
 
   auto val = [&](size_t i) { return arr(index(sorted_idx[i])); };
 
-  if (percentile <= (1 / (n + 1))) {
+  if (alpha <= (1 / (n + 1))) {
     return val(0);
   }
-  if (percentile >= (n / (n + 1))) {
+  if (alpha >= (n / (n + 1))) {
     return val(sorted_idx.size() - 1);
   }
-  double x = percentile * static_cast<double>((n + 1));
-  double k = std::floor(x);
-  double d = x - k;
+
+  double x = alpha * static_cast<double>((n + 1));
+  double k = std::floor(x) - 1;
+  CHECK_GE(k, 0);
+  double d = (x - 1) - k;
 
   auto v0 = val(static_cast<size_t>(k));
   auto v1 = val(static_cast<size_t>(k) + 1);
