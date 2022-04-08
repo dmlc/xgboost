@@ -22,7 +22,9 @@ class FederationService final : public Federation::Service {
     std::unique_lock lock(mutex_);
 
     // Wait for all previous replies have been sent.
-    cv_.wait(lock, [this] { return sent_ == 0; });
+    if (sent_ != 0) {
+      cv_.wait(lock, [this] { return sent_ == 0; });
+    }
 
     if (received_ == 0) {
       // Copy the send_buffer if this is the first client.

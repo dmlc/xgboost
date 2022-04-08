@@ -6,18 +6,20 @@
 #include <cstdlib>
 #include <string>
 
+namespace xgboost::federated {
+
 class FederationClient {
  public:
   explicit FederationClient(const std::shared_ptr<grpc::Channel> &channel)
-      : stub_(xgboost::federated::Federation::NewStub(channel)) {}
+      : stub_(Federation::NewStub(channel)) {}
 
   std::string Allreduce(const std::string &send_buffer) {
-    xgboost::federated::AllreduceRequest request;
+    AllreduceRequest request;
     request.set_send_buffer(send_buffer);
-    request.set_data_type(xgboost::federated::INT);
-    request.set_reduce_operation(xgboost::federated::SUM);
+    request.set_data_type(DataType::INT);
+    request.set_reduce_operation(ReduceOperation::SUM);
 
-    xgboost::federated::AllreduceReply reply;
+    AllreduceReply reply;
     grpc::ClientContext context;
     grpc::Status status = stub_->Allreduce(&context, request, &reply);
 
@@ -30,11 +32,12 @@ class FederationClient {
   }
 
  private:
-  std::unique_ptr<xgboost::federated::Federation::Stub> stub_;
+  std::unique_ptr<Federation::Stub> stub_;
 };
+}  // namespace xgboost::federated
 
 int main(int argc, char **argv) {
-  FederationClient client(
+  xgboost::federated::FederationClient client(
       grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials()));
 
   for (int i = 1; i <= 10; i++) {
