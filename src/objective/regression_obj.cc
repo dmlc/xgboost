@@ -7,6 +7,7 @@
 #include <dmlc/registry.h>
 
 #include "../common/linalg_op.h"
+#include "../common/stats.h"
 #include "rabit/rabit.h"
 #include "xgboost/data.h"
 #include "xgboost/objective.h"
@@ -48,13 +49,6 @@ float WeightedQuantile(float quantile, common::Span<size_t const> row_set,
   }
 };
 
-float Quantile(float quantile, common::Span<size_t const> row_set, linalg::VectorView<float const> labels) {
-  float result;
-  LOG(FATAL) << "Not implemented";
-  // fixme: pick an algorithm from R quantile.
-  return result;
-}
-
 void UpdateTreeLeafHost(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
                         uint32_t target, float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
@@ -65,7 +59,8 @@ void UpdateTreeLeafHost(common::Span<RowIndexCache const> row_index, MetaInfo co
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
       float q{0};
       if (info.weights_.Empty()) {
-        q = Quantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target));
+        q = common::Percentile(alpha, h_row_set,
+                               info.labels.HostView().Slice(linalg::All(), target));
       } else {
         q = WeightedQuantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
                              linalg::MakeVec(&info.weights_));

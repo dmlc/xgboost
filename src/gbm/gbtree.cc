@@ -271,12 +271,16 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
     }
   }
 
-  bst_group_t gidx {0};
-  for (auto& tree_group : new_trees) {
-    for (size_t t = 0; t < tree_group.size(); ++t) {
-      auto row_idx = updaters_.back()->GetRowIndexCache(t);
-      auto target = p_fmat->Info().labels.Shape(1) > 1 ? gidx : 0;
-      obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), gidx, tree_group[t].get());
+  if (obj) {
+    // Update tree leaf value at the end of boosting.
+    bst_group_t gidx{0};
+    auto targets = obj->Targets(p_fmat->Info());
+    for (auto& tree_group : new_trees) {
+      for (size_t t = 0; t < tree_group.size(); ++t) {
+        auto row_idx = updaters_.back()->GetRowIndexCache(t);
+        auto target = targets > 1 ? gidx : 0;
+        obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), gidx, tree_group[t].get());
+      }
     }
   }
   monitor_.Stop("BoostNewTrees");
