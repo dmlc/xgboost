@@ -244,8 +244,7 @@ class GloablApproxBuilder {
         if (!node.begin) {
           continue;
         }
-        CHECK(node.begin)<< node.node_id;
-        CHECK(tree[node.node_id].IsLeaf());
+        CHECK(node.begin && tree[node.node_id].IsLeaf()) << " Offending node idx:" << node.node_id;
         size_t offset = node.begin - begin;
         auto size = node.Size();
         CHECK_LT(offset, p_fmat->Info().num_row_) << node.node_id;
@@ -255,7 +254,6 @@ class GloablApproxBuilder {
           h_row_index[k++] = *idx;
         }
         p_out_row_indices->back().indptr.push_back(seg);
-        CHECK(tree[seg.nidx].IsLeaf());
       }
     }
   }
