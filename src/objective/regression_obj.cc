@@ -96,10 +96,8 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
   for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
     auto seg = row_index.front().indptr[i];
     auto q = quantiles[i];
-    auto l = tree[seg.nidx].LeafValue();
     CHECK(tree[seg.nidx].IsLeaf());
     tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
-    l = tree[seg.nidx].LeafValue();
   }
 }
 

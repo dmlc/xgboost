@@ -19,6 +19,7 @@
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
@@ -674,6 +675,20 @@ DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
 XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
+
+void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
+                          MetaInfo const& info, HostDeviceVector<float> const& prediction,
+                          uint32_t target, float alpha, RegTree* p_tree) {
+  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  CHECK_EQ(row_index.size(), 1);
+  auto part = row_index.front();
+
+  dh::caching_device_vector<float> quantiles;
+  auto d_quantiles = dh::ToSpan(quantiles);
+  dh::LaunchN(part.row_index.Size(), [=]XGBOOST_DEVICE(size_t i) {
+
+  });
+}
 
 }  // namespace obj
 }  // namespace xgboost
