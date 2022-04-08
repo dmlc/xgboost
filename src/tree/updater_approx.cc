@@ -236,7 +236,6 @@ class GloablApproxBuilder {
     for (auto const &part : partitioner_) {
       auto const &row_set = part.Partitions();
       p_out_row_indices->emplace_back(ctx_, p_fmat->Info().num_row_);
-      // fixme: subsample
       auto &h_row_index = p_out_row_indices->back().row_index.HostVector();
 
       auto begin = row_set.Data()->data();
@@ -246,13 +245,14 @@ class GloablApproxBuilder {
         }
         CHECK(node.begin && tree[node.node_id].IsLeaf()) << " Offending node idx:" << node.node_id;
         size_t offset = node.begin - begin;
-        auto size = node.Size();
         CHECK_LT(offset, p_fmat->Info().num_row_) << node.node_id;
-        auto seg = RowIndexCache::Segment{offset, size, node.node_id};
-        size_t k = seg.begin;
+        size_t k = offset;
         for (auto idx = node.begin; idx != node.end; ++idx) {
-          h_row_index[k++] = *idx;
+          if (hess[*idx] != 0.f) {
+            h_row_index[k++] = *idx;
+          }
         }
+        auto seg = RowIndexCache::Segment{offset, k - offset, node.node_id};
         p_out_row_indices->back().indptr.push_back(seg);
       }
     }
