@@ -217,7 +217,8 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
   }
 }
 
-void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, ObjFunction const* obj, size_t gidx,
+void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
+                            ObjFunction const* obj, size_t gidx,
                             std::vector<std::unique_ptr<RegTree>>* p_trees) {
   if (!obj) {
     return;
@@ -226,14 +227,9 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, ObjFunction const* obj, size_
   auto targets = obj->Targets(p_fmat->Info());
   for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
     auto row_idx = updaters_.back()->GetRowIndexCache(tree_idx);
-    for (auto const& part : row_idx) {
-      for (auto const& seg : part.indptr) {
-        CHECK((*trees[tree_idx])[seg.nidx].IsLeaf()) << "trees.size():" << trees.size();
-      }
-    }
     // distinguish the difference between multi-class and multi-target.
     auto target = targets > 1 ? gidx : 0;
-    obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), target, trees[tree_idx].get());
+    obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), predictions, target, trees[tree_idx].get());
   }
 }
 
@@ -255,7 +251,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
-    UpdateTreeLeaf(p_fmat, obj, 0, &ret);
+    UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     auto v_predt = out.Slice(linalg::All(), 0);
@@ -272,7 +268,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
       std::vector<std::unique_ptr<RegTree>> ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
-      UpdateTreeLeaf(p_fmat, obj, gid, &ret);
+      UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), gid);

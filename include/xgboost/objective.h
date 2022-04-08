@@ -101,7 +101,8 @@ class ObjFunction : public Configurable {
    * \param p_tree Tree that needs to be updated.
    */
   virtual void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                              uint32_t target, RegTree* p_tree) const {}
+                              HostDeviceVector<float> const& prediction, uint32_t target,
+                              RegTree* p_tree) const {}
 
   /*!
    * \brief Create an objective function according to name.

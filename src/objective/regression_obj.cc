@@ -50,7 +50,8 @@ float WeightedQuantile(float quantile, common::Span<size_t const> row_set,
 };
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
-                        MetaInfo const& info, uint32_t target, float alpha, RegTree* p_tree) {
+                        MetaInfo const& info, HostDeviceVector<float> const& prediction,
+                        uint32_t target, float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
   std::vector<float> quantiles;
   for (auto const& part : row_index) {
@@ -59,9 +60,15 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       auto const& seg = part.indptr[k];
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
       float q{0};
+      auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
+      auto const& h_prediction = prediction.ConstHostVector();
+      auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_labels(h_row_set[i]) - h_prediction[row_idx];
+      });
+
       if (info.weights_.Empty()) {
-        q = common::Percentile(alpha, h_row_set,
-                               info.labels.HostView().Slice(linalg::All(), target));
+        q = common::Percentile(alpha, iter, iter + h_row_set.size());
       } else {
         q = WeightedQuantile(alpha, h_row_set, info.labels.HostView().Slice(linalg::All(), target),
                              linalg::MakeVec(&info.weights_));
@@ -132,8 +139,9 @@ class MeanAbsoluteError : public ObjFunction {
   }
 
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                      uint32_t target, RegTree* p_tree) const override {
-    UpdateTreeLeafHost(ctx_, row_index, info, target, 0.5, p_tree);
+                      HostDeviceVector<float> const& prediction, uint32_t target,
+                      RegTree* p_tree) const override {
+    UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
   }
 
   const char* DefaultEvalMetric() const override { return "mae"; }
