@@ -126,7 +126,7 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
 
       val vectorAssembler = new VectorAssembler()
         .setHandleInvalid("keep")
-        .setInputCols(featureNames.toArray)
+        .setInputCols(featureNames)
         .setOutputCol("features")
       val trainingDf = vectorAssembler.transform(rawInput).select("features", labelName)
 
@@ -147,12 +147,12 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
         .csv(dataPath).randomSplit(Array(0.7, 0.3), seed = 1)
 
       // Since CPU model does not know the information about the features cols that GPU transform
-      // pipeline requires. End user needs to setFeaturesCols in the model manually
-      val thrown = intercept[IllegalArgumentException](cpuModel
+      // pipeline requires. End user needs to setFeaturesCol(features: Array[String]) in the model
+      // manually
+      val thrown = intercept[NoSuchElementException](cpuModel
         .transform(testDf)
         .collect())
-      assert(thrown.getMessage.contains("Gpu transform requires features columns. " +
-        "please refer to setFeaturesCols"))
+      assert(thrown.getMessage.contains("Failed to find a default value for featuresCols"))
 
       val left = cpuModel
         .setFeaturesCol(featureNames)
@@ -195,17 +195,16 @@ class GpuXGBoostClassifierSuite extends GpuTestSuite {
       val featureColName = "feature_col"
       val vectorAssembler = new VectorAssembler()
         .setHandleInvalid("keep")
-        .setInputCols(featureNames.toArray)
+        .setInputCols(featureNames)
         .setOutputCol(featureColName)
       val testDf = vectorAssembler.transform(rawInput).select(featureColName, labelName)
 
       // Since GPU model does not know the information about the features col name that CPU
       // transform pipeline requires. End user needs to setFeaturesCol in the model manually
-      val thrown = intercept[IllegalArgumentException](
+      intercept[IllegalArgumentException](
         gpuModel
         .transform(testDf)
         .collect())
-      assert(thrown.getMessage.contains("features does not exist"))
 
       val left = gpuModel
         .setFeaturesCol(featureColName)
