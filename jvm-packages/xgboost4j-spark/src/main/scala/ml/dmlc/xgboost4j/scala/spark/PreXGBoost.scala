@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -35,8 +35,10 @@ import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.{Estimator, Model, PipelineStage}
 import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.linalg.xgboost.XGBoostSchemaUtils
 import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
 
@@ -112,7 +114,7 @@ object PreXGBoost extends PreXGBoostProvider {
       return optionProvider.get.buildDatasetToRDD(estimator, dataset, params)
     }
 
-    val (packedParams, evalSet) = estimator match {
+    val (packedParams, evalSet, xgbInput) = estimator match {
       case est: XGBoostEstimatorCommon =>
         // get weight column, if weight is not defined, default to lit(1.0)
         val weight = if (!est.isDefined(est.weightCol) || est.getWeightCol.isEmpty) {
@@ -136,15 +138,18 @@ object PreXGBoost extends PreXGBoostProvider {
 
         }
 
-        (PackedParams(col(est.getLabelCol), col(est.getFeaturesCol), weight, baseMargin, group,
-          est.getNumWorkers, est.needDeterministicRepartitioning), est.getEvalSets(params))
+        val (xgbInput, featuresName) = est.vectorize(dataset)
+
+        (PackedParams(col(est.getLabelCol), col(featuresName), weight, baseMargin, group,
+          est.getNumWorkers, est.needDeterministicRepartitioning), est.getEvalSets(params),
+          xgbInput)
 
       case _ => throw new RuntimeException("Unsupporting " + estimator)
     }
 
     // transform the training Dataset[_] to RDD[XGBLabeledPoint]
     val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      packedParams, dataset.asInstanceOf[DataFrame]).head
+      packedParams, xgbInput.asInstanceOf[DataFrame]).head
 
     // transform the eval Dataset[_] to RDD[XGBLabeledPoint]
     val evalRDDMap = evalSet.map {
@@ -184,11 +189,11 @@ object PreXGBoost extends PreXGBoostProvider {
     }
 
     /** get the necessary parameters */
-    val (booster, inferBatchSize, featuresCol, useExternalMemory, missing, allowNonZeroForMissing,
-    predictFunc, schema) =
+    val (booster, inferBatchSize, xgbInput, featuresCol, useExternalMemory, missing,
+    allowNonZeroForMissing, predictFunc, schema) =
       model match {
         case m: XGBoostClassificationModel =>
-
+          val (xgbInput, featuresName) = m.vectorize(dataset)
           // predict and turn to Row
           val predictFunc =
             (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
@@ -199,7 +204,7 @@ object PreXGBoost extends PreXGBoostProvider {
             }
 
           // prepare the final Schema
-          var schema = StructType(dataset.schema.fields ++
+          var schema = StructType(xgbInput.schema.fields ++
             Seq(StructField(name = XGBoostClassificationModel._rawPredictionCol, dataType =
               ArrayType(FloatType, containsNull = false), nullable = false)) ++
             Seq(StructField(name = XGBoostClassificationModel._probabilityCol, dataType =
@@ -214,11 +219,12 @@ object PreXGBoost extends PreXGBoostProvider {
               ArrayType(FloatType, containsNull = false), nullable = false))
           }
 
-          (m._booster, m.getInferBatchSize, m.getFeaturesCol, m.getUseExternalMemory, m.getMissing,
-            m.getAllowNonZeroForMissingValue, predictFunc, schema)
+          (m._booster, m.getInferBatchSize, xgbInput, featuresName, m.getUseExternalMemory,
+            m.getMissing, m.getAllowNonZeroForMissingValue, predictFunc, schema)
 
         case m: XGBoostRegressionModel =>
           // predict and turn to Row
+          val (xgbInput, featuresName) = m.vectorize(dataset)
           val predictFunc =
             (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
               val Array(rawPredictionItr, predLeafItr, predContribItr) =
@@ -227,7 +233,7 @@ object PreXGBoost extends PreXGBoostProvider {
             }
 
           // prepare the final Schema
-          var schema = StructType(dataset.schema.fields ++
+          var schema = StructType(xgbInput.schema.fields ++
             Seq(StructField(name = XGBoostRegressionModel._originalPredictionCol, dataType =
               ArrayType(FloatType, containsNull = false), nullable = false)))
 
@@ -240,14 +246,14 @@ object PreXGBoost extends PreXGBoostProvider {
               ArrayType(FloatType, containsNull = false), nullable = false))
           }
 
-          (m._booster, m.getInferBatchSize, m.getFeaturesCol, m.getUseExternalMemory, m.getMissing,
-            m.getAllowNonZeroForMissingValue, predictFunc, schema)
+          (m._booster, m.getInferBatchSize, xgbInput, featuresName, m.getUseExternalMemory,
+            m.getMissing, m.getAllowNonZeroForMissingValue, predictFunc, schema)
       }
 
-    val bBooster = dataset.sparkSession.sparkContext.broadcast(booster)
-    val appName = dataset.sparkSession.sparkContext.appName
+    val bBooster = xgbInput.sparkSession.sparkContext.broadcast(booster)
+    val appName = xgbInput.sparkSession.sparkContext.appName
 
-    val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
+    val resultRDD = xgbInput.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       new AbstractIterator[Row] {
         private var batchCnt = 0
 
@@ -295,7 +301,7 @@ object PreXGBoost extends PreXGBoostProvider {
     }
 
     bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(resultRDD, schema)
+    xgbInput.sparkSession.createDataFrame(resultRDD, schema)
   }
 
 
