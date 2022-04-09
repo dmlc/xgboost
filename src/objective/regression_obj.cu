@@ -11,6 +11,7 @@
 #include <xgboost/tree_model.h>
 
 #include <cmath>
+#include <cstddef>
 #include <memory>
 #include <vector>
 
@@ -21,6 +22,8 @@
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
@@ -664,6 +667,59 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
 
+void SegmentedPercentile(double alpha, RowIndexCache const& row_index, MetaInfo const& info,
+                         HostDeviceVector<float> const& predt, HostDeviceVector<float>* quantiles) {
+  CHECK(alpha >= 0 && alpha <= 1);
+  dh::device_vector<float> residue(predt.Size());
+  auto d_residue = dh::ToSpan(residue);
+  auto d_predt = predt.ConstDeviceSpan();
+  auto d_labels = info.labels.View(0);
+  dh::LaunchN(residue.size(), [=] XGBOOST_DEVICE(size_t i) {
+    // compute residule
+  });
+
+  dh::XGBDeviceAllocator<char> alloc;
+  dh::device_vector<size_t> sorted_idx(residue.size());
+  dh::Iota(dh::ToSpan(sorted_idx));
+  using Tup = thrust::tuple<size_t, float>;
+  auto key_it = dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0ul),
+                                                  [=] XGBOOST_DEVICE(size_t i) -> Tup {});
+  thrust::stable_sort_by_key(thrust::cuda::par(alloc), key_it, key_it + residue.size(),
+                             sorted_idx.begin(), [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
+                               if (thrust::get<0>(l) != thrust::get<0>(r)) {
+                                 return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
+                               }
+                               return thrust::get<1>(l) < thrust::get<1>(r);  // residue
+                             });
+
+  dh::caching_device_vector<RowIndexCache::Segment> segment(row_index.indptr.size());
+  thrust::copy(row_index.indptr.cbegin(), row_index.indptr.cend(), segment.begin());
+  auto d_segments = dh::ToSpan(segment);
+
+  quantiles->Resize(row_index.indptr.size());
+  auto d_results = quantiles->DeviceSpan();
+
+  auto d_row_index = row_index.row_index.ConstDeviceSpan();
+  auto d_sorted_idx = dh::ToSpan(sorted_idx);
+
+  dh::LaunchN(residue.size(), [=] XGBOOST_DEVICE(size_t i) {
+    // each segment is the index of a leaf.
+    size_t seg_idx = 0;
+    auto seg = d_segments[seg_idx];
+    auto residue_seg = d_residue.subspan(seg.begin, seg.n);
+
+    double x = alpha * static_cast<double>(seg.n + 1);
+    double k = std::floor(x) - 1;
+    double d = (x - 1) - k;
+
+    if (i == seg.begin) {
+      auto v0 = d_residue[d_row_index[d_sorted_idx[static_cast<size_t>(k)]]];
+      auto v1 = d_residue[d_row_index[d_sorted_idx[static_cast<size_t>(k) + 1]]];
+      d_results[seg_idx] = v0 + d * (v1 - v0);
+    }
+  });
+}
+
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
                           MetaInfo const& info, HostDeviceVector<float> const& prediction,
                           uint32_t target, float alpha, RegTree* p_tree) {
@@ -671,15 +727,17 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   CHECK_EQ(row_index.size(), 1);
   auto const& part = row_index.front();
 
-  dh::caching_device_vector<float> quantiles;
-  auto d_quantiles = dh::ToSpan(quantiles);
+  HostDeviceVector<float> results;
+  SegmentedPercentile(alpha, part, info, prediction, &results);
 
-  auto rows = part.row_index.ConstDeviceSpan();
-  dh::LaunchN(part.row_index.Size(), [=]XGBOOST_DEVICE(size_t i) {
-
-  });
-
-  LOG(FATAL) << "Not implemented";
+  auto const& h_results = results.HostVector();
+  auto& tree = *p_tree;
+  for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
+    auto seg = row_index.front().indptr[i];
+    auto q = h_results[i];
+    CHECK(tree[seg.nidx].IsLeaf());
+    tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
+  }
 }
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
