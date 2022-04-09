@@ -28,7 +28,7 @@ Data Preparation
 In this section, we use the `Iris <https://archive.ics.uci.edu/ml/datasets/iris>`_ dataset as an example to
 showcase how we use Spark to transform a raw dataset and make it fit the data interface of XGBoost.
 
-The iris dataset is shipped in CSV format. Each instance contains 4 features, "sepal length", "sepal width",
+The Iris dataset is shipped in CSV format. Each instance contains 4 features, "sepal length", "sepal width",
 "petal length" and "petal width". In addition, it contains the "class" column, which is essentially the
 label with three possible values: "Iris Setosa", "Iris Versicolour" and "Iris Virginica".
 
