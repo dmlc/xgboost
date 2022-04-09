@@ -678,6 +678,8 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   dh::LaunchN(part.row_index.Size(), [=]XGBOOST_DEVICE(size_t i) {
 
   });
+
+  LOG(FATAL) << "Not implemented";
 }
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
@@ -773,7 +775,11 @@ class MeanAbsoluteError : public ObjFunction {
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
                       HostDeviceVector<float> const& prediction, uint32_t target,
                       RegTree* p_tree) const override {
-    UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+    if (ctx_->IsCPU()) {
+      UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+    } else {
+      UpdateTreeLeafDevice(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+    }
   }
 
   const char* DefaultEvalMetric() const override { return "mae"; }

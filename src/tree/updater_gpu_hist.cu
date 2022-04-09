@@ -649,7 +649,7 @@ struct GPUHistMakerDevice {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo task,
                   RegTree* p_tree, dh::AllReducer* reducer,
-                  dh::device_vector<RowIndexCache>* p_out_row_indices) {
+                  std::vector<RowIndexCache>* p_out_row_indices) {
     auto& tree = *p_tree;
     Driver<GPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
 
@@ -743,7 +743,7 @@ class GPUHistMakerSpecialised {
     try {
       for (xgboost::RegTree* tree : trees) {
         row_set_collection_.emplace_back();
-        auto &row_indices = row_set_collection_.back();
+        auto& row_indices = row_set_collection_.back();
         this->UpdateTree(gpair, dmat, tree, &row_indices);
 
         if (hist_maker_param_.debug_synchronize) {
@@ -775,14 +775,9 @@ class GPUHistMakerSpecialised {
     auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     info_->feature_types.SetDevice(ctx_->gpu_id);
-    maker.reset(new GPUHistMakerDevice<GradientSumT>(ctx_->gpu_id,
-                                                     page,
-                                                     info_->feature_types.ConstDeviceSpan(),
-                                                     info_->num_row_,
-                                                     param_,
-                                                     column_sampling_seed,
-                                                     info_->num_col_,
-                                                     batch_param));
+    maker.reset(new GPUHistMakerDevice<GradientSumT>(
+        ctx_, page, info_->feature_types.ConstDeviceSpan(), info_->num_row_, param_,
+        column_sampling_seed, info_->num_col_, batch_param));
 
     p_last_fmat_ = dmat;
     initialised_ = true;
@@ -813,13 +808,13 @@ class GPUHistMakerSpecialised {
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree,
-                  dh::device_vector<RowIndexCache>* p_out_row_indices) {
+                  std::vector<RowIndexCache>* p_out_row_indices) {
     monitor_.Start("InitData");
     this->InitData(p_fmat, p_tree);
     monitor_.Stop("InitData");
 
     gpair->SetDevice(ctx_->gpu_id);
-    maker->UpdateTree(gpair, p_fmat, task_, p_tree, &reducer_);
+    maker->UpdateTree(gpair, p_fmat, task_, p_tree, &reducer_, p_out_row_indices);
   }
 
   bool UpdatePredictionCache(const DMatrix *data,
@@ -840,7 +835,7 @@ class GPUHistMakerSpecialised {
 
  private:
   bool initialised_ { false };
-  std::vector<dh::device_vector<RowIndexCache>> row_set_collection_;
+  std::vector<std::vector<RowIndexCache>> row_set_collection_;
 
   GPUHistMakerTrainParam hist_maker_param_;
   Context const* ctx_;
