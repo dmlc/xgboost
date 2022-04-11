@@ -2,8 +2,8 @@
 XGBoost4J-Spark-GPU Tutorial (version 1.6.0+)
 #############################################
 
-**XGBoost4J-Spark-GPU** is a project aiming to accelerate XGBoost distributed training on Apache Spark from
-end to end with GPUs by leveraging the `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids/>`_ project.
+**XGBoost4J-Spark-GPU** is an open source library aiming to accelerate distributed XGBoost training on Apache Spark cluster from
+end to end with GPUs by leveraging the `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids/>`_ product.
 
 This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 
@@ -15,8 +15,8 @@ This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 Build an ML Application with XGBoost4J-Spark-GPU
 ************************************************
 
-Adding XGBoost to Your Project
-==============================
+Add XGBoost to Your Project
+===========================
 
 Before we go into the tour of how to use XGBoost4J-Spark-GPU, you should first consult
 :ref:`Installation from Maven repository <install_jvm_packages>` in order to add XGBoost4J-Spark-GPU as
@@ -26,7 +26,7 @@ Data Preparation
 ================
 
 In this section, we use the `Iris <https://archive.ics.uci.edu/ml/datasets/iris>`_ dataset as an example to
-showcase how we use Spark to transform a raw dataset and make it fit the data interface of XGBoost.
+showcase how we use Apache Spark to transform a raw dataset and make it fit the data interface of XGBoost.
 
 The Iris dataset is shipped in CSV format. Each instance contains 4 features, "sepal length", "sepal width",
 "petal length" and "petal width". In addition, it contains the "class" column, which is essentially the
@@ -55,25 +55,25 @@ Read Dataset with Spark's Built-In Reader
       .csv(dataPath)
 
 In the first line, we create an instance of a `SparkSession <https://spark.apache.org/docs/latest/sql-getting-started.html#starting-point-sparksession>`_
-which is the entry point of any Spark program working with DataFrames. The ``schema`` variable
+which is the entry point of any Spark application working with DataFrames. The ``schema`` variable
 defines the schema of the DataFrame wrapping Iris data. With this explicitly set schema, we
 can define the column names as well as their types; otherwise the column names would be
 the default ones derived by Spark, such as ``_col0``, etc. Finally, we can use Spark's
 built-in CSV reader to load the Iris CSV file as a DataFrame named ``xgbInput``.
 
-Spark also contains many built-in readers for other formats. eg ORC, Parquet, Avro, JSON.
+Apache Spark also contains many built-in readers for other formats such as ORC, Parquet, Avro, JSON.
+
 
 Transform Raw Iris Dataset
 --------------------------
 
 To make the Iris dataset recognizable to XGBoost, we need to encode the String-typed
-label, i.e. "class", to Double-typed label.
+label, i.e. "class", to the Double-typed label.
 
 One way to convert the String-typed label to Double is to use Spark's built-in feature transformer
 `StringIndexer <https://spark.apache.org/docs/2.3.1/api/scala/index.html#org.apache.spark.ml.feature.StringIndexer>`_.
-But it has not been accelerated by Spark-Rapids yet, which means it will fall back
-to CPU to run and cause performance issue. Instead, we use an alternative way to achieve
-the same goal with the following code
+But this feature is not accelerated in RAPIDS Accelerator, which means it will fall back
+to CPU. Instead, we use an alternative way to achieve the same goal with the following code:
 
 .. code-block:: scala
 
@@ -153,7 +153,7 @@ you can do it through setters in XGBoostClassifer:
   an array of feature column names, XGBoost4j-Spark-GPU only accepts an array of feature
   column names by ``setFeaturesCol(value: Array[String])``.
 
-After we set XGBoostClassifier parameters and feature/label columns, we can build a
+After setting XGBoostClassifier parameters and feature/label columns, we can build a
 transformer, XGBoostClassificationModel by fitting XGBoostClassifier with the input
 DataFrame. This ``fit`` operation is essentially the training process and the generated
 model can then be used in other tasks like prediction.
@@ -165,7 +165,7 @@ model can then be used in other tasks like prediction.
 Prediction
 ==========
 
-When we get a model, either XGBoostClassificationModel or XGBoostRegressionModel, it takes a DataFrame,
+When we get a model, either a XGBoostClassificationModel or a XGBoostRegressionModel, it takes a DataFrame as an input,
 reads the column containing feature vectors, predicts for each feature vector, and outputs a new DataFrame
 with the following columns by default:
 
@@ -212,8 +212,9 @@ and the prediction for each instance.
 Submit the application
 **********************
 
-Take submitting the spark job to a Spark Standalone cluster as an example, and assuming your application main class
-is ``Iris`` and the application jar is ``iris-1.0.0.jar``
+Here’s an example to submit an end-to-end XGBoost-4j-Spark-GPU Spark application to an
+Apache Spark Standalone cluster, assuming the application main class is Iris and the
+application jar is iris-1.0.0.jar
 
 .. code-block:: bash
 
@@ -236,10 +237,10 @@ is ``Iris`` and the application jar is ``iris-1.0.0.jar``
     --class ${main_class} \
      ${app_jar}
 
-* First, we need to specify the ``spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
-* Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
+* First, we need to specify the ``RAPIDS Accelerator, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
+* Second, ``RAPIDS Accelerator`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
-For details about other ``RAPIDS Spark`` other configurations, please refer to the`configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
+For details about other ``RAPIDS Accelerator`` other configurations, please refer to the `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
 
-For ``RAPIDS spark Frequently Asked Questions``, please refer to the
+For ``RAPIDS Accelerator Frequently Asked Questions``, please refer to the
 `frequently-asked-questions <https://nvidia.github.io/spark-rapids/docs/FAQ.html#frequently-asked-questions>`_.
