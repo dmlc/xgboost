@@ -149,7 +149,7 @@ you can do it through setters in XGBoostClassifer:
 
 .. note::
 
-  In different with XGBoost4j-Spark which accepts both a feature column with VectorUDT type and
+  In contrast with XGBoost4j-Spark which accepts both a feature column with VectorUDT type and
   an array of feature column names, XGBoost4j-Spark-GPU only accepts an array of feature
   column names by ``setFeaturesCol(value: Array[String])``.
 
