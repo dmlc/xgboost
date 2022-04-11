@@ -13,7 +13,7 @@ from .core import Booster
 from .sklearn import XGBModel
 
 Axes = Any  # real type is matplotlib.axes.Axes
-Source = Any  # real type is graphviz.Source
+GraphvizSource = Any  # real type is graphviz.Source
 
 
 def plot_importance(booster: Booster, ax: Optional[Axes] = None, height: float = 0.2,
@@ -86,9 +86,9 @@ def plot_importance(booster: Booster, ax: Optional[Axes] = None, height: float =
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
         # pylint: disable=invalid-unary-operand-type
-        tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
+        tuples = sorted(tuples, key=lambda _x: _x[1])[-max_num_features:]
     else:
-        tuples = sorted(tuples, key=lambda x: x[1])
+        tuples = sorted(tuples, key=lambda _x: _x[1])
     labels, values = zip(*tuples)
 
     if ax is None:
@@ -132,7 +132,7 @@ def to_graphviz(booster: Booster, fmap: PathLike = '', num_trees: int = 0,
                 rankdir: Optional[str] = None,
                 yes_color: Optional[str] = None, no_color: Optional[str] = None,
                 condition_node_params: Optional[dict] = None,
-                leaf_node_params: Optional[dict] = None, **kwargs: Any) -> Source:
+                leaf_node_params: Optional[dict] = None, **kwargs: Any) -> GraphvizSource:
     """Convert specified tree to graphviz instance. IPython can automatically plot
     the returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.

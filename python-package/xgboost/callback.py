@@ -28,8 +28,7 @@ __all__ = [
 _Score = Union[float, Tuple[float, float]]
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
 
-# TODO: A model can be either a booster or a cvpack
-_Model = Any  # real type is Union[Booster, CVPack]
+_Model = Any  # real type is Union[Booster, CVPack]; need more work
 
 
 # pylint: disable=unused-argument
