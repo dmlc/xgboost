@@ -152,7 +152,7 @@ def _ensure_np_dtype(
     return data, dtype
 
 
-def _maybe_np_slice(data: np.ndarray, dtype: Optional[NumpyDType]) -> np.ndarray:
+def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
     '''Handle numpy slice.  This can be removed if we use __array_interface__.
     '''
     try:
