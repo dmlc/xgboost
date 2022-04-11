@@ -11,7 +11,7 @@ DataType = Any
 
 # xgboost accepts some other possible types in practice due to historical reason, which is
 # lesser tested.  For now we encourage users to pass a simple list of string.
-FeatureInfo = Optional[Sequence[str]]
+FeatureInfo = Sequence[str]
 FeatureNames = FeatureInfo
 FeatureTypes = FeatureInfo
 

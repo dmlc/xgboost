@@ -318,7 +318,7 @@ class DaskDMatrix:
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
         silent: bool = False,  # pylint: disable=unused-argument
-        feature_names: FeatureNames = None,
+        feature_names: Optional[FeatureNames] = None,
         feature_types: FeatureTypes = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
@@ -594,7 +594,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         qid: Optional[List[Any]] = None,
         label_lower_bound: Optional[List[Any]] = None,
         label_upper_bound: Optional[List[Any]] = None,
-        feature_names: FeatureNames = None,
+        feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
     ) -> None:
         self._data = data
@@ -637,7 +637,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: FeatureNames = None
+        feature_names: Optional[FeatureNames] = None
         if self._feature_names:
             feature_names = self._feature_names
         else:
@@ -688,7 +688,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
         silent: bool = False,  # disable=unused-argument
-        feature_names: FeatureNames = None,
+        feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
         max_bin: int = 256,
         group: Optional[_DaskCollection] = None,
@@ -725,7 +725,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
 
 
 def _create_device_quantile_dmatrix(
-    feature_names: FeatureNames,
+    feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
     missing: float,
@@ -766,7 +766,7 @@ def _create_device_quantile_dmatrix(
 
 
 def _create_dmatrix(
-    feature_names: FeatureNames,
+    feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
     missing: float,

@@ -435,8 +435,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         def data_handle(
             data: Any,
             *,
-            feature_names: FeatureNames = None,
-            feature_types: FeatureTypes = None,
+            feature_names: Optional[FeatureNames] = None,
+            feature_types: Optional[FeatureTypes] = None,
             **kwargs: Any,
         ) -> None:
             from .data import dispatch_proxy_set_data
@@ -556,8 +556,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatureNames = None,
-        feature_types: FeatureTypes = None,
+        feature_names: Optional[FeatureNames] = None,
+        feature_types: Optional[FeatureTypes] = None,
         nthread: Optional[int] = None,
         group: Optional[ArrayLike] = None,
         qid: Optional[ArrayLike] = None,
@@ -719,8 +719,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid: Optional[ArrayLike] = None,
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
-        feature_names: FeatureNames = None,
-        feature_types: FeatureTypes = None,
+        feature_names: Optional[FeatureNames] = None,
+        feature_types: Optional[FeatureTypes] = None,
         feature_weights: Optional[ArrayLike] = None
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
@@ -1001,7 +1001,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @property
-    def feature_names(self) -> FeatureNames:
+    def feature_names(self) -> Optional[FeatureNames]:
         """Get feature names (column labels).
 
         Returns
@@ -1024,7 +1024,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return feature_names
 
     @feature_names.setter
-    def feature_names(self, feature_names: FeatureNames) -> None:
+    def feature_names(self, feature_names: Optional[FeatureNames]) -> None:
         """Set feature names (column labels).
 
         Parameters
@@ -1070,7 +1070,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.feature_types = None
 
     @property
-    def feature_types(self) -> FeatureTypes:
+    def feature_types(self) -> Optional[FeatureTypes]:
         """Get feature types (column types).
 
         Returns
@@ -1209,8 +1209,8 @@ class DeviceQuantileDMatrix(DMatrix):
         base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatureNames = None,
-        feature_types: FeatureTypes = None,
+        feature_names: Optional[FeatureNames] = None,
+        feature_types: Optional[FeatureTypes] = None,
         nthread: Optional[int] = None,
         max_bin: int = 256,
         group: Optional[ArrayLike] = None,
@@ -1645,7 +1645,7 @@ class Booster:
             _check_call(_LIB.XGBoosterSetAttr(
                 self.handle, c_str(key), value_c_str))
 
-    def _get_feature_info(self, field: str) -> FeatureInfo:
+    def _get_feature_info(self, field: str) -> Optional[FeatureInfo]:
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if not hasattr(self, "handle") or self.handle is None:
@@ -1658,7 +1658,7 @@ class Booster:
         feature_info = from_cstr_to_pystr(sarr, length)
         return feature_info if feature_info else None
 
-    def _set_feature_info(self, features: FeatureInfo, field: str) -> None:
+    def _set_feature_info(self, features: Optional[FeatureInfo], field: str) -> None:
         if features is not None:
             assert isinstance(features, list)
             feature_info_bytes = [bytes(f, encoding="utf-8") for f in features]
@@ -1676,7 +1676,7 @@ class Booster:
             )
 
     @property
-    def feature_types(self) -> FeatureTypes:
+    def feature_types(self) -> Optional[FeatureTypes]:
         """Feature types for this booster.  Can be directly set by input data or by
         assignment.  See :py:class:`DMatrix` for details.
 
@@ -1684,11 +1684,11 @@ class Booster:
         return self._get_feature_info("feature_type")
 
     @feature_types.setter
-    def feature_types(self, features: FeatureTypes) -> None:
+    def feature_types(self, features: Optional[FeatureTypes]) -> None:
         self._set_feature_info(features, "feature_type")
 
     @property
-    def feature_names(self) -> FeatureNames:
+    def feature_names(self) -> Optional[FeatureNames]:
         """Feature names for this booster.  Can be directly set by input data or by
         assignment.
 
@@ -1696,7 +1696,7 @@ class Booster:
         return self._get_feature_info("feature_name")
 
     @feature_names.setter
-    def feature_names(self, features: FeatureNames) -> None:
+    def feature_names(self, features: Optional[FeatureNames]) -> None:
         self._set_feature_info(features, "feature_name")
 
     def set_param(
