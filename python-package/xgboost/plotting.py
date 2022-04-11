@@ -4,16 +4,24 @@
 """Plotting Library."""
 from io import BytesIO
 import json
+from typing import Optional, Any
+
 import numpy as np
+
+from ._typing import PathLike
 from .core import Booster
 from .sklearn import XGBModel
 
+Axes = Any  # real type is matplotlib.axes.Axes
+Source = Any  # real type is graphviz.Source
 
-def plot_importance(booster, ax=None, height=0.2,
-                    xlim=None, ylim=None, title='Feature importance',
-                    xlabel='F score', ylabel='Features', fmap='',
-                    importance_type='weight', max_num_features=None,
-                    grid=True, show_values=True, **kwargs):
+
+def plot_importance(booster: Booster, ax: Optional[Axes] = None, height: float = 0.2,
+                    xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+                    title: str = 'Feature importance',
+                    xlabel: str = 'F score', ylabel: str = 'Features', fmap: PathLike = '',
+                    importance_type: str = 'weight', max_num_features: Optional[int] = None,
+                    grid: bool = True, show_values: bool = True, **kwargs: Any) -> Axes:
     """Plot importance based on fitted trees.
 
     Parameters
@@ -120,9 +128,11 @@ def plot_importance(booster, ax=None, height=0.2,
     return ax
 
 
-def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
-                yes_color=None, no_color=None,
-                condition_node_params=None, leaf_node_params=None, **kwargs):
+def to_graphviz(booster: Booster, fmap: PathLike = '', num_trees: int = 0,
+                rankdir: Optional[str] = None,
+                yes_color: Optional[str] = None, no_color: Optional[str] = None,
+                condition_node_params: Optional[dict] = None,
+                leaf_node_params: Optional[dict] = None, **kwargs: Any) -> Source:
     """Convert specified tree to graphviz instance. IPython can automatically plot
     the returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
@@ -212,7 +222,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     return g
 
 
-def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
+def plot_tree(booster: Booster, fmap: PathLike = '', num_trees: int = 0,
+              rankdir: Optional[str] = None, ax: Optional[Axes] = None, **kwargs: Any) -> Axes:
     """Plot specified tree.
 
     Parameters
