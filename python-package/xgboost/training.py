@@ -5,13 +5,16 @@
 import copy
 import os
 import warnings
-from typing import Optional, Dict, Any, Union, Tuple, Sequence
+from typing import Optional, Dict, Any, Union, Tuple, Sequence, List, cast, Iterable
 
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .core import Metric, Objective
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
+from ._typing import _F
+
+_CVFolds = Sequence["CVPack"]
 
 
 def _assert_new_callback(
@@ -194,66 +197,68 @@ def train(
 
 class CVPack:
     """"Auxiliary datastruct to hold one fold of CV."""
-    def __init__(self, dtrain, dtest, param):
+    def __init__(self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Dict]) -> None:
         """"Initialize the CVPack"""
         self.dtrain = dtrain
         self.dtest = dtest
         self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
         self.bst = Booster(param, [dtrain, dtest])
 
-    def __getattr__(self, name):
-        def _inner(*args, **kwargs):
+    def __getattr__(self, name: str) -> _F:
+        def _inner(*args: Any, **kwargs: Any) -> Any:
             return getattr(self.bst, name)(*args, **kwargs)
-        return _inner
+        return cast(_F, _inner)
 
-    def update(self, iteration, fobj):
+    def update(self, iteration: int, fobj: Optional[Objective]) -> None:
         """"Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
-    def eval(self, iteration, feval, output_margin):
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> str:
         """"Evaluate the CVPack for one iteration."""
         return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
 
 
 class _PackedBooster:
-    def __init__(self, cvfolds) -> None:
+    def __init__(self, cvfolds: _CVFolds) -> None:
         self.cvfolds = cvfolds
 
-    def update(self, iteration, obj):
+    def update(self, iteration: int, obj: Optional[Objective]) -> None:
         '''Iterate through folds for update'''
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration, feval, output_margin):
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> List[str]:
         '''Iterate through folds for eval'''
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
 
-    def set_attr(self, **kwargs):
+    def set_attr(self, **kwargs: Optional[str]) -> Any:
         '''Iterate through folds for setting attributes'''
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
 
-    def attr(self, key):
+    def attr(self, key: str) -> Optional[str]:
         '''Redirect to booster attr.'''
         return self.cvfolds[0].bst.attr(key)
 
-    def set_param(self, params, value=None):
+    def set_param(self,
+                  params: Union[Dict, Iterable[Tuple[str, Any]], str],
+                  value: Optional[str] = None) -> None:
         """Iterate through folds for set_param"""
         for f in self.cvfolds:
             f.bst.set_param(params, value)
 
-    def num_boosted_rounds(self):
+    def num_boosted_rounds(self) -> int:
         '''Number of boosted rounds.'''
         return self.cvfolds[0].num_boosted_rounds()
 
     @property
-    def best_iteration(self):
+    def best_iteration(self) -> int:
         '''Get best_iteration'''
         return int(self.cvfolds[0].bst.attr("best_iteration"))
 
     @property
-    def best_score(self):
+    def best_score(self) -> float:
         """Get best_score."""
         return float(self.cvfolds[0].bst.attr("best_score"))
 
@@ -268,7 +273,7 @@ def groups_to_rows(groups, boundaries):
     return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
 
 
-def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
+def mkgroupfold(dall, nfold: int, param, evals=(), fpreproc=None, shuffle: bool = True):
     """
     Make n folds for cross-validation maintaining groups
     :return: cross-validation folds
@@ -309,7 +314,7 @@ def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
 
 
 def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
-            folds=None, shuffle=True):
+            folds=None, shuffle=True) -> List[CVPack]:
     """
     Make an n-fold list of CVPack from random indices.
     """
@@ -477,7 +482,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     params.pop("eval_metric", None)
 
-    results = {}
+    results: Dict[str, List[float]] = {}
     cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
                       stratified, folds, shuffle)
 
