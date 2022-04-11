@@ -1,7 +1,7 @@
 """Shared typing definition."""
 import ctypes
 import os
-from typing import Optional, Any, TypeVar, Union, Type, Sequence
+from typing import Optional, Any, TypeVar, Union, Type, Sequence, Callable
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
@@ -65,3 +65,4 @@ CNumericPtr = ctypes.pointer
 
 # template parameter
 _T = TypeVar("_T")
+_F = TypeVar("_F", bound=Callable[..., Any])
