@@ -10,12 +10,11 @@ from abc import ABC
 import collections
 import os
 import pickle
-from typing import Callable, List, Optional, Union, Dict, Tuple, TypeVar, cast, Sequence
+from typing import Callable, List, Optional, Union, Dict, Tuple, TypeVar, cast, Sequence, Any
 import numpy
 
 from . import rabit
 from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
-from .training import CVPack
 
 
 __all__ = [
@@ -30,7 +29,7 @@ _Score = Union[float, Tuple[float, float]]
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
 
 # TODO: A model can be either a booster or a cvpack
-_Model = Union[Booster, CVPack]
+_Model = Any  # real type is Union[Booster, CVPack]
 
 
 # pylint: disable=unused-argument
