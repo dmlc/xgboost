@@ -274,7 +274,7 @@ def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.n
     if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
-    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
+    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type: ignore
         raise RuntimeError("memmove failed")
     return res
 
@@ -311,7 +311,7 @@ def ctypes2buffer(cptr: CStrPtr, length: int) -> bytearray:
         raise RuntimeError('expected char pointer')
     res = bytearray(length)
     rptr = (ctypes.c_char * length).from_buffer(res)
-    if not ctypes.memmove(rptr, cptr, length):
+    if not ctypes.memmove(rptr, cptr, length):  # type: ignore
         raise RuntimeError('memmove failed')
     return res
 
@@ -1040,7 +1040,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 else:
                     feature_names = [feature_names]
             except TypeError:
-                feature_names = [feature_names]
+                feature_names = [cast(str, feature_names)]
 
             if len(feature_names) != len(set(feature_names)):
                 raise ValueError('feature_names must be unique')
@@ -1117,7 +1117,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 else:
                     feature_types = [feature_types]
             except TypeError:
-                feature_types = [feature_types]
+                feature_types = [cast(str, feature_types)]
             feature_types_bytes = [bytes(f, encoding='utf-8')
                                for f in feature_types]
             c_feature_types = (ctypes.c_char_p *
@@ -1613,7 +1613,7 @@ class Booster:
             return py_str(ret.value)
         return None
 
-    def attributes(self) -> Dict[str, str]:
+    def attributes(self) -> Dict[str, Optional[str]]:
         """Get attributes stored in the Booster as a dictionary.
 
         Returns
@@ -1641,9 +1641,9 @@ class Booster:
             if value is not None:
                 if not isinstance(value, str):
                     raise ValueError("Set Attr only accepts string values")
-                value = c_str(str(value))
+                value_c_str = c_str(str(value))
             _check_call(_LIB.XGBoosterSetAttr(
-                self.handle, c_str(key), value))
+                self.handle, c_str(key), value_c_str))
 
     def _get_feature_info(self, field: str) -> FeatureInfo:
         length = c_bst_ulong()
@@ -1717,7 +1717,7 @@ class Booster:
             params = params.items()
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
-        for key, val in params:
+        for key, val in cast(Iterable[Tuple[str, str]], params):
             if val is not None:
                 _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key),
                                                    c_str(str(val))))
@@ -2570,8 +2570,10 @@ class Booster:
             )
         # Booster can't accept data with different feature names
         if self.feature_names != data.feature_names:
-            dat_missing = set(self.feature_names) - set(data.feature_names)
-            my_missing = set(data.feature_names) - set(self.feature_names)
+            dat_missing = set(cast(Sequence[str], self.feature_names)) - \
+                          set(cast(Sequence[str], data.feature_names))
+            my_missing = set(cast(Sequence[str], data.feature_names)) - \
+                         set(cast(Sequence[str], self.feature_names))
 
             msg = 'feature_names mismatch: {0} {1}'
 
