@@ -16,6 +16,7 @@
 #include <xgboost/feature_map.h>
 #include <xgboost/model.h>
 
+#include <cstddef>
 #include <limits>
 #include <vector>
 #include <string>
@@ -23,6 +24,7 @@
 #include <algorithm>
 #include <tuple>
 #include <stack>
+#include "xgboost/host_device_vector.h"
 
 namespace xgboost {
 
@@ -744,6 +746,8 @@ struct RowIndexCache {
 
   HostDeviceVector<size_t> row_index;
   std::vector<Segment> indptr;
+  HostDeviceVector<size_t> node_ptr;
+  HostDeviceVector<bst_node_t> node_idx;
 
   RowIndexCache(Context const* ctx, size_t n_samples) {
     if (!ctx->IsCPU()) {

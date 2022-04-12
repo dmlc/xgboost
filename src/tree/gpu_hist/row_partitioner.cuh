@@ -2,8 +2,11 @@
  * Copyright 2017-2019 XGBoost contributors
  */
 #pragma once
+#include <cstddef>
 #include "xgboost/base.h"
 #include "../../common/device_helpers.cuh"
+#include "xgboost/generic_parameters.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace tree {
@@ -158,7 +161,8 @@ class RowPartitioner {
    * instance.
    */
   template <typename FinalisePositionOpT>
-  void FinalisePosition(FinalisePositionOpT op) {
+  void FinalisePosition(Context const* ctx, RegTree const* p_tree,
+                        std::vector<RowIndexCache>* p_out_row_indices, FinalisePositionOpT op) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
     dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
@@ -168,6 +172,48 @@ class RowPartitioner {
       if (new_position == kIgnoredTreePosition) return;
       d_position[idx] = new_position;
     });
+
+    dh::Iota(ridx_.CurrentSpan());
+    // copy position to buffer
+    size_t n_samples = position_.Size();
+    dh::XGBDeviceAllocator<char> alloc;
+    auto position = position_.Other();
+    dh::safe_cuda(cudaMemcpyAsync(position, d_position, position_.CurrentSpan().size_bytes(),
+                                  cudaMemcpyDeviceToDevice));
+    // sort row index according to node index
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc), position, position + n_samples,
+                               ridx_.Current());
+
+    size_t n_leaf = p_tree->GetNumLeaves();
+    dh::device_vector<size_t> unique_out(n_leaf);
+    dh::device_vector<size_t> counts_out(n_leaf);
+    dh::TemporaryArray<size_t> num_runs_out(1);
+
+    size_t nbytes;
+    cub::DeviceRunLengthEncode::Encode(nullptr, nbytes, position, unique_out.data().get(),
+                                       counts_out.data().get(), num_runs_out.data().get(),
+                                       n_samples);
+    dh::TemporaryArray<char> temp(nbytes);
+    cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, position, unique_out.data().get(),
+                                       counts_out.data().get(), num_runs_out.data().get(),
+                                       n_samples);
+
+    dh::XGBCachingDeviceAllocator<char> caching;
+    thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(), counts_out.end(),
+                           counts_out.begin());
+
+    auto& row_indices = p_out_row_indices->back();
+    // copy node index (leaf index)
+    row_indices.node_idx.SetDevice(ctx->gpu_id);
+    row_indices.node_idx.Resize(n_leaf);
+    auto d_node_idx = row_indices.node_idx.DeviceSpan();
+    thrust::copy(thrust::device, unique_out.begin(), unique_out.end(), dh::tbegin(d_node_idx));
+    // copy node pointer
+    row_indices.node_ptr.SetDevice(ctx->gpu_id);
+    row_indices.node_ptr.Resize(n_leaf + 1, 0);
+    auto d_node_ptr = row_indices.node_ptr.DeviceSpan();
+    thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(), counts_out.end(),
+                           dh::tbegin(d_node_ptr) + 1);
   }
 
   /**
