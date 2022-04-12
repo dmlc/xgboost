@@ -165,7 +165,7 @@ class RowPartitioner {
                         std::vector<RowIndexCache>* p_out_row_indices, FinalisePositionOpT op) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
-    auto d_ridx_b = ridx_.Other();
+    // auto d_ridx_b = ridx_.Other();
     auto sorted_position = position_.Other();
     dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
@@ -186,7 +186,6 @@ class RowPartitioner {
     //   }
     // }
 
-    dh::Iota(ridx_.CurrentSpan());
     // copy position to buffer
     size_t n_samples = position_.Size();
     dh::XGBDeviceAllocator<char> alloc;
