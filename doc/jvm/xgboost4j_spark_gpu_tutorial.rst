@@ -2,8 +2,8 @@
 XGBoost4J-Spark-GPU Tutorial (version 1.6.0+)
 #############################################
 
-**XGBoost4J-Spark-GPU** is a project aiming to accelerate XGBoost distributed training on Spark from
-end to end with GPUs by leveraging the `Spark-Rapids <https://nvidia.github.io/spark-rapids/>`_ project.
+**XGBoost4J-Spark-GPU** is an open source library aiming to accelerate distributed XGBoost training on Apache Spark cluster from
+end to end with GPUs by leveraging the `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids/>`_ product.
 
 This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 
@@ -15,8 +15,8 @@ This tutorial will show you how to use **XGBoost4J-Spark-GPU**.
 Build an ML Application with XGBoost4J-Spark-GPU
 ************************************************
 
-Adding XGBoost to Your Project
-==============================
+Add XGBoost to Your Project
+===========================
 
 Before we go into the tour of how to use XGBoost4J-Spark-GPU, you should first consult
 :ref:`Installation from Maven repository <install_jvm_packages>` in order to add XGBoost4J-Spark-GPU as
@@ -25,10 +25,10 @@ a dependency for your project. We provide both stable releases and snapshots.
 Data Preparation
 ================
 
-In this section, we use `Iris <https://archive.ics.uci.edu/ml/datasets/iris>`_ dataset as an example to
-showcase how we use Spark to transform raw dataset and make it fit to the data interface of XGBoost.
+In this section, we use the `Iris <https://archive.ics.uci.edu/ml/datasets/iris>`_ dataset as an example to
+showcase how we use Apache Spark to transform a raw dataset and make it fit the data interface of XGBoost.
 
-Iris dataset is shipped in CSV format. Each instance contains 4 features, "sepal length", "sepal width",
+The Iris dataset is shipped in CSV format. Each instance contains 4 features, "sepal length", "sepal width",
 "petal length" and "petal width". In addition, it contains the "class" column, which is essentially the
 label with three possible values: "Iris Setosa", "Iris Versicolour" and "Iris Virginica".
 
@@ -54,26 +54,26 @@ Read Dataset with Spark's Built-In Reader
       .schema(schema)
       .csv(dataPath)
 
-At the first line, we create an instance of `SparkSession <https://spark.apache.org/docs/latest/sql-getting-started.html#starting-point-sparksession>`_
-which is the entry of any Spark program working with DataFrame. The ``schema`` variable
-defines the schema of DataFrame wrapping Iris data. With this explicitly set schema, we
-can define the columns' name as well as their types; otherwise the column name would be
+In the first line, we create an instance of a `SparkSession <https://spark.apache.org/docs/latest/sql-getting-started.html#starting-point-sparksession>`_
+which is the entry point of any Spark application working with DataFrames. The ``schema`` variable
+defines the schema of the DataFrame wrapping Iris data. With this explicitly set schema, we
+can define the column names as well as their types; otherwise the column names would be
 the default ones derived by Spark, such as ``_col0``, etc. Finally, we can use Spark's
-built-in csv reader to load Iris csv file as a DataFrame named ``xgbInput``.
+built-in CSV reader to load the Iris CSV file as a DataFrame named ``xgbInput``.
 
-Spark also contains many built-in readers for other format. eg ORC, Parquet, Avro, Json.
+Apache Spark also contains many built-in readers for other formats such as ORC, Parquet, Avro, JSON.
+
 
 Transform Raw Iris Dataset
 --------------------------
 
-To make Iris dataset be recognizable to XGBoost, we need to encode String-typed
-label, i.e. "class", to Double-typed label.
+To make the Iris dataset recognizable to XGBoost, we need to encode the String-typed
+label, i.e. "class", to the Double-typed label.
 
 One way to convert the String-typed label to Double is to use Spark's built-in feature transformer
 `StringIndexer <https://spark.apache.org/docs/2.3.1/api/scala/index.html#org.apache.spark.ml.feature.StringIndexer>`_.
-but it has not been accelerated by Spark-Rapids yet, which means it will fall back
-to CPU to run and cause performance issue. Instead, we use an alternative way to acheive
-the same goal by the following code
+But this feature is not accelerated in RAPIDS Accelerator, which means it will fall back
+to CPU. Instead, we use an alternative way to achieve the same goal with the following code:
 
 .. code-block:: scala
 
@@ -102,7 +102,7 @@ the same goal by the following code
 	+------------+-----------+------------+-----------+-----+
 
 
-With window operations, we have mapped string column of labels to label indices.
+With window operations, we have mapped the string column of labels to label indices.
 
 Training
 ========
@@ -133,7 +133,7 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
 The available parameters for training a XGBoost model can be found in :doc:`here </parameter>`.
 Similar to the XGBoost4J-Spark package, in addition to the default set of parameters,
 XGBoost4J-Spark-GPU also supports the camel-case variant of these parameters to be
-consistent with Spark's MLLIB naming convention.
+consistent with Spark's MLlib naming convention.
 
 Specifically, each parameter in :doc:`this page </parameter>` has its equivalent form in
 XGBoost4J-Spark-GPU with camel case. For example, to set ``max_depth`` for each tree, you can pass
@@ -149,12 +149,11 @@ you can do it through setters in XGBoostClassifer:
 
 .. note::
 
-  In contrast to the XGBoost4J-Spark package, which needs to first assemble the numeric
-  feature columns into one column with VectorUDF type by VectorAssembler, the
-  XGBoost4J-Spark-GPU does not require such transformation, it accepts an array of feature
+  In contrast with XGBoost4j-Spark which accepts both a feature column with VectorUDT type and
+  an array of feature column names, XGBoost4j-Spark-GPU only accepts an array of feature
   column names by ``setFeaturesCol(value: Array[String])``.
 
-After we set XGBoostClassifier parameters and feature/label columns, we can build a
+After setting XGBoostClassifier parameters and feature/label columns, we can build a
 transformer, XGBoostClassificationModel by fitting XGBoostClassifier with the input
 DataFrame. This ``fit`` operation is essentially the training process and the generated
 model can then be used in other tasks like prediction.
@@ -166,12 +165,12 @@ model can then be used in other tasks like prediction.
 Prediction
 ==========
 
-When we get a model, either XGBoostClassificationModel or XGBoostRegressionModel, it takes a DataFrame,
-read the column containing feature vectors, predict for each feature vector, and output a new DataFrame
+When we get a model, either a XGBoostClassificationModel or a XGBoostRegressionModel, it takes a DataFrame as an input,
+reads the column containing feature vectors, predicts for each feature vector, and outputs a new DataFrame
 with the following columns by default:
 
 * XGBoostClassificationModel will output margins (``rawPredictionCol``), probabilities(``probabilityCol``) and the eventual prediction labels (``predictionCol``) for each possible label.
-* XGBoostRegressionModel will output prediction label(``predictionCol``).
+* XGBoostRegressionModel will output prediction a label(``predictionCol``).
 
 .. code-block:: scala
 
@@ -180,7 +179,7 @@ with the following columns by default:
   results.show()
 
 With the above code snippet, we get a DataFrame as result, which contains the margin, probability for each class,
-and the prediction for each instance
+and the prediction for each instance.
 
 .. code-block:: none
 
@@ -213,8 +212,9 @@ and the prediction for each instance
 Submit the application
 **********************
 
-Take submitting the spark job to Spark Standalone cluster as an example, and assuming your application main class
-is ``Iris`` and the application jar is ``iris-1.0.0.jar``
+Here’s an example to submit an end-to-end XGBoost-4j-Spark-GPU Spark application to an
+Apache Spark Standalone cluster, assuming the application main class is Iris and the
+application jar is iris-1.0.0.jar
 
 .. code-block:: bash
 
@@ -237,10 +237,10 @@ is ``Iris`` and the application jar is ``iris-1.0.0.jar``
     --class ${main_class} \
      ${app_jar}
 
-* First, we need to specify the ``spark-rapids, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
-* Second, ``spark-rapids`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
+* First, we need to specify the ``RAPIDS Accelerator, cudf, xgboost4j-gpu, xgboost4j-spark-gpu`` packages by ``--packages``
+* Second, ``RAPIDS Accelerator`` is a Spark plugin, so we need to configure it by specifying ``spark.plugins=com.nvidia.spark.SQLPlugin``
 
-For details about ``spark-rapids`` other configurations, please refer to `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
+For details about other ``RAPIDS Accelerator`` other configurations, please refer to the `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
 
-For ``spark-rapids Frequently Asked Questions``, please refer to
+For ``RAPIDS Accelerator Frequently Asked Questions``, please refer to the
 `frequently-asked-questions <https://nvidia.github.io/spark-rapids/docs/FAQ.html#frequently-asked-questions>`_.
