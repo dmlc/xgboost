@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -670,9 +671,13 @@ class Tensor {
    * See \ref TensorView for parameters of this constructor.
    */
   template <typename I, int32_t D>
-  explicit Tensor(I const (&shape)[D], int32_t device) {
+  explicit Tensor(I const (&shape)[D], int32_t device)
+      : Tensor{common::Span<I, D>{shape}, device} {}
+
+  template <typename I, size_t D>
+  explicit Tensor(common::Span<I, D> shape, int32_t device) {
     // No device unroll as this is a host only function.
-    std::copy(shape, shape + D, shape_);
+    std::copy(shape.data(), shape.data() + D, shape_);
     for (auto i = D; i < kDim; ++i) {
       shape_[i] = 1;
     }

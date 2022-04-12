@@ -432,7 +432,8 @@ struct GPUHistMakerDevice {
       if (tree[nidx].IsLeaf()) {
         auto const& seg = row_partitioner->ridx_segments_[nidx];
         // fixme: subsample
-        segments.emplace_back(seg.begin, seg.Size(), static_cast<bst_node_t>(nidx));
+        segments.push_back(
+            RowIndexCache::Segment{seg.begin, seg.Size(), static_cast<bst_node_t>(nidx)});
       }
     }
     auto in = row_partitioner->GetRows();
@@ -915,7 +916,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   common::Span<RowIndexCache const> GetRowIndexCache(size_t tree_idx) const override {
-    return dh::ToSpan(row_set_collection_.at(tree_idx));
+    return row_set_collection_.at(tree_idx);
   }
 
   char const* Name() const override {
@@ -925,7 +926,7 @@ class GPUHistMaker : public TreeUpdater {
  private:
   GPUHistMakerTrainParam hist_maker_param_;
   ObjInfo task_;
-  std::vector<dh::device_vector<RowIndexCache>> row_set_collection_;
+  std::vector<std::vector<RowIndexCache>> row_set_collection_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPair>> float_maker_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
 };

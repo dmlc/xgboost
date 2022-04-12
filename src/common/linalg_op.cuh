@@ -40,7 +40,7 @@ void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, cudaStream_
 }
 
 template <typename T, int32_t D, typename Fn>
-void ElementWiseKernel(GenericParameter const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
+void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) {
   ctx->IsCPU() ? ElementWiseKernelHost(t, ctx->Threads(), fn) : ElementWiseKernelDevice(t, fn);
 }
 }  // namespace linalg

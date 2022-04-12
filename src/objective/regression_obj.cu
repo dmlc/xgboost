@@ -27,6 +27,7 @@
 #include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
+#include "xgboost/linalg.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
@@ -667,25 +668,52 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
 
-void SegmentedPercentile(double alpha, RowIndexCache const& row_index, MetaInfo const& info,
-                         HostDeviceVector<float> const& predt, HostDeviceVector<float>* quantiles) {
+void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& row_index,
+                         MetaInfo const& info, HostDeviceVector<float> const& predt,
+                         HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
-  dh::device_vector<float> residue(predt.Size());
-  auto d_residue = dh::ToSpan(residue);
+
   auto d_predt = predt.ConstDeviceSpan();
-  auto d_labels = info.labels.View(0);
-  dh::LaunchN(residue.size(), [=] XGBOOST_DEVICE(size_t i) {
-    // compute residule
+  auto d_labels = info.labels.View(ctx->gpu_id);
+  linalg::Tensor<float, 2> residue{d_labels.Shape(), ctx->gpu_id};
+  auto d_residue = residue.View(ctx->gpu_id);
+  CHECK_EQ(d_predt.size(), d_labels.Size());
+  linalg::ElementWiseKernel(ctx, d_labels, [=] XGBOOST_DEVICE(size_t i, float y) mutable {
+    size_t sample_id, target_id;
+    std::tie(sample_id, target_id) = linalg::UnravelIndex(i, d_labels.Shape());
+    d_residue(sample_id, target_id) = y - d_predt[i];
+  });
+
+  dh::device_vector<size_t> segment_idx(row_index.indptr.size() + 1, 0);
+  auto d_segment_idx = dh::ToSpan(segment_idx);
+  dh::device_vector<RowIndexCache::Segment> indptr(row_index.indptr);
+  auto d_indptr = dh::ToSpan(indptr);
+  dh::LaunchN(d_segment_idx.size(), [=] XGBOOST_DEVICE(size_t i) {
+    if (i == d_segment_idx.size() - 1) {
+      d_segment_idx[i] = d_indptr[i].begin + d_indptr[i].n;
+      return;
+    }
+    d_segment_idx[i] = d_indptr[i].begin;
   });
 
   dh::XGBDeviceAllocator<char> alloc;
-  dh::device_vector<size_t> sorted_idx(residue.size());
+  dh::device_vector<size_t> sorted_idx(d_labels.Shape(0));
   dh::Iota(dh::ToSpan(sorted_idx));
   using Tup = thrust::tuple<size_t, float>;
-  auto key_it = dh::MakeTransformIterator<size_t>(thrust::make_counting_iterator(0ul),
-                                                  [=] XGBOOST_DEVICE(size_t i) -> Tup {});
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), key_it, key_it + residue.size(),
-                             sorted_idx.begin(), [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
+  auto key_it = dh::MakeTransformIterator<Tup>(
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> Tup {
+        size_t sample_id, target_id;
+        std::tie(sample_id, target_id) = linalg::UnravelIndex(i, d_labels.Shape());
+        auto leaf_idx = dh::SegmentId(d_segment_idx, sample_id);
+        auto residue = d_residue(sample_id, target_id);
+        return thrust::make_tuple(leaf_idx, residue);
+      });
+  dh::device_vector<Tup> keys(residue.Size());
+  dh::XGBCachingDeviceAllocator<char> caching;
+  thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
+
+  thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
+                             [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
                                if (thrust::get<0>(l) != thrust::get<0>(r)) {
                                  return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
                                }
@@ -701,20 +729,22 @@ void SegmentedPercentile(double alpha, RowIndexCache const& row_index, MetaInfo 
 
   auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
+  auto d_keys = dh::ToSpan(keys);
 
-  dh::LaunchN(residue.size(), [=] XGBOOST_DEVICE(size_t i) {
+  dh::LaunchN(residue.Size(), [=] XGBOOST_DEVICE(size_t i) {
+    size_t sample_id, target_id;
+    std::tie(sample_id, target_id) = linalg::UnravelIndex(i, d_labels.Shape());
     // each segment is the index of a leaf.
-    size_t seg_idx = 0;
+    size_t seg_idx = thrust::get<0>(d_keys[i]);
     auto seg = d_segments[seg_idx];
-    auto residue_seg = d_residue.subspan(seg.begin, seg.n);
 
     double x = alpha * static_cast<double>(seg.n + 1);
     double k = std::floor(x) - 1;
     double d = (x - 1) - k;
 
     if (i == seg.begin) {
-      auto v0 = d_residue[d_row_index[d_sorted_idx[static_cast<size_t>(k)]]];
-      auto v1 = d_residue[d_row_index[d_sorted_idx[static_cast<size_t>(k) + 1]]];
+      auto v0 = d_residue(d_row_index[d_sorted_idx[static_cast<size_t>(k)]], target_id);
+      auto v1 = d_residue(d_row_index[d_sorted_idx[static_cast<size_t>(k) + 1]], target_id);
       d_results[seg_idx] = v0 + d * (v1 - v0);
     }
   });
@@ -724,11 +754,12 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
                           MetaInfo const& info, HostDeviceVector<float> const& prediction,
                           uint32_t target, float alpha, RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
-  CHECK_EQ(row_index.size(), 1);
+  CHECK_EQ(row_index.size(), 1)
+      << "External memory with GPU hist should have only 1 row partition.";
   auto const& part = row_index.front();
 
   HostDeviceVector<float> results;
-  SegmentedPercentile(alpha, part, info, prediction, &results);
+  SegmentedPercentile(ctx, alpha, part, info, prediction, &results);
 
   auto const& h_results = results.HostVector();
   auto& tree = *p_tree;
