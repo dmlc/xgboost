@@ -140,9 +140,13 @@ object PreXGBoost extends PreXGBoostProvider {
 
         val (xgbInput, featuresName) = est.vectorize(dataset)
 
+        val evalSets = est.getEvalSets(params).transform((_, df) => {
+          val (dfTransformed, _) = est.vectorize(df)
+          dfTransformed
+        })
+
         (PackedParams(col(est.getLabelCol), col(featuresName), weight, baseMargin, group,
-          est.getNumWorkers, est.needDeterministicRepartitioning), est.getEvalSets(params),
-          xgbInput)
+          est.getNumWorkers, est.needDeterministicRepartitioning), evalSets, xgbInput)
 
       case _ => throw new RuntimeException("Unsupporting " + estimator)
     }
@@ -154,7 +158,8 @@ object PreXGBoost extends PreXGBoostProvider {
     // transform the eval Dataset[_] to RDD[XGBLabeledPoint]
     val evalRDDMap = evalSet.map {
       case (name, dataFrame) => (name,
-        DataUtils.convertDataFrameToXGBLabeledPointRDDs(packedParams, dataFrame).head)
+        DataUtils.convertDataFrameToXGBLabeledPointRDDs(packedParams,
+          dataFrame.asInstanceOf[DataFrame]).head)
     }
 
     val hasGroup = packedParams.group.map(_ != defaultGroupColumn).getOrElse(false)

@@ -370,6 +370,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val xgbClassifier = new XGBoostClassifier(paramMap)
       .setFeaturesCol(featuresName)
       .setLabelCol("label")
+      .setEvalSets(Map("eval" -> xgbInput))
 
     val model = xgbClassifier.fit(xgbInput)
     assert(model.getFeaturesCols.sameElements(featuresName))

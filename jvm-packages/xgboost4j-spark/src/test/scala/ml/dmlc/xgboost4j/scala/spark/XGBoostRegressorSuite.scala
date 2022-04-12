@@ -273,6 +273,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val xgbClassifier = new XGBoostRegressor(paramMap)
       .setFeaturesCol(featuresName)
       .setLabelCol("label")
+      .setEvalSets(Map("eval" -> xgbInput))
 
     val model = xgbClassifier.fit(xgbInput)
     assert(model.getFeaturesCols.sameElements(featuresName))
