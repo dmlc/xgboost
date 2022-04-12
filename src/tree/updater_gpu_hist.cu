@@ -354,6 +354,7 @@ struct GPUHistMakerDevice {
   }
 
   void UpdatePosition(int nidx, RegTree* p_tree) {
+    // std::cout << "UpdatePosition:" << nidx << std::endl;
     RegTree::Node split_node = (*p_tree)[nidx];
     auto split_type = p_tree->NodeSplitType(nidx);
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
@@ -382,6 +383,7 @@ struct GPUHistMakerDevice {
               new_position = split_node.RightChild();
             }
           }
+          // printf("ridx: %d, pos: %d\n", ridx, new_position);
           return new_position;
         });
   }
@@ -455,6 +457,7 @@ struct GPUHistMakerDevice {
         ctx_, p_tree, p_out_row_indices, [=] __device__(size_t row_id, int position) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
+            // printf("out\n");
             return RowPartitioner::kIgnoredTreePosition;
           }
           auto node = d_nodes[position];
@@ -472,6 +475,7 @@ struct GPUHistMakerDevice {
                                        categories_segments[position].size);
                 go_left = common::Decision<false>(node_cats, element, node.DefaultLeft());
               } else {
+                // printf("r: %lu, e: %f, s: %f\n", row_id, element, node.SplitCond());
                 go_left = element <= node.SplitCond();
               }
               if (go_left) {
@@ -482,6 +486,8 @@ struct GPUHistMakerDevice {
             }
             node = d_nodes[position];
           }
+
+          // printf("final ridx: %lu, pos: %d\n", row_id, position);
           return position;
         });
   }

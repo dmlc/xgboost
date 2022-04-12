@@ -88,6 +88,11 @@ float Percentile(double alpha, Iter const& begin, Iter const& end) {
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
   std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
                    [&](size_t l, size_t r) { return *(begin + l) < *(begin + r); });
+  std::cout << "CPU" << std::endl;
+  for (auto v : sorted_idx) {
+    std::cout << v << ", ";
+  }
+  std::cout << std::endl;
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
   static_assert(std::is_same<decltype(val(0)), float>::value, "");

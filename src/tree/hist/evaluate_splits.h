@@ -401,11 +401,7 @@ void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_las
     common::ParallelFor2d(space, ctx->Threads(), [&](size_t nidx, common::Range1d r) {
       if (!tree[nidx].IsDeleted() && tree[nidx].IsLeaf()) {
         auto const &rowset = part[nidx];
-        auto const &stats = snode[nidx];
         auto leaf_value = tree[nidx].LeafValue();
-        // auto leaf_value =
-        //     evaluator.CalcWeight(nidx, param, GradStats{stats.stats}) * param.learning_rate;
-        // CHECK_EQ(leaf, leaf_value);
         for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
           out_preds(*it) += leaf_value;
         }

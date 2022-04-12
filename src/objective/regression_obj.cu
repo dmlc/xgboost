@@ -673,6 +673,13 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
                          HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
 
+  // std::cout << "Row index" << std::endl;
+  // auto h_row_idx = row_index.row_index.HostVector();
+  // for (auto v : h_row_idx) {
+  //   std::cout << v << ", ";
+  // }
+  // std::cout << std::endl;
+
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
   linalg::Tensor<float, 2> residue{d_labels.Shape(), ctx->gpu_id};
@@ -685,25 +692,34 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
     d_residue(sample_id, target_id) = y - d_predt[i];
   });
 
-  dh::XGBDeviceAllocator<char> alloc;
+  // auto const& h_predt = predt.HostVector();
+  // auto const& h_labels = info.labels.HostView();
+  // std::cout << std::endl;
+  // for (size_t i = 0; i < predt.Size(); ++i) {
+  //   std::cout << "l:" << h_labels(i) << ", p:" << h_predt[i] << std::endl;
+  // }
+  // std::cout << std::endl;
+
   dh::device_vector<size_t> sorted_idx(d_labels.Shape(0));
   dh::Iota(dh::ToSpan(sorted_idx));
 
   using Tup = thrust::tuple<size_t, float>;
   auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
+  auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto key_it = dh::MakeTransformIterator<Tup>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> Tup {
         auto idx = linalg::UnravelIndex(i, d_labels.Shape());
         size_t sample_id = std::get<0>(idx);
         size_t target_id = std::get<1>(idx);
         auto leaf_idx = dh::SegmentId(d_leaf_ptr, sample_id);
-        auto residue = d_residue(sample_id, target_id);
+        auto residue = d_residue(d_row_index[sample_id], target_id);
         return thrust::make_tuple(leaf_idx, residue);
       });
   dh::device_vector<Tup> keys(residue.Size());
   dh::XGBCachingDeviceAllocator<char> caching;
   thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
 
+  dh::XGBDeviceAllocator<char> alloc;
   thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
                              [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
                                if (thrust::get<0>(l) != thrust::get<0>(r)) {
@@ -712,32 +728,41 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
                                return thrust::get<1>(l) < thrust::get<1>(r);  // residue
                              });
 
+  // std::cout << "GPU" << std::endl;
+  // for (size_t i = 0; i < sorted_idx.size(); ++i) {
+  //   auto v = sorted_idx[i];
+  //   std::cout << v << ", ";
+  // }
+  // std::cout << std::endl;
+
   quantiles->SetDevice(ctx->gpu_id);
   quantiles->Resize(row_index.node_idx.Size());
   auto d_results = quantiles->DeviceSpan();
 
-  auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
   auto d_keys = dh::ToSpan(keys);
 
-  dh::LaunchN(residue.Size(), [=] XGBOOST_DEVICE(size_t i) {
-    auto idx = linalg::UnravelIndex(i, d_labels.Shape());
-    size_t target_id = std::get<1>(idx);
+  dh::LaunchN(row_index.node_idx.Size(), [=] XGBOOST_DEVICE(size_t i) {
+    size_t target_id = 0;
     // each segment is the index of a leaf.
-    size_t seg_idx = thrust::get<0>(d_keys[i]);
+    size_t seg_idx = i;
     size_t begin = d_leaf_ptr[seg_idx];
-    size_t n = d_leaf_ptr[seg_idx + 1] - d_leaf_ptr[seg_idx];
+    size_t n = d_leaf_ptr[seg_idx + 1] - begin;
+
+    if (alpha <= (1 / (n + 1))) {
+      d_results[i] = d_residue(d_row_index[d_sorted_idx[0]]);
+    }
+    if (alpha >= (n / (n + 1))) {
+      d_results[i] = d_residue(d_row_index[d_sorted_idx[d_sorted_idx.size() - 1]]);
+    }
 
     double x = alpha * static_cast<double>(n + 1);
     double k = std::floor(x) - 1;
     double d = (x - 1) - k;
-
-    if (i == begin) {
-      assert(d_row_index[d_sorted_idx[static_cast<size_t>(k)]] <= 8192);
-      auto v0 = d_residue(d_row_index[d_sorted_idx[static_cast<size_t>(k)]], target_id);
-      auto v1 = d_residue(d_row_index[d_sorted_idx[static_cast<size_t>(k) + 1]], target_id);
-      d_results[seg_idx] = v0 + d * (v1 - v0);
-    }
+    auto v0 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k)]], target_id);
+    auto v1 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k) + 1]], target_id);
+    // printf("x: %f, k: %f, d: %f, v0: %f, v1: %f\n", x, k, d, v0, v1);
+    d_results[seg_idx] = v0 + d * (v1 - v0);
   });
 }
 
@@ -757,9 +782,9 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto const& h_node_idx = row_index.front().node_idx.HostVector();
   for (size_t i = 0; i < h_node_idx.size(); ++i) {
     auto nidx = h_node_idx[i];
-    // auto seg = row_index.front().indptr[i];
     auto q = h_results[i];
     CHECK(tree[nidx].IsLeaf());
+    // std::cout << "nidx:" << nidx << ", q:" << q << std::endl;
     tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
@@ -767,6 +792,20 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
                         MetaInfo const& info, HostDeviceVector<float> const& prediction,
                         uint32_t target, float alpha, RegTree* p_tree) {
+
+  // std::cout << std::endl;
+  // auto const& h_labels_dbg = info.labels.HostView();
+  // auto const& h_predt_dgb = prediction.HostVector();
+  // for (size_t i = 0; i < prediction.Size(); ++i) {
+  //   std::cout << "l:" << h_labels_dbg(i) << ", p:" << h_predt_dgb[i] << std::endl;
+  // }
+  // std::cout << "Row index" << std::endl;
+  // auto h_row_idx = row_index.front().row_index.HostVector();
+  // for (auto v : h_row_idx) {
+  //   std::cout << v << ", ";
+  // }
+  // std::cout << std::endl;
+
   auto& tree = *p_tree;
   std::vector<float> quantiles;
   for (auto const& part : row_index) {
@@ -775,14 +814,15 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       auto const& seg = part.indptr[k];
       CHECK(tree[seg.nidx].IsLeaf());
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
-      float q{0};
       auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
       auto const& h_prediction = prediction.ConstHostVector();
+
       auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
         auto row_idx = h_row_set[i];
         return h_labels(row_idx) - h_prediction[row_idx];
       });
 
+      float q{0};
       if (info.weights_.Empty()) {
         q = common::Percentile(alpha, iter, iter + h_row_set.size());
       } else {
@@ -813,6 +853,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     auto seg = row_index.front().indptr[i];
     auto q = quantiles[i];
     CHECK(tree[seg.nidx].IsLeaf());
+    // std::cout << "nidx:" << seg.nidx << ", q:" << q << std::endl;
     tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
