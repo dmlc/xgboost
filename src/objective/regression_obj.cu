@@ -679,18 +679,32 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
   auto d_residue = residue.View(ctx->gpu_id);
   CHECK_EQ(d_predt.size(), d_labels.Size());
   linalg::ElementWiseKernel(ctx, d_labels, [=] XGBOOST_DEVICE(size_t i, float y) mutable {
-    size_t sample_id, target_id;
-    std::tie(sample_id, target_id) = linalg::UnravelIndex(i, d_labels.Shape());
+    auto idx = linalg::UnravelIndex(i, d_labels.Shape());
+    size_t sample_id = std::get<0>(idx);
+    size_t target_id = std::get<1>(idx);
     d_residue(sample_id, target_id) = y - d_predt[i];
   });
 
   dh::device_vector<size_t> segment_idx(row_index.indptr.size() + 1, 0);
   auto d_segment_idx = dh::ToSpan(segment_idx);
   dh::device_vector<RowIndexCache::Segment> indptr(row_index.indptr);
+  for (auto const& seg : row_index.indptr) {
+    std::cout << seg.nidx << ", begin:" << seg.begin  << ", n:" << seg.n << std::endl;
+  }
+  std::cout << std::endl;
+
+  std::cout << "device segment" << std::endl;
+  for (size_t i = 0; i < indptr.size(); ++i) {
+    RowIndexCache::Segment seg = indptr[i];
+    std::cout << seg.nidx << ", begin:" << seg.begin  << ", n:" << seg.n << std::endl;
+  }
+  std::cout << std::endl;
+
   auto d_indptr = dh::ToSpan(indptr);
   dh::LaunchN(d_segment_idx.size(), [=] XGBOOST_DEVICE(size_t i) {
     if (i == d_segment_idx.size() - 1) {
-      d_segment_idx[i] = d_indptr[i].begin + d_indptr[i].n;
+      d_segment_idx[i] = d_indptr[i - 1].begin + d_indptr[i - 1].n;
+      printf("last: %lu, nidx: %d, %lu, %lu, i: %lu, \n", d_segment_idx[i], d_indptr[i - 1].nidx, d_indptr[i - 1].begin, d_indptr[i - i].n, i);
       return;
     }
     d_segment_idx[i] = d_indptr[i].begin;
@@ -699,11 +713,20 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
   dh::XGBDeviceAllocator<char> alloc;
   dh::device_vector<size_t> sorted_idx(d_labels.Shape(0));
   dh::Iota(dh::ToSpan(sorted_idx));
+  {
+    std::vector<size_t> h_segments(segment_idx.size());
+    thrust::copy(segment_idx.begin(), segment_idx.end(), h_segments.begin());
+    // for (auto idx : h_segments) {
+    //   std::cout << idx << ", ";
+    // }
+    // std::cout << std::endl;
+  }
   using Tup = thrust::tuple<size_t, float>;
   auto key_it = dh::MakeTransformIterator<Tup>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> Tup {
-        size_t sample_id, target_id;
-        std::tie(sample_id, target_id) = linalg::UnravelIndex(i, d_labels.Shape());
+        auto idx = linalg::UnravelIndex(i, d_labels.Shape());
+        size_t sample_id = std::get<0>(idx);
+        size_t target_id = std::get<1>(idx);
         auto leaf_idx = dh::SegmentId(d_segment_idx, sample_id);
         auto residue = d_residue(sample_id, target_id);
         return thrust::make_tuple(leaf_idx, residue);
@@ -720,29 +743,34 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
                                return thrust::get<1>(l) < thrust::get<1>(r);  // residue
                              });
 
-  dh::caching_device_vector<RowIndexCache::Segment> segment(row_index.indptr.size());
-  thrust::copy(row_index.indptr.cbegin(), row_index.indptr.cend(), segment.begin());
-  auto d_segments = dh::ToSpan(segment);
-
+  quantiles->SetDevice(ctx->gpu_id);
   quantiles->Resize(row_index.indptr.size());
   auto d_results = quantiles->DeviceSpan();
 
   auto d_row_index = row_index.row_index.ConstDeviceSpan();
+  std::cout << "Row index" << std::endl;
+  auto const& h_row_index = row_index.row_index.HostVector();
+  for (auto idx : h_row_index) {
+    std::cout << idx << ", ";
+  }
+  std::cout << std::endl;
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
   auto d_keys = dh::ToSpan(keys);
 
   dh::LaunchN(residue.Size(), [=] XGBOOST_DEVICE(size_t i) {
-    size_t sample_id, target_id;
-    std::tie(sample_id, target_id) = linalg::UnravelIndex(i, d_labels.Shape());
+    auto idx = linalg::UnravelIndex(i, d_labels.Shape());
+    size_t target_id = std::get<1>(idx);
     // each segment is the index of a leaf.
     size_t seg_idx = thrust::get<0>(d_keys[i]);
-    auto seg = d_segments[seg_idx];
+    assert(seg_idx < d_indptr.size());
+    auto seg = d_indptr[seg_idx];
 
     double x = alpha * static_cast<double>(seg.n + 1);
     double k = std::floor(x) - 1;
     double d = (x - 1) - k;
 
     if (i == seg.begin) {
+      assert(d_row_index[d_sorted_idx[static_cast<size_t>(k)]] <= 8192);
       auto v0 = d_residue(d_row_index[d_sorted_idx[static_cast<size_t>(k)]], target_id);
       auto v1 = d_residue(d_row_index[d_sorted_idx[static_cast<size_t>(k) + 1]], target_id);
       d_results[seg_idx] = v0 + d * (v1 - v0);
@@ -832,7 +860,7 @@ class MeanAbsoluteError : public ObjFunction {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
-  struct ObjInfo Task() const override {
+  ObjInfo Task() const override {
     return {ObjInfo::kRegression, true, true};
   }
 

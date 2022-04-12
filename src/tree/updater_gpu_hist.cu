@@ -429,6 +429,8 @@ struct GPUHistMakerDevice {
     auto& segments = p_out_row_indices->back().indptr;
     auto const& tree = *p_tree;
     for (size_t nidx = 0; nidx < row_partitioner->ridx_segments_.size(); ++nidx) {
+      auto debug_seg = row_partitioner->ridx_segments_[nidx];
+      std::cout << "begin:" << debug_seg.begin << " size:"<< debug_seg.Size() << ", nidx:" << nidx << ", tree[nidx].IsLeaf(): " << tree[nidx].IsLeaf() << ", left:" << tree[nidx].LeftChild() << std::endl;
       if (tree[nidx].IsLeaf()) {
         auto const& seg = row_partitioner->ridx_segments_[nidx];
         // fixme: subsample
@@ -436,11 +438,20 @@ struct GPUHistMakerDevice {
             RowIndexCache::Segment{seg.begin, seg.Size(), static_cast<bst_node_t>(nidx)});
       }
     }
+    std::stable_sort(segments.begin(), segments.end(), [](auto l, auto r) {
+      return l.begin < r.begin;
+    });
     auto in = row_partitioner->GetRows();
     p_out_row_indices->back().row_index.Resize(in.size());
     auto d_row_index = p_out_row_indices->back().row_index.DeviceSpan();
-    dh::safe_cuda(
-        cudaMemcpyAsync(d_row_index.data(), in.data(), in.size_bytes(), cudaMemcpyDeviceToDevice));
+    thrust::copy(thrust::device, dh::tcbegin(in), dh::tcend(in), dh::tbegin(d_row_index));
+    // dh::DebugSyncDevice();
+    // std::cout << "GPU Hist" << std::endl;
+    // auto const& h_row_idx = p_out_row_indices->back().row_index.HostVector();
+    // for (auto idx : h_row_idx) {
+    //   std::cout << idx << ", ";
+    // }
+    // std::cout << std::endl;
   }
 
   void FinalisePositionInPage(EllpackPageImpl const *page,
@@ -740,6 +751,8 @@ class GPUHistMakerSpecialised {
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
+
+    row_set_collection_.clear();
     // build tree
     try {
       for (xgboost::RegTree* tree : trees) {
@@ -829,6 +842,10 @@ class GPUHistMakerSpecialised {
     return true;
   }
 
+  common::Span<RowIndexCache const> GetRowIndexCache(size_t tree_idx) const {
+    return row_set_collection_.at(tree_idx);
+  }
+
   TrainParam param_;   // NOLINT
   MetaInfo* info_{};   // NOLINT
 
@@ -916,7 +933,11 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   common::Span<RowIndexCache const> GetRowIndexCache(size_t tree_idx) const override {
-    return row_set_collection_.at(tree_idx);
+    if (hist_maker_param_.single_precision_histogram) {
+      return float_maker_->GetRowIndexCache(tree_idx);
+    } else {
+      return double_maker_->GetRowIndexCache(tree_idx);
+    }
   }
 
   char const* Name() const override {
@@ -926,7 +947,6 @@ class GPUHistMaker : public TreeUpdater {
  private:
   GPUHistMakerTrainParam hist_maker_param_;
   ObjInfo task_;
-  std::vector<std::vector<RowIndexCache>> row_set_collection_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPair>> float_maker_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
 };
