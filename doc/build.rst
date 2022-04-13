@@ -198,7 +198,7 @@ There are several ways to build and install the package from source:
 
     python setup.py install --use-cuda --use-nccl
 
-  Please refer to ``setup.py`` for a complete list of avaiable options.  Some other
+  Please refer to ``setup.py`` for a complete list of available options.  Some other
   options used for development are only available for using CMake directly.  See next
   section on how to use CMake with setuptools manually.
 
