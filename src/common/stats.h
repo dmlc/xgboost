@@ -58,6 +58,13 @@ float Percentile(double alpha, Iter const& begin, Iter const& end) {
   return v0 + d * (v1 - v0);
 }
 
+/**
+ * \brief Calculate the weighted quantile with step function. Unlike the unweighted
+ *        version, no interpolation is used.
+ *
+ *   See https://aakinshin.net/posts/weighted-quantiles/ for some discussion on computing
+ *   weighted quantile with interpolation.
+ */
 template <typename Iter, typename WeightIter>
 float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weights) {
   auto n = static_cast<double>(std::distance(begin, end));
@@ -74,22 +81,11 @@ float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weigh
   for (size_t i = 1; i < n; ++i) {
     weight_cdf[i] = weight_cdf[i - 1] + *(weights + sorted_idx[i]);
   }
-
   float thresh = weight_cdf.back() * quantile;
   size_t idx =
       std::lower_bound(weight_cdf.cbegin(), weight_cdf.cend(), thresh) - weight_cdf.cbegin();
   idx = std::min(idx, static_cast<size_t>(n - 1));
-  if (idx == 0 || idx == static_cast<size_t>(n - 1)) {
-    return val(idx);
-  }
-  float v0 = val(idx);
-  float v1 = val(idx + 1);
-
-  if (weight_cdf[idx + 1] - weight_cdf[idx] >= 1.0f) {
-    return (thresh - weight_cdf[idx]) / (weight_cdf[idx + 1] - weight_cdf[idx]) * (v1 - v0) + v0;
-  } else {
-    return v1;
-  }
+  return val(idx);
 }
 }  // namespace common
 }  // namespace xgboost
