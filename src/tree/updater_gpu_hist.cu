@@ -391,7 +391,8 @@ struct GPUHistMakerDevice {
   // After tree update is finished, update the position of all training
   // instances to their final leaf. This information is used later to update the
   // prediction cache
-  void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, std::vector<RowIndexCache>* p_out_row_indices) {
+  void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, ObjInfo task,
+                        std::vector<RowIndexCache>* p_out_row_indices) {
     dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
     dh::safe_cuda(cudaMemcpyAsync(d_nodes.data().get(), p_tree->GetNodes().data(),
                                   d_nodes.size() * sizeof(RegTree::Node),
@@ -413,7 +414,7 @@ struct GPUHistMakerDevice {
     CHECK(p_out_row_indices->empty());
     p_out_row_indices->push_back(RowIndexCache{ctx_, p_fmat->Info().num_row_});
     FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments),
+                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
                            p_out_row_indices);
   }
 
@@ -423,10 +424,13 @@ struct GPUHistMakerDevice {
                               common::Span<FeatureType const> d_feature_types,
                               common::Span<uint32_t const> categories,
                               common::Span<RegTree::Segment> categories_segments,
+                              ObjInfo task,
                               std::vector<RowIndexCache>* p_out_row_indices) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+    auto d_gpair = this->gpair;
     row_partitioner->FinalisePosition(
-        ctx_, p_tree, p_out_row_indices, [=] __device__(size_t row_id, int position) {
+        ctx_, p_tree, task, p_out_row_indices,
+        [=] __device__(size_t row_id, int position) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
             // printf("out\n");
@@ -447,7 +451,6 @@ struct GPUHistMakerDevice {
                                        categories_segments[position].size);
                 go_left = common::Decision<false>(node_cats, element, node.DefaultLeft());
               } else {
-                // printf("r: %lu, e: %f, s: %f\n", row_id, element, node.SplitCond());
                 go_left = element <= node.SplitCond();
               }
               if (go_left) {
@@ -459,9 +462,9 @@ struct GPUHistMakerDevice {
             node = d_nodes[position];
           }
 
-          // printf("final ridx: %lu, pos: %d\n", row_id, position);
           return position;
-        });
+        },
+        [d_gpair] __device__(size_t ridx) { return d_gpair[ridx].GetHess() - .0f == 0.f; });
   }
 
   void UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
@@ -692,7 +695,7 @@ struct GPUHistMakerDevice {
     }
 
     monitor.Start("FinalisePosition");
-    this->FinalisePosition(p_tree, p_fmat, p_out_row_indices);
+    this->FinalisePosition(p_tree, p_fmat, task, p_out_row_indices);
     monitor.Stop("FinalisePosition");
   }
 };

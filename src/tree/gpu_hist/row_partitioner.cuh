@@ -3,9 +3,12 @@
  */
 #pragma once
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include "xgboost/base.h"
 #include "../../common/device_helpers.cuh"
 #include "xgboost/generic_parameters.h"
+#include "xgboost/task.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
@@ -37,10 +40,10 @@ class RowPartitioner {
   using RowIndexT = bst_uint;
   struct Segment;
   static constexpr bst_node_t kIgnoredTreePosition = -1;
-  std::vector<Segment> ridx_segments_;
 
  private:
   int device_idx_;
+  std::vector<Segment> ridx_segments_;
   /*! \brief In here if you want to find the rows belong to a node nid, first you need to
    * get the indices segment from ridx_segments[nid], then get the row index that
    * represents position of row in input data X.  `RowPartitioner::GetRows` would be a
@@ -160,9 +163,10 @@ class RowPartitioner {
    * \param op Device lambda. Should provide the row index and current position as an
    * argument and return the new position for this training instance.
    */
-  template <typename FinalisePositionOpT>
-  void FinalisePosition(Context const* ctx, RegTree const* p_tree,
-                        std::vector<RowIndexCache>* p_out_row_indices, FinalisePositionOpT op) {
+  template <typename FinalisePositionOpT, typename Sampledp>
+  void FinalisePosition(Context const* ctx, RegTree const* p_tree, ObjInfo task,
+                        std::vector<RowIndexCache>* p_out_row_indices, FinalisePositionOpT op,
+                        Sampledp sampledp) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
     auto sorted_position = position_.Other();
@@ -170,12 +174,22 @@ class RowPartitioner {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx, position);
-      if (new_position == kIgnoredTreePosition) return;
+      if (sampledp(ridx)) {
+        // push to the end
+        sorted_position[ridx] = std::numeric_limits<bst_node_t>::max();
+      } else {
+        sorted_position[ridx] = new_position;
+      }
+
+      if (new_position == kIgnoredTreePosition) {
+        return;
+      }
       d_position[idx] = new_position;
-      // printf("d_pos: %lu, %d\n", idx, new_position);
-      sorted_position[ridx] = new_position;
     });
 
+    if (!task.zero_hess) {
+      return;
+    }
     // copy position to buffer
     size_t n_samples = position_.Size();
     dh::XGBDeviceAllocator<char> alloc;
@@ -188,8 +202,10 @@ class RowPartitioner {
                                sorted_position + n_samples, row_indices.row_index.DevicePointer());
 
     size_t n_leaf = p_tree->GetNumLeaves();
-    dh::caching_device_vector<size_t> unique_out(n_leaf);
-    dh::caching_device_vector<size_t> counts_out(n_leaf);
+    // +1 for subsample, which is set to a unique value in above kernel.
+    size_t max_n_unique = n_leaf + 1;
+    dh::caching_device_vector<size_t> unique_out(max_n_unique);
+    dh::caching_device_vector<size_t> counts_out(max_n_unique);
     dh::TemporaryArray<size_t> num_runs_out(1);
 
     size_t nbytes;
@@ -201,18 +217,24 @@ class RowPartitioner {
                                        unique_out.data().get(), counts_out.data().get(),
                                        num_runs_out.data().get(), n_samples);
 
-    // copy node index (leaf index)
+    /**
+     * copy node index (leaf index)
+     */
     row_indices.node_idx.SetDevice(ctx->gpu_id);
     row_indices.node_idx.Resize(n_leaf);
     auto d_node_idx = row_indices.node_idx.DeviceSpan();
-    thrust::copy(thrust::device, unique_out.begin(), unique_out.end(), dh::tbegin(d_node_idx));
-    // copy node pointer
+    // don't copy the sampled values
+    thrust::copy(thrust::device, unique_out.begin(), unique_out.begin() + n_leaf,
+                 dh::tbegin(d_node_idx));
+    /**
+     * copy node pointer
+     */
     dh::XGBCachingDeviceAllocator<char> caching;
     row_indices.node_ptr.SetDevice(ctx->gpu_id);
     row_indices.node_ptr.Resize(n_leaf + 1, 0);
     auto d_node_ptr = row_indices.node_ptr.DeviceSpan();
-    thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(), counts_out.end(),
-                           dh::tbegin(d_node_ptr) + 1);
+    thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(),
+                           counts_out.begin() + n_leaf, dh::tbegin(d_node_ptr) + 1);
   }
 
   /**
