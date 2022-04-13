@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_STATS_CUH_
 
 #include <thrust/sort.h>
+#include <cstddef>
 
 #include "device_helpers.cuh"
 #include "linalg_op.cuh"
@@ -15,11 +16,12 @@
 namespace xgboost {
 namespace common {
 namespace detail {
-inline void ResidueDevice(Context const* ctx, linalg::TensorView<float const, 2> d_labels,
-                          common::Span<float const> d_predt, linalg::Tensor<float, 2>* p_residue) {
+inline void ResidulesPredtY(Context const* ctx, linalg::TensorView<float const, 2> d_labels,
+                            common::Span<float const> d_predt,
+                            linalg::Tensor<float, 2>* p_residue) {
   linalg::Tensor<float, 2>& residue = *p_residue;
   residue.SetDevice(ctx->gpu_id);
-  residue.Reshape(d_labels.Shape());
+  residue.Reshape(d_labels.Shape(0), d_labels.Shape(1));
 
   auto d_residue = residue.View(ctx->gpu_id);
   CHECK_EQ(d_predt.size(), d_labels.Size());
@@ -31,14 +33,14 @@ inline void ResidueDevice(Context const* ctx, linalg::TensorView<float const, 2>
   });
 }
 
-inline void SortLeafWeights(linalg::TensorView<float const, 2> d_residue,
-                            RowIndexCache const& row_index,
-                            dh::device_vector<size_t>* p_sorted_idx) {
+template <typename Tup>
+inline void SortLeafRows(linalg::TensorView<float const, 2> d_residue,
+                         RowIndexCache const& row_index, dh::device_vector<size_t>* p_sorted_idx,
+                         dh::device_vector<Tup>* p_keys) {
   auto& sorted_idx = *p_sorted_idx;
   sorted_idx.resize(d_residue.Shape(0));
   dh::Iota(dh::ToSpan(sorted_idx));
 
-  using Tup = thrust::tuple<size_t, float>;
   auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
   auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto key_it = dh::MakeTransformIterator<Tup>(
@@ -50,7 +52,8 @@ inline void SortLeafWeights(linalg::TensorView<float const, 2> d_residue,
         auto residue = d_residue(d_row_index[sample_id], target_id);
         return thrust::make_tuple(leaf_idx, residue);
       });
-  dh::device_vector<Tup> keys(d_residue.Size());
+  dh::device_vector<Tup>& keys = *p_keys;
+  keys.resize(d_residue.Size());
   dh::XGBCachingDeviceAllocator<char> caching;
   thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
 
@@ -73,11 +76,13 @@ inline void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache 
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
   linalg::Tensor<float, 2> residue;
-  detail::ResidueDevice(ctx, d_labels, d_predt, &residue);
+  detail::ResidulesPredtY(ctx, d_labels, d_predt, &residue);
   auto d_residue = residue.View(ctx->gpu_id);
 
   dh::device_vector<size_t> sorted_idx;
-  detail::SortLeafWeights(d_residue, row_index, &sorted_idx);
+  using Tup = thrust::tuple<size_t, float>;
+  dh::device_vector<Tup> keys;
+  detail::SortLeafRows(d_residue, row_index, &sorted_idx, &keys);
 
   quantiles->SetDevice(ctx->gpu_id);
   quantiles->Resize(row_index.node_idx.Size());
@@ -119,13 +124,68 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
   linalg::Tensor<float, 2> residue{d_labels.Shape(), ctx->gpu_id};
-  detail::ResidueDevice(ctx, d_labels, d_predt, &residue);
+  detail::ResidulesPredtY(ctx, d_labels, d_predt, &residue);
   auto d_residue = residue.View(ctx->gpu_id);
 
   dh::device_vector<size_t> sorted_idx;
-  detail::SortLeafWeights(d_residue, row_index, &sorted_idx);
-}
+  using Tup = thrust::tuple<size_t, float>;
+  dh::device_vector<Tup> keys;
+  detail::SortLeafRows(d_residue, row_index, &sorted_idx, &keys);
+  auto d_sorted_idx = dh::ToSpan(sorted_idx);
+  auto d_keys = dh::ToSpan(keys);
 
+  auto weights = info.weights_.ConstDeviceSpan();
+
+  dh::device_vector<float> weights_cdf(weights.size());
+  CHECK_EQ(weights.size(), d_labels.Shape(0));
+
+  dh::XGBCachingDeviceAllocator<char> caching;
+  Span<size_t const> node_ptr = row_index.node_ptr.ConstDeviceSpan();
+  // fixme: avoid this binary search by reusing key
+  auto scan_key = dh::MakeTransformIterator<size_t>(
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(size_t i) { return thrust::get<0>(d_keys[i]); });
+  auto scan_val = dh::MakeTransformIterator<float>(
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(size_t i) { return weights[d_sorted_idx[i]]; });
+  thrust::inclusive_scan_by_key(thrust::cuda::par(caching), scan_key, scan_key + weights.size(),
+                                dh::tcbegin(weights), weights_cdf.begin());
+
+  quantiles->SetDevice(ctx->gpu_id);
+  quantiles->Resize(row_index.node_idx.Size());
+  auto d_results = quantiles->DeviceSpan();
+  auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
+  auto d_row_index = row_index.row_index.ConstDeviceSpan();
+  auto d_weight_cdf = dh::ToSpan(weights_cdf);
+
+  dh::LaunchN(row_index.node_idx.Size(), [=] XGBOOST_DEVICE(size_t i) {
+    size_t target_id = 0;
+    size_t seg_idx = i;
+    size_t begin = d_leaf_ptr[seg_idx];
+    auto n = static_cast<double>(d_leaf_ptr[seg_idx + 1] - begin);
+    auto leaf_cdf = d_weight_cdf.subspan(begin, n);
+    float thresh = leaf_cdf.back() * alpha;
+
+    size_t idx = thrust::lower_bound(thrust::seq, leaf_cdf.data(),
+                                     leaf_cdf.data() + leaf_cdf.size(), thresh) -
+                 leaf_cdf.data();
+    idx = std::min(idx, static_cast<size_t>(n - 1));
+    if (idx == 0 || idx == static_cast<size_t>(n - 1)) {
+      d_results[i] = d_residue(d_row_index[d_sorted_idx[idx + begin]], target_id);
+      return;
+    }
+
+    float v0 = d_residue(d_row_index[d_sorted_idx[idx + begin]], target_id);
+    float v1 = d_residue(d_row_index[d_sorted_idx[idx + begin + 1]], target_id);
+
+    if (leaf_cdf[idx + 1] - leaf_cdf[idx] >= 1.0f) {
+      auto v = (thresh - leaf_cdf[idx]) / (leaf_cdf[idx + 1] - leaf_cdf[idx]) * (v1 - v1) + v0;
+      d_results[i] = v;
+    } else {
+      d_results[i] = v1;
+    }
+  });
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_CUH_

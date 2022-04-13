@@ -3,6 +3,7 @@
  */
 #ifndef XGBOOST_COMMON_STATS_H_
 #define XGBOOST_COMMON_STATS_H_
+#include <algorithm>
 #include <iterator>
 #include <limits>
 #include <vector>
@@ -67,25 +68,26 @@ float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weigh
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
 
-  std::vector<float> weighted_cdf(n);  // S_n
-  weighted_cdf[0] = *(weights + sorted_idx[0]);
+  std::vector<float> weight_cdf(n);  // S_n
+  // weighted cdf is sorted during construction
+  weight_cdf[0] = *(weights + sorted_idx[0]);
   for (size_t i = 1; i < n; ++i) {
-    weighted_cdf[i] = weighted_cdf[i - 1] + *(weights + sorted_idx[i]);
+    weight_cdf[i] = weight_cdf[i - 1] + *(weights + sorted_idx[i]);
   }
-  float thresh = weighted_cdf.back() * quantile;
+
+  float thresh = weight_cdf.back() * quantile;
   size_t idx =
-      std::upper_bound(weighted_cdf.cbegin(), weighted_cdf.cend(), thresh) - weighted_cdf.cbegin();
+      std::lower_bound(weight_cdf.cbegin(), weight_cdf.cend(), thresh) - weight_cdf.cbegin();
   idx = std::min(idx, static_cast<size_t>(n - 1));
   if (idx == 0 || idx == static_cast<size_t>(n - 1)) {
     return val(idx);
   }
-  float v1 = val(idx - 1);
-  float v2 = val(idx);
-  if (weighted_cdf[idx + 1] - weighted_cdf[idx] >= 1.0f) {
-    return (thresh - weighted_cdf[idx]) / (weighted_cdf[idx + 1] - weighted_cdf[idx]) * (v2 - v2) +
-           v1;
+  float v0 = val(idx);
+  float v1 = val(idx + 1);
+  if (weight_cdf[idx + 1] - weight_cdf[idx] >= 1.0f) {
+    return (thresh - weight_cdf[idx]) / (weight_cdf[idx + 1] - weight_cdf[idx]) * (v1 - v1) + v0;
   } else {
-    return v2;
+    return v1;
   }
 }
 }  // namespace common
