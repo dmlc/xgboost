@@ -84,8 +84,9 @@ float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weigh
   }
   float v0 = val(idx);
   float v1 = val(idx + 1);
+
   if (weight_cdf[idx + 1] - weight_cdf[idx] >= 1.0f) {
-    return (thresh - weight_cdf[idx]) / (weight_cdf[idx + 1] - weight_cdf[idx]) * (v1 - v1) + v0;
+    return (thresh - weight_cdf[idx]) / (weight_cdf[idx + 1] - weight_cdf[idx]) * (v1 - v0) + v0;
   } else {
     return v1;
   }

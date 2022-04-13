@@ -141,6 +141,7 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
   detail::SortLeafRows(d_residue, row_index, &sorted_idx, &keys);
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
   auto d_row_index = row_index.row_index.ConstDeviceSpan();
+  auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
   auto d_keys = dh::ToSpan(keys);
 
   auto weights = info.weights_.ConstDeviceSpan();
@@ -152,17 +153,16 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
   Span<size_t const> node_ptr = row_index.node_ptr.ConstDeviceSpan();
   auto scan_key = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(size_t i) { return thrust::get<0>(d_keys[i]); });
+      [=] XGBOOST_DEVICE(size_t i) { return dh::SegmentId(d_leaf_ptr, i); });
   auto scan_val = dh::MakeTransformIterator<float>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t i) { return weights[d_row_index[d_sorted_idx[i]]]; });
   thrust::inclusive_scan_by_key(thrust::cuda::par(caching), scan_key, scan_key + weights.size(),
-                                dh::tcbegin(weights), weights_cdf.begin());
+                                scan_val, weights_cdf.begin());
 
   quantiles->SetDevice(ctx->gpu_id);
   quantiles->Resize(row_index.node_idx.Size());
   auto d_results = quantiles->DeviceSpan();
-  auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
   auto d_weight_cdf = dh::ToSpan(weights_cdf);
 
   dh::LaunchN(row_index.node_idx.Size(), [=] XGBOOST_DEVICE(size_t i) {
@@ -187,7 +187,7 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
     float v1 = d_residue(d_row_index[leaf_sorted_idx[idx + 1]], target_id);
 
     if (leaf_cdf[idx + 1] - leaf_cdf[idx] >= 1.0f) {
-      auto v = (thresh - leaf_cdf[idx]) / (leaf_cdf[idx + 1] - leaf_cdf[idx]) * (v1 - v1) + v0;
+      auto v = (thresh - leaf_cdf[idx]) / (leaf_cdf[idx + 1] - leaf_cdf[idx]) * (v1 - v0) + v0;
       d_results[i] = v;
     } else {
       d_results[i] = v1;

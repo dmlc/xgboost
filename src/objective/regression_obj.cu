@@ -751,6 +751,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     auto seg = row_index.front().indptr[i];
     auto q = quantiles[i];
     CHECK(tree[seg.nidx].IsLeaf());
+
     tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
