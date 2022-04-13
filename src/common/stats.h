@@ -109,29 +109,33 @@ float Percentile(double alpha, Iter const& begin, Iter const& end) {
   return v0 + d * (v1 - v0);
 }
 
-inline float WeightedPercentile(float quantile, common::Span<size_t const> row_set,
-                                linalg::VectorView<float const> labels,
-                                linalg::VectorView<float const> weights) {
-  std::vector<size_t> sorted_idx(row_set.size());
+template <typename Iter>
+float WeightedPercentile(double quantile, Iter begin, Iter end,
+                         linalg::VectorView<float const> weights) {
+  auto n = static_cast<double>(std::distance(begin, end));
+  std::vector<size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
   std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                   [&](size_t i, size_t j) { return labels(row_set[i]) < labels(row_set[j]); });
-  std::vector<float> weighted_cdf(row_set.size());
+                   [&](size_t l, size_t r) { return *(begin + l) < *(begin + r); });
+
+  auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
+
+  std::vector<float> weighted_cdf(n);  // S_n
   weighted_cdf[0] = weights(row_set[sorted_idx[0]]);
-  for (size_t i = 1; i < row_set.size(); ++i) {
+  for (size_t i = 1; i < n; ++i) {
     weighted_cdf[i] = weighted_cdf[i - 1] + weights(row_set[sorted_idx[i]]);
   }
   float thresh = weighted_cdf.back() * quantile;
   size_t pos =
       std::upper_bound(weighted_cdf.cbegin(), weighted_cdf.cend(), thresh) - weighted_cdf.cbegin();
-  pos = std::min(pos, static_cast<size_t>(row_set.size() - 1));
-  if (pos == 0 || pos == static_cast<size_t>(row_set.size() - 1)) {
+  pos = std::min(pos, static_cast<size_t>(n - 1));
+  if (pos == 0 || pos == static_cast<size_t>(n - 1)) {
     return labels(row_set[sorted_idx[pos]]);
   }
   CHECK_GE(thresh, weighted_cdf[pos - 1]);
   CHECK_LT(thresh, weighted_cdf[pos]);
-  float v1 = labels(row_set[sorted_idx[pos - 1]]);
-  float v2 = labels(row_set[sorted_idx[pos]]);
+  float v1 = val(pos - 1);
+  float v2 = val(pos);
   if (weighted_cdf[pos + 1] - weighted_cdf[pos] >= 1.0f) {
     return (thresh - weighted_cdf[pos]) / (weighted_cdf[pos + 1] - weighted_cdf[pos]) * (v2 - v2) +
            v1;
