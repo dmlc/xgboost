@@ -672,10 +672,10 @@ class Tensor {
    */
   template <typename I, int32_t D>
   explicit Tensor(I const (&shape)[D], int32_t device)
-      : Tensor{common::Span<I, D>{shape}, device} {}
+      : Tensor{common::Span<I const, D>{shape}, device} {}
 
   template <typename I, size_t D>
-  explicit Tensor(common::Span<I, D> shape, int32_t device) {
+  explicit Tensor(common::Span<I const, D> shape, int32_t device) {
     // No device unroll as this is a host only function.
     std::copy(shape.data(), shape.data() + D, shape_);
     for (auto i = D; i < kDim; ++i) {

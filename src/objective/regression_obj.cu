@@ -33,6 +33,8 @@
 
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/linalg_op.cuh"
+#include "../common/device_helpers.cuh"
+#include "../common/stats.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost {
@@ -668,83 +670,7 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
 
-void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& row_index,
-                         MetaInfo const& info, HostDeviceVector<float> const& predt,
-                         HostDeviceVector<float>* quantiles) {
-  CHECK(alpha >= 0 && alpha <= 1);
-
-  auto d_predt = predt.ConstDeviceSpan();
-  auto d_labels = info.labels.View(ctx->gpu_id);
-  linalg::Tensor<float, 2> residue{d_labels.Shape(), ctx->gpu_id};
-  auto d_residue = residue.View(ctx->gpu_id);
-  CHECK_EQ(d_predt.size(), d_labels.Size());
-  linalg::ElementWiseKernel(ctx, d_labels, [=] XGBOOST_DEVICE(size_t i, float y) mutable {
-    auto idx = linalg::UnravelIndex(i, d_labels.Shape());
-    size_t sample_id = std::get<0>(idx);
-    size_t target_id = std::get<1>(idx);
-    d_residue(sample_id, target_id) = y - d_predt[i];
-  });
-
-  dh::device_vector<size_t> sorted_idx(d_labels.Shape(0));
-  dh::Iota(dh::ToSpan(sorted_idx));
-
-  using Tup = thrust::tuple<size_t, float>;
-  auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
-  auto d_row_index = row_index.row_index.ConstDeviceSpan();
-  auto key_it = dh::MakeTransformIterator<Tup>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> Tup {
-        auto idx = linalg::UnravelIndex(i, d_labels.Shape());
-        size_t sample_id = std::get<0>(idx);
-        size_t target_id = std::get<1>(idx);
-        auto leaf_idx = dh::SegmentId(d_leaf_ptr, sample_id);
-        auto residue = d_residue(d_row_index[sample_id], target_id);
-        return thrust::make_tuple(leaf_idx, residue);
-      });
-  dh::device_vector<Tup> keys(residue.Size());
-  dh::XGBCachingDeviceAllocator<char> caching;
-  thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
-
-  dh::XGBDeviceAllocator<char> alloc;
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
-                             [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
-                               if (thrust::get<0>(l) != thrust::get<0>(r)) {
-                                 return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
-                               }
-                               return thrust::get<1>(l) < thrust::get<1>(r);  // residue
-                             });
-
-  quantiles->SetDevice(ctx->gpu_id);
-  quantiles->Resize(row_index.node_idx.Size());
-  auto d_results = quantiles->DeviceSpan();
-
-  auto d_sorted_idx = dh::ToSpan(sorted_idx);
-  auto d_keys = dh::ToSpan(keys);
-
-  dh::LaunchN(row_index.node_idx.Size(), [=] XGBOOST_DEVICE(size_t i) {
-    size_t target_id = 0;
-    // each segment is the index of a leaf.
-    size_t seg_idx = i;
-    size_t begin = d_leaf_ptr[seg_idx];
-    auto n = static_cast<double>(d_leaf_ptr[seg_idx + 1] - begin);
-
-    if (alpha <= (1 / (n + 1))) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[begin]]);
-      return;
-    }
-    if (alpha >= (n / (n + 1))) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[common::LastOf(seg_idx, d_leaf_ptr)]]);
-      return;
-    }
-
-    double x = alpha * static_cast<double>(n + 1);
-    double k = std::floor(x) - 1;
-    double d = (x - 1) - k;
-    auto v0 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k)]], target_id);
-    auto v1 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k) + 1]], target_id);
-    d_results[seg_idx] = v0 + d * (v1 - v0);
-  });
-}
-
+#if defined(XGBOOST_USE_CUDA)
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
                           MetaInfo const& info, HostDeviceVector<float> const& prediction,
                           uint32_t target, float alpha, RegTree* p_tree) {
@@ -754,7 +680,8 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto const& part = row_index.front();
 
   HostDeviceVector<float> results;
-  SegmentedPercentile(ctx, alpha, part, info, prediction, &results);
+
+  common::SegmentedPercentile(ctx, alpha, part, info, prediction, &results);
 
   auto const& h_results = results.HostVector();
   auto& tree = *p_tree;
@@ -766,6 +693,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
     tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
+#endif  // defined(XGBOOST_USE_CUDA)
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
                         MetaInfo const& info, HostDeviceVector<float> const& prediction,
@@ -780,19 +708,22 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
       auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
       auto const& h_prediction = prediction.ConstHostVector();
+      auto h_weights = linalg::MakeVec(&info.weights_);
 
       auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
         auto row_idx = h_row_set[i];
         return h_labels(row_idx) - h_prediction[row_idx];
+      });
+      auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
+        auto row_idx = h_row_set[i];
+        return h_weights(row_idx);
       });
 
       float q{0};
       if (info.weights_.Empty()) {
         q = common::Percentile(alpha, iter, iter + h_row_set.size());
       } else {
-        q = common::WeightedPercentile(alpha, h_row_set,
-                                       info.labels.HostView().Slice(linalg::All(), target),
-                                       linalg::MakeVec(&info.weights_));
+        q = common::WeightedPercentile(alpha, iter, iter + h_row_set.size(), w_it);
       }
       results.at(k) = q;
     });
@@ -865,7 +796,11 @@ class MeanAbsoluteError : public ObjFunction {
     if (ctx_->IsCPU()) {
       UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
     } else {
+#if defined(XGBOOST_USE_CUDA)
       UpdateTreeLeafDevice(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+#else
+      common::AssertGPUSupport();
+#endif  //  defined(XGBOOST_USE_CUDA)
     }
   }
 

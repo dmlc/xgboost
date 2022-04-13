@@ -109,9 +109,8 @@ float Percentile(double alpha, Iter const& begin, Iter const& end) {
   return v0 + d * (v1 - v0);
 }
 
-template <typename Iter>
-float WeightedPercentile(double quantile, Iter begin, Iter end,
-                         linalg::VectorView<float const> weights) {
+template <typename Iter, typename WeightIter>
+float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weights) {
   auto n = static_cast<double>(std::distance(begin, end));
   std::vector<size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
@@ -121,23 +120,21 @@ float WeightedPercentile(double quantile, Iter begin, Iter end,
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
 
   std::vector<float> weighted_cdf(n);  // S_n
-  weighted_cdf[0] = weights(row_set[sorted_idx[0]]);
+  weighted_cdf[0] = *(weights + sorted_idx[0]);
   for (size_t i = 1; i < n; ++i) {
-    weighted_cdf[i] = weighted_cdf[i - 1] + weights(row_set[sorted_idx[i]]);
+    weighted_cdf[i] = weighted_cdf[i - 1] + *(weights + sorted_idx[i]);
   }
   float thresh = weighted_cdf.back() * quantile;
-  size_t pos =
+  size_t idx =
       std::upper_bound(weighted_cdf.cbegin(), weighted_cdf.cend(), thresh) - weighted_cdf.cbegin();
-  pos = std::min(pos, static_cast<size_t>(n - 1));
-  if (pos == 0 || pos == static_cast<size_t>(n - 1)) {
-    return labels(row_set[sorted_idx[pos]]);
+  idx = std::min(idx, static_cast<size_t>(n - 1));
+  if (idx == 0 || idx == static_cast<size_t>(n - 1)) {
+    return val(idx);
   }
-  CHECK_GE(thresh, weighted_cdf[pos - 1]);
-  CHECK_LT(thresh, weighted_cdf[pos]);
-  float v1 = val(pos - 1);
-  float v2 = val(pos);
-  if (weighted_cdf[pos + 1] - weighted_cdf[pos] >= 1.0f) {
-    return (thresh - weighted_cdf[pos]) / (weighted_cdf[pos + 1] - weighted_cdf[pos]) * (v2 - v2) +
+  float v1 = val(idx - 1);
+  float v2 = val(idx);
+  if (weighted_cdf[idx + 1] - weighted_cdf[idx] >= 1.0f) {
+    return (thresh - weighted_cdf[idx]) / (weighted_cdf[idx + 1] - weighted_cdf[idx]) * (v2 - v2) +
            v1;
   } else {
     return v2;
