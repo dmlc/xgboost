@@ -17,6 +17,10 @@
 namespace xgboost {
 namespace common {
 namespace detail {
+/**
+ * \brief Compute the residue between label and prediction.  Can be simplifed once we have
+ *        prediction cache as matrix.
+ */
 inline void ResidulesPredtY(Context const* ctx, linalg::TensorView<float const, 2> d_labels,
                             common::Span<float const> d_predt,
                             linalg::Tensor<float, 2>* p_residue) {
@@ -34,6 +38,9 @@ inline void ResidulesPredtY(Context const* ctx, linalg::TensorView<float const, 
   });
 }
 
+/**
+ * \brief Argsort based on residue value and row partition.
+ */
 template <typename Tup>
 inline void SortLeafRows(linalg::TensorView<float const, 2> d_residue,
                          RowIndexCache const& row_index, dh::device_vector<size_t>* p_sorted_idx,
@@ -133,6 +140,7 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
   dh::device_vector<Tup> keys;
   detail::SortLeafRows(d_residue, row_index, &sorted_idx, &keys);
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
+  auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto d_keys = dh::ToSpan(keys);
 
   auto weights = info.weights_.ConstDeviceSpan();
@@ -142,13 +150,12 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
 
   dh::XGBCachingDeviceAllocator<char> caching;
   Span<size_t const> node_ptr = row_index.node_ptr.ConstDeviceSpan();
-  // fixme: avoid this binary search by reusing key
   auto scan_key = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t i) { return thrust::get<0>(d_keys[i]); });
   auto scan_val = dh::MakeTransformIterator<float>(
       thrust::make_counting_iterator(0ul),
-      [=] XGBOOST_DEVICE(size_t i) { return weights[d_sorted_idx[i]]; });
+      [=] XGBOOST_DEVICE(size_t i) { return weights[d_row_index[d_sorted_idx[i]]]; });
   thrust::inclusive_scan_by_key(thrust::cuda::par(caching), scan_key, scan_key + weights.size(),
                                 dh::tcbegin(weights), weights_cdf.begin());
 
@@ -156,7 +163,6 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
   quantiles->Resize(row_index.node_idx.Size());
   auto d_results = quantiles->DeviceSpan();
   auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
-  auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto d_weight_cdf = dh::ToSpan(weights_cdf);
 
   dh::LaunchN(row_index.node_idx.Size(), [=] XGBOOST_DEVICE(size_t i) {
@@ -164,7 +170,8 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
     size_t seg_idx = i;
     size_t begin = d_leaf_ptr[seg_idx];
     auto n = static_cast<double>(d_leaf_ptr[seg_idx + 1] - begin);
-    auto leaf_cdf = d_weight_cdf.subspan(begin, n);
+    auto leaf_cdf = d_weight_cdf.subspan(begin, static_cast<size_t>(n));
+    auto leaf_sorted_idx = d_sorted_idx.subspan(begin, static_cast<size_t>(n));
     float thresh = leaf_cdf.back() * alpha;
 
     size_t idx = thrust::lower_bound(thrust::seq, leaf_cdf.data(),
@@ -172,12 +179,12 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
                  leaf_cdf.data();
     idx = std::min(idx, static_cast<size_t>(n - 1));
     if (idx == 0 || idx == static_cast<size_t>(n - 1)) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[idx + begin]], target_id);
+      d_results[i] = d_residue(d_row_index[leaf_sorted_idx[idx]], target_id);
       return;
     }
 
-    float v0 = d_residue(d_row_index[d_sorted_idx[idx + begin]], target_id);
-    float v1 = d_residue(d_row_index[d_sorted_idx[idx + begin + 1]], target_id);
+    float v0 = d_residue(d_row_index[leaf_sorted_idx[idx]], target_id);
+    float v1 = d_residue(d_row_index[leaf_sorted_idx[idx + 1]], target_id);
 
     if (leaf_cdf[idx + 1] - leaf_cdf[idx] >= 1.0f) {
       auto v = (thresh - leaf_cdf[idx]) / (leaf_cdf[idx + 1] - leaf_cdf[idx]) * (v1 - v1) + v0;
