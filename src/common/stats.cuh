@@ -178,20 +178,7 @@ inline void SegmentedWeightedQuantile(Context const* ctx, double alpha,
                                      leaf_cdf.data() + leaf_cdf.size(), thresh) -
                  leaf_cdf.data();
     idx = std::min(idx, static_cast<size_t>(n - 1));
-    if (idx == 0 || idx == static_cast<size_t>(n - 1)) {
-      d_results[i] = d_residue(d_row_index[leaf_sorted_idx[idx]], target_id);
-      return;
-    }
-
-    float v0 = d_residue(d_row_index[leaf_sorted_idx[idx]], target_id);
-    float v1 = d_residue(d_row_index[leaf_sorted_idx[idx + 1]], target_id);
-
-    if (leaf_cdf[idx + 1] - leaf_cdf[idx] >= 1.0f) {
-      auto v = (thresh - leaf_cdf[idx]) / (leaf_cdf[idx + 1] - leaf_cdf[idx]) * (v1 - v0) + v0;
-      d_results[i] = v;
-    } else {
-      d_results[i] = v1;
-    }
+    d_results[i] = d_residue(d_row_index[leaf_sorted_idx[idx]], target_id);
   });
 }
 }  // namespace common
