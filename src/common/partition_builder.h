@@ -16,6 +16,7 @@
 
 #include "categorical.h"
 #include "column_matrix.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
@@ -277,6 +278,32 @@ class PartitionBuilder {
 
   size_t GetTaskIdx(int nid, size_t begin) {
     return blocks_offsets_[nid] + begin / BlockSize;
+  }
+
+  // Copy row partitions into global cache for reuse in objective
+  template <typename Sampledp>
+  void LeafPartition(Context const* ctx, RegTree const& tree, RowSetCollection const& row_set,
+                     std::vector<RowIndexCache>* p_out_row_indices, Sampledp sampledp) const {
+    p_out_row_indices->emplace_back(ctx, row_set.Data()->size());
+    auto& h_row_index = p_out_row_indices->back().row_index.HostVector();
+
+    auto begin = row_set.Data()->data();
+    for (auto node : row_set) {
+      if (!node.begin) {
+        continue;
+      }
+      CHECK(node.begin && tree[node.node_id].IsLeaf());
+      size_t offset = node.begin - begin;
+      CHECK_LT(offset, row_set.Data()->size()) << node.node_id;
+      size_t k = offset;
+      for (auto idx = node.begin; idx != node.end; ++idx) {
+        if (!sampledp(*idx)) {
+          h_row_index[k++] = *idx;
+        }
+      }
+      auto seg = RowIndexCache::Segment{offset, k - offset, node.node_id};
+      p_out_row_indices->back().indptr.push_back(seg);
+    }
   }
 
  protected:
