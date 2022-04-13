@@ -673,13 +673,6 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
                          HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
 
-  // std::cout << "Row index" << std::endl;
-  // auto h_row_idx = row_index.row_index.HostVector();
-  // for (auto v : h_row_idx) {
-  //   std::cout << v << ", ";
-  // }
-  // std::cout << std::endl;
-
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
   linalg::Tensor<float, 2> residue{d_labels.Shape(), ctx->gpu_id};
@@ -691,14 +684,6 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
     size_t target_id = std::get<1>(idx);
     d_residue(sample_id, target_id) = y - d_predt[i];
   });
-
-  // auto const& h_predt = predt.HostVector();
-  // auto const& h_labels = info.labels.HostView();
-  // std::cout << std::endl;
-  // for (size_t i = 0; i < predt.Size(); ++i) {
-  //   std::cout << "l:" << h_labels(i) << ", p:" << h_predt[i] << std::endl;
-  // }
-  // std::cout << std::endl;
 
   dh::device_vector<size_t> sorted_idx(d_labels.Shape(0));
   dh::Iota(dh::ToSpan(sorted_idx));
@@ -728,13 +713,6 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
                                return thrust::get<1>(l) < thrust::get<1>(r);  // residue
                              });
 
-  // std::cout << "GPU" << std::endl;
-  // for (size_t i = 0; i < sorted_idx.size(); ++i) {
-  //   auto v = sorted_idx[i];
-  //   std::cout << v << ", ";
-  // }
-  // std::cout << std::endl;
-
   quantiles->SetDevice(ctx->gpu_id);
   quantiles->Resize(row_index.node_idx.Size());
   auto d_results = quantiles->DeviceSpan();
@@ -747,13 +725,15 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
     // each segment is the index of a leaf.
     size_t seg_idx = i;
     size_t begin = d_leaf_ptr[seg_idx];
-    size_t n = d_leaf_ptr[seg_idx + 1] - begin;
+    auto n = static_cast<double>(d_leaf_ptr[seg_idx + 1] - begin);
 
     if (alpha <= (1 / (n + 1))) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[0]]);
+      d_results[i] = d_residue(d_row_index[d_sorted_idx[begin]]);
+      return;
     }
     if (alpha >= (n / (n + 1))) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[d_sorted_idx.size() - 1]]);
+      d_results[i] = d_residue(d_row_index[d_sorted_idx[common::LastOf(seg_idx, d_leaf_ptr)]]);
+      return;
     }
 
     double x = alpha * static_cast<double>(n + 1);
@@ -761,7 +741,6 @@ void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& 
     double d = (x - 1) - k;
     auto v0 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k)]], target_id);
     auto v1 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k) + 1]], target_id);
-    // printf("x: %f, k: %f, d: %f, v0: %f, v1: %f\n", x, k, d, v0, v1);
     d_results[seg_idx] = v0 + d * (v1 - v0);
   });
 }
@@ -784,7 +763,6 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
     auto nidx = h_node_idx[i];
     auto q = h_results[i];
     CHECK(tree[nidx].IsLeaf());
-    // std::cout << "nidx:" << nidx << ", q:" << q << std::endl;
     tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
@@ -792,20 +770,6 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
                         MetaInfo const& info, HostDeviceVector<float> const& prediction,
                         uint32_t target, float alpha, RegTree* p_tree) {
-
-  // std::cout << std::endl;
-  // auto const& h_labels_dbg = info.labels.HostView();
-  // auto const& h_predt_dgb = prediction.HostVector();
-  // for (size_t i = 0; i < prediction.Size(); ++i) {
-  //   std::cout << "l:" << h_labels_dbg(i) << ", p:" << h_predt_dgb[i] << std::endl;
-  // }
-  // std::cout << "Row index" << std::endl;
-  // auto h_row_idx = row_index.front().row_index.HostVector();
-  // for (auto v : h_row_idx) {
-  //   std::cout << v << ", ";
-  // }
-  // std::cout << std::endl;
-
   auto& tree = *p_tree;
   std::vector<float> quantiles;
   for (auto const& part : row_index) {

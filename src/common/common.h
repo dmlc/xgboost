@@ -208,6 +208,15 @@ struct OptionalWeights {
 
   XGBOOST_DEVICE float operator[](size_t i) const { return weights.empty() ? dft : weights[i]; }
 };
+
+
+/**
+ * Last index of a group in a CSR style of index pointer.
+ */
+template <typename Idx>
+XGBOOST_DEVICE size_t LastOf(size_t group, common::Span<Idx> indptr) {
+  return indptr[group + 1] - 1;
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_
