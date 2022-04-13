@@ -680,8 +680,12 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto const& part = row_index.front();
 
   HostDeviceVector<float> results;
+  if (info.weights_.Empty()) {
+    common::SegmentedPercentile(ctx, alpha, part, info, prediction, &results);
+  } else {
+    common::SegmentedWeightedQuantile(ctx, alpha, part, info, prediction, &results);
+  }
 
-  common::SegmentedPercentile(ctx, alpha, part, info, prediction, &results);
 
   auto const& h_results = results.HostVector();
   auto& tree = *p_tree;
