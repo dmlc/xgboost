@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_STATS_CUH_
 
 #include <thrust/sort.h>
+
 #include <cstddef>
 
 #include "device_helpers.cuh"
