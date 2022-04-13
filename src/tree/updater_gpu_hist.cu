@@ -415,34 +415,6 @@ struct GPUHistMakerDevice {
     FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
                            dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments),
                            p_out_row_indices);
-
-
-    // auto& segments = p_out_row_indices->back().indptr;
-    // auto const& tree = *p_tree;
-    // for (size_t nidx = 0; nidx < row_partitioner->ridx_segments_.size(); ++nidx) {
-    //   auto debug_seg = row_partitioner->ridx_segments_[nidx];
-    //   std::cout << "begin:" << debug_seg.begin << " size:"<< debug_seg.Size() << ", nidx:" << nidx << ", tree[nidx].IsLeaf(): " << tree[nidx].IsLeaf() << ", left:" << tree[nidx].LeftChild() << std::endl;
-    //   if (tree[nidx].IsLeaf()) {
-    //     auto const& seg = row_partitioner->ridx_segments_[nidx];
-    //     // fixme: subsample
-    //     segments.push_back(
-    //         RowIndexCache::Segment{seg.begin, seg.Size(), static_cast<bst_node_t>(nidx)});
-    //   }
-    // }
-    // std::stable_sort(segments.begin(), segments.end(), [](auto l, auto r) {
-    //   return l.begin < r.begin;
-    // });
-    // auto in = row_partitioner->GetRows();
-    // p_out_row_indices->back().row_index.Resize(in.size());
-    // auto d_row_index = p_out_row_indices->back().row_index.DeviceSpan();
-    // thrust::copy(thrust::device, dh::tcbegin(in), dh::tcend(in), dh::tbegin(d_row_index));
-    // dh::DebugSyncDevice();
-    // std::cout << "GPU Hist" << std::endl;
-    // auto const& h_row_idx = p_out_row_indices->back().row_index.HostVector();
-    // for (auto idx : h_row_idx) {
-    //   std::cout << idx << ", ";
-    // }
-    // std::cout << std::endl;
   }
 
   void FinalisePositionInPage(EllpackPageImpl const *page,

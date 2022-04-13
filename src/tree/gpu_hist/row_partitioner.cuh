@@ -156,16 +156,15 @@ class RowPartitioner {
    * construction is complete. Does not update any other meta information in
    * this data structure, so should only be used at the end of training.
    *
-   * \param op          Device lambda. Should provide the row index  and current
-   * position as an argument and return the new position for this training
-   * instance.
+   * \param p_out_row_indices Row partitions for each leaf.
+   * \param op Device lambda. Should provide the row index and current position as an
+   * argument and return the new position for this training instance.
    */
   template <typename FinalisePositionOpT>
   void FinalisePosition(Context const* ctx, RegTree const* p_tree,
                         std::vector<RowIndexCache>* p_out_row_indices, FinalisePositionOpT op) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
-    // auto d_ridx_b = ridx_.Other();
     auto sorted_position = position_.Other();
     dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
@@ -177,44 +176,20 @@ class RowPartitioner {
       sorted_position[ridx] = new_position;
     });
 
-    // {
-    //   std::vector<bst_node_t> h_position(position_.Size());
-    //   auto it = thrust::device_ptr<bst_node_t>(d_position);
-    //   thrust::copy(it, it + h_position.size(), h_position.begin());
-    //   for (size_t i = 0; i < h_position.size(); ++i) {
-    //     std::cout << "pos:" << h_position[i] << std::endl;
-    //   }
-    // }
-
     // copy position to buffer
     size_t n_samples = position_.Size();
     dh::XGBDeviceAllocator<char> alloc;
-    // dh::LaunchN(position_.Size(), [=]XGBOOST_DEVICE(size_t idx) {
-    //   auto ridx = d_ridx[idx];
-    //   sorted_position[ridx] = d_position[idx];
-    // });
-    // dh::safe_cuda(cudaMemcpyAsync(sorted_position, d_position, position_.CurrentSpan().size_bytes(),
-    //                               cudaMemcpyDeviceToDevice));
     auto& row_indices = p_out_row_indices->back();
     // sort row index according to node index
     row_indices.row_index.SetDevice(ctx->gpu_id);
     row_indices.row_index.Resize(ridx_.Size());
     dh::Iota(row_indices.row_index.DeviceSpan());
-    thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position, sorted_position + n_samples,
-                               row_indices.row_index.DevicePointer());
-
-    // auto const& h_row_idx = row_indices.row_index.HostVector();
-    // std::vector<bst_node_t> h_position(position_.Size());
-    // auto it = thrust::device_ptr<bst_node_t>(sorted_position);
-    // thrust::copy(it, it + h_position.size(), h_position.begin());
-    // for (size_t i = 0; i < h_position.size(); ++i) {
-    //   std::cout << h_row_idx[i] << " pos:" << h_position[i] << std::endl;
-    // }
-    // std::cout << std::endl;
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position,
+                               sorted_position + n_samples, row_indices.row_index.DevicePointer());
 
     size_t n_leaf = p_tree->GetNumLeaves();
-    dh::device_vector<size_t> unique_out(n_leaf);
-    dh::device_vector<size_t> counts_out(n_leaf);
+    dh::caching_device_vector<size_t> unique_out(n_leaf);
+    dh::caching_device_vector<size_t> counts_out(n_leaf);
     dh::TemporaryArray<size_t> num_runs_out(1);
 
     size_t nbytes;
@@ -222,9 +197,9 @@ class RowPartitioner {
                                        counts_out.data().get(), num_runs_out.data().get(),
                                        n_samples);
     dh::TemporaryArray<char> temp(nbytes);
-    cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, sorted_position, unique_out.data().get(),
-                                       counts_out.data().get(), num_runs_out.data().get(),
-                                       n_samples);
+    cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, sorted_position,
+                                       unique_out.data().get(), counts_out.data().get(),
+                                       num_runs_out.data().get(), n_samples);
 
     // copy node index (leaf index)
     row_indices.node_idx.SetDevice(ctx->gpu_id);

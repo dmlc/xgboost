@@ -390,7 +390,6 @@ void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_las
 
   CHECK(p_last_tree);
   auto const &tree = *p_last_tree;
-  auto const &snode = hist_evaluator.Stats();
   auto evaluator = hist_evaluator.Evaluator();
   CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
   size_t n_nodes = p_last_tree->GetNodes().size();
