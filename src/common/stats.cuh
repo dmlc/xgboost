@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_STATS_CUH_
 
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/permutation_iterator.h>
 #include <thrust/sort.h>
 
 #include <cstddef>
@@ -76,6 +77,8 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
   auto d_results = quantiles->DeviceSpan();
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
 
+  auto val = thrust::make_permutation_iterator(val_begin, dh::tcbegin(d_sorted_idx));
+
   dh::LaunchN(n_segments, [=] XGBOOST_DEVICE(size_t i) {
     // each segment is the index of a leaf.
     size_t seg_idx = i;
@@ -83,19 +86,19 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
     auto n = static_cast<double>(seg_begin[seg_idx + 1] - begin);
 
     if (alpha <= (1 / (n + 1))) {
-      d_results[i] = val_begin[d_sorted_idx[begin]];
+      d_results[i] = val[begin];
       return;
     }
     if (alpha >= (n / (n + 1))) {
-      d_results[i] = val_begin[common::LastOf(seg_idx, seg_begin)];
+      d_results[i] = val[common::LastOf(seg_idx, seg_begin)];
       return;
     }
 
     double x = alpha * static_cast<double>(n + 1);
     double k = std::floor(x) - 1;
     double d = (x - 1) - k;
-    auto v0 = val_begin[d_sorted_idx[begin + static_cast<size_t>(k)]];
-    auto v1 = val_begin[d_sorted_idx[begin + static_cast<size_t>(k) + 1]];
+    auto v0 = val[begin + static_cast<size_t>(k)];
+    auto v1 = val[begin + static_cast<size_t>(k) + 1];
     d_results[seg_idx] = v0 + d * (v1 - v0);
   });
 }
