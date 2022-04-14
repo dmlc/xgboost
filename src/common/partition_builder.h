@@ -256,7 +256,7 @@ class PartitionBuilder {
         n_left += mem_blocks_[j]->n_left;
       }
       size_t n_right = 0;
-      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
+      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i + 1]; ++j) {
         mem_blocks_[j]->n_offset_right = n_left + n_right;
         n_right += mem_blocks_[j]->n_right;
       }
@@ -299,8 +299,8 @@ class PartitionBuilder {
         continue;
       }
       CHECK(node.begin && tree[node.node_id].IsLeaf());
-      size_t ptr_offset = node.begin - p_begin;
-      CHECK_LT(ptr_offset, row_set.Data()->size()) << node.node_id;
+      size_t ptr_offset = node.end - p_begin;
+      CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
       for (auto idx = node.begin; idx != node.end; ++idx) {
         if (!sampledp(*idx)) {
           h_row_index[offset++] = *idx;

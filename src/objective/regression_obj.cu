@@ -751,6 +751,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     std::vector<float> results(part.node_idx.Size());
     auto const& h_node_idx = part.node_idx.ConstHostVector();
     auto const& h_node_ptr = part.node_ptr.ConstHostVector();
+    CHECK_LE(h_node_ptr.back(), info.num_row_);
     common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
       auto nidx = h_node_idx[k];
       CHECK(tree[nidx].IsLeaf());
@@ -775,6 +776,12 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
         q = common::Quantile(alpha, iter, iter + h_row_set.size());
       } else {
         q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
+      }
+      if (std::isnan(q)) {
+        // Edge case in distributed training where in a local worker a leaf can have 0
+        // samples.
+        CHECK(h_row_set.empty());
+        q = 0;
       }
       results.at(k) = q;
     });
