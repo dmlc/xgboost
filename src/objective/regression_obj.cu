@@ -671,8 +671,30 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .set_body([]() { return new TweedieRegression(); });
 
 #if defined(XGBOOST_USE_CUDA)
+namespace detail {
+/**
+ * \brief Compute the residue between label and prediction.  Can be simplifed once we have
+ *        prediction cache as matrix.
+ */
+inline void ResidulesPredtY(Context const* ctx, linalg::TensorView<float const, 2> d_labels,
+                            common::Span<float const> d_predt,
+                            linalg::Tensor<float, 2>* p_residue) {
+  linalg::Tensor<float, 2>& residue = *p_residue;
+  residue.SetDevice(ctx->gpu_id);
+  residue.Reshape(d_labels.Shape(0), d_labels.Shape(1));
+
+  auto d_residue = residue.View(ctx->gpu_id);
+  CHECK_EQ(d_predt.size(), d_labels.Size());
+  linalg::ElementWiseKernel(ctx, d_labels, [=] XGBOOST_DEVICE(size_t i, float y) mutable {
+    auto idx = linalg::UnravelIndex(i, d_labels.Shape());
+    size_t sample_id = std::get<0>(idx);
+    size_t target_id = std::get<1>(idx);
+    d_residue(sample_id, target_id) = y - d_predt[i];
+  });
+}
+
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
-                          MetaInfo const& info, HostDeviceVector<float> const& prediction,
+                          MetaInfo const& info, HostDeviceVector<float> const& predt,
                           uint32_t target, float alpha, RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   CHECK_EQ(row_index.size(), 1)
@@ -680,10 +702,23 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto const& part = row_index.front();
 
   HostDeviceVector<float> results;
+  auto d_predt = predt.ConstDeviceSpan();
+  auto d_labels = info.labels.View(ctx->gpu_id);
+  linalg::Tensor<float, 2> residue;
+  ResidulesPredtY(ctx, d_labels, d_predt, &residue);
+  auto d_residue = residue.View(ctx->gpu_id);
+
+  auto d_row_index = part.row_index.ConstDeviceSpan();
+  auto key_it = part.node_ptr.ConstDeviceSpan().data();
+  auto val_it = dh::MakeTransformIterator<float>(
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(size_t i) { return d_residue(d_row_index[i]); });
+  CHECK_EQ(part.node_idx.Size() + 1, part.node_ptr.Size());
   if (info.weights_.Empty()) {
-    common::SegmentedPercentile(ctx, alpha, part, info, prediction, &results);
+    common::SegmentedQuantile(ctx, alpha, key_it, key_it + part.node_ptr.Size(), val_it,
+                              val_it + d_residue.Size(), &results);
   } else {
-    common::SegmentedWeightedQuantile(ctx, alpha, part, info, prediction, &results);
+    common::SegmentedWeightedQuantile(ctx, alpha, part, info, predt, &results);
   }
 
   auto const& h_results = results.HostVector();
@@ -696,6 +731,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
     tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
+}  // namespace detail
 #endif  // defined(XGBOOST_USE_CUDA)
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
@@ -800,7 +836,7 @@ class MeanAbsoluteError : public ObjFunction {
       UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
-      UpdateTreeLeafDevice(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+      detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, target, 0.5, p_tree);
 #else
       common::AssertGPUSupport();
 #endif  //  defined(XGBOOST_USE_CUDA)

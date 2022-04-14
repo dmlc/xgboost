@@ -278,6 +278,11 @@ template <typename Idx>
 XGBOOST_DEVICE size_t LastOf(size_t group, common::Span<Idx> indptr) {
   return indptr[group + 1] - 1;
 }
+
+template <typename Indexable>
+XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
+  return indptr[group + 1] - 1;
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_

@@ -4,9 +4,10 @@
 #ifndef XGBOOST_COMMON_STATS_CUH_
 #define XGBOOST_COMMON_STATS_CUH_
 
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sort.h>
 
-#include <cstddef>
+#include <iterator>  // std::distance
 
 #include "device_helpers.cuh"
 #include "linalg_op.cuh"
@@ -74,52 +75,84 @@ inline void SortLeafRows(linalg::TensorView<float const, 2> d_residue,
                                return thrust::get<1>(l) < thrust::get<1>(r);  // residue
                              });
 }
+
+template <typename KeyIt, typename ValIt>
+inline void SortOnSegmented(KeyIt key_begin, KeyIt key_end, ValIt val_begin, ValIt val_end,
+                            dh::device_vector<size_t>* p_sorted_idx) {
+  using Tup = thrust::tuple<size_t, float>;
+  auto& sorted_idx = *p_sorted_idx;
+  size_t n = std::distance(val_begin, val_end);
+  sorted_idx.resize(n);
+  dh::Iota(dh::ToSpan(sorted_idx));
+  dh::device_vector<Tup> keys(sorted_idx.size());
+  auto key_it = dh::MakeTransformIterator<Tup>(
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> Tup {
+        auto leaf_idx = dh::SegmentId(key_begin, key_end, i);
+        auto residue = val_begin[i];
+        return thrust::make_tuple(leaf_idx, residue);
+      });
+  dh::XGBCachingDeviceAllocator<char> caching;
+  thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
+
+  dh::XGBDeviceAllocator<char> alloc;
+  thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
+                             [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
+                               if (thrust::get<0>(l) != thrust::get<0>(r)) {
+                                 return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
+                               }
+                               return thrust::get<1>(l) < thrust::get<1>(r);  // residue
+                             });
+}
 }  // namespace detail
 
-inline void SegmentedPercentile(Context const* ctx, double alpha, RowIndexCache const& row_index,
-                                MetaInfo const& info, HostDeviceVector<float> const& predt,
-                                HostDeviceVector<float>* quantiles) {
+/**
+ * \brief Compute segmented quantile on GPU.
+ *
+ * \tparam PtrIt Iterator for CSR style segments indptr
+ * \tparam ValIt Iterator for values
+ *
+ * \param alpha The p^th quantile we want to compute
+ *
+ *    std::distance(ptr_begin, ptr_end) should be equal to n_segments + 1
+ */
+template <typename PtrIt, typename ValIt>
+void SegmentedQuantile(Context const* ctx, double alpha, PtrIt key_begin, PtrIt key_end,
+                       ValIt val_begin, ValIt val_end, HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
-
-  auto d_predt = predt.ConstDeviceSpan();
-  auto d_labels = info.labels.View(ctx->gpu_id);
-  linalg::Tensor<float, 2> residue;
-  detail::ResidulesPredtY(ctx, d_labels, d_predt, &residue);
-  auto d_residue = residue.View(ctx->gpu_id);
 
   dh::device_vector<size_t> sorted_idx;
   using Tup = thrust::tuple<size_t, float>;
-  dh::device_vector<Tup> keys;
-  detail::SortLeafRows(d_residue, row_index, &sorted_idx, &keys);
+  detail::SortOnSegmented(key_begin, key_end, val_begin, val_end, &sorted_idx);
+  auto n_segments = std::distance(key_begin, key_end) - 1;
+  if (n_segments <= 0) {
+    return;
+  }
 
   quantiles->SetDevice(ctx->gpu_id);
-  quantiles->Resize(row_index.node_idx.Size());
+  quantiles->Resize(n_segments);
   auto d_results = quantiles->DeviceSpan();
-  auto d_leaf_ptr = row_index.node_ptr.ConstDeviceSpan();
-  auto d_row_index = row_index.row_index.ConstDeviceSpan();
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
 
-  dh::LaunchN(row_index.node_idx.Size(), [=] XGBOOST_DEVICE(size_t i) {
-    size_t target_id = 0;
+  dh::LaunchN(n_segments, [=] XGBOOST_DEVICE(size_t i) {
     // each segment is the index of a leaf.
     size_t seg_idx = i;
-    size_t begin = d_leaf_ptr[seg_idx];
-    auto n = static_cast<double>(d_leaf_ptr[seg_idx + 1] - begin);
+    size_t begin = key_begin[seg_idx];
+    auto n = static_cast<double>(key_begin[seg_idx + 1] - begin);
 
     if (alpha <= (1 / (n + 1))) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[begin]]);
+      d_results[i] = val_begin[d_sorted_idx[begin]];
       return;
     }
     if (alpha >= (n / (n + 1))) {
-      d_results[i] = d_residue(d_row_index[d_sorted_idx[common::LastOf(seg_idx, d_leaf_ptr)]]);
+      d_results[i] = val_begin[common::LastOf(seg_idx, key_begin)];
       return;
     }
 
     double x = alpha * static_cast<double>(n + 1);
     double k = std::floor(x) - 1;
     double d = (x - 1) - k;
-    auto v0 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k)]], target_id);
-    auto v1 = d_residue(d_row_index[d_sorted_idx[begin + static_cast<size_t>(k) + 1]], target_id);
+    auto v0 = val_begin[d_sorted_idx[begin + static_cast<size_t>(k)]];
+    auto v1 = val_begin[d_sorted_idx[begin + static_cast<size_t>(k) + 1]];
     d_results[seg_idx] = v0 + d * (v1 - v0);
   });
 }
