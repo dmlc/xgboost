@@ -38,7 +38,7 @@ struct LinearSquareLoss {
   static const char* DefaultEvalMetric() { return "rmse"; }
 
   static const char* Name() { return "reg:squarederror"; }
-  static ObjInfo Info() { return ObjInfo::kRegression; }
+  static ObjInfo Info() { return {ObjInfo::kRegression, true, false}; }
 };
 
 struct SquaredLogError {
