@@ -2,6 +2,7 @@
  * Copyright 2019-2021 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <cstddef>
 #include <vector>
 
 #include <thrust/device_vector.h>
@@ -10,6 +11,10 @@
 
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
+#include "xgboost/base.h"
+#include "xgboost/generic_parameters.h"
+#include "xgboost/task.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace tree {
@@ -104,10 +109,17 @@ TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
 void TestFinalise() {
   const int kNumRows = 10;
   RowPartitioner rp(0, kNumRows);
-  rp.FinalisePosition([=]__device__(RowPartitioner::RowIndexT ridx, int position)
-  {
-    return 7;
-  });
+
+  ObjInfo task{ObjInfo::kRegression, false, false};
+  RegTree tree;
+  std::vector<RowIndexCache> row_index;
+  Context ctx;
+
+  rp.FinalisePosition(
+      &ctx, &tree, task, &row_index,
+      [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
+      [] XGBOOST_DEVICE(size_t idx) { return false; });
+
   auto position = rp.GetPositionHost();
   for(auto p:position)
   {
