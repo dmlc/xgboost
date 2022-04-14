@@ -170,25 +170,34 @@ class RowPartitioner {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
     auto sorted_position = position_.Other();
-    dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
-      auto position = d_position[idx];
-      RowIndexT ridx = d_ridx[idx];
-      bst_node_t new_position = op(ridx, position);
-      if (sampledp(ridx)) {
-        // push to the end
-        sorted_position[ridx] = std::numeric_limits<bst_node_t>::max();
-      } else {
-        sorted_position[ridx] = new_position;
-      }
-
-      if (new_position == kIgnoredTreePosition) {
-        return;
-      }
-      d_position[idx] = new_position;
-    });
-
     if (!task.zero_hess) {
+      dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
+        auto position = d_position[idx];
+        RowIndexT ridx = d_ridx[idx];
+        bst_node_t new_position = op(ridx, position);
+        if (new_position == kIgnoredTreePosition) {
+          return;
+        }
+        d_position[idx] = new_position;
+      });
       return;
+    } else {
+      dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
+        auto position = d_position[idx];
+        RowIndexT ridx = d_ridx[idx];
+        bst_node_t new_position = op(ridx, position);
+        if (sampledp(ridx)) {
+          // push to the end
+          sorted_position[ridx] = std::numeric_limits<bst_node_t>::max();
+        } else {
+          sorted_position[ridx] = new_position;
+        }
+
+        if (new_position == kIgnoredTreePosition) {
+          return;
+        }
+        d_position[idx] = new_position;
+      });
     }
     // copy position to buffer
     size_t n_samples = position_.Size();

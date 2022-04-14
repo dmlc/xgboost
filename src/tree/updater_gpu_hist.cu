@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "xgboost/base.h"
+#include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/parameter.h"
@@ -413,9 +414,21 @@ struct GPUHistMakerDevice {
 
     CHECK(p_out_row_indices->empty());
     p_out_row_indices->push_back(RowIndexCache{ctx_, p_fmat->Info().num_row_});
-    FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                           p_out_row_indices);
+    if (row_partitioner->GetRows().size() != p_fmat->Info().num_row_) {
+      row_partitioner.reset();  // Release the device memory first before reallocating
+      row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, p_fmat->Info().num_row_));
+    }
+    if (page->n_rows == p_fmat->Info().num_row_) {
+      FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+                             dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
+                             p_out_row_indices);
+    } else {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
+        FinalisePositionInPage(batch.Impl(), p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+                               dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
+                               p_out_row_indices);
+      }
+    }
   }
 
   void FinalisePositionInPage(EllpackPageImpl const *page,
@@ -464,7 +477,11 @@ struct GPUHistMakerDevice {
 
           return position;
         },
-        [d_gpair] __device__(size_t ridx) { return d_gpair[ridx].GetHess() - .0f == 0.f; });
+        [d_gpair] __device__(size_t ridx) {
+          // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
+          // the sampler compacts the gradient vector.
+          return d_gpair[ridx].GetHess() - .0f == 0.f;
+        });
   }
 
   void UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
