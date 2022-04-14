@@ -708,7 +708,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
       << "External memory with GPU hist should have only 1 row partition.";
   auto const& part = row_index.front();
 
-  HostDeviceVector<float> results;
+  HostDeviceVector<float> quantiles;
   predt.SetDevice(ctx->gpu_id);
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
@@ -727,18 +727,17 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto val_end = val_beg + d_labels.Size();
   CHECK_EQ(part.node_idx.Size() + 1, part.node_ptr.Size());
   if (info.weights_.Empty()) {
-    common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &results);
+    common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
   } else {
     info.weights_.SetDevice(ctx->gpu_id);
     auto d_weights = info.weights_.ConstDeviceSpan();
     CHECK_EQ(d_weights.size(), d_row_index.size());
     auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
     common::SegmentedWeightedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, w_it,
-                                      w_it + d_weights.size(), &results);
+                                      w_it + d_weights.size(), &quantiles);
   }
 
-  auto& quantiles = results.HostVector();
-  UpdateLeafValues(&quantiles, row_index.front(), p_tree);
+  UpdateLeafValues(&quantiles.HostVector(), row_index.front(), p_tree);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
