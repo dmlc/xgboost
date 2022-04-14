@@ -378,4 +378,48 @@ TEST(Objective, CoxRegressionGPair) {
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
 }
 #endif
+
+TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
+  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
+  obj->Configure({});
+  CheckConfigReload(obj, "reg:absoluteerror");
+
+  MetaInfo info;
+  std::vector<float> labels{0.f, 3.f, 2.f, 5.f, 4.f, 7.f};
+  info.labels.Reshape(6, 1);
+  info.labels.Data()->HostVector() = labels;
+  HostDeviceVector<float> predt{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
+  info.weights_.HostVector() = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
+
+  CheckObjFunction(obj, predt.HostVector(), labels, info.weights_.HostVector(),
+                   {1.f, -1.f, 1.f, -1.f, 1.f, -1.f}, info.weights_.HostVector());
+
+  RegTree tree;
+  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  std::vector<RowIndexCache> row_idx;
+  row_idx.emplace_back(&ctx, info.labels.Shape(0));
+
+  row_idx.back().node_idx.HostVector().push_back(1);  // left
+  row_idx.back().node_idx.HostVector().push_back(2);  // right
+  auto& ptr = row_idx.back().node_ptr.HostVector();
+  ptr.push_back(0);
+  ptr.push_back(3);
+  ptr.push_back(info.labels.Size());
+  auto& h_row_idx = row_idx.back().row_index.HostVector();
+  for (size_t i = info.labels.Size() - 1;; --i) {
+    h_row_idx[i] = i;
+    if (i == 0) {
+      break;
+    }
+  }
+
+  auto& h_predt = predt.HostVector();
+  for (size_t i = 0; i < h_predt.size(); ++i) {
+    h_predt[i] = labels[i] + i;
+  }
+  obj->UpdateTreeLeaf(common::Span<RowIndexCache const>{row_idx}, info, predt, 0, &tree);
+  ASSERT_EQ(tree[1].LeafValue(), -1);
+  ASSERT_EQ(tree[2].LeafValue(), -4);
+}
 }  // namespace xgboost

@@ -327,6 +327,9 @@ _unweighted_datasets_strategy = strategies.sampled_from(
         TestDataset(
             "calif_housing", get_california_housing, "reg:squarederror", "rmse"
         ),
+        TestDataset(
+            "calif_housing", get_california_housing, "reg:absoluteerror", "mae"
+        ),
         TestDataset("digits", get_digits, "multi:softmax", "mlogloss"),
         TestDataset("cancer", get_cancer, "binary:logistic", "logloss"),
         TestDataset(
@@ -336,6 +339,7 @@ _unweighted_datasets_strategy = strategies.sampled_from(
             "rmse",
         ),
         TestDataset("sparse", get_sparse, "reg:squarederror", "rmse"),
+        TestDataset("sparse", get_sparse, "reg:absoluteerror", "mae"),
         TestDataset(
             "empty",
             lambda: (np.empty((0, 100)), np.empty(0)),
