@@ -2,6 +2,7 @@
  * Copyright 2019-2021 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cstddef>
 #include <vector>
 
@@ -108,24 +109,74 @@ TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
 
 void TestFinalise() {
   const int kNumRows = 10;
-  RowPartitioner rp(0, kNumRows);
 
   ObjInfo task{ObjInfo::kRegression, false, false};
   RegTree tree;
+  tree.ExpandNode(0, 0, 0.f, true, 0., 0., 0., /*loss_chg=*/0.f, 0.f, 0.f, 0.f);
   std::vector<RowIndexCache> row_index;
   Context ctx;
+  ctx.gpu_id = 0;
 
+  {
+    RowPartitioner rp(0, kNumRows);
+    rp.FinalisePosition(
+        &ctx, &tree, task, &row_index,
+        [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
+        [] XGBOOST_DEVICE(size_t idx) { return false; });
+
+    auto position = rp.GetPositionHost();
+    for (auto p : position) {
+      EXPECT_EQ(p, 7);
+    }
+  }
+
+  /**
+   * Test for sampling.
+   */
+  dh::device_vector<float> hess(kNumRows);
+  for (size_t i = 0; i < hess.size(); ++i) {
+    // removed rows, 0, 3, 6, 9
+    if (i % 3 == 0) {
+      hess[i] = 0;
+    } else {
+      hess[i] = i;
+    }
+  }
+
+  row_index.emplace_back(&ctx, kNumRows);
+  auto d_hess = dh::ToSpan(hess);
+  task.zero_hess = true;
+
+  RowPartitioner rp(0, kNumRows);
   rp.FinalisePosition(
       &ctx, &tree, task, &row_index,
-      [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
-      [] XGBOOST_DEVICE(size_t idx) { return false; });
+      [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
+        return ridx % 2 == 0 ? 1 : 2;
+      },
+      [d_hess] __device__(size_t ridx) {
+        return d_hess[ridx] - 0.f == 0.f;
+      });
 
-  auto position = rp.GetPositionHost();
-  for(auto p:position)
-  {
-    EXPECT_EQ(p, 7);
+  auto const& h_node_ptr = row_index.back().node_ptr.ConstHostVector();
+  ASSERT_EQ(h_node_ptr.size(), 3);
+  ASSERT_EQ(h_node_ptr[0], 0);
+  ASSERT_EQ(h_node_ptr[1], 3);
+  ASSERT_EQ(h_node_ptr[2], 6);
+
+  auto const& h_node_idx = row_index.back().node_idx.ConstHostVector();
+  ASSERT_EQ(h_node_idx.size(), 2);
+  ASSERT_EQ(h_node_idx[0], 1);
+  ASSERT_EQ(h_node_idx[1], 2);
+
+  auto const& h_ridx = row_index.back().row_index.ConstHostVector();
+  for (size_t i = h_node_ptr[0]; i < h_node_ptr[1]; ++i) {
+    ASSERT_EQ(h_ridx[i] % 2, 0);
+  }
+  for (size_t i = h_node_ptr[1]; i < h_node_ptr[2]; ++i) {
+    ASSERT_EQ(h_ridx[i] % 2, 1);
   }
 }
+
 TEST(RowPartitioner, Finalise) { TestFinalise(); }
 
 void TestIncorrectRow() {
