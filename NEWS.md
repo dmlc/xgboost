@@ -193,8 +193,8 @@ fixes.
 
 * Add support for detecting musl-based Linux (#7624)
 * Add `DeviceQuantileDMatrix` to Scala binding (#7459)
-* Add Rapids plugin support (#7491, #7779)
-* The setters for CPU and GPU are more aligned (#7692)
+* Add Rapids plugin support, now more of the JVM pipeline can be accelerated by RAPIDS (#7491, #7779, #7793, #7806)
+* The setters for CPU and GPU are more aligned (#7692, #7798)
 * Control logging for early stopping (#7326)
 * Do not repartition when nWorker = 1 (#7676)
 * Fix the prediction issue for `multi:softmax` (#7694)
