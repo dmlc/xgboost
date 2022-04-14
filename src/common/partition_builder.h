@@ -10,6 +10,7 @@
 #include <xgboost/data.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -286,24 +287,30 @@ class PartitionBuilder {
                      std::vector<RowIndexCache>* p_out_row_indices, Sampledp sampledp) const {
     p_out_row_indices->emplace_back(ctx, row_set.Data()->size());
     auto& h_row_index = p_out_row_indices->back().row_index.HostVector();
+    auto& h_node_ptr = p_out_row_indices->back().node_ptr.HostVector();
+    auto& h_node_nidx = p_out_row_indices->back().node_idx.HostVector();
+    CHECK(h_node_ptr.empty());
 
-    auto begin = row_set.Data()->data();
+    auto p_begin = row_set.Data()->data();
+    size_t offset{0};
+    h_node_ptr.push_back(offset);
     for (auto node : row_set) {
       if (!node.begin) {
         continue;
       }
       CHECK(node.begin && tree[node.node_id].IsLeaf());
-      size_t offset = node.begin - begin;
-      CHECK_LT(offset, row_set.Data()->size()) << node.node_id;
-      size_t k = offset;
+      size_t ptr_offset = node.begin - p_begin;
+      CHECK_LT(ptr_offset, row_set.Data()->size()) << node.node_id;
       for (auto idx = node.begin; idx != node.end; ++idx) {
         if (!sampledp(*idx)) {
-          h_row_index[k++] = *idx;
+          h_row_index[offset++] = *idx;
         }
       }
-      auto seg = RowIndexCache::Segment{offset, k - offset, node.node_id};
-      p_out_row_indices->back().indptr.push_back(seg);
+      h_node_ptr.push_back(offset);
+      h_node_nidx.push_back(node.node_id);
     }
+    CHECK_LE(offset, row_set.Data()->size());
+    h_row_index.resize(offset);
   }
 
  protected:

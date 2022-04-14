@@ -738,14 +738,7 @@ inline bool RegTree::FVec::HasMissing() const {
 }
 
 struct RowIndexCache {
-  struct Segment {
-    size_t begin;
-    size_t n;
-    bst_node_t nidx;
-  };
-
   HostDeviceVector<size_t> row_index;
-  std::vector<Segment> indptr;
   HostDeviceVector<size_t> node_ptr;
   HostDeviceVector<bst_node_t> node_idx;
 

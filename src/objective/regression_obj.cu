@@ -730,11 +730,15 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
   auto& tree = *p_tree;
   std::vector<float> quantiles;
   for (auto const& part : row_index) {
-    std::vector<float> results(part.indptr.size());
-    common::ParallelFor(part.indptr.size(), ctx->Threads(), [&](size_t k) {
-      auto const& seg = part.indptr[k];
-      CHECK(tree[seg.nidx].IsLeaf());
-      auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
+    std::vector<float> results(part.node_idx.Size());
+    auto const& h_node_idx = part.node_idx.ConstHostVector();
+    auto const& h_node_ptr = part.node_ptr.ConstHostVector();
+    common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
+      auto nidx = h_node_idx[k];
+      CHECK(tree[nidx].IsLeaf());
+      CHECK_LT(k + 1, h_node_ptr.size());
+      size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
+      auto h_row_set = part.row_index.HostSpan().subspan(h_node_ptr[k], n);
       auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
       auto const& h_predt = predt.ConstHostVector();
       auto h_weights = linalg::MakeVec(&info.weights_);
@@ -773,12 +777,12 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
                  [&](float q) { return q / world; });
 
   // fixme: verify this is correct for external memory
-  for (size_t i = 0; i < row_index.front().indptr.size(); ++i) {
-    auto seg = row_index.front().indptr[i];
+  auto const& h_node_idx = row_index.front().node_idx.HostVector();
+  for (size_t i = 0; i < row_index.front().node_idx.Size(); ++i) {
+    auto nidx = h_node_idx[i];
     auto q = quantiles[i];
-    CHECK(tree[seg.nidx].IsLeaf());
-
-    tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
+    CHECK(tree[nidx].IsLeaf());
+    tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
 
