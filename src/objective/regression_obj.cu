@@ -672,6 +672,33 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 
 
 namespace detail {
+void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_index,
+                      RegTree* p_tree) {
+  auto& tree = *p_tree;
+  auto& quantiles = *p_quantiles;
+
+  size_t n_leaf{quantiles.size()};
+  rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
+  CHECK(quantiles.empty() || quantiles.size() == n_leaf);
+  if (quantiles.empty()) {
+    quantiles.resize(n_leaf);
+  }
+  // use the mean value
+  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
+  auto world = rabit::GetWorldSize();
+  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
+                 [&](float q) { return q / world; });
+
+  // fixme: verify this is correct for external memory
+  auto const& h_node_idx = row_index.node_idx.HostVector();
+  for (size_t i = 0; i < row_index.node_idx.Size(); ++i) {
+    auto nidx = h_node_idx[i];
+    auto q = quantiles[i];
+    CHECK(tree[nidx].IsLeaf());
+    tree[nidx].SetLeaf(q);  // fixme: exact tree method
+  }
+}
+
 #if defined(XGBOOST_USE_CUDA)
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
                           MetaInfo const& info, HostDeviceVector<float> const& predt,
@@ -711,20 +738,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   }
 
   auto& quantiles = results.HostVector();
-  // FIXME(jiamingy): Use nccl once we have an unified allreducer.
-  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
-  auto world = rabit::GetWorldSize();
-  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
-                 [&](float q) { return q / world; });
-
-  auto& tree = *p_tree;
-  auto const& h_node_idx = row_index.front().node_idx.HostVector();
-  for (size_t i = 0; i < h_node_idx.size(); ++i) {
-    auto nidx = h_node_idx[i];
-    auto q = quantiles[i];
-    CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q);  // fixme: exact tree method
-  }
+  UpdateLeafValues(&quantiles, row_index.front(), p_tree);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
@@ -772,26 +786,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     }
   }
 
-  size_t n_leaf{quantiles.size()};
-  rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
-  CHECK(quantiles.empty() || quantiles.size() == n_leaf);
-  if (quantiles.empty()) {
-    quantiles.resize(n_leaf);
-  }
-  // use the mean value
-  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
-  auto world = rabit::GetWorldSize();
-  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
-                 [&](float q) { return q / world; });
-
-  // fixme: verify this is correct for external memory
-  auto const& h_node_idx = row_index.front().node_idx.HostVector();
-  for (size_t i = 0; i < row_index.front().node_idx.Size(); ++i) {
-    auto nidx = h_node_idx[i];
-    auto q = quantiles[i];
-    CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q);  // fixme: exact tree method
-  }
+  UpdateLeafValues(&quantiles, row_index.front(), p_tree);
 }
 }  // namespace detail
 
