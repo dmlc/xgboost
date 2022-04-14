@@ -43,7 +43,6 @@ class RowPartitioner {
 
  private:
   int device_idx_;
-  std::vector<Segment> ridx_segments_;
   /*! \brief In here if you want to find the rows belong to a node nid, first you need to
    * get the indices segment from ridx_segments[nid], then get the row index that
    * represents position of row in input data X.  `RowPartitioner::GetRows` would be a
@@ -52,6 +51,7 @@ class RowPartitioner {
    * node id -> segment -> indices of rows belonging to node
    */
   /*! \brief Range of row index for each node, pointers into ridx below. */
+  std::vector<Segment> ridx_segments_;
   dh::TemporaryArray<RowIndexT> ridx_a_;
   dh::TemporaryArray<RowIndexT> ridx_b_;
   dh::TemporaryArray<bst_node_t> position_a_;

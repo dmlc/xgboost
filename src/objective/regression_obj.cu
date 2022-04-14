@@ -725,8 +725,8 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
 #endif  // defined(XGBOOST_USE_CUDA)
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
-                        MetaInfo const& info, HostDeviceVector<float> const& prediction,
-                        uint32_t target, float alpha, RegTree* p_tree) {
+                        MetaInfo const& info, HostDeviceVector<float> const& predt, uint32_t target,
+                        float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
   std::vector<float> quantiles;
   for (auto const& part : row_index) {
@@ -736,12 +736,12 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       CHECK(tree[seg.nidx].IsLeaf());
       auto h_row_set = part.row_index.HostSpan().subspan(seg.begin, seg.n);
       auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
-      auto const& h_prediction = prediction.ConstHostVector();
+      auto const& h_predt = predt.ConstHostVector();
       auto h_weights = linalg::MakeVec(&info.weights_);
 
       auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
         auto row_idx = h_row_set[i];
-        return h_labels(row_idx) - h_prediction[row_idx];
+        return h_labels(row_idx) - h_predt[row_idx];
       });
       auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
         auto row_idx = h_row_set[i];
@@ -750,9 +750,9 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
 
       float q{0};
       if (info.weights_.Empty()) {
-        q = common::Percentile(alpha, iter, iter + h_row_set.size());
+        q = common::Quantile(alpha, iter, iter + h_row_set.size());
       } else {
-        q = common::WeightedPercentile(alpha, iter, iter + h_row_set.size(), w_it);
+        q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
       }
       results.at(k) = q;
     });
@@ -785,11 +785,6 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
 class MeanAbsoluteError : public ObjFunction {
  public:
   void Configure(Args const&) override {}
-
-  uint32_t Targets(MetaInfo const& info) const override {
-    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
-  }
-
   ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
 
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,

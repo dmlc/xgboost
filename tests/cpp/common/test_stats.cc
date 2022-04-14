@@ -9,26 +9,28 @@
 namespace xgboost {
 namespace common {
 TEST(Stats, Percentil) {
-  linalg::Tensor<float, 1> arr({20.f, 0.f, 15.f, 50.f, 40.f, 0.f, 35.f}, {7}, Context::kCpuId);
-  std::vector<size_t> index{0, 2, 3, 4, 6};
-  auto h_arr = arr.HostView();
-  auto beg = MakeIndexTransformIter([&](size_t i) { return h_arr(index[i]); });
-  auto end = beg + index.size();
-  auto percentile = Percentile(0.40f, beg, end);
-  ASSERT_EQ(percentile, 26.0);
+  {
+    linalg::Tensor<float, 1> arr({20.f, 0.f, 15.f, 50.f, 40.f, 0.f, 35.f}, {7}, Context::kCpuId);
+    std::vector<size_t> index{0, 2, 3, 4, 6};
+    auto h_arr = arr.HostView();
+    auto beg = MakeIndexTransformIter([&](size_t i) { return h_arr(index[i]); });
+    auto end = beg + index.size();
+    auto q = Quantile(0.40f, beg, end);
+    ASSERT_EQ(q, 26.0);
 
-  percentile = Percentile(0.20f, beg, end);
-  ASSERT_EQ(percentile, 16.0);
+    q = Quantile(0.20f, beg, end);
+    ASSERT_EQ(q, 16.0);
 
-  percentile = Percentile(0.10f, beg, end);
-  ASSERT_EQ(percentile, 15.0);
+    q = Quantile(0.10f, beg, end);
+    ASSERT_EQ(q, 15.0);
+  }
 
   {
     std::vector<float> vec{1., 2., 3., 4., 5.};
     auto beg = MakeIndexTransformIter([&](size_t i) { return vec[i]; });
-    auto end = beg + index.size();
-    auto percentile = Percentile(0.5f, beg, end);
-    ASSERT_EQ(percentile, 3.);
+    auto end = beg + vec.size();
+    auto q = Quantile(0.5f, beg, end);
+    ASSERT_EQ(q, 3.);
   }
 }
 
@@ -43,13 +45,13 @@ TEST(Stats, WeightedQuantile) {
   auto end = beg + arr.Size();
   auto w = MakeIndexTransformIter([&](size_t i) { return h_weight(i); });
 
-  auto q = WeightedPercentile(0.50f, beg, end, w);
+  auto q = WeightedQuantile(0.50f, beg, end, w);
   ASSERT_EQ(q, 3);
 
-  q = WeightedPercentile(0.0, beg, end, w);
+  q = WeightedQuantile(0.0, beg, end, w);
   ASSERT_EQ(q, 1);
 
-  q = WeightedPercentile(1.0, beg, end, w);
+  q = WeightedQuantile(1.0, beg, end, w);
   ASSERT_EQ(q, 5);
 }
 }  // namespace common

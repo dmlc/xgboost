@@ -26,7 +26,7 @@ namespace common {
  * \return The result of interpolation.
  */
 template <typename Iter>
-float Percentile(double alpha, Iter const& begin, Iter const& end) {
+float Quantile(double alpha, Iter const& begin, Iter const& end) {
   CHECK(alpha >= 0 && alpha <= 1);
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
@@ -66,7 +66,7 @@ float Percentile(double alpha, Iter const& begin, Iter const& end) {
  *   weighted quantile with interpolation.
  */
 template <typename Iter, typename WeightIter>
-float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weights) {
+float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter weights) {
   auto n = static_cast<double>(std::distance(begin, end));
   std::vector<size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
@@ -81,7 +81,7 @@ float WeightedPercentile(double quantile, Iter begin, Iter end, WeightIter weigh
   for (size_t i = 1; i < n; ++i) {
     weight_cdf[i] = weight_cdf[i - 1] + *(weights + sorted_idx[i]);
   }
-  float thresh = weight_cdf.back() * quantile;
+  float thresh = weight_cdf.back() * alpha;
   size_t idx =
       std::lower_bound(weight_cdf.cbegin(), weight_cdf.cend(), thresh) - weight_cdf.cbegin();
   idx = std::min(idx, static_cast<size_t>(n - 1));
