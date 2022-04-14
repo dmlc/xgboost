@@ -705,12 +705,18 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
                                       w_it + d_weights.size(), &results);
   }
 
-  auto const& h_results = results.HostVector();
+  auto& quantiles = results.HostVector();
+  // FIXME(jiamingy): Use nccl once we have an unified allreducer.
+  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
+  auto world = rabit::GetWorldSize();
+  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
+                 [&](float q) { return q / world; });
+
   auto& tree = *p_tree;
   auto const& h_node_idx = row_index.front().node_idx.HostVector();
   for (size_t i = 0; i < h_node_idx.size(); ++i) {
     auto nidx = h_node_idx[i];
-    auto q = h_results[i];
+    auto q = quantiles[i];
     CHECK(tree[nidx].IsLeaf());
     tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
