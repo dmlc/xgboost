@@ -418,6 +418,10 @@ struct GPUHistMakerDevice {
       row_partitioner.reset();  // Release the device memory first before reallocating
       row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, p_fmat->Info().num_row_));
     }
+    if (task.UpdateTreeLeaf() && !p_fmat->SingleColBlock() && param.subsample != 1.0) {
+      // see comment in the `FinalisePositionInPage`.
+      LOG(FATAL) << "Current objective function can not be used with external memory";
+    }
     if (page->n_rows == p_fmat->Info().num_row_) {
       FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
                              dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,

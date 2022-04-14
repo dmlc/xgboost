@@ -42,6 +42,10 @@ struct ObjInfo {
   XGBOOST_DEVICE bool UseOneHot() const {
     return (task != ObjInfo::kRegression && task != ObjInfo::kBinary);
   }
+  /**
+   * \brief Use adaptive tree if the objective doesn't have valid hessian value.
+   */
+  XGBOOST_DEVICE bool UpdateTreeLeaf() const { return zero_hess; }
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_
