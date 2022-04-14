@@ -685,19 +685,24 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto d_labels = info.labels.View(ctx->gpu_id);
 
   auto d_row_index = part.row_index.ConstDeviceSpan();
-  auto key_it = part.node_ptr.ConstDeviceSpan().data();
-  auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                 [=] XGBOOST_DEVICE(size_t i) {
-                                                   auto predt = d_predt[d_row_index[i]];
-                                                   auto y = d_labels(d_row_index[i]);
-                                                   return y - predt;
-                                                 });
+  auto seg_beg = part.node_ptr.ConstDeviceSpan().data();
+  auto seg_end = seg_beg + part.node_ptr.Size();
+  auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
+                                                  [=] XGBOOST_DEVICE(size_t i) {
+                                                    auto predt = d_predt[d_row_index[i]];
+                                                    auto y = d_labels(d_row_index[i]);
+                                                    return y - predt;
+                                                  });
+  auto val_end = val_beg + d_labels.Size();
   CHECK_EQ(part.node_idx.Size() + 1, part.node_ptr.Size());
   if (info.weights_.Empty()) {
-    common::SegmentedQuantile(ctx, alpha, key_it, key_it + part.node_ptr.Size(), val_it,
-                              val_it + d_labels.Size(), &results);
+    common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &results);
   } else {
-    common::SegmentedWeightedQuantile(ctx, alpha, part, info, predt, &results);
+    auto d_weights = info.weights_.ConstDeviceSpan();
+    CHECK_EQ(d_weights.size(), d_row_index.size());
+    auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
+    common::SegmentedWeightedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, w_it,
+                                      w_it + d_weights.size(), &results);
   }
 
   auto const& h_results = results.HostVector();
@@ -779,12 +784,11 @@ class MeanAbsoluteError : public ObjFunction {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
-  ObjInfo Task() const override {
-    return {ObjInfo::kRegression, true, true};
-  }
+  ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
 
   void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
+    CheckRegInputs(info, preds);
     auto labels = info.labels.View(ctx_->gpu_id);
 
     out_gpair->SetDevice(ctx_->gpu_id);
