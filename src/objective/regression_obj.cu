@@ -682,10 +682,13 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   auto const& part = row_index.front();
 
   HostDeviceVector<float> results;
+  predt.SetDevice(ctx->gpu_id);
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
 
+  part.row_index.SetDevice(ctx->gpu_id);
   auto d_row_index = part.row_index.ConstDeviceSpan();
+  part.node_ptr.SetDevice(ctx->gpu_id);
   auto seg_beg = part.node_ptr.ConstDeviceSpan().data();
   auto seg_end = seg_beg + part.node_ptr.Size();
   auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
@@ -699,6 +702,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
   if (info.weights_.Empty()) {
     common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &results);
   } else {
+    info.weights_.SetDevice(ctx->gpu_id);
     auto d_weights = info.weights_.ConstDeviceSpan();
     CHECK_EQ(d_weights.size(), d_row_index.size());
     auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
