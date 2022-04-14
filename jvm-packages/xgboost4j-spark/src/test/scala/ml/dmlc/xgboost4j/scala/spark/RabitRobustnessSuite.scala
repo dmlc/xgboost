@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -24,10 +24,60 @@ import ml.dmlc.xgboost4j.java.{Rabit, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.{RabitTracker => ScalaRabitTracker}
 import ml.dmlc.xgboost4j.java.IRabitTracker.TrackerStatus
 import ml.dmlc.xgboost4j.scala.DMatrix
-
-import org.scalatest.{FunSuite, Ignore}
+import org.scalatest.{FunSuite}
 
 class RabitRobustnessSuite extends FunSuite with PerTest {
+
+  private def getXGBoostExecutionParams(paramMap: Map[String, Any]): XGBoostExecutionParams = {
+    val classifier = new XGBoostClassifier(paramMap)
+    val xgbParamsFactory = new XGBoostExecutionParamsFactory(classifier.MLlib2XGBoostParams, sc)
+    xgbParamsFactory.buildXGBRuntimeParams
+  }
+
+
+  test("Customize host ip and python exec for Rabit tracker") {
+    val hostIp = "192.168.22.111"
+    val pythonExec = "/usr/bin/python3"
+
+    val paramMap = Map(
+      "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(0L, "python", hostIp))
+    val xgbExecParams = getXGBoostExecutionParams(paramMap)
+    val tracker = XGBoost.getTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
+    tracker match {
+      case pyTracker: PyRabitTracker =>
+        val cmd = pyTracker.getRabitTrackerCommand
+        assert(cmd.contains(hostIp))
+        assert(cmd.startsWith("python"))
+      case _ => assert(false, "expected python tracker implementation")
+    }
+
+    val paramMap1 = Map(
+      "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(0L, "python", "", pythonExec))
+    val xgbExecParams1 = getXGBoostExecutionParams(paramMap1)
+    val tracker1 = XGBoost.getTracker(xgbExecParams1.numWorkers, xgbExecParams1.trackerConf)
+    tracker1 match {
+      case pyTracker: PyRabitTracker =>
+        val cmd = pyTracker.getRabitTrackerCommand
+        assert(cmd.startsWith(pythonExec))
+        assert(!cmd.contains(hostIp))
+      case _ => assert(false, "expected python tracker implementation")
+    }
+
+    val paramMap2 = Map(
+      "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(0L, "python", hostIp, pythonExec))
+    val xgbExecParams2 = getXGBoostExecutionParams(paramMap2)
+    val tracker2 = XGBoost.getTracker(xgbExecParams2.numWorkers, xgbExecParams2.trackerConf)
+    tracker2 match {
+      case pyTracker: PyRabitTracker =>
+        val cmd = pyTracker.getRabitTrackerCommand
+        assert(cmd.startsWith(pythonExec))
+        assert(cmd.contains(s" --host-ip=${hostIp}"))
+      case _ => assert(false, "expected python tracker implementation")
+    }
+  }
 
   test("training with Scala-implemented Rabit tracker") {
     val eval = new EvalError()
