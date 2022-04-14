@@ -13,6 +13,7 @@
 #include "../helpers.h"
 #include "../histogram_helpers.h"
 
+#include "xgboost/generic_parameters.h"
 #include "xgboost/json.h"
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/tree/updater_gpu_hist.cu"
@@ -22,6 +23,13 @@
 
 namespace xgboost {
 namespace tree {
+namespace {
+auto MakeCtx() {
+  Context ctx;
+  ctx.gpu_id = 0;
+  return ctx;
+}
+}  // anonymous namespace
 
 TEST(GpuHist, DeviceHistogram) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
@@ -81,8 +89,9 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param,
-                                         kNCols, kNCols, batch_param);
+  Context ctx{MakeCtx()};
+  GPUHistMakerDevice<GradientSumT> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
+                                         batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
@@ -158,14 +167,14 @@ TEST(GpuHist, ApplySplit) {
   BatchParam bparam;
   bparam.gpu_id = 0;
   bparam.max_bin = 3;
+  Context ctx{MakeCtx()};
 
   for (auto& ellpack : m->GetBatches<EllpackPage>(bparam)){
     auto impl = ellpack.Impl();
     HostDeviceVector<FeatureType> feature_types(10, FeatureType::kCategorical);
     feature_types.SetDevice(bparam.gpu_id);
     tree::GPUHistMakerDevice<GradientPairPrecise> updater(
-        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols,
-        bparam);
+        &ctx, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols, bparam);
     updater.ApplySplit(candidate, &tree);
 
     ASSERT_EQ(tree.GetSplitTypes().size(), 3);
@@ -224,8 +233,9 @@ TEST(GpuHist, EvaluateRootSplit) {
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientPairPrecise> maker(
-      0, page.get(), {}, kNRows, param, kNCols, kNCols, batch_param);
+  Context ctx{MakeCtx()};
+  GPUHistMakerDevice<GradientPairPrecise> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
+                                                batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {};
 
