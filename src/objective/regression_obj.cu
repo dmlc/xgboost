@@ -670,8 +670,9 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
 
-#if defined(XGBOOST_USE_CUDA)
+
 namespace detail {
+#if defined(XGBOOST_USE_CUDA)
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
                           MetaInfo const& info, HostDeviceVector<float> const& predt,
                           uint32_t target, float alpha, RegTree* p_tree) {
@@ -721,14 +722,14 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
     tree[nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
-}  // namespace detail
 #endif  // defined(XGBOOST_USE_CUDA)
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
                         MetaInfo const& info, HostDeviceVector<float> const& predt, uint32_t target,
                         float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
-  std::vector<float> quantiles;
+  CHECK(!row_index.empty());
+  std::vector<float> quantiles(row_index.front().indptr.size(), 0);
   for (auto const& part : row_index) {
     std::vector<float> results(part.indptr.size());
     common::ParallelFor(part.indptr.size(), ctx->Threads(), [&](size_t k) {
@@ -758,14 +759,17 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     });
 
     // fixme: verify this is correct for external memory
-    if (quantiles.empty()) {
-      quantiles.resize(results.size(), 0);
-    }
     for (size_t i = 0; i < results.size(); ++i) {
       quantiles[i] += results[i];
     }
   }
 
+  size_t n_leaf{quantiles.size()};
+  rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
+  CHECK(quantiles.empty() || quantiles.size() == n_leaf);
+  if (quantiles.empty()) {
+    quantiles.resize(n_leaf);
+  }
   // use the mean value
   rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
   auto world = rabit::GetWorldSize();
@@ -777,10 +781,10 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     auto seg = row_index.front().indptr[i];
     auto q = quantiles[i];
     CHECK(tree[seg.nidx].IsLeaf());
-
     tree[seg.nidx].SetLeaf(q);  // fixme: exact tree method
   }
 }
+}  // namespace detail
 
 class MeanAbsoluteError : public ObjFunction {
  public:
@@ -817,7 +821,7 @@ class MeanAbsoluteError : public ObjFunction {
                       HostDeviceVector<float> const& prediction, uint32_t target,
                       RegTree* p_tree) const override {
     if (ctx_->IsCPU()) {
-      UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+      detail::UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
       detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, target, 0.5, p_tree);
