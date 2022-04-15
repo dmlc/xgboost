@@ -178,6 +178,8 @@ void TestFillMissingLeaf() {
   RowIndexCache row_index(&ctx, 10);
   row_index.node_idx = {2, 4, 5};
   row_index.node_ptr = {0, 4, 8, 16};
+  row_index.node_idx.SetDevice(0);
+  row_index.node_ptr.SetDevice(0);
 
   detail::FillMissingLeaf(missing, &row_index);
 

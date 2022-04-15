@@ -84,7 +84,7 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
     size_t begin = seg_begin[seg_idx];
     auto n = static_cast<double>(seg_begin[seg_idx + 1] - begin);
     if (n == 0) {
-      d_results[i] = 0;
+      d_results[i] = std::numeric_limits<float>::quiet_NaN();
       return;
     }
 
@@ -138,7 +138,7 @@ void SegmentedWeightedQuantile(Context const* ctx, double alpha, SegIt seg_beg, 
     size_t begin = seg_beg[seg_idx];
     auto n = static_cast<double>(seg_beg[seg_idx + 1] - begin);
     if (n == 0) {
-      d_results[i] = 0;
+      d_results[i] = std::numeric_limits<float>::quiet_NaN();
       return;
     }
     auto leaf_cdf = d_weight_cdf.subspan(begin, static_cast<size_t>(n));
