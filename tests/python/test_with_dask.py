@@ -18,7 +18,7 @@ import sklearn
 import os
 import subprocess
 import hypothesis
-from hypothesis import given, settings, note, HealthCheck, reproduce_failure
+from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 from test_with_sklearn import run_feature_weights, run_data_initialization
 from test_predict import verify_leaf_output
@@ -1289,10 +1289,11 @@ class TestWithDask:
         def minimum_bin():
             return "max_bin" in params and params["max_bin"] == 2
 
-        if minimum_bin() and is_stump():
-            assert tm.non_increasing(history, tolerance=1e-3)
-        elif dataset.objective.endswith("-l1"):
-            # the approximate quantile for leaf can cause error on distributed training
+        # See note on `ObjFunction::UpdateTreeLeaf.
+        update_leaf = dataset.objective.endswith("-l1")
+        if update_leaf:
+            assert history[0] > history[-1]
+        elif minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
         else:
             assert tm.non_increasing(history)
@@ -1302,7 +1303,6 @@ class TestWithDask:
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
-    @reproduce_failure('6.27.2', b'AAAAAAAAAAEAAA==')
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -1312,10 +1312,8 @@ class TestWithDask:
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
-    # @reproduce_failure('6.27.2', b'AXicY2JnNDpff6rLhjXq6iuBo0IcVjvut1lMgdlLZwVcYuBofTkvQOMDKgAyAcAGTcPCw==')
-    # @reproduce_failure('6.36.1', b'AXicY2BkIBUwArUAAAB0AAQ=')
     def test_approx(
-            self, client: "Client", params: Dict, dataset: tm.TestDataset
+        self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
         num_rounds = 30
         # params["eta"] = 0.1

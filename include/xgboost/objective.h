@@ -95,6 +95,10 @@ class ObjFunction : public Configurable {
    * \brief Update the leaf values after a tree is built. Needed for objectives with 0
    *        hessian.
    *
+   *   Note that the leaf update is not well defined for distributed training as XGBoost
+   *   computes only an average of quantile between workers. This breaks when some leaf
+   *   have no sample assigned in a local worker.
+   *
    * \param row_index The index of rows for each output leaf.
    * \param info MetaInfo providing labels and weights.
    * \param p_tree Tree that needs to be updated.
