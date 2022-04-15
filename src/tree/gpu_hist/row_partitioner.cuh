@@ -177,7 +177,7 @@ class RowPartitioner {
                         Sampledp sampledp) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
-    if (!task.zero_hess) {
+    if (!task.UpdateTreeLeaf()) {
       dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
         auto position = d_position[idx];
         RowIndexT ridx = d_ridx[idx];
@@ -240,7 +240,7 @@ class RowPartitioner {
         reinterpret_cast<bst_node_t*>(pinned.subspan(sizeof(size_t), sizeof(bst_node_t)).data());
     dh::safe_cuda(cudaMemcpyAsync(h_num_runs, d_num_runs_out.data(), sizeof(size_t),
                                   cudaMemcpyDeviceToHost, streams_[0]));
-    dh::safe_cuda(cudaMemcpyAsync(h_first_unique, d_unique_out.data(), sizeof(size_t),
+    dh::safe_cuda(cudaMemcpyAsync(h_first_unique, d_unique_out.data(), sizeof(bst_node_t),
                                   cudaMemcpyDeviceToHost, streams_[0]));
 
     /**
@@ -279,8 +279,9 @@ class RowPartitioner {
     if (*h_first_unique == kIgnoredTreePosition){
       *h_num_runs -= 1;  // sampled.
     }
+    CHECK_GT(*h_num_runs, 0);
     // shrink to omit the `kIgnoredTreePosition`.
-    row_indices.node_ptr.Resize(*h_num_runs);
+    row_indices.node_ptr.Resize(*h_num_runs + 1);
     row_indices.node_idx.Resize(*h_num_runs);
 
     // std::cout << "n_leaf: " << n_leaf << std::endl;
@@ -294,21 +295,22 @@ class RowPartitioner {
     // std::cout << std::endl;
 
     auto const& h_node_idx = row_indices.node_idx.ConstHostVector();
-    for (size_t i = 0; i < n_leaf; ++i) {
-      auto nidx = unique_out[i];
-      // std::cout << "nidx:" << nidx << std::endl;
-      if (!((*p_tree)[nidx].IsLeaf()) && n_leaf != 1) {
-        std::cout << __LINE__ << " sorted position" << std::endl;
-        std::vector<bst_node_t> h_sorted(position_.Size());
-        dh::CopyDeviceSpanToVector(
-            &h_sorted, common::Span<bst_node_t const>{sorted_position, position_.Size()});
-        for (auto v : h_sorted) {
-          std::cout << v << ", ";
-        }
-        std::cout << std::endl;
-      }
-      CHECK((*p_tree)[nidx].IsLeaf() || n_leaf == 1) << " nidx:" << nidx;
-    }
+    // std::cout << "h_node_idx.size():" << h_node_idx.size() << std::endl;
+    // for (size_t i = 0; i < h_node_idx.size(); ++i) {
+    //   auto nidx = h_node_idx[i];
+    //   // std::cout << "nidx:" << nidx << std::endl;
+    //   // if (!((*p_tree)[nidx].IsLeaf()) && n_leaf != 1) {
+    //   //   std::cout << __LINE__ << " sorted position" << std::endl;
+    //   //   std::vector<bst_node_t> h_sorted(position_.Size());
+    //   //   dh::CopyDeviceSpanToVector(
+    //   //       &h_sorted, common::Span<bst_node_t const>{sorted_position, position_.Size()});
+    //   //   for (auto v : h_sorted) {
+    //   //     std::cout << v << ", ";
+    //   //   }
+    //   //   std::cout << std::endl;
+    //   // }
+    //   CHECK((*p_tree)[nidx].IsLeaf() || n_leaf == 1) << " nidx:" << nidx;
+    // }
 
     /**
      * copy node pointer

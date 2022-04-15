@@ -190,10 +190,10 @@ def train(
         try:
             bst.update(dtrain, i, obj)
         except XGBoostError:
-            import pickle
-            with open(filename("model", "pkl"), "bw") as fd:
-                pickle.dump(bst, fd)
-            dtrain.save_binary(filename("Xy", "dmatrix"))
+            # import pickle
+            # with open(filename("model", "pkl"), "bw") as fd:
+            #     pickle.dump(bst, fd)
+            # dtrain.save_binary(filename("Xy", "dmatrix"))
             raise
         if cb_container.after_iteration(bst, i, dtrain, evals):
             break

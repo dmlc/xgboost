@@ -423,6 +423,7 @@ class LearnerConfiguration : public Learner {
       obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
     }
     obj_->LoadConfig(objective_fn);
+    learner_model_param_.task = obj_->Task();
 
     tparam_.booster = get<String>(gradient_booster["name"]);
     if (!gbm_) {
