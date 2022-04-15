@@ -686,7 +686,7 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
   rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
   auto world = rabit::GetWorldSize();
   std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
-                 [&](float q) { return q / world; });
+                 [&](float q) { return q / static_cast<double>(world); });
 
   // fixme: verify this is correct for external memory
   auto const& h_node_idx = row_index.node_idx.HostVector();
@@ -790,6 +790,8 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       quantiles[i] += results[i];
     }
   }
+  std::transform(quantiles.cbegin(), quantiles.cend(), quantiles.begin(),
+                 [&](float q) { return q / static_cast<float>(row_index.size()); });
 
   UpdateLeafValues(&quantiles, row_index.front(), p_tree);
 }
