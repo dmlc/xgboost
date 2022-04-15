@@ -3,20 +3,20 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-## v1.6.0 (2022 Mar 26)
+## v1.6.0 (2022 Apr 16)
 
 After a long period of development, XGBoost v1.6.0 is packed with many new features and
 improvements. We summarize them in the following sections starting with an introduction to
-some major new features, then moving onto language binding specific changes including new
+some major new features, then moving on to language binding specific changes including new
 features and notable bug fixes for that binding.
 
-### Development on categorical data support
+### Development of categorical data support
 This version of XGBoost features new improvements and full coverage of experimental
 categorical data support in Python and C package with tree model.  Both `hist`, `approx`
 and `gpu_hist` now supports training with categorical data.  Also, partition-based
 categorical split is featured in this release. This split type is first available in
 LightGBM in the context of gradient boosting. In the previous version, only `gpu_hist`
-supports one-hot encoding based split which has the form of `x \in {c}` where `{c}` is the
+supports one-hot encoding-based split which has the form of `x \in {c}` where `{c}` is the
 set of all categories. In this new release, the `{c}` can be optionally split into 2 sets
 for the left and right nodes using any of the aforementioned tree methods. For more
 information, please see our tutorial on [categorical
@@ -34,7 +34,7 @@ hyper-parameters.
 
 XGBoost 1.6 features initial support for the multi-output model, which includes
 multi-output regression and multi-label classification. Along with this, the XGBoost
-classifier has proper support for base-margin without to need for the user to flatten the
+classifier has proper support for base margin without to need for the user to flatten the
 input. In this initial support, XGBoost builds one model for each target similar to the
 sklearn meta estimator, for more details, please see our [quick
 introduction](https://xgboost.readthedocs.io/en/latest/tutorials/multioutput.html).
@@ -74,8 +74,8 @@ efficient alternative. Both formats will be available in the future and we plan 
 gradually [phase out](https://github.com/dmlc/xgboost/issues/7547) support for the old
 binary model format.  Users can opt to use the different formats in the serialization
 function by providing the file extension `json` or `ubj`. Also, the `save_raw` function in
-all supported languages bindings gain a new parameter for exporting the model in different
-formats, available options are `json`, `ubj` and `deprecated`, see document for the
+all supported languages bindings gains a new parameter for exporting the model in different
+formats, available options are `json`, `ubj`, and `deprecated`, see document for the
 language binding you are using for details. Lastly, the default internal serialization
 format is set to UBJSON, which affects Python pickle and R RDS. (#7572, #7570, #7358,
 #7571, #7556, #7549, #7416)
@@ -112,7 +112,7 @@ refactoring. Lastly, `gpu_hist` no longer synchronizes the device during trainin
 
 ### General bug fixes
 This section lists bug fixes that are not specific to any language binding.
-* The `num_parallel_tree` is now a model parameter instead of training hyper-parameter,
+* The `num_parallel_tree` is now a model parameter instead of a training hyper-parameter,
   which fixes model IO with random forest. (#7751)
 * Fixes in CMake script for exporting configuration. (#7730)
 * XGBoost can now handle unsorted sparse input. This includes text file formats like
@@ -120,7 +120,7 @@ This section lists bug fixes that are not specific to any language binding.
 * Fix tree param feature type, this affects inputs with the number of columns greater than
   the maximum value of int32. (#7565)
 * Fix external memory with gpu_hist and subsampling. (#7481)
-* Check number of trees in inplace predict, this avoids a potential segfault when an
+* Check the number of trees in inplace predict, this avoids a potential segfault when an
   incorrect value for `iteration_range` is provided. (#7409)
 * Fix non-stable result in cox regression (#7756)
 
@@ -138,12 +138,12 @@ improvements along with small bug fixes.
   not supplied.  See our explanation in the
   [tutorial](https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html#reverse-link-function)
   for details.
-* For sklearn interface, following the estimator guideline from scikit-learn, all
+* For the sklearn interface, following the estimator guideline from scikit-learn, all
   parameters in `fit` that are not related to input data are moved into the constructor
   and can be set by `set_params`. (#6751, #7420, #7375, #7369)
 * Apache arrow format is now supported, which can bring better performance to users'
   pipeline (#7512)
-* Pandas nullable types is now supported (#7760)
+* Pandas nullable types are now supported (#7760)
 * A new function `get_group` is introduced for `DMatrix` to allow users to get the group
   information in the custom objective function. (#7564)
 * More training parameters are exposed in the sklearn interface instead of relying on the
