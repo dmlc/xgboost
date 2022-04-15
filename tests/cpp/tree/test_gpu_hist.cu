@@ -23,14 +23,6 @@
 
 namespace xgboost {
 namespace tree {
-namespace {
-auto MakeCtx() {
-  Context ctx;
-  ctx.gpu_id = 0;
-  return ctx;
-}
-}  // anonymous namespace
-
 TEST(GpuHist, DeviceHistogram) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   dh::safe_cuda(cudaSetDevice(0));
@@ -89,7 +81,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  Context ctx{MakeCtx()};
+  Context ctx{CreateEmptyGenericParam(0)};
   GPUHistMakerDevice<GradientSumT> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
                                          batch_param);
   xgboost::SimpleLCG gen;
@@ -167,7 +159,7 @@ TEST(GpuHist, ApplySplit) {
   BatchParam bparam;
   bparam.gpu_id = 0;
   bparam.max_bin = 3;
-  Context ctx{MakeCtx()};
+  Context ctx{CreateEmptyGenericParam(0)};
 
   for (auto& ellpack : m->GetBatches<EllpackPage>(bparam)){
     auto impl = ellpack.Impl();
@@ -233,7 +225,7 @@ TEST(GpuHist, EvaluateRootSplit) {
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  Context ctx{MakeCtx()};
+  Context ctx{CreateEmptyGenericParam(0)};
   GPUHistMakerDevice<GradientPairPrecise> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
                                                 batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
