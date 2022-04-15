@@ -85,8 +85,8 @@ void SegmentedWeightedQuantile(Context const* ctx, double alpha, SegIt seg_beg, 
   dh::device_vector<size_t> sorted_idx;
   dh::SegmentedArgSort(seg_beg, seg_end, val_begin, val_end, &sorted_idx);
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
-  size_t n_samples = std::distance(w_begin, w_end);
-  dh::device_vector<float> weights_cdf(n_samples);
+  size_t n_weights = std::distance(w_begin, w_end);
+  dh::device_vector<float> weights_cdf(n_weights);
 
   dh::XGBCachingDeviceAllocator<char> caching;
   auto scan_key = dh::MakeTransformIterator<size_t>(
@@ -95,7 +95,7 @@ void SegmentedWeightedQuantile(Context const* ctx, double alpha, SegIt seg_beg, 
   auto scan_val = dh::MakeTransformIterator<float>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(size_t i) { return w_begin[d_sorted_idx[i]]; });
-  thrust::inclusive_scan_by_key(thrust::cuda::par(caching), scan_key, scan_key + n_samples,
+  thrust::inclusive_scan_by_key(thrust::cuda::par(caching), scan_key, scan_key + n_weights,
                                 scan_val, weights_cdf.begin());
 
   auto n_segments = std::distance(seg_beg, seg_end) - 1;
