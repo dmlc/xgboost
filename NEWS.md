@@ -22,7 +22,7 @@ for the left and right nodes using any of the aforementioned tree methods. For m
 information, please see our tutorial on [categorical
 data](https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html), along with
 examples linked on that page. (#7380, #7708, #7695, #7330, #7307, #7322, #7705,
-#7652, #7592, #7666, #7576, #7569, #7529, #7575, #7393, #7465, #7385, #7371, #7745)
+#7652, #7592, #7666, #7576, #7569, #7529, #7575, #7393, #7465, #7385, #7371, #7745, #7810)
 
 In the future, we will continue to improve categorical data support with new features and
 optimizations. Also, we are looking forward to bringing the feature beyond Python binding,
@@ -191,6 +191,8 @@ Some new features for JVM-packages are introduced for a more integrated GPU pipe
 better compatibility with musl-based Linux. Aside from this, we have a few notable bug
 fixes.
 
+* User can specify the tracker IP address for training, which helps running XGBoost on
+  restricted network environments. (#7808)
 * Add support for detecting musl-based Linux (#7624)
 * Add `DeviceQuantileDMatrix` to Scala binding (#7459)
 * Add Rapids plugin support, now more of the JVM pipeline can be accelerated by RAPIDS (#7491, #7779, #7793, #7806)
