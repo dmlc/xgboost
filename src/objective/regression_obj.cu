@@ -779,6 +779,12 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       } else {
         q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
       }
+      if (std::isnan(q)) {
+        // Edge case in distributed training where in a local worker a leaf can have 0
+        // samples.
+        CHECK(h_row_set.empty());
+        q = 0;
+      }
       results.at(k) = q;
     });
 

@@ -68,6 +68,9 @@ float Quantile(double alpha, Iter const& begin, Iter const& end) {
 template <typename Iter, typename WeightIter>
 float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter weights) {
   auto n = static_cast<double>(std::distance(begin, end));
+  if (n == 0) {
+    return std::numeric_limits<float>::quiet_NaN();
+  }
   std::vector<size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
   std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
