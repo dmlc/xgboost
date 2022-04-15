@@ -669,7 +669,6 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
 
-
 namespace detail {
 void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_index,
                       RegTree* p_tree) {
@@ -704,8 +703,8 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
 
 #if defined(XGBOOST_USE_CUDA)
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
-                          MetaInfo const& info, HostDeviceVector<float> const& predt,
-                          uint32_t target, float alpha, RegTree* p_tree) {
+                          MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
+                          RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   CHECK_EQ(row_index.size(), 1)
       << "External memory with GPU hist should have only 1 row partition.";
@@ -745,8 +744,8 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
 #endif  // defined(XGBOOST_USE_CUDA)
 
 void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
-                        MetaInfo const& info, HostDeviceVector<float> const& predt, uint32_t target,
-                        float alpha, RegTree* p_tree) {
+                        MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
+                        RegTree* p_tree) {
   auto& tree = *p_tree;
   CHECK(!row_index.empty());
   std::vector<float> quantiles(row_index.front().node_idx.Size(), 0);
@@ -761,7 +760,8 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       CHECK_LT(k + 1, h_node_ptr.size());
       size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
       auto h_row_set = part.row_index.HostSpan().subspan(h_node_ptr[k], n);
-      auto h_labels = info.labels.HostView().Slice(linalg::All(), target);
+      // multi-target not yet supported.
+      auto h_labels = info.labels.HostView().Slice(linalg::All(), 0);
       auto const& h_predt = predt.ConstHostVector();
       auto h_weights = linalg::MakeVec(&info.weights_);
 
@@ -830,13 +830,12 @@ class MeanAbsoluteError : public ObjFunction {
   }
 
   void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                      HostDeviceVector<float> const& prediction, uint32_t target,
-                      RegTree* p_tree) const override {
+                      HostDeviceVector<float> const& prediction, RegTree* p_tree) const override {
     if (ctx_->IsCPU()) {
-      detail::UpdateTreeLeafHost(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+      detail::UpdateTreeLeafHost(ctx_, row_index, info, prediction, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
-      detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, target, 0.5, p_tree);
+      detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, 0.5, p_tree);
 #else
       common::AssertGPUSupport();
 #endif  //  defined(XGBOOST_USE_CUDA)

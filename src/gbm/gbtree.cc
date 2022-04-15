@@ -224,12 +224,10 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
     return;
   }
   auto& trees = *p_trees;
-  auto targets = obj->Targets(p_fmat->Info());
   for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
     auto row_idx = updaters_.back()->GetRowIndexCache(tree_idx);
     // distinguish the difference between multi-class and multi-target.
-    auto target = targets > 1 ? gidx : 0;
-    obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), predictions, target, trees[tree_idx].get());
+    obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), predictions, trees[tree_idx].get());
   }
 }
 

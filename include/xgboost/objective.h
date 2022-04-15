@@ -97,12 +97,10 @@ class ObjFunction : public Configurable {
    *
    * \param row_index The index of rows for each output leaf.
    * \param info MetaInfo providing labels and weights.
-   * \param target The index for target if we are training multi-target models, 0 otherwise.
    * \param p_tree Tree that needs to be updated.
    */
   virtual void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
-                              HostDeviceVector<float> const& prediction, uint32_t target,
-                              RegTree* p_tree) const {}
+                              HostDeviceVector<float> const& prediction, RegTree* p_tree) const {}
 
   /*!
    * \brief Create an objective function according to name.
