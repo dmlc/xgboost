@@ -11,8 +11,8 @@ import test_updaters as test_up
 
 
 parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(0, 4),
-    'max_leaves': strategies.integers(0, 8),
+    'max_depth': strategies.integers(0, 11),
+    'max_leaves': strategies.integers(0, 256),
     'max_bin': strategies.integers(2, 1024),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
     'single_precision_histogram': strategies.booleans(),
