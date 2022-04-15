@@ -198,7 +198,7 @@ def run_gpu_hist(
         dtrain=m,
         num_boost_round=num_rounds,
         evals=[(m, "train")],
-    )["history"]["train"]
+    )["history"]["train"][dataset.metric]
     note(history)
 
     # See note on `ObjFunction::UpdateTreeLeaf.
@@ -207,7 +207,7 @@ def run_gpu_hist(
         assert history[0] >= history[-1]
         return
     else:
-        assert tm.non_increasing(history[dataset.metric])
+        assert tm.non_increasing(history)
 
 
 @pytest.mark.skipif(**tm.no_cudf())
