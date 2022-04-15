@@ -389,6 +389,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
   std::vector<float> labels{0.f, 3.f, 2.f, 5.f, 4.f, 7.f};
   info.labels.Reshape(6, 1);
   info.labels.Data()->HostVector() = labels;
+  info.num_row_ = labels.size();
   HostDeviceVector<float> predt{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
   info.weights_.HostVector() = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
 
