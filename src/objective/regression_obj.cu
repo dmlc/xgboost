@@ -11,7 +11,6 @@
 #include <xgboost/tree_model.h>
 
 #include <cmath>
-#include <cstddef>
 #include <memory>
 #include <vector>
 

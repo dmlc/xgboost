@@ -7,7 +7,6 @@
 #include <xgboost/base.h>
 
 #include <cinttypes>
-#include <cstdint>
 
 namespace xgboost {
 /*!

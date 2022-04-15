@@ -7,11 +7,8 @@
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
-#include <dmlc/filesystem.h>
 
 #include <atomic>
-#include <cstddef>
-#include <fstream>
 #include <mutex>
 #include <algorithm>
 #include <iomanip>
@@ -24,7 +21,6 @@
 #include <vector>
 
 #include "dmlc/any.h"
-#include "dmlc/logging.h"
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
@@ -1172,38 +1168,8 @@ class LearnerImpl : public LearnerIO {
     obj_->GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
-    std::stringstream ss;
-    ss << common::GlobalRandom();
-    auto str = ss.str();
 
-    auto FileExists = [](const std::string& filename) {
-      struct stat st;
-      return stat(filename.c_str(), &st) == 0;
-    };
-    auto __attribute__((unused)) SaveRng = [&]() {
-      size_t i = 0;
-      std::string filename{"rng-" + std::to_string(i)};
-      while (FileExists(filename)) {
-        ++i;
-        filename = "rng-" + std::to_string(i);
-      }
-      std::ofstream fout(filename);
-      fout << str;
-    };
-    auto __attribute__((unused)) LoadRng = []() {
-      std::string filename {"rng-1"};
-      std::ifstream fin(filename);
-      std::string str;
-      fin >> common::GlobalRandom();
-    };
-
-    LoadRng();
-    try {
-      gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
-    } catch (dmlc::Error const& e) {
-      // SaveRng();
-      throw e;
-    }
+    gbm_->DoBoost(train.get(), &gpair_, &predt);
     monitor_.Stop("UpdateOneIter");
   }
 

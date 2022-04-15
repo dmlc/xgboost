@@ -1410,7 +1410,7 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
 }
 
 template <typename InIt, typename OutIt, typename Predicate>
-OutIt CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
+void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
   // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
   // See thrust issue #1302, XGBoost #6822
   size_t constexpr kMaxCopySize = std::numeric_limits<int>::max() / 2;
@@ -1419,9 +1419,9 @@ OutIt CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
   for (size_t offset = 0; offset < length; offset += kMaxCopySize) {
     auto begin_input = in_first + offset;
     auto end_input = in_first + std::min(offset + kMaxCopySize, length);
-    out_first = thrust::copy_if(thrust::cuda::par(alloc), begin_input, end_input, out_first, pred);
+    out_first = thrust::copy_if(thrust::cuda::par(alloc), begin_input,
+                                end_input, out_first, pred);
   }
-  return out_first;
 }
 
 template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>

@@ -16,7 +16,6 @@
 #include <xgboost/feature_map.h>
 #include <xgboost/model.h>
 
-#include <cstddef>
 #include <limits>
 #include <vector>
 #include <string>

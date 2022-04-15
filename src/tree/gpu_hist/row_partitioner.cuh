@@ -2,8 +2,6 @@
  * Copyright 2017-2019 XGBoost contributors
  */
 #pragma once
-#include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <vector>
 #include "xgboost/base.h"
@@ -149,13 +147,6 @@ class RowPartitioner {
     CHECK_GE(left_count, 0);
     ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                    std::max(left_nidx, right_nidx) + 1));
-    // std::cout << "nidx: " << nidx << ", left:" << left_nidx << ", right:" << right_nidx << " count: " << left_count << std::endl;
-    // if (left_count == segment.Size()) {
-    //   LOG(FATAL) << "empty right:" << left_count << ", nidx:" << nidx << std::endl;
-    // }
-    // if (left_count == 0) {
-    //   LOG(FATAL) << "empty left:" << segment.Size() << ", nidx:" << nidx << std::endl;
-    // }
     ridx_segments_[left_nidx] =
         Segment(segment.begin, segment.begin + left_count);
     ridx_segments_[right_nidx] =
@@ -286,57 +277,6 @@ class RowPartitioner {
     // shrink to omit the `kIgnoredTreePosition`.
     row_indices.node_ptr.Resize(*h_num_runs + 1);
     row_indices.node_idx.Resize(*h_num_runs);
-
-    // std::cout << "n_leaf: " << n_leaf << std::endl;
-    // auto const& self = *p_tree;
-    // p_tree->WalkTree([&self](bst_node_t nidx) {
-    //   if (self[nidx].IsLeaf()) {
-    //     std::cout << nidx << ", p:" << self[nidx].Parent() << ", ";
-    //   }
-    //   return true;
-    // });
-    // std::cout << std::endl;
-
-    auto const& h_node_idx = row_indices.node_idx.ConstHostVector();
-    // std::cout << "h_node_idx.size():" << h_node_idx.size() << std::endl;
-    // for (size_t i = 0; i < h_node_idx.size(); ++i) {
-    //   auto nidx = h_node_idx[i];
-    //   // std::cout << "nidx:" << nidx << std::endl;
-    //   // if (!((*p_tree)[nidx].IsLeaf()) && n_leaf != 1) {
-    //   //   std::cout << __LINE__ << " sorted position" << std::endl;
-    //   //   std::vector<bst_node_t> h_sorted(position_.Size());
-    //   //   dh::CopyDeviceSpanToVector(
-    //   //       &h_sorted, common::Span<bst_node_t const>{sorted_position, position_.Size()});
-    //   //   for (auto v : h_sorted) {
-    //   //     std::cout << v << ", ";
-    //   //   }
-    //   //   std::cout << std::endl;
-    //   // }
-    //   CHECK((*p_tree)[nidx].IsLeaf() || n_leaf == 1) << " nidx:" << nidx;
-    // }
-
-    /**
-     * copy node pointer
-     */
-    // thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(),
-    //                        counts_out.begin() + n_leaf, dh::tbegin(d_node_ptr) + 1);
-    // auto const& h_node_ptr = row_indices.node_ptr.ConstHostVector();
-    // auto total = h_node_ptr.back();
-    // if (total != this->ridx_.Size()) {
-    //   std::cout << "Counts, n_leaf: " << n_leaf << std::endl;
-    //   for (size_t i = 0; i < n_leaf; ++i) {
-    //     std::cout << counts_out[i] << ", ";
-    //   }
-    //   std::cout << std::endl;
-
-    //   std::cout << "nodes, n_leaf: " << n_leaf << std::endl;
-    //   for (auto nidx : h_node_idx) {
-    //     std::cout << nidx << ", ";
-    //   }
-    //   std::cout << std::endl;
-    // }
-
-    // CHECK_EQ(total, this->ridx_.Size());
   }
 
   /**

@@ -5,14 +5,6 @@
 // Dummy file to keep the CUDA conditional compile trick.
 
 #include <dmlc/registry.h>
-
-#include "../common/linalg_op.h"
-
-#include "rabit/rabit.h"
-#include "xgboost/data.h"
-#include "xgboost/objective.h"
-#include "xgboost/tree_model.h"
-
 namespace xgboost {
 namespace obj {
 
