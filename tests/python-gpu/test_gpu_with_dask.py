@@ -241,6 +241,7 @@ class TestDistributedGPU:
     @pytest.mark.parametrize(
         "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
     )
+    @reproduce_failure('6.14.8', b'AXicY2ZgYGBiwAGYGBkYAADJAAk=')
     # @reproduce_failure('6.14.8', b'AXicY2ZgYGBmZMAOGIESAAD+AAo=')
     def test_gpu_hist(
         self,
