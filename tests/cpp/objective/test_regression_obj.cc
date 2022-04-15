@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
@@ -422,5 +422,46 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
   obj->UpdateTreeLeaf(common::Span<RowIndexCache const>{row_idx}, info, predt, 0, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1);
   ASSERT_EQ(tree[2].LeafValue(), -4);
+}
+
+TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
+  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
+  obj->Configure({});
+
+  MetaInfo info;
+  info.labels.Reshape(16, 1);
+  info.num_row_ = info.labels.Size();
+  CHECK_EQ(info.num_row_, 16);
+  auto h_labels = info.labels.HostView().Values();
+  std::iota(h_labels.begin(), h_labels.end(), 0);
+  HostDeviceVector<float> predt(h_labels.size());
+  auto& h_predt = predt.HostVector();
+  for (size_t i = 0; i < h_predt.size(); ++i) {
+    h_predt[i] = h_labels[i] + i;
+  }
+
+  std::vector<RowIndexCache> row_idx_v;
+  row_idx_v.emplace_back(&ctx, info.labels.Shape(0));
+
+  auto& part = row_idx_v.back();
+  part.node_idx = {3, 4, 5, 6};
+  // starting from 3 to emulate subsampling, empty leaaft for node 4.
+  part.node_ptr = {3, 8, 8, 13, 16};
+  auto& h_row_idx = part.row_index.HostVector();
+  std::iota(h_row_idx.begin(), h_row_idx.end(), 0);
+
+  RegTree tree;
+  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  ASSERT_EQ(tree.GetNumLeaves(), 4);
+
+  auto empty_leaf = tree[4].LeafValue();
+  obj->UpdateTreeLeaf(row_idx_v, info, predt, 0, &tree);
+  ASSERT_EQ(tree[3].LeafValue(), -5);
+  ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
+  ASSERT_EQ(tree[5].LeafValue(), -10);
+  ASSERT_EQ(tree[6].LeafValue(), -14);
 }
 }  // namespace xgboost

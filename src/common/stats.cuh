@@ -18,36 +18,6 @@
 
 namespace xgboost {
 namespace common {
-namespace detail {
-template <typename SegIt, typename ValIt>
-inline void SegmentedArgSort(SegIt seg_begin, SegIt seg_end, ValIt val_begin, ValIt val_end,
-                             dh::device_vector<size_t>* p_sorted_idx) {
-  using Tup = thrust::tuple<size_t, float>;
-  auto& sorted_idx = *p_sorted_idx;
-  size_t n = std::distance(val_begin, val_end);
-  sorted_idx.resize(n);
-  dh::Iota(dh::ToSpan(sorted_idx));
-  dh::device_vector<Tup> keys(sorted_idx.size());
-  auto key_it = dh::MakeTransformIterator<Tup>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> Tup {
-        auto leaf_idx = dh::SegmentId(seg_begin, seg_end, i);
-        auto residue = val_begin[i];
-        return thrust::make_tuple(leaf_idx, residue);
-      });
-  dh::XGBCachingDeviceAllocator<char> caching;
-  thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
-
-  dh::XGBDeviceAllocator<char> alloc;
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
-                             [=] XGBOOST_DEVICE(Tup const& l, Tup const& r) {
-                               if (thrust::get<0>(l) != thrust::get<0>(r)) {
-                                 return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
-                               }
-                               return thrust::get<1>(l) < thrust::get<1>(r);  // residue
-                             });
-}
-}  // namespace detail
-
 /**
  * \brief Compute segmented quantile on GPU.
  *
@@ -65,7 +35,7 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
 
   dh::device_vector<size_t> sorted_idx;
   using Tup = thrust::tuple<size_t, float>;
-  detail::SegmentedArgSort(seg_begin, seg_end, val_begin, val_end, &sorted_idx);
+  dh::SegmentedArgSort(seg_begin, seg_end, val_begin, val_end, &sorted_idx);
   auto n_segments = std::distance(seg_begin, seg_end) - 1;
   if (n_segments <= 0) {
     return;
@@ -100,6 +70,7 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
     double x = alpha * static_cast<double>(n + 1);
     double k = std::floor(x) - 1;
     double d = (x - 1) - k;
+
     auto v0 = val[begin + static_cast<size_t>(k)];
     auto v1 = val[begin + static_cast<size_t>(k) + 1];
     d_results[seg_idx] = v0 + d * (v1 - v0);
@@ -112,7 +83,7 @@ void SegmentedWeightedQuantile(Context const* ctx, double alpha, SegIt seg_beg, 
                                HostDeviceVector<float>* quantiles) {
   CHECK(alpha >= 0 && alpha <= 1);
   dh::device_vector<size_t> sorted_idx;
-  detail::SegmentedArgSort(seg_beg, seg_end, val_begin, val_end, &sorted_idx);
+  dh::SegmentedArgSort(seg_beg, seg_end, val_begin, val_end, &sorted_idx);
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
   size_t n_samples = std::distance(w_begin, w_end);
   dh::device_vector<float> weights_cdf(n_samples);

@@ -675,12 +675,18 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
                       RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
+  auto const& h_node_idx = row_index.node_idx.HostVector();
 
-  size_t n_leaf{row_index.node_idx.Size()};
+  size_t n_leaf{h_node_idx.size()};
   rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
     quantiles.resize(n_leaf);
+  }
+  for (size_t i = 0; i < n_leaf; ++i) {
+    if (std::isnan(quantiles[i])) {
+      quantiles[i] = tree[h_node_idx[i]].LeafValue();
+    }
   }
   // use the mean value
   rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
@@ -688,8 +694,6 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
   std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
                  [&](float q) { return q / static_cast<double>(world); });
 
-  // fixme: verify this is correct for external memory
-  auto const& h_node_idx = row_index.node_idx.HostVector();
   for (size_t i = 0; i < row_index.node_idx.Size(); ++i) {
     auto nidx = h_node_idx[i];
     auto q = quantiles[i];
@@ -777,15 +781,12 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
         q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
       }
       if (std::isnan(q)) {
-        // Edge case in distributed training where in a local worker a leaf can have 0
-        // samples.
         CHECK(h_row_set.empty());
-        q = 0;
+        q = tree[nidx].LeafValue();
       }
       results.at(k) = q;
     });
 
-    // fixme: verify this is correct for external memory
     for (size_t i = 0; i < results.size(); ++i) {
       quantiles[i] += results[i];
     }
