@@ -6,7 +6,6 @@
 #ifndef XGBOOST_TREE_UPDATER_APPROX_H_
 #define XGBOOST_TREE_UPDATER_APPROX_H_
 
-#include <cstddef>
 #include <limits>
 #include <utility>
 #include <vector>

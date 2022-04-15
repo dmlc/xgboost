@@ -2,7 +2,6 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <cstddef>
 #include <utility>
 #include <vector>
 

@@ -8,7 +8,6 @@
 #include <thrust/iterator/permutation_iterator.h>
 #include <thrust/sort.h>
 
-#include <cstddef>
 #include <iterator>  // std::distance
 
 #include "device_helpers.cuh"

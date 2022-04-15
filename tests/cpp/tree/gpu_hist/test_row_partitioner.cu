@@ -3,7 +3,6 @@
  */
 #include <gtest/gtest.h>
 #include <algorithm>
-#include <cstddef>
 #include <vector>
 
 #include <thrust/device_vector.h>

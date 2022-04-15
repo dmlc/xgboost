@@ -6,7 +6,6 @@
 #include <xgboost/tree_updater.h>
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
 #include <memory>
 #include <limits>
 #include <utility>
@@ -355,7 +354,6 @@ struct GPUHistMakerDevice {
   }
 
   void UpdatePosition(int nidx, RegTree* p_tree) {
-    // std::cout << "UpdatePosition:" << nidx << std::endl;
     RegTree::Node split_node = (*p_tree)[nidx];
     auto split_type = p_tree->NodeSplitType(nidx);
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
@@ -384,7 +382,6 @@ struct GPUHistMakerDevice {
               new_position = split_node.RightChild();
             }
           }
-          // printf("ridx: %d, pos: %d\n", ridx, new_position);
           return new_position;
         });
   }
@@ -450,7 +447,6 @@ struct GPUHistMakerDevice {
         [=] __device__(size_t row_id, int position) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
-            // printf("out\n");
             return RowPartitioner::kIgnoredTreePosition;
           }
           auto node = d_nodes[position];

@@ -1292,8 +1292,7 @@ class TestWithDask:
         if minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
         else:
-            pass
-            # assert tm.non_increasing(history)
+            assert tm.non_increasing(history)
         # Make sure that it's decreasing
         assert history[-1] < history[0]
 
