@@ -12,6 +12,27 @@
 
 namespace xgboost {
 namespace tree {
+namespace detail {
+inline void FillMissingLeaf(std::vector<bst_node_t> const& missing, RowIndexCache* p_row_indices) {
+  auto& row_indices = *p_row_indices;
+  auto& h_node_idx = row_indices.node_idx.HostVector();
+  auto& h_node_ptr = row_indices.node_ptr.HostVector();
+
+  for (auto leaf : missing) {
+    if (std::binary_search(h_node_idx.cbegin(), h_node_idx.cend(), leaf)) {
+      continue;
+    }
+    auto it = std::upper_bound(h_node_idx.cbegin(), h_node_idx.cend(), leaf);
+    auto pos = it - h_node_idx.cbegin();
+    h_node_idx.insert(h_node_idx.cbegin() + pos, leaf);
+    h_node_ptr.insert(h_node_ptr.cbegin() + pos, h_node_ptr[pos]);
+  }
+
+  // push to device.
+  row_indices.node_idx.ConstDevicePointer();
+  row_indices.node_ptr.ConstDevicePointer();
+}
+}  // namespace detail
 
 /*! \brief Count how many rows are assigned to left node. */
 __forceinline__ __device__ void AtomicIncrement(int64_t* d_count, bool increment) {
@@ -163,7 +184,7 @@ class RowPartitioner {
    * argument and return the new position for this training instance.
    */
   template <typename FinalisePositionOpT, typename Sampledp>
-  void FinalisePosition(Context const* ctx, RegTree const* p_tree, ObjInfo task,
+  void FinalisePosition(Context const* ctx, RegTree const* p_tree, size_t n_leaf, ObjInfo task,
                         std::vector<RowIndexCache>* p_out_row_indices, FinalisePositionOpT op,
                         Sampledp sampledp) {
     auto d_position = position_.Current();
@@ -204,8 +225,6 @@ class RowPartitioner {
     thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position,
                                sorted_position + n_samples, row_indices.row_index.DevicePointer());
 
-    // fixme: we know how many leaves there are
-    size_t n_leaf = p_tree->GetNumLeaves();
     // +1 for subsample, which is set to an unique value in above kernel.
     size_t max_n_unique = n_leaf + 1;
 
@@ -277,9 +296,30 @@ class RowPartitioner {
       *h_num_runs -= 1;  // sampled.
     }
     CHECK_GT(*h_num_runs, 0);
-    // shrink to omit the `kIgnoredTreePosition`.
-    row_indices.node_ptr.Resize(*h_num_runs + 1);
-    row_indices.node_idx.Resize(*h_num_runs);
+    CHECK_LE(*h_num_runs, n_leaf);
+
+    if (*h_num_runs < n_leaf) {
+      // empty leaf, have to fill in all missing leaves
+      auto const& tree = *p_tree;
+      // shrink to omit the `kIgnoredTreePosition`.
+      row_indices.node_ptr.Resize(*h_num_runs + 1);
+      row_indices.node_idx.Resize(*h_num_runs);
+
+      std::vector<bst_node_t> leaves;
+      tree.WalkTree([&](bst_node_t nidx) {
+        if (tree[nidx].IsLeaf()) {
+          leaves.push_back(nidx);
+        }
+        return true;
+      });
+      CHECK_EQ(leaves.size(), n_leaf);
+      // Fill all the leaves that don't have any sample. This is hacky and inefficien. An
+      // alternative is to leave the objective to handle missing leaf, which is more messy
+      // as we need to take other distributed workers into account.
+      detail::FillMissingLeaf(leaves, &row_indices);
+    }
+    CHECK_EQ(row_indices.node_idx.Size(), n_leaf);
+    CHECK_EQ(row_indices.node_ptr.Size(), n_leaf + 1);
   }
 
   /**

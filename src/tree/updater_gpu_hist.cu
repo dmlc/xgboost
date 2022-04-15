@@ -389,7 +389,7 @@ struct GPUHistMakerDevice {
   // After tree update is finished, update the position of all training
   // instances to their final leaf. This information is used later to update the
   // prediction cache
-  void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, ObjInfo task,
+  void FinalisePosition(RegTree const* p_tree, size_t n_leaf, DMatrix* p_fmat, ObjInfo task,
                         std::vector<RowIndexCache>* p_out_row_indices) {
     dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
     dh::safe_cuda(cudaMemcpyAsync(d_nodes.data().get(), p_tree->GetNodes().data(),
@@ -422,12 +422,12 @@ struct GPUHistMakerDevice {
     if (page->n_rows == p_fmat->Info().num_row_) {
       FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
                              dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                             p_out_row_indices);
+                             n_leaf, p_out_row_indices);
     } else {
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
         FinalisePositionInPage(batch.Impl(), p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
                                dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                               p_out_row_indices);
+                               n_leaf, p_out_row_indices);
       }
     }
   }
@@ -439,11 +439,12 @@ struct GPUHistMakerDevice {
                               common::Span<uint32_t const> categories,
                               common::Span<RegTree::Segment> categories_segments,
                               ObjInfo task,
+                              size_t n_leaf,
                               std::vector<RowIndexCache>* p_out_row_indices) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
     row_partitioner->FinalisePosition(
-        ctx_, p_tree, task, p_out_row_indices,
+        ctx_, p_tree, n_leaf, task, p_out_row_indices,
         [=] __device__(size_t row_id, int position) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
@@ -712,7 +713,7 @@ struct GPUHistMakerDevice {
     }
 
     monitor.Start("FinalisePosition");
-    this->FinalisePosition(p_tree, p_fmat, task, p_out_row_indices);
+    this->FinalisePosition(p_tree, num_leaves, p_fmat, task, p_out_row_indices);
     monitor.Stop("FinalisePosition");
   }
 };

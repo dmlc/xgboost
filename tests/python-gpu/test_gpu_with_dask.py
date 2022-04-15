@@ -9,7 +9,7 @@ import xgboost
 import subprocess
 from collections import OrderedDict
 from inspect import signature
-from hypothesis import given, strategies, settings, note
+from hypothesis import given, strategies, settings, note, reproduce_failure
 from hypothesis._settings import duration
 from test_gpu_updaters import parameter_strategy
 
@@ -200,7 +200,12 @@ def run_gpu_hist(
         evals=[(m, "train")],
     )["history"]
     note(history)
-    assert tm.non_increasing(history["train"][dataset.metric])
+
+    # the approximate quantile for leaf can cause error on distributed training
+    if dataset.objective.endswith("-l1"):
+        assert tm.non_increasing(history["train"][dataset.metric], tolerance=1e-3)
+    else:
+        assert tm.non_increasing(history["train"][dataset.metric])
 
 
 @pytest.mark.skipif(**tm.no_cudf())
@@ -236,6 +241,7 @@ class TestDistributedGPU:
     @pytest.mark.parametrize(
         "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
     )
+    # @reproduce_failure('6.14.8', b'AXicY2ZgYGBmZMAOGIESAAD+AAo=')
     def test_gpu_hist(
         self,
         params: Dict,

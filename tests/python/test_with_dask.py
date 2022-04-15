@@ -1291,6 +1291,9 @@ class TestWithDask:
 
         if minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
+        elif dataset.objective.endswith("-l1"):
+            # the approximate quantile for leaf can cause error on distributed training
+            assert tm.non_increasing(history, tolerance=1e-3)
         else:
             assert tm.non_increasing(history)
         # Make sure that it's decreasing
@@ -1299,6 +1302,7 @@ class TestWithDask:
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
+    @reproduce_failure('6.27.2', b'AAAAAAAAAAEAAA==')
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -1308,6 +1312,7 @@ class TestWithDask:
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
+    # @reproduce_failure('6.27.2', b'AXicY2JnNDpff6rLhjXq6iuBo0IcVjvut1lMgdlLZwVcYuBofTkvQOMDKgAyAcAGTcPCw==')
     # @reproduce_failure('6.36.1', b'AXicY2BkIBUwArUAAAB0AAQ=')
     def test_approx(
             self, client: "Client", params: Dict, dataset: tm.TestDataset

@@ -676,7 +676,7 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
 
-  size_t n_leaf{quantiles.size()};
+  size_t n_leaf{row_index.node_idx.Size()};
   rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
