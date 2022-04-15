@@ -249,6 +249,8 @@ class TestGPUPredict:
            tm.dataset_strategy, shap_parameter_strategy)
     @settings(deadline=None, print_blob=True)
     def test_shap(self, num_rounds, dataset, param):
+        if dataset.name.endswith("-l1"):  # not supported by exact tree method
+            return
         param.update({"predictor": "gpu_predictor", "gpu_id": 0})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()

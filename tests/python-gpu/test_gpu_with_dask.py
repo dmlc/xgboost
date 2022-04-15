@@ -203,7 +203,7 @@ def run_gpu_hist(
 
     # See note on `ObjFunction::UpdateTreeLeaf.
     update_leaf = dataset.name.endswith("-l1")
-    if update_leaf:
+    if update_leaf and len(history) >= 2:
         assert history[0] >= history[-1]
         return
     else:
