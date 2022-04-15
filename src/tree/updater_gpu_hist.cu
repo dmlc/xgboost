@@ -223,8 +223,9 @@ struct GPUHistMakerDevice {
     // Init histogram
     hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(ctx_->gpu_id));
-    feature_groups.reset(new FeatureGroups(
-        page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(ctx_->gpu_id), sizeof(GradientSumT)));
+    feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
+                                           dh::MaxSharedMemoryOptin(ctx_->gpu_id),
+                                           sizeof(GradientSumT)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT
