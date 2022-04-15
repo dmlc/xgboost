@@ -267,10 +267,13 @@ class RowPartitioner {
         // smallest value and is sorted to the left.
         // d_unique_out.size() == n_leaf + 1.
         d_node_idx[i] = d_unique_out[i + 1];
-        d_node_ptr[i] = d_counts_out[i + 1];
+        d_node_ptr[i + 1] = d_counts_out[i + 1];
       } else {
         d_node_idx[i] = d_unique_out[i];
-        d_node_ptr[i] = d_counts_out[i];
+        d_node_ptr[i + 1] = d_counts_out[i];
+      }
+      if (i == 0) {
+        d_node_ptr[i] = 0;
       }
     });
     thrust::inclusive_scan(thrust::cuda::par(caching), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),

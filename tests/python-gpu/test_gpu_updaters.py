@@ -47,11 +47,11 @@ class TestGPUUpdaters:
 
     @given(parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
     @settings(deadline=None, print_blob=True)
-    @seed(1234)
     def test_gpu_hist(self, param, num_rounds, dataset):
         param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
+
         note(result)
         assert tm.non_increasing(result["train"][dataset.metric])
 
