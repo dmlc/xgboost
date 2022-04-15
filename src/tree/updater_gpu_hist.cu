@@ -417,7 +417,7 @@ struct GPUHistMakerDevice {
     }
     if (task.UpdateTreeLeaf() && !p_fmat->SingleColBlock() && param.subsample != 1.0) {
       // see comment in the `FinalisePositionInPage`.
-      LOG(FATAL) << "Current objective function can not be used with external memory";
+      LOG(FATAL) << "Current objective function can not be used with subsampled external memory.";
     }
     if (page->n_rows == p_fmat->Info().num_row_) {
       FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
