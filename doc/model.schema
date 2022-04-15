@@ -400,7 +400,6 @@
                 "reg_loss_param"
               ]
             },
-
             {
               "type": "object",
               "properties": {
@@ -432,6 +431,14 @@
                 "name",
                 "tweedie_regression_param"
               ]
+            },
+            {
+              "properties": {
+                "name": {
+                  "const": "reg:absoluteerror"
+                }
+              },
+              "type": "object"
             },
             {
               "type": "object",
