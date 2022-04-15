@@ -305,8 +305,7 @@ class TestDistributedGPU:
 
     def test_empty_dmatrix(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
-            parameters = {'tree_method': 'gpu_hist',
-                          'debug_synchronize': True}
+            parameters = {'tree_method': 'gpu_hist', 'debug_synchronize': True}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
 

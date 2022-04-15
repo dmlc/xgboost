@@ -212,7 +212,7 @@ class RowPartitioner {
     dh::caching_device_vector<size_t> counts_out(max_n_unique + 1, 0);
     auto d_counts_out = dh::ToSpan(counts_out).subspan(0, max_n_unique);
     auto d_num_runs_out = dh::ToSpan(counts_out).subspan(max_n_unique, 1);
-    dh::device_vector<bst_node_t> unique_out(max_n_unique, 0);
+    dh::caching_device_vector<bst_node_t> unique_out(max_n_unique, 0);
     auto d_unique_out = dh::ToSpan(unique_out);
 
     size_t nbytes;
@@ -259,18 +259,21 @@ class RowPartitioner {
         // d_unique_out.size() == n_leaf + 1.
         d_node_idx[i] = d_unique_out[i + 1];
         d_node_ptr[i + 1] = d_counts_out[i + 1];
+        if (i == 0) {
+          d_node_ptr[0] = d_counts_out[0];
+        }
       } else {
         d_node_idx[i] = d_unique_out[i];
         d_node_ptr[i + 1] = d_counts_out[i];
-      }
-      if (i == 0) {
-        d_node_ptr[i] = 0;
+        if (i == 0) {
+          d_node_ptr[0] = 0;
+        }
       }
     });
     thrust::inclusive_scan(thrust::cuda::par(caching), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),
                            dh::tbegin(d_node_ptr));
     dh::CUDAStreamView{streams_[0]}.Sync();
-    if (*h_first_unique == kIgnoredTreePosition){
+    if (*h_first_unique == kIgnoredTreePosition) {
       *h_num_runs -= 1;  // sampled.
     }
     CHECK_GT(*h_num_runs, 0);

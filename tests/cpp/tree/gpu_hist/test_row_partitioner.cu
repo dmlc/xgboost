@@ -158,9 +158,9 @@ void TestFinalise() {
 
   auto const& h_node_ptr = row_index.back().node_ptr.ConstHostVector();
   ASSERT_EQ(h_node_ptr.size(), 3);
-  ASSERT_EQ(h_node_ptr[0], 0);
-  ASSERT_EQ(h_node_ptr[1], 3);
-  ASSERT_EQ(h_node_ptr[2], 6);
+  ASSERT_EQ(h_node_ptr[0], 4);
+  ASSERT_EQ(h_node_ptr[1], 7);
+  ASSERT_EQ(h_node_ptr[2], kNumRows);
 
   auto const& h_node_idx = row_index.back().node_idx.ConstHostVector();
   ASSERT_EQ(h_node_idx.size(), 2);
@@ -168,11 +168,9 @@ void TestFinalise() {
   ASSERT_EQ(h_node_idx[1], 2);
 
   auto const& h_ridx = row_index.back().row_index.ConstHostVector();
-  for (size_t i = h_node_ptr[0]; i < h_node_ptr[1]; ++i) {
-    ASSERT_EQ(h_ridx[i] % 2, 0);
-  }
-  for (size_t i = h_node_ptr[1]; i < h_node_ptr[2]; ++i) {
-    ASSERT_EQ(h_ridx[i] % 2, 1);
+  std::vector<size_t> sol{0, 3, 6, 9, 2, 4, 8, 1, 5, 7};
+  for (size_t i = 0; i < h_ridx.size(); ++i) {
+    ASSERT_EQ(h_ridx[i], sol[i]);
   }
 }
 
