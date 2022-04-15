@@ -1290,9 +1290,10 @@ class TestWithDask:
             return "max_bin" in params and params["max_bin"] == 2
 
         # See note on `ObjFunction::UpdateTreeLeaf.
-        update_leaf = dataset.objective.endswith("-l1")
+        update_leaf = dataset.name.endswith("-l1")
         if update_leaf:
-            assert history[0] > history[-1]
+            assert history[0] >= history[-1]
+            return
         elif minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
         else:
