@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <vector>
 #include "xgboost/base.h"
 #include "../../common/device_helpers.cuh"
 #include "xgboost/generic_parameters.h"
@@ -148,6 +149,13 @@ class RowPartitioner {
     CHECK_GE(left_count, 0);
     ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                    std::max(left_nidx, right_nidx) + 1));
+    // std::cout << "nidx: " << nidx << ", left:" << left_nidx << ", right:" << right_nidx << " count: " << left_count << std::endl;
+    // if (left_count == segment.Size()) {
+    //   LOG(FATAL) << "empty right:" << left_count << ", nidx:" << nidx << std::endl;
+    // }
+    // if (left_count == 0) {
+    //   LOG(FATAL) << "empty left:" << segment.Size() << ", nidx:" << nidx << std::endl;
+    // }
     ridx_segments_[left_nidx] =
         Segment(segment.begin, segment.begin + left_count);
     ridx_segments_[right_nidx] =
@@ -169,7 +177,6 @@ class RowPartitioner {
                         Sampledp sampledp) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
-    auto sorted_position = position_.Other();
     if (!task.zero_hess) {
       dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
         auto position = d_position[idx];
@@ -181,24 +188,20 @@ class RowPartitioner {
         d_position[idx] = new_position;
       });
       return;
-    } else {
-      dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
-        auto position = d_position[idx];
-        RowIndexT ridx = d_ridx[idx];
-        bst_node_t new_position = op(ridx, position);
-        if (sampledp(ridx)) {
-          // push to the end
-          sorted_position[ridx] = std::numeric_limits<bst_node_t>::max();
-        } else {
-          sorted_position[ridx] = new_position;
-        }
-
-        if (new_position == kIgnoredTreePosition) {
-          return;
-        }
-        d_position[idx] = new_position;
-      });
     }
+
+    auto sorted_position = position_.Other();
+    dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
+      auto position = d_position[idx];
+      RowIndexT ridx = d_ridx[idx];
+      bst_node_t new_position = op(ridx, position);
+      sorted_position[ridx] = sampledp(ridx) ? kIgnoredTreePosition : new_position;
+      if (new_position == kIgnoredTreePosition) {
+        return;
+      }
+      d_position[idx] = new_position;
+    });
+
     // copy position to buffer
     size_t n_samples = position_.Size();
     dh::XGBDeviceAllocator<char> alloc;
@@ -210,21 +213,35 @@ class RowPartitioner {
     thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position,
                                sorted_position + n_samples, row_indices.row_index.DevicePointer());
 
+    // fixme: we know how many leaves there are
     size_t n_leaf = p_tree->GetNumLeaves();
-    // +1 for subsample, which is set to a unique value in above kernel.
+    // +1 for subsample, which is set to an unique value in above kernel.
     size_t max_n_unique = n_leaf + 1;
-    dh::caching_device_vector<size_t> unique_out(max_n_unique);
-    dh::caching_device_vector<size_t> counts_out(max_n_unique);
-    dh::TemporaryArray<size_t> num_runs_out(1);
+
+    dh::caching_device_vector<size_t> counts_out(max_n_unique + 1, 0);
+    auto d_counts_out = dh::ToSpan(counts_out).subspan(0, max_n_unique);
+    auto d_num_runs_out = dh::ToSpan(counts_out).subspan(max_n_unique, 1);
+    dh::device_vector<bst_node_t> unique_out(max_n_unique, 0);
+    auto d_unique_out = dh::ToSpan(unique_out);
 
     size_t nbytes;
     cub::DeviceRunLengthEncode::Encode(nullptr, nbytes, sorted_position, unique_out.data().get(),
-                                       counts_out.data().get(), num_runs_out.data().get(),
-                                       n_samples);
+                                       counts_out.data().get(), d_num_runs_out.data(), n_samples);
     dh::TemporaryArray<char> temp(nbytes);
     cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, sorted_position,
                                        unique_out.data().get(), counts_out.data().get(),
-                                       num_runs_out.data().get(), n_samples);
+                                       d_num_runs_out.data(), n_samples);
+
+    dh::XGBCachingDeviceAllocator<char> caching;
+    auto pinned = pinned_.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
+    size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
+    // flag for whether there's ignored position
+    bst_node_t* h_first_unique =
+        reinterpret_cast<bst_node_t*>(pinned.subspan(sizeof(size_t), sizeof(bst_node_t)).data());
+    dh::safe_cuda(cudaMemcpyAsync(h_num_runs, d_num_runs_out.data(), sizeof(size_t),
+                                  cudaMemcpyDeviceToHost, streams_[0]));
+    dh::safe_cuda(cudaMemcpyAsync(h_first_unique, d_unique_out.data(), sizeof(size_t),
+                                  cudaMemcpyDeviceToHost, streams_[0]));
 
     /**
      * copy node index (leaf index)
@@ -232,18 +249,89 @@ class RowPartitioner {
     row_indices.node_idx.SetDevice(ctx->gpu_id);
     row_indices.node_idx.Resize(n_leaf);
     auto d_node_idx = row_indices.node_idx.DeviceSpan();
-    // don't copy the sampled values
-    thrust::copy(thrust::device, unique_out.begin(), unique_out.begin() + n_leaf,
-                 dh::tbegin(d_node_idx));
-    /**
-     * copy node pointer
-     */
-    dh::XGBCachingDeviceAllocator<char> caching;
+
     row_indices.node_ptr.SetDevice(ctx->gpu_id);
     row_indices.node_ptr.Resize(n_leaf + 1, 0);
     auto d_node_ptr = row_indices.node_ptr.DeviceSpan();
-    thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(),
-                           counts_out.begin() + n_leaf, dh::tbegin(d_node_ptr) + 1);
+
+    dh::LaunchN(n_leaf, [=] XGBOOST_DEVICE(size_t i) {
+      if (i >= d_num_runs_out[0]) {
+        // d_num_runs_out <= max_n_unique
+        // this omits all the leaf that are empty. A leaf can be empty when there's
+        // missing data, which can be caused by sparse input and distributed training.
+        return;
+      }
+      if (d_unique_out[0] == kIgnoredTreePosition) {
+        // shift 1 to the left
+        // some rows are ignored due to sampling, `kIgnoredTreePosition` is -1 so it's the
+        // smallest value and is sorted to the left.
+        // d_unique_out.size() == n_leaf + 1.
+        d_node_idx[i] = d_unique_out[i + 1];
+        d_node_ptr[i] = d_counts_out[i + 1];
+      } else {
+        d_node_idx[i] = d_unique_out[i];
+        d_node_ptr[i] = d_counts_out[i];
+      }
+    });
+    thrust::inclusive_scan(thrust::cuda::par(caching), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),
+                           dh::tbegin(d_node_ptr));
+    dh::CUDAStreamView{streams_[0]}.Sync();
+    if (*h_first_unique == kIgnoredTreePosition){
+      *h_num_runs -= 1;  // sampled.
+    }
+    // shrink to omit the `kIgnoredTreePosition`.
+    row_indices.node_ptr.Resize(*h_num_runs);
+    row_indices.node_idx.Resize(*h_num_runs);
+
+    // std::cout << "n_leaf: " << n_leaf << std::endl;
+    // auto const& self = *p_tree;
+    // p_tree->WalkTree([&self](bst_node_t nidx) {
+    //   if (self[nidx].IsLeaf()) {
+    //     std::cout << nidx << ", p:" << self[nidx].Parent() << ", ";
+    //   }
+    //   return true;
+    // });
+    // std::cout << std::endl;
+
+    auto const& h_node_idx = row_indices.node_idx.ConstHostVector();
+    for (size_t i = 0; i < n_leaf; ++i) {
+      auto nidx = unique_out[i];
+      // std::cout << "nidx:" << nidx << std::endl;
+      if (!((*p_tree)[nidx].IsLeaf()) && n_leaf != 1) {
+        std::cout << __LINE__ << " sorted position" << std::endl;
+        std::vector<bst_node_t> h_sorted(position_.Size());
+        dh::CopyDeviceSpanToVector(
+            &h_sorted, common::Span<bst_node_t const>{sorted_position, position_.Size()});
+        for (auto v : h_sorted) {
+          std::cout << v << ", ";
+        }
+        std::cout << std::endl;
+      }
+      CHECK((*p_tree)[nidx].IsLeaf() || n_leaf == 1) << " nidx:" << nidx;
+    }
+
+    /**
+     * copy node pointer
+     */
+    // thrust::inclusive_scan(thrust::cuda::par(caching), counts_out.begin(),
+    //                        counts_out.begin() + n_leaf, dh::tbegin(d_node_ptr) + 1);
+    // auto const& h_node_ptr = row_indices.node_ptr.ConstHostVector();
+    // auto total = h_node_ptr.back();
+    // if (total != this->ridx_.Size()) {
+    //   std::cout << "Counts, n_leaf: " << n_leaf << std::endl;
+    //   for (size_t i = 0; i < n_leaf; ++i) {
+    //     std::cout << counts_out[i] << ", ";
+    //   }
+    //   std::cout << std::endl;
+
+    //   std::cout << "nodes, n_leaf: " << n_leaf << std::endl;
+    //   for (auto nidx : h_node_idx) {
+    //     std::cout << nidx << ", ";
+    //   }
+    //   std::cout << std::endl;
+    // }
+
+    // CHECK_EQ(total, this->ridx_.Size());
   }
 
   /**

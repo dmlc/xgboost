@@ -3,7 +3,7 @@ import sys
 import gc
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
+from hypothesis import given, strategies, assume, settings, note, reproduce_failure, seed
 
 sys.path.append("tests/python")
 import testing as tm
@@ -11,8 +11,8 @@ import test_updaters as test_up
 
 
 parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(0, 11),
-    'max_leaves': strategies.integers(0, 256),
+    'max_depth': strategies.integers(0, 4),
+    'max_leaves': strategies.integers(0, 8),
     'max_bin': strategies.integers(2, 1024),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
     'single_precision_histogram': strategies.booleans(),
@@ -47,6 +47,7 @@ class TestGPUUpdaters:
 
     @given(parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
     @settings(deadline=None, print_blob=True)
+    @seed(1234)
     def test_gpu_hist(self, param, num_rounds, dataset):
         param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)

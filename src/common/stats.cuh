@@ -84,6 +84,10 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
     size_t seg_idx = i;
     size_t begin = seg_begin[seg_idx];
     auto n = static_cast<double>(seg_begin[seg_idx + 1] - begin);
+    if (n == 0) {
+      d_results[i] = 0;
+      return;
+    }
 
     if (alpha <= (1 / (n + 1))) {
       d_results[i] = val[begin];
@@ -134,6 +138,10 @@ void SegmentedWeightedQuantile(Context const* ctx, double alpha, SegIt seg_beg, 
     size_t seg_idx = i;
     size_t begin = seg_beg[seg_idx];
     auto n = static_cast<double>(seg_beg[seg_idx + 1] - begin);
+    if (n == 0) {
+      d_results[i] = 0;
+      return;
+    }
     auto leaf_cdf = d_weight_cdf.subspan(begin, static_cast<size_t>(n));
     auto leaf_sorted_idx = d_sorted_idx.subspan(begin, static_cast<size_t>(n));
     float thresh = leaf_cdf.back() * alpha;

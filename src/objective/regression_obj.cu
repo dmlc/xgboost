@@ -715,6 +715,8 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
 
   part.row_index.SetDevice(ctx->gpu_id);
   auto d_row_index = part.row_index.ConstDeviceSpan();
+  auto const& h_node_ptr = part.node_ptr.ConstHostVector();
+  CHECK_LE(h_node_ptr.back(), info.num_row_);
   part.node_ptr.SetDevice(ctx->gpu_id);
   auto seg_beg = part.node_ptr.ConstDeviceSpan().data();
   auto seg_end = seg_beg + part.node_ptr.Size();
@@ -751,6 +753,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     std::vector<float> results(part.node_idx.Size());
     auto const& h_node_idx = part.node_idx.ConstHostVector();
     auto const& h_node_ptr = part.node_ptr.ConstHostVector();
+    CHECK_LE(h_node_ptr.back(), info.num_row_);
     common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
       auto nidx = h_node_idx[k];
       CHECK(tree[nidx].IsLeaf());

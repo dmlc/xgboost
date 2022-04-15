@@ -175,10 +175,26 @@ def train(
 
     bst = cb_container.before_training(bst)
 
+    def filename(pre, ext):
+        i = 0
+        fn = f"{pre}-" + str(i) + f".{ext}"
+        while os.path.exists(fn):
+            i += 1
+            fn = f"{pre}-" + str(i) + f".{ext}"
+        return fn
+
     for i in range(start_iteration, num_boost_round):
+        print("i: ", i)
         if cb_container.before_iteration(bst, i, dtrain, evals):
             break
-        bst.update(dtrain, i, obj)
+        try:
+            bst.update(dtrain, i, obj)
+        except XGBoostError:
+            import pickle
+            with open(filename("model", "pkl"), "bw") as fd:
+                pickle.dump(bst, fd)
+            dtrain.save_binary(filename("Xy", "dmatrix"))
+            raise
         if cb_container.after_iteration(bst, i, dtrain, evals):
             break
 
