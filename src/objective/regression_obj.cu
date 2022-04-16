@@ -696,7 +696,7 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
   rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
   for (size_t i = 0; i < n_leaf; ++i) {
     if (n_valids[i] > 0) {
-      quantiles[i] /= static_cast<double>(n_valids[i]);
+      quantiles[i] /= static_cast<float>(n_valids[i]);
     } else {
       // Use original leaf value if no worker can provide the quantile.
       quantiles[i] = tree[h_node_idx[i]].LeafValue();
