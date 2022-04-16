@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>

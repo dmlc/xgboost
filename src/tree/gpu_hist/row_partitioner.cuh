@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #pragma once
 #include <limits>

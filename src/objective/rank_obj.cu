@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 XGBoost contributors
+ * Copyright 2015-2022 XGBoost contributors
  */
 #include <dmlc/omp.h>
 #include <dmlc/timer.h>

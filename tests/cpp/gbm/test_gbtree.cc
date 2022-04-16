@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 XGBoost contributors
+ * Copyright 2019-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>

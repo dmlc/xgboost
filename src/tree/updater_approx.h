@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022 XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */

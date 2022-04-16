@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen

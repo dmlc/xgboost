@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2022 by Contributors
  * \file custom_metric.cc
  * \brief This is an example to define plugin of xgboost.
  *  This plugin defines the additional metric function.

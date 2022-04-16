@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 by Contributors
+ * Copyright 2017-2022 by Contributors
  * \file row_set.h
  * \brief Quick Utility to compute subset of rows
  * \author Philip Cho, Tianqi Chen
