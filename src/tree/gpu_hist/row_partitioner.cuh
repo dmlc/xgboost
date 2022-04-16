@@ -175,13 +175,16 @@ class RowPartitioner {
   }
 
   /**
-   * \brief Finalise the position of all training instances after tree
-   * construction is complete. Does not update any other meta information in
-   * this data structure, so should only be used at the end of training.
+   * \brief Finalise the position of all training instances after tree construction is
+   * complete. Does not update any other meta information in this data structure, so
+   * should only be used at the end of training.
+   *
+   *   When the task requires update leaf, this function will copy the row partitions into
+   *   p_out_row_indices. Note that the node ptr might not start from 0 due to sampling.
    *
    * \param p_out_row_indices Row partitions for each leaf.
    * \param op Device lambda. Should provide the row index and current position as an
-   * argument and return the new position for this training instance.
+   *           argument and return the new position for this training instance.
    */
   template <typename FinalisePositionOpT, typename Sampledp>
   void FinalisePosition(Context const* ctx, RegTree const* p_tree, size_t n_leaf, ObjInfo task,
@@ -313,7 +316,7 @@ class RowPartitioner {
         return true;
       });
       CHECK_EQ(leaves.size(), n_leaf);
-      // Fill all the leaves that don't have any sample. This is hacky and inefficien. An
+      // Fill all the leaves that don't have any sample. This is hacky and inefficient. An
       // alternative is to leave the objective to handle missing leaf, which is more messy
       // as we need to take other distributed workers into account.
       detail::FillMissingLeaf(leaves, &row_indices);

@@ -683,22 +683,31 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
   if (quantiles.empty()) {
     quantiles.resize(n_leaf);
   }
+
+  // number of workers that have valid quantiles
+  std::vector<int32_t> n_valids(quantiles.size());
+  std::transform(quantiles.cbegin(), quantiles.cend(), n_valids.begin(),
+                 [](float q) { return static_cast<int32_t>(!std::isnan(q)); });
+  rabit::Allreduce<rabit::op::Sum>(n_valids.data(), n_valids.size());
+  // convert to 0 for all reduce
+  std::replace_if(
+      quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
+  // use the mean value
+  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
   for (size_t i = 0; i < n_leaf; ++i) {
-    if (std::isnan(quantiles[i])) {
+    if (n_valids[i] > 0) {
+      quantiles[i] /= static_cast<double>(n_valids[i]);
+    } else {
+      // Use original leaf value if no worker can provide the quantile.
       quantiles[i] = tree[h_node_idx[i]].LeafValue();
     }
   }
-  // use the mean value
-  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
-  auto world = rabit::GetWorldSize();
-  std::transform(quantiles.begin(), quantiles.end(), quantiles.begin(),
-                 [&](float q) { return q / static_cast<double>(world); });
 
   for (size_t i = 0; i < row_index.node_idx.Size(); ++i) {
     auto nidx = h_node_idx[i];
     auto q = quantiles[i];
     CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q);  // fixme: exact tree method
+    tree[nidx].SetLeaf(q);
   }
 }
 
@@ -750,11 +759,14 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
   auto& tree = *p_tree;
   CHECK(!row_index.empty());
   std::vector<float> quantiles(row_index.front().node_idx.Size(), 0);
+  std::vector<int32_t> n_valids(quantiles.size(), 0);
+  // loop over external memory partitions
   for (auto const& part : row_index) {
     std::vector<float> results(part.node_idx.Size());
     auto const& h_node_idx = part.node_idx.ConstHostVector();
     auto const& h_node_ptr = part.node_ptr.ConstHostVector();
     CHECK_LE(h_node_ptr.back(), info.num_row_);
+    // loop over each leaf
     common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
       auto nidx = h_node_idx[k];
       CHECK(tree[nidx].IsLeaf());
@@ -783,17 +795,27 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       }
       if (std::isnan(q)) {
         CHECK(h_row_set.empty());
-        q = tree[nidx].LeafValue();
       }
       results.at(k) = q;
     });
 
+    // sum result from each external memory partition to quantiles
     for (size_t i = 0; i < results.size(); ++i) {
-      quantiles[i] += results[i];
+      if (!std::isnan(results[i])) {
+        quantiles[i] += results[i];
+        n_valids[i]++;
+      }
     }
   }
-  std::transform(quantiles.cbegin(), quantiles.cend(), quantiles.begin(),
-                 [&](float q) { return q / static_cast<float>(row_index.size()); });
+
+  for (size_t i = 0; i < quantiles.size(); ++i) {
+    if (n_valids[i] > 0) {
+      quantiles[i] /= n_valids[i];
+    } else {
+      // mark that no page has valid sample in the i^th leaf
+      quantiles[i] = std::numeric_limits<float>::quiet_NaN();
+    }
+  }
 
   UpdateLeafValues(&quantiles, row_index.front(), p_tree);
 }
