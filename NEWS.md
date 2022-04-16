@@ -13,12 +13,9 @@ features and notable bug fixes for that binding.
 ### Development of categorical data support
 This version of XGBoost features new improvements and full coverage of experimental
 categorical data support in Python and C package with tree model.  Both `hist`, `approx`
-and `gpu_hist` now supports training with categorical data.  Also, partition-based
-categorical split is featured in this release. This split type is first available in
-LightGBM in the context of gradient boosting. In the previous version, only `gpu_hist`
-supports one-hot encoding-based split which has the form of `x \in {c}` where `{c}` is the
-set of all categories. In this new release, the `{c}` can be optionally split into 2 sets
-for the left and right nodes using any of the aforementioned tree methods. For more
+and `gpu_hist` now support training with categorical data.  Also, partition-based
+categorical split is introduced in this release. This split type is first available in
+LightGBM in the context of gradient boosting. The previous XGBoost release supported one-hot split where the splitting criteria is of form `x \in {c}`, i.e. the categorical feature `x` is tested against a single candidate. The new release allows for more expressive conditions: `x \in S` where the categorical feature `x` is tested against multiple candidates. Moreover, it is now possible to use any tree algorithms (`hist`, `approx`, `gpu_hist`) when creating categorical splits. For more
 information, please see our tutorial on [categorical
 data](https://xgboost.readthedocs.io/en/latest/tutorials/categorical.html), along with
 examples linked on that page. (#7380, #7708, #7695, #7330, #7307, #7322, #7705,
@@ -52,9 +49,9 @@ to disk IO. (#7531, #7320, #7638, #7372)
 
 ### Rewritten approx
 
-The `approx` tree method is rewritten based on the existing `hist` tree method, the
+The `approx` tree method is rewritten based on the existing `hist` tree method. The
 rewrite closes the feature gap between `approx` and `hist` and improves the performance.
-Now the behavior and `approx` should be more aligned with `hist` and `gpu_hist`, here's a
+Now the behavior of `approx` should be more aligned with `hist` and `gpu_hist`. Here is a
 list of user-visible changes:
 
 - Supports both `max_leaves` and `max_depth`.
