@@ -44,9 +44,9 @@ TEST(Approx, Partitioner) {
       float split_value = page.cut.Values().at(ptr / 2);
       RegTree tree;
       GetSplit(&tree, split_value, &candidates);
-      auto left_nidx = tree[RegTree::kRoot].LeftChild();
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
 
+      auto left_nidx = tree[RegTree::kRoot].LeftChild();
       auto elem = partitioner[left_nidx];
       ASSERT_LT(elem.Size(), n_samples);
       ASSERT_GT(elem.Size(), 1);
@@ -54,6 +54,7 @@ TEST(Approx, Partitioner) {
         auto value = page.cut.Values().at(page.index[*it]);
         ASSERT_LE(value, split_value);
       }
+
       auto right_nidx = tree[RegTree::kRoot].RightChild();
       elem = partitioner[right_nidx];
       for (auto it = elem.begin; it != elem.end; ++it) {
@@ -61,6 +62,70 @@ TEST(Approx, Partitioner) {
         ASSERT_GT(value, split_value) << *it;
       }
     }
+  }
+}
+namespace {
+void TestLeafPartition(size_t n_samples) {
+  size_t const n_features = 2, base_rowid = 0;
+  common::RowSetCollection row_set;
+  ApproxRowPartitioner partitioner{n_samples, base_rowid};
+
+  auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+  GenericParameter ctx;
+  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  RegTree tree;
+  std::vector<float> hess(n_samples, 0);
+  // emulate sampling
+  auto not_sampled = [](size_t i) {
+    size_t const kSampleFactor{3};
+    return i % kSampleFactor != 0;
+  };
+  size_t n{0};
+  for (size_t i = 0; i < hess.size(); ++i) {
+    if (not_sampled(i)) {
+      hess[i] = 1.0f;
+      ++n;
+    }
+  }
+
+  std::vector<size_t> h_nptr;
+  float split_value;
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({Context::kCpuId, 64})) {
+    bst_feature_t const split_ind = 0;
+    auto ptr = page.cut.Ptrs()[split_ind + 1];
+    split_value = page.cut.Values().at(ptr / 2);
+    GetSplit(&tree, split_value, &candidates);
+    partitioner.UpdatePosition(&ctx, page, candidates, &tree);
+    std::vector<RowIndexCache> cache;
+    partitioner.LeafPartition(&ctx, tree, hess, &cache);
+    auto const& row_idx = cache.front();
+    ASSERT_EQ(n, row_idx.row_index.Size());
+    h_nptr = row_idx.node_ptr.ConstHostVector();
+    ASSERT_EQ(h_nptr.size(), 3);
+    ASSERT_EQ(h_nptr[0], 0);
+    ASSERT_EQ(h_nptr[2], n);  // equal to sampled rows
+
+    ASSERT_EQ(row_idx.node_idx.Size(), 2);
+    ASSERT_EQ(row_idx.node_idx.HostVector()[0], 1);
+    ASSERT_EQ(row_idx.node_idx.HostVector()[1], 2);
+  }
+
+  for (auto const& page : Xy->GetBatches<SparsePage>()) {
+    auto batch = page.GetView();
+    size_t left{0};
+    for (size_t i = 0; i < batch.Size(); ++i) {
+      if (not_sampled(i) && batch[i].front().fvalue < split_value) {
+        left++;
+      }
+    }
+    ASSERT_EQ(left, h_nptr[1]);  // equal to number of sampled assigned to left
+  }
+}
+}  // anonymous namespace
+
+TEST(Approx, LeafPartition) {
+  for (auto n_samples : {0ul, 1ul, 128ul, 256ul}) {
+    TestLeafPartition(n_samples);
   }
 }
 }  // namespace tree

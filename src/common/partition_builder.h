@@ -285,31 +285,32 @@ class PartitionBuilder {
   void LeafPartition(Context const* ctx, RegTree const& tree, RowSetCollection const& row_set,
                      std::vector<RowIndexCache>* p_out_row_indices, Sampledp sampledp) const {
     p_out_row_indices->emplace_back(ctx, row_set.Data()->size());
-    auto& h_row_index = p_out_row_indices->back().row_index.HostVector();
-    auto& h_node_ptr = p_out_row_indices->back().node_ptr.HostVector();
-    auto& h_node_nidx = p_out_row_indices->back().node_idx.HostVector();
-    CHECK(h_node_ptr.empty());
+    auto& h_ridx = p_out_row_indices->back().row_index.HostVector();
+    auto& h_nptr = p_out_row_indices->back().node_ptr.HostVector();
+    auto& h_nidx = p_out_row_indices->back().node_idx.HostVector();
+    CHECK(h_nptr.empty());
 
     auto p_begin = row_set.Data()->data();
     size_t offset{0};
-    h_node_ptr.push_back(offset);
+    h_nptr.push_back(offset);
     for (auto node : row_set) {
-      if (!node.begin) {
+      if (!tree[node.node_id].IsLeaf()) {
         continue;
       }
-      CHECK(node.begin && tree[node.node_id].IsLeaf());
-      size_t ptr_offset = node.end - p_begin;
-      CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
-      for (auto idx = node.begin; idx != node.end; ++idx) {
-        if (!sampledp(*idx)) {
-          h_row_index[offset++] = *idx;
+      if (node.begin) {  // guard for empty node.
+        size_t ptr_offset = node.end - p_begin;
+        CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
+        for (auto idx = node.begin; idx != node.end; ++idx) {
+          if (!sampledp(*idx)) {
+            h_ridx[offset++] = *idx;
+          }
         }
       }
-      h_node_ptr.push_back(offset);
-      h_node_nidx.push_back(node.node_id);
+      h_nptr.push_back(offset);
+      h_nidx.push_back(node.node_id);
     }
     CHECK_LE(offset, row_set.Data()->size());
-    h_row_index.resize(offset);
+    h_ridx.resize(offset);
   }
 
  protected:
