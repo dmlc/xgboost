@@ -1,104 +1,47 @@
 #include <federated.grpc.pb.h>
-#include <federated.pb.h>
 #include <grpcpp/server_builder.h>
 
 #include <condition_variable>
 #include <mutex>
-#include <utility>
 
 namespace xgboost::federated {
 
-template <class Request, class Reply>
-class Operation {
+class AllgatherHandler {
  public:
-  Operation(std::string name, int const world_size)
-      : name_{std::move(name)}, world_size_{world_size} {}
+  std::string const name{"Allgather"};
 
-  grpc::Status Operate(Request const* request, Reply* reply) {
-    // Pass through if there is only 1 client.
-    if (world_size_ == 1) {
-      reply->set_receive_buffer(request->send_buffer());
-      return grpc::Status::OK;
-    }
+  explicit AllgatherHandler(int const world_size) : world_size_{world_size} {}
 
-    std::unique_lock lock(mutex_);
-
-    auto const rank = request->rank();
-
-    std::cout << name_ << " rank " << rank << ": on request\n";
-    OnRequest(request);
-    received_++;
-
-    if (received_ == world_size_) {
-      std::cout << name_ << " rank " << rank << ": all requests received\n";
-      reply->set_receive_buffer(buffer_);
-      sent_++;
-      lock.unlock();
-      cv_.notify_all();
-      return grpc::Status::OK;
-    }
-
-    std::cout << name_ << " rank " << rank << ": waiting for all clients\n";
-    cv_.wait(lock, [this] { return received_ == world_size_; });
-
-    std::cout << name_ << " rank " << rank << ": sending reply\n";
-    reply->set_receive_buffer(buffer_);
-    sent_++;
-
-    if (sent_ == world_size_) {
-      std::cout << name_ << " rank " << rank << ": all replies sent\n";
-      sent_ = 0;
-      received_ = 0;
-      buffer_.clear();
-    }
-
-    return grpc::Status::OK;
-  }
-
- protected:
-  virtual void OnRequest(Request const* request) = 0;
-
-  std::string const name_;
-  int const world_size_;
-  int received_{};
-  int sent_{};
-  std::string buffer_{};
-  mutable std::mutex mutex_;
-  mutable std::condition_variable cv_;
-};
-
-class AllgatherOp : public Operation<AllgatherRequest, AllgatherReply> {
- public:
-  explicit AllgatherOp(int const world_size)
-      : Operation<AllgatherRequest, AllgatherReply>("Allgather", world_size) {}
-
- protected:
-  void OnRequest(AllgatherRequest const* request) override {
+  void Handle(AllgatherRequest const* request, std::string& buffer) const {
     auto const rank = request->rank();
     auto const& send_buffer = request->send_buffer();
-    auto const buffer_size = send_buffer.size();
-    buffer_.resize(buffer_size * world_size_);
-    buffer_.replace(rank * buffer_size, buffer_size, send_buffer);
+    auto const send_size = send_buffer.size();
+    if (buffer.size() != send_size * world_size_) {
+      buffer.resize(send_size * world_size_);
+    }
+    buffer.replace(rank * send_size, send_size, send_buffer);
   }
+
+ private:
+  int const world_size_;
 };
 
-class AllreduceOp : public Operation<AllreduceRequest, AllreduceReply> {
+class AllreduceHandler {
  public:
-  explicit AllreduceOp(int const world_size)
-      : Operation<AllreduceRequest, AllreduceReply>("Allreduce", world_size) {}
+  std::string const name{"Allreduce"};
 
- protected:
-  void OnRequest(AllreduceRequest const* request) override {
-    if (buffer_.empty()) {
-      buffer_ = request->send_buffer();
+  void Handle(AllreduceRequest const* request, std::string& buffer) const {
+    if (buffer.empty()) {
+      buffer = request->send_buffer();
     } else {
-      Accumulate(request->send_buffer(), request->data_type(), request->reduce_operation());
+      Accumulate(buffer, request->send_buffer(), request->data_type(), request->reduce_operation());
     }
   }
 
  private:
   template <class T>
-  void Accumulate(T* buffer, T const* input, std::size_t n, ReduceOperation reduce_operation) {
+  void Accumulate(T* buffer, T const* input, std::size_t n,
+                  ReduceOperation reduce_operation) const {
     switch (reduce_operation) {
       case ReduceOperation::MAX:
         std::transform(buffer, buffer + n, input, buffer, [](T a, T b) { return std::max(a, b); });
@@ -114,55 +57,56 @@ class AllreduceOp : public Operation<AllreduceRequest, AllreduceReply> {
     }
   }
 
-  void Accumulate(std::string const& input, DataType data_type, ReduceOperation reduce_operation) {
+  void Accumulate(std::string& buffer, std::string const& input, DataType data_type,
+                  ReduceOperation reduce_operation) const {
     switch (data_type) {
       case DataType::CHAR:
-        Accumulate(buffer_.data(), input.data(), buffer_.size(), reduce_operation);
+        Accumulate(buffer.data(), input.data(), buffer.size(), reduce_operation);
         break;
       case DataType::UCHAR:
-        Accumulate(reinterpret_cast<unsigned char*>(buffer_.data()),
-                   reinterpret_cast<unsigned char const*>(input.data()), buffer_.size(),
+        Accumulate(reinterpret_cast<unsigned char*>(buffer.data()),
+                   reinterpret_cast<unsigned char const*>(input.data()), buffer.size(),
                    reduce_operation);
         break;
       case DataType::INT:
-        Accumulate(reinterpret_cast<int*>(buffer_.data()),
-                   reinterpret_cast<int const*>(input.data()), buffer_.size() / sizeof(int),
+        Accumulate(reinterpret_cast<int*>(buffer.data()),
+                   reinterpret_cast<int const*>(input.data()), buffer.size() / sizeof(int),
                    reduce_operation);
         break;
       case DataType::UINT:
-        Accumulate(reinterpret_cast<unsigned int*>(buffer_.data()),
+        Accumulate(reinterpret_cast<unsigned int*>(buffer.data()),
                    reinterpret_cast<unsigned int const*>(input.data()),
-                   buffer_.size() / sizeof(unsigned int), reduce_operation);
+                   buffer.size() / sizeof(unsigned int), reduce_operation);
         break;
       case DataType::LONG:
-        Accumulate(reinterpret_cast<long*>(buffer_.data()),
-                   reinterpret_cast<long const*>(input.data()), buffer_.size() / sizeof(long),
+        Accumulate(reinterpret_cast<long*>(buffer.data()),
+                   reinterpret_cast<long const*>(input.data()), buffer.size() / sizeof(long),
                    reduce_operation);
         break;
       case DataType::ULONG:
-        Accumulate(reinterpret_cast<unsigned long*>(buffer_.data()),
+        Accumulate(reinterpret_cast<unsigned long*>(buffer.data()),
                    reinterpret_cast<unsigned long const*>(input.data()),
-                   buffer_.size() / sizeof(unsigned long), reduce_operation);
+                   buffer.size() / sizeof(unsigned long), reduce_operation);
         break;
       case DataType::FLOAT:
-        Accumulate(reinterpret_cast<float*>(buffer_.data()),
-                   reinterpret_cast<float const*>(input.data()), buffer_.size() / sizeof(float),
+        Accumulate(reinterpret_cast<float*>(buffer.data()),
+                   reinterpret_cast<float const*>(input.data()), buffer.size() / sizeof(float),
                    reduce_operation);
         break;
       case DataType::DOUBLE:
-        Accumulate(reinterpret_cast<double*>(buffer_.data()),
-                   reinterpret_cast<double const*>(input.data()), buffer_.size() / sizeof(double),
+        Accumulate(reinterpret_cast<double*>(buffer.data()),
+                   reinterpret_cast<double const*>(input.data()), buffer.size() / sizeof(double),
                    reduce_operation);
         break;
       case DataType::LONGLONG:
-        Accumulate(reinterpret_cast<long long*>(buffer_.data()),
+        Accumulate(reinterpret_cast<long long*>(buffer.data()),
                    reinterpret_cast<long long const*>(input.data()),
-                   buffer_.size() / sizeof(long long), reduce_operation);
+                   buffer.size() / sizeof(long long), reduce_operation);
         break;
       case DataType::ULONGLONG:
-        Accumulate(reinterpret_cast<unsigned long long*>(buffer_.data()),
+        Accumulate(reinterpret_cast<unsigned long long*>(buffer.data()),
                    reinterpret_cast<unsigned long long const*>(input.data()),
-                   buffer_.size() / sizeof(unsigned long long), reduce_operation);
+                   buffer.size() / sizeof(unsigned long long), reduce_operation);
         break;
       default:
         throw std::invalid_argument("Invalid data type");
@@ -170,15 +114,13 @@ class AllreduceOp : public Operation<AllreduceRequest, AllreduceReply> {
   }
 };
 
-class BroadcastOp : public Operation<BroadcastRequest, BroadcastReply> {
+class BroadcastHandler {
  public:
-  explicit BroadcastOp(int const world_size)
-      : Operation<BroadcastRequest, BroadcastReply>("Broadcast", world_size) {}
+  std::string const name{"Broadcast"};
 
- protected:
-  void OnRequest(BroadcastRequest const* request) override {
+  static void Handle(BroadcastRequest const* request, std::string& buffer) {
     if (request->rank() == request->root()) {
-      buffer_ = request->send_buffer();
+      buffer = request->send_buffer();
     }
   }
 };
@@ -186,27 +128,86 @@ class BroadcastOp : public Operation<BroadcastRequest, BroadcastReply> {
 class FederatedService final : public Federated::Service {
  public:
   explicit FederatedService(int const world_size)
-      : allgather_op_{world_size}, allreduce_op_{world_size}, broadcast_op_{world_size} {}
+      : world_size_{world_size},
+        allgather_handler_{world_size},
+        allreduce_handler_{},
+        broadcast_handler_{} {}
 
   grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
                          AllgatherReply* reply) override {
-    return allgather_op_.Operate(request, reply);
+    return Handle(request, reply, allgather_handler_);
   }
 
   grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
                          AllreduceReply* reply) override {
-    return allreduce_op_.Operate(request, reply);
+    return Handle(request, reply, allreduce_handler_);
   }
 
   grpc::Status Broadcast(grpc::ServerContext* context, BroadcastRequest const* request,
                          BroadcastReply* reply) override {
-    return broadcast_op_.Operate(request, reply);
+    return Handle(request, reply, broadcast_handler_);
   }
 
  private:
-  AllgatherOp allgather_op_;
-  AllreduceOp allreduce_op_;
-  BroadcastOp broadcast_op_;
+  template <class Request, class Reply, class RequestHandler>
+  grpc::Status Handle(Request const* request, Reply* reply, RequestHandler const& handler) {
+    // Pass through if there is only 1 client.
+    if (world_size_ == 1) {
+      reply->set_receive_buffer(request->send_buffer());
+      return grpc::Status::OK;
+    }
+
+    std::unique_lock lock(mutex_);
+
+    auto const sequence_number = request->sequence_number();
+    auto const rank = request->rank();
+
+    std::cout << handler.name << " rank " << rank << ": waiting for current sequence number\n";
+    cv_.wait(lock, [this, sequence_number] { return sequence_number_ == sequence_number; });
+
+    std::cout << handler.name << " rank " << rank << ": handling request\n";
+    handler.Handle(request, buffer_);
+    received_++;
+
+    if (received_ == world_size_) {
+      std::cout << handler.name << " rank " << rank << ": all requests received\n";
+      reply->set_receive_buffer(buffer_);
+      sent_++;
+      lock.unlock();
+      cv_.notify_all();
+      return grpc::Status::OK;
+    }
+
+    std::cout << handler.name << " rank " << rank << ": waiting for all clients\n";
+    cv_.wait(lock, [this] { return received_ == world_size_; });
+
+    std::cout << handler.name << " rank " << rank << ": sending reply\n";
+    reply->set_receive_buffer(buffer_);
+    sent_++;
+
+    if (sent_ == world_size_) {
+      std::cout << handler.name << " rank " << rank << ": all replies sent\n";
+      sent_ = 0;
+      received_ = 0;
+      buffer_.clear();
+      sequence_number_++;
+      lock.unlock();
+      cv_.notify_all();
+    }
+
+    return grpc::Status::OK;
+  }
+
+  int const world_size_;
+  AllgatherHandler allgather_handler_;
+  AllreduceHandler allreduce_handler_;
+  BroadcastHandler broadcast_handler_;
+  int received_{};
+  int sent_{};
+  std::string buffer_{};
+  uint64_t sequence_number_{};
+  mutable std::mutex mutex_;
+  mutable std::condition_variable cv_;
 };
 
 void RunServer(int port, int world_size) {

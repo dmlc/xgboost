@@ -28,8 +28,9 @@ enum ReduceOperation {
 }
 
 message AllgatherRequest {
-  int32 rank = 1;
-  bytes send_buffer = 2;
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
 }
 
 message AllgatherReply {
@@ -37,10 +38,11 @@ message AllgatherReply {
 }
 
 message AllreduceRequest {
-  int32 rank = 1;
-  bytes send_buffer = 2;
-  DataType data_type = 3;
-  ReduceOperation reduce_operation = 4;
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+  DataType data_type = 4;
+  ReduceOperation reduce_operation = 5;
 }
 
 message AllreduceReply {
@@ -48,9 +50,10 @@ message AllreduceReply {
 }
 
 message BroadcastRequest {
-  int32 rank = 1;
-  bytes send_buffer = 2;
-  int32 root = 3;
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+  int32 root = 4;
 }
 
 message BroadcastReply {
