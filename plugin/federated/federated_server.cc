@@ -8,12 +8,13 @@
 
 namespace xgboost::federated {
 
-class FederatedService final : public Federated::Service {
+template <class Request, class Reply>
+class Operation {
  public:
-  explicit FederatedService(int const world_size) : world_size_(world_size) {}
+  Operation(std::string name, int const world_size)
+      : name_{std::move(name)}, world_size_{world_size} {}
 
-  grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
-                         AllgatherReply* reply) override {
+  grpc::Status Operate(Request const* request, Reply* reply) {
     // Pass through if there is only 1 client.
     if (world_size_ == 1) {
       reply->set_receive_buffer(request->send_buffer());
@@ -22,131 +23,77 @@ class FederatedService final : public Federated::Service {
 
     std::unique_lock lock(mutex_);
 
+    auto const rank = request->rank();
+
+    std::cout << name_ << " rank " << rank << ": on request\n";
+    OnRequest(request);
+    received_++;
+
+    if (received_ == world_size_) {
+      std::cout << name_ << " rank " << rank << ": all requests received\n";
+      reply->set_receive_buffer(buffer_);
+      sent_++;
+      lock.unlock();
+      cv_.notify_all();
+      return grpc::Status::OK;
+    }
+
+    std::cout << name_ << " rank " << rank << ": waiting for all clients\n";
+    cv_.wait(lock, [this] { return received_ == world_size_; });
+
+    std::cout << name_ << " rank " << rank << ": sending reply\n";
+    reply->set_receive_buffer(buffer_);
+    sent_++;
+
+    if (sent_ == world_size_) {
+      std::cout << name_ << " rank " << rank << ": all replies sent\n";
+      sent_ = 0;
+      received_ = 0;
+      buffer_.clear();
+    }
+
+    return grpc::Status::OK;
+  }
+
+ protected:
+  virtual void OnRequest(Request const* request) = 0;
+
+  std::string const name_;
+  int const world_size_;
+  int received_{};
+  int sent_{};
+  std::string buffer_{};
+  mutable std::mutex mutex_;
+  mutable std::condition_variable cv_;
+};
+
+class AllgatherOp : public Operation<AllgatherRequest, AllgatherReply> {
+ public:
+  explicit AllgatherOp(int const world_size)
+      : Operation<AllgatherRequest, AllgatherReply>("Allgather", world_size) {}
+
+ protected:
+  void OnRequest(AllgatherRequest const* request) override {
     auto const rank = request->rank();
     auto const& send_buffer = request->send_buffer();
     auto const buffer_size = send_buffer.size();
-
-    if (received_ == 0) {
-      std::cout << "Allgather rank " << rank << ": first request, resizing buffer\n";
-      buffer_.resize(buffer_size * world_size_);
-    }
-    std::cout << "Allgather rank " << rank << ": copying send buffer into common buffer\n";
+    buffer_.resize(buffer_size * world_size_);
     buffer_.replace(rank * buffer_size, buffer_size, send_buffer);
-    received_++;
-    std::cout << "Allgather rank " << rank << ": received=" << received_ << '\n';
-
-    if (received_ == world_size_) {
-      std::cout << "Allgather rank " << rank << ": all requests received, sending reply\n";
-      reply->set_receive_buffer(buffer_);
-      sent_++;
-      lock.unlock();
-      cv_.notify_all();
-      return grpc::Status::OK;
-    }
-
-    std::cout << "Allgather rank " << rank << ": waiting for all clients\n";
-    cv_.wait(lock, [this] { return received_ == world_size_; });
-
-    std::cout << "Allgather rank " << rank << ": sending reply\n";
-    reply->set_receive_buffer(buffer_);
-    sent_++;
-
-    if (sent_ == world_size_) {
-      std::cout << "Allgather rank " << rank << ": all replies sent\n";
-      sent_ = 0;
-      received_ = 0;
-      buffer_.clear();
-    }
-
-    return grpc::Status::OK;
   }
+};
 
-  grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
-                         AllreduceReply* reply) override {
-    // Pass through if there is only 1 client.
-    if (world_size_ == 1) {
-      reply->set_receive_buffer(request->send_buffer());
-      return grpc::Status::OK;
-    }
+class AllreduceOp : public Operation<AllreduceRequest, AllreduceReply> {
+ public:
+  explicit AllreduceOp(int const world_size)
+      : Operation<AllreduceRequest, AllreduceReply>("Allreduce", world_size) {}
 
-    std::unique_lock lock(mutex_);
-
-    auto const rank = request->rank();
-
-    if (received_ == 0) {
-      std::cout << "Allreduce rank " << rank << ": first request, copying send buffer\n";
+ protected:
+  void OnRequest(AllreduceRequest const* request) override {
+    if (buffer_.empty()) {
       buffer_ = request->send_buffer();
     } else {
-      std::cout << "Allreduce rank " << rank << ": accumulating send buffer into common buffer\n";
       Accumulate(request->send_buffer(), request->data_type(), request->reduce_operation());
     }
-    received_++;
-
-    if (received_ == world_size_) {
-      std::cout << "Allreduce rank " << rank << ": all requests received\n";
-      reply->set_receive_buffer(buffer_);
-      sent_++;
-      lock.unlock();
-      cv_.notify_all();
-      return grpc::Status::OK;
-    }
-
-    std::cout << "Allreduce rank " << rank << ": waiting for all clients\n";
-    cv_.wait(lock, [this] { return received_ == world_size_; });
-
-    std::cout << "Allreduce rank " << rank << ": sending reply\n";
-    reply->set_receive_buffer(buffer_);
-    sent_++;
-
-    if (sent_ == world_size_) {
-      std::cout << "Allreduce rank " << rank << ": all replies sent\n";
-      sent_ = 0;
-      received_ = 0;
-      buffer_.clear();
-    }
-
-    return grpc::Status::OK;
-  }
-
-  grpc::Status Broadcast(grpc::ServerContext* context,
-                         xgboost::federated::BroadcastRequest const* request,
-                         xgboost::federated::BroadcastReply* reply) override {
-    // Pass through if there is only 1 client.
-    if (world_size_ == 1) {
-      reply->set_receive_buffer(request->send_buffer());
-      return grpc::Status::OK;
-    }
-
-    std::unique_lock lock(mutex_);
-
-    auto const rank = request->rank();
-
-    if (request->rank() == request->root()) {
-      std::cout << "Broadcast rank " << rank << ": root copying send buffer to common buffer\n";
-      buffer_ = request->send_buffer();
-      received_ = world_size_;
-      reply->set_receive_buffer(buffer_);
-      sent_++;
-      lock.unlock();
-      cv_.notify_all();
-      return grpc::Status::OK;
-    }
-
-    std::cout << "Broadcast rank " << rank << ": waiting for the root\n";
-    cv_.wait(lock, [this] { return received_ == world_size_; });
-
-    std::cout << "Broadcast rank " << rank << ": sending reply\n";
-    reply->set_receive_buffer(buffer_);
-    sent_++;
-
-    if (sent_ == world_size_) {
-      std::cout << "Broadcast rank " << rank << ": all replies sent\n";
-      sent_ = 0;
-      received_ = 0;
-      buffer_.clear();
-    }
-
-    return grpc::Status::OK;
   }
 
  private:
@@ -221,13 +168,45 @@ class FederatedService final : public Federated::Service {
         throw std::invalid_argument("Invalid data type");
     }
   }
+};
 
-  int const world_size_;
-  int received_{};
-  int sent_{};
-  std::string buffer_{};
-  mutable std::mutex mutex_;
-  mutable std::condition_variable cv_;
+class BroadcastOp : public Operation<BroadcastRequest, BroadcastReply> {
+ public:
+  explicit BroadcastOp(int const world_size)
+      : Operation<BroadcastRequest, BroadcastReply>("Broadcast", world_size) {}
+
+ protected:
+  void OnRequest(BroadcastRequest const* request) override {
+    if (request->rank() == request->root()) {
+      buffer_ = request->send_buffer();
+    }
+  }
+};
+
+class FederatedService final : public Federated::Service {
+ public:
+  explicit FederatedService(int const world_size)
+      : allgather_op_{world_size}, allreduce_op_{world_size}, broadcast_op_{world_size} {}
+
+  grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
+                         AllgatherReply* reply) override {
+    return allgather_op_.Operate(request, reply);
+  }
+
+  grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
+                         AllreduceReply* reply) override {
+    return allreduce_op_.Operate(request, reply);
+  }
+
+  grpc::Status Broadcast(grpc::ServerContext* context, BroadcastRequest const* request,
+                         BroadcastReply* reply) override {
+    return broadcast_op_.Operate(request, reply);
+  }
+
+ private:
+  AllgatherOp allgather_op_;
+  AllreduceOp allreduce_op_;
+  BroadcastOp broadcast_op_;
 };
 
 void RunServer(int port, int world_size) {
