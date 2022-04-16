@@ -1,15 +1,65 @@
-#include <federation.grpc.pb.h>
-#include <federation.pb.h>
+#include <federated.grpc.pb.h>
+#include <federated.pb.h>
 #include <grpcpp/server_builder.h>
 
 #include <condition_variable>
 #include <mutex>
+#include <utility>
 
 namespace xgboost::federated {
 
-class FederationService final : public Federation::Service {
+class FederatedService final : public Federated::Service {
  public:
-  explicit FederationService(int const world_size) : world_size_(world_size) {}
+  explicit FederatedService(int const world_size) : world_size_(world_size) {}
+
+  grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
+                         AllgatherReply* reply) override {
+    // Pass through if there is only 1 client.
+    if (world_size_ == 1) {
+      reply->set_receive_buffer(request->send_buffer());
+      return grpc::Status::OK;
+    }
+
+    std::unique_lock lock(mutex_);
+
+    auto const rank = request->rank();
+    auto const& send_buffer = request->send_buffer();
+    auto const buffer_size = send_buffer.size();
+
+    if (received_ == 0) {
+      std::cout << "Allgather rank " << rank << ": first request, resizing buffer\n";
+      buffer_.resize(buffer_size * world_size_);
+    }
+    std::cout << "Allgather rank " << rank << ": copying send buffer into common buffer\n";
+    buffer_.replace(rank * buffer_size, buffer_size, send_buffer);
+    received_++;
+    std::cout << "Allgather rank " << rank << ": received=" << received_ << '\n';
+
+    if (received_ == world_size_) {
+      std::cout << "Allgather rank " << rank << ": all requests received, sending reply\n";
+      reply->set_receive_buffer(buffer_);
+      sent_++;
+      lock.unlock();
+      cv_.notify_all();
+      return grpc::Status::OK;
+    }
+
+    std::cout << "Allgather rank " << rank << ": waiting for all clients\n";
+    cv_.wait(lock, [this] { return received_ == world_size_; });
+
+    std::cout << "Allgather rank " << rank << ": sending reply\n";
+    reply->set_receive_buffer(buffer_);
+    sent_++;
+
+    if (sent_ == world_size_) {
+      std::cout << "Allgather rank " << rank << ": all replies sent\n";
+      sent_ = 0;
+      received_ = 0;
+      buffer_.clear();
+    }
+
+    return grpc::Status::OK;
+  }
 
   grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
                          AllreduceReply* reply) override {
@@ -21,38 +71,81 @@ class FederationService final : public Federation::Service {
 
     std::unique_lock lock(mutex_);
 
-    // Wait for all previous replies have been sent.
-    if (sent_ != 0) {
-      cv_.wait(lock, [this] { return sent_ == 0; });
-    }
+    auto const rank = request->rank();
 
     if (received_ == 0) {
-      // Copy the send_buffer if this is the first client.
+      std::cout << "Allreduce rank " << rank << ": first request, copying send buffer\n";
       buffer_ = request->send_buffer();
     } else {
-      // Accumulate the send_buffer into the common buffer.
+      std::cout << "Allreduce rank " << rank << ": accumulating send buffer into common buffer\n";
       Accumulate(request->send_buffer(), request->data_type(), request->reduce_operation());
     }
     received_++;
-    // If all clients have been received, send the reply and notify all.
+
     if (received_ == world_size_) {
-      received_ = 0;
-      sent_++;
+      std::cout << "Allreduce rank " << rank << ": all requests received\n";
       reply->set_receive_buffer(buffer_);
+      sent_++;
       lock.unlock();
       cv_.notify_all();
       return grpc::Status::OK;
     }
 
-    // Wait for all the clients to be received.
-    cv_.wait(lock, [this] { return received_ == 0; });
-    sent_++;
+    std::cout << "Allreduce rank " << rank << ": waiting for all clients\n";
+    cv_.wait(lock, [this] { return received_ == world_size_; });
+
+    std::cout << "Allreduce rank " << rank << ": sending reply\n";
     reply->set_receive_buffer(buffer_);
+    sent_++;
+
     if (sent_ == world_size_) {
+      std::cout << "Allreduce rank " << rank << ": all replies sent\n";
       sent_ = 0;
+      received_ = 0;
+      buffer_.clear();
+    }
+
+    return grpc::Status::OK;
+  }
+
+  grpc::Status Broadcast(grpc::ServerContext* context,
+                         xgboost::federated::BroadcastRequest const* request,
+                         xgboost::federated::BroadcastReply* reply) override {
+    // Pass through if there is only 1 client.
+    if (world_size_ == 1) {
+      reply->set_receive_buffer(request->send_buffer());
+      return grpc::Status::OK;
+    }
+
+    std::unique_lock lock(mutex_);
+
+    auto const rank = request->rank();
+
+    if (request->rank() == request->root()) {
+      std::cout << "Broadcast rank " << rank << ": root copying send buffer to common buffer\n";
+      buffer_ = request->send_buffer();
+      received_ = world_size_;
+      reply->set_receive_buffer(buffer_);
+      sent_++;
       lock.unlock();
       cv_.notify_all();
+      return grpc::Status::OK;
     }
+
+    std::cout << "Broadcast rank " << rank << ": waiting for the root\n";
+    cv_.wait(lock, [this] { return received_ == world_size_; });
+
+    std::cout << "Broadcast rank " << rank << ": sending reply\n";
+    reply->set_receive_buffer(buffer_);
+    sent_++;
+
+    if (sent_ == world_size_) {
+      std::cout << "Broadcast rank " << rank << ": all replies sent\n";
+      sent_ = 0;
+      received_ = 0;
+      buffer_.clear();
+    }
+
     return grpc::Status::OK;
   }
 
@@ -137,15 +230,15 @@ class FederationService final : public Federation::Service {
   mutable std::condition_variable cv_;
 };
 
-void RunServer(int world_size) {
-  std::string const server_address{"0.0.0.0:50051"};
-  FederationService service{world_size};
+void RunServer(int port, int world_size) {
+  std::string const server_address = "0.0.0.0:" + std::to_string(port);
+  FederatedService service{world_size};
 
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(&service);
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  std::cout << "Server listening on " << server_address << " with world size " << world_size
+  std::cout << "Federated server listening on " << server_address << ", world size " << world_size
             << '\n';
 
   server->Wait();
@@ -153,10 +246,12 @@ void RunServer(int world_size) {
 }  // namespace xgboost::federated
 
 int main(int argc, char** argv) {
-  auto world_size{1};
-  if (argc > 1) {
-    world_size = std::stoi(argv[1]);
+  if (argc != 3) {
+    std::cerr << "Usage: federated_server port world_size" << '\n';
+    return 1;
   }
-  xgboost::federated::RunServer(world_size);
+  auto port = std::stoi(argv[1]);
+  auto world_size = std::stoi(argv[2]);
+  xgboost::federated::RunServer(port, world_size);
   return 0;
 }

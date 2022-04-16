@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package xgboost.federated;
+
+service Federated {
+  rpc Allgather(AllgatherRequest) returns (AllgatherReply) {}
+  rpc Allreduce(AllreduceRequest) returns (AllreduceReply) {}
+  rpc Broadcast(BroadcastRequest) returns (BroadcastReply) {}
+}
+
+enum DataType {
+  CHAR = 0;
+  UCHAR = 1;
+  INT = 2;
+  UINT = 3;
+  LONG = 4;
+  ULONG = 5;
+  FLOAT = 6;
+  DOUBLE = 7;
+  LONGLONG = 8;
+  ULONGLONG = 9;
+}
+
+enum ReduceOperation {
+  MAX = 0;
+  MIN = 1;
+  SUM = 2;
+}
+
+message AllgatherRequest {
+  int32 rank = 1;
+  bytes send_buffer = 2;
+}
+
+message AllgatherReply {
+  bytes receive_buffer = 1;
+}
+
+message AllreduceRequest {
+  int32 rank = 1;
+  bytes send_buffer = 2;
+  DataType data_type = 3;
+  ReduceOperation reduce_operation = 4;
+}
+
+message AllreduceReply {
+  bytes receive_buffer = 1;
+}
+
+message BroadcastRequest {
+  int32 rank = 1;
+  bytes send_buffer = 2;
+  int32 root = 3;
+}
+
+message BroadcastReply {
+  bytes receive_buffer = 1;
+}
