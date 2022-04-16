@@ -294,7 +294,7 @@ class PartitionBuilder {
     size_t offset{0};
     h_nptr.push_back(offset);
     for (auto node : row_set) {
-      if (!tree[node.node_id].IsLeaf()) {
+      if (node.node_id < 0 || !tree[node.node_id].IsLeaf()) {
         continue;
       }
       if (node.begin) {  // guard for empty node.

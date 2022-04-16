@@ -89,7 +89,7 @@ void TestLeafPartition(size_t n_samples) {
   }
 
   std::vector<size_t> h_nptr;
-  float split_value;
+  float split_value{0};
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({Context::kCpuId, 64})) {
     bst_feature_t const split_ind = 0;
     auto ptr = page.cut.Ptrs()[split_ind + 1];
