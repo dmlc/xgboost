@@ -251,15 +251,6 @@ std::vector<Idx> ArgSort(Container const &array, Comp comp = std::less<V>{}) {
   return result;
 }
 
-template <typename V, typename Comp = std::less<V>>
-std::vector<size_t> ArgSort(linalg::TensorView<V, 1> array, Comp comp = std::less<V>{}) {
-  std::vector<size_t> result(array.Size());
-  std::iota(result.begin(), result.end(), 0);
-  auto op = [&array, comp](size_t const &l, size_t const &r) { return comp(array(l), array(r)); };
-  XGBOOST_PARALLEL_STABLE_SORT(result.begin(), result.end(), op);
-  return result;
-}
-
 struct OptionalWeights {
   Span<float const> weights;
   float dft{1.0f};  // fixme: make this compile time constant
@@ -270,15 +261,9 @@ struct OptionalWeights {
   XGBOOST_DEVICE float operator[](size_t i) const { return weights.empty() ? dft : weights[i]; }
 };
 
-
 /**
  * Last index of a group in a CSR style of index pointer.
  */
-template <typename Idx>
-XGBOOST_DEVICE size_t LastOf(size_t group, common::Span<Idx> indptr) {
-  return indptr[group + 1] - 1;
-}
-
 template <typename Indexable>
 XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
   return indptr[group + 1] - 1;

@@ -8,7 +8,7 @@
 
 namespace xgboost {
 namespace common {
-TEST(Stats, Percentil) {
+TEST(Stats, Quantile) {
   {
     linalg::Tensor<float, 1> arr({20.f, 0.f, 15.f, 50.f, 40.f, 0.f, 35.f}, {7}, Context::kCpuId);
     std::vector<size_t> index{0, 2, 3, 4, 6};

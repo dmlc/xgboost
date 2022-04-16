@@ -3,7 +3,7 @@ import sys
 import gc
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note, reproduce_failure, seed
+from hypothesis import given, strategies, assume, settings, note
 
 sys.path.append("tests/python")
 import testing as tm

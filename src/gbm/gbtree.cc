@@ -226,7 +226,6 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   auto& trees = *p_trees;
   for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
     auto row_idx = updaters_.back()->GetRowIndexCache(tree_idx);
-    // distinguish the difference between multi-class and multi-target.
     obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), predictions, trees[tree_idx].get());
   }
 }
