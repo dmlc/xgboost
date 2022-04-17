@@ -220,7 +220,11 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
 void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
                             ObjFunction const* obj, size_t gidx,
                             std::vector<std::unique_ptr<RegTree>>* p_trees) {
+  CHECK(!updaters_.empty());
   if (!obj || !obj->Task().UpdateTreeLeaf()) {
+    return;
+  }
+  if (updaters_.back()->GetRowIndexCache(0).empty()) {
     return;
   }
   auto& trees = *p_trees;

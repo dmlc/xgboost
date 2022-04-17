@@ -202,6 +202,9 @@ class GBTree : public GradientBooster {
   void ConfigureUpdaters();
   void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
+  /**
+   * \brief Optionally update the leaf value.
+   */
   void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
                       ObjFunction const* obj, size_t gidx,
                       std::vector<std::unique_ptr<RegTree>>* p_trees);
