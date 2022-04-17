@@ -13,12 +13,12 @@
 namespace xgboost {
 namespace tree {
 namespace detail {
-inline void FillMissingLeaf(std::vector<bst_node_t> const& missing, RowIndexCache* p_row_indices) {
+inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing, RowIndexCache* p_row_indices) {
   auto& row_indices = *p_row_indices;
   auto& h_node_idx = row_indices.node_idx.HostVector();
   auto& h_node_ptr = row_indices.node_ptr.HostVector();
 
-  for (auto leaf : missing) {
+  for (auto leaf : maybe_missing) {
     if (std::binary_search(h_node_idx.cbegin(), h_node_idx.cend(), leaf)) {
       continue;
     }

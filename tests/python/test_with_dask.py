@@ -1289,7 +1289,7 @@ class TestWithDask:
         def minimum_bin():
             return "max_bin" in params and params["max_bin"] == 2
 
-        # See note on `ObjFunction::UpdateTreeLeaf.
+        # See note on `ObjFunction::UpdateTreeLeaf`.
         update_leaf = dataset.name.endswith("-l1")
         if update_leaf and len(history) >= 2:
             assert history[0] >= history[-1]
@@ -1317,7 +1317,6 @@ class TestWithDask:
         self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
         num_rounds = 30
-        # params["eta"] = 0.1
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
     def run_quantile(self, name: str) -> None:
