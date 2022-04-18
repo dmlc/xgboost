@@ -7,7 +7,7 @@ rm -f ./*.model*
 port=9091
 world_size=3
 
-../../build/plugin/federated/federated_server ${port} ${world_size} &
+../../build/plugin/federated/federated_server ${port} ${world_size} > /dev/null &
 
 export FEDERATED_SERVER_ADDRESS="localhost:${port}"
 export FEDERATED_WORLD_SIZE=${world_size}

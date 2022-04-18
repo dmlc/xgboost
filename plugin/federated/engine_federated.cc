@@ -10,6 +10,15 @@
 #include "rabit/internal/engine.h"
 #include "rabit/internal/utils.h"
 
+namespace MPI {  // NOLINT
+// MPI data type to be compatible with existing MPI interface
+class Datatype {
+ public:
+  size_t type_size;
+  explicit Datatype(size_t type_size) : type_size(type_size) {}
+};
+}  // namespace MPI
+
 namespace rabit {
 namespace engine {
 
@@ -24,10 +33,10 @@ class FederatedEngine : public IEngine {
         SetParam(env_var, value);
       }
     }
-    // Command line argument override.
+    // Command line argument overrides.
     for (int i = 0; i < argc; ++i) {
-      std::string key_value = argv[i];
-      auto delimiter = key_value.find('=');
+      std::string const key_value = argv[i];
+      auto const delimiter = key_value.find('=');
       if (delimiter != std::string::npos) {
         SetParam(key_value.substr(0, delimiter), key_value.substr(delimiter + 1));
       }
@@ -37,20 +46,24 @@ class FederatedEngine : public IEngine {
     client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_));
   }
 
-  void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin, size_t slice_end,
+  void Allgather(void *sendrecvbuf, size_t total_size, size_t slice_begin, size_t slice_end,
                  size_t size_prev_slice) override {
     throw std::logic_error("FederatedEngine:: Allgather is not supported");
   }
 
-  void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count, ReduceFunction reducer,
+  std::string Allgather(void *sendbuf, size_t total_size) {
+    std::string const send_buffer(reinterpret_cast<char *>(sendbuf), total_size);
+    return client_->Allgather(send_buffer);
+  }
+
+  void Allreduce(void *sendrecvbuf, size_t type_nbytes, size_t count, ReduceFunction reducer,
                  PreprocFunction prepare_fun, void *prepare_arg) override {
     throw std::logic_error("FederatedEngine:: Allreduce is not supported, use Allreduce_ instead");
   }
 
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  void Allreduce_(void *sendrecvbuf, size_t size, mpi::DataType dtype, mpi::OpType op) {
+  void Allreduce(void *sendrecvbuf, size_t size, mpi::DataType dtype, mpi::OpType op) {
     auto *buffer = reinterpret_cast<char *>(sendrecvbuf);
-    std::string send_buffer(buffer, size);
+    std::string const send_buffer(buffer, size);
     auto const receive_buffer = client_->Allreduce(send_buffer, GetDataType(dtype), GetOp(op));
     receive_buffer.copy(buffer, size);
   }
@@ -60,8 +73,9 @@ class FederatedEngine : public IEngine {
   }
 
   void Broadcast(void *sendrecvbuf, size_t size, int root) override {
+    if (world_size_ == 1) return;
     auto *buffer = reinterpret_cast<char *>(sendrecvbuf);
-    std::string send_buffer(buffer, size);
+    std::string const send_buffer(buffer, size);
     auto const receive_buffer = client_->Broadcast(send_buffer, root);
     if (rank_ != root) {
       receive_buffer.copy(buffer, size);
@@ -190,95 +204,35 @@ void Allreduce_(void *sendrecvbuf, size_t type_nbytes, size_t count, IEngine::Re
                 mpi::DataType dtype, mpi::OpType op, IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
   if (prepare_fun != nullptr) prepare_fun(prepare_arg);
-  engine.Allreduce_(sendrecvbuf, type_nbytes * count, dtype, op);
+  if (engine.GetWorldSize() == 1) return;
+  engine.Allreduce(sendrecvbuf, type_nbytes * count, dtype, op);
 }
 
-// code for reduce handle
-ReduceHandle::ReduceHandle(void) : handle_(NULL), redfunc_(NULL), htype_(NULL) {}
+ReduceHandle::ReduceHandle() : created_type_nbytes_{} {}
+ReduceHandle::~ReduceHandle() = default;
 
-ReduceHandle::~ReduceHandle(void) {
-  /* !WARNING!
-
-     A handle can be held by a tree method/Learner from xgboost.  The booster might not be
-     freed until program exit, while (good) users call rabit.finalize() before reaching
-     the end of program.  So op->Free() might be called after finalization and results
-     into following error:
-
-      ```
-        Attempting to use an MPI routine after finalizing MPICH
-      ```
-
-     Here we skip calling Free if MPI has already been finalized to workaround the issue.
-     It can be a potential leak of memory.  The best way to resolve it is to eliminate all
-     use of long living handle.
-  */
-  int finalized = 0;
-  //  CHECK_EQ(MPI_Finalized(&finalized), MPI_SUCCESS);
-  if (handle_ != NULL) {
-    //    MPI::Op *op = reinterpret_cast<MPI::Op *>(handle_);
-    //    if (!finalized) {
-    //      op->Free();
-    //    }
-    //    delete op;
-  }
-  if (htype_ != NULL) {
-    MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype *>(htype_);
-    if (!finalized) {
-      //      dtype->Free();
-    }
-    //    delete dtype;
-  }
-}
-
-int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
-  return 0;
-  //  return dtype.Get_size();
-}
+int ReduceHandle::TypeSize(const MPI::Datatype &dtype) { return static_cast<int>(dtype.type_size); }
 
 void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
-  utils::Assert(handle_ == NULL, "cannot initialize reduce handle twice");
-  if (type_nbytes != 0) {
-    //    MPI::Datatype *dtype = new MPI::Datatype();
-    //    if (type_nbytes % 8 == 0) {
-    //      *dtype = MPI::LONG.Create_contiguous(type_nbytes / sizeof(long));  // NOLINT(*)
-    //    } else if (type_nbytes % 4 == 0) {
-    //      *dtype = MPI::INT.Create_contiguous(type_nbytes / sizeof(int));
-    //    } else {
-    //      *dtype = MPI::CHAR.Create_contiguous(type_nbytes);
-    //    }
-    //    dtype->Commit();
-    created_type_nbytes_ = type_nbytes;
-    //    htype_ = dtype;
-  }
-  //  MPI::Op *op = new MPI::Op();
-  //  MPI::User_function *pf = redfunc;
-  //  op->Init(pf, true);
-  //  handle_ = op;
+  utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
+  redfunc_ = redfunc;
 }
 
 void ReduceHandle::Allreduce(void *sendrecvbuf, size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun, void *prepare_arg) {
-  utils::Assert(handle_ != NULL, "must initialize handle to call AllReduce");
-  //  MPI::Op *op = reinterpret_cast<MPI::Op *>(handle_);
-  //  MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype *>(htype_);
-  //  if (created_type_nbytes_ != type_nbytes || dtype == NULL) {
-  //    if (dtype == NULL) {
-  //      dtype = new MPI::Datatype();
-  //    } else {
-  //      dtype->Free();
-  //    }
-  //    if (type_nbytes % 8 == 0) {
-  //      *dtype = MPI::LONG.Create_contiguous(type_nbytes / sizeof(long));  // NOLINT(*)
-  //    } else if (type_nbytes % 4 == 0) {
-  //      *dtype = MPI::INT.Create_contiguous(type_nbytes / sizeof(int));
-  //    } else {
-  //      *dtype = MPI::CHAR.Create_contiguous(type_nbytes);
-  //    }
-  //    dtype->Commit();
-  //    created_type_nbytes_ = type_nbytes;
-  //  }
-  //  if (prepare_fun != NULL) prepare_fun(prepare_arg);
-  //  MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, *dtype, *op);
+  utils::Assert(redfunc_ != nullptr, "must initialize handle to call AllReduce");
+  if (prepare_fun != nullptr) prepare_fun(prepare_arg);
+  if (engine.GetWorldSize() == 1) return;
+
+  auto const buffer_size = type_nbytes * count;
+  auto const gathered = engine.Allgather(sendrecvbuf, buffer_size);
+  auto const *data = gathered.data();
+  for (int i = 0; i < engine.GetWorldSize(); i++) {
+    if (i != engine.GetRank()) {
+      redfunc_(data + buffer_size * i, sendrecvbuf, static_cast<int>(count),
+               MPI::Datatype(type_nbytes));
+    }
+  }
 }
 
 }  // namespace engine
