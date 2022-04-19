@@ -14,3 +14,23 @@ cmake -S . -B build -GNinja\
  -DABSL_PROPAGATE_CXX_STD=ON
 cmake --build build --target install
 ```
+
+Build the Plugin
+----------------
+```shell
+# Under xgboost source tree.
+mkdir build
+cd build
+cmake .. -DPLUGIN_FEDERATED=ON
+make -j$(nproc)
+cd ../python-package
+pip install -e .  # or equivalently python setup.py develop
+```
+
+Test Federated XGBoost
+----------------------
+```shell
+# Under xgboost source tree.
+cd tests/distributed
+./runtests-federated.sh
+```
