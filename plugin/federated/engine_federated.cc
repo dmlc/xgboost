@@ -42,6 +42,8 @@ class FederatedEngine : public IEngine {
     client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_));
   }
 
+  void Finalize() { client_.reset(); }
+
   void Allgather(void *sendrecvbuf, size_t total_size, size_t slice_begin, size_t slice_end,
                  size_t size_prev_slice) override {
     throw std::logic_error("FederatedEngine:: Allgather is not supported");
@@ -184,13 +186,21 @@ bool Init(int argc, char *argv[]) {
     engine.Init(argc, argv);
     return true;
   } catch (std::exception const &e) {
-    fprintf(stderr, " failed in Federated Init %s\n", e.what());
+    fprintf(stderr, " failed in federated Init %s\n", e.what());
     return false;
   }
 }
 
 /*! \brief finalize synchronization module */
-bool Finalize() { return true; }
+bool Finalize() {
+  try {
+    engine.Finalize();
+    return true;
+  } catch (const std::exception &e) {
+    fprintf(stderr, "failed in federated shutdown %s\n", e.what());
+    return false;
+  }
+}
 
 /*! \brief singleton method to get engine */
 IEngine *GetEngine() { return &engine; }
