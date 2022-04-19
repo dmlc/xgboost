@@ -26,3 +26,4 @@ target_link_libraries(test_client PRIVATE federated_client)
 
 target_sources(objxgboost PRIVATE engine_federated.cc)
 target_link_libraries(objxgboost PRIVATE federated_client)
+target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_FEDERATED=1)

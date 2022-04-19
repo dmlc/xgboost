@@ -198,11 +198,15 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
                                     DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
+#if defined(XGBOOST_USE_FEDERATED)
+  LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
+#else
   if (rabit::IsDistributed()) {
     LOG(CONSOLE) << "XGBoost distributed mode detected, "
                  << "will split data among workers";
     load_row_split = true;
   }
+#endif
   *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, load_row_split));
   API_END();
 }
