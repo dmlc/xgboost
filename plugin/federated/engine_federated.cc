@@ -1,7 +1,3 @@
-#define NOMINMAX
-#include <mpi.h>
-#include <rabit/base.h>
-
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -208,7 +204,7 @@ void Allreduce_(void *sendrecvbuf, size_t type_nbytes, size_t count, IEngine::Re
   engine.Allreduce(sendrecvbuf, type_nbytes * count, dtype, op);
 }
 
-ReduceHandle::ReduceHandle() : created_type_nbytes_{} {}
+ReduceHandle::ReduceHandle() = default;
 ReduceHandle::~ReduceHandle() = default;
 
 int ReduceHandle::TypeSize(const MPI::Datatype &dtype) { return static_cast<int>(dtype.type_size); }
