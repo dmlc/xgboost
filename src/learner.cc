@@ -419,6 +419,7 @@ class LearnerConfiguration : public Learner {
       obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
     }
     obj_->LoadConfig(objective_fn);
+    learner_model_param_.task = obj_->Task();
 
     tparam_.booster = get<String>(gradient_booster["name"]);
     if (!gbm_) {
@@ -1199,16 +1200,6 @@ class LearnerImpl : public LearnerIO {
     os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
-      auto warn_default_eval_metric = [](const std::string& objective, const std::string& before,
-                                         const std::string& after, const std::string& version) {
-        LOG(WARNING) << "Starting in XGBoost " << version << ", the default evaluation metric "
-                     << "used with the objective '" << objective << "' was changed from '"
-                     << before << "' to '" << after << "'. Explicitly set eval_metric if you'd "
-                     << "like to restore the old behavior.";
-      };
-      if (tparam_.objective == "binary:logitraw") {
-        warn_default_eval_metric(tparam_.objective, "auc", "logloss", "1.4.0");
-      }
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }

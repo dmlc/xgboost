@@ -112,7 +112,7 @@ private[spark] object GpuUtils {
     val msg = if (fitting) "train" else "transform"
     // feature columns
     require(featureNames.nonEmpty, s"Gpu $msg requires features columns. " +
-      "please refer to setFeaturesCols!")
+      "please refer to `setFeaturesCol(value: Array[String])`!")
     featureNames.foreach(fn => checkNumericType(schema, fn))
     if (fitting) {
       require(labelName.nonEmpty, "label column is not set.")

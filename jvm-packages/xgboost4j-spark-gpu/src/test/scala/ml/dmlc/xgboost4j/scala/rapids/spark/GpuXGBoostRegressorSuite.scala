@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostRegressor(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setTreeMethod("gpu_hist")
       (classifier.fit(rawInput), testDf)
@@ -122,7 +122,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
 
       val vectorAssembler = new VectorAssembler()
         .setHandleInvalid("keep")
-        .setInputCols(featureNames.toArray)
+        .setInputCols(featureNames)
         .setOutputCol("features")
       val trainingDf = vectorAssembler.transform(rawInput).select("features", labelName)
 
@@ -143,20 +143,20 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
 
       // Since CPU model does not know the information about the features cols that GPU transform
-      // pipeline requires. End user needs to setFeaturesCols in the model manually
-      val thrown = intercept[IllegalArgumentException](cpuModel
+      // pipeline requires. End user needs to setFeaturesCol(features: Array[String]) in the model
+      // manually
+      val thrown = intercept[NoSuchElementException](cpuModel
         .transform(testDf)
         .collect())
-      assert(thrown.getMessage.contains("Gpu transform requires features columns. " +
-        "please refer to setFeaturesCols"))
+      assert(thrown.getMessage.contains("Failed to find a default value for featuresCols"))
 
       val left = cpuModel
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .transform(testDf)
         .collect()
 
       val right = cpuModelFromFile
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .transform(testDf)
         .collect()
 
@@ -173,7 +173,7 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
         .csv(getResourcePath("/rank.train.csv")).randomSplit(Array(0.7, 0.3), seed = 1)
 
       val classifier = new XGBoostRegressor(xgbParam)
-        .setFeaturesCols(featureNames)
+        .setFeaturesCol(featureNames)
         .setLabelCol(labelName)
         .setTreeMethod("gpu_hist")
       classifier.fit(rawInput)
@@ -191,17 +191,16 @@ class GpuXGBoostRegressorSuite extends GpuTestSuite {
       val featureColName = "feature_col"
       val vectorAssembler = new VectorAssembler()
         .setHandleInvalid("keep")
-        .setInputCols(featureNames.toArray)
+        .setInputCols(featureNames)
         .setOutputCol(featureColName)
       val testDf = vectorAssembler.transform(rawInput).select(featureColName, labelName)
 
       // Since GPU model does not know the information about the features col name that CPU
       // transform pipeline requires. End user needs to setFeaturesCol in the model manually
-      val thrown = intercept[IllegalArgumentException](
+      intercept[IllegalArgumentException](
         gpuModel
         .transform(testDf)
         .collect())
-      assert(thrown.getMessage.contains("features does not exist"))
 
       val left = gpuModel
         .setFeaturesCol(featureColName)
