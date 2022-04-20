@@ -1304,13 +1304,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         *,
         objective: _SklObjective = "binary:logistic",
-        use_label_encoder: bool = False,
+        use_label_encoder: Optional[bool] = None,
         **kwargs: Any
     ) -> None:
         # must match the parameters for `get_params`
         self.use_label_encoder = use_label_encoder
         if use_label_encoder is True:
             raise ValueError("Label encoder was removed in 1.6.")
+        if use_label_encoder is not None:
+            warnings.warn("`use_label_encoder` is deprecated in 2.0.0.")
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args

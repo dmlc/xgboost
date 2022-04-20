@@ -777,9 +777,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    cls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
     # multiclass
@@ -808,9 +806,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    cls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
 
@@ -837,14 +833,10 @@ def run_auc(client: "Client", tree_method: str) -> None:
     valid_X = dd.from_array(valid_X_, chunksize=10)
     valid_y = dd.from_array(valid_y_, chunksize=10)
 
-    cls = xgb.XGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    cls = xgb.XGBClassifier(tree_method=tree_method, n_estimators=2)
     cls.fit(X_, y_, eval_metric="auc", eval_set=[(valid_X_, valid_y_)])
 
-    dcls = xgb.dask.DaskXGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    dcls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
     dcls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
 
     approx = dcls.evals_result()["validation_0"]["auc"]
@@ -1693,7 +1685,6 @@ def test_parallel_submits(client: "Client") -> None:
             verbosity=1,
             n_estimators=i + 1,
             eval_metric="merror",
-            use_label_encoder=False,
         )
         f = client.submit(cls.fit, X, y, pure=False)
         futures.append(f)
@@ -1786,7 +1777,6 @@ def test_parallel_submit_multi_clients() -> None:
                 verbosity=1,
                 n_estimators=i + 1,
                 eval_metric="merror",
-                use_label_encoder=False,
             )
             f = client.submit(cls.fit, X, y, pure=False)
             futures.append((client, f))

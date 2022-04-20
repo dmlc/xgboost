@@ -774,13 +774,12 @@ def save_load_model(model_path):
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier(use_label_encoder=False).fit(X[train_index], y[train_index])
+        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
 
         xgb_model = xgb.XGBClassifier()
         xgb_model.load_model(model_path)
 
-        assert xgb_model.use_label_encoder is False
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
 
@@ -972,8 +971,8 @@ def test_deprecate_position_arg():
         model.fit(X, y, w)
 
     with pytest.warns(FutureWarning):
-        xgb.XGBClassifier(1, use_label_encoder=False)
-    model = xgb.XGBClassifier(n_estimators=1, use_label_encoder=False)
+        xgb.XGBClassifier(1)
+    model = xgb.XGBClassifier(n_estimators=1)
     with pytest.warns(FutureWarning):
         model.fit(X, y, w)
 
@@ -991,7 +990,7 @@ def test_deprecate_position_arg():
         model.fit(X, y, w)
 
     with pytest.raises(ValueError):
-        xgb.XGBRFClassifier(1, use_label_encoder=True)
+        xgb.XGBRFClassifier(1)
 
     model = xgb.XGBRFClassifier(n_estimators=1)
     with pytest.warns(FutureWarning):
@@ -1334,7 +1333,6 @@ def test_evaluation_metric():
     X, y = load_digits(n_class=10, return_X_y=True)
 
     clf = xgb.XGBClassifier(
-        use_label_encoder=False,
         tree_method="hist",
         eval_metric=merror,
         n_estimators=16,
@@ -1344,7 +1342,6 @@ def test_evaluation_metric():
     custom = clf.evals_result()
 
     clf = xgb.XGBClassifier(
-        use_label_encoder=False,
         tree_method="hist",
         eval_metric="merror",
         n_estimators=16,
@@ -1360,7 +1357,6 @@ def test_evaluation_metric():
     )
 
     clf = xgb.XGBRFClassifier(
-        use_label_encoder=False,
         tree_method="hist", n_estimators=16,
         objective=tm.softprob_obj(10),
         eval_metric=merror,
