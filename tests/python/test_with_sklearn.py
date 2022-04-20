@@ -1290,6 +1290,12 @@ def test_categorical():
     from_cat = reg.evals_result()["validation_0"]["rmse"]
     predt_cat = reg.predict(X.values)
     assert reg.get_booster().feature_types == ft
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "model.json")
+        reg.save_model(path)
+        reg = xgb.XGBRegressor()
+        reg.load_model(path)
+        assert reg.feature_types == ft
 
     onehot, y = tm.make_categorical(
         n_samples=32, n_features=2, n_categories=3, onehot=True

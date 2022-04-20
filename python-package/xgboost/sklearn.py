@@ -729,6 +729,8 @@ class XGBModel(XGBModelBase):
                 meta['classes_'] = self.classes_.tolist()
                 continue
             if k == "feature_types":
+                # Use the `feature_types` attribute from booster instead.
+                meta["feature_types"] = None
                 continue
             try:
                 json.dumps({k: v})
@@ -771,6 +773,7 @@ class XGBModel(XGBModelBase):
                 continue
             if k == "feature_types":
                 self.feature_types = self.get_booster().feature_types
+                continue
             if k == "_estimator_type":
                 if self._get_type() != v:
                     raise TypeError(
