@@ -1648,7 +1648,7 @@ class Booster:
         feature_info = from_cstr_to_pystr(sarr, length)
         return feature_info if feature_info else None
 
-    def _set_feature_info(self, features: Optional[List[str]], field: str) -> None:
+    def _set_feature_info(self, features: Optional[Sequence[str]], field: str) -> None:
         if features is not None:
             assert isinstance(features, list)
             feature_info_bytes = [bytes(f, encoding="utf-8") for f in features]
