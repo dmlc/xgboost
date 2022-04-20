@@ -989,9 +989,6 @@ def test_deprecate_position_arg():
     with pytest.warns(FutureWarning):
         model.fit(X, y, w)
 
-    with pytest.raises(ValueError):
-        xgb.XGBRFClassifier(1)
-
     model = xgb.XGBRFClassifier(n_estimators=1)
     with pytest.warns(FutureWarning):
         model.fit(X, y, w)
