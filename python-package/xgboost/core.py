@@ -31,6 +31,7 @@ from ._typing import (
     CFloatPtr,
     NumpyOrCupy,
     FeatureNames,
+    FeatureTypes,
     _T,
     CupyT,
 )
@@ -553,7 +554,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         missing: Optional[float] = None,
         silent: bool = False,
         feature_names: FeatureNames = None,
-        feature_types: Optional[List[str]] = None,
+        feature_types: FeatureTypes = None,
         nthread: Optional[int] = None,
         group: Optional[ArrayLike] = None,
         qid: Optional[ArrayLike] = None,
@@ -594,10 +595,15 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             Whether print messages during construction
         feature_names : list, optional
             Set names for features.
-        feature_types :
+        feature_types : FeatureTypes
 
             Set types for features.  When `enable_categorical` is set to `True`, string
-            "c" represents categorical data type.
+            "c" represents categorical data type while "q" represents numerical feature
+            type. For categorical features, the input is assumed to be preprocessed and
+            encoded by the users. The encoding can be done via
+            :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas dataframe
+            `.cat.codes` method. This is useful when users want to specify categorical
+            features without having to construct a dataframe as input.
 
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
@@ -1062,12 +1068,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
     @property
     def feature_types(self) -> Optional[List[str]]:
-        """Get feature types (column types).
-
-        Returns
-        -------
-        feature_types : list or None
-        """
+        """Get feature types. See :py:class:`DMatrix` for details."""
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         _check_call(_LIB.XGDMatrixGetStrFeatureInfo(self.handle,
@@ -1083,8 +1084,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
     def feature_types(self, feature_types: Optional[Union[List[str], str]]) -> None:
         """Set feature types (column types).
 
-        This is for displaying the results and categorical data support.  See doc string
-        of :py:obj:`xgboost.DMatrix` for details.
+        This is for displaying the results and categorical data support. See
+        :py:class:`DMatrix` for details.
 
         Parameters
         ----------
@@ -1667,7 +1668,7 @@ class Booster:
     @property
     def feature_types(self) -> Optional[List[str]]:
         """Feature types for this booster.  Can be directly set by input data or by
-        assignment.
+        assignment.  See :py:class:`DMatrix` for details.
 
         """
         return self._get_feature_info("feature_type")

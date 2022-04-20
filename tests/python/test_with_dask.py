@@ -306,6 +306,13 @@ def test_categorical(client: "Client") -> None:
     run_categorical(client, "approx", X, X_onehot, y)
     run_categorical(client, "hist", X, X_onehot, y)
 
+    ft = ["c"] * X.shape[1]
+    reg = xgb.dask.DaskXGBRegressor(
+        tree_method="hist", feature_types=ft, enable_categorical=True
+    )
+    reg.fit(X, y)
+    assert reg.get_booster().feature_types == ft
+
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
     X, y = make_classification(n_samples=1000, n_informative=5, n_classes=3)
