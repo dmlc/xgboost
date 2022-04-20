@@ -229,7 +229,7 @@ _pandas_dtype_mapper = {
 }
 
 
-_enable_cat_err = (
+_ENABLE_CAT_ERR = (
     "When categorical type is supplied, DMatrix parameter "
     "`enable_categorical` must be set to `True`."
 )
@@ -249,7 +249,7 @@ def _invalid_dataframe_dtype(data: Any) -> None:
         err = ""
 
     type_err = "DataFrame.dtypes for data must be int, float, bool or category."
-    msg = f"""{type_err} {_enable_cat_err} {err}"""
+    msg = f"""{type_err} {_ENABLE_CAT_ERR} {err}"""
     raise ValueError(msg)
 
 
@@ -880,7 +880,7 @@ def dispatch_data_backend(
 ):
     '''Dispatch data for DMatrix.'''
     if feature_types is not None and not enable_categorical and "c" in feature_types:
-        raise ValueError(_enable_cat_err)
+        raise ValueError(_ENABLE_CAT_ERR)
     if not _is_cudf_ser(data) and not _is_pandas_series(data):
         _check_data_shape(data)
     if _is_scipy_csr(data):
