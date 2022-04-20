@@ -7,9 +7,9 @@ import xgboost as xgb
 xgb.rabit.init()
 
 # Load file, file will not be sharded in federated mode.
-rank = os.getenv('FEDERATED_RANK')
-dtrain = xgb.DMatrix('agaricus.txt.train-%s' % rank)
-dtest = xgb.DMatrix('agaricus.txt.test-%s' % rank)
+rank = int(os.getenv('FEDERATED_RANK'))
+dtrain = xgb.DMatrix('agaricus.txt.train-%02d' % rank)
+dtest = xgb.DMatrix('agaricus.txt.test-%02d' % rank)
 
 # Specify parameters via map, definition are same as c++ version
 param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}

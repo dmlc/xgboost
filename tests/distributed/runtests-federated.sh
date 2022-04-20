@@ -10,8 +10,8 @@ world_size=3
 ../../build/plugin/federated/federated_server ${port} ${world_size} >/dev/null &
 
 # Split train and test files:
-split -n l/${world_size} -d -a 1 ../../demo/data/agaricus.txt.train agaricus.txt.train-
-split -n l/${world_size} -d -a 1 ../../demo/data/agaricus.txt.test agaricus.txt.test-
+split -n l/${world_size} -d ../../demo/data/agaricus.txt.train agaricus.txt.train-
+split -n l/${world_size} -d ../../demo/data/agaricus.txt.test agaricus.txt.test-
 
 export FEDERATED_SERVER_ADDRESS="localhost:${port}"
 export FEDERATED_WORLD_SIZE=${world_size}
