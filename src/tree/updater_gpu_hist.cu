@@ -45,12 +45,9 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 // training parameters specific to this algorithm
 struct GPUHistMakerTrainParam
     : public XGBoostParameter<GPUHistMakerTrainParam> {
-  bool single_precision_histogram;
   bool debug_synchronize;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUHistMakerTrainParam) {
-    DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
-        "Use single precision to build histograms.");
     DMLC_DECLARE_FIELD(debug_synchronize).set_default(false).describe(
         "Check if all distributed tree are identical after tree construction.");
   }
@@ -532,6 +529,13 @@ struct GPUHistMakerDevice {
 
   void ApplySplit(const GPUExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
+
+    // Sanity check - have we created a leaf with no training instances?
+    if (!rabit::IsDistributed()) {
+      CHECK(row_partitioner->GetRows(candidate.nid).size() > 0)
+          << "No training instances in this leaf!";
+    }
+
     auto parent_sum = candidate.split.left_sum + candidate.split.right_sum;
     auto base_weight = candidate.base_weight;
     auto left_weight = candidate.left_weight * param.learning_rate;
@@ -676,20 +680,35 @@ struct GPUHistMakerDevice {
   }
 };
 
-template <typename GradientSumT>
-class GPUHistMakerSpecialised {
+class GPUHistMaker : public TreeUpdater {
+  using GradientSumT = GradientPairPrecise;
+
  public:
-  explicit GPUHistMakerSpecialised(ObjInfo task) : task_{task} {};
-  void Configure(const Args& args, GenericParameter const* generic_param) {
+  explicit GPUHistMaker(GenericParameter const* ctx, ObjInfo task)
+      : TreeUpdater(ctx), task_{task} {};
+  void Configure(const Args& args) {
+    // Used in test to count how many configurations are performed
+    LOG(DEBUG) << "[GPU Hist]: Configure";
     param_.UpdateAllowUnknown(args);
-    generic_param_ = generic_param;
     hist_maker_param_.UpdateAllowUnknown(args);
     dh::CheckComputeCapability();
 
     monitor_.Init("updater_gpu_hist");
   }
 
-  ~GPUHistMakerSpecialised() {  // NOLINT
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    FromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
+    initialised_ = false;
+    FromJson(config.at("train_param"), &param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["gpu_hist_train_param"] = ToJson(hist_maker_param_);
+    out["train_param"] = ToJson(param_);
+  }
+
+  ~GPUHistMaker() {  // NOLINT
     dh::GlobalMemoryLogger().Log();
   }
 
@@ -719,30 +738,24 @@ class GPUHistMakerSpecialised {
   }
 
   void InitDataOnce(DMatrix* dmat) {
-    device_ = generic_param_->gpu_id;
-    CHECK_GE(device_, 0) << "Must have at least one device";
+    CHECK_GE(ctx_->gpu_id, 0) << "Must have at least one device";
     info_ = &dmat->Info();
-    reducer_.Init({device_});  // NOLINT
+    reducer_.Init({ctx_->gpu_id});  // NOLINT
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
     BatchParam batch_param{
-      device_,
-      param_.max_bin,
+        ctx_->gpu_id,
+        param_.max_bin,
     };
     auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
-    dh::safe_cuda(cudaSetDevice(device_));
-    info_->feature_types.SetDevice(device_);
-    maker.reset(new GPUHistMakerDevice<GradientSumT>(device_,
-                                                     page,
-                                                     info_->feature_types.ConstDeviceSpan(),
-                                                     info_->num_row_,
-                                                     param_,
-                                                     column_sampling_seed,
-                                                     info_->num_col_,
-                                                     batch_param));
+    dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
+    info_->feature_types.SetDevice(ctx_->gpu_id);
+    maker.reset(new GPUHistMakerDevice<GradientSumT>(
+        ctx_->gpu_id, page, info_->feature_types.ConstDeviceSpan(), info_->num_row_, param_,
+        column_sampling_seed, info_->num_col_, batch_param));
 
     p_last_fmat_ = dmat;
     initialised_ = true;
@@ -766,7 +779,7 @@ class GPUHistMakerSpecialised {
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
-    RegTree reference_tree {};  // rank 0 tree
+    RegTree reference_tree{};  // rank 0 tree
     reference_tree.Load(&fs);
     CHECK(*local_tree == reference_tree);
   }
@@ -775,13 +788,11 @@ class GPUHistMakerSpecialised {
     monitor_.Start("InitData");
     this->InitData(p_fmat);
     monitor_.Stop("InitData");
-
-    gpair->SetDevice(device_);
+    gpair->SetDevice(ctx_->gpu_id);
     maker->UpdateTree(gpair, p_fmat, task_, p_tree, &reducer_);
   }
 
-  bool UpdatePredictionCache(const DMatrix *data,
-                             linalg::VectorView<bst_float> p_out_preds) {
+  bool UpdatePredictionCache(const DMatrix* data, linalg::VectorView<bst_float> p_out_preds) {
     if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
@@ -791,107 +802,32 @@ class GPUHistMakerSpecialised {
     return true;
   }
 
-  TrainParam param_;   // NOLINT
-  MetaInfo* info_{};   // NOLINT
+  TrainParam param_;  // NOLINT
+  MetaInfo* info_{};  // NOLINT
 
   std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
+  char const* Name() const override { return "grow_gpu_hist"; }
+
  private:
-  bool initialised_ { false };
+  bool initialised_{false};
 
   GPUHistMakerTrainParam hist_maker_param_;
-  GenericParameter const* generic_param_;
 
   dh::AllReducer reducer_;
 
-  DMatrix* p_last_fmat_ { nullptr };
-  int device_{-1};
+  DMatrix* p_last_fmat_{nullptr};
   ObjInfo task_;
 
   common::Monitor monitor_;
 };
 
-class GPUHistMaker : public TreeUpdater {
- public:
-  explicit GPUHistMaker(ObjInfo task) : task_{task} {}
-  void Configure(const Args& args) override {
-    // Used in test to count how many configurations are performed
-    LOG(DEBUG) << "[GPU Hist]: Configure";
-    hist_maker_param_.UpdateAllowUnknown(args);
-    // The passed in args can be empty, if we simply purge the old maker without
-    // preserving parameters then we can't do Update on it.
-    TrainParam param;
-    if (float_maker_) {
-      param = float_maker_->param_;
-    } else if (double_maker_) {
-      param = double_maker_->param_;
-    }
-    if (hist_maker_param_.single_precision_histogram) {
-      float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>(task_));
-      float_maker_->param_ = param;
-      float_maker_->Configure(args, ctx_);
-    } else {
-      double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>(task_));
-      double_maker_->param_ = param;
-      double_maker_->Configure(args, ctx_);
-    }
-  }
-
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
-    FromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
-    if (hist_maker_param_.single_precision_histogram) {
-      float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>(task_));
-      FromJson(config.at("train_param"), &float_maker_->param_);
-    } else {
-      double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>(task_));
-      FromJson(config.at("train_param"), &double_maker_->param_);
-    }
-  }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["gpu_hist_train_param"] = ToJson(hist_maker_param_);
-    if (hist_maker_param_.single_precision_histogram) {
-      out["train_param"] = ToJson(float_maker_->param_);
-    } else {
-      out["train_param"] = ToJson(double_maker_->param_);
-    }
-  }
-
-  void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) override {
-    if (hist_maker_param_.single_precision_histogram) {
-      float_maker_->Update(gpair, dmat, trees);
-    } else {
-      double_maker_->Update(gpair, dmat, trees);
-    }
-  }
-
-  bool
-  UpdatePredictionCache(const DMatrix *data,
-                        linalg::VectorView<bst_float> p_out_preds) override {
-    if (hist_maker_param_.single_precision_histogram) {
-      return float_maker_->UpdatePredictionCache(data, p_out_preds);
-    } else {
-      return double_maker_->UpdatePredictionCache(data, p_out_preds);
-    }
-  }
-
-  char const* Name() const override {
-    return "grow_gpu_hist";
-  }
-
- private:
-  GPUHistMakerTrainParam hist_maker_param_;
-  ObjInfo task_;
-  std::unique_ptr<GPUHistMakerSpecialised<GradientPair>> float_maker_;
-  std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
-};
-
 #if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
-    .set_body([](ObjInfo task) { return new GPUHistMaker(task); });
+    .set_body([](GenericParameter const* tparam, ObjInfo task) {
+      return new GPUHistMaker(tparam, task);
+    });
 #endif  // !defined(GTEST_TEST)
 
 }  // namespace tree

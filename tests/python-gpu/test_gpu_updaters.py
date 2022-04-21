@@ -3,7 +3,7 @@ import sys
 import gc
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
+from hypothesis import given, strategies, assume, settings, note, reproduce_failure
 
 sys.path.append("tests/python")
 import testing as tm
@@ -15,7 +15,6 @@ parameter_strategy = strategies.fixed_dictionaries({
     'max_leaves': strategies.integers(0, 256),
     'max_bin': strategies.integers(2, 1024),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
-    'single_precision_histogram': strategies.booleans(),
     'min_child_weight': strategies.floats(0.5, 2.0),
     'seed': strategies.integers(0, 10),
     # We cannot enable subsampling as the training loss can increase

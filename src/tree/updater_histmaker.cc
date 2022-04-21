@@ -24,9 +24,9 @@ DMLC_REGISTRY_FILE_TAG(updater_histmaker);
 
 class HistMaker: public BaseMaker {
  public:
-  void Update(HostDeviceVector<GradientPair> *gpair,
-              DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+  explicit HistMaker(GenericParameter const *ctx) : BaseMaker(ctx) {}
+  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+              const std::vector<RegTree *> &trees) override {
     interaction_constraints_.Configure(param_, p_fmat->Info().num_col_);
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
@@ -262,12 +262,10 @@ class HistMaker: public BaseMaker {
   }
 };
 
-class CQHistMaker: public HistMaker {
+class CQHistMaker : public HistMaker {
  public:
-  CQHistMaker()  = default;
-  char const* Name() const override {
-    return "grow_local_histmaker";
-  }
+  explicit CQHistMaker(GenericParameter const *ctx) : HistMaker(ctx) {}
+  char const *Name() const override { return "grow_local_histmaker"; }
 
  protected:
   struct HistEntry {
@@ -624,9 +622,7 @@ class CQHistMaker: public HistMaker {
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
-.describe("Tree constructor that uses approximate histogram construction.")
-.set_body([](ObjInfo) {
-    return new CQHistMaker();
-  });
+    .describe("Tree constructor that uses approximate histogram construction.")
+    .set_body([](GenericParameter const *ctx, ObjInfo) { return new CQHistMaker(ctx); });
 }  // namespace tree
 }  // namespace xgboost
