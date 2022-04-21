@@ -54,10 +54,11 @@ from .compat import scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import lazy_isinstance
 
+from ._typing import FeatureNames, FeatureTypes
+
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import Objective, Metric
 from .core import _deprecate_positional_args, _has_categorical
-from .data import FeatureNames
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
@@ -327,7 +328,7 @@ class DaskDMatrix:
         missing: float = None,
         silent: bool = False,  # pylint: disable=unused-argument
         feature_names: FeatureNames = None,
-        feature_types: Optional[List[str]] = None,
+        feature_types: FeatureTypes = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
@@ -1601,7 +1602,11 @@ class DaskScikitLearnBase(XGBModel):
                 predts = predts.to_dask_array()
         else:
             test_dmatrix = await DaskDMatrix(
-                self.client, data=data, base_margin=base_margin, missing=self.missing
+                self.client,
+                data=data,
+                base_margin=base_margin,
+                missing=self.missing,
+                feature_types=self.feature_types
             )
             predts = await predict(
                 self.client,
@@ -1640,7 +1645,9 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = await DaskDMatrix(self.client, data=X, missing=self.missing)
+        test_dmatrix = await DaskDMatrix(
+            self.client, data=X, missing=self.missing, feature_types=self.feature_types,
+        )
         predts = await predict(
             self.client,
             model=self.get_booster(),
@@ -1755,6 +1762,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             eval_qid=None,
             missing=self.missing,
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
 
         if callable(self.objective):
@@ -1849,6 +1857,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             eval_qid=None,
             missing=self.missing,
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
 
         # pylint: disable=attribute-defined-outside-init
@@ -2054,6 +2063,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             eval_qid=eval_qid,
             missing=self.missing,
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
         if eval_metric is not None:
             if callable(eval_metric):

@@ -397,7 +397,7 @@ class LearnerConfiguration : public Learner {
       this->ValidateParameters();
     }
 
-    // FIXME(trivialfis): Clear the cache once binary IO is gone.
+    cfg_.clear();
     monitor_.Stop("Configure");
   }
 
