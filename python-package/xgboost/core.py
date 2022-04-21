@@ -1641,9 +1641,9 @@ class Booster:
             if value is not None:
                 if not isinstance(value, str):
                     raise ValueError("Set Attr only accepts string values")
-                value_c_str = c_str(str(value))
+                value = c_str(str(value))
             _check_call(_LIB.XGBoosterSetAttr(
-                self.handle, c_str(key), value_c_str))
+                self.handle, c_str(key), value))
 
     def _get_feature_info(self, field: str) -> Optional[FeatureInfo]:
         length = c_bst_ulong()
