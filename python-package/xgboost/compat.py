@@ -10,9 +10,6 @@ import numpy as np
 
 assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
-# pylint: disable=invalid-name, redefined-builtin
-STRING_TYPES = (str,)
-
 
 def py_str(x):
     """convert c string back to python string"""

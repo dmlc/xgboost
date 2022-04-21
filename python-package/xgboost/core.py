@@ -17,7 +17,7 @@ from inspect import signature, Parameter
 import numpy as np
 import scipy.sparse
 
-from .compat import STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED
+from .compat import DataFrame, py_str, PANDAS_INSTALLED
 from .libpath import find_lib_path
 from ._typing import (
     CStrPptr,
@@ -1386,7 +1386,7 @@ class Booster:
             _check_call(
                 _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
             self.__dict__.update(state)
-        elif isinstance(model_file, (STRING_TYPES, os.PathLike, bytearray)):
+        elif isinstance(model_file, (str, os.PathLike, bytearray)):
             self.load_model(model_file)
         elif model_file is None:
             pass
@@ -1628,7 +1628,7 @@ class Booster:
         """
         for key, value in kwargs.items():
             if value is not None:
-                if not isinstance(value, STRING_TYPES):
+                if not isinstance(value, str):
                     raise ValueError("Set Attr only accepts string values")
                 value = c_str(str(value))
             _check_call(_LIB.XGBoosterSetAttr(
@@ -1704,7 +1704,7 @@ class Booster:
         """
         if isinstance(params, Mapping):
             params = params.items()
-        elif isinstance(params, STRING_TYPES) and value is not None:
+        elif isinstance(params, str) and value is not None:
             params = [(params, value)]
         for key, val in params:
             if val is not None:
@@ -1795,7 +1795,7 @@ class Booster:
         for d in evals:
             if not isinstance(d[0], DMatrix):
                 raise TypeError(f"expected DMatrix, got {type(d[0]).__name__}")
-            if not isinstance(d[1], STRING_TYPES):
+            if not isinstance(d[1], str):
                 raise TypeError(f"expected string, got {type(d[1]).__name__}")
             self._validate_features(d[0])
 
@@ -2191,7 +2191,7 @@ class Booster:
             Output file name
 
         """
-        if isinstance(fname, (STRING_TYPES, os.PathLike)):  # assume file name
+        if isinstance(fname, (str, os.PathLike)):  # assume file name
             fname = os.fspath(os.path.expanduser(fname))
             _check_call(_LIB.XGBoosterSaveModel(
                 self.handle, c_str(fname)))
@@ -2300,7 +2300,7 @@ class Booster:
         dump_format : string, optional
             Format of model dump file. Can be 'text' or 'json'.
         """
-        if isinstance(fout, (STRING_TYPES, os.PathLike)):
+        if isinstance(fout, (str, os.PathLike)):
             fout = os.fspath(os.path.expanduser(fout))
             # pylint: disable=consider-using-with
             fout_obj = open(fout, 'w', encoding="utf-8")
