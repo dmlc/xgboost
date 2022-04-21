@@ -1,7 +1,7 @@
 """Shared typing definition."""
 import ctypes
 import os
-from typing import Optional, List, Any, TypeVar, Union
+from typing import Optional, Any, TypeVar, Union, Sequence
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
@@ -9,7 +9,8 @@ DataType = Any
 
 # xgboost accepts some other possible types in practice due to historical reason, which is
 # lesser tested.  For now we encourage users to pass a simple list of string.
-FeatureNames = Optional[List[str]]
+FeatureNames = Optional[Sequence[str]]
+FeatureTypes = Optional[Sequence[str]]
 
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]
