@@ -1,6 +1,7 @@
+/*!
+ * Copyright 2022 XGBoost contributors
+ */
 #include <cstdio>
-#include <string>
-#include <vector>
 
 #include "federated_client.h"
 #include "rabit/internal/engine.h"
@@ -219,7 +220,8 @@ ReduceHandle::~ReduceHandle() = default;
 
 int ReduceHandle::TypeSize(const MPI::Datatype &dtype) { return static_cast<int>(dtype.type_size); }
 
-void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
+void ReduceHandle::Init(IEngine::ReduceFunction redfunc,
+                        __attribute__((unused)) size_t type_nbytes) {
   utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
   redfunc_ = redfunc;
 }
@@ -230,6 +232,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf, size_t type_nbytes, size_t count
   if (prepare_fun != nullptr) prepare_fun(prepare_arg);
   if (engine.GetWorldSize() == 1) return;
 
+  // Gather all the buffers and call the reduce function locally.
   auto const buffer_size = type_nbytes * count;
   auto const gathered = engine.Allgather(sendrecvbuf, buffer_size);
   auto const *data = gathered.data();

@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 XGBoost contributors
+ */
 #include <federated.grpc.pb.h>
 #include <grpcpp/server_builder.h>
 
@@ -16,9 +19,11 @@ class AllgatherHandler {
     auto const rank = request->rank();
     auto const& send_buffer = request->send_buffer();
     auto const send_size = send_buffer.size();
+    // Resize the buffer if this is the first request.
     if (buffer.size() != send_size * world_size_) {
       buffer.resize(send_size * world_size_);
     }
+    // Splice the send_buffer into the common buffer.
     buffer.replace(rank * send_size, send_size, send_buffer);
   }
 
@@ -32,8 +37,10 @@ class AllreduceHandler {
 
   void Handle(AllreduceRequest const* request, std::string& buffer) const {
     if (buffer.empty()) {
+      // Copy the send_buffer if this is the first request.
       buffer = request->send_buffer();
     } else {
+      // Apply the reduce_operation to the send_buffer and the common buffer.
       Accumulate(buffer, request->send_buffer(), request->data_type(), request->reduce_operation());
     }
   }
@@ -120,6 +127,7 @@ class BroadcastHandler {
 
   static void Handle(BroadcastRequest const* request, std::string& buffer) {
     if (request->rank() == request->root()) {
+      // Copy the send_buffer if this is the root.
       buffer = request->send_buffer();
     }
   }

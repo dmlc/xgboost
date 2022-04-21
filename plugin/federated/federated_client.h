@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 XGBoost contributors
+ */
 #pragma once
 #include <federated.grpc.pb.h>
 #include <federated.pb.h>
@@ -10,6 +13,9 @@
 namespace xgboost {
 namespace federated {
 
+/**
+ * @brief A wrapper around the gRPC client.
+ */
 class FederatedClient {
  public:
   explicit FederatedClient(std::string const &server_address, int rank)

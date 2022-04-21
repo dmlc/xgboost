@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 XGBoost contributors
+ */
 #include <federated.pb.h>
 
 #include "federated_client.h"

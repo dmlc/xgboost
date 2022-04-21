@@ -7,9 +7,10 @@ rm -f ./*.model* ./agaricus*
 port=9091
 world_size=3
 
+# Start the federated server.
 ../../build/plugin/federated/federated_server ${port} ${world_size} >/dev/null &
 
-# Split train and test files:
+# Split train and test files manually to simulate a federated environment.
 split -n l/${world_size} -d ../../demo/data/agaricus.txt.train agaricus.txt.train-
 split -n l/${world_size} -d ../../demo/data/agaricus.txt.test agaricus.txt.test-
 

@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 XGBoost contributors
+ */
 syntax = "proto3";
 
 package xgboost.federated;
@@ -28,6 +31,7 @@ enum ReduceOperation {
 }
 
 message AllgatherRequest {
+  // An incrementing counter that is unique to each round to operations.
   uint64 sequence_number = 1;
   int32 rank = 2;
   bytes send_buffer = 3;
@@ -38,6 +42,7 @@ message AllgatherReply {
 }
 
 message AllreduceRequest {
+  // An incrementing counter that is unique to each round to operations.
   uint64 sequence_number = 1;
   int32 rank = 2;
   bytes send_buffer = 3;
@@ -50,9 +55,11 @@ message AllreduceReply {
 }
 
 message BroadcastRequest {
+  // An incrementing counter that is unique to each round to operations.
   uint64 sequence_number = 1;
   int32 rank = 2;
   bytes send_buffer = 3;
+  // The root rank to broadcast from.
   int32 root = 4;
 }
 

@@ -41,6 +41,7 @@ if (PLUGIN_UPDATER_ONEAPI)
   target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:oneapi_plugin>)
 endif (PLUGIN_UPDATER_ONEAPI)
 
+# Add the Federate Learning plugin if enabled.
 if (PLUGIN_FEDERATED)
   add_subdirectory(federated)
 endif (PLUGIN_FEDERATED)
