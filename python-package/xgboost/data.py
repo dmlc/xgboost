@@ -23,7 +23,8 @@ from ._typing import (
     FloatCompatible
 )
 
-DispatchedDataBackendReturnType = Tuple[ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]]
+DispatchedDataBackendReturnType = Tuple[
+    ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]]
 
 CAT_T = "c"
 
@@ -1157,7 +1158,9 @@ def _proxy_transform(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
-) -> Tuple[Union[bool, ctypes.c_void_p, np.ndarray], Optional[list], Optional[FeatureNames], Optional[FeatureTypes]]:
+) -> Tuple[
+    Union[bool, ctypes.c_void_p, np.ndarray],
+        Optional[list], Optional[FeatureNames], Optional[FeatureTypes]]:
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical

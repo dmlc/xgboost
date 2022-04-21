@@ -5,7 +5,7 @@
 import copy
 import os
 import warnings
-from typing import Optional, Dict, Any, Union, Tuple, Sequence, List, cast, Iterable, Callable
+from typing import Optional, Dict, Any, Union, Tuple, Sequence, List, cast, Iterable
 
 import numpy as np
 
