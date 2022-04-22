@@ -22,7 +22,6 @@
 
 namespace xgboost {
 
-struct RowIndexCache;
 class RegTree;
 
 /*! \brief interface of objective function */

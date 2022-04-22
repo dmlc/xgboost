@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2018 by Contributors
+ * Copyright 2015-2022 by XGBoost Contributors
  * \file common.h
  * \brief Common utilities
  */
@@ -7,7 +7,6 @@
 #define XGBOOST_COMMON_COMMON_H_
 
 #include <xgboost/base.h>
-#include <xgboost/linalg.h>
 #include <xgboost/logging.h>
 #include <xgboost/span.h>
 

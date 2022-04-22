@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <tuple>
 #include <stack>
-#include "xgboost/host_device_vector.h"
 
 namespace xgboost {
 
