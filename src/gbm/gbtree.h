@@ -441,7 +441,8 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // The node position for each row, 1 HDV for each tree in the forest.
+  // The node position for each row, 1 HDV for each tree in the forest.  Note that the
+  // position is negated if the row is sampled out.
   std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;

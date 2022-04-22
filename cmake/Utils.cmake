@@ -152,12 +152,6 @@ function(xgboost_set_cuda_flags target)
       $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif (USE_DEVICE_DEBUG)
 
-  if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
-      ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-        (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
-    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fdiagnostics-color=always>)
-  endif()
-
   if (USE_NVTX)
     enable_nvtx(${target})
   endif (USE_NVTX)

@@ -289,9 +289,10 @@ class PartitionBuilder {
     h_pos.resize(row_set.Data()->size(), std::numeric_limits<bst_node_t>::max());
 
     auto p_begin = row_set.Data()->data();
-    for (auto node : row_set) {
+    ParallelFor(row_set.Size(), ctx->Threads(), [&](size_t i) {
+      auto const& node = row_set[i];
       if (node.node_id < 0 || !tree[node.node_id].IsLeaf()) {
-        continue;
+        return;
       }
       if (node.begin) {  // guard for empty node.
         size_t ptr_offset = node.end - p_begin;
@@ -300,7 +301,7 @@ class PartitionBuilder {
           h_pos[*idx] = sampledp(*idx) ? ~node.node_id : node.node_id;
         }
       }
-    }
+    });
   }
 
  protected:

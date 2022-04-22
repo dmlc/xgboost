@@ -53,6 +53,8 @@ class TreeUpdater : public Configurable {
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
    * \param data The data matrix passed to the updater.
+   * \param out_position The leaf index for each row.  The index is negated if that row is
+   *                     removed during sampling. So the 3th node is ~3.
    * \param out_trees references the trees to be updated, updater will change the content of trees
    *   note: all the trees in the vector are updated, with the same statistics,
    *         but maybe different random seeds, usually one tree is passed in at a time,
