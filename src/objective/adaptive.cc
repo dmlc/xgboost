@@ -84,61 +84,41 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   std::vector<float> quantiles(n_leaf, 0);
   std::vector<int32_t> n_valids(n_leaf, 0);
 
-  {
-    std::vector<float> results(nidx.size());
-    auto const& h_node_idx = nidx;
-    auto const& h_node_ptr = nptr;
-    CHECK_LE(h_node_ptr.back(), info.num_row_);
-    // loop over each leaf
-    common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
-      auto nidx = h_node_idx[k];
-      CHECK(tree[nidx].IsLeaf());
-      CHECK_LT(k + 1, h_node_ptr.size());
-      size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
-      auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
-      // multi-target not yet supported.
-      auto h_labels = info.labels.HostView().Slice(linalg::All(), 0);
-      auto const& h_predt = predt.ConstHostVector();
-      auto h_weights = linalg::MakeVec(&info.weights_);
+  auto const& h_node_idx = nidx;
+  auto const& h_node_ptr = nptr;
+  CHECK_LE(h_node_ptr.back(), info.num_row_);
+  // loop over each leaf
+  common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
+    auto nidx = h_node_idx[k];
+    CHECK(tree[nidx].IsLeaf());
+    CHECK_LT(k + 1, h_node_ptr.size());
+    size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
+    auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
+    // multi-target not yet supported.
+    auto h_labels = info.labels.HostView().Slice(linalg::All(), 0);
+    auto const& h_predt = predt.ConstHostVector();
+    auto h_weights = linalg::MakeVec(&info.weights_);
 
-      auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
-        auto row_idx = h_row_set[i];
-        return h_labels(row_idx) - h_predt[row_idx];
-      });
-      auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
-        auto row_idx = h_row_set[i];
-        return h_weights(row_idx);
-      });
-
-      float q{0};
-      if (info.weights_.Empty()) {
-        q = common::Quantile(alpha, iter, iter + h_row_set.size());
-      } else {
-        q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
-      }
-      if (std::isnan(q)) {
-        CHECK(h_row_set.empty());
-      }
-      results.at(k) = q;
+    auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
+      auto row_idx = h_row_set[i];
+      return h_labels(row_idx) - h_predt[row_idx];
+    });
+    auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
+      auto row_idx = h_row_set[i];
+      return h_weights(row_idx);
     });
 
-    // sum result from each external memory partition to quantiles
-    for (size_t i = 0; i < results.size(); ++i) {
-      if (!std::isnan(results[i])) {
-        quantiles[i] += results[i];
-        n_valids[i]++;
-      }
-    }
-  }
-
-  for (size_t i = 0; i < quantiles.size(); ++i) {
-    if (n_valids[i] > 0) {
-      quantiles[i] /= n_valids[i];
+    float q{0};
+    if (info.weights_.Empty()) {
+      q = common::Quantile(alpha, iter, iter + h_row_set.size());
     } else {
-      // mark that no page has valid sample in the i^th leaf
-      quantiles[i] = std::numeric_limits<float>::quiet_NaN();
+      q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
     }
-  }
+    if (std::isnan(q)) {
+      CHECK(h_row_set.empty());
+    }
+    quantiles.at(k) = q;
+  });
 
   UpdateLeafValues(&quantiles, nidx, p_tree);
 }

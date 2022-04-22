@@ -249,6 +249,11 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       {static_cast<size_t>(p_fmat->Info().num_row_), static_cast<size_t>(ngroup)},
       device};
   CHECK_NE(ngroup, 0);
+
+  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
+    LOG(FATAL) << "Current objective doesn't support external memory.";
+  }
+
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
