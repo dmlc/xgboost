@@ -36,8 +36,8 @@ inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
 }
 
 inline void EncodeTreeLeaf(Context const* ctx, common::Span<bst_node_t const> position,
-                           HostDeviceVector<size_t>* p_nptr, HostDeviceVector<bst_node_t>* p_nidx,
-                           RegTree const& tree) {
+                           dh::device_vector<size_t>* p_ridx, HostDeviceVector<size_t>* p_nptr,
+                           HostDeviceVector<bst_node_t>* p_nidx, RegTree const& tree) {
   // copy position to buffer
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
   size_t n_samples = position.size();
@@ -45,11 +45,12 @@ inline void EncodeTreeLeaf(Context const* ctx, common::Span<bst_node_t const> po
   dh::device_vector<bst_node_t> sorted_position(position.size());
   dh::safe_cuda(cudaMemcpyAsync(sorted_position.data().get(), position.data(),
                                 position.size_bytes(), cudaMemcpyDeviceToDevice));
-  dh::device_vector<size_t> ridx(position.size());
-  dh::Iota(dh::ToSpan(ridx));
+
+  p_ridx->resize(position.size());
+  dh::Iota(dh::ToSpan(*p_ridx));
   // sort row index according to node index
   thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position.begin(),
-                             sorted_position.begin() + n_samples, ridx.begin());
+                             sorted_position.begin() + n_samples, p_ridx->begin());
 
   size_t n_leaf = tree.GetNumLeaves();
   // +1 for subsample, which is set to an unique value in above kernel.

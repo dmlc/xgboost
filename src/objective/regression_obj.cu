@@ -723,7 +723,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   HostDeviceVector<size_t> nptr;
   HostDeviceVector<bst_node_t> nidx;
 
-  EncodeTreeLeaf(ctx, position, &nptr, &nidx, *p_tree);
+  EncodeTreeLeaf(ctx, position, &ridx, &nptr, &nidx, *p_tree);
 
   HostDeviceVector<float> quantiles;
   predt.SetDevice(ctx->gpu_id);
@@ -902,6 +902,7 @@ class MeanAbsoluteError : public ObjFunction {
       detail::UpdateTreeLeafHost(ctx_, h_position, info, prediction, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
+      position.SetDevice(ctx_->gpu_id);
       auto d_position = position.ConstDeviceSpan();
       detail::UpdateTreeLeafDevice(ctx_, d_position, info, prediction, 0.5, p_tree);
 #else

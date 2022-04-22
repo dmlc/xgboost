@@ -154,10 +154,13 @@ void TestFinalise() {
       [d_hess] __device__(size_t ridx) { return d_hess[ridx] - 0.f == 0.f; });
 
   auto const& h_position = position.ConstHostVector();
-  for (auto v : h_position) {
-    std::cout << v << ", ";
+  for (size_t ridx = 0; ridx < h_position.size(); ++ridx) {
+    if (ridx % 3 == 0) {
+      ASSERT_LT(h_position[ridx], 0);
+    } else {
+      ASSERT_EQ(h_position[ridx], ridx % 2 == 0 ? 1 : 2);
+    }
   }
-  std::cout << std::endl;
 }
 
 TEST(RowPartitioner, Finalise) { TestFinalise(); }

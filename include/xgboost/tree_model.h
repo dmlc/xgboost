@@ -735,26 +735,5 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
 inline bool RegTree::FVec::HasMissing() const {
   return has_missing_;
 }
-
-/**
- * \brief A cache for row partition, each partition is the row index of a tree leaf.
- */
-struct RowIndexCache {
-  HostDeviceVector<size_t> row_index;
-  HostDeviceVector<size_t> node_ptr;
-  HostDeviceVector<bst_node_t> node_idx;
-
-  /**
-   * \param ctx Context
-   * \param n_samples The number of samples for this cache, which equals to the number of
-   *                  samples in a single page from DMatarix.
-   */
-  RowIndexCache(Context const* ctx, size_t n_samples) {
-    if (!ctx->IsCPU()) {
-      row_index.SetDevice(ctx->gpu_id);
-    }
-    row_index.Resize(n_samples);
-  }
-};
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_
