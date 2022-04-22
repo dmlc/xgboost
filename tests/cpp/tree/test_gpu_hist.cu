@@ -350,7 +350,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
   GenericParameter generic_param(CreateEmptyGenericParam(0));
   hist_maker.Configure(args, &generic_param);
 
-  std::vector<HostDeviceVector<bst_node_t>> position;
+  std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker.Update(gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position}, {tree});
   auto cache = linalg::VectorView<float>{preds->DeviceSpan(), {preds->Size()}, 0};
   hist_maker.UpdatePredictionCache(dmat, cache);

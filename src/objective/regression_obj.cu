@@ -4,7 +4,6 @@
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
  */
-
 #include <dmlc/omp.h>
 #include <rabit/rabit.h>
 #include <xgboost/logging.h>
@@ -18,10 +17,10 @@
 #include "../common/common.h"
 #include "../common/linalg_op.h"
 #include "../common/pseudo_huber.h"
-#include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
+#include "adaptive.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
@@ -34,8 +33,6 @@
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/device_helpers.cuh"
 #include "../common/linalg_op.cuh"
-#include "../common/stats.cuh"
-#include "adaptive.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost {
@@ -670,199 +667,6 @@ DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
 XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
-
-namespace detail {
-void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const nidx,
-                      RegTree* p_tree) {
-  auto& tree = *p_tree;
-  auto& quantiles = *p_quantiles;
-  auto const& h_node_idx = nidx;
-
-  size_t n_leaf{h_node_idx.size()};
-  rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
-  CHECK(quantiles.empty() || quantiles.size() == n_leaf);
-  if (quantiles.empty()) {
-    quantiles.resize(n_leaf);
-  }
-
-  // number of workers that have valid quantiles
-  std::vector<int32_t> n_valids(quantiles.size());
-  std::transform(quantiles.cbegin(), quantiles.cend(), n_valids.begin(),
-                 [](float q) { return static_cast<int32_t>(!std::isnan(q)); });
-  rabit::Allreduce<rabit::op::Sum>(n_valids.data(), n_valids.size());
-  // convert to 0 for all reduce
-  std::replace_if(
-      quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
-  // use the mean value
-  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
-  for (size_t i = 0; i < n_leaf; ++i) {
-    if (n_valids[i] > 0) {
-      quantiles[i] /= static_cast<float>(n_valids[i]);
-    } else {
-      // Use original leaf value if no worker can provide the quantile.
-      quantiles[i] = tree[h_node_idx[i]].LeafValue();
-    }
-  }
-
-  for (size_t i = 0; i < nidx.size(); ++i) {
-    auto nidx = h_node_idx[i];
-    auto q = quantiles[i];
-    CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q);
-  }
-}
-
-#if defined(XGBOOST_USE_CUDA)
-
-
-void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                          RegTree* p_tree) {
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
-  dh::device_vector<size_t> ridx;
-  HostDeviceVector<size_t> nptr;
-  HostDeviceVector<bst_node_t> nidx;
-
-  EncodeTreeLeaf(ctx, position, &ridx, &nptr, &nidx, *p_tree);
-
-  HostDeviceVector<float> quantiles;
-  predt.SetDevice(ctx->gpu_id);
-  auto d_predt = predt.ConstDeviceSpan();
-  auto d_labels = info.labels.View(ctx->gpu_id);
-
-
-  auto d_row_index = dh::ToSpan(ridx);
-  auto seg_beg = nptr.DevicePointer();
-  auto seg_end = seg_beg + nptr.Size();
-  auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                  [=] XGBOOST_DEVICE(size_t i) {
-                                                    auto predt = d_predt[d_row_index[i]];
-                                                    auto y = d_labels(d_row_index[i]);
-                                                    return y - predt;
-                                                  });
-  auto val_end = val_beg + d_labels.Size();
-  CHECK_EQ(nidx.Size() + 1, nptr.Size());
-  if (info.weights_.Empty()) {
-    common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
-  } else {
-    info.weights_.SetDevice(ctx->gpu_id);
-    auto d_weights = info.weights_.ConstDeviceSpan();
-    CHECK_EQ(d_weights.size(), d_row_index.size());
-    auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
-    common::SegmentedWeightedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, w_it,
-                                      w_it + d_weights.size(), &quantiles);
-  }
-
-  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), p_tree);
-}
-#endif  // defined(XGBOOST_USE_CUDA)
-
-void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                        RegTree* p_tree) {
-  auto& tree = *p_tree;
-  CHECK(!position.empty());
-
-  auto ridx = common::ArgSort<size_t>(position);
-  std::vector<bst_node_t> sorted_pos(position);
-  // permutation
-  for (size_t i = 0; i < position.size(); ++i) {
-    sorted_pos[i] = position[ridx[i]];
-  }
-  // find the first non-sampled row
-  auto begin_pos =
-      std::distance(sorted_pos.cbegin(), std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
-                                                      [](bst_node_t nidx) { return nidx >= 0; }));
-  CHECK_LE(begin_pos, sorted_pos.size());
-  if (begin_pos == sorted_pos.size()) {
-    std::vector<bst_node_t> leaf;
-    tree.WalkTree([&](bst_node_t nidx) {
-      if (tree[nidx].IsLeaf()) {
-        leaf.push_back(nidx);
-      }
-      return true;
-    });
-    std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, leaf, p_tree);
-    return;
-  }
-
-  std::vector<size_t> segments;
-  auto beg_it = sorted_pos.begin() + begin_pos;
-  common::RunLengthEncode(beg_it, sorted_pos.end(), &segments);
-  CHECK_GT(segments.size(), 0);
-  // skip the sampled rows in indptr
-  std::transform(segments.begin(), segments.end(), segments.begin(),
-                 [begin_pos](size_t ptr) { return ptr + begin_pos; });
-
-  size_t n_leaf = segments.size() - 1;
-  auto n_unique = std::unique(beg_it, sorted_pos.end()) - beg_it;
-  CHECK_EQ(n_unique, n_leaf);
-  std::vector<bst_node_t> nidx(n_leaf);
-  std::copy(beg_it, beg_it + n_unique, nidx.begin());
-
-  std::vector<float> quantiles(n_leaf, 0);
-  std::vector<int32_t> n_valids(n_leaf, 0);
-
-  {
-    std::vector<float> results(nidx.size());
-    auto const& h_node_idx = nidx;
-    auto const& h_node_ptr = segments;
-    CHECK_LE(h_node_ptr.back(), info.num_row_);
-    // loop over each leaf
-    common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
-      auto nidx = h_node_idx[k];
-      CHECK(tree[nidx].IsLeaf());
-      CHECK_LT(k + 1, h_node_ptr.size());
-      size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
-      auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
-      // multi-target not yet supported.
-      auto h_labels = info.labels.HostView().Slice(linalg::All(), 0);
-      auto const& h_predt = predt.ConstHostVector();
-      auto h_weights = linalg::MakeVec(&info.weights_);
-
-      auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
-        auto row_idx = h_row_set[i];
-        return h_labels(row_idx) - h_predt[row_idx];
-      });
-      auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
-        auto row_idx = h_row_set[i];
-        return h_weights(row_idx);
-      });
-
-      float q{0};
-      if (info.weights_.Empty()) {
-        q = common::Quantile(alpha, iter, iter + h_row_set.size());
-      } else {
-        q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
-      }
-      if (std::isnan(q)) {
-        CHECK(h_row_set.empty());
-      }
-      results.at(k) = q;
-    });
-
-    // sum result from each external memory partition to quantiles
-    for (size_t i = 0; i < results.size(); ++i) {
-      if (!std::isnan(results[i])) {
-        quantiles[i] += results[i];
-        n_valids[i]++;
-      }
-    }
-  }
-
-  for (size_t i = 0; i < quantiles.size(); ++i) {
-    if (n_valids[i] > 0) {
-      quantiles[i] /= n_valids[i];
-    } else {
-      // mark that no page has valid sample in the i^th leaf
-      quantiles[i] = std::numeric_limits<float>::quiet_NaN();
-    }
-  }
-
-  UpdateLeafValues(&quantiles, nidx, p_tree);
-}
-}  // namespace detail
 
 class MeanAbsoluteError : public ObjFunction {
  public:

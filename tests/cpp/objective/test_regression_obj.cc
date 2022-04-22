@@ -2,10 +2,13 @@
  * Copyright 2017-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/json.h>
+#include <xgboost/objective.h>
+
+#include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
+
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
@@ -464,5 +467,27 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
   ASSERT_EQ(tree[5].LeafValue(), -10);
   ASSERT_EQ(tree[6].LeafValue(), -14);
+}
+
+TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
+  std::vector<bst_node_t> missing{1, 3};
+
+  std::vector<bst_node_t> h_nidx = {2, 4, 5};
+  std::vector<size_t> h_nptr = {0, 4, 8, 16};
+
+  obj::detail::FillMissingLeaf(missing, &h_nidx, &h_nptr);
+
+  ASSERT_EQ(h_nidx[0], missing[0]);
+  ASSERT_EQ(h_nidx[2], missing[1]);
+  ASSERT_EQ(h_nidx[1], 2);
+  ASSERT_EQ(h_nidx[3], 4);
+  ASSERT_EQ(h_nidx[4], 5);
+
+  ASSERT_EQ(h_nptr[0], 0);
+  ASSERT_EQ(h_nptr[1], 0);  // empty
+  ASSERT_EQ(h_nptr[2], 4);
+  ASSERT_EQ(h_nptr[3], 4);  // empty
+  ASSERT_EQ(h_nptr[4], 8);
+  ASSERT_EQ(h_nptr[5], 16);
 }
 }  // namespace xgboost

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
+#include <limits>
 #include <vector>
 
 #include "categorical.h"
