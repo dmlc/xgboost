@@ -671,11 +671,11 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .set_body([]() { return new TweedieRegression(); });
 
 namespace detail {
-void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_index,
-                      RegTree* p_tree) {
+void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<size_t> const& row_index,
+                      std::vector<bst_node_t> const nidx, RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
-  auto const& h_node_idx = row_index.node_idx.HostVector();
+  auto const& h_node_idx = nidx;
 
   size_t n_leaf{h_node_idx.size()};
   rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
@@ -703,7 +703,7 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, RowIndexCache const& row_
     }
   }
 
-  for (size_t i = 0; i < row_index.node_idx.Size(); ++i) {
+  for (size_t i = 0; i < nidx.size(); ++i) {
     auto nidx = h_node_idx[i];
     auto q = quantiles[i];
     CHECK(tree[nidx].IsLeaf());
@@ -753,18 +753,31 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> row_index,
+void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
                         MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
                         RegTree* p_tree) {
   auto& tree = *p_tree;
-  CHECK(!row_index.empty());
-  std::vector<float> quantiles(row_index.front().node_idx.Size(), 0);
-  std::vector<int32_t> n_valids(quantiles.size(), 0);
-  // loop over external memory partitions
-  for (auto const& part : row_index) {
-    std::vector<float> results(part.node_idx.Size());
-    auto const& h_node_idx = part.node_idx.ConstHostVector();
-    auto const& h_node_ptr = part.node_ptr.ConstHostVector();
+  CHECK(!position.empty());
+
+  auto ridx = common::ArgSort<size_t>(position);
+  std::vector<bst_node_t> nidx(position);
+  // permute
+  for (size_t i = 0; i < position.size(); ++i) {
+    nidx[i] = position[ridx[i]];
+  }
+  std::vector<size_t> segments{0};
+  common::RunLengthEncode(nidx, &segments);
+  CHECK_GT(segments.size(), 0);
+  size_t n_leaf = segments.size() - 1;
+  nidx.resize(n_leaf);
+
+  std::vector<float> quantiles(n_leaf, 0);
+  std::vector<int32_t> n_valids(n_leaf, 0);
+
+  {
+    std::vector<float> results(nidx.size());
+    auto const& h_node_idx = nidx;
+    auto const& h_node_ptr = segments;
     CHECK_LE(h_node_ptr.back(), info.num_row_);
     // loop over each leaf
     common::ParallelFor(results.size(), ctx->Threads(), [&](size_t k) {
@@ -772,7 +785,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
       CHECK(tree[nidx].IsLeaf());
       CHECK_LT(k + 1, h_node_ptr.size());
       size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
-      auto h_row_set = part.row_index.HostSpan().subspan(h_node_ptr[k], n);
+      auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
       // multi-target not yet supported.
       auto h_labels = info.labels.HostView().Slice(linalg::All(), 0);
       auto const& h_predt = predt.ConstHostVector();
@@ -817,7 +830,7 @@ void UpdateTreeLeafHost(Context const* ctx, common::Span<RowIndexCache const> ro
     }
   }
 
-  UpdateLeafValues(&quantiles, row_index.front(), p_tree);
+  UpdateLeafValues(&quantiles, ridx, nidx, p_tree);
 }
 }  // namespace detail
 
@@ -855,7 +868,8 @@ class MeanAbsoluteError : public ObjFunction {
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       HostDeviceVector<float> const& prediction, RegTree* p_tree) const override {
     if (ctx_->IsCPU()) {
-      // detail::UpdateTreeLeafHost(ctx_, row_index, info, prediction, 0.5, p_tree);
+      auto const& h_position = position.ConstHostVector();
+      detail::UpdateTreeLeafHost(ctx_, h_position, info, prediction, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
       detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, 0.5, p_tree);
