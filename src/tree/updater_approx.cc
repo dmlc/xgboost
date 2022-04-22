@@ -178,7 +178,7 @@ class GloablApproxBuilder {
         monitor_{monitor} {}
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
-                  RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_row_indices) {
+                  RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, hess);
 
@@ -245,8 +245,8 @@ class GloablApproxBuilder {
       expand_set = driver.Pop();
     }
 
-    auto &h_row_indices = p_out_row_indices->HostVector();
-    this->LeafPartition(tree, hess, &h_row_indices);
+    auto &h_position = p_out_position->HostVector();
+    this->LeafPartition(tree, hess, &h_position);
   }
 };
 

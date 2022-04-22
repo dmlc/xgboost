@@ -269,17 +269,21 @@ XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
   return indptr[group + 1] - 1;
 }
 
-template <typename T, typename Idx>
-void RunLengthEncode(std::vector<T> const &sorted_values, std::vector<Idx> *p_out) {
+/**
+ * \brief Run length encode on CPU, input must be sorted.
+ */
+template <typename Iter, typename Idx>
+void RunLengthEncode(Iter begin, Iter end, std::vector<Idx> *p_out) {
   auto &out = *p_out;
   out = std::vector<Idx>{0};
-  for (size_t i = 1; i < sorted_values.size(); ++i) {
-    if (sorted_values[i] != sorted_values[i - 1]) {
+  size_t n = std::distance(begin, end);
+  for (size_t i = 1; i < n; ++i) {
+    if (begin[i] != begin[i - 1]) {
       out.push_back(i);
     }
   }
-  if (out.back() != sorted_values.size()) {
-    out.push_back(sorted_values.size());
+  if (out.back() != n) {
+    out.push_back(n);
   }
 }
 }  // namespace common

@@ -760,18 +760,33 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   CHECK(!position.empty());
 
   auto ridx = common::ArgSort<size_t>(position);
-  std::vector<bst_node_t> nidx(position);
-  // permute
+  std::vector<bst_node_t> sorted_pos(position);
+  // permutation
   for (size_t i = 0; i < position.size(); ++i) {
-    nidx[i] = position[ridx[i]];
+    sorted_pos[i] = position[ridx[i]];
   }
-  std::vector<size_t> segments{0};
-  common::RunLengthEncode(nidx, &segments);
+  // find the first non-sampled row
+  auto begin_pos =
+      std::distance(sorted_pos.cbegin(), std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
+                                                      [](bst_node_t nidx) { return nidx >= 0; }));
+  CHECK_LE(begin_pos, sorted_pos.size());
+  if (begin_pos == sorted_pos.size()) {
+    return;
+  }
+
+  std::vector<size_t> segments;
+  auto beg_it = sorted_pos.begin() + begin_pos;
+  common::RunLengthEncode(beg_it, sorted_pos.end(), &segments);
   CHECK_GT(segments.size(), 0);
+  // skip the sampled rows in indptr
+  std::transform(segments.begin(), segments.end(), segments.begin(),
+                 [begin_pos](size_t ptr) { return ptr + begin_pos; });
+
   size_t n_leaf = segments.size() - 1;
-  auto n_unique = std::unique(nidx.begin(), nidx.end()) - nidx.begin();
+  auto n_unique = std::unique(beg_it, sorted_pos.end()) - beg_it;
   CHECK_EQ(n_unique, n_leaf);
-  nidx.resize(n_leaf);
+  std::vector<bst_node_t> nidx(n_leaf);
+  std::copy(beg_it, beg_it + n_unique, nidx.begin());
 
   std::vector<float> quantiles(n_leaf, 0);
   std::vector<int32_t> n_valids(n_leaf, 0);

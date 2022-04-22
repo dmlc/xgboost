@@ -398,20 +398,14 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
 
   RegTree tree;
   tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  std::vector<RowIndexCache> row_idx;
-  row_idx.emplace_back(&ctx, info.labels.Shape(0));
 
-  row_idx.back().node_idx.HostVector().push_back(1);  // left
-  row_idx.back().node_idx.HostVector().push_back(2);  // right
-  auto& ptr = row_idx.back().node_ptr.HostVector();
-  ptr.push_back(0);
-  ptr.push_back(3);
-  ptr.push_back(info.labels.Size());
-  auto& h_row_idx = row_idx.back().row_index.HostVector();
-  for (size_t i = info.labels.Size() - 1;; --i) {
-    h_row_idx[i] = i;
-    if (i == 0) {
-      break;
+  HostDeviceVector<bst_node_t> position(labels.size(), 0);
+  auto& h_position = position.HostVector();
+  for (size_t i = 0; i < labels.size(); ++i) {
+    if (i < labels.size() / 2) {
+      h_position[i] = 1;  // left
+    } else {
+      h_position[i] = 2;  // right
     }
   }
 
@@ -419,7 +413,8 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
   for (size_t i = 0; i < h_predt.size(); ++i) {
     h_predt[i] = labels[i] + i;
   }
-  // obj->UpdateTreeLeaf(common::Span<RowIndexCache const>{row_idx}, info, predt, &tree);
+
+  obj->UpdateTreeLeaf(position, info, predt, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1);
   ASSERT_EQ(tree[2].LeafValue(), -4);
 }
@@ -441,15 +436,21 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
     h_predt[i] = h_labels[i] + i;
   }
 
-  std::vector<RowIndexCache> row_idx_v;
-  row_idx_v.emplace_back(&ctx, info.labels.Shape(0));
-
-  auto& part = row_idx_v.back();
-  part.node_idx = {3, 4, 5, 6};
-  // starting from 3 to emulate subsampling, empty leaaft for node 4.
-  part.node_ptr = {3, 8, 8, 13, 16};
-  auto& h_row_idx = part.row_index.HostVector();
-  std::iota(h_row_idx.begin(), h_row_idx.end(), 0);
+  HostDeviceVector<bst_node_t> position(info.labels.Size(), 0);
+  auto& h_position = position.HostVector();
+  for (int32_t i = 0; i < 3; ++i) {
+    h_position[i] = ~i;  // negation for sampled nodes.
+  }
+  for (size_t i = 3; i < 8; ++i) {
+    h_position[i] = 3;
+  }
+  // empty leaf for node 4
+  for (size_t i = 8; i < 13; ++i) {
+    h_position[i] = 5;
+  }
+  for (size_t i = 13; i < h_labels.size(); ++i) {
+    h_position[i] = 6;
+  }
 
   RegTree tree;
   tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
@@ -458,7 +459,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   ASSERT_EQ(tree.GetNumLeaves(), 4);
 
   auto empty_leaf = tree[4].LeafValue();
-  // obj->UpdateTreeLeaf(row_idx_v, info, predt, &tree);
+  obj->UpdateTreeLeaf(position, info, predt, &tree);
   ASSERT_EQ(tree[3].LeafValue(), -5);
   ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
   ASSERT_EQ(tree[5].LeafValue(), -10);
