@@ -103,7 +103,7 @@ class ObjFunction : public Configurable {
    * \param info MetaInfo providing labels and weights.
    * \param p_tree Tree that needs to be updated.
    */
-  virtual void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
+  virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& row_index, MetaInfo const& info,
                               HostDeviceVector<float> const& prediction, RegTree* p_tree) const {}
 
   /*!

@@ -156,7 +156,7 @@ class GloablApproxBuilder {
   }
 
   void LeafPartition(RegTree const &tree, common::Span<float> hess,
-                     std::vector<RowIndexCache> *p_out_row_indices) {
+                     std::vector<bst_node_t> *p_out_row_indices) {
     monitor_->Start(__func__);
     if (!evaluator_.Task().UpdateTreeLeaf()) {
       return;
@@ -179,7 +179,7 @@ class GloablApproxBuilder {
         monitor_{monitor} {}
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
-                  RegTree *p_tree, std::vector<RowIndexCache> *p_out_row_indices) {
+                  RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_row_indices) {
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, hess);
 
@@ -246,7 +246,8 @@ class GloablApproxBuilder {
       expand_set = driver.Pop();
     }
 
-    this->LeafPartition(tree, hess, p_out_row_indices);
+    auto &h_row_indices = p_out_row_indices->HostVector();
+    this->LeafPartition(tree, hess, &h_row_indices);
   }
 };
 
@@ -265,8 +266,6 @@ class GlobalApproxUpdater : public TreeUpdater {
   DMatrix *cached_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_ =
       std::make_shared<common::ColumnSampler>();
-  // cache for row partitions
-  std::vector<std::vector<RowIndexCache>> row_set_collection_;
   ObjInfo task_;
 
  public:
@@ -293,7 +292,6 @@ class GlobalApproxUpdater : public TreeUpdater {
     sampled->resize(h_gpair.size());
     std::copy(h_gpair.cbegin(), h_gpair.cend(), sampled->begin());
     auto &rnd = common::GlobalRandom();
-    row_set_collection_.clear();
 
     if (param.subsample != 1.0) {
       CHECK(param.sampling_method != TrainParam::kGradientBased)
@@ -334,14 +332,14 @@ class GlobalApproxUpdater : public TreeUpdater {
 
     cached_ = m;
 
+    size_t t_idx = 0;
     for (auto p_tree : trees) {
-      row_set_collection_.emplace_back();
-      auto &row_indices = row_set_collection_.back();
       if (hist_param_.single_precision_histogram) {
-        this->f32_impl_->UpdateTree(m, h_gpair, hess, p_tree, &row_indices);
+        this->f32_impl_->UpdateTree(m, h_gpair, hess, p_tree, &out_position[t_idx]);
       } else {
-        this->f64_impl_->UpdateTree(m, h_gpair, hess, p_tree, &row_indices);
+        this->f64_impl_->UpdateTree(m, h_gpair, hess, p_tree, &out_position[t_idx]);
       }
+      ++t_idx;
     }
     param_.learning_rate = lr;
   }
@@ -357,10 +355,6 @@ class GlobalApproxUpdater : public TreeUpdater {
       this->f64_impl_->UpdatePredictionCache(data, out_preds);
     }
     return true;
-  }
-
-  common::Span<RowIndexCache const> GetRowIndexCache(size_t tree_idx) const override {
-    return row_set_collection_.at(tree_idx);
   }
 };
 

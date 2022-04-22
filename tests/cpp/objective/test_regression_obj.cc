@@ -419,7 +419,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
   for (size_t i = 0; i < h_predt.size(); ++i) {
     h_predt[i] = labels[i] + i;
   }
-  obj->UpdateTreeLeaf(common::Span<RowIndexCache const>{row_idx}, info, predt, &tree);
+  // obj->UpdateTreeLeaf(common::Span<RowIndexCache const>{row_idx}, info, predt, &tree);
   ASSERT_EQ(tree[1].LeafValue(), -1);
   ASSERT_EQ(tree[2].LeafValue(), -4);
 }
@@ -458,7 +458,7 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
   ASSERT_EQ(tree.GetNumLeaves(), 4);
 
   auto empty_leaf = tree[4].LeafValue();
-  obj->UpdateTreeLeaf(row_idx_v, info, predt, &tree);
+  // obj->UpdateTreeLeaf(row_idx_v, info, predt, &tree);
   ASSERT_EQ(tree[3].LeafValue(), -5);
   ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
   ASSERT_EQ(tree[5].LeafValue(), -10);

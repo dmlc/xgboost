@@ -283,16 +283,11 @@ class PartitionBuilder {
   // Copy row partitions into global cache for reuse in objective
   template <typename Sampledp>
   void LeafPartition(Context const* ctx, RegTree const& tree, RowSetCollection const& row_set,
-                     std::vector<RowIndexCache>* p_out_row_indices, Sampledp sampledp) const {
-    p_out_row_indices->emplace_back(ctx, row_set.Data()->size());
-    auto& h_ridx = p_out_row_indices->back().row_index.HostVector();
-    auto& h_nptr = p_out_row_indices->back().node_ptr.HostVector();
-    auto& h_nidx = p_out_row_indices->back().node_idx.HostVector();
-    CHECK(h_nptr.empty());
+                     std::vector<bst_node_t>* p_position, Sampledp sampledp) const {
+    auto& h_pos = *p_position;
+    h_pos.resize(row_set.Data()->size(), std::numeric_limits<bst_node_t>::max());
 
     auto p_begin = row_set.Data()->data();
-    size_t offset{0};
-    h_nptr.push_back(offset);
     for (auto node : row_set) {
       if (node.node_id < 0 || !tree[node.node_id].IsLeaf()) {
         continue;
@@ -301,16 +296,10 @@ class PartitionBuilder {
         size_t ptr_offset = node.end - p_begin;
         CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
         for (auto idx = node.begin; idx != node.end; ++idx) {
-          if (!sampledp(*idx)) {
-            h_ridx[offset++] = *idx;
-          }
+          h_pos[*idx] = sampledp(*idx) ? ~node.node_id : node.node_id;
         }
       }
-      h_nptr.push_back(offset);
-      h_nidx.push_back(node.node_id);
     }
-    CHECK_LE(offset, row_set.Data()->size());
-    h_ridx.resize(offset);
   }
 
  protected:

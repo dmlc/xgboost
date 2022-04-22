@@ -218,9 +218,9 @@ class HistRowPartitioner {
 
   void LeafPartition(Context const* ctx, RegTree const& tree,
                      common::Span<GradientPair const> gpair,
-                     std::vector<RowIndexCache>* p_out_row_indices) const {
+                     std::vector<bst_node_t>* p_out_position) const {
     partition_builder_.LeafPartition(
-        ctx, tree, this->Partitions(), p_out_row_indices,
+        ctx, tree, this->Partitions(), p_out_position,
         [&](size_t idx) -> bool { return gpair[idx].GetHess() - .0f == .0f; });
   }
 
@@ -276,10 +276,6 @@ class QuantileHistMaker: public TreeUpdater {
     return "grow_quantile_histmaker";
   }
 
-  common::Span<RowIndexCache const> GetRowIndexCache(size_t tree_idx) const override {
-    return row_set_collection_.at(tree_idx);
-  }
-
  protected:
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
@@ -304,7 +300,7 @@ class QuantileHistMaker: public TreeUpdater {
     }
     // update one tree, growing
     void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree,
-                    std::vector<RowIndexCache>* p_out_row_indices);
+                    HostDeviceVector<bst_node_t>* p_out_row_indices);
 
     bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
@@ -324,10 +320,10 @@ class QuantileHistMaker: public TreeUpdater {
                         std::vector<GradientPair> const& gpair);
 
     void LeafPartition(RegTree const& tree, common::Span<GradientPair const> gpair,
-                       std::vector<RowIndexCache>* p_out_row_indices);
+                       std::vector<bst_node_t>* p_out_row_indices);
 
     void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h,
-                    std::vector<RowIndexCache>* p_out_row_indices);
+                    HostDeviceVector<bst_node_t>* p_out_row_indices);
 
    private:
     const size_t n_trees_;
@@ -353,8 +349,6 @@ class QuantileHistMaker: public TreeUpdater {
   };
 
  protected:
-  // cache for row partitions
-  std::vector<std::vector<RowIndexCache>> row_set_collection_;
   std::unique_ptr<Builder<float>> float_builder_;
   std::unique_ptr<Builder<double>> double_builder_;
   ObjInfo task_;

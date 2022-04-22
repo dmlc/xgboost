@@ -124,8 +124,8 @@ class ApproxRowPartitioner {
   auto const &Partitions() const { return row_set_collection_; }
 
   void LeafPartition(Context const *ctx, RegTree const &tree, common::Span<float const> hess,
-                     std::vector<RowIndexCache> *p_out_row_indices) const {
-    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), p_out_row_indices,
+                     std::vector<bst_node_t> *p_out_position) const {
+    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), p_out_position,
                                      [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
   }
 

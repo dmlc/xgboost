@@ -54,15 +54,15 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair, DMatrix *d
     }
   }
 
-  row_set_collection_.clear();
+  size_t t_idx{0};
   for (auto p_tree : trees) {
-    row_set_collection_.emplace_back();
-    auto &row_indices = row_set_collection_.back();
+    auto &row_indices = out_position[t_idx];
     if (hist_maker_param_.single_precision_histogram) {
       this->float_builder_->UpdateTree(gpair, dmat, p_tree, &row_indices);
     } else {
       this->double_builder_->UpdateTree(gpair, dmat, p_tree, &row_indices);
     }
+    ++t_idx;
   }
 
   param_.learning_rate = lr;
@@ -176,7 +176,7 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildHistogram(
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::LeafPartition(
     RegTree const &tree, common::Span<GradientPair const> gpair,
-    std::vector<RowIndexCache> *p_out_row_indices) {
+    std::vector<bst_node_t> *p_out_row_indices) {
   monitor_->Start(__func__);
   if (!evaluator_->Task().UpdateTreeLeaf()) {
     return;
@@ -191,7 +191,7 @@ void QuantileHistMaker::Builder<GradientSumT>::LeafPartition(
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h,
-    std::vector<RowIndexCache> *p_out_row_indices) {
+    HostDeviceVector<bst_node_t> *p_out_row_indices) {
   monitor_->Start(__func__);
 
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
@@ -248,14 +248,15 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     expand_set = driver.Pop();
   }
 
-  this->LeafPartition(tree, gpair_h, p_out_row_indices);
+  auto &h_row_indices = p_out_row_indices->HostVector();
+  this->LeafPartition(tree, gpair_h, &h_row_indices);
   monitor_->Stop(__func__);
 }
 
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::UpdateTree(
     HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat, RegTree *p_tree,
-    std::vector<RowIndexCache> *p_out_row_indices) {
+    HostDeviceVector<bst_node_t> *p_out_row_indices) {
   monitor_->Start(__func__);
 
   std::vector<GradientPair> *gpair_ptr = &(gpair->HostVector());

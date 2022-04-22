@@ -852,10 +852,10 @@ class MeanAbsoluteError : public ObjFunction {
     });
   }
 
-  void UpdateTreeLeaf(common::Span<RowIndexCache const> row_index, MetaInfo const& info,
+  void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
                       HostDeviceVector<float> const& prediction, RegTree* p_tree) const override {
     if (ctx_->IsCPU()) {
-      detail::UpdateTreeLeafHost(ctx_, row_index, info, prediction, 0.5, p_tree);
+      // detail::UpdateTreeLeafHost(ctx_, row_index, info, prediction, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
       detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, 0.5, p_tree);

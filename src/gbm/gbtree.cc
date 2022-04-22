@@ -224,13 +224,10 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   if (!obj || !obj->Task().UpdateTreeLeaf()) {
     return;
   }
-  if (updaters_.back()->GetRowIndexCache(0).empty()) {
-    return;
-  }
   auto& trees = *p_trees;
   for (size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
-    auto row_idx = updaters_.back()->GetRowIndexCache(tree_idx);
-    obj->UpdateTreeLeaf(row_idx, p_fmat->Info(), predictions, trees[tree_idx].get());
+    auto const& position = this->node_position_.at(tree_idx);
+    obj->UpdateTreeLeaf(position, p_fmat->Info(), predictions, trees[tree_idx].get());
   }
 }
 
