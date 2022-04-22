@@ -51,7 +51,6 @@ class TestGPUUpdaters:
         param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-
         note(result)
         assert tm.non_increasing(result["train"][dataset.metric])
 

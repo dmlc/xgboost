@@ -1,6 +1,3 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
- */
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
@@ -77,5 +74,6 @@ TEST(PartitionBuilder, BasicTest) {
     ASSERT_EQ(n_right, (kBlockSize - rows_for_left_node[nid]) * tasks[nid]);
   }
 }
+
 }  // namespace common
 }  // namespace xgboost

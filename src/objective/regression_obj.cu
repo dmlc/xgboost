@@ -5,7 +5,6 @@
  * \author Tianqi Chen, Kailong Chen
  */
 #include <dmlc/omp.h>
-#include <rabit/rabit.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #include <xgboost/tree_model.h>
