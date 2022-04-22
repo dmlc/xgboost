@@ -118,27 +118,29 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     }
   }
 
-  // test("test SparkContext should not be killed ") {
-  //   val training = buildDataFrame(Classification.train)
-  //   // mock rank 0 failure during 8th allreduce synchronization
-  //   Rabit.mockList = Array("0,8,0,0").toList.asJava
+  test("test SparkContext should not be killed ") {
+    cancel("For some reason, sparkContext can't cancel the job locally in the CI env," +
+      "which will be resolved when introducing barrier mode")
+    val training = buildDataFrame(Classification.train)
+    // mock rank 0 failure during 8th allreduce synchronization
+    Rabit.mockList = Array("0,8,0,0").toList.asJava
 
-  //   try {
-  //     new XGBoostClassifier(Map(
-  //       "eta" -> "0.1",
-  //       "max_depth" -> "10",
-  //       "verbosity" -> "1",
-  //       "objective" -> "binary:logistic",
-  //       "num_round" -> 5,
-  //       "num_workers" -> numWorkers,
-  //       "kill_spark_context_on_worker_failure" -> false,
-  //       "rabit_timeout" -> 0))
-  //       .fit(training)
-  //   } catch {
-  //     case e: Throwable => // swallow anything
-  //   } finally {
-  //     // wait 3s to check if SparkContext is killed
-  //     assert(waitAndCheckSparkShutdown(3000) == false)
-  //   }
-  // }
+    try {
+      new XGBoostClassifier(Map(
+        "eta" -> "0.1",
+        "max_depth" -> "10",
+        "verbosity" -> "1",
+        "objective" -> "binary:logistic",
+        "num_round" -> 5,
+        "num_workers" -> numWorkers,
+        "kill_spark_context_on_worker_failure" -> false,
+        "rabit_timeout" -> 0))
+        .fit(training)
+    } catch {
+      case e: Throwable => // swallow anything
+    } finally {
+      // wait 3s to check if SparkContext is killed
+      assert(waitAndCheckSparkShutdown(3000) == false)
+    }
+  }
 }
