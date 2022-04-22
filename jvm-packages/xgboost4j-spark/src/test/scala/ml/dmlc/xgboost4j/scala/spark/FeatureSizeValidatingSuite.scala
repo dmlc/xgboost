@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,10 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.XGBoostError
 import org.apache.spark.Partitioner
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 import org.apache.spark.sql.functions._
 
@@ -53,7 +51,7 @@ class FeatureSizeValidatingSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic",
       "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true, "missing" -> 0)
     import DataUtils._
-    val sparkSession = SparkSession.builder().getOrCreate()
+    val sparkSession = ss
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.trainWithDiffFeatureSize, 2)
       .map(lp => (lp.label, lp)).partitionBy(
