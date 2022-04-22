@@ -68,7 +68,6 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
                         MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
                         RegTree* p_tree) {
   auto& tree = *p_tree;
-  CHECK(!position.empty());
 
   std::vector<bst_node_t> nidx;
   std::vector<size_t> nptr;
@@ -78,8 +77,10 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   if (nptr.empty()) {
     std::vector<float> quantiles;
     UpdateLeafValues(&quantiles, nidx, p_tree);
+    return;
   }
 
+  CHECK(!position.empty());
   std::vector<float> quantiles(n_leaf, 0);
   std::vector<int32_t> n_valids(n_leaf, 0);
 
