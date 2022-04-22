@@ -181,7 +181,6 @@ void QuantileHistMaker::Builder<GradientSumT>::LeafPartition(
   if (!evaluator_->Task().UpdateTreeLeaf()) {
     return;
   }
-  CHECK(p_out_row_indices->empty());
   for (auto const &part : partitioner_) {
     part.LeafPartition(ctx_, tree, gpair, p_out_row_indices);
   }

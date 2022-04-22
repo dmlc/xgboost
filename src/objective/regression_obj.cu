@@ -769,6 +769,8 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   common::RunLengthEncode(nidx, &segments);
   CHECK_GT(segments.size(), 0);
   size_t n_leaf = segments.size() - 1;
+  auto n_unique = std::unique(nidx.begin(), nidx.end()) - nidx.begin();
+  CHECK_EQ(n_unique, n_leaf);
   nidx.resize(n_leaf);
 
   std::vector<float> quantiles(n_leaf, 0);

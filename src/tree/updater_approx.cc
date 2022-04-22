@@ -161,7 +161,6 @@ class GloablApproxBuilder {
     if (!evaluator_.Task().UpdateTreeLeaf()) {
       return;
     }
-    CHECK(p_out_row_indices->empty());
     for (auto const &part : partitioner_) {
       part.LeafPartition(ctx_, tree, hess, p_out_row_indices);
     }
