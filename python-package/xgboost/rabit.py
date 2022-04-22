@@ -6,7 +6,7 @@ from typing import Any, TypeVar, Callable, Optional, cast, List, Union
 
 import numpy as np
 
-from .core import _LIB, c_str, STRING_TYPES, _check_call
+from .core import _LIB, c_str, _check_call
 
 
 def _init_rabit() -> None:
@@ -73,7 +73,7 @@ def tracker_print(msg: Any) -> None:
     msg : str
         The message to be printed to tracker.
     """
-    if not isinstance(msg, STRING_TYPES):
+    if not isinstance(msg, str):
         msg = str(msg)
     is_dist = _LIB.RabitIsDistributed()
     if is_dist != 0:
