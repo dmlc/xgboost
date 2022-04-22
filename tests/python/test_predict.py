@@ -262,7 +262,6 @@ class TestInplacePredict:
             np.float16,
             np.float32,
             np.float64,
-            np.float128,
             np.half,
             np.single,
             np.double,
