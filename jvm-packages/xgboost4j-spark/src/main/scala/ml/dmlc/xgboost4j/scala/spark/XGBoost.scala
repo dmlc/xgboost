@@ -283,13 +283,8 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def buildDistributedBooster(
-      watches: Watches,
-      xgbExecutionParam: XGBoostExecutionParams,
-      rabitEnv: java.util.Map[String, String],
-      obj: ObjectiveTrait,
-      eval: EvalTrait,
-      prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
+  private def buildWatchesAndCheck(buildWatchesFun: () => Watches): Watches = {
+    val watches = buildWatchesFun()
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
@@ -298,14 +293,39 @@ object XGBoost extends Serializable {
         s"detected an empty partition in the training data, partition ID:" +
           s" ${TaskContext.getPartitionId()}")
     }
+    watches
+  }
+
+  private def buildDistributedBooster(
+      buildDMatrixInRabit: Boolean,
+      buildWatches: () => Watches,
+      xgbExecutionParam: XGBoostExecutionParams,
+      rabitEnv: java.util.Map[String, String],
+      obj: ObjectiveTrait,
+      eval: EvalTrait,
+      prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
+
+    var watches: Watches = null
+    if (!buildDMatrixInRabit) {
+      // for CPU pipeline, we need to build DMatrix out of rabit context
+      watches = buildWatchesAndCheck(buildWatches)
+    }
+
     val taskId = TaskContext.getPartitionId().toString
     val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
     rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
     val numRounds = xgbExecutionParam.numRounds
     val makeCheckpoint = xgbExecutionParam.checkpointParam.isDefined && taskId.toInt == 0
+
     try {
       Rabit.init(rabitEnv)
+
+      if (buildDMatrixInRabit) {
+        // for GPU pipeline, we need to move dmatrix building into rabit context
+        watches = buildWatchesAndCheck(buildWatches)
+      }
+
       val numEarlyStoppingRounds = xgbExecutionParam.earlyStoppingParams.numEarlyStoppingRounds
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](numRounds))
       val externalCheckpointParams = xgbExecutionParam.checkpointParam
@@ -338,7 +358,7 @@ object XGBoost extends Serializable {
         throw xgbException
     } finally {
       Rabit.shutdown()
-      watches.delete()
+      if (watches != null) watches.delete()
     }
   }
 
@@ -364,7 +384,7 @@ object XGBoost extends Serializable {
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
       sc: SparkContext,
-      buildTrainingData: XGBoostExecutionParams => (RDD[Watches], Option[RDD[_]]),
+      buildTrainingData: XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]]),
       params: Map[String, Any]):
     (Booster, Map[String, Array[Float]]) = {
 
@@ -383,7 +403,7 @@ object XGBoost extends Serializable {
     }.orNull
 
     // Get the training data RDD and the cachedRDD
-    val (trainingRDD, optionalCachedRDD) = buildTrainingData(xgbExecParams)
+    val (buildDMatrixInRabit, trainingRDD, optionalCachedRDD) = buildTrainingData(xgbExecParams)
 
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
@@ -398,15 +418,16 @@ object XGBoost extends Serializable {
         val rabitEnv = tracker.getWorkerEnvs
 
         val boostersAndMetrics = trainingRDD.mapPartitions { iter => {
-          var optionWatches: Option[Watches] = None
+          var optionWatches: Option[() => Watches] = None
 
           // take the first Watches to train
           if (iter.hasNext) {
             optionWatches = Some(iter.next())
           }
 
-          optionWatches.map { watches => buildDistributedBooster(watches, xgbExecParams, rabitEnv,
-            xgbExecParams.obj, xgbExecParams.eval, prevBooster)}
+          optionWatches.map { buildWatches => buildDistributedBooster(buildDMatrixInRabit,
+            buildWatches, xgbExecParams, rabitEnv, xgbExecParams.obj,
+            xgbExecParams.eval, prevBooster)}
             .getOrElse(throw new RuntimeException("No Watches to train"))
 
         }}.cache()
