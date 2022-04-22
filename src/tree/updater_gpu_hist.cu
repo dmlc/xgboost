@@ -922,6 +922,8 @@ class GPUHistMaker : public TreeUpdater {
     return "grow_gpu_hist";
   }
 
+  bool HasNodePosition() const override { return true; }
+
  private:
   GPUHistMakerTrainParam hist_maker_param_;
   ObjInfo task_;

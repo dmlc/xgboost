@@ -221,6 +221,9 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
                             ObjFunction const* obj, size_t gidx,
                             std::vector<std::unique_ptr<RegTree>>* p_trees) {
   CHECK(!updaters_.empty());
+  if (!updaters_.back()->HasNodePosition()) {
+    return;
+  }
   if (!obj || !obj->Task().UpdateTreeLeaf()) {
     return;
   }

@@ -50,6 +50,11 @@ class TreeUpdater : public Configurable {
    */
   virtual bool CanModifyTree() const { return false; }
   /*!
+   * \brief Wether the out_position in `Update` is valid. This determines whether adaptive
+   *        tree can be used.
+   */
+  virtual bool HasNodePosition() const { return false; }
+  /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
    * \param data The data matrix passed to the updater.

@@ -276,6 +276,8 @@ class QuantileHistMaker: public TreeUpdater {
     return "grow_quantile_histmaker";
   }
 
+  bool HasNodePosition() const override { return true; }
+
  protected:
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
