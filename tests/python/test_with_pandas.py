@@ -328,5 +328,5 @@ class TestPandas:
             return to_bytes(Xy)
 
         b0 = test_bool(pd.BooleanDtype())
-        b1 = test_bool(np.bool)
+        b1 = test_bool(bool)
         assert b0 != b1         # None is converted to False with np.bool
