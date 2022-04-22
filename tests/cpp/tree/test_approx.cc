@@ -26,7 +26,7 @@ TEST(Approx, Partitioner) {
   std::transform(grad.HostVector().cbegin(), grad.HostVector().cend(), hess.begin(),
                  [](auto gpair) { return gpair.GetHess(); });
 
-  for (auto const &page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
+  for (auto const& page : Xy->GetBatches<GHistIndexMatrix>({64, hess, true})) {
     bst_feature_t const split_ind = 0;
     {
       auto min_value = page.cut.MinValues()[split_ind];
@@ -96,19 +96,28 @@ void TestLeafPartition(size_t n_samples) {
     split_value = page.cut.Values().at(ptr / 2);
     GetSplit(&tree, split_value, &candidates);
     partitioner.UpdatePosition(&ctx, page, candidates, &tree);
-    std::vector<bst_node_t> cache;
-    partitioner.LeafPartition(&ctx, tree, hess, &cache);
-    // auto const& row_idx = cache.front();
-    // ASSERT_EQ(n, row_idx.row_index.Size());
-    // h_nptr = row_idx.node_ptr.ConstHostVector();
-    // ASSERT_EQ(h_nptr.size(), 3);
-    // ASSERT_EQ(h_nptr[0], 0);
-    // ASSERT_EQ(h_nptr[2], n);  // equal to sampled rows
+    std::vector<bst_node_t> position;
+    partitioner.LeafPartition(&ctx, tree, hess, &position);
+    std::sort(position.begin(), position.end());
+    size_t beg = std::distance(
+        position.begin(),
+        std::find_if(position.begin(), position.end(), [&](bst_node_t nidx) { return nidx >= 0; }));
+    std::vector<size_t> nptr;
+    common::RunLengthEncode(position.cbegin() + beg, position.cend(), &nptr);
+    std::transform(nptr.begin(), nptr.end(), nptr.begin(), [&](size_t x) { return x + beg; });
+    auto n_uniques = std::unique(position.begin() + beg, position.end()) - (position.begin() + beg);
+    ASSERT_EQ(nptr.size(), n_uniques + 1);
+    ASSERT_EQ(nptr[0], beg);
+    ASSERT_EQ(nptr.back(), n_samples);
 
-    // ASSERT_EQ(row_idx.node_idx.Size(), 2);
-    // ASSERT_EQ(row_idx.node_idx.HostVector()[0], 1);
-    // ASSERT_EQ(row_idx.node_idx.HostVector()[1], 2);
+    h_nptr = nptr;
   }
+
+  if (h_nptr.front() == n_samples) {
+    return;
+  }
+
+  ASSERT_GE(h_nptr.size(), 2);
 
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
@@ -118,7 +127,7 @@ void TestLeafPartition(size_t n_samples) {
         left++;
       }
     }
-    ASSERT_EQ(left, h_nptr[1]);  // equal to number of sampled assigned to left
+    ASSERT_EQ(left, h_nptr[1] - h_nptr[0]);  // equal to number of sampled assigned to left
   }
 }
 }  // anonymous namespace
