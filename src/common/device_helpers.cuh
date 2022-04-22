@@ -1637,5 +1637,6 @@ class CUDAStream {
   }
 
   CUDAStreamView View() const { return CUDAStreamView{stream_}; }
+  void Sync() { this->View().Sync(); }
 };
 }  // namespace dh

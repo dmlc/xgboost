@@ -32,9 +32,10 @@
 #include "xgboost/span.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include "../common/linalg_op.cuh"
 #include "../common/device_helpers.cuh"
+#include "../common/linalg_op.cuh"
 #include "../common/stats.cuh"
+#include "adaptive.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost {
@@ -671,8 +672,8 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .set_body([]() { return new TweedieRegression(); });
 
 namespace detail {
-void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<size_t> const& row_index,
-                      std::vector<bst_node_t> const nidx, RegTree* p_tree) {
+void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const nidx,
+                      RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
@@ -712,24 +713,27 @@ void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<size_t> const
 }
 
 #if defined(XGBOOST_USE_CUDA)
-void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> row_index,
+
+
+void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
                           MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
                           RegTree* p_tree) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
-  CHECK_EQ(row_index.size(), 1)
-      << "External memory with GPU hist should have only 1 row partition.";
-  auto const& part = row_index.front();
+  dh::device_vector<size_t> ridx;
+  HostDeviceVector<size_t> nptr;
+  HostDeviceVector<bst_node_t> nidx;
+
+  EncodeTreeLeaf(ctx, position, &nptr, &nidx, *p_tree);
 
   HostDeviceVector<float> quantiles;
   predt.SetDevice(ctx->gpu_id);
   auto d_predt = predt.ConstDeviceSpan();
   auto d_labels = info.labels.View(ctx->gpu_id);
 
-  part.row_index.SetDevice(ctx->gpu_id);
-  auto d_row_index = part.row_index.ConstDeviceSpan();
-  part.node_ptr.SetDevice(ctx->gpu_id);
-  auto seg_beg = part.node_ptr.ConstDeviceSpan().data();
-  auto seg_end = seg_beg + part.node_ptr.Size();
+
+  auto d_row_index = dh::ToSpan(ridx);
+  auto seg_beg = nptr.DevicePointer();
+  auto seg_end = seg_beg + nptr.Size();
   auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                   [=] XGBOOST_DEVICE(size_t i) {
                                                     auto predt = d_predt[d_row_index[i]];
@@ -737,7 +741,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
                                                     return y - predt;
                                                   });
   auto val_end = val_beg + d_labels.Size();
-  CHECK_EQ(part.node_idx.Size() + 1, part.node_ptr.Size());
+  CHECK_EQ(nidx.Size() + 1, nptr.Size());
   if (info.weights_.Empty()) {
     common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
   } else {
@@ -749,7 +753,7 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<RowIndexCache const> 
                                       w_it + d_weights.size(), &quantiles);
   }
 
-  UpdateLeafValues(&quantiles.HostVector(), row_index.front(), p_tree);
+  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), p_tree);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
@@ -771,6 +775,15 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
                                                       [](bst_node_t nidx) { return nidx >= 0; }));
   CHECK_LE(begin_pos, sorted_pos.size());
   if (begin_pos == sorted_pos.size()) {
+    std::vector<bst_node_t> leaf;
+    tree.WalkTree([&](bst_node_t nidx) {
+      if (tree[nidx].IsLeaf()) {
+        leaf.push_back(nidx);
+      }
+      return true;
+    });
+    std::vector<float> quantiles;
+    UpdateLeafValues(&quantiles, leaf, p_tree);
     return;
   }
 
@@ -847,7 +860,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
     }
   }
 
-  UpdateLeafValues(&quantiles, ridx, nidx, p_tree);
+  UpdateLeafValues(&quantiles, nidx, p_tree);
 }
 }  // namespace detail
 
@@ -889,7 +902,8 @@ class MeanAbsoluteError : public ObjFunction {
       detail::UpdateTreeLeafHost(ctx_, h_position, info, prediction, 0.5, p_tree);
     } else {
 #if defined(XGBOOST_USE_CUDA)
-      detail::UpdateTreeLeafDevice(ctx_, row_index, info, prediction, 0.5, p_tree);
+      auto d_position = position.ConstDeviceSpan();
+      detail::UpdateTreeLeafDevice(ctx_, d_position, info, prediction, 0.5, p_tree);
 #else
       common::AssertGPUSupport();
 #endif  //  defined(XGBOOST_USE_CUDA)

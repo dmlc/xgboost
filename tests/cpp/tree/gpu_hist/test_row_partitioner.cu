@@ -112,14 +112,14 @@ void TestFinalise() {
   ObjInfo task{ObjInfo::kRegression, false, false};
   RegTree tree;
   tree.ExpandNode(0, 0, 0.f, true, 0., 0., 0., /*loss_chg=*/0.f, 0.f, 0.f, 0.f);
-  std::vector<RowIndexCache> row_index;
+  HostDeviceVector<bst_node_t> position;
   Context ctx;
   ctx.gpu_id = 0;
 
   {
     RowPartitioner rp(0, kNumRows);
     rp.FinalisePosition(
-        &ctx, &tree, tree.GetNumLeaves(), task, &row_index,
+        &ctx, &tree, tree.GetNumLeaves(), task, &position,
         [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
         [] XGBOOST_DEVICE(size_t idx) { return false; });
 
@@ -142,68 +142,25 @@ void TestFinalise() {
     }
   }
 
-  row_index.emplace_back(&ctx, kNumRows);
   auto d_hess = dh::ToSpan(hess);
   task.zero_hess = true;
 
   RowPartitioner rp(0, kNumRows);
   rp.FinalisePosition(
-      &ctx, &tree, tree.GetNumLeaves(), task, &row_index,
+      &ctx, &tree, tree.GetNumLeaves(), task, &position,
       [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
         return ridx % 2 == 0 ? 1 : 2;
       },
       [d_hess] __device__(size_t ridx) { return d_hess[ridx] - 0.f == 0.f; });
 
-  auto const& h_node_ptr = row_index.back().node_ptr.ConstHostVector();
-  ASSERT_EQ(h_node_ptr.size(), 3);
-  ASSERT_EQ(h_node_ptr[0], 4);
-  ASSERT_EQ(h_node_ptr[1], 7);
-  ASSERT_EQ(h_node_ptr[2], kNumRows);
-
-  auto const& h_node_idx = row_index.back().node_idx.ConstHostVector();
-  ASSERT_EQ(h_node_idx.size(), 2);
-  ASSERT_EQ(h_node_idx[0], 1);
-  ASSERT_EQ(h_node_idx[1], 2);
-
-  auto const& h_ridx = row_index.back().row_index.ConstHostVector();
-  std::vector<size_t> sol{0, 3, 6, 9, 2, 4, 8, 1, 5, 7};
-  for (size_t i = 0; i < h_ridx.size(); ++i) {
-    ASSERT_EQ(h_ridx[i], sol[i]);
+  auto const& h_position = position.ConstHostVector();
+  for (auto v : h_position) {
+    std::cout << v << ", ";
   }
+  std::cout << std::endl;
 }
 
-void TestFillMissingLeaf() {
-  std::vector<bst_node_t> missing{1, 3};
-  Context ctx;
-  RowIndexCache row_index(&ctx, 10);
-  row_index.node_idx = {2, 4, 5};
-  row_index.node_ptr = {0, 4, 8, 16};
-  row_index.node_idx.SetDevice(0);
-  row_index.node_ptr.SetDevice(0);
-
-  detail::FillMissingLeaf(missing, &row_index);
-
-  auto const& h_nidx = row_index.node_idx.HostVector();
-  auto const& h_nptr = row_index.node_ptr.HostVector();
-
-  ASSERT_EQ(h_nidx[0], missing[0]);
-  ASSERT_EQ(h_nidx[2], missing[1]);
-  ASSERT_EQ(h_nidx[1], 2);
-  ASSERT_EQ(h_nidx[3], 4);
-  ASSERT_EQ(h_nidx[4], 5);
-
-  ASSERT_EQ(h_nptr[0], 0);
-  ASSERT_EQ(h_nptr[1], 0);  // empty
-  ASSERT_EQ(h_nptr[2], 4);
-  ASSERT_EQ(h_nptr[3], 4);  // empty
-  ASSERT_EQ(h_nptr[4], 8);
-  ASSERT_EQ(h_nptr[5], 16);
-}
-
-TEST(RowPartitioner, Finalise) {
-  TestFillMissingLeaf();
-  TestFinalise();
-}
+TEST(RowPartitioner, Finalise) { TestFinalise(); }
 
 void TestIncorrectRow() {
   RowPartitioner rp(0, 1);
