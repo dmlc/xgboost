@@ -53,14 +53,14 @@ class TreeUpdater : public Configurable {
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
    * \param data The data matrix passed to the updater.
-   * \param trees references the trees to be updated, updater will change the content of trees
+   * \param out_trees references the trees to be updated, updater will change the content of trees
    *   note: all the trees in the vector are updated, with the same statistics,
    *         but maybe different random seeds, usually one tree is passed in at a time,
    *         there can be multiple trees when we train random forest style model
    */
-  virtual void Update(HostDeviceVector<GradientPair>* gpair,
-                      DMatrix* data,
-                      const std::vector<RegTree*>& trees) = 0;
+  virtual void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* data,
+                      common::Span<HostDeviceVector<bst_node_t>> out_position,
+                      const std::vector<RegTree*>& out_trees) = 0;
 
   /*!
    * \brief determines whether updater has enough knowledge about a given dataset

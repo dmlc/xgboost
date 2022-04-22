@@ -312,6 +312,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   char const *Name() const override { return "grow_histmaker"; }
 
   void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *m,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();

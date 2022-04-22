@@ -238,8 +238,8 @@ class QuantileHistMaker: public TreeUpdater {
   explicit QuantileHistMaker(ObjInfo task) : task_{task} {}
   void Configure(const Args& args) override;
 
-  void Update(HostDeviceVector<GradientPair>* gpair,
-              DMatrix* dmat,
+  void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix *data,

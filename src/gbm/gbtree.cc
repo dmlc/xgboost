@@ -236,7 +236,7 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
 
 void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt, ObjFunction const* obj) {
-  std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
+  std::vector<std::vector<std::unique_ptr<RegTree>>> new_trees;
   const int ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
@@ -328,10 +328,8 @@ void GBTree::InitUpdater(Args const& cfg) {
   }
 }
 
-void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
-                           DMatrix *p_fmat,
-                           int bst_group,
-                           std::vector<std::unique_ptr<RegTree> >* ret) {
+void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, int bst_group,
+                           std::vector<std::unique_ptr<RegTree>>* ret) {
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
@@ -350,9 +348,9 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
     } else if (tparam_.process_type == TreeProcessType::kUpdate) {
       for (auto const& up : updaters_) {
         CHECK(up->CanModifyTree())
-          << "Updater: `" << up->Name() << "` "
-          << "can not be used to modify existing trees. "
-          << "Set `process_type` to `default` if you want to build new trees.";
+            << "Updater: `" << up->Name() << "` "
+            << "can not be used to modify existing trees. "
+            << "Set `process_type` to `default` if you want to build new trees.";
       }
       CHECK_LT(model_.trees.size(), model_.trees_to_update.size())
           << "No more tree left for updating.  For updating existing trees, "
@@ -368,8 +366,10 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
   CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_)
       << "Mismatching size between number of rows from input data and size of "
          "gradient vector.";
+  node_position_.resize(new_trees.size());
   for (auto& up : updaters_) {
-    up->Update(gpair, p_fmat, new_trees);
+    up->Update(gpair, p_fmat, common::Span<HostDeviceVector<bst_node_t>>{node_position_},
+               new_trees);
   }
 }
 

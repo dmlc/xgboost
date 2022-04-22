@@ -36,6 +36,7 @@ void QuantileHistMaker::Configure(const Args &args) {
 }
 
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
+                               common::Span<HostDeviceVector<bst_node_t>> out_position,
                                const std::vector<RegTree *> &trees) {
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
