@@ -228,15 +228,15 @@ std::string ReadFile(std::string const& path) {
   return out.str();
 }
 
-void RunServer(int port, int world_size, std::string const& ca_cert_file,
-               std::string const& key_file, std::string const& cert_file) {
+void RunServer(int port, int world_size, std::string const& key_file, std::string const& cert_file,
+               std::string const& client_cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
   FederatedService service{world_size};
 
   grpc::ServerBuilder builder;
   auto options =
       grpc::SslServerCredentialsOptions(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
-  options.pem_root_certs = ReadFile(ca_cert_file);
+  options.pem_root_certs = ReadFile(client_cert_file);
   auto key = grpc::SslServerCredentialsOptions::PemKeyCertPair();
   key.private_key = ReadFile(key_file);
   key.cert_chain = ReadFile(cert_file);
@@ -253,14 +253,15 @@ void RunServer(int port, int world_size, std::string const& ca_cert_file,
 
 int main(int argc, char** argv) {
   if (argc != 6) {
-    std::cerr << "Usage: federated_server port world_size ca_cert_file key_file cert_file" << '\n';
+    std::cerr << "Usage: federated_server port world_size key_file cert_file client_cert_file"
+              << '\n';
     return 1;
   }
   auto port = std::stoi(argv[1]);
   auto world_size = std::stoi(argv[2]);
-  std::string ca_cert_file = argv[3];
-  std::string key_file = argv[4];
-  std::string cert_file = argv[5];
-  xgboost::federated::RunServer(port, world_size, ca_cert_file, key_file, cert_file);
+  std::string key_file = argv[3];
+  std::string cert_file = argv[4];
+  std::string client_cert_file = argv[5];
+  xgboost::federated::RunServer(port, world_size, key_file, cert_file, client_cert_file);
   return 0;
 }

@@ -18,11 +18,12 @@ namespace federated {
  */
 class FederatedClient {
  public:
-  explicit FederatedClient(std::string const &server_address, int rank, std::string const &ca_cert,
-                           std::string const &client_key, std::string const &client_cert)
+  explicit FederatedClient(std::string const &server_address, int rank,
+                           std::string const &server_cert, std::string const &client_key,
+                           std::string const &client_cert)
       : stub_{[&] {
           grpc::SslCredentialsOptions options;
-          options.pem_root_certs = ca_cert;
+          options.pem_root_certs = server_cert;
           options.pem_private_key = client_key;
           options.pem_cert_chain = client_cert;
           return Federated::NewStub(

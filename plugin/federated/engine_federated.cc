@@ -42,7 +42,7 @@ class FederatedEngine : public IEngine {
     }
     utils::Printf("Connecting to federated server %s, world size %d, rank %d",
                   server_address_.c_str(), world_size_, rank_);
-    client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_, ca_cert_,
+    client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_, server_cert_,
                                                           client_key_, client_cert_));
   }
 
@@ -169,8 +169,8 @@ class FederatedEngine : public IEngine {
       world_size_ = std::stoi(val);
     } else if (!strcasecmp(name.c_str(), "FEDERATED_RANK")) {
       rank_ = std::stoi(val);
-    } else if (!strcasecmp(name.c_str(), "FEDERATED_CA_CERT")) {
-      ca_cert_ = ReadFile(val);
+    } else if (!strcasecmp(name.c_str(), "FEDERATED_SERVER_CERT")) {
+      server_cert_ = ReadFile(val);
     } else if (!strcasecmp(name.c_str(), "FEDERATED_CLIENT_KEY")) {
       client_key_ = ReadFile(val);
     } else if (!strcasecmp(name.c_str(), "FEDERATED_CLIENT_CERT")) {
@@ -190,14 +190,14 @@ class FederatedEngine : public IEngine {
       "FEDERATED_SERVER_ADDRESS",
       "FEDERATED_WORLD_SIZE",
       "FEDERATED_RANK",
-      "FEDERATED_CA_CERT",
+      "FEDERATED_SERVER_CERT",
       "FEDERATED_CLIENT_KEY",
       "FEDERATED_CLIENT_CERT" };
   // clang-format on
   std::string server_address_{"localhost:9091"};
   int world_size_{1};
   int rank_{0};
-  std::string ca_cert_{};
+  std::string server_cert_{};
   std::string client_key_{};
   std::string client_cert_{};
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
