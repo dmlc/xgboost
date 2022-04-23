@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 #include "rabit/rabit.h"
@@ -40,7 +41,7 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
   rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
-    quantiles.resize(n_leaf);
+    quantiles.resize(n_leaf, std::numeric_limits<float>::quiet_NaN());
   }
 
   // number of workers that have valid quantiles
