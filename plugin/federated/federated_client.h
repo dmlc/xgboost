@@ -18,9 +18,16 @@ namespace federated {
  */
 class FederatedClient {
  public:
-  explicit FederatedClient(std::string const &server_address, int rank)
-      : stub_{Federated::NewStub(
-            grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()))},
+  explicit FederatedClient(std::string const &server_address, int rank, std::string const &ca_cert,
+                           std::string const &client_key, std::string const &client_cert)
+      : stub_{[&] {
+          grpc::SslCredentialsOptions options;
+          options.pem_root_certs = ca_cert;
+          options.pem_private_key = client_key;
+          options.pem_cert_chain = client_cert;
+          return Federated::NewStub(
+              grpc::CreateChannel(server_address, grpc::SslCredentials(options)));
+        }()},
         rank_{rank} {}
 
   std::string Allgather(std::string const &send_buffer) {

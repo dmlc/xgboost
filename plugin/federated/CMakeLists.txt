@@ -27,8 +27,8 @@ target_link_libraries(federated_server PRIVATE federated_proto)
 
 # A test client to exercise the gRPC calls.
 # TODO(rongou): add unit tests and get rid of this.
-add_executable(test_client test_client.cc)
-target_link_libraries(test_client PRIVATE federated_client)
+#add_executable(test_client test_client.cc)
+#target_link_libraries(test_client PRIVATE federated_client)
 
 # Rabit engine for Federated Learning.
 target_sources(objxgboost PRIVATE engine_federated.cc)

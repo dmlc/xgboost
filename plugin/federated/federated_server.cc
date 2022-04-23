@@ -2,10 +2,13 @@
  * Copyright 2022 XGBoost contributors
  */
 #include <federated.grpc.pb.h>
+#include <grpcpp/grpcpp.h>
 #include <grpcpp/server_builder.h>
 
 #include <condition_variable>
+#include <fstream>
 #include <mutex>
+#include <sstream>
 
 namespace xgboost::federated {
 
@@ -218,12 +221,27 @@ class FederatedService final : public Federated::Service {
   mutable std::condition_variable cv_;
 };
 
-void RunServer(int port, int world_size) {
+std::string ReadFile(std::string const& path) {
+  auto stream = std::ifstream(path.data());
+  std::ostringstream out;
+  out << stream.rdbuf();
+  return out.str();
+}
+
+void RunServer(int port, int world_size, std::string const& ca_cert_file,
+               std::string const& key_file, std::string const& cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
   FederatedService service{world_size};
 
   grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  auto options =
+      grpc::SslServerCredentialsOptions(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
+  options.pem_root_certs = ReadFile(ca_cert_file);
+  auto key = grpc::SslServerCredentialsOptions::PemKeyCertPair();
+  key.private_key = ReadFile(key_file);
+  key.cert_chain = ReadFile(cert_file);
+  options.pem_key_cert_pairs.push_back(key);
+  builder.AddListeningPort(server_address, grpc::SslServerCredentials(options));
   builder.RegisterService(&service);
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
   std::cout << "Federated server listening on " << server_address << ", world size " << world_size
@@ -234,12 +252,15 @@ void RunServer(int port, int world_size) {
 }  // namespace xgboost::federated
 
 int main(int argc, char** argv) {
-  if (argc != 3) {
-    std::cerr << "Usage: federated_server port world_size" << '\n';
+  if (argc != 6) {
+    std::cerr << "Usage: federated_server port world_size ca_cert_file key_file cert_file" << '\n';
     return 1;
   }
   auto port = std::stoi(argv[1]);
   auto world_size = std::stoi(argv[2]);
-  xgboost::federated::RunServer(port, world_size);
+  std::string ca_cert_file = argv[3];
+  std::string key_file = argv[4];
+  std::string cert_file = argv[5];
+  xgboost::federated::RunServer(port, world_size, ca_cert_file, key_file, cert_file);
   return 0;
 }
