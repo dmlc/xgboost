@@ -60,7 +60,6 @@ void EncodeTreeLeafHost(RegTree const& tree, std::vector<bst_node_t> const& posi
 
   if (n_leaf != leaf.size()) {
     FillMissingLeaf(leaf, &nidx, &nptr);
-    n_leaf = leaf.size();
   }
 }
 
