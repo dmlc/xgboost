@@ -129,7 +129,7 @@ labels. A DataFrame like this (containing vector-represented features and numeri
 
 .. note::
 
-  There is no need to assemble feature columns from version 1.6.0+. Instead, users can specify an array of
+  There is no need to assemble feature columns from version 1.6.1+. Instead, users can specify an array of
   feture column names by ``setFeaturesCol(value: Array[String])`` and XGBoost4j-Spark will do it.
 
 Dealing with missing values
