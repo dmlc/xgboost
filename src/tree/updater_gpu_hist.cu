@@ -390,7 +390,7 @@ struct GPUHistMakerDevice {
   // After tree update is finished, update the position of all training
   // instances to their final leaf. This information is used later to update the
   // prediction cache
-  void FinalisePosition(RegTree const* p_tree, size_t n_leaf, DMatrix* p_fmat, ObjInfo task,
+  void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, ObjInfo task,
                         HostDeviceVector<bst_node_t>* p_out_position) {
     dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
     dh::safe_cuda(cudaMemcpyAsync(d_nodes.data().get(), p_tree->GetNodes().data(),
@@ -419,31 +419,29 @@ struct GPUHistMakerDevice {
       LOG(FATAL) << "Current objective function can not be used with subsampled external memory.";
     }
     if (page->n_rows == p_fmat->Info().num_row_) {
-      FinalisePositionInPage(page, p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+      FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
                              dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                             n_leaf, p_out_position);
+                             p_out_position);
     } else {
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
-        FinalisePositionInPage(batch.Impl(), p_tree, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+        FinalisePositionInPage(batch.Impl(), dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
                                dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                               n_leaf, p_out_position);
+                               p_out_position);
       }
     }
   }
 
   void FinalisePositionInPage(EllpackPageImpl const *page,
-                              RegTree const* p_tree,
                               const common::Span<RegTree::Node> d_nodes,
                               common::Span<FeatureType const> d_feature_types,
                               common::Span<uint32_t const> categories,
                               common::Span<RegTree::Segment> categories_segments,
                               ObjInfo task,
-                              size_t n_leaf,
                               HostDeviceVector<bst_node_t>* p_out_position) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
     row_partitioner->FinalisePosition(
-        ctx_, p_out_position,
+        ctx_, task, p_out_position,
         [=] __device__(size_t row_id, int position) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
@@ -699,7 +697,7 @@ struct GPUHistMakerDevice {
     }
 
     monitor.Start("FinalisePosition");
-    this->FinalisePosition(p_tree, num_leaves, p_fmat, task, p_out_position);
+    this->FinalisePosition(p_tree, p_fmat, task, p_out_position);
     monitor.Stop("FinalisePosition");
   }
 };

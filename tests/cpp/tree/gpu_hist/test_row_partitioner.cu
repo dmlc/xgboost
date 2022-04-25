@@ -109,6 +109,7 @@ TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
 void TestFinalise() {
   const int kNumRows = 10;
 
+  ObjInfo task{ObjInfo::kRegression, false, false};
   HostDeviceVector<bst_node_t> position;
   Context ctx;
   ctx.gpu_id = 0;
@@ -116,7 +117,8 @@ void TestFinalise() {
   {
     RowPartitioner rp(0, kNumRows);
     rp.FinalisePosition(
-        &ctx, &position, [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
+        &ctx, task, &position,
+        [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
         [] XGBOOST_DEVICE(size_t idx) { return false; });
 
     auto position = rp.GetPositionHost();
@@ -142,7 +144,7 @@ void TestFinalise() {
 
   RowPartitioner rp(0, kNumRows);
   rp.FinalisePosition(
-      &ctx, &position,
+      &ctx, task, &position,
       [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
         return ridx % 2 == 0 ? 1 : 2;
       },
