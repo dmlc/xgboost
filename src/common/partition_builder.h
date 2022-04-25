@@ -291,9 +291,10 @@ class PartitionBuilder {
     auto p_begin = row_set.Data()->data();
     ParallelFor(row_set.Size(), ctx->Threads(), [&](size_t i) {
       auto const& node = row_set[i];
-      if (node.node_id < 0 || !tree[node.node_id].IsLeaf()) {
+      if (node.node_id < 0) {
         return;
       }
+      CHECK(tree[node.node_id].IsLeaf());
       if (node.begin) {  // guard for empty node.
         size_t ptr_offset = node.end - p_begin;
         CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
