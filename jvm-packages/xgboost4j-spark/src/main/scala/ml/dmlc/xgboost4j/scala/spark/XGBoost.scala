@@ -75,7 +75,6 @@ private[scala] case class XGBoostExecutionParams(
     missing: Float,
     allowNonZeroForMissing: Boolean,
     trackerConf: TrackerConf,
-    timeoutRequestWorkers: Long,
     checkpointParam: Option[ExternalCheckpointParams],
     xgbInputParams: XGBoostExecutionInputParams,
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
@@ -201,12 +200,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
         "instance of TrackerConf.")
     }
-    val timeoutRequestWorkers: Long = overridedParams.get("timeout_request_workers") match {
-      case None => 0L
-      case Some(interval: Long) => interval
-      case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
-        " an instance of Long.")
-    }
     val checkpointParam =
       ExternalCheckpointParams.extractParams(overridedParams)
 
@@ -227,7 +220,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
 
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
       missing, allowNonZeroForMissing, trackerConf,
-      timeoutRequestWorkers,
       checkpointParam,
       inputParams,
       xgbExecEarlyStoppingParams,

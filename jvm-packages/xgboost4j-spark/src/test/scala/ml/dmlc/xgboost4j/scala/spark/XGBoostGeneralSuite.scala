@@ -165,18 +165,6 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     assert(x < 0.1)
   }
 
-  test("training with spark parallelism checks disabled") {
-    val eval = new EvalError()
-    val training = buildDataFrame(Classification.train)
-    val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6",
-      "objective" -> "binary:logistic", "timeout_request_workers" -> 0L,
-      "num_round" -> 5, "num_workers" -> numWorkers)
-    val model = new XGBoostClassifier(paramMap).fit(training)
-    val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
-    assert(x < 0.1)
-  }
-
   test("repartitionForTrainingGroup with group data") {
     // test different splits to cover the corner cases.
     for (split <- 1 to 20) {
