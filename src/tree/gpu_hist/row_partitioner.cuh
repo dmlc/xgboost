@@ -157,16 +157,17 @@ class RowPartitioner {
    * complete. Does not update any other meta information in this data structure, so
    * should only be used at the end of training.
    *
-   *   When the task requires update leaf, this function will copy the row partitions into
-   *   p_out_row_indices. Note that the node ptr might not start from 0 due to sampling.
+   *   When the task requires update leaf, this function will copy the node index into
+   *   p_out_position. The index is negated if it's being sampled in current iteration.
    *
-   * \param p_out_row_indices Row partitions for each leaf.
+   * \param p_out_position Node index for each row.
    * \param op Device lambda. Should provide the row index and current position as an
    *           argument and return the new position for this training instance.
+   * \param sampled A device lambda to inform the partitioner whether a row is sampled.
    */
   template <typename FinalisePositionOpT, typename Sampledp>
   void FinalisePosition(Context const* ctx, ObjInfo task,
-                        HostDeviceVector<bst_node_t>* p_out_row_indices, FinalisePositionOpT op,
+                        HostDeviceVector<bst_node_t>* p_out_position, FinalisePositionOpT op,
                         Sampledp sampledp) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
@@ -183,9 +184,9 @@ class RowPartitioner {
       return;
     }
 
-    p_out_row_indices->SetDevice(ctx->gpu_id);
-    p_out_row_indices->Resize(position_.Size());
-    auto sorted_position = p_out_row_indices->DevicePointer();
+    p_out_position->SetDevice(ctx->gpu_id);
+    p_out_position->Resize(position_.Size());
+    auto sorted_position = p_out_position->DevicePointer();
     dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];

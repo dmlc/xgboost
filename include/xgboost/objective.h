@@ -98,8 +98,9 @@ class ObjFunction : public Configurable {
    *   computes only an average of quantile between workers. This breaks when some leaf
    *   have no sample assigned in a local worker.
    *
-   * \param row_index The index of rows for each output leaf.
+   * \param position The leaf index for each rows.
    * \param info MetaInfo providing labels and weights.
+   * \param prediction Model prediction after transformation.
    * \param p_tree Tree that needs to be updated.
    */
   virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

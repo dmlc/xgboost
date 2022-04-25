@@ -156,13 +156,13 @@ class GloablApproxBuilder {
   }
 
   void LeafPartition(RegTree const &tree, common::Span<float> hess,
-                     std::vector<bst_node_t> *p_out_row_indices) {
+                     std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
     if (!evaluator_.Task().UpdateTreeLeaf()) {
       return;
     }
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, hess, p_out_row_indices);
+      part.LeafPartition(ctx_, tree, hess, p_out_position);
     }
     monitor_->Stop(__func__);
   }

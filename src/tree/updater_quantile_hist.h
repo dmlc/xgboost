@@ -302,7 +302,7 @@ class QuantileHistMaker: public TreeUpdater {
     }
     // update one tree, growing
     void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree,
-                    HostDeviceVector<bst_node_t>* p_out_row_indices);
+                    HostDeviceVector<bst_node_t>* p_out_position);
 
     bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
@@ -322,10 +322,10 @@ class QuantileHistMaker: public TreeUpdater {
                         std::vector<GradientPair> const& gpair);
 
     void LeafPartition(RegTree const& tree, common::Span<GradientPair const> gpair,
-                       std::vector<bst_node_t>* p_out_row_indices);
+                       std::vector<bst_node_t>* p_out_position);
 
     void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h,
-                    HostDeviceVector<bst_node_t>* p_out_row_indices);
+                    HostDeviceVector<bst_node_t>* p_out_position);
 
    private:
     const size_t n_trees_;
