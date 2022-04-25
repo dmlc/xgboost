@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, ExternalCheckpointManager, XGBoost => SXGBoost}
-import org.scalatest.{FunSuite, Ignore}
+import org.scalatest.FunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {

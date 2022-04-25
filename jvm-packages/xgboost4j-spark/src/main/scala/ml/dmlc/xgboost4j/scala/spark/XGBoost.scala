@@ -21,6 +21,7 @@ import java.io.File
 import scala.collection.mutable
 import scala.util.Random
 import scala.collection.JavaConverters._
+
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
@@ -30,8 +31,9 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
+
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
+import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.sql.SparkSession
 
 /**
@@ -79,8 +81,7 @@ private[scala] case class XGBoostExecutionParams(
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
     cacheTrainingSet: Boolean,
     treeMethod: Option[String],
-    isLocal: Boolean,
-    killSparkContextOnWorkerFailure: Boolean) {
+    isLocal: Boolean) {
 
   private var rawParamMap: Map[String, Any] = _
 
@@ -224,9 +225,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val cacheTrainingSet = overridedParams.getOrElse("cache_training_set", false)
       .asInstanceOf[Boolean]
 
-    val killSparkContext = overridedParams.getOrElse("kill_spark_context_on_worker_failure", true)
-      .asInstanceOf[Boolean]
-
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
       missing, allowNonZeroForMissing, trackerConf,
       timeoutRequestWorkers,
@@ -235,8 +233,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       xgbExecEarlyStoppingParams,
       cacheTrainingSet,
       treeMethod,
-      isLocal,
-      killSparkContext)
+      isLocal)
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
   }
@@ -351,7 +348,11 @@ object XGBoost extends Serializable {
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       }
-      Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+      if (TaskContext.get().partitionId() == 0) {
+        Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+      } else {
+        Iterator.empty
+      }
     } catch {
       case xgbException: XGBoostError =>
         logger.error(s"XGBooster worker $taskId has failed $attempt times due to ", xgbException)
@@ -409,15 +410,10 @@ object XGBoost extends Serializable {
       // Train for every ${savingRound} rounds and save the partially completed booster
       val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
       val (booster, metrics) = try {
-        val parallelismTracker = new SparkParallelismTracker(sc,
-          xgbExecParams.timeoutRequestWorkers,
-          xgbExecParams.numWorkers,
-          xgbExecParams.killSparkContextOnWorkerFailure)
-
         tracker.getWorkerEnvs().putAll(xgbRabitParams)
         val rabitEnv = tracker.getWorkerEnvs
 
-        val boostersAndMetrics = trainingRDD.mapPartitions { iter => {
+        val boostersAndMetrics = trainingRDD.barrier().mapPartitions { iter => {
           var optionWatches: Option[() => Watches] = None
 
           // take the first Watches to train
@@ -430,24 +426,14 @@ object XGBoost extends Serializable {
             xgbExecParams.eval, prevBooster)}
             .getOrElse(throw new RuntimeException("No Watches to train"))
 
-        }}.cache()
+        }}
 
-        val sparkJobThread = new Thread() {
-          override def run() {
-            // force the job
-            boostersAndMetrics.foreachPartition(() => _)
-          }
-        }
-        sparkJobThread.setUncaughtExceptionHandler(tracker)
-
-        val trackerReturnVal = parallelismTracker.execute {
-          sparkJobThread.start()
-          tracker.waitFor(0L)
-        }
-
+        val (booster, metrics) = boostersAndMetrics.collect()(0)
+        val trackerReturnVal = tracker.waitFor(0L)
         logger.info(s"Rabit returns with exit code $trackerReturnVal")
-        val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
-          boostersAndMetrics, sparkJobThread)
+        if (trackerReturnVal != 0) {
+          throw new XGBoostError("XGBoostModel training failed.")
+        }
         (booster, metrics)
       } finally {
         tracker.stop()
@@ -467,39 +453,9 @@ object XGBoost extends Serializable {
       case t: Throwable =>
         // if the job was aborted due to an exception
         logger.error("the job was aborted due to ", t)
-        if (xgbExecParams.killSparkContextOnWorkerFailure) {
-          sc.stop()
-        }
         throw t
     } finally {
       optionalCachedRDD.foreach(_.unpersist())
-    }
-  }
-
-  private def postTrackerReturnProcessing(
-      trackerReturnVal: Int,
-      distributedBoostersAndMetrics: RDD[(Booster, Map[String, Array[Float]])],
-      sparkJobThread: Thread): (Booster, Map[String, Array[Float]]) = {
-    if (trackerReturnVal == 0) {
-      // Copies of the final booster and the corresponding metrics
-      // reside in each partition of the `distributedBoostersAndMetrics`.
-      // Any of them can be used to create the model.
-      // it's safe to block here forever, as the tracker has returned successfully, and the Spark
-      // job should have finished, there is no reason for the thread cannot return
-      sparkJobThread.join()
-      val (booster, metrics) = distributedBoostersAndMetrics.first()
-      distributedBoostersAndMetrics.unpersist(false)
-      (booster, metrics)
-    } else {
-      try {
-        if (sparkJobThread.isAlive) {
-          sparkJobThread.interrupt()
-        }
-      } catch {
-        case _: InterruptedException =>
-          logger.info("spark job thread is interrupted")
-      }
-      throw new XGBoostError("XGBoostModel training failed")
     }
   }
 

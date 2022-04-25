@@ -1,5 +1,5 @@
 #############################################
-XGBoost4J-Spark-GPU Tutorial (version 1.6.0+)
+XGBoost4J-Spark-GPU Tutorial (version 1.6.1+)
 #############################################
 
 **XGBoost4J-Spark-GPU** is an open source library aiming to accelerate distributed XGBoost training on Apache Spark cluster from
@@ -220,7 +220,7 @@ application jar is iris-1.0.0.jar
 
   cudf_version=22.02.0
   rapids_version=22.02.0
-  xgboost_version=1.6.0
+  xgboost_version=1.6.1
   main_class=Iris
   app_jar=iris-1.0.0.jar
 
