@@ -682,7 +682,6 @@ struct GPUHistMakerDevice {
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
         // Only create child entries if needed_
-        p_tree->GetNumLeaves();
         if (GPUExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                          num_leaves)) {
           monitor.Start("UpdatePosition");
