@@ -1,11 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 import os
 import multiprocessing
-from typing import Tuple, Union
+from typing import Tuple, Union, List, Sequence, Callable
 import urllib
 import zipfile
 import sys
-from typing import Optional
+from typing import Optional, Dict, Any
 from contextlib import contextmanager
 from io import StringIO
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
@@ -180,79 +180,148 @@ def skip_s390x():
 
 
 class IteratorForTest(xgb.core.DataIter):
-    def __init__(self, X, y):
+    def __init__(
+        self,
+        X: Sequence,
+        y: Sequence,
+        w: Optional[Sequence],
+        cache: Optional[str] = "./"
+    ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
+        self.w = w
         self.it = 0
-        super().__init__("./")
+        super().__init__(cache)
 
-    def next(self, input_data):
+    def next(self, input_data: Callable) -> int:
         if self.it == len(self.X):
             return 0
         # Use copy to make sure the iterator doesn't hold a reference to the data.
-        input_data(data=self.X[self.it].copy(), label=self.y[self.it].copy())
-        gc.collect()            # clear up the copy, see if XGBoost access freed memory.
+        input_data(
+            data=self.X[self.it].copy(),
+            label=self.y[self.it].copy(),
+            weight=self.w[self.it].copy() if self.w else None,
+        )
+        gc.collect()  # clear up the copy, see if XGBoost access freed memory.
         self.it += 1
         return 1
 
-    def reset(self):
+    def reset(self) -> None:
         self.it = 0
 
-    def as_arrays(self):
-        X = np.concatenate(self.X, axis=0)
+    def as_arrays(
+        self,
+    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], np.ndarray, np.ndarray]:
+        if isinstance(self.X[0], sparse.csr_matrix):
+            X = sparse.vstack(self.X, format="csr")
+        else:
+            X = np.concatenate(self.X, axis=0)
         y = np.concatenate(self.y, axis=0)
-        return X, y
+        w = np.concatenate(self.w, axis=0)
+        return X, y, w
+
+
+def make_batches(
+    n_samples_per_batch: int, n_features: int, n_batches: int, use_cupy: bool = False
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    X = []
+    y = []
+    w = []
+    if use_cupy:
+        import cupy
+
+        rng = cupy.random.RandomState(1994)
+    else:
+        rng = np.random.RandomState(1994)
+    for i in range(n_batches):
+        _X = rng.randn(n_samples_per_batch, n_features)
+        _y = rng.randn(n_samples_per_batch)
+        _w = rng.uniform(low=0, high=1, size=n_samples_per_batch)
+        X.append(_X)
+        y.append(_y)
+        w.append(_w)
+    return X, y, w
+
+
+def make_batches_sparse(
+    n_samples_per_batch: int, n_features: int, n_batches: int, sparsity: float
+) -> Tuple[List[sparse.csr_matrix], List[np.ndarray], List[np.ndarray]]:
+    X = []
+    y = []
+    w = []
+    rng = np.random.RandomState(1994)
+    for i in range(n_batches):
+        _X = sparse.random(
+            n_samples_per_batch,
+            n_features,
+            1.0 - sparsity,
+            format="csr",
+            dtype=np.float32,
+            random_state=rng,
+        )
+        _y = rng.randn(n_samples_per_batch)
+        _w = rng.uniform(low=0, high=1, size=n_samples_per_batch)
+        X.append(_X)
+        y.append(_y)
+        w.append(_w)
+    return X, y, w
 
 
 # Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
-    def __init__(self, name, get_dataset, objective, metric):
+    def __init__(
+        self, name: str, get_dataset: Callable, objective: str, metric: str
+    ) -> None:
         self.name = name
         self.objective = objective
         self.metric = metric
         self.X, self.y = get_dataset()
-        self.w = None
+        self.w: Optional[np.ndarray] = None
         self.margin: Optional[np.ndarray] = None
 
-    def set_params(self, params_in):
+    def set_params(self, params_in: Dict[str, Any]) -> Dict[str, Any]:
         params_in['objective'] = self.objective
         params_in['eval_metric'] = self.metric
         if self.objective == "multi:softmax":
             params_in["num_class"] = int(np.max(self.y) + 1)
         return params_in
 
-    def get_dmat(self):
+    def get_dmat(self) -> xgb.DMatrix:
         return xgb.DMatrix(
             self.X, self.y, self.w, base_margin=self.margin, enable_categorical=True
         )
 
-    def get_device_dmat(self):
+    def get_device_dmat(self) -> xgb.DeviceQuantileDMatrix:
         w = None if self.w is None else cp.array(self.w)
         X = cp.array(self.X, dtype=np.float32)
         y = cp.array(self.y, dtype=np.float32)
         return xgb.DeviceQuantileDMatrix(X, y, w, base_margin=self.margin)
 
-    def get_external_dmat(self):
+    def get_external_dmat(self) -> xgb.DMatrix:
         n_samples = self.X.shape[0]
         n_batches = 10
         per_batch = n_samples // n_batches + 1
 
         predictor = []
         response = []
+        weight = []
         for i in range(n_batches):
             beg = i * per_batch
             end = min((i + 1) * per_batch, n_samples)
             assert end != beg
             X = self.X[beg: end, ...]
             y = self.y[beg: end]
+            w = self.w[beg: end] if self.w is not None else None
             predictor.append(X)
             response.append(y)
+            if w is not None:
+                weight.append(w)
 
-        it = IteratorForTest(predictor, response)
+        it = IteratorForTest(predictor, response, weight if weight else None)
         return xgb.DMatrix(it)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.name
 
 

@@ -35,6 +35,7 @@ import collections
 import logging
 import platform
 import socket
+import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from functools import partial, update_wrapper
@@ -64,10 +65,10 @@ from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from .core import (
     Booster,
     DataIter,
-    DeviceQuantileDMatrix,
     DMatrix,
     Metric,
     Objective,
+    QuantileDMatrix,
     _deprecate_positional_args,
     _expect,
     _has_categorical,
@@ -495,7 +496,7 @@ async def map_worker_partitions(
     client: Optional["distributed.Client"],
     func: Callable[..., _MapRetT],
     *refs: Any,
-    workers: List[str],
+    workers: Sequence[str],
 ) -> List[_MapRetT]:
     """Map a function onto partitions of each worker."""
     # Note for function purity:
@@ -628,22 +629,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         return 1
 
 
-class DaskDeviceQuantileDMatrix(DaskDMatrix):
-    """Specialized data type for `gpu_hist` tree method.  This class is used to reduce
-    the memory usage by eliminating data copies.  Internally the all partitions/chunks
-    of data are merged by weighted GK sketching.  So the number of partitions from dask
-    may affect training accuracy as GK generates bounded error for each merge.  See doc
-    string for :py:obj:`xgboost.DeviceQuantileDMatrix` and :py:obj:`xgboost.DMatrix` for
-    other parameters.
-
-    .. versionadded:: 1.2.0
-
-    Parameters
-    ----------
-    max_bin : Number of bins for histogram construction.
-
-    """
-
+class DaskQuantileDMatrix(DaskDMatrix):
     @_deprecate_positional_args
     def __init__(
         self,
@@ -657,7 +643,8 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         silent: bool = False,  # disable=unused-argument
         feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
-        max_bin: int = 256,
+        max_bin: Optional[int] = None,
+        ref: Optional[DMatrix] = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
@@ -684,14 +671,31 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         )
         self.max_bin = max_bin
         self.is_quantile = True
+        self._ref: Optional[int] = id(ref) if ref is not None else None
 
     def _create_fn_args(self, worker_addr: str) -> Dict[str, Any]:
         args = super()._create_fn_args(worker_addr)
         args["max_bin"] = self.max_bin
+        if self._ref is not None:
+            args["ref"] = self._ref
         return args
 
 
-def _create_device_quantile_dmatrix(
+class DaskDeviceQuantileDMatrix(DaskQuantileDMatrix):
+    """Use `DaskQuantileDMatrix` instead.
+
+    .. deprecated:: 2.0.0
+
+    .. versionadded:: 1.2.0
+
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        warnings.warn("Please use `DaskQuantileDMatrix` instead.", FutureWarning)
+        super().__init__(*args, **kwargs)
+
+
+def _create_quantile_dmatrix(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
@@ -700,18 +704,20 @@ def _create_device_quantile_dmatrix(
     parts: Optional[_DataParts],
     max_bin: int,
     enable_categorical: bool,
-) -> DeviceQuantileDMatrix:
+    ref: Optional[DMatrix] = None,
+) -> QuantileDMatrix:
     worker = distributed.get_worker()
     if parts is None:
         msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         import cupy
 
-        d = DeviceQuantileDMatrix(
+        d = QuantileDMatrix(
             cupy.zeros((0, 0)),
             feature_names=feature_names,
             feature_types=feature_types,
             max_bin=max_bin,
+            ref=ref,
             enable_categorical=enable_categorical,
         )
         return d
@@ -719,13 +725,14 @@ def _create_device_quantile_dmatrix(
     unzipped_dict = _get_worker_parts(parts)
     it = DaskPartitionIter(**unzipped_dict)
 
-    dmatrix = DeviceQuantileDMatrix(
+    dmatrix = QuantileDMatrix(
         it,
         missing=missing,
         feature_names=feature_names,
         feature_types=feature_types,
         nthread=nthread,
         max_bin=max_bin,
+        ref=ref,
         enable_categorical=enable_categorical,
     )
     dmatrix.set_info(feature_weights=feature_weights)
@@ -786,11 +793,9 @@ def _create_dmatrix(
     return dmatrix
 
 
-def _dmatrix_from_list_of_parts(
-    is_quantile: bool, **kwargs: Any
-) -> Union[DMatrix, DeviceQuantileDMatrix]:
+def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
     if is_quantile:
-        return _create_device_quantile_dmatrix(**kwargs)
+        return _create_quantile_dmatrix(**kwargs)
     return _create_dmatrix(**kwargs)
 
 
@@ -921,7 +926,18 @@ async def _train_async(
                 if evals_id[i] == train_id:
                     evals.append((Xy, evals_name[i]))
                     continue
-                eval_Xy = _dmatrix_from_list_of_parts(**ref, nthread=n_threads)
+                if ref.get("ref", None) is not None:
+                    if ref["ref"] != train_id:
+                        raise ValueError(
+                            "The training DMatrix should be used as a reference"
+                            " to evaluation `QuantileDMatrix`."
+                        )
+                    del ref["ref"]
+                    eval_Xy = _dmatrix_from_list_of_parts(
+                        **ref, nthread=n_threads, ref=Xy
+                    )
+                else:
+                    eval_Xy = _dmatrix_from_list_of_parts(**ref, nthread=n_threads)
                 evals.append((eval_Xy, evals_name[i]))
 
             booster = worker_train(
@@ -960,12 +976,14 @@ async def _train_async(
         results = await map_worker_partitions(
             client,
             dispatched_train,
+            # extra function parameters
             params,
             _rabit_args,
             id(dtrain),
             evals_name,
             evals_id,
             *([dtrain] + evals_data),
+            # workers to be used for training
             workers=workers,
         )
         return list(filter(lambda ret: ret is not None, results))[0]

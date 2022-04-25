@@ -1167,6 +1167,7 @@ def _proxy_transform(
     if _is_dlpack(data):
         return _transform_dlpack(data), None, feature_names, feature_types
     if _is_numpy_array(data):
+        data, _ = _ensure_np_dtype(data, data.dtype)
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
         return data, None, feature_names, feature_types

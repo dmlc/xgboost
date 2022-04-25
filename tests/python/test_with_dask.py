@@ -1382,6 +1382,42 @@ class TestWithDask:
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
+    def test_quantile_dmatrix(self, client: Client) -> None:
+        X, y = make_categorical(client, 10000, 30, 13)
+
+        Xy = xgb.dask.DaskDMatrix(client, X, y, enable_categorical=True)
+        valid_Xy = xgb.dask.DaskDMatrix(client, X, y, enable_categorical=True)
+
+        output = xgb.dask.train(
+            client,
+            {"tree_method": "hist"},
+            Xy,
+            num_boost_round=10,
+            evals=[(Xy, "Train"), (valid_Xy, "Valid")]
+        )
+        dmatrix_hist = output["history"]
+
+        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
+        valid_Xy = xgb.dask.DaskQuantileDMatrix(
+            client, X, y, enable_categorical=True, ref=Xy
+        )
+
+        output = xgb.dask.train(
+            client,
+            {"tree_method": "hist"},
+            Xy,
+            num_boost_round=10,
+            evals=[(Xy, "Train"), (valid_Xy, "Valid")]
+        )
+        quantile_hist = output["history"]
+
+        np.testing.assert_allclose(
+            quantile_hist["Train"]["rmse"], dmatrix_hist["Train"]["rmse"]
+        )
+        np.testing.assert_allclose(
+            quantile_hist["Valid"]["rmse"], dmatrix_hist["Valid"]["rmse"]
+        )
+
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None, suppress_health_check=suppress, print_blob=True)

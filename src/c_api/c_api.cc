@@ -281,8 +281,33 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
                                                       int nthread, int max_bin,
                                                       DMatrixHandle *out) {
   API_BEGIN();
+  LOG(WARNING) << __func__ << " is deprecated. Use `XGQuantileDMatrixCreateFromCallback` instead.";
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin)};
+  API_END();
+}
+
+XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
+                                                DataIterHandle ref, DataIterResetCallback *reset,
+                                                XGDMatrixCallbackNext *next, char const *config,
+                                                DMatrixHandle *out) {
+  API_BEGIN();
+  std::shared_ptr<DMatrix> _ref{nullptr};
+  if (ref) {
+    auto pp_ref = static_cast<std::shared_ptr<xgboost::DMatrix> *>(ref);
+    StringView err{"Invalid handle to ref."};
+    CHECK(pp_ref) << err;
+    _ref = *pp_ref;
+    CHECK(_ref) << err;
+  }
+
+  auto jconfig = Json::Load(StringView{config});
+  auto missing = GetMissing(jconfig);
+  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
+  auto max_bin = OptionalArg<Integer, int64_t>(jconfig, "max_bin", 256);
+
+  *out = new std::shared_ptr<xgboost::DMatrix>{
+      xgboost::DMatrix::Create(iter, proxy, _ref, reset, next, missing, n_threads, max_bin)};
   API_END();
 }
 
