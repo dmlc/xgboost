@@ -165,24 +165,10 @@ class RowPartitioner {
    *           argument and return the new position for this training instance.
    */
   template <typename FinalisePositionOpT, typename Sampledp>
-  void FinalisePosition(Context const* ctx, RegTree const* p_tree, size_t n_leaf, ObjInfo task,
-                        HostDeviceVector<bst_node_t>* p_out_row_indices, FinalisePositionOpT op,
-                        Sampledp sampledp) {
+  void FinalisePosition(Context const* ctx, HostDeviceVector<bst_node_t>* p_out_row_indices,
+                        FinalisePositionOpT op, Sampledp sampledp) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
-    if (!task.UpdateTreeLeaf()) {
-      dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
-        auto position = d_position[idx];
-        RowIndexT ridx = d_ridx[idx];
-        bst_node_t new_position = op(ridx, position);
-        if (new_position == kIgnoredTreePosition) {
-          return;
-        }
-        d_position[idx] = new_position;
-      });
-      return;
-    }
-
     p_out_row_indices->SetDevice(ctx->gpu_id);
     p_out_row_indices->Resize(position_.Size());
     auto sorted_position = p_out_row_indices->DevicePointer();
@@ -191,7 +177,7 @@ class RowPartitioner {
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx, position);
       sorted_position[ridx] = sampledp(ridx) ? ~new_position : new_position;
-      if (new_position < 0) {
+      if (new_position == kIgnoredTreePosition) {
         return;
       }
       d_position[idx] = new_position;

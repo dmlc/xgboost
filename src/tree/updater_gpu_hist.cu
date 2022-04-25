@@ -443,7 +443,7 @@ struct GPUHistMakerDevice {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
     row_partitioner->FinalisePosition(
-        ctx_, p_tree, n_leaf, task, p_out_position,
+        ctx_, p_out_position,
         [=] __device__(size_t row_id, int position) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
@@ -485,6 +485,7 @@ struct GPUHistMakerDevice {
   }
 
   void UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
+    CHECK(p_tree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     CHECK_EQ(out_preds_d.DeviceIdx(), ctx_->gpu_id);
     auto d_ridx = row_partitioner->GetRows();
@@ -499,29 +500,16 @@ struct GPUHistMakerDevice {
     auto d_node_sum_gradients = device_node_sum_gradients.data().get();
     auto tree_evaluator = evaluator_.GetEvaluator();
 
-    if (p_tree) {
-      auto const& h_nodes = p_tree->GetNodes();
-      dh::device_vector<RegTree::Node> nodes(h_nodes.size());
-      dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
-                                    h_nodes.size() * sizeof(RegTree::Node),
-                                    cudaMemcpyHostToDevice));
-      auto d_nodes = dh::ToSpan(nodes);
-      dh::LaunchN(d_ridx.size(), [=] XGBOOST_DEVICE(size_t idx) mutable {
-        bst_node_t nidx = d_position[idx];
-        auto weight = d_nodes[nidx].LeafValue();
-        out_preds_d(d_ridx[idx]) += weight;
-      });
-    } else {
-      // Avoid copying nodes by using evaluator to get leaf weight on-the-fly, this is
-      // useful when tree leaf is not updated after tree construction.
-      dh::LaunchN(d_ridx.size(), [=] XGBOOST_DEVICE(size_t local_idx) mutable {
-        bst_node_t nidx = d_position[local_idx];
-        float weight =
-            tree_evaluator.CalcWeight(nidx, param_d, GradStats{d_node_sum_gradients[nidx]});
-        static_assert(!std::is_const<decltype(out_preds_d)>::value, "");
-        out_preds_d(d_ridx[local_idx]) += weight * param_d.learning_rate;
-      });
-    }
+    auto const& h_nodes = p_tree->GetNodes();
+    dh::caching_device_vector<RegTree::Node> nodes(h_nodes.size());
+    dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
+                                  h_nodes.size() * sizeof(RegTree::Node), cudaMemcpyHostToDevice));
+    auto d_nodes = dh::ToSpan(nodes);
+    dh::LaunchN(d_ridx.size(), [=] XGBOOST_DEVICE(size_t idx) mutable {
+      bst_node_t nidx = d_position[idx];
+      auto weight = d_nodes[nidx].LeafValue();
+      out_preds_d(d_ridx[idx]) += weight;
+    });
     row_partitioner.reset();
   }
 
@@ -826,7 +814,7 @@ class GPUHistMakerSpecialised {
       return false;
     }
     monitor_.Start("UpdatePredictionCache");
-    maker->UpdatePredictionCache(p_out_preds, task_.zero_hess ? p_last_tree_ : nullptr);
+    maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
     monitor_.Stop("UpdatePredictionCache");
     return true;
   }

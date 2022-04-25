@@ -109,9 +109,6 @@ TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
 void TestFinalise() {
   const int kNumRows = 10;
 
-  ObjInfo task{ObjInfo::kRegression, false, false};
-  RegTree tree;
-  tree.ExpandNode(0, 0, 0.f, true, 0., 0., 0., /*loss_chg=*/0.f, 0.f, 0.f, 0.f);
   HostDeviceVector<bst_node_t> position;
   Context ctx;
   ctx.gpu_id = 0;
@@ -119,8 +116,7 @@ void TestFinalise() {
   {
     RowPartitioner rp(0, kNumRows);
     rp.FinalisePosition(
-        &ctx, &tree, tree.GetNumLeaves(), task, &position,
-        [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
+        &ctx, &position, [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
         [] XGBOOST_DEVICE(size_t idx) { return false; });
 
     auto position = rp.GetPositionHost();
@@ -143,11 +139,10 @@ void TestFinalise() {
   }
 
   auto d_hess = dh::ToSpan(hess);
-  task.zero_hess = true;
 
   RowPartitioner rp(0, kNumRows);
   rp.FinalisePosition(
-      &ctx, &tree, tree.GetNumLeaves(), task, &position,
+      &ctx, &position,
       [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
         return ridx % 2 == 0 ? 1 : 2;
       },
