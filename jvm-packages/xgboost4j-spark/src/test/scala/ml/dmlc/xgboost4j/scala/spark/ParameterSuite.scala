@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.XGBoostError
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Ignore}
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
+import org.apache.spark.SparkException
 import org.apache.spark.ml.param.ParamMap
 
 class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
@@ -40,28 +40,16 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     assert(xgbCopy2.MLlib2XGBoostParams("eval_metric").toString === "logloss")
   }
 
-  private def waitForSparkContextShutdown(): Unit = {
-    var totalWaitedTime = 0L
-    while (!ss.sparkContext.isStopped && totalWaitedTime <= 120000) {
-      Thread.sleep(10000)
-      totalWaitedTime += 10000
-    }
-    assert(ss.sparkContext.isStopped === true)
-  }
-
   test("fail training elegantly with unsupported objective function") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "wrong_objective_function", "num_class" -> "6", "num_round" -> 5,
       "num_workers" -> numWorkers)
     val trainingDF = buildDataFrame(MultiClassification.train)
     val xgb = new XGBoostClassifier(paramMap)
-    try {
-      val model = xgb.fit(trainingDF)
-    } catch {
-      case e: Throwable => // swallow anything
-    } finally {
-      waitForSparkContextShutdown()
+    intercept[SparkException] {
+      xgb.fit(trainingDF)
     }
+
   }
 
   test("fail training elegantly with unsupported eval metrics") {
@@ -70,12 +58,8 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
       "num_workers" -> numWorkers, "eval_metric" -> "wrong_eval_metrics")
     val trainingDF = buildDataFrame(MultiClassification.train)
     val xgb = new XGBoostClassifier(paramMap)
-    try {
-      val model = xgb.fit(trainingDF)
-    } catch {
-      case e: Throwable => // swallow anything
-    } finally {
-      waitForSparkContextShutdown()
+    intercept[SparkException] {
+      xgb.fit(trainingDF)
     }
   }
 
