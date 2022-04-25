@@ -21,8 +21,6 @@ c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 CAT_T = "c"
 
 # meta info that can be a matrix instead of vector.
-# For now it's base_margin for multi-class, but it can be extended to label once we have
-# multi-output.
 _matrix_meta = {"base_margin", "label"}
 
 
@@ -318,6 +316,7 @@ def _pandas_cat_null(data: DataFrame) -> DataFrame:
         transformed = data
 
     if cat_columns:
+        # DF doesn't have the cat attribute, so we use apply here
         transformed[cat_columns] = (
             transformed[cat_columns]
             .apply(lambda x: x.cat.codes)
