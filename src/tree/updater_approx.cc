@@ -169,7 +169,7 @@ class GloablApproxBuilder {
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, hess);
 
-    Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+    Driver<CPUExpandEntry> driver(param_);
     auto &tree = *p_tree;
     driver.Push({this->InitRoot(p_fmat, gpair, hess, p_tree)});
     bst_node_t num_leaves{1};

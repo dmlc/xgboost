@@ -531,7 +531,7 @@ struct GPUHistMakerDevice {
     RegTree& tree = *p_tree;
 
     // Sanity check - have we created a leaf with no training instances?
-    if (!rabit::IsDistributed()) {
+    if (!rabit::IsDistributed() && row_partitioner) {
       CHECK(row_partitioner->GetRows(candidate.nid).size() > 0)
           << "No training instances in this leaf!";
     }
@@ -616,7 +616,7 @@ struct GPUHistMakerDevice {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo task,
                   RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
-    Driver<GPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
+    Driver<GPUExpandEntry> driver(param);
 
     monitor.Start("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_, task);
@@ -626,48 +626,49 @@ struct GPUHistMakerDevice {
     driver.Push({ this->InitRoot(p_tree, task, reducer) });
     monitor.Stop("InitRoot");
 
-    auto num_leaves = 1;
-
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
-      auto new_candidates =
-          pinned.GetSpan<GPUExpandEntry>(expand_set.size() * 2, GPUExpandEntry());
-
-      for (auto i = 0ull; i < expand_set.size(); i++) {
-        auto candidate = expand_set.at(i);
-        if (!candidate.IsValid(param, num_leaves)) {
-          continue;
-        }
+      for(auto & candidate: expand_set){
         this->ApplySplit(candidate, p_tree);
+      }
+      // Get the candidates we are allowed to expand further
+      // e.g. We do not bother further processing nodes whose children are beyond max depth
+      std::vector<GPUExpandEntry> filtered_expand_set;
+      std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(filtered_expand_set),
+                   [&](const auto& e) { return driver.IsChildValid(e); });
 
-        num_leaves++;
+      auto new_candidates =
+          pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
 
+      for(const auto &e:filtered_expand_set){
+        monitor.Start("UpdatePosition");
+        // Update position is only run when child is valid, instead of right after apply
+        // split (as in approx tree method).  Hense we have the finalise position call
+        // in GPU Hist.
+        this->UpdatePosition(e.nid, p_tree);
+        monitor.Stop("UpdatePosition");
+      }
+
+      for (auto i = 0ull; i < filtered_expand_set.size(); i++) {
+        auto candidate = expand_set.at(i);
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
-        // Only create child entries if needed
-        if (GPUExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
-                                         num_leaves)) {
-          monitor.Start("UpdatePosition");
-          // Update position is only run when child is valid, instead of right after apply
-          // split (as in approx tree method).  Hense we have the finalise position call
-          // in GPU Hist.
-          this->UpdatePosition(candidate.nid, p_tree);
-          monitor.Stop("UpdatePosition");
 
-          monitor.Start("BuildHist");
-          this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
-          monitor.Stop("BuildHist");
+        monitor.Start("BuildHist");
+        this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
+        monitor.Stop("BuildHist");
+      }
 
-          monitor.Start("EvaluateSplits");
-          this->EvaluateLeftRightSplits(candidate, task, left_child_nidx, right_child_nidx, *p_tree,
-                                        new_candidates.subspan(i * 2, 2));
-          monitor.Stop("EvaluateSplits");
-        } else {
-          // Set default
-          new_candidates[i * 2] = GPUExpandEntry();
-          new_candidates[i * 2 + 1] = GPUExpandEntry();
-        }
+      for (auto i = 0ull; i < filtered_expand_set.size(); i++) {
+        auto candidate = expand_set.at(i);
+        int left_child_nidx = tree[candidate.nid].LeftChild();
+        int right_child_nidx = tree[candidate.nid].RightChild();
+
+        monitor.Start("EvaluateSplits");
+        this->EvaluateLeftRightSplits(candidate, task, left_child_nidx, right_child_nidx, *p_tree,
+                                      new_candidates.subspan(i * 2, 2));
+        monitor.Stop("EvaluateSplits");
       }
       dh::DefaultStream().Sync();
       driver.Push(new_candidates.begin(), new_candidates.end());
