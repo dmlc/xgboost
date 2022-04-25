@@ -531,7 +531,7 @@ struct GPUHistMakerDevice {
     RegTree& tree = *p_tree;
 
     // Sanity check - have we created a leaf with no training instances?
-    if (!rabit::IsDistributed()) {
+    if (!rabit::IsDistributed() && row_partitioner) {
       CHECK(row_partitioner->GetRows(candidate.nid).size() > 0)
           << "No training instances in this leaf!";
     }
@@ -686,7 +686,7 @@ class GPUHistMaker : public TreeUpdater {
  public:
   explicit GPUHistMaker(GenericParameter const* ctx, ObjInfo task)
       : TreeUpdater(ctx), task_{task} {};
-  void Configure(const Args& args) {
+  void Configure(const Args& args) override {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
     param_.UpdateAllowUnknown(args);
@@ -713,7 +713,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) {
+              const std::vector<RegTree*>& trees) override {
     monitor_.Start("Update");
 
     // rescale learning rate according to size of trees
@@ -792,7 +792,8 @@ class GPUHistMaker : public TreeUpdater {
     maker->UpdateTree(gpair, p_fmat, task_, p_tree, &reducer_);
   }
 
-  bool UpdatePredictionCache(const DMatrix* data, linalg::VectorView<bst_float> p_out_preds) {
+  bool UpdatePredictionCache(const DMatrix* data,
+                             linalg::VectorView<bst_float> p_out_preds) override {
     if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
