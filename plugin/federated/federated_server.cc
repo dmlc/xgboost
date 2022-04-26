@@ -12,13 +12,13 @@
 
 namespace xgboost::federated {
 
-class AllgatherHandler {
+class AllgatherFunctor {
  public:
   std::string const name{"Allgather"};
 
-  explicit AllgatherHandler(int const world_size) : world_size_{world_size} {}
+  explicit AllgatherFunctor(int const world_size) : world_size_{world_size} {}
 
-  void Handle(AllgatherRequest const* request, std::string& buffer) const {
+  void operator()(AllgatherRequest const* request, std::string& buffer) const {
     auto const rank = request->rank();
     auto const& send_buffer = request->send_buffer();
     auto const send_size = send_buffer.size();
@@ -34,11 +34,11 @@ class AllgatherHandler {
   int const world_size_;
 };
 
-class AllreduceHandler {
+class AllreduceFunctor {
  public:
   std::string const name{"Allreduce"};
 
-  void Handle(AllreduceRequest const* request, std::string& buffer) const {
+  void operator()(AllreduceRequest const* request, std::string& buffer) const {
     if (buffer.empty()) {
       // Copy the send_buffer if this is the first request.
       buffer = request->send_buffer();
@@ -124,11 +124,11 @@ class AllreduceHandler {
   }
 };
 
-class BroadcastHandler {
+class BroadcastFunctor {
  public:
   std::string const name{"Broadcast"};
 
-  static void Handle(BroadcastRequest const* request, std::string& buffer) {
+  void operator()(BroadcastRequest const* request, std::string& buffer) const {
     if (request->rank() == request->root()) {
       // Copy the send_buffer if this is the root.
       buffer = request->send_buffer();
@@ -140,28 +140,28 @@ class FederatedService final : public Federated::Service {
  public:
   explicit FederatedService(int const world_size)
       : world_size_{world_size},
-        allgather_handler_{world_size},
-        allreduce_handler_{},
-        broadcast_handler_{} {}
+        allgather_functor_{world_size},
+        allreduce_functor_{},
+        broadcast_functor_{} {}
 
   grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
                          AllgatherReply* reply) override {
-    return Handle(request, reply, allgather_handler_);
+    return Handle(request, reply, allgather_functor_);
   }
 
   grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
                          AllreduceReply* reply) override {
-    return Handle(request, reply, allreduce_handler_);
+    return Handle(request, reply, allreduce_functor_);
   }
 
   grpc::Status Broadcast(grpc::ServerContext* context, BroadcastRequest const* request,
                          BroadcastReply* reply) override {
-    return Handle(request, reply, broadcast_handler_);
+    return Handle(request, reply, broadcast_functor_);
   }
 
  private:
-  template <class Request, class Reply, class RequestHandler>
-  grpc::Status Handle(Request const* request, Reply* reply, RequestHandler const& handler) {
+  template <class Request, class Reply, class RequestFunctor>
+  grpc::Status Handle(Request const* request, Reply* reply, RequestFunctor const& functor) {
     // Pass through if there is only 1 client.
     if (world_size_ == 1) {
       reply->set_receive_buffer(request->send_buffer());
@@ -173,15 +173,15 @@ class FederatedService final : public Federated::Service {
     auto const sequence_number = request->sequence_number();
     auto const rank = request->rank();
 
-    std::cout << handler.name << " rank " << rank << ": waiting for current sequence number\n";
+    std::cout << functor.name << " rank " << rank << ": waiting for current sequence number\n";
     cv_.wait(lock, [this, sequence_number] { return sequence_number_ == sequence_number; });
 
-    std::cout << handler.name << " rank " << rank << ": handling request\n";
-    handler.Handle(request, buffer_);
+    std::cout << functor.name << " rank " << rank << ": handling request\n";
+    functor(request, buffer_);
     received_++;
 
     if (received_ == world_size_) {
-      std::cout << handler.name << " rank " << rank << ": all requests received\n";
+      std::cout << functor.name << " rank " << rank << ": all requests received\n";
       reply->set_receive_buffer(buffer_);
       sent_++;
       lock.unlock();
@@ -189,15 +189,15 @@ class FederatedService final : public Federated::Service {
       return grpc::Status::OK;
     }
 
-    std::cout << handler.name << " rank " << rank << ": waiting for all clients\n";
+    std::cout << functor.name << " rank " << rank << ": waiting for all clients\n";
     cv_.wait(lock, [this] { return received_ == world_size_; });
 
-    std::cout << handler.name << " rank " << rank << ": sending reply\n";
+    std::cout << functor.name << " rank " << rank << ": sending reply\n";
     reply->set_receive_buffer(buffer_);
     sent_++;
 
     if (sent_ == world_size_) {
-      std::cout << handler.name << " rank " << rank << ": all replies sent\n";
+      std::cout << functor.name << " rank " << rank << ": all replies sent\n";
       sent_ = 0;
       received_ = 0;
       buffer_.clear();
@@ -210,9 +210,9 @@ class FederatedService final : public Federated::Service {
   }
 
   int const world_size_;
-  AllgatherHandler allgather_handler_;
-  AllreduceHandler allreduce_handler_;
-  BroadcastHandler broadcast_handler_;
+  AllgatherFunctor allgather_functor_;
+  AllreduceFunctor allreduce_functor_;
+  BroadcastFunctor broadcast_functor_;
   int received_{};
   int sent_{};
   std::string buffer_{};
