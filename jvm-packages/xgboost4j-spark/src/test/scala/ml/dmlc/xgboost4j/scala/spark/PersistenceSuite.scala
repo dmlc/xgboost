@@ -20,12 +20,14 @@ import java.io.File
 import java.util.Arrays
 
 import ml.dmlc.xgboost4j.scala.DMatrix
-
 import scala.util.Random
+
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.functions._
 import org.scalatest.FunSuite
+
+import org.apache.spark.ml.linalg.Vectors
 
 class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
@@ -189,6 +191,27 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     for (x <- 1 to 250) {
       df = df.drop(s"feature_${x}")
     }
+    model.transform(df).show()
+  }
+
+  test("cross-version model loading (1.6.0)") {
+    // For each release, we should create the cross-version model testing
+    // Use below code to generate model
+
+    //    val paramMap = Map("objective" -> "binary:logistic", "num_round" -> 5,
+    //      "num_workers" -> 1, "tree_method" -> "hist", "missing" -> Float.NaN,
+    //      "allow_non_zero_for_missing" -> true)
+    //    val df = ss.createDataFrame(Seq(
+    //      (1.0, Vectors.dense(1.0)),
+    //      (0.0, Vectors.dense(0.0)))).toDF("label", "features")
+    //    val model = new XGBoostClassifier(paramMap).fit(df)
+    //    model.write.overwrite().save("xgboost4j-spark/src/test/resources/model/1.6.0/model")
+
+    val modelPath = getClass.getResource("/model/1.6.0/model").getPath
+    val df = ss.createDataFrame(Seq(
+      (1.0, Vectors.dense(1.0)),
+      (0.0, Vectors.dense(0.0)))).toDF("label", "features")
+    val model = XGBoostClassificationModel.read.load(modelPath)
     model.transform(df).show()
   }
 }
