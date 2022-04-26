@@ -1,7 +1,8 @@
 /*!
- * Copyright 2019-2021 by XGBoost Contributors
+ * Copyright 2019-2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <vector>
 
 #include <thrust/device_vector.h>
@@ -10,6 +11,10 @@
 
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
+#include "xgboost/base.h"
+#include "xgboost/generic_parameters.h"
+#include "xgboost/task.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace tree {
@@ -103,17 +108,58 @@ TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
 
 void TestFinalise() {
   const int kNumRows = 10;
+
+  ObjInfo task{ObjInfo::kRegression, false, false};
+  HostDeviceVector<bst_node_t> position;
+  Context ctx;
+  ctx.gpu_id = 0;
+
+  {
+    RowPartitioner rp(0, kNumRows);
+    rp.FinalisePosition(
+        &ctx, task, &position,
+        [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
+        [] XGBOOST_DEVICE(size_t idx) { return false; });
+
+    auto position = rp.GetPositionHost();
+    for (auto p : position) {
+      EXPECT_EQ(p, 7);
+    }
+  }
+
+  /**
+   * Test for sampling.
+   */
+  dh::device_vector<float> hess(kNumRows);
+  for (size_t i = 0; i < hess.size(); ++i) {
+    // removed rows, 0, 3, 6, 9
+    if (i % 3 == 0) {
+      hess[i] = 0;
+    } else {
+      hess[i] = i;
+    }
+  }
+
+  auto d_hess = dh::ToSpan(hess);
+
   RowPartitioner rp(0, kNumRows);
-  rp.FinalisePosition([=]__device__(RowPartitioner::RowIndexT ridx, int position)
-  {
-    return 7;
-  });
-  auto position = rp.GetPositionHost();
-  for(auto p:position)
-  {
-    EXPECT_EQ(p, 7);
+  rp.FinalisePosition(
+      &ctx, task, &position,
+      [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
+        return ridx % 2 == 0 ? 1 : 2;
+      },
+      [d_hess] __device__(size_t ridx) { return d_hess[ridx] - 0.f == 0.f; });
+
+  auto const& h_position = position.ConstHostVector();
+  for (size_t ridx = 0; ridx < h_position.size(); ++ridx) {
+    if (ridx % 3 == 0) {
+      ASSERT_LT(h_position[ridx], 0);
+    } else {
+      ASSERT_EQ(h_position[ridx], ridx % 2 == 0 ? 1 : 2);
+    }
   }
 }
+
 TEST(RowPartitioner, Finalise) { TestFinalise(); }
 
 void TestIncorrectRow() {

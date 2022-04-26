@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2021 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -1537,6 +1537,43 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
                             sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
 
+/**
+ * \brief Different from the above one, this one can handle cases where segment doesn't
+ *        start from 0, but as a result it uses comparison sort.
+ */
+template <typename SegIt, typename ValIt>
+void SegmentedArgSort(SegIt seg_begin, SegIt seg_end, ValIt val_begin, ValIt val_end,
+                      dh::device_vector<size_t> *p_sorted_idx) {
+  using Tup = thrust::tuple<int32_t, float>;
+  auto &sorted_idx = *p_sorted_idx;
+  size_t n = std::distance(val_begin, val_end);
+  sorted_idx.resize(n);
+  dh::Iota(dh::ToSpan(sorted_idx));
+  dh::device_vector<Tup> keys(sorted_idx.size());
+  auto key_it = dh::MakeTransformIterator<Tup>(thrust::make_counting_iterator(0ul),
+                                               [=] XGBOOST_DEVICE(size_t i) -> Tup {
+                                                 int32_t leaf_idx;
+                                                 if (i < *seg_begin) {
+                                                   leaf_idx = -1;
+                                                 } else {
+                                                   leaf_idx = dh::SegmentId(seg_begin, seg_end, i);
+                                                 }
+                                                 auto residue = val_begin[i];
+                                                 return thrust::make_tuple(leaf_idx, residue);
+                                               });
+  dh::XGBCachingDeviceAllocator<char> caching;
+  thrust::copy(thrust::cuda::par(caching), key_it, key_it + keys.size(), keys.begin());
+
+  dh::XGBDeviceAllocator<char> alloc;
+  thrust::stable_sort_by_key(thrust::cuda::par(alloc), keys.begin(), keys.end(), sorted_idx.begin(),
+                             [=] XGBOOST_DEVICE(Tup const &l, Tup const &r) {
+                               if (thrust::get<0>(l) != thrust::get<0>(r)) {
+                                 return thrust::get<0>(l) < thrust::get<0>(r);  // segment index
+                               }
+                               return thrust::get<1>(l) < thrust::get<1>(r);  // residue
+                             });
+}
+
 class CUDAStreamView;
 
 class CUDAEvent {
@@ -1600,5 +1637,6 @@ class CUDAStream {
   }
 
   CUDAStreamView View() const { return CUDAStreamView{stream_}; }
+  void Sync() { this->View().Sync(); }
 };
 }  // namespace dh

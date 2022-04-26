@@ -68,7 +68,7 @@ class IterativeDeviceDMatrix : public DMatrix {
 
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
-  bool SingleColBlock() const override { return false; }
+  bool SingleColBlock() const override { return true; }
 
   MetaInfo &Info() override { return info_; }
   MetaInfo const &Info() const override { return info_; }

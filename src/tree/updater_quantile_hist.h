@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 
@@ -214,6 +215,15 @@ class HistRowPartitioner {
   size_t Size() const {
     return std::distance(row_set_collection_.begin(), row_set_collection_.end());
   }
+
+  void LeafPartition(Context const* ctx, RegTree const& tree,
+                     common::Span<GradientPair const> gpair,
+                     std::vector<bst_node_t>* p_out_position) const {
+    partition_builder_.LeafPartition(
+        ctx, tree, this->Partitions(), p_out_position,
+        [&](size_t idx) -> bool { return gpair[idx].GetHess() - .0f == .0f; });
+  }
+
   auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
   auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
 };
@@ -228,8 +238,8 @@ class QuantileHistMaker: public TreeUpdater {
   explicit QuantileHistMaker(ObjInfo task) : task_{task} {}
   void Configure(const Args& args) override;
 
-  void Update(HostDeviceVector<GradientPair>* gpair,
-              DMatrix* dmat,
+  void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix *data,
@@ -266,6 +276,8 @@ class QuantileHistMaker: public TreeUpdater {
     return "grow_quantile_histmaker";
   }
 
+  bool HasNodePosition() const override { return true; }
+
  protected:
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
@@ -289,7 +301,8 @@ class QuantileHistMaker: public TreeUpdater {
       monitor_->Init("Quantile::Builder");
     }
     // update one tree, growing
-    void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree);
+    void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat, RegTree* p_tree,
+                    HostDeviceVector<bst_node_t>* p_out_position);
 
     bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
@@ -308,7 +321,11 @@ class QuantileHistMaker: public TreeUpdater {
                         std::vector<CPUExpandEntry> const& valid_candidates,
                         std::vector<GradientPair> const& gpair);
 
-    void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h);
+    void LeafPartition(RegTree const& tree, common::Span<GradientPair const> gpair,
+                       std::vector<bst_node_t>* p_out_position);
+
+    void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h,
+                    HostDeviceVector<bst_node_t>* p_out_position);
 
    private:
     const size_t n_trees_;

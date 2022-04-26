@@ -31,9 +31,9 @@ class TreeSyncher: public TreeUpdater {
     return "prune";
   }
 
-  void Update(HostDeviceVector<GradientPair>* ,
-              DMatrix*,
-              const std::vector<RegTree*> &trees) override {
+  void Update(HostDeviceVector<GradientPair>*, DMatrix*,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              const std::vector<RegTree*>& trees) override {
     if (rabit::GetWorldSize() == 1) return;
     std::string s_model;
     common::MemoryBufferStream fs(&s_model);

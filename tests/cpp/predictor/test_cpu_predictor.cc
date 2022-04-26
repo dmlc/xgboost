@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
@@ -222,7 +222,7 @@ void TestUpdatePredictionCache(bool use_subsampling) {
   PredictionCacheEntry predtion_cache;
   predtion_cache.predictions.Resize(kRows*kClasses, 0);
   // after one training iteration predtion_cache is filled with cached in QuantileHistMaker::Builder prediction values
-  gbm->DoBoost(dmat.get(), &gpair, &predtion_cache);
+  gbm->DoBoost(dmat.get(), &gpair, &predtion_cache, nullptr);
 
   PredictionCacheEntry out_predictions;
   // perform fair prediction on the same input data, should be equal to cached result
