@@ -692,6 +692,7 @@ class GPUHistMaker : public TreeUpdater {
     param_.UpdateAllowUnknown(args);
     hist_maker_param_.UpdateAllowUnknown(args);
     dh::CheckComputeCapability();
+    initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
   }
