@@ -12,6 +12,7 @@ from . import rabit  # noqa
 from . import tracker  # noqa
 from .tracker import RabitTracker  # noqa
 from . import dask
+from .federated import run_federated_server
 
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
@@ -51,4 +52,6 @@ __all__ = [
     "XGBRFRegressor",
     # dask
     "dask",
+    # federated
+    "run_federated_server",
 ]

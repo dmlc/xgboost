@@ -21,16 +21,7 @@ protobuf_generate(
 add_library(federated_client INTERFACE federated_client.h)
 target_link_libraries(federated_client INTERFACE federated_proto)
 
-# Federated Learning gRPC server.
-add_executable(federated_server federated_server.cc)
-target_link_libraries(federated_server PRIVATE federated_proto)
-
-# A test client to exercise the gRPC calls.
-# TODO(rongou): add unit tests and get rid of this.
-#add_executable(test_client test_client.cc)
-#target_link_libraries(test_client PRIVATE federated_client)
-
 # Rabit engine for Federated Learning.
-target_sources(objxgboost PRIVATE engine_federated.cc)
+target_sources(objxgboost PRIVATE federated_server.cc engine_federated.cc)
 target_link_libraries(objxgboost PRIVATE federated_client)
 target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_FEDERATED=1)

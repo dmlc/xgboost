@@ -1,16 +1,20 @@
 /*!
  * Copyright 2022 XGBoost contributors
  */
+#include "federated_server.h"
+
 #include <federated.grpc.pb.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/server_builder.h>
+#include <xgboost/logging.h>
 
 #include <condition_variable>
 #include <fstream>
 #include <mutex>
 #include <sstream>
 
-namespace xgboost::federated {
+namespace xgboost {
+namespace federated {
 
 class AllgatherFunctor {
  public:
@@ -71,50 +75,49 @@ class AllreduceFunctor {
                   ReduceOperation reduce_operation) const {
     switch (data_type) {
       case DataType::CHAR:
-        Accumulate(buffer.data(), input.data(), buffer.size(), reduce_operation);
+        Accumulate(&buffer[0], reinterpret_cast<char const*>(input.data()), buffer.size(),
+                   reduce_operation);
         break;
       case DataType::UCHAR:
-        Accumulate(reinterpret_cast<unsigned char*>(buffer.data()),
+        Accumulate(reinterpret_cast<unsigned char*>(&buffer[0]),
                    reinterpret_cast<unsigned char const*>(input.data()), buffer.size(),
                    reduce_operation);
         break;
       case DataType::INT:
-        Accumulate(reinterpret_cast<int*>(buffer.data()),
-                   reinterpret_cast<int const*>(input.data()), buffer.size() / sizeof(int),
-                   reduce_operation);
+        Accumulate(reinterpret_cast<int*>(&buffer[0]), reinterpret_cast<int const*>(input.data()),
+                   buffer.size() / sizeof(int), reduce_operation);
         break;
       case DataType::UINT:
-        Accumulate(reinterpret_cast<unsigned int*>(buffer.data()),
+        Accumulate(reinterpret_cast<unsigned int*>(&buffer[0]),
                    reinterpret_cast<unsigned int const*>(input.data()),
                    buffer.size() / sizeof(unsigned int), reduce_operation);
         break;
       case DataType::LONG:
-        Accumulate(reinterpret_cast<long*>(buffer.data()),
-                   reinterpret_cast<long const*>(input.data()), buffer.size() / sizeof(long),
-                   reduce_operation);
+        Accumulate(reinterpret_cast<long*>(&buffer[0]), reinterpret_cast<long const*>(input.data()),
+                   buffer.size() / sizeof(long), reduce_operation);
         break;
       case DataType::ULONG:
-        Accumulate(reinterpret_cast<unsigned long*>(buffer.data()),
+        Accumulate(reinterpret_cast<unsigned long*>(&buffer[0]),
                    reinterpret_cast<unsigned long const*>(input.data()),
                    buffer.size() / sizeof(unsigned long), reduce_operation);
         break;
       case DataType::FLOAT:
-        Accumulate(reinterpret_cast<float*>(buffer.data()),
+        Accumulate(reinterpret_cast<float*>(&buffer[0]),
                    reinterpret_cast<float const*>(input.data()), buffer.size() / sizeof(float),
                    reduce_operation);
         break;
       case DataType::DOUBLE:
-        Accumulate(reinterpret_cast<double*>(buffer.data()),
+        Accumulate(reinterpret_cast<double*>(&buffer[0]),
                    reinterpret_cast<double const*>(input.data()), buffer.size() / sizeof(double),
                    reduce_operation);
         break;
       case DataType::LONGLONG:
-        Accumulate(reinterpret_cast<long long*>(buffer.data()),
+        Accumulate(reinterpret_cast<long long*>(&buffer[0]),
                    reinterpret_cast<long long const*>(input.data()),
                    buffer.size() / sizeof(long long), reduce_operation);
         break;
       case DataType::ULONGLONG:
-        Accumulate(reinterpret_cast<unsigned long long*>(buffer.data()),
+        Accumulate(reinterpret_cast<unsigned long long*>(&buffer[0]),
                    reinterpret_cast<unsigned long long const*>(input.data()),
                    buffer.size() / sizeof(unsigned long long), reduce_operation);
         break;
@@ -168,20 +171,20 @@ class FederatedService final : public Federated::Service {
       return grpc::Status::OK;
     }
 
-    std::unique_lock lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
 
     auto const sequence_number = request->sequence_number();
     auto const rank = request->rank();
 
-    std::cout << functor.name << " rank " << rank << ": waiting for current sequence number\n";
+    LOG(INFO) << functor.name << " rank " << rank << ": waiting for current sequence number\n";
     cv_.wait(lock, [this, sequence_number] { return sequence_number_ == sequence_number; });
 
-    std::cout << functor.name << " rank " << rank << ": handling request\n";
+    LOG(INFO) << functor.name << " rank " << rank << ": handling request\n";
     functor(request, buffer_);
     received_++;
 
     if (received_ == world_size_) {
-      std::cout << functor.name << " rank " << rank << ": all requests received\n";
+      LOG(INFO) << functor.name << " rank " << rank << ": all requests received\n";
       reply->set_receive_buffer(buffer_);
       sent_++;
       lock.unlock();
@@ -189,15 +192,15 @@ class FederatedService final : public Federated::Service {
       return grpc::Status::OK;
     }
 
-    std::cout << functor.name << " rank " << rank << ": waiting for all clients\n";
+    LOG(INFO) << functor.name << " rank " << rank << ": waiting for all clients\n";
     cv_.wait(lock, [this] { return received_ == world_size_; });
 
-    std::cout << functor.name << " rank " << rank << ": sending reply\n";
+    LOG(INFO) << functor.name << " rank " << rank << ": sending reply\n";
     reply->set_receive_buffer(buffer_);
     sent_++;
 
     if (sent_ == world_size_) {
-      std::cout << functor.name << " rank " << rank << ": all replies sent\n";
+      LOG(INFO) << functor.name << " rank " << rank << ": all replies sent\n";
       sent_ = 0;
       received_ = 0;
       buffer_.clear();
@@ -221,15 +224,15 @@ class FederatedService final : public Federated::Service {
   mutable std::condition_variable cv_;
 };
 
-std::string ReadFile(std::string const& path) {
-  auto stream = std::ifstream(path.data());
+std::string ReadFile(char const* path) {
+  auto stream = std::ifstream(path);
   std::ostringstream out;
   out << stream.rdbuf();
   return out.str();
 }
 
-void RunServer(int port, int world_size, std::string const& key_file, std::string const& cert_file,
-               std::string const& client_cert_file) {
+void RunServer(int port, int world_size, char const* server_key_file, char const* server_cert_file,
+               char const* client_cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
   FederatedService service{world_size};
 
@@ -238,30 +241,17 @@ void RunServer(int port, int world_size, std::string const& key_file, std::strin
       grpc::SslServerCredentialsOptions(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
   options.pem_root_certs = ReadFile(client_cert_file);
   auto key = grpc::SslServerCredentialsOptions::PemKeyCertPair();
-  key.private_key = ReadFile(key_file);
-  key.cert_chain = ReadFile(cert_file);
+  key.private_key = ReadFile(server_key_file);
+  key.cert_chain = ReadFile(server_cert_file);
   options.pem_key_cert_pairs.push_back(key);
   builder.AddListeningPort(server_address, grpc::SslServerCredentials(options));
   builder.RegisterService(&service);
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  std::cout << "Federated server listening on " << server_address << ", world size " << world_size
-            << '\n';
+  LOG(CONSOLE) << "Federated server listening on " << server_address << ", world size "
+               << world_size << '\n';
 
   server->Wait();
 }
-}  // namespace xgboost::federated
 
-int main(int argc, char** argv) {
-  if (argc != 6) {
-    std::cerr << "Usage: federated_server port world_size key_file cert_file client_cert_file"
-              << '\n';
-    return 1;
-  }
-  auto port = std::stoi(argv[1]);
-  auto world_size = std::stoi(argv[2]);
-  std::string key_file = argv[3];
-  std::string cert_file = argv[4];
-  std::string client_cert_file = argv[5];
-  xgboost::federated::RunServer(port, world_size, key_file, cert_file, client_cert_file);
-  return 0;
-}
+}  // namespace federated
+}  // namespace xgboost

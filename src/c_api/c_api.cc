@@ -28,6 +28,10 @@
 #include "../data/simple_dmatrix.h"
 #include "../data/proxy_dmatrix.h"
 
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../../../plugin/federated/federated_server.h"
+#endif
+
 using namespace xgboost; // NOLINT(*);
 
 XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
@@ -1345,6 +1349,15 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
   *out_features = dmlc::BeginPtr(feature_names_c);
   API_END();
 }
+
+#if defined(XGBOOST_USE_FEDERATED)
+XGB_DLL int XGBRunFederatedServer(int port, int world_size, char const *server_key_path,
+                                  char const *server_cert_path, char const *client_cert_path) {
+  API_BEGIN();
+  federated::RunServer(port, world_size, server_key_path, server_cert_path, client_cert_path);
+  API_END();
+}
+#endif
 
 // force link rabit
 static DMLC_ATTRIBUTE_UNUSED int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();
