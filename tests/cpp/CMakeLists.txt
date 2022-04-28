@@ -25,6 +25,13 @@ if (USE_CUDA AND PLUGIN_RMM)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
 endif (USE_CUDA AND PLUGIN_RMM)
 
+if (PLUGIN_FEDERATED)
+  target_include_directories(testxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/federated)
+  target_link_libraries(testxgboost PRIVATE federated_client)
+else(PLUGIN_FEDERATED)
+  list(REMOVE_ITEM TEST_SOURCES "plugin/test_federated_server.cc")
+endif(PLUGIN_FEDERATED)
+
 target_include_directories(testxgboost
   PRIVATE
   ${GTEST_INCLUDE_DIRS}

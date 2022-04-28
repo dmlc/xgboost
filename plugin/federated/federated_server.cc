@@ -3,14 +3,11 @@
  */
 #include "federated_server.h"
 
-#include <federated.grpc.pb.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/server_builder.h>
 #include <xgboost/logging.h>
 
-#include <condition_variable>
 #include <fstream>
-#include <mutex>
 #include <sstream>
 
 namespace xgboost {
@@ -139,90 +136,70 @@ class BroadcastFunctor {
   }
 };
 
-class FederatedService final : public Federated::Service {
- public:
-  explicit FederatedService(int const world_size)
-      : world_size_{world_size},
-        allgather_functor_{world_size},
-        allreduce_functor_{},
-        broadcast_functor_{} {}
+grpc::Status FederatedService::Allgather(grpc::ServerContext* context,
+                                         AllgatherRequest const* request, AllgatherReply* reply) {
+  return Handle(request, reply, AllgatherFunctor{world_size_});
+}
 
-  grpc::Status Allgather(grpc::ServerContext* context, AllgatherRequest const* request,
-                         AllgatherReply* reply) override {
-    return Handle(request, reply, allgather_functor_);
-  }
+grpc::Status FederatedService::Allreduce(grpc::ServerContext* context,
+                                         AllreduceRequest const* request, AllreduceReply* reply) {
+  return Handle(request, reply, AllreduceFunctor{});
+}
 
-  grpc::Status Allreduce(grpc::ServerContext* context, AllreduceRequest const* request,
-                         AllreduceReply* reply) override {
-    return Handle(request, reply, allreduce_functor_);
-  }
+grpc::Status FederatedService::Broadcast(grpc::ServerContext* context,
+                                         BroadcastRequest const* request, BroadcastReply* reply) {
+  return Handle(request, reply, BroadcastFunctor{});
+}
 
-  grpc::Status Broadcast(grpc::ServerContext* context, BroadcastRequest const* request,
-                         BroadcastReply* reply) override {
-    return Handle(request, reply, broadcast_functor_);
-  }
-
- private:
-  template <class Request, class Reply, class RequestFunctor>
-  grpc::Status Handle(Request const* request, Reply* reply, RequestFunctor const& functor) {
-    // Pass through if there is only 1 client.
-    if (world_size_ == 1) {
-      reply->set_receive_buffer(request->send_buffer());
-      return grpc::Status::OK;
-    }
-
-    std::unique_lock<std::mutex> lock(mutex_);
-
-    auto const sequence_number = request->sequence_number();
-    auto const rank = request->rank();
-
-    LOG(INFO) << functor.name << " rank " << rank << ": waiting for current sequence number\n";
-    cv_.wait(lock, [this, sequence_number] { return sequence_number_ == sequence_number; });
-
-    LOG(INFO) << functor.name << " rank " << rank << ": handling request\n";
-    functor(request, buffer_);
-    received_++;
-
-    if (received_ == world_size_) {
-      LOG(INFO) << functor.name << " rank " << rank << ": all requests received\n";
-      reply->set_receive_buffer(buffer_);
-      sent_++;
-      lock.unlock();
-      cv_.notify_all();
-      return grpc::Status::OK;
-    }
-
-    LOG(INFO) << functor.name << " rank " << rank << ": waiting for all clients\n";
-    cv_.wait(lock, [this] { return received_ == world_size_; });
-
-    LOG(INFO) << functor.name << " rank " << rank << ": sending reply\n";
-    reply->set_receive_buffer(buffer_);
-    sent_++;
-
-    if (sent_ == world_size_) {
-      LOG(INFO) << functor.name << " rank " << rank << ": all replies sent\n";
-      sent_ = 0;
-      received_ = 0;
-      buffer_.clear();
-      sequence_number_++;
-      lock.unlock();
-      cv_.notify_all();
-    }
-
+template <class Request, class Reply, class RequestFunctor>
+grpc::Status FederatedService::Handle(Request const* request, Reply* reply,
+                                      RequestFunctor const& functor) {
+  // Pass through if there is only 1 client.
+  if (world_size_ == 1) {
+    reply->set_receive_buffer(request->send_buffer());
     return grpc::Status::OK;
   }
 
-  int const world_size_;
-  AllgatherFunctor allgather_functor_;
-  AllreduceFunctor allreduce_functor_;
-  BroadcastFunctor broadcast_functor_;
-  int received_{};
-  int sent_{};
-  std::string buffer_{};
-  uint64_t sequence_number_{};
-  mutable std::mutex mutex_;
-  mutable std::condition_variable cv_;
-};
+  std::unique_lock<std::mutex> lock(mutex_);
+
+  auto const sequence_number = request->sequence_number();
+  auto const rank = request->rank();
+
+  LOG(INFO) << functor.name << " rank " << rank << ": waiting for current sequence number";
+  cv_.wait(lock, [this, sequence_number] { return sequence_number_ == sequence_number; });
+
+  LOG(INFO) << functor.name << " rank " << rank << ": handling request";
+  functor(request, buffer_);
+  received_++;
+
+  if (received_ == world_size_) {
+    LOG(INFO) << functor.name << " rank " << rank << ": all requests received";
+    reply->set_receive_buffer(buffer_);
+    sent_++;
+    lock.unlock();
+    cv_.notify_all();
+    return grpc::Status::OK;
+  }
+
+  LOG(INFO) << functor.name << " rank " << rank << ": waiting for all clients";
+  cv_.wait(lock, [this] { return received_ == world_size_; });
+
+  LOG(INFO) << functor.name << " rank " << rank << ": sending reply";
+  reply->set_receive_buffer(buffer_);
+  sent_++;
+
+  if (sent_ == world_size_) {
+    LOG(INFO) << functor.name << " rank " << rank << ": all replies sent";
+    sent_ = 0;
+    received_ = 0;
+    buffer_.clear();
+    sequence_number_++;
+    lock.unlock();
+    cv_.notify_all();
+  }
+
+  return grpc::Status::OK;
+}
 
 std::string ReadFile(char const* path) {
   auto stream = std::ifstream(path);
@@ -248,7 +225,7 @@ void RunServer(int port, int world_size, char const* server_key_file, char const
   builder.RegisterService(&service);
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
   LOG(CONSOLE) << "Federated server listening on " << server_address << ", world size "
-               << world_size << '\n';
+               << world_size;
 
   server->Wait();
 }
