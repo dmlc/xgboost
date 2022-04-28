@@ -100,7 +100,7 @@ class NativeLibLoader {
         });
 
         return muslRelatedMemoryMappedFilename.isPresent();
-      } catch (IOException ignored) {
+      } catch (Exception ignored) {
         // ignored
       }
       return false;
