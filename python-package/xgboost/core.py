@@ -34,8 +34,6 @@ from ._typing import (
     FeatureTypes,
     _T,
     CupyT,
-    Objective,
-    Metric,
     Parameters
 )
 
