@@ -260,7 +260,7 @@ class ReduceHandle {
    *   with the type the reduce function needs to deal with
    *   the reduce function MUST be communicative
    */
-  void Init(IEngine::ReduceFunction redfunc, __attribute__((unused)) size_t type_nbytes);
+  void Init(IEngine::ReduceFunction redfunc, size_t type_nbytes);
   /*!
    * \brief customized in-place all reduce operation
    * \param sendrecvbuf the in place send-recv buffer
