@@ -40,8 +40,6 @@ class HistogramCuts {
   float max_cat_{-1.0f};
 
  protected:
-  using BinIdx = uint32_t;
-
   void Swap(HistogramCuts&& that) noexcept(true) {
     std::swap(cut_values_, that.cut_values_);
     std::swap(cut_ptrs_, that.cut_ptrs_);
@@ -110,31 +108,31 @@ class HistogramCuts {
 
   // Return the index of a cut point that is strictly greater than the input
   // value, or the last available index if none exists
-  BinIdx SearchBin(float value, bst_feature_t column_id, std::vector<uint32_t> const& ptrs,
-                   std::vector<float> const& values) const {
+  bst_bin_t SearchBin(float value, bst_feature_t column_id, std::vector<uint32_t> const& ptrs,
+                      std::vector<float> const& values) const {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    BinIdx idx = it - values.cbegin();
+    bst_bin_t idx = it - values.cbegin();
     idx -= !!(idx == end);
     return idx;
   }
 
-  BinIdx SearchBin(float value, bst_feature_t column_id) const {
+  bst_bin_t SearchBin(float value, bst_feature_t column_id) const {
     return this->SearchBin(value, column_id, Ptrs(), Values());
   }
 
   /**
    * \brief Search the bin index for numerical feature.
    */
-  BinIdx SearchBin(Entry const& e) const {
+  bst_bin_t SearchBin(Entry const& e) const {
     return SearchBin(e.fvalue, e.index);
   }
 
   /**
    * \brief Search the bin index for categorical feature.
    */
-  BinIdx SearchCatBin(Entry const &e) const {
+  bst_bin_t SearchCatBin(Entry const &e) const {
     auto const &ptrs = this->Ptrs();
     auto const &vals = this->Values();
     auto end = ptrs.at(e.index + 1) + vals.cbegin();
@@ -296,10 +294,10 @@ struct Index {
 };
 
 template <typename GradientIndex>
-int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
-                                                GradientIndex const &data,
-                                                uint32_t const fidx_begin,
-                                                uint32_t const fidx_end) {
+bst_bin_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
+                                                  GradientIndex const& data,
+                                                  uint32_t const fidx_begin,
+                                                  uint32_t const fidx_end) {
   size_t previous_middle = std::numeric_limits<size_t>::max();
   while (end != begin) {
     size_t middle = begin + (end - begin) / 2;
@@ -323,8 +321,6 @@ int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
   // Value is missing
   return -1;
 }
-
-class ColumnMatrix;
 
 template<typename GradientSumT>
 using GHistRow = Span<xgboost::detail::GradientPairInternal<GradientSumT> >;

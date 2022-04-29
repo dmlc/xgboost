@@ -34,8 +34,8 @@ class Column {
  public:
   static constexpr int32_t kMissingId = -1;
 
-  Column(ColumnType type, common::Span<const BinIdxType> index, const uint32_t index_base)
-      : type_(type), index_(index), index_base_(index_base) {}
+  Column(ColumnType type, common::Span<const BinIdxType> index, const bst_bin_t index_base)
+      : type_(type), index_(index), index_base_{index_base} {}
 
   virtual ~Column() = default;
 
@@ -60,19 +60,19 @@ class Column {
   /* bin indexes in range [0, max_bins - 1] */
   common::Span<const BinIdxType> index_;
   /* bin index offset for specific feature */
-  const uint32_t index_base_;
+  bst_bin_t const index_base_;
 };
 
 template <typename BinIdxType>
 class SparseColumn : public Column<BinIdxType> {
  public:
-  SparseColumn(ColumnType type, common::Span<const BinIdxType> index, uint32_t index_base,
+  SparseColumn(ColumnType type, common::Span<const BinIdxType> index, bst_bin_t index_base,
                common::Span<const size_t> row_ind)
       : Column<BinIdxType>(type, index, index_base), row_ind_(row_ind) {}
 
   const size_t* GetRowData() const { return row_ind_.data(); }
 
-  int32_t GetBinIdx(size_t rid, size_t* state) const {
+  bst_bin_t GetBinIdx(size_t rid, size_t* state) const {
     const size_t column_size = this->Size();
     if (!((*state) < column_size)) {
       return this->kMissingId;
