@@ -69,7 +69,7 @@ public class BoosterTest {
       .hasHeader().build();
 
     int maxBin = 16;
-    int round = 100;
+    int round = 10;
     //set params
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {

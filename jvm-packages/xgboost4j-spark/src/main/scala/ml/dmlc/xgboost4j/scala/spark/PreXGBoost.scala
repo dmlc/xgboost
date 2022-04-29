@@ -96,19 +96,21 @@ object PreXGBoost extends PreXGBoostProvider {
   }
 
   /**
-   * Convert the Dataset[_] to RDD[Watches] which will be fed to XGBoost
+   * Convert the Dataset[_] to RDD[() => Watches] which will be fed to XGBoost
    *
    * @param estimator supports XGBoostClassifier and XGBoostRegressor
    * @param dataset the training data
    * @param params all user defined and defaulted params
-   * @return [[XGBoostExecutionParams]] => (RDD[[Watches]], Option[ RDD[_] ])
-   *         RDD[Watches] will be used as the training input
+   * @return [[XGBoostExecutionParams]] => (Boolean, RDD[[() => Watches]], Option[ RDD[_] ])
+   *         Boolean if building DMatrix in rabit context
+   *         RDD[() => Watches] will be used as the training input
    *         Option[RDD[_]\] is the optional cached RDD
    */
   override def buildDatasetToRDD(
       estimator: Estimator[_],
       dataset: Dataset[_],
-      params: Map[String, Any]): XGBoostExecutionParams => (RDD[Watches], Option[RDD[_]]) = {
+      params: Map[String, Any]): XGBoostExecutionParams =>
+    (Boolean, RDD[() => Watches], Option[RDD[_]]) = {
 
     if (optionProvider.isDefined && optionProvider.get.providerEnabled(Some(dataset))) {
       return optionProvider.get.buildDatasetToRDD(estimator, dataset, params)
@@ -170,12 +172,12 @@ object PreXGBoost extends PreXGBoostProvider {
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (false, trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
         case Right(trainingData) =>
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (false, trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
       }
 
   }
@@ -311,17 +313,18 @@ object PreXGBoost extends PreXGBoostProvider {
 
 
   /**
-   * Converting the RDD[XGBLabeledPoint] to the function to build RDD[Watches]
+   * Converting the RDD[XGBLabeledPoint] to the function to build RDD[() => Watches]
    *
    * @param trainingSet the input training RDD[XGBLabeledPoint]
    * @param evalRDDMap the eval set
    * @param hasGroup if has group
-   * @return function to build (RDD[Watches], the cached RDD)
+   * @return function to build (RDD[() => Watches], the cached RDD)
    */
   private[spark] def buildRDDLabeledPointToRDDWatches(
       trainingSet: RDD[XGBLabeledPoint],
       evalRDDMap: Map[String, RDD[XGBLabeledPoint]] = Map(),
-      hasGroup: Boolean = false): XGBoostExecutionParams => (RDD[Watches], Option[RDD[_]]) = {
+      hasGroup: Boolean = false):
+  XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]]) = {
 
     xgbExecParams: XGBoostExecutionParams =>
       composeInputData(trainingSet, hasGroup, xgbExecParams.numWorkers) match {
@@ -329,12 +332,12 @@ object PreXGBoost extends PreXGBoostProvider {
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (false, trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
         case Right(trainingData) =>
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (false, trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
       }
   }
 
@@ -374,34 +377,34 @@ object PreXGBoost extends PreXGBoostProvider {
   }
 
   /**
-   * Build RDD[Watches] for Ranking
+   * Build RDD[() => Watches] for Ranking
    * @param trainingData the training data RDD
    * @param xgbExecutionParams xgboost execution params
    * @param evalSetsMap the eval RDD
-   * @return RDD[Watches]
+   * @return RDD[() => Watches]
    */
   private def trainForRanking(
       trainingData: RDD[Array[XGBLabeledPoint]],
       xgbExecutionParam: XGBoostExecutionParams,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[Watches] = {
+      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[() => Watches] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
-        val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
+        val buildWatches = () => Watches.buildWatchesWithGroup(xgbExecutionParam,
           DataUtils.processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
             xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
-        Iterator.single(watches)
+        Iterator.single(buildWatches)
       }).cache()
     } else {
       coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
         labeledPointGroupSets => {
-          val watches = Watches.buildWatchesWithGroup(
+          val buildWatches = () => Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
               case (name, iter) => (name, DataUtils.processMissingValuesWithGroup(iter,
                 xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
             },
             getCacheDirName(xgbExecutionParam.useExternalMemory))
-          Iterator.single(watches)
+          Iterator.single(buildWatches)
         }).cache()
     }
   }
@@ -462,35 +465,35 @@ object PreXGBoost extends PreXGBoostProvider {
   }
 
   /**
-   * Build RDD[Watches] for Non-Ranking
+   * Build RDD[() => Watches] for Non-Ranking
    * @param trainingData the training data RDD
    * @param xgbExecutionParams xgboost execution params
    * @param evalSetsMap the eval RDD
-   * @return RDD[Watches]
+   * @return RDD[() => Watches]
    */
   private def trainForNonRanking(
       trainingData: RDD[XGBLabeledPoint],
       xgbExecutionParams: XGBoostExecutionParams,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[Watches] = {
+      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[() => Watches] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions { labeledPoints => {
-        val watches = Watches.buildWatches(xgbExecutionParams,
+        val buildWatches = () => Watches.buildWatches(xgbExecutionParams,
           DataUtils.processMissingValues(labeledPoints, xgbExecutionParams.missing,
             xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
-        Iterator.single(watches)
+        Iterator.single(buildWatches)
       }}.cache()
     } else {
       coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
         mapPartitions {
           nameAndLabeledPointSets =>
-            val watches = Watches.buildWatches(
+            val buildWatches = () => Watches.buildWatches(
               nameAndLabeledPointSets.map {
                 case (name, iter) => (name, DataUtils.processMissingValues(iter,
                   xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
               },
               getCacheDirName(xgbExecutionParams.useExternalMemory))
-            Iterator.single(watches)
+            Iterator.single(buildWatches)
         }.cache()
     }
   }

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.XGBoostError
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql.DataFrame
 import org.scalatest.FunSuite
-
 import scala.util.Random
+
+import org.apache.spark.SparkException
 
 class MissingValueHandlingSuite extends FunSuite with PerTest {
   test("dense vectors containing missing value") {
@@ -113,7 +113,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     val inputDF = vectorAssembler.transform(testDF).select("features", "label")
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> -1.0f, "num_workers" -> 1).toMap
-    intercept[XGBoostError] {
+    intercept[SparkException] {
       new XGBoostClassifier(paramMap).fit(inputDF)
     }
   }
@@ -140,7 +140,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     inputDF.show()
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> -1.0f, "num_workers" -> 1).toMap
-    intercept[XGBoostError] {
+    intercept[SparkException] {
       new XGBoostClassifier(paramMap).fit(inputDF)
     }
   }

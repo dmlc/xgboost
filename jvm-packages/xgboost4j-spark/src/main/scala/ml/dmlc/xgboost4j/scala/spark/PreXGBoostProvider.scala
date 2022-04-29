@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -45,19 +45,21 @@ private[scala] trait PreXGBoostProvider {
   def transformSchema(xgboostEstimator: XGBoostEstimatorCommon, schema: StructType): StructType
 
   /**
-   * Convert the Dataset[_] to RDD[Watches] which will be fed to XGBoost
+   * Convert the Dataset[_] to RDD[() => Watches] which will be fed to XGBoost
    *
    * @param estimator supports XGBoostClassifier and XGBoostRegressor
    * @param dataset the training data
    * @param params all user defined and defaulted params
-   * @return [[XGBoostExecutionParams]] => (RDD[[Watches]], Option[ RDD[_] ])
-   *         RDD[Watches] will be used as the training input
+   * @return [[XGBoostExecutionParams]] => (Boolean, RDD[[() => Watches]], Option[ RDD[_] ])
+   *         Boolean if building DMatrix in rabit context
+   *         RDD[() => Watches] will be used as the training input to build DMatrix
    *         Option[ RDD[_] ] is the optional cached RDD
    */
   def buildDatasetToRDD(
     estimator: Estimator[_],
     dataset: Dataset[_],
-    params: Map[String, Any]): XGBoostExecutionParams => (RDD[Watches], Option[RDD[_]])
+    params: Map[String, Any]):
+  XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]])
 
   /**
    * Transform Dataset
