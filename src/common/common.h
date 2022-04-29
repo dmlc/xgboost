@@ -192,6 +192,8 @@ class IndexTransformIter {
   value_type operator*() const { return fn_(iter_); }
 
   auto operator-(IndexTransformIter const &that) const { return iter_ - that.iter_; }
+  bool operator==(IndexTransformIter const &that) const { return iter_ == that.iter_; }
+  bool operator!=(IndexTransformIter const &that) const { return !(*this == that); }
 
   IndexTransformIter &operator++() {
     iter_++;

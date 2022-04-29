@@ -75,7 +75,7 @@ inline void InvalidCategory() {
   // values to be less than this last representable value.
   auto str = std::to_string(OutOfRangeCat());
   LOG(FATAL) << "Invalid categorical value detected.  Categorical value should be non-negative, "
-                "less than total umber of categories in training data and less than " +
+                "less than total number of categories in training data and less than " +
                     str;
 }
 
