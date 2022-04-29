@@ -725,7 +725,6 @@ using TypedDiscardCTK114 = thrust::discard_iterator<T>;
 template <typename T>
 class TypedDiscard : public thrust::discard_iterator<T> {
  public:
-  using thrust::discard_iterator<T>::discard_iterator;
   using value_type = T;  // NOLINT
 };
 } // namespace detail
