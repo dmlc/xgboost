@@ -470,8 +470,10 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
 
 void AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   auto &cut_values = cuts->cut_values_.HostVector();
-  for (auto const &v : categories) {
-    cut_values.push_back(AsCat(v));
+  auto max_cat = std::accumulate(categories.cbegin(), categories.cend(), .0f,
+                                 [](auto l, auto r) { return std::max(l, r); });
+  for (float i = 0; i < max_cat; ++i) {
+    cut_values.push_back(AsCat(i));
   }
 }
 
