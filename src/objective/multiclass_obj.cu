@@ -46,7 +46,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
-  ObjInfo Task() const override { return {ObjInfo::kClassification, false}; }
+  ObjInfo Task() const override { return ObjInfo::kClassification; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,

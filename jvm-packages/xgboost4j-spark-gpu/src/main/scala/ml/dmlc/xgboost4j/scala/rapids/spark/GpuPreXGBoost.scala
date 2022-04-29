@@ -407,14 +407,9 @@ object GpuPreXGBoost extends PreXGBoostProvider {
   }
 
   private def repartitionInputData(dataFrame: DataFrame, nWorkers: Int): DataFrame = {
-    // We can't check dataFrame.rdd.getNumPartitions == nWorkers here, since dataFrame.rdd is
-    // a lazy variable. If we call it here, we will not directly extract RDD[Table] again,
-    // instead, we will involve Columnar -> Row -> Columnar and decrease the performance
-    if (nWorkers == 1) {
-      dataFrame.coalesce(1)
-    } else {
-      dataFrame.repartition(nWorkers)
-    }
+    // we can't involve any coalesce operation here, since Barrier mode will check
+    // the RDD patterns which does not allow coalesce.
+    dataFrame.repartition(nWorkers)
   }
 
   private def repartitionForGroup(

@@ -1169,7 +1169,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, &predt);
+    gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -1186,7 +1186,7 @@ class LearnerImpl : public LearnerIO {
     auto local_cache = this->GetPredictionCache();
     local_cache->Cache(train, generic_parameters_.gpu_id);
 
-    gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()));
+    gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()), obj_.get());
     monitor_.Stop("BoostOneIter");
   }
 

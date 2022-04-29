@@ -35,6 +35,7 @@ import dask.dataframe as dd
 import dask.array as da
 from xgboost.dask import DaskDMatrix
 
+dask.config.set({"distributed.scheduler.allowed-failures": False})
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
@@ -673,7 +674,8 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
 def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     def _check_outputs(out: xgb.dask.TrainReturnT, predictions: np.ndarray) -> None:
         assert isinstance(out['booster'], xgb.dask.Booster)
-        assert len(out['history']['validation']['rmse']) == 2
+        for _, v in out['history']['validation'].items():
+            assert len(v) == 2
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[0] == 1
 
@@ -866,6 +868,8 @@ def test_empty_dmatrix(tree_method) -> None:
             parameters = {'tree_method': tree_method}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
+            parameters = {'tree_method': tree_method, "objective": "reg:absoluteerror"}
+            run_empty_dmatrix_reg(client, parameters)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> xgb.dask.TrainReturnT:
@@ -1284,7 +1288,12 @@ class TestWithDask:
         def minimum_bin():
             return "max_bin" in params and params["max_bin"] == 2
 
-        if minimum_bin() and is_stump():
+        # See note on `ObjFunction::UpdateTreeLeaf`.
+        update_leaf = dataset.name.endswith("-l1")
+        if update_leaf and len(history) >= 2:
+            assert history[0] >= history[-1]
+            return
+        elif minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
         else:
             assert tm.non_increasing(history)
@@ -1304,7 +1313,7 @@ class TestWithDask:
            dataset=tm.dataset_strategy)
     @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
     def test_approx(
-            self, client: "Client", params: Dict, dataset: tm.TestDataset
+        self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')

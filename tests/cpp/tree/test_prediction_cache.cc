@@ -77,7 +77,8 @@ class TestPredictionCache : public ::testing::Test {
       std::vector<RegTree *> trees{&tree};
       auto gpair = GenerateRandomGradients(n_samples_);
       updater->Configure(Args{{"max_bin", "64"}});
-      updater->Update(&gpair, Xy_.get(), trees);
+      std::vector<HostDeviceVector<bst_node_t>> position(1);
+      updater->Update(&gpair, Xy_.get(), position, trees);
       HostDeviceVector<float> out_prediction_cached;
       out_prediction_cached.SetDevice(ctx.gpu_id);
       out_prediction_cached.Resize(n_samples_);
