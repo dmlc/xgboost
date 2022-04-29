@@ -8,13 +8,12 @@ from typing import (
     TypeVar,
     Union,
     Sequence,
-    Literal,
     Tuple,
     Dict,
     List,
     Callable
 )
-from typing_extensions import TypedDict, TypeAlias
+from typing_extensions import TypedDict, TypeAlias, Literal
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
