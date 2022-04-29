@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2022 by XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
@@ -611,7 +611,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
 
   p_cuts->min_vals_.SetDevice(device_);
   auto d_min_values = p_cuts->min_vals_.DeviceSpan();
-  auto in_cut_values = dh::ToSpan(this->Current());
+  auto const in_cut_values = dh::ToSpan(this->Current());
 
   // Set up output ptr
   p_cuts->cut_ptrs_.SetDevice(device_);
@@ -619,21 +619,37 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);
   auto const& h_feature_types = this->feature_types_.ConstHostSpan();
-  for (bst_feature_t i = 0; i < num_columns_; ++i) {
-    size_t column_size = std::max(static_cast<size_t>(1ul),
-                                  this->Column(i).size());
-    if (IsCat(h_feature_types, i)) {
-      h_out_columns_ptr.push_back(static_cast<size_t>(column_size));
-    } else {
-      h_out_columns_ptr.push_back(std::min(static_cast<size_t>(column_size),
-                                           static_cast<size_t>(num_bins_)));
-    }
-  }
-  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
-                   h_out_columns_ptr.begin());
-  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
 
   // Set up output cuts
+  std::vector<SketchEntry> max_values;
+  if (has_categorical_) {
+    dh::XGBCachingDeviceAllocator<char> alloc;
+    auto it = dh::MakeTransformIterator<bst_feature_t>(
+        thrust::make_counting_iterator(0ul),
+        [=] XGBOOST_DEVICE(size_t i) { return dh::SegmentId(d_in_columns_ptr, i); });
+    CHECK_EQ(num_columns_, d_in_columns_ptr.size() - 1);
+    max_values.resize(d_in_columns_ptr.size() - 1);
+    dh::caching_device_vector<SketchEntry> d_max_values(d_in_columns_ptr.size() - 1);
+    thrust::reduce_by_key(thrust::cuda::par(alloc), it, it + in_cut_values.size(),
+                          dh::tbegin(in_cut_values), dh::TypedDiscard<bst_feature_t>{},
+                          d_max_values.begin(), thrust::equal_to<bst_feature_t>{},
+                          [] __device__(auto l, auto r) { return l.value > r.value ? l : r; });
+    dh::CopyDeviceSpanToVector(&max_values, dh::ToSpan(d_max_values));
+  }
+
+  for (bst_feature_t i = 0; i < num_columns_; ++i) {
+    size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
+    if (IsCat(h_feature_types, i)) {
+      CHECK_GE(max_values[i].value + 1, column_size);
+      h_out_columns_ptr.push_back(max_values[i].value);
+    } else {
+      h_out_columns_ptr.push_back(
+          std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_)));
+    }
+  }
+  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(), h_out_columns_ptr.begin());
+  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
+
   size_t total_bins = h_out_columns_ptr.back();
   p_cuts->cut_values_.SetDevice(device_);
   p_cuts->cut_values_.Resize(total_bins);
@@ -668,7 +684,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
 
     if (IsCat(d_ft, column_id)) {
       assert(out_column.size() == in_column.size());
-      out_column[idx] = in_column[idx].value;
+      out_column[idx] = idx;
       return;
     }
 
