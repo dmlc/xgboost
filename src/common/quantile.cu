@@ -625,13 +625,14 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   if (has_categorical_) {
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto it = dh::MakeTransformIterator<bst_feature_t>(
-        thrust::make_counting_iterator(0ul),
-        [=] XGBOOST_DEVICE(size_t i) { return dh::SegmentId(d_in_columns_ptr, i); });
+        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> bst_feature_t {
+          return dh::SegmentId(d_in_columns_ptr, i);
+        });
     CHECK_EQ(num_columns_, d_in_columns_ptr.size() - 1);
     max_values.resize(d_in_columns_ptr.size() - 1);
     dh::caching_device_vector<SketchEntry> d_max_values(d_in_columns_ptr.size() - 1);
     thrust::reduce_by_key(thrust::cuda::par(alloc), it, it + in_cut_values.size(),
-                          dh::tbegin(in_cut_values), dh::TypedDiscard<bst_feature_t>{},
+                          dh::tbegin(in_cut_values), thrust::make_discard_iterator(),
                           d_max_values.begin(), thrust::equal_to<bst_feature_t>{},
                           [] __device__(auto l, auto r) { return l.value > r.value ? l : r; });
     dh::CopyDeviceSpanToVector(&max_values, dh::ToSpan(d_max_values));
