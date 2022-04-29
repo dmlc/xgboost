@@ -512,16 +512,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
       }
     }
     CHECK(non_dec) << "`qid` must be sorted in non-decreasing order along with data.";
-    group_ptr_.clear();
-    group_ptr_.push_back(0);
-    for (size_t i = 1; i < query_ids.size(); ++i) {
-      if (query_ids[i] != query_ids[i - 1]) {
-        group_ptr_.push_back(i);
-      }
-    }
-    if (group_ptr_.back() != query_ids.size()) {
-      group_ptr_.push_back(query_ids.size());
-    }
+    common::RunLengthEncode(query_ids.cbegin(), query_ids.cend(), &group_ptr_);
     data::ValidateQueryGroup(group_ptr_);
     return;
   }

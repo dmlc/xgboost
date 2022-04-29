@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 by Contributors
+ * Copyright 2017-2022 by Contributors
  * \file row_set.h
  * \brief Quick Utility to compute subset of rows
  * \author Philip Cho, Tianqi Chen
@@ -15,10 +15,15 @@
 
 namespace xgboost {
 namespace common {
-
 /*! \brief collection of rowset */
 class RowSetCollection {
  public:
+  RowSetCollection() = default;
+  RowSetCollection(RowSetCollection const&) = delete;
+  RowSetCollection(RowSetCollection&&) = default;
+  RowSetCollection& operator=(RowSetCollection const&) = delete;
+  RowSetCollection& operator=(RowSetCollection&&) = default;
+
   /*! \brief data structure to store an instance set, a subset of
    *  rows (instances) associated with a particular node in a decision
    *  tree. */
@@ -38,19 +43,16 @@ class RowSetCollection {
       return end - begin;
     }
   };
-  /* \brief specifies how to split a rowset into two */
-  struct Split {
-    std::vector<size_t> left;
-    std::vector<size_t> right;
-  };
 
-  inline std::vector<Elem>::const_iterator begin() const {  // NOLINT
+  std::vector<Elem>::const_iterator begin() const {  // NOLINT
     return elem_of_each_node_.begin();
   }
 
-  inline std::vector<Elem>::const_iterator end() const {  // NOLINT
+  std::vector<Elem>::const_iterator end() const {  // NOLINT
     return elem_of_each_node_.end();
   }
+
+  size_t Size() const { return std::distance(begin(), end()); }
 
   /*! \brief return corresponding element set given the node_id */
   inline const Elem& operator[](unsigned node_id) const {
@@ -86,6 +88,8 @@ class RowSetCollection {
   }
 
   std::vector<size_t>* Data() { return &row_indices_; }
+  std::vector<size_t> const* Data() const { return &row_indices_; }
+
   // split rowset into two
   inline void AddSplit(unsigned node_id, unsigned left_node_id, unsigned right_node_id,
                        size_t n_left, size_t n_right) {
@@ -123,7 +127,6 @@ class RowSetCollection {
   // vector: node_id -> elements
   std::vector<Elem> elem_of_each_node_;
 };
-
 }  // namespace common
 }  // namespace xgboost
 

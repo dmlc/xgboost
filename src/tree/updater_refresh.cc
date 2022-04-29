@@ -41,9 +41,9 @@ class TreeRefresher : public TreeUpdater {
     return true;
   }
   // update the tree, do pruning
-  void Update(HostDeviceVector<GradientPair> *gpair,
-              DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              const std::vector<RegTree *> &trees) override {
     if (trees.size() == 0) return;
     const std::vector<GradientPair> &gpair_h = gpair->ConstHostVector();
     // thread temporal space

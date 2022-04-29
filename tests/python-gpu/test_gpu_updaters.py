@@ -3,7 +3,7 @@ import sys
 import gc
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note, reproduce_failure
+from hypothesis import given, strategies, assume, settings, note
 
 sys.path.append("tests/python")
 import testing as tm
@@ -89,6 +89,8 @@ class TestGPUUpdaters:
            tm.dataset_strategy)
     @settings(deadline=None, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
+        if dataset.name.endswith("-l1"):
+            return
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
         param['tree_method'] = 'gpu_hist'

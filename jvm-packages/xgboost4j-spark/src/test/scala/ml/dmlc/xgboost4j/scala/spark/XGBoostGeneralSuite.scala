@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,13 +16,12 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.util.Random
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 
-import org.apache.spark.TaskContext
+import org.apache.spark.{SparkException, TaskContext}
 import org.scalatest.FunSuite
 
 import org.apache.spark.ml.feature.VectorAssembler
@@ -375,13 +374,14 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   test("throw exception for empty partition in trainingset") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "multi:softmax", "num_class" -> "2", "num_round" -> 5,
-      "num_workers" -> numWorkers, "tree_method" -> "auto")
+      "objective" -> "binary:logistic", "num_class" -> "2", "num_round" -> 5,
+      "num_workers" -> numWorkers, "tree_method" -> "auto", "allow_non_zero_for_missing" -> true)
     // The Dmatrix will be empty
-    val trainingDF = buildDataFrame(Seq(XGBLabeledPoint(1.0f, 1, Array(), Array())))
+    val trainingDF = buildDataFrame(Seq(XGBLabeledPoint(1.0f, 4,
+      Array(0, 1, 2, 3), Array(0, 1, 2, 3))))
     val xgb = new XGBoostClassifier(paramMap)
-    intercept[XGBoostError] {
-      val model = xgb.fit(trainingDF)
+    intercept[SparkException] {
+      xgb.fit(trainingDF)
     }
   }
 

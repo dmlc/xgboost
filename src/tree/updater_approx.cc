@@ -19,6 +19,7 @@
 #include "param.h"
 #include "xgboost/base.h"
 #include "xgboost/json.h"
+#include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
 
 namespace xgboost {
@@ -154,6 +155,18 @@ class GloablApproxBuilder {
     monitor_->Stop(__func__);
   }
 
+  void LeafPartition(RegTree const &tree, common::Span<float> hess,
+                     std::vector<bst_node_t> *p_out_position) {
+    monitor_->Start(__func__);
+    if (!evaluator_.Task().UpdateTreeLeaf()) {
+      return;
+    }
+    for (auto const &part : partitioner_) {
+      part.LeafPartition(ctx_, tree, hess, p_out_position);
+    }
+    monitor_->Stop(__func__);
+  }
+
  public:
   explicit GloablApproxBuilder(TrainParam param, MetaInfo const &info, GenericParameter const *ctx,
                                std::shared_ptr<common::ColumnSampler> column_sampler, ObjInfo task,
@@ -164,8 +177,8 @@ class GloablApproxBuilder {
         ctx_{ctx},
         monitor_{monitor} {}
 
-  void UpdateTree(RegTree *p_tree, std::vector<GradientPair> const &gpair, common::Span<float> hess,
-                  DMatrix *p_fmat) {
+  void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
+                  RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, hess);
 
@@ -231,6 +244,9 @@ class GloablApproxBuilder {
       driver.Push(best_splits.begin(), best_splits.end());
       expand_set = driver.Pop();
     }
+
+    auto &h_position = p_out_position->HostVector();
+    this->LeafPartition(tree, hess, &h_position);
   }
 };
 
@@ -278,6 +294,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     sampled->resize(h_gpair.size());
     std::copy(h_gpair.cbegin(), h_gpair.cend(), sampled->begin());
     auto &rnd = common::GlobalRandom();
+
     if (param.subsample != 1.0) {
       CHECK(param.sampling_method != TrainParam::kGradientBased)
           << "Gradient based sampling is not supported for approx tree method.";
@@ -295,6 +312,7 @@ class GlobalApproxUpdater : public TreeUpdater {
   char const *Name() const override { return "grow_histmaker"; }
 
   void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *m,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree *> &trees) override {
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -316,12 +334,14 @@ class GlobalApproxUpdater : public TreeUpdater {
 
     cached_ = m;
 
+    size_t t_idx = 0;
     for (auto p_tree : trees) {
       if (hist_param_.single_precision_histogram) {
-        this->f32_impl_->UpdateTree(p_tree, h_gpair, hess, m);
+        this->f32_impl_->UpdateTree(m, h_gpair, hess, p_tree, &out_position[t_idx]);
       } else {
-        this->f64_impl_->UpdateTree(p_tree, h_gpair, hess, m);
+        this->f64_impl_->UpdateTree(m, h_gpair, hess, p_tree, &out_position[t_idx]);
       }
+      ++t_idx;
     }
     param_.learning_rate = lr;
   }
@@ -338,6 +358,8 @@ class GlobalApproxUpdater : public TreeUpdater {
     }
     return true;
   }
+
+  bool HasNodePosition() const override { return true; }
 };
 
 DMLC_REGISTRY_FILE_TAG(grow_histmaker);

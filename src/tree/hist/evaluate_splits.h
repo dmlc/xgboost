@@ -390,7 +390,6 @@ void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_las
 
   CHECK(p_last_tree);
   auto const &tree = *p_last_tree;
-  auto const &snode = hist_evaluator.Stats();
   auto evaluator = hist_evaluator.Evaluator();
   CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
   size_t n_nodes = p_last_tree->GetNodes().size();
@@ -401,9 +400,7 @@ void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_las
     common::ParallelFor2d(space, ctx->Threads(), [&](size_t nidx, common::Range1d r) {
       if (!tree[nidx].IsDeleted() && tree[nidx].IsLeaf()) {
         auto const &rowset = part[nidx];
-        auto const &stats = snode[nidx];
-        auto leaf_value =
-            evaluator.CalcWeight(nidx, param, GradStats{stats.stats}) * param.learning_rate;
+        auto leaf_value = tree[nidx].LeafValue();
         for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
           out_preds(*it) += leaf_value;
         }

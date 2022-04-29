@@ -1,13 +1,17 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #pragma once
+#include <limits>
+#include <vector>
 #include "xgboost/base.h"
 #include "../../common/device_helpers.cuh"
+#include "xgboost/generic_parameters.h"
+#include "xgboost/task.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace tree {
-
 /*! \brief Count how many rows are assigned to left node. */
 __forceinline__ __device__ void AtomicIncrement(int64_t* d_count, bool increment) {
 #if __CUDACC_VER_MAJOR__ > 8
@@ -149,23 +153,48 @@ class RowPartitioner {
   }
 
   /**
-   * \brief Finalise the position of all training instances after tree
-   * construction is complete. Does not update any other meta information in
-   * this data structure, so should only be used at the end of training.
+   * \brief Finalise the position of all training instances after tree construction is
+   * complete. Does not update any other meta information in this data structure, so
+   * should only be used at the end of training.
    *
-   * \param op          Device lambda. Should provide the row index  and current
-   * position as an argument and return the new position for this training
-   * instance.
+   *   When the task requires update leaf, this function will copy the node index into
+   *   p_out_position. The index is negated if it's being sampled in current iteration.
+   *
+   * \param p_out_position Node index for each row.
+   * \param op Device lambda. Should provide the row index and current position as an
+   *           argument and return the new position for this training instance.
+   * \param sampled A device lambda to inform the partitioner whether a row is sampled.
    */
-  template <typename FinalisePositionOpT>
-  void FinalisePosition(FinalisePositionOpT op) {
+  template <typename FinalisePositionOpT, typename Sampledp>
+  void FinalisePosition(Context const* ctx, ObjInfo task,
+                        HostDeviceVector<bst_node_t>* p_out_position, FinalisePositionOpT op,
+                        Sampledp sampledp) {
     auto d_position = position_.Current();
     const auto d_ridx = ridx_.Current();
+    if (!task.UpdateTreeLeaf()) {
+      dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
+        auto position = d_position[idx];
+        RowIndexT ridx = d_ridx[idx];
+        bst_node_t new_position = op(ridx, position);
+        if (new_position == kIgnoredTreePosition) {
+          return;
+        }
+        d_position[idx] = new_position;
+      });
+      return;
+    }
+
+    p_out_position->SetDevice(ctx->gpu_id);
+    p_out_position->Resize(position_.Size());
+    auto sorted_position = p_out_position->DevicePointer();
     dh::LaunchN(position_.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx, position);
-      if (new_position == kIgnoredTreePosition) return;
+      sorted_position[ridx] = sampledp(ridx) ? ~new_position : new_position;
+      if (new_position == kIgnoredTreePosition) {
+        return;
+      }
       d_position[idx] = new_position;
     });
   }

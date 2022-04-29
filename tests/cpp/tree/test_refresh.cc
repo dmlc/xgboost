@@ -44,7 +44,8 @@ TEST(Updater, Refresh) {
   tree.Stat(cright).base_weight = 1.3;
 
   refresher->Configure(cfg);
-  refresher->Update(&gpair, p_dmat.get(), trees);
+  std::vector<HostDeviceVector<bst_node_t>> position;
+  refresher->Update(&gpair, p_dmat.get(), position, trees);
 
   bst_float constexpr kEps = 1e-6;
   ASSERT_NEAR(-0.183392, tree[cright].LeafValue(), kEps);
