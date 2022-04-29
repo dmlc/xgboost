@@ -18,19 +18,20 @@ if (NOT PLUGIN_UPDATER_ONEAPI)
   list(REMOVE_ITEM TEST_SOURCES ${ONEAPI_TEST_SOURCES})
 endif (NOT PLUGIN_UPDATER_ONEAPI)
 
+if (PLUGIN_FEDERATED)
+  target_include_directories(testxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/federated)
+  target_link_libraries(testxgboost PRIVATE federated_client)
+else (PLUGIN_FEDERATED)
+  file(GLOB_RECURSE FEDERATED_TEST_SOURCES "plugin/*_federated_*.cc")
+  list(REMOVE_ITEM TEST_SOURCES ${FEDERATED_TEST_SOURCES})
+endif (PLUGIN_FEDERATED)
+
 target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 
 if (USE_CUDA AND PLUGIN_RMM)
   find_package(CUDA)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
 endif (USE_CUDA AND PLUGIN_RMM)
-
-if (PLUGIN_FEDERATED)
-  target_include_directories(testxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/federated)
-  target_link_libraries(testxgboost PRIVATE federated_client)
-else(PLUGIN_FEDERATED)
-  list(REMOVE_ITEM TEST_SOURCES "plugin/test_federated_server.cc")
-endif(PLUGIN_FEDERATED)
 
 target_include_directories(testxgboost
   PRIVATE
