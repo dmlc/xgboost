@@ -217,7 +217,7 @@ class CVPack:
 
 
 class _PackedBooster:
-    def __init__(self, cvfolds: list[CVPack]) -> None:
+    def __init__(self, cvfolds: List[CVPack]) -> None:
         self.cvfolds = cvfolds
 
     def update(self, iteration: int, obj: Optional[Objective]) -> None:
@@ -225,7 +225,7 @@ class _PackedBooster:
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration: int, feval: Optional[Metric], output_margin: Any) -> list[str]:
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: Any) -> List[str]:
         '''Iterate through folds for eval'''
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
@@ -280,7 +280,7 @@ def mkgroupfold(
     evals: List[str],
     fpreproc: Optional[Callable] = None,
     shuffle: bool = True
-) -> list[CVPack]:
+) -> List[CVPack]:
     """
     Make n folds for cross-validation maintaining groups
     :return: cross-validation folds
@@ -330,7 +330,7 @@ def mknfold(
     stratified: bool = False,
     folds: Any = None,
     shuffle: bool = True
-) -> list[CVPack]:
+) -> List[CVPack]:
     """
     Make an n-fold list of CVPack from random indices.
     """
