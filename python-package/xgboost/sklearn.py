@@ -14,7 +14,7 @@ from .core import Metric
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
-from ._typing import ArrayLike, FeatureTypes
+from ._typing import ArrayLike, FeatureTypes, Parameters
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -633,7 +633,7 @@ class XGBModel(XGBModelBase):
 
         return self
 
-    def get_params(self, deep: bool = True) -> Dict[str, Any]:
+    def get_params(self, deep: bool = True) -> Parameters:
         # pylint: disable=attribute-defined-outside-init
         """Get parameters."""
         # Based on: https://stackoverflow.com/questions/59248211
@@ -683,7 +683,7 @@ class XGBModel(XGBModelBase):
             pass
         return params
 
-    def get_xgb_params(self) -> Dict[str, Any]:
+    def get_xgb_params(self) -> Parameters:
         """Get xgboost specific parameters."""
         params = self.get_params()
         # Parameters that should not go into native learner.
@@ -698,10 +698,10 @@ class XGBModel(XGBModelBase):
             "callbacks",
             "feature_types",
         }
-        filtered = {}
+        filtered = params.copy()
         for k, v in params.items():
-            if k not in wrapper_specific and not callable(v):
-                filtered[k] = v
+            if k in wrapper_specific or callable(v):
+                del filtered[k] # type: ignore
         return filtered
 
     def get_num_boosting_rounds(self) -> int:
@@ -749,7 +749,7 @@ class XGBModel(XGBModelBase):
     def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         # pylint: disable=attribute-defined-outside-init
         if not hasattr(self, '_Booster'):
-            self._Booster = Booster({'n_jobs': self.n_jobs})
+            self._Booster = Booster(Parameters({'n_jobs': self.n_jobs}))
         self.get_booster().load_model(fname)
         meta_str = self.get_booster().attr('scikit_learn')
         if meta_str is None:
@@ -793,13 +793,13 @@ class XGBModel(XGBModelBase):
         self,
         booster: Optional[Union[Booster, "XGBModel", str]],
         eval_metric: Optional[Union[Callable, str, Sequence[str]]],
-        params: Dict[str, Any],
+        params: Parameters,
         early_stopping_rounds: Optional[int],
         callbacks: Optional[Sequence[TrainingCallback]],
     ) -> Tuple[
         Optional[Union[Booster, str, "XGBModel"]],
         Optional[Metric],
-        Dict[str, Any],
+        Parameters,
         Optional[int],
         Optional[Sequence[TrainingCallback]],
     ]:
@@ -1573,7 +1573,7 @@ class XGBRFClassifier(XGBClassifier):
                          **kwargs)
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
 
-    def get_xgb_params(self) -> Dict[str, Any]:
+    def get_xgb_params(self) -> Parameters:
         params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
@@ -1645,7 +1645,7 @@ class XGBRFRegressor(XGBRegressor):
         )
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
 
-    def get_xgb_params(self) -> Dict[str, Any]:
+    def get_xgb_params(self) -> Parameters:
         params = super().get_xgb_params()
         params["num_parallel_tree"] = self.n_estimators
         return params

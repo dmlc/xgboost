@@ -54,7 +54,7 @@ from .compat import scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import lazy_isinstance
 
-from ._typing import FeatureNames, FeatureTypes
+from ._typing import FeatureNames, FeatureTypes, Parameters
 
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import Objective, Metric
@@ -909,7 +909,7 @@ async def _train_async(
     client: "distributed.Client",
     global_config: Dict[str, Any],
     dconfig: Optional[Dict[str, Any]],
-    params: Dict[str, Any],
+    params: Parameters,
     dtrain: DaskDMatrix,
     num_boost_round: int,
     evals: Optional[Sequence[Tuple[DaskDMatrix, str]]],
@@ -1013,7 +1013,7 @@ async def _train_async(
 @_deprecate_positional_args
 def train(  # pylint: disable=unused-argument
     client: "distributed.Client",
-    params: Dict[str, Any],
+    params: Parameters,
     dtrain: DaskDMatrix,
     num_boost_round: int = 10,
     *,
@@ -2157,7 +2157,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
             **kwargs,
         )
 
-    def get_xgb_params(self) -> Dict[str, Any]:
+    def get_xgb_params(self) -> Parameters:
         params = super().get_xgb_params()
         params["num_parallel_tree"] = self.n_estimators
         return params
@@ -2221,7 +2221,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
             **kwargs,
         )
 
-    def get_xgb_params(self) -> Dict[str, Any]:
+    def get_xgb_params(self) -> Parameters:
         params = super().get_xgb_params()
         params["num_parallel_tree"] = self.n_estimators
         return params

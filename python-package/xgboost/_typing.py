@@ -77,7 +77,8 @@ class GeneralParams(TypedDict, total=False):
     booster: Literal["gbtree", "gblinear", "dart"]
     verbosity: Literal[0, 1, 2, 3]
     validate_parameters: bool
-    nthreads: int
+    nthreads: Optional[int]
+    n_jobs: Optional[int]
     disable_default_eval_metric: bool
 
 TreeBoosterParams = TypedDict("TreeBoosterParams", {
@@ -175,9 +176,10 @@ class LearningParameters(TypedDict, total=False):
     ]
     obj: Callable[..., Tuple[np.ndarray, np.ndarray]]
     base_score: float
-    eval_metric: Union[EvalMetricType, List[EvalMetricType]]
+    eval_metric: Union[EvalMetricType, Sequence[EvalMetricType]]
     feval: Callable[..., Tuple[str, float]]
     seed: int
+    random_state: int
     seed_per_interation: bool
     # Parameters for specific objectives
 
@@ -188,6 +190,8 @@ class LearningParameters(TypedDict, total=False):
     # survival:aft
     aft_loss_distribution: Literal["norma", "logistic", "extreme"]
     aft_loss_distribution_sacle: float
+    # multi:softmax
+    num_class: int
 
-class Parameters(GeneralParams, TreeBoosterParams, LearningParameters):
+class Parameters(GeneralParams, TreeBoosterParams, LearningParameters, total=False):
     pass
