@@ -182,7 +182,7 @@ class CallbackContainer:
         return model
 
     def before_iteration(
-        self, model, epoch: int, dtrain: DMatrix, evals: List[Tuple[DMatrix, str]]
+        self, model, epoch: int, dtrain: DMatrix, evals: Optional[List[Tuple[DMatrix, str]]]
     ) -> bool:
         '''Function called before training iteration.'''
         return any(c.before_iteration(model, epoch, self.history)

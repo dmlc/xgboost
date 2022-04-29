@@ -1348,7 +1348,7 @@ class Booster:
 
     def __init__(
         self,
-        params: Optional[Parameters] = None,
+        params: Optional[Union[Parameters, List]] = None,
         cache: Optional[Sequence[DMatrix]] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None
     ) -> None:
