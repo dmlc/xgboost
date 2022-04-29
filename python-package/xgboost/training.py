@@ -8,6 +8,7 @@ import warnings
 from typing import Optional, Dict, Any, Union, Tuple, Sequence
 
 import numpy as np
+from ._typing import Parameters
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .core import Metric, Objective
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
@@ -47,7 +48,7 @@ def _configure_custom_metric(
 
 @_deprecate_positional_args
 def train(
-    params: Dict[str, Any],
+    params: Parameters,
     dtrain: DMatrix,
     num_boost_round: int = 10,
     *,
@@ -362,11 +363,27 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     return ret
 
 
-def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj: Optional[Objective] = None,
-       feval=None, maximize=None, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None, shuffle=True, custom_metric: Optional[Metric] = None):
+def cv(
+    params: Parameters,
+    dtrain: DMatrix,
+    num_boost_round: int = 10,
+    nfold: int = 3,
+    stratified: bool = False,
+    folds: Any = None,
+    metrics: Union[str, List[str]] = (),
+    obj: Optional[Objective] = None,
+    feval: Optional[Metric] = None,
+    maximize: Optional[bool] = None,
+    early_stopping_rounds: Optional[int] = None,
+    fpreproc: Optional[Callable] = None,
+    as_pandas: bool = True,
+    verbose_eval: Optional[Union[bool, int]] = None,
+    show_stdv=True,
+    seed: int = 0,
+    callbacks: Optional[Sequence[callback.TrainingCallback]] = None,
+    shuffle: bool = True,
+    custom_metric: Optional[Metric] = None
+):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 

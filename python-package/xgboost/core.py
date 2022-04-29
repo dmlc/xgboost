@@ -34,6 +34,9 @@ from ._typing import (
     FeatureTypes,
     _T,
     CupyT,
+    Objective,
+    Metric,
+    Parameters
 )
 
 
@@ -1321,7 +1324,7 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
     return num_parallel_tree, num_groups
 
 
-def _configure_metrics(params: Union[Dict, List]) -> Union[Dict, List]:
+def _configure_metrics(params: Union[Parameters, List]) -> Union[Parameters, List]:
     if (
         isinstance(params, dict)
         and "eval_metric" in params
@@ -1347,7 +1350,7 @@ class Booster:
 
     def __init__(
         self,
-        params: Optional[Dict] = None,
+        params: Optional[Parameters] = None,
         cache: Optional[Sequence[DMatrix]] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None
     ) -> None:
@@ -1440,7 +1443,7 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: Union[List, Dict]) -> Union[List, Dict]:
+    def _configure_constraints(self, params: Union[List, Parameters]) -> Union[List, Parameters]:
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value is not None:
@@ -1691,7 +1694,7 @@ class Booster:
 
     def set_param(
         self,
-        params: Union[Dict, Iterable[Tuple[str, Any]], str],
+        params: Union[Parameters, Iterable[Tuple[str, Any]], str],
         value: Optional[str] = None
     ) -> None:
         """Set parameters into the Booster.
