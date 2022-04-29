@@ -473,8 +473,8 @@ void AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   auto max_cat = std::accumulate(categories.cbegin(), categories.cend(), .0f,
                                  [](auto l, auto r) { return std::max(l, r); });
   CHECK_GE(max_cat + 1, categories.size());
-  for (float i = 0; i < max_cat; ++i) {
-    cut_values.push_back(AsCat(i));
+  for (bst_cat_t i = 0; i <= AsCat(max_cat); ++i) {
+    cut_values.push_back(i);
   }
 }
 

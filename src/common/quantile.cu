@@ -641,7 +641,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
     if (IsCat(h_feature_types, i)) {
       CHECK_GE(max_values[i].value + 1, column_size);
-      h_out_columns_ptr.push_back(max_values[i].value);
+      h_out_columns_ptr.push_back(max_values[i].value + 1);  // includes both max_cat and 0.
     } else {
       h_out_columns_ptr.push_back(
           std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_)));
