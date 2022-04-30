@@ -40,6 +40,8 @@ class TestTreeMethod:
            tm.dataset_strategy)
     @settings(deadline=None, print_blob=True)
     def test_exact(self, param, num_rounds, dataset):
+        if dataset.name.endswith("-l1"):
+            return
         param['tree_method'] = 'exact'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)

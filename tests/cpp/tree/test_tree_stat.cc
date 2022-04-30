@@ -27,7 +27,8 @@ class UpdaterTreeStatTest : public ::testing::Test {
     up->Configure(Args{});
     RegTree tree;
     tree.param.num_feature = kCols;
-    up->Update(&gpairs_, p_dmat_.get(), {&tree});
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    up->Update(&gpairs_, p_dmat_.get(), position, {&tree});
 
     tree.WalkTree([&tree](bst_node_t nidx) {
       if (tree[nidx].IsLeaf()) {
@@ -87,13 +88,15 @@ class UpdaterEtaTest : public ::testing::Test {
       RegTree tree_0;
       {
         tree_0.param.num_feature = kCols;
-        up_0->Update(&gpairs_, p_dmat_.get(), {&tree_0});
+        std::vector<HostDeviceVector<bst_node_t>> position(1);
+        up_0->Update(&gpairs_, p_dmat_.get(), position, {&tree_0});
       }
 
       RegTree tree_1;
       {
         tree_1.param.num_feature = kCols;
-        up_1->Update(&gpairs_, p_dmat_.get(), {&tree_1});
+        std::vector<HostDeviceVector<bst_node_t>> position(1);
+        up_1->Update(&gpairs_, p_dmat_.get(), position, {&tree_1});
       }
       tree_0.WalkTree([&](bst_node_t nidx) {
         if (tree_0[nidx].IsLeaf()) {
@@ -149,7 +152,8 @@ class TestMinSplitLoss : public ::testing::Test {
     up->Configure(args);
 
     RegTree tree;
-    up->Update(&gpair_, dmat_.get(), {&tree});
+    std::vector<HostDeviceVector<bst_node_t>> position(1);
+    up->Update(&gpair_, dmat_.get(), position, {&tree});
 
     auto n_nodes = tree.NumExtraNodes();
     return n_nodes;

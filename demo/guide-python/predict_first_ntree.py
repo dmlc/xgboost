@@ -35,7 +35,7 @@ def native_interface():
 def sklearn_interface():
     X_train, y_train = load_svmlight_file(train)
     X_test, y_test = load_svmlight_file(test)
-    clf = xgb.XGBClassifier(n_estimators=3, max_depth=2, eta=1, use_label_encoder=False)
+    clf = xgb.XGBClassifier(n_estimators=3, max_depth=2, eta=1)
     clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
     assert clf.n_classes_ == 2
 

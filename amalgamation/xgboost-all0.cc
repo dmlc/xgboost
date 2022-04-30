@@ -24,6 +24,7 @@
 #include "../src/objective/rank_obj.cc"
 #include "../src/objective/hinge.cc"
 #include "../src/objective/aft_obj.cc"
+#include "../src/objective/adaptive.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"

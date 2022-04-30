@@ -1,11 +1,14 @@
 /*!
- * Copyright 2017-2021 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/json.h>
+#include <xgboost/objective.h>
+
+#include "../../../src/objective/adaptive.h"
 #include "../helpers.h"
+
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
@@ -378,4 +381,113 @@ TEST(Objective, CoxRegressionGPair) {
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
 }
 #endif
+
+TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
+  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
+  obj->Configure({});
+  CheckConfigReload(obj, "reg:absoluteerror");
+
+  MetaInfo info;
+  std::vector<float> labels{0.f, 3.f, 2.f, 5.f, 4.f, 7.f};
+  info.labels.Reshape(6, 1);
+  info.labels.Data()->HostVector() = labels;
+  info.num_row_ = labels.size();
+  HostDeviceVector<float> predt{1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
+  info.weights_.HostVector() = {1.f, 1.f, 1.f, 1.f, 1.f, 1.f};
+
+  CheckObjFunction(obj, predt.HostVector(), labels, info.weights_.HostVector(),
+                   {1.f, -1.f, 1.f, -1.f, 1.f, -1.f}, info.weights_.HostVector());
+
+  RegTree tree;
+  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+
+  HostDeviceVector<bst_node_t> position(labels.size(), 0);
+  auto& h_position = position.HostVector();
+  for (size_t i = 0; i < labels.size(); ++i) {
+    if (i < labels.size() / 2) {
+      h_position[i] = 1;  // left
+    } else {
+      h_position[i] = 2;  // right
+    }
+  }
+
+  auto& h_predt = predt.HostVector();
+  for (size_t i = 0; i < h_predt.size(); ++i) {
+    h_predt[i] = labels[i] + i;
+  }
+
+  obj->UpdateTreeLeaf(position, info, predt, &tree);
+  ASSERT_EQ(tree[1].LeafValue(), -1);
+  ASSERT_EQ(tree[2].LeafValue(), -4);
+}
+
+TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
+  Context ctx = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
+  obj->Configure({});
+
+  MetaInfo info;
+  info.labels.Reshape(16, 1);
+  info.num_row_ = info.labels.Size();
+  CHECK_EQ(info.num_row_, 16);
+  auto h_labels = info.labels.HostView().Values();
+  std::iota(h_labels.begin(), h_labels.end(), 0);
+  HostDeviceVector<float> predt(h_labels.size());
+  auto& h_predt = predt.HostVector();
+  for (size_t i = 0; i < h_predt.size(); ++i) {
+    h_predt[i] = h_labels[i] + i;
+  }
+
+  HostDeviceVector<bst_node_t> position(info.labels.Size(), 0);
+  auto& h_position = position.HostVector();
+  for (int32_t i = 0; i < 3; ++i) {
+    h_position[i] = ~i;  // negation for sampled nodes.
+  }
+  for (size_t i = 3; i < 8; ++i) {
+    h_position[i] = 3;
+  }
+  // empty leaf for node 4
+  for (size_t i = 8; i < 13; ++i) {
+    h_position[i] = 5;
+  }
+  for (size_t i = 13; i < h_labels.size(); ++i) {
+    h_position[i] = 6;
+  }
+
+  RegTree tree;
+  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+  ASSERT_EQ(tree.GetNumLeaves(), 4);
+
+  auto empty_leaf = tree[4].LeafValue();
+  obj->UpdateTreeLeaf(position, info, predt, &tree);
+  ASSERT_EQ(tree[3].LeafValue(), -5);
+  ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
+  ASSERT_EQ(tree[5].LeafValue(), -10);
+  ASSERT_EQ(tree[6].LeafValue(), -14);
+}
+
+TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
+  std::vector<bst_node_t> missing{1, 3};
+
+  std::vector<bst_node_t> h_nidx = {2, 4, 5};
+  std::vector<size_t> h_nptr = {0, 4, 8, 16};
+
+  obj::detail::FillMissingLeaf(missing, &h_nidx, &h_nptr);
+
+  ASSERT_EQ(h_nidx[0], missing[0]);
+  ASSERT_EQ(h_nidx[2], missing[1]);
+  ASSERT_EQ(h_nidx[1], 2);
+  ASSERT_EQ(h_nidx[3], 4);
+  ASSERT_EQ(h_nidx[4], 5);
+
+  ASSERT_EQ(h_nptr[0], 0);
+  ASSERT_EQ(h_nptr[1], 0);  // empty
+  ASSERT_EQ(h_nptr[2], 4);
+  ASSERT_EQ(h_nptr[3], 4);  // empty
+  ASSERT_EQ(h_nptr[4], 8);
+  ASSERT_EQ(h_nptr[5], 16);
+}
 }  // namespace xgboost
