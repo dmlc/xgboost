@@ -668,7 +668,8 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
     size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
     if (IsCat(h_feature_types, i)) {
-      CHECK_GE(max_values[i].value + 1, column_size);
+      // column_size is the number of unique values in that feature.
+      CheckMaxCat(max_values[i].value, column_size);
       h_out_columns_ptr.push_back(max_values[i].value + 1);  // includes both max_cat and 0.
     } else {
       h_out_columns_ptr.push_back(

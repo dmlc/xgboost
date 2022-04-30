@@ -79,6 +79,11 @@ inline void InvalidCategory() {
                     str;
 }
 
+inline void CheckMaxCat(float max_cat, size_t n_categories) {
+  CHECK_GE(max_cat + 1, n_categories)
+      << "Maximum cateogry should not be lesser than the total number of categories.";
+}
+
 /*!
  * \brief Whether should we use onehot encoding for categorical data.
  */

@@ -474,7 +474,7 @@ auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
   }
   auto &cut_values = cuts->cut_values_.HostVector();
   auto max_cat = *std::max_element(categories.cbegin(), categories.cend());
-  CHECK_GE(max_cat + 1, categories.size());
+  CheckMaxCat(max_cat, categories.size());
   for (bst_cat_t i = 0; i <= AsCat(max_cat); ++i) {
     cut_values.push_back(i);
   }
