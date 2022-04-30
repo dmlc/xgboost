@@ -711,7 +711,6 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     }
 
     if (IsCat(d_ft, column_id)) {
-      assert(out_column.size() == in_column.size());
       out_column[idx] = idx;
       return;
     }
