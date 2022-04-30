@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -60,11 +60,6 @@ namespace gbm {
 
 /*! \brief training parameters */
 struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
-  /*!
-   * \brief number of parallel trees constructed each iteration
-   *  use this option to support boosted random forest
-   */
-  int num_parallel_tree;
   /*! \brief tree updater sequence */
   std::string updater_seq;
   /*! \brief type of boosting process to run */
@@ -75,11 +70,6 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   TreeMethod tree_method;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(num_parallel_tree)
-        .set_default(1)
-        .set_lower_bound(1)
-        .describe("Number of parallel trees constructed during each iteration."\
-                  " This option is used to support boosted random forest.");
     DMLC_DECLARE_FIELD(updater_seq)
         .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
@@ -156,12 +146,11 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 namespace detail {
 // From here on, layer becomes concrete trees.
 inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const &model,
-                                                 GBTreeTrainParam const &tparam,
                                                  size_t layer_begin,
                                                  size_t layer_end) {
   bst_group_t groups = model.learner_model_param->num_output_group;
-  uint32_t tree_begin = layer_begin * groups * tparam.num_parallel_tree;
-  uint32_t tree_end = layer_end * groups * tparam.num_parallel_tree;
+  uint32_t tree_begin = layer_begin * groups * model.param.num_parallel_tree;
+  uint32_t tree_end = layer_end * groups * model.param.num_parallel_tree;
   if (tree_end == 0) {
     tree_end = static_cast<uint32_t>(model.trees.size());
   }
@@ -177,7 +166,7 @@ inline bool SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
                        GBTreeModel const &model, GBTreeTrainParam const &tparam,
                        uint32_t layer_trees, Func fn) {
   uint32_t tree_begin, tree_end;
-  std::tie(tree_begin, tree_end) = detail::LayerToTree(model, tparam, layer_begin, layer_end);
+  std::tie(tree_begin, tree_end) = detail::LayerToTree(model, layer_begin, layer_end);
   if (tree_end > model.trees.size()) {
     return true;
   }
@@ -213,10 +202,16 @@ class GBTree : public GradientBooster {
   void ConfigureUpdaters();
   void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
+  /**
+   * \brief Optionally update the leaf value.
+   */
+  void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
+                      ObjFunction const* obj, size_t gidx,
+                      std::vector<std::unique_ptr<RegTree>>* p_trees);
+
   /*! \brief Carry out one iteration of boosting */
-  void DoBoost(DMatrix* p_fmat,
-               HostDeviceVector<GradientPair>* in_gpair,
-               PredictionCacheEntry* predt) override;
+  void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+               PredictionCacheEntry* predt, ObjFunction const* obj) override;
 
   bool UseGPU() const override {
     return
@@ -249,7 +244,7 @@ class GBTree : public GradientBooster {
 
   // Number of trees per layer.
   auto LayerTrees() const {
-    auto n_trees = model_.learner_model_param->num_output_group * tparam_.num_parallel_tree;
+    auto n_trees = model_.learner_model_param->num_output_group * model_.param.num_parallel_tree;
     return n_trees;
   }
 
@@ -258,7 +253,7 @@ class GBTree : public GradientBooster {
              GradientBooster *out, bool* out_of_bound) const override;
 
   int32_t BoostedRounds() const override {
-    CHECK_NE(tparam_.num_parallel_tree, 0);
+    CHECK_NE(model_.param.num_parallel_tree, 0);
     CHECK_NE(model_.learner_model_param->num_output_group, 0);
     return model_.trees.size() / this->LayerTrees();
   }
@@ -271,8 +266,7 @@ class GBTree : public GradientBooster {
                       uint32_t layer_begin, unsigned layer_end) const override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) =
-        detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
     std::vector<Predictor const *> predictors{
       cpu_predictor_.get(),
@@ -371,16 +365,15 @@ class GBTree : public GradientBooster {
                        uint32_t layer_begin, uint32_t layer_end) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
-    cpu_predictor_->PredictInstance(inst, out_preds, model_,
-                                    tree_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
   }
 
   void PredictLeaf(DMatrix* p_fmat,
                    HostDeviceVector<bst_float>* out_preds,
                    uint32_t layer_begin, uint32_t layer_end) override {
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
                                "n_iteration), use model slicing instead.";
     this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, tree_end);
@@ -392,7 +385,7 @@ class GBTree : public GradientBooster {
                            int, unsigned) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0)
         << "Predict contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
@@ -405,7 +398,7 @@ class GBTree : public GradientBooster {
       uint32_t layer_begin, uint32_t layer_end, bool approximate) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0)
         << "Predict interaction contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
@@ -448,6 +441,9 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
+  // The node position for each row, 1 HDV for each tree in the forest.  Note that the
+  // position is negated if the row is sampled out.
+  std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)

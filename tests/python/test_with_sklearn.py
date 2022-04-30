@@ -329,21 +329,27 @@ def test_select_feature():
 
 def test_num_parallel_tree():
     from sklearn.datasets import fetch_california_housing
-    reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4,
-                           tree_method='hist')
+
+    reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4, tree_method="hist")
     X, y = fetch_california_housing(return_X_y=True)
     bst = reg.fit(X=X, y=y)
-    dump = bst.get_booster().get_dump(dump_format='json')
+    dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 16
 
     reg = xgb.XGBRFRegressor(n_estimators=4)
     bst = reg.fit(X=X, y=y)
-    dump = bst.get_booster().get_dump(dump_format='json')
+    dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 4
 
     config = json.loads(bst.get_booster().save_config())
-    assert int(config['learner']['gradient_booster']['gbtree_train_param'][
-        'num_parallel_tree']) == 4
+    assert (
+        int(
+            config["learner"]["gradient_booster"]["gbtree_model_param"][
+                "num_parallel_tree"
+            ]
+        )
+        == 4
+    )
 
 
 def test_calif_housing_regression():
@@ -768,13 +774,12 @@ def save_load_model(model_path):
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier(use_label_encoder=False).fit(X[train_index], y[train_index])
+        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
 
         xgb_model = xgb.XGBClassifier()
         xgb_model.load_model(model_path)
 
-        assert xgb_model.use_label_encoder is False
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
 
@@ -966,8 +971,8 @@ def test_deprecate_position_arg():
         model.fit(X, y, w)
 
     with pytest.warns(FutureWarning):
-        xgb.XGBClassifier(1, use_label_encoder=False)
-    model = xgb.XGBClassifier(n_estimators=1, use_label_encoder=False)
+        xgb.XGBClassifier(1)
+    model = xgb.XGBClassifier(n_estimators=1)
     with pytest.warns(FutureWarning):
         model.fit(X, y, w)
 
@@ -983,9 +988,6 @@ def test_deprecate_position_arg():
     model = xgb.XGBRFRegressor(n_estimators=1)
     with pytest.warns(FutureWarning):
         model.fit(X, y, w)
-
-    with pytest.raises(ValueError):
-        xgb.XGBRFClassifier(1, use_label_encoder=True)
 
     model = xgb.XGBRFClassifier(n_estimators=1)
     with pytest.warns(FutureWarning):
@@ -1271,6 +1273,38 @@ def test_estimator_reg(estimator, check):
     check(estimator)
 
 
+def test_categorical():
+    X, y = tm.make_categorical(n_samples=32, n_features=2, n_categories=3, onehot=False)
+    ft = ["c"] * X.shape[1]
+    reg = xgb.XGBRegressor(
+        tree_method="hist",
+        feature_types=ft,
+        max_cat_to_onehot=1,
+        enable_categorical=True,
+    )
+    reg.fit(X.values, y, eval_set=[(X.values, y)])
+    from_cat = reg.evals_result()["validation_0"]["rmse"]
+    predt_cat = reg.predict(X.values)
+    assert reg.get_booster().feature_types == ft
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "model.json")
+        reg.save_model(path)
+        reg = xgb.XGBRegressor()
+        reg.load_model(path)
+        assert reg.feature_types == ft
+
+    onehot, y = tm.make_categorical(
+        n_samples=32, n_features=2, n_categories=3, onehot=True
+    )
+    reg = xgb.XGBRegressor(tree_method="hist")
+    reg.fit(onehot, y, eval_set=[(onehot, y)])
+    from_enc = reg.evals_result()["validation_0"]["rmse"]
+    predt_enc = reg.predict(onehot)
+
+    np.testing.assert_allclose(from_cat, from_enc)
+    np.testing.assert_allclose(predt_cat, predt_enc)
+
+
 def test_prediction_config():
     reg = xgb.XGBRegressor()
     assert reg._can_use_inplace_predict() is True
@@ -1328,7 +1362,6 @@ def test_evaluation_metric():
     X, y = load_digits(n_class=10, return_X_y=True)
 
     clf = xgb.XGBClassifier(
-        use_label_encoder=False,
         tree_method="hist",
         eval_metric=merror,
         n_estimators=16,
@@ -1338,7 +1371,6 @@ def test_evaluation_metric():
     custom = clf.evals_result()
 
     clf = xgb.XGBClassifier(
-        use_label_encoder=False,
         tree_method="hist",
         eval_metric="merror",
         n_estimators=16,
@@ -1354,7 +1386,6 @@ def test_evaluation_metric():
     )
 
     clf = xgb.XGBRFClassifier(
-        use_label_encoder=False,
         tree_method="hist", n_estimators=16,
         objective=tm.softprob_obj(10),
         eval_metric=merror,

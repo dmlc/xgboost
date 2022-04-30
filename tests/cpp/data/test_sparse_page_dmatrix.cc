@@ -26,7 +26,7 @@ void TestSparseDMatrixLoadFile() {
                             data::fileiter::Next,
                             std::numeric_limits<float>::quiet_NaN(),
                             1,
-                            "cache"};
+                            tmpdir.path + "cache"};
   ASSERT_EQ(m.Info().num_col_, 5);
   ASSERT_EQ(m.Info().num_row_, 64);
 

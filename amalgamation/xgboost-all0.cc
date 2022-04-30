@@ -24,6 +24,7 @@
 #include "../src/objective/rank_obj.cc"
 #include "../src/objective/hinge.cc"
 #include "../src/objective/aft_obj.cc"
+#include "../src/objective/adaptive.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"
@@ -33,8 +34,8 @@
 #include "../src/gbm/gblinear_model.cc"
 
 // data
-#include "../src/data/data.cc"
 #include "../src/data/simple_dmatrix.cc"
+#include "../src/data/data.cc"
 #include "../src/data/sparse_page_raw_format.cc"
 #include "../src/data/ellpack_page.cc"
 #include "../src/data/gradient_index.cc"
@@ -48,17 +49,18 @@
 #include "../src/predictor/cpu_predictor.cc"
 
 // trees
+#include "../src/tree/constraints.cc"
+#include "../src/tree/hist/param.cc"
 #include "../src/tree/param.cc"
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"
+#include "../src/tree/updater_approx.cc"
 #include "../src/tree/updater_colmaker.cc"
-#include "../src/tree/updater_quantile_hist.cc"
+#include "../src/tree/updater_histmaker.cc"
 #include "../src/tree/updater_prune.cc"
+#include "../src/tree/updater_quantile_hist.cc"
 #include "../src/tree/updater_refresh.cc"
 #include "../src/tree/updater_sync.cc"
-#include "../src/tree/updater_histmaker.cc"
-#include "../src/tree/updater_approx.cc"
-#include "../src/tree/constraints.cc"
 
 // linear
 #include "../src/linear/linear_updater.cc"
@@ -76,8 +78,9 @@
 #include "../src/common/quantile.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
-#include "../src/common/json.cc"
 #include "../src/common/io.cc"
+#include "../src/common/json.cc"
+#include "../src/common/pseudo_huber.cc"
 #include "../src/common/survival_util.cc"
 #include "../src/common/threading_utils.cc"
 #include "../src/common/version.cc"

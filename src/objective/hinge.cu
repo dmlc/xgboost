@@ -24,10 +24,8 @@ class HingeObj : public ObjFunction {
  public:
   HingeObj() = default;
 
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> > &args) override {}
-
-  ObjInfo Task() const override { return {ObjInfo::kRegression, false}; }
+  void Configure(Args const&) override {}
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,

@@ -49,7 +49,7 @@ void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
   }
   p_out->Reshape(array.shape);
   auto t = p_out->View(ptr_device);
-  linalg::ElementWiseKernelDevice(t, [=] __device__(size_t i, T) {
+  linalg::ElementWiseTransformDevice(t, [=] __device__(size_t i, T) {
     return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
   });
 }
@@ -115,7 +115,8 @@ void CopyQidImpl(ArrayInterface<1> array_interface, std::vector<bst_group_t>* p_
 }
 }  // namespace
 
-void MetaInfo::SetInfoFromCUDA(StringView key, Json array) {
+// Context is not used until we have CUDA stream.
+void MetaInfo::SetInfoFromCUDA(Context const&, StringView key, Json array) {
   // multi-dim float info
   if (key == "base_margin") {
     CopyTensorInfoImpl(array, &base_margin_);

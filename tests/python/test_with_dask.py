@@ -35,6 +35,7 @@ import dask.dataframe as dd
 import dask.array as da
 from xgboost.dask import DaskDMatrix
 
+dask.config.set({"distributed.scheduler.allowed-failures": False})
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
@@ -288,10 +289,30 @@ def run_categorical(client: "Client", tree_method: str, X, X_onehot, y) -> None:
     reg.fit(X, y, eval_set=[(X, y)])
     assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
 
+    booster = reg.get_booster()
+    predt = xgb.dask.predict(client, booster, X).compute().values
+    inpredt = xgb.dask.inplace_predict(client, booster, X).compute().values
+
+    if hasattr(predt, "get"):
+        predt = predt.get()
+    if hasattr(inpredt, "get"):
+        inpredt = inpredt.get()
+
+    np.testing.assert_allclose(predt, inpredt)
+
+
 def test_categorical(client: "Client") -> None:
     X, y = make_categorical(client, 10000, 30, 13)
     X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
     run_categorical(client, "approx", X, X_onehot, y)
+    run_categorical(client, "hist", X, X_onehot, y)
+
+    ft = ["c"] * X.shape[1]
+    reg = xgb.dask.DaskXGBRegressor(
+        tree_method="hist", feature_types=ft, enable_categorical=True
+    )
+    reg.fit(X, y)
+    assert reg.get_booster().feature_types == ft
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
@@ -324,14 +345,14 @@ def test_dask_predict_shape_infer(client: "Client") -> None:
     assert prediction.shape[1] == 3
 
 
-def run_boost_from_prediction_multi_clasas(
+def run_boost_from_prediction_multi_class(
     X: xgb.dask._DaskCollection,
     y: xgb.dask._DaskCollection,
     tree_method: str,
-    client: "Client"
+    client: "Client",
 ) -> None:
     model_0 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=768
     )
     model_0.fit(X=X, y=y)
     margin = xgb.dask.inplace_predict(
@@ -339,18 +360,18 @@ def run_boost_from_prediction_multi_clasas(
     )
 
     model_1 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=768
     )
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
         xgb.dask.DaskDMatrix(client, X, base_margin=margin),
-        output_margin=True
+        output_margin=True,
     )
 
     model_2 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
+        learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=768
     )
     model_2.fit(X=X, y=y)
     predictions_2 = xgb.dask.inplace_predict(
@@ -369,26 +390,29 @@ def run_boost_from_prediction_multi_clasas(
 
 
 def run_boost_from_prediction(
-    X: xgb.dask._DaskCollection, y: xgb.dask._DaskCollection, tree_method: str, client: "Client"
+    X: xgb.dask._DaskCollection,
+    y: xgb.dask._DaskCollection,
+    tree_method: str,
+    client: "Client",
 ) -> None:
     X = client.persist(X)
     y = client.persist(y)
 
     model_0 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=512
+    )
     model_0.fit(X=X, y=y)
     margin = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4,
-        tree_method=tree_method)
+        learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=512
+    )
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = model_1.predict(X, base_margin=margin)
 
     cls_2 = xgb.dask.DaskXGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8,
-        tree_method=tree_method)
+        learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=512
+    )
     cls_2.fit(X=X, y=y)
     predictions_2 = cls_2.predict(X)
 
@@ -402,8 +426,8 @@ def run_boost_from_prediction(
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
-    margined_res = margined.evals_result()['validation_0']['logloss']
-    unmargined_res = unmargined.evals_result()['validation_0']['logloss']
+    margined_res = margined.evals_result()["validation_0"]["logloss"]
+    unmargined_res = unmargined.evals_result()["validation_0"]["logloss"]
 
     assert len(margined_res) == len(unmargined_res)
     for i in range(len(margined_res)):
@@ -416,12 +440,11 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
     X_, y_ = load_breast_cancer(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-
     run_boost_from_prediction(X, y, tree_method, client)
 
     X_, y_ = load_digits(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    run_boost_from_prediction_multi_clasas(X, y, tree_method, client)
+    run_boost_from_prediction_multi_class(X, y, tree_method, client)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -515,7 +538,7 @@ def test_dask_regressor(model: str, client: "Client") -> None:
     forest = int(
         json.loads(regressor.get_booster().save_config())["learner"][
             "gradient_booster"
-        ]["gbtree_train_param"]["num_parallel_tree"]
+        ]["gbtree_model_param"]["num_parallel_tree"]
     )
 
     if model == "boosting":
@@ -569,7 +592,7 @@ def run_dask_classifier(
     assert n_threads != 0 and n_threads != os.cpu_count()
 
     forest = int(
-        config["learner"]["gradient_booster"]["gbtree_train_param"]["num_parallel_tree"]
+        config["learner"]["gradient_booster"]["gbtree_model_param"]["num_parallel_tree"]
     )
     if model == "boosting":
         assert len(history["validation_0"][metric]) == 2
@@ -651,7 +674,8 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
 def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     def _check_outputs(out: xgb.dask.TrainReturnT, predictions: np.ndarray) -> None:
         assert isinstance(out['booster'], xgb.dask.Booster)
-        assert len(out['history']['validation']['rmse']) == 2
+        for _, v in out['history']['validation'].items():
+            assert len(v) == 2
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[0] == 1
 
@@ -762,9 +786,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    cls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
     # multiclass
@@ -793,9 +815,7 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
-    cls = xgb.dask.DaskXGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    cls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
     cls.fit(X, y, eval_metric=["auc", "aucpr"], eval_set=[(valid_X, valid_y)])
 
 
@@ -822,14 +842,10 @@ def run_auc(client: "Client", tree_method: str) -> None:
     valid_X = dd.from_array(valid_X_, chunksize=10)
     valid_y = dd.from_array(valid_y_, chunksize=10)
 
-    cls = xgb.XGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    cls = xgb.XGBClassifier(tree_method=tree_method, n_estimators=2)
     cls.fit(X_, y_, eval_metric="auc", eval_set=[(valid_X_, valid_y_)])
 
-    dcls = xgb.dask.DaskXGBClassifier(
-        tree_method=tree_method, n_estimators=2, use_label_encoder=False
-    )
+    dcls = xgb.dask.DaskXGBClassifier(tree_method=tree_method, n_estimators=2)
     dcls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
 
     approx = dcls.evals_result()["validation_0"]["auc"]
@@ -852,6 +868,8 @@ def test_empty_dmatrix(tree_method) -> None:
             parameters = {'tree_method': tree_method}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
+            parameters = {'tree_method': tree_method, "objective": "reg:absoluteerror"}
+            run_empty_dmatrix_reg(client, parameters)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> xgb.dask.TrainReturnT:
@@ -1270,7 +1288,12 @@ class TestWithDask:
         def minimum_bin():
             return "max_bin" in params and params["max_bin"] == 2
 
-        if minimum_bin() and is_stump():
+        # See note on `ObjFunction::UpdateTreeLeaf`.
+        update_leaf = dataset.name.endswith("-l1")
+        if update_leaf and len(history) >= 2:
+            assert history[0] >= history[-1]
+            return
+        elif minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
         else:
             assert tm.non_increasing(history)
@@ -1279,7 +1302,7 @@ class TestWithDask:
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=suppress)
+    @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -1288,9 +1311,9 @@ class TestWithDask:
 
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=suppress)
+    @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
     def test_approx(
-            self, client: "Client", params: Dict, dataset: tm.TestDataset
+        self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
@@ -1678,7 +1701,6 @@ def test_parallel_submits(client: "Client") -> None:
             verbosity=1,
             n_estimators=i + 1,
             eval_metric="merror",
-            use_label_encoder=False,
         )
         f = client.submit(cls.fit, X, y, pure=False)
         futures.append(f)
@@ -1771,7 +1793,6 @@ def test_parallel_submit_multi_clients() -> None:
                 verbosity=1,
                 n_estimators=i + 1,
                 eval_metric="merror",
-                use_label_encoder=False,
             )
             f = client.submit(cls.fit, X, y, pure=False)
             futures.append((client, f))

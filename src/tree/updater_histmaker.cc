@@ -24,9 +24,9 @@ DMLC_REGISTRY_FILE_TAG(updater_histmaker);
 
 class HistMaker: public BaseMaker {
  public:
-  void Update(HostDeviceVector<GradientPair> *gpair,
-              DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              const std::vector<RegTree *> &trees) override {
     interaction_constraints_.Configure(param_, p_fmat->Info().num_col_);
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;

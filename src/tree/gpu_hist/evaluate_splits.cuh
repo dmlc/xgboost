@@ -51,6 +51,12 @@ class GPUHistEvaluator {
   dh::CUDAStream copy_stream_;
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
+  // cached input for sorting the histogram, used for sort based splits.
+  using SortPair = thrust::tuple<uint32_t, double>;
+  dh::device_vector<SortPair> sort_input_;
+  // cache for feature index
+  dh::device_vector<bst_feature_t> feature_idx_;
+  // Training param used for evaluation
   TrainParam param_;
   // whether the input data requires sort based split, which is more complicated so we try
   // to avoid it if possible.
@@ -93,6 +99,13 @@ class GPUHistEvaluator {
       return dh::ToSpan(cat_sorted_idx_).first(left.feature_values.size());
     }
     return dh::ToSpan(cat_sorted_idx_);
+  }
+
+  auto SortInput(EvaluateSplitInputs<GradientSumT> left) {
+    if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
+      return dh::ToSpan(sort_input_).first(left.feature_values.size());
+    }
+    return dh::ToSpan(sort_input_);
   }
 
  public:

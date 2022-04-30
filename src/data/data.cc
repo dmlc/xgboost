@@ -265,9 +265,11 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << " is no longer supported. "
       << "Please process and save your data in current version: "
       << Version::String(Version::Self()) << " again.";
-  CHECK_EQ(major, 1) << msg.str();
-  auto minor = std::get<1>(version);
-  CHECK_GE(minor, 6) << msg.str();
+  CHECK_GE(major, 1) << msg.str();
+  if (major == 1) {
+    auto minor = std::get<1>(version);
+    CHECK_GE(minor, 6) << msg.str();
+  }
 
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
@@ -409,7 +411,7 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
 
 namespace {
 template <int32_t D, typename T>
-void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
+void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array{arr_interface};
   if (array.n == 0) {
     p_out->Reshape(array.shape);
@@ -428,16 +430,15 @@ void CopyTensorInfoImpl(Json arr_interface, linalg::Tensor<T, D>* p_out) {
     return;
   }
   p_out->Reshape(array.shape);
-  auto t = p_out->View(GenericParameter::kCpuId);
+  auto t = p_out->View(Context::kCpuId);
   CHECK(t.CContiguous());
-  // FIXME(jiamingy): Remove the use of this default thread.
-  linalg::ElementWiseKernelHost(t, common::OmpGetNumThreads(0), [&](auto i, auto) {
+  linalg::ElementWiseTransformHost(t, ctx.Threads(), [&](auto i, auto) {
     return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, t.Shape()));
   });
 }
 }  // namespace
 
-void MetaInfo::SetInfo(StringView key, StringView interface_str) {
+void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_str) {
   Json j_interface = Json::Load(interface_str);
   bool is_cuda{false};
   if (IsA<Array>(j_interface)) {
@@ -454,16 +455,16 @@ void MetaInfo::SetInfo(StringView key, StringView interface_str) {
   }
 
   if (is_cuda) {
-    this->SetInfoFromCUDA(key, j_interface);
+    this->SetInfoFromCUDA(ctx, key, j_interface);
   } else {
-    this->SetInfoFromHost(key, j_interface);
+    this->SetInfoFromHost(ctx, key, j_interface);
   }
 }
 
-void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
+void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
   // multi-dim float info
   if (key == "base_margin") {
-    CopyTensorInfoImpl(arr, &this->base_margin_);
+    CopyTensorInfoImpl(ctx, arr, &this->base_margin_);
     // FIXME(jiamingy): Remove the deprecated API and let all language bindings aware of
     // input shape.  This issue is CPU only since CUDA uses array interface from day 1.
     //
@@ -477,7 +478,7 @@ void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
     }
     return;
   } else if (key == "label") {
-    CopyTensorInfoImpl(arr, &this->labels);
+    CopyTensorInfoImpl(ctx, arr, &this->labels);
     if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
       CHECK_EQ(this->labels.Size() % this->num_row_, 0) << "Incorrect size for labels.";
       size_t n_targets = this->labels.Size() / this->num_row_;
@@ -491,7 +492,7 @@ void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
   // uint info
   if (key == "group") {
     linalg::Tensor<bst_group_t, 1> t;
-    CopyTensorInfoImpl(arr, &t);
+    CopyTensorInfoImpl(ctx, arr, &t);
     auto const& h_groups = t.Data()->HostVector();
     group_ptr_.clear();
     group_ptr_.resize(h_groups.size() + 1, 0);
@@ -501,7 +502,7 @@ void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
     return;
   } else if (key == "qid") {
     linalg::Tensor<bst_group_t, 1> t;
-    CopyTensorInfoImpl(arr, &t);
+    CopyTensorInfoImpl(ctx, arr, &t);
     bool non_dec = true;
     auto const& query_ids = t.Data()->HostVector();
     for (size_t i = 1; i < query_ids.size(); ++i) {
@@ -511,22 +512,13 @@ void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
       }
     }
     CHECK(non_dec) << "`qid` must be sorted in non-decreasing order along with data.";
-    group_ptr_.clear();
-    group_ptr_.push_back(0);
-    for (size_t i = 1; i < query_ids.size(); ++i) {
-      if (query_ids[i] != query_ids[i - 1]) {
-        group_ptr_.push_back(i);
-      }
-    }
-    if (group_ptr_.back() != query_ids.size()) {
-      group_ptr_.push_back(query_ids.size());
-    }
+    common::RunLengthEncode(query_ids.cbegin(), query_ids.cend(), &group_ptr_);
     data::ValidateQueryGroup(group_ptr_);
     return;
   }
   // float info
   linalg::Tensor<float, 1> t;
-  CopyTensorInfoImpl<1>(arr, &t);
+  CopyTensorInfoImpl<1>(ctx, arr, &t);
   if (key == "weight") {
     this->weights_ = std::move(*t.Data());
     auto const& h_weights = this->weights_.ConstHostVector();
@@ -548,13 +540,15 @@ void MetaInfo::SetInfoFromHost(StringView key, Json arr) {
   }
 }
 
-void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
+void MetaInfo::SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype,
+                       size_t num) {
   auto proc = [&](auto cast_d_ptr) {
     using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t =
-        linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, GenericParameter::kCpuId);
+    auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, Context::kCpuId);
     CHECK(t.CContiguous());
-    Json interface { linalg::ArrayInterface(t) };
+    Json interface {
+      linalg::ArrayInterface(t)
+    };
     assert(ArrayInterface<1>{interface}.is_contiguous);
     return interface;
   };
@@ -562,22 +556,22 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   switch (dtype) {
     case xgboost::DataType::kFloat32: {
       auto cast_ptr = reinterpret_cast<const float*>(dptr);
-      this->SetInfoFromHost(key, proc(cast_ptr));
+      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
       break;
     }
     case xgboost::DataType::kDouble: {
       auto cast_ptr = reinterpret_cast<const double*>(dptr);
-      this->SetInfoFromHost(key, proc(cast_ptr));
+      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
       break;
     }
     case xgboost::DataType::kUInt32: {
       auto cast_ptr = reinterpret_cast<const uint32_t*>(dptr);
-      this->SetInfoFromHost(key, proc(cast_ptr));
+      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
       break;
     }
     case xgboost::DataType::kUInt64: {
       auto cast_ptr = reinterpret_cast<const uint64_t*>(dptr);
-      this->SetInfoFromHost(key, proc(cast_ptr));
+      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
       break;
     }
     default:
@@ -724,9 +718,7 @@ void MetaInfo::Validate(int32_t device) const {
            "doesn't equal to actual number of rows given by data.";
   }
   auto check_device = [device](HostDeviceVector<float> const& v) {
-    CHECK(v.DeviceIdx() == GenericParameter::kCpuId ||
-          device  == GenericParameter::kCpuId ||
-          v.DeviceIdx() == device)
+    CHECK(v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device)
         << "Data is resided on a different device than `gpu_id`. "
         << "Device that data is on: " << v.DeviceIdx() << ", "
         << "`gpu_id` for XGBoost: " << device;
@@ -769,7 +761,9 @@ void MetaInfo::Validate(int32_t device) const {
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfoFromCUDA(StringView key, Json arr) { common::AssertGPUSupport(); }
+void MetaInfo::SetInfoFromCUDA(Context const& ctx, StringView key, Json arr) {
+  common::AssertGPUSupport();
+}
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 using DMatrixThreadLocal =
@@ -877,7 +871,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
       dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
                              1, cache_file);
     } else {
-      data::FileIterator iter{fname, uint32_t(partid), uint32_t(npart),
+      data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
                               file_format};
       dmat = new data::SparsePageDMatrix{
           &iter,
@@ -1000,6 +994,8 @@ template DMatrix *
 DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,
                 float missing, int nthread, const std::string &cache_prefix);
+template DMatrix* DMatrix::Create<data::RecordBatchesIterAdapter>(
+    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
@@ -1033,6 +1029,32 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   }
   CHECK_EQ(transpose.offset.Size(), num_columns + 1);
   return transpose;
+}
+
+bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
+  auto& h_offset = this->offset.HostVector();
+  auto& h_data = this->data.HostVector();
+  std::vector<int32_t> is_sorted_tloc(n_threads, 0);
+  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+    auto beg = h_offset[i];
+    auto end = h_offset[i + 1];
+    is_sorted_tloc[omp_get_thread_num()] +=
+        !!std::is_sorted(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  });
+  auto is_sorted = std::accumulate(is_sorted_tloc.cbegin(), is_sorted_tloc.cend(),
+                                   static_cast<size_t>(0)) == this->Size();
+  return is_sorted;
+}
+
+void SparsePage::SortIndices(int32_t n_threads) {
+  auto& h_offset = this->offset.HostVector();
+  auto& h_data = this->data.HostVector();
+
+  common::ParallelFor(this->Size(), n_threads, [&](auto i) {
+    auto beg = h_offset[i];
+    auto end = h_offset[i + 1];
+    std::sort(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  });
 }
 
 void SparsePage::SortRows(int32_t n_threads) {
@@ -1160,7 +1182,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
-
   return max_columns;
 }
 

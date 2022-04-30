@@ -96,9 +96,9 @@ class ColMaker: public TreeUpdater {
     }
   }
 
-  void Update(HostDeviceVector<GradientPair> *gpair,
-              DMatrix* dmat,
-              const std::vector<RegTree*> &trees) override {
+  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              const std::vector<RegTree *> &trees) override {
     if (rabit::IsDistributed()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
                     "support distributed training.";
@@ -174,6 +174,8 @@ class ColMaker: public TreeUpdater {
       std::vector<int> newnodes;
       this->InitData(gpair, *p_fmat);
       this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
+      // We can check max_leaves too, but might break some grid searching pipelines.
+      CHECK_GT(param_.max_depth, 0) << "exact tree method doesn't support unlimited depth.";
       for (int depth = 0; depth < param_.max_depth; ++depth) {
         this->FindSplit(depth, qexpand_, gpair, p_fmat, p_tree);
         this->ResetPosition(qexpand_, p_fmat, *p_tree);

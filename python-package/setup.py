@@ -3,7 +3,6 @@ import os
 import shutil
 import subprocess
 import logging
-import distutils
 from typing import Optional, List
 import sys
 from platform import system
@@ -51,11 +50,11 @@ def lib_name() -> str:
 def copy_tree(src_dir: str, target_dir: str) -> None:
     '''Copy source tree into build directory.'''
     def clean_copy_tree(src: str, dst: str) -> None:
-        distutils.dir_util.copy_tree(src, dst)
+        shutil.copytree(src, dst)
         NEED_CLEAN_TREE.add(os.path.abspath(dst))
 
     def clean_copy_file(src: str, dst: str) -> None:
-        distutils.file_util.copy_file(src, dst)
+        shutil.copy(src, dst)
         NEED_CLEAN_FILE.add(os.path.abspath(dst))
 
     src = os.path.join(src_dir, 'src')

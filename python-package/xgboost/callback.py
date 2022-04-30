@@ -16,7 +16,6 @@ import numpy
 
 from . import rabit
 from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
-from .compat import STRING_TYPES
 
 
 __all__ = [
@@ -82,7 +81,7 @@ def _aggcv(rlist: List[str]) -> List[Tuple[str, float, float]]:
     results = []
     for (_, name), s in sorted(cvmap.items(), key=lambda x: x[0][0]):
         as_arr = numpy.array(s)
-        if not isinstance(msg, STRING_TYPES):
+        if not isinstance(msg, str):
             msg = msg.decode()
         mean, std = numpy.mean(as_arr), numpy.std(as_arr)
         results.extend([(name, mean, std)])

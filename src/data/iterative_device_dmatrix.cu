@@ -43,18 +43,18 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   size_t batches = 0;
   size_t accumulated_rows = 0;
   bst_feature_t cols = 0;
-  int32_t device = GenericParameter::kCpuId;
+
   int32_t current_device;
   dh::safe_cuda(cudaGetDevice(&current_device));
   auto get_device = [&]() -> int32_t {
-    int32_t d = (device == GenericParameter::kCpuId) ? current_device : device;
-    CHECK_NE(d, GenericParameter::kCpuId);
+    int32_t d = (ctx_.gpu_id == Context::kCpuId) ? current_device : ctx_.gpu_id;
+    CHECK_NE(d, Context::kCpuId);
     return d;
   };
 
   while (iter.Next()) {
-    device = proxy->DeviceIdx();
-    CHECK_LT(device, common::AllVisibleGPUs());
+    ctx_.gpu_id = proxy->DeviceIdx();
+    CHECK_LT(ctx_.gpu_id, common::AllVisibleGPUs());
     dh::safe_cuda(cudaSetDevice(get_device()));
     if (cols == 0) {
       cols = num_cols();

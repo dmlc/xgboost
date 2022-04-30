@@ -4,27 +4,48 @@
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
  */
-
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+#include <xgboost/tree_model.h>
+
 #include <cmath>
 #include <memory>
 #include <vector>
 
+#include "../common/common.h"
+#include "../common/linalg_op.h"
+#include "../common/pseudo_huber.h"
+#include "../common/threading_utils.h"
+#include "../common/transform.h"
+#include "./regression_loss.h"
+#include "adaptive.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
+#include "xgboost/linalg.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
-#include "../common/transform.h"
-#include "../common/common.h"
-#include "../common/threading_utils.h"
-#include "./regression_loss.h"
-
+#if defined(XGBOOST_USE_CUDA)
+#include "../common/device_helpers.cuh"
+#include "../common/linalg_op.cuh"
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost {
 namespace obj {
+namespace {
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
+  if (!info.weights_.Empty()) {
+    CHECK_EQ(info.weights_.Size(), info.num_row_)
+        << "Number of weights should be equal to number of data points.";
+  }
+}
+}  // anonymous namespace
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
@@ -52,9 +73,7 @@ class RegLossObj : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
-  struct ObjInfo Task() const override {
-    return Loss::Info();
-  }
+  ObjInfo Task() const override { return Loss::Info(); }
 
   uint32_t Targets(MetaInfo const& info) const override {
     // Multi-target regression.
@@ -64,20 +83,13 @@ class RegLossObj : public ObjFunction {
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_EQ(preds.Size(), info.labels.Size())
-        << " " << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "
-        << "Loss: " << Loss::Name();
+    CheckRegInputs(info, preds);
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = ctx_->gpu_id;
     additional_input_.HostVector().begin()[0] = 1;  // Fill the label_correct flag
 
     bool is_null_weight = info.weights_.Size() == 0;
-    if (!is_null_weight) {
-      CHECK_EQ(info.weights_.Size(), info.labels.Shape(0))
-          << "Number of weights should be equal to number of data points.";
-    }
     auto scale_pos_weight = param_.scale_pos_weight;
     additional_input_.HostVector().begin()[1] = scale_pos_weight;
     additional_input_.HostVector().begin()[2] = is_null_weight;
@@ -179,10 +191,6 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
 .describe("Logistic regression for probability regression task.")
 .set_body([]() { return new RegLossObj<LogisticRegression>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(PseudoHuberError, PseudoHuberError::Name())
-.describe("Regression Pseudo Huber error.")
-.set_body([]() { return new RegLossObj<PseudoHuberError>(); });
-
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
 .describe("Logistic regression for binary classification task.")
 .set_body([]() { return new RegLossObj<LogisticClassification>(); });
@@ -199,6 +207,70 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
     return new RegLossObj<LinearSquareLoss>(); });
 // End deprecated
+
+class PseudoHuberRegression : public ObjFunction {
+  PesudoHuberParam param_;
+
+ public:
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
+  uint32_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
+  }
+
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CheckRegInputs(info, preds);
+    auto slope = param_.huber_slope;
+    CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.labels.Size());
+    auto gpair = linalg::MakeVec(out_gpair);
+
+    preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
+
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      const float z = predt(i) - y;
+      const float scale_sqrt = std::sqrt(1 + common::Sqr(z) / common::Sqr(slope));
+      float grad = z / scale_sqrt;
+
+      auto scale = common::Sqr(slope) + common::Sqr(z);
+      float hess = common::Sqr(slope) / (scale * scale_sqrt);
+
+      auto w = weight[sample_id];
+      gpair(i) = {grad * w, hess * w};
+    });
+  }
+
+  const char* DefaultEvalMetric() const override { return "mphe"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:pseudohubererror");
+    out["pseduo_huber_param"] = ToJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    if (config.find("pseduo_huber_param") == config.cend()) {
+      // The parameter is added in 1.6.
+      return;
+    }
+    FromJson(in["pseduo_huber_param"], &param_);
+  }
+};
+
+XGBOOST_REGISTER_OBJECTIVE(PseudoHuberRegression, "reg:pseudohubererror")
+    .describe("Regression Pseudo Huber error.")
+    .set_body([]() { return new PseudoHuberRegression(); });
 
 // declare parameter
 struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
@@ -218,9 +290,7 @@ class PoissonRegression : public ObjFunction {
     param_.UpdateAllowUnknown(args);
   }
 
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -310,12 +380,8 @@ XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 // cox regression for survival data (negative values mean they are censored)
 class CoxRegression : public ObjFunction {
  public:
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >&) override {}
-
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  void Configure(Args const&) override {}
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -411,12 +477,8 @@ XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
 // gamma regression
 class GammaRegression : public ObjFunction {
  public:
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >&) override {}
-
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  void Configure(Args const&) override {}
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info, int,
@@ -514,9 +576,7 @@ class TweedieRegression : public ObjFunction {
     metric_ = os.str();
   }
 
-  struct ObjInfo Task() const override {
-    return {ObjInfo::kRegression, false};
-  }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info, int,
@@ -607,5 +667,65 @@ XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
 
+class MeanAbsoluteError : public ObjFunction {
+ public:
+  void Configure(Args const&) override {}
+  ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
+
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CheckRegInputs(info, preds);
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.labels.Size());
+    auto gpair = linalg::MakeVec(out_gpair);
+
+    preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto sign = [](auto x) {
+        return (x > static_cast<decltype(x)>(0)) - (x < static_cast<decltype(x)>(0));
+      };
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      auto grad = sign(predt(i) - y) * weight[i];
+      auto hess = weight[sample_id];
+      gpair(i) = GradientPair{grad, hess};
+    });
+  }
+
+  void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
+                      HostDeviceVector<float> const& prediction, RegTree* p_tree) const override {
+    if (ctx_->IsCPU()) {
+      auto const& h_position = position.ConstHostVector();
+      detail::UpdateTreeLeafHost(ctx_, h_position, info, prediction, 0.5, p_tree);
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      position.SetDevice(ctx_->gpu_id);
+      auto d_position = position.ConstDeviceSpan();
+      detail::UpdateTreeLeafDevice(ctx_, d_position, info, prediction, 0.5, p_tree);
+#else
+      common::AssertGPUSupport();
+#endif  //  defined(XGBOOST_USE_CUDA)
+    }
+  }
+
+  const char* DefaultEvalMetric() const override { return "mae"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:absoluteerror");
+  }
+
+  void LoadConfig(Json const& in) override {}
+};
+
+XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
+    .describe("Mean absoluate error.")
+    .set_body([]() { return new MeanAbsoluteError(); });
 }  // namespace obj
 }  // namespace xgboost

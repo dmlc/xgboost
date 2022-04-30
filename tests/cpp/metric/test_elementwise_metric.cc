@@ -1,12 +1,13 @@
 /*!
- * Copyright 2018-2019 XGBoost contributors
+ * Copyright 2018-2022 by XGBoost contributors
  */
-#include <xgboost/metric.h>
 #include <xgboost/json.h>
+#include <xgboost/metric.h>
 
 #include <map>
 #include <memory>
 
+#include "../../../src/common/linalg_op.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -16,14 +17,17 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
   std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &lparam)};
 
   HostDeviceVector<float> predts;
+  size_t n_samples = 2048;
+
   MetaInfo info;
+  info.labels.Reshape(n_samples, 1);
+  info.num_row_ = n_samples;
   auto &h_labels = info.labels.Data()->HostVector();
   auto &h_predts = predts.HostVector();
 
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist{0.0f, 1.0f};
 
-  size_t n_samples = 2048;
   h_labels.resize(n_samples);
   h_predts.resize(n_samples);
 
@@ -145,27 +149,33 @@ TEST(Metric, DeclareUnifiedTest(MAPE)) {
 
 TEST(Metric, DeclareUnifiedTest(MPHE)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("mphe", &lparam);
+  std::unique_ptr<xgboost::Metric> metric{xgboost::Metric::Create("mphe", &lparam)};
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mphe");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
+  EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric.get(),
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               0.1751f, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric,
+  EXPECT_NEAR(GetMetricEval(metric.get(),
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
                             { -1,   1,   9,  -9}),
               3.4037f, 1e-4);
-  EXPECT_NEAR(GetMetricEval(metric,
+  EXPECT_NEAR(GetMetricEval(metric.get(),
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1},
                             {  1,   2,   9,   8}),
               0.1922f, 1e-4);
-  delete metric;
 
   xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mphe"}, GPUIDX);
+
+  metric->Configure({{"huber_slope", "0.1"}});
+  EXPECT_NEAR(GetMetricEval(metric.get(),
+                            {0.1f, 0.9f, 0.1f, 0.9f},
+                            {  0,   0,   1,   1},
+                            {  1,   2,   9,   8}),
+              0.0461686f, 1e-4);
 }
 
 TEST(Metric, DeclareUnifiedTest(LogLoss)) {
@@ -277,7 +287,7 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
               1.5783f, 0.001f);
   delete metric;
 
-  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"mphe"}, GPUIDX);
+  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"poisson-nloglik"}, GPUIDX);
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
@@ -288,8 +298,8 @@ TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
 
   HostDeviceVector<float> predt(n_samples * n_targets, 0);
 
-  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<Metric> metric{Metric::Create("rmse", &lparam)};
+  auto ctx = xgboost::CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Metric> metric{Metric::Create("rmse", &ctx)};
   metric->Configure({});
 
   auto loss = GetMultiMetricEval(metric.get(), predt, y);

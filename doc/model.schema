@@ -168,6 +168,9 @@
         "num_trees": {
           "type": "string"
         },
+        "num_parallel_tree": {
+          "type": "string"
+        },
         "size_leaf_vector": {
           "type": "string"
         }
@@ -204,6 +207,14 @@
         }
       }
     },
+    "pseduo_huber_param": {
+      "type": "object",
+      "properties": {
+        "huber_slope": {
+          "type": "string"
+        }
+      }
+    },
     "aft_loss_param": {
       "type": "object",
       "properties": {
@@ -236,7 +247,7 @@
       "items": [
         {
           "type": "number",
-          "const": 1
+          "minimum": 1
         },
         {
           "type": "number",
@@ -389,7 +400,6 @@
                 "reg_loss_param"
               ]
             },
-
             {
               "type": "object",
               "properties": {
@@ -421,6 +431,14 @@
                 "name",
                 "tweedie_regression_param"
               ]
+            },
+            {
+              "properties": {
+                "name": {
+                  "const": "reg:absoluteerror"
+                }
+              },
+              "type": "object"
             },
             {
               "type": "object",

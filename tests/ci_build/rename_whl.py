@@ -2,6 +2,7 @@ import sys
 import os
 from contextlib import contextmanager
 
+
 @contextmanager
 def cd(path):
     path = os.path.normpath(path)
@@ -13,9 +14,11 @@ def cd(path):
     finally:
         os.chdir(cwd)
 
+
 if len(sys.argv) != 4:
     print('Usage: {} [wheel to rename] [commit id] [platform tag]'.format(sys.argv[0]))
     sys.exit(1)
+
 
 whl_path = sys.argv[1]
 commit_id = sys.argv[2]
@@ -36,3 +39,7 @@ with cd(dirname):
     if os.path.isfile(new_name):
         os.remove(new_name)
     os.rename(basename, new_name)
+
+    filesize = os.path.getsize(new_name) / 1024 / 1024  # MB
+    msg = f"Limit of wheel size set by PyPI is exceeded. {new_name}: {filesize}"
+    assert filesize <= 200, msg

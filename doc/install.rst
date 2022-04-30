@@ -16,7 +16,7 @@ Stable Release
 Python
 ------
 
-Pre-built binary are uploaded to PyPI (Python Package Index) for each release.  Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64).
+Pre-built binary are uploaded to PyPI (Python Package Index) for each release.  Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64, Apple Silicon).
 
 .. code-block:: bash
 
@@ -29,23 +29,38 @@ into permission errors.  Python pre-built binary capability for each platform:
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718
 
-+-------------------+---------+----------------------+
-| Platform          | GPU     | Multi-Node-Multi-GPU |
-+===================+=========+======================+
-| Linux x86_64      | |tick|  |  |tick|              |
-+-------------------+---------+----------------------+
-| Linux aarch64     | |cross| |  |cross|             |
-+-------------------+---------+----------------------+
-| MacOS             | |cross| |  |cross|             |
-+-------------------+---------+----------------------+
-| Windows           | |tick|  |  |cross|             |
-+-------------------+---------+----------------------+
++---------------------+---------+----------------------+
+| Platform            | GPU     | Multi-Node-Multi-GPU |
++=====================+=========+======================+
+| Linux x86_64        | |tick|  |  |tick|              |
++---------------------+---------+----------------------+
+| Linux aarch64       | |cross| |  |cross|             |
++---------------------+---------+----------------------+
+| MacOS x86_64        | |cross| |  |cross|             |
++---------------------+---------+----------------------+
+| MacOS Apple Silicon | |cross| |  |cross|             |
++---------------------+---------+----------------------+
+| Windows             | |tick|  |  |cross|             |
++---------------------+---------+----------------------+
 
-If you are using **Apple Silicon**, please use the Conda packaging manager to install XGBoost:
+Conda
+*****
+
+You may use the Conda packaging manager to install XGBoost:
 
 .. code-block:: bash
 
    conda install -c conda-forge py-xgboost
+
+Conda should be able to detect the existence of a GPU on your machine and install the correct variant of XGBoost. If you run into issues, try indicating the variant explicitly:
+
+.. code-block:: bash
+
+   # CPU only
+   conda install -c conda-forge py-xgboost-cpu
+   # Use NVIDIA GPU
+   conda install -c conda-forge py-xgboost-gpu
+
 
 Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
 
@@ -86,7 +101,7 @@ R
 JVM
 ---
 
-You can use XGBoost4J in your Java/Scala application by adding XGBoost4J as a dependency:
+* XGBoost4j/XGBoost4j-Spark
 
 .. code-block:: xml
   :caption: Maven
@@ -117,6 +132,39 @@ You can use XGBoost4J in your Java/Scala application by adding XGBoost4J as a de
   libraryDependencies ++= Seq(
     "ml.dmlc" %% "xgboost4j" % "latest_version_num",
     "ml.dmlc" %% "xgboost4j-spark" % "latest_version_num"
+  )
+
+* XGBoost4j-GPU/XGBoost4j-Spark-GPU
+
+.. code-block:: xml
+  :caption: Maven
+
+  <properties>
+    ...
+    <!-- Specify Scala version in package name -->
+    <scala.binary.version>2.12</scala.binary.version>
+  </properties>
+
+  <dependencies>
+    ...
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num</version>
+    </dependency>
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-spark-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num</version>
+    </dependency>
+  </dependencies>
+
+.. code-block:: scala
+  :caption: sbt
+
+  libraryDependencies ++= Seq(
+    "ml.dmlc" %% "xgboost4j-gpu" % "latest_version_num",
+    "ml.dmlc" %% "xgboost4j-spark-gpu" % "latest_version_num"
   )
 
 This will check out the latest stable version from the Maven Central.
@@ -170,7 +218,7 @@ and Windows.) Download it and run the following commands:
 JVM
 ---
 
-First add the following Maven repository hosted by the XGBoost project:
+* XGBoost4j/XGBoost4j-Spark
 
 .. code-block:: xml
   :caption: Maven
@@ -218,6 +266,40 @@ Then add XGBoost4J as a dependency:
     "ml.dmlc" %% "xgboost4j" % "latest_version_num-SNAPSHOT",
     "ml.dmlc" %% "xgboost4j-spark" % "latest_version_num-SNAPSHOT"
   )
+
+* XGBoost4j-GPU/XGBoost4j-Spark-GPU
+
+.. code-block:: xml
+  :caption: maven
+
+  <properties>
+    ...
+    <!-- Specify Scala version in package name -->
+    <scala.binary.version>2.12</scala.binary.version>
+  </properties>
+
+  <dependencies>
+    ...
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost4j-spark-gpu_${scala.binary.version}</artifactId>
+        <version>latest_version_num-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+
+.. code-block:: scala
+  :caption: sbt
+
+  libraryDependencies ++= Seq(
+    "ml.dmlc" %% "xgboost4j-gpu" % "latest_version_num-SNAPSHOT",
+    "ml.dmlc" %% "xgboost4j-spark-gpu" % "latest_version_num-SNAPSHOT"
+  )
+
 
 Look up the ``version`` field in `pom.xml <https://github.com/dmlc/xgboost/blob/master/jvm-packages/pom.xml>`_ to get the correct version number.
 

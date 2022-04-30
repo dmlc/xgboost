@@ -2,10 +2,10 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include "threading_utils.h"
-#if defined(__linux__)
-#include <fcntl.h>
-#include <unistd.h>
-#endif  // defined(__linux__)
+
+#include <fstream>
+#include <string>
+
 #include "xgboost/logging.h"
 
 namespace xgboost {
@@ -26,12 +26,12 @@ int32_t GetCfsCPUCount() noexcept {
   // swap limt /sys/fs/cgroup/memory.memsw.limit_in_bytes
 
   auto read_int = [](char const* const file_path) noexcept {
-    auto const fd(::open(file_path, O_RDONLY, 0));
-    if (fd == -1) {
+    std::ifstream fin(file_path);
+    if (!fin) {
       return -1;
     }
-    char value[64];
-    CHECK(::read(fd, value, sizeof(value)) < signed(sizeof(value)));
+    std::string value;
+    fin >> value;
     try {
       return std::stoi(value);
     } catch (std::exception const&) {

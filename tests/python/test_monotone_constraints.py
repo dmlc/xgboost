@@ -98,7 +98,7 @@ class TestMonotoneConstraints:
 
         # next check monotonicity when initializing monotone_constraints by feature names
         params = {
-            'tree_method': 'hist', 'verbosity': 1,
+            'tree_method': 'hist',
             'grow_policy': 'lossguide',
             'monotone_constraints': {'feature_0': 1, 'feature_1': -1}
         }

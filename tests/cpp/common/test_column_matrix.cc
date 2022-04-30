@@ -21,7 +21,9 @@ TEST(DenseColumn, Test) {
     GHistIndexMatrix gmat{dmat.get(), max_num_bin, sparse_thresh, false,
                           common::OmpGetNumThreads(0)};
     ColumnMatrix column_matrix;
-    column_matrix.Init(gmat, 0.2, common::OmpGetNumThreads(0));
+    for (auto const& page : dmat->GetBatches<SparsePage>()) {
+      column_matrix.Init(page, gmat, sparse_thresh, common::OmpGetNumThreads(0));
+    }
 
     for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
       for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
@@ -68,7 +70,9 @@ TEST(SparseColumn, Test) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
     GHistIndexMatrix gmat{dmat.get(), max_num_bin, 0.5f, false, common::OmpGetNumThreads(0)};
     ColumnMatrix column_matrix;
-    column_matrix.Init(gmat, 0.5, common::OmpGetNumThreads(0));
+    for (auto const& page : dmat->GetBatches<SparsePage>()) {
+      column_matrix.Init(page, gmat, 1.0, common::OmpGetNumThreads(0));
+    }
     switch (column_matrix.GetTypeSize()) {
       case kUint8BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint8_t, true>(0);
@@ -106,9 +110,11 @@ TEST(DenseColumnWithMissing, Test) {
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
-    GHistIndexMatrix gmat{dmat.get(), max_num_bin, 0.2, false, common::OmpGetNumThreads(0)};
+    GHistIndexMatrix gmat(dmat.get(), max_num_bin, 0.2, false, common::OmpGetNumThreads(0));
     ColumnMatrix column_matrix;
-    column_matrix.Init(gmat, 0.2, common::OmpGetNumThreads(0));
+    for (auto const& page : dmat->GetBatches<SparsePage>()) {
+      column_matrix.Init(page, gmat, 0.2, common::OmpGetNumThreads(0));
+    }
     switch (column_matrix.GetTypeSize()) {
       case kUint8BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint8_t, true>(0);

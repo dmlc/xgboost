@@ -1,7 +1,7 @@
 """Copyright 2019-2022 XGBoost contributors"""
 import sys
 import os
-from typing import Type, TypeVar, Any, Dict, List, Tuple
+from typing import Type, TypeVar, Any, Dict, List
 import pytest
 import numpy as np
 import asyncio
@@ -27,7 +27,7 @@ from test_with_dask import run_empty_dmatrix_reg      # noqa
 from test_with_dask import run_empty_dmatrix_auc      # noqa
 from test_with_dask import run_auc                    # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
-from test_with_dask import run_boost_from_prediction_multi_clasas  # noqa
+from test_with_dask import run_boost_from_prediction_multi_class  # noqa
 from test_with_dask import run_dask_classifier        # noqa
 from test_with_dask import run_empty_dmatrix_cls      # noqa
 from test_with_dask import _get_client_workers        # noqa
@@ -198,9 +198,19 @@ def run_gpu_hist(
         dtrain=m,
         num_boost_round=num_rounds,
         evals=[(m, "train")],
-    )["history"]
+    )["history"]["train"][dataset.metric]
     note(history)
-    assert tm.non_increasing(history["train"][dataset.metric])
+
+    # See note on `ObjFunction::UpdateTreeLeaf`.
+    update_leaf = dataset.name.endswith("-l1")
+    if update_leaf and len(history) == 2:
+        assert history[0] + 1e-2 >= history[-1]
+        return
+    if update_leaf and len(history) > 2:
+        assert history[0] >= history[-1]
+        return
+    else:
+        assert tm.non_increasing(history)
 
 
 @pytest.mark.skipif(**tm.no_cudf())
@@ -216,7 +226,7 @@ def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
         X_, y_ = load_digits(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction_multi_clasas(X, y, "gpu_hist", client)
+        run_boost_from_prediction_multi_class(X, y, "gpu_hist", client)
 
 
 class TestDistributedGPU:
@@ -231,7 +241,7 @@ class TestDistributedGPU:
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
     )
-    @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
+    @settings(deadline=duration(seconds=120), suppress_health_check=suppress, print_blob=True)
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
         "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
@@ -305,8 +315,7 @@ class TestDistributedGPU:
 
     def test_empty_dmatrix(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
-            parameters = {'tree_method': 'gpu_hist',
-                          'debug_synchronize': True}
+            parameters = {'tree_method': 'gpu_hist', 'debug_synchronize': True}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
 

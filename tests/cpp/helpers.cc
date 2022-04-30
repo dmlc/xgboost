@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016-2020 XGBoost contributors
+ * Copyright 2016-2022 by XGBoost contributors
  */
 #include <dmlc/filesystem.h>
 #include <xgboost/logging.h>
@@ -136,8 +136,8 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                              std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels =
-      xgboost::linalg::Tensor<float, 2>{labels.cbegin(), labels.cend(), {labels.size()}, -1};
+  info.labels = xgboost::linalg::Tensor<float, 2>{
+      labels.cbegin(), labels.cend(), {labels.size(), static_cast<size_t>(1)}, -1};
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
@@ -548,7 +548,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 
   PredictionCacheEntry predts;
 
-  gbm->DoBoost(p_dmat.get(), &gpair, &predts);
+  gbm->DoBoost(p_dmat.get(), &gpair, &predts, nullptr);
 
   return gbm;
 }

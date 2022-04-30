@@ -39,13 +39,8 @@ trait GpuTestSuite extends FunSuite with TmpFolderSuite {
 
   def enableCsvConf(): SparkConf = {
     new SparkConf()
-      .set(RapidsConf.ENABLE_READ_CSV_DATES.key, "true")
-      .set(RapidsConf.ENABLE_READ_CSV_BYTES.key, "true")
-      .set(RapidsConf.ENABLE_READ_CSV_SHORTS.key, "true")
-      .set(RapidsConf.ENABLE_READ_CSV_INTEGERS.key, "true")
-      .set(RapidsConf.ENABLE_READ_CSV_LONGS.key, "true")
-      .set(RapidsConf.ENABLE_READ_CSV_FLOATS.key, "true")
-      .set(RapidsConf.ENABLE_READ_CSV_DOUBLES.key, "true")
+      .set("spark.rapids.sql.csv.read.float.enabled", "true")
+      .set("spark.rapids.sql.csv.read.double.enabled", "true")
   }
 
   def withGpuSparkSession[U](conf: SparkConf = new SparkConf())(f: SparkSession => U): U = {
@@ -246,12 +241,13 @@ object SparkSessionHolder extends Logging {
     Locale.setDefault(Locale.US)
 
     val builder = SparkSession.builder()
-      .master("local[1]")
+      .master("local[2]")
       .config("spark.sql.adaptive.enabled", "false")
       .config("spark.rapids.sql.enabled", "false")
       .config("spark.rapids.sql.test.enabled", "false")
       .config("spark.plugins", "com.nvidia.spark.SQLPlugin")
       .config("spark.rapids.memory.gpu.pooling.enabled", "false") // Disable RMM for unit tests.
+      .config("spark.sql.files.maxPartitionBytes", "1000")
       .appName("XGBoost4j-Spark-Gpu unit test")
 
     builder.getOrCreate()

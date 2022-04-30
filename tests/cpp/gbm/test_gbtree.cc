@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 XGBoost contributors
+ * Copyright 2019-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
@@ -69,13 +69,13 @@ TEST(GBTree, PredictionCache) {
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   auto gpair = GenerateRandomGradients(kRows);
   PredictionCacheEntry out_predictions;
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions);
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
 
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
   ASSERT_EQ(1, out_predictions.version);
   std::vector<float> first_iter = out_predictions.predictions.HostVector();
   // Add 1 more boosted round
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions);
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
   ASSERT_EQ(2, out_predictions.version);
   // Update the cache for all rounds
@@ -83,7 +83,7 @@ TEST(GBTree, PredictionCache) {
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
   ASSERT_EQ(2, out_predictions.version);
 
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions);
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
   // drop the cache.
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 1, 2);
   ASSERT_EQ(0, out_predictions.version);
@@ -207,7 +207,7 @@ TEST(GBTree, JsonIO) {
   ASSERT_EQ(get<Integer>(get<Object>(get<Array>(gbtree_model["trees"]).front()).at("id")), 0);
   ASSERT_EQ(get<Array>(gbtree_model["tree_info"]).size(), 1ul);
 
-  auto j_train_param = model["config"]["gbtree_train_param"];
+  auto j_train_param = model["config"]["gbtree_model_param"];
   ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
 }
 
@@ -257,7 +257,7 @@ TEST(Dart, Prediction) {
   for (size_t i = 0; i < kRows; ++i) {
     labels[i] = i % 2;
   }
-  p_mat->Info().SetInfo("label", labels.data(), DataType::kFloat32, kRows);
+  p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("booster", "dart");
@@ -337,6 +337,13 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
 
   Json sliced_config {Object()};
   sliced->SaveConfig(&sliced_config);
+  // Only num trees is changed
+  if (booster == "gbtree") {
+    sliced_config["learner"]["gradient_booster"]["gbtree_model_param"]["num_trees"] = String("60");
+  } else {
+    sliced_config["learner"]["gradient_booster"]["gbtree"]["gbtree_model_param"]["num_trees"] =
+        String("60");
+  }
   CHECK_EQ(sliced_config, config);
 
   auto get_trees = [&](Json const& model) {

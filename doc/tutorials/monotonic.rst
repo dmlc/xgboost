@@ -2,7 +2,7 @@
 Monotonic Constraints
 #####################
 
-It is often the case in a modeling problem or project that the functional form of an acceptable model is constrained in some way. This may happen due to business considerations, or because of the type of scientific question being investigated.  In some cases, where there is a very strong prior belief that the true relationship has some quality, constraints can be used to improve the predictive performance of the model. 
+It is often the case in a modeling problem or project that the functional form of an acceptable model is constrained in some way. This may happen due to business considerations, or because of the type of scientific question being investigated.  In some cases, where there is a very strong prior belief that the true relationship has some quality, constraints can be used to improve the predictive performance of the model.
 
 A common type of constraint in this situation is that certain features bear a **monotonic** relationship to the predicted response:
 
@@ -10,7 +10,7 @@ A common type of constraint in this situation is that certain features bear a **
 
   f(x_1, x_2, \ldots, x, \ldots, x_{n-1}, x_n) \leq f(x_1, x_2, \ldots, x', \ldots, x_{n-1}, x_n)
 
-whenever :math:`x \leq x'` is an **increasing constraint**; or 
+whenever :math:`x \leq x'` is an **increasing constraint**; or
 
 .. math::
 
@@ -18,7 +18,7 @@ whenever :math:`x \leq x'` is an **increasing constraint**; or
 
 whenever :math:`x \leq x'` is a **decreasing constraint**.
 
-XGBoost has the ability to enforce monotonicity constraints on any features used in a boosted model. 
+XGBoost has the ability to enforce monotonicity constraints on any features used in a boosted model.
 
 ****************
 A Simple Example
@@ -60,8 +60,8 @@ Suppose the following code fits your model without monotonicity constraints
 
 .. code-block:: python
 
-  model_no_constraints = xgb.train(params, dtrain, 
-                                   num_boost_round = 1000, evals = evallist, 
+  model_no_constraints = xgb.train(params, dtrain,
+                                   num_boost_round = 1000, evals = evallist,
                                    early_stopping_rounds = 10)
 
 Then fitting with monotonicity constraints only requires adding a single parameter
@@ -69,10 +69,10 @@ Then fitting with monotonicity constraints only requires adding a single paramet
 .. code-block:: python
 
   params_constrained = params.copy()
-  params_constrained['monotone_constraints'] = "(1,-1)"
+  params_constrained['monotone_constraints'] = (1,-1)
 
-  model_with_constraints = xgb.train(params_constrained, dtrain, 
-                                     num_boost_round = 1000, evals = evallist, 
+  model_with_constraints = xgb.train(params_constrained, dtrain,
+                                     num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
 
 In this example the training data ``X`` has two columns, and by using the parameter values ``(1,-1)`` we are telling XGBoost to impose an increasing constraint on the first predictor and a decreasing constraint on the second.
@@ -82,14 +82,21 @@ Some other examples:
 - ``(1,0)``: An increasing constraint on the first predictor and no constraint on the second.
 - ``(0,-1)``: No constraint on the first predictor and a decreasing constraint on the second.
 
-**Choice of tree construction algorithm**. To use monotonic constraints, be
-sure to set the ``tree_method`` parameter to one of ``exact``, ``hist``, and
-``gpu_hist``.
 
 **Note for the 'hist' tree construction algorithm**.
-If ``tree_method`` is set to either ``hist`` or ``gpu_hist``, enabling monotonic
-constraints may produce unnecessarily shallow trees. This is because the
+If ``tree_method`` is set to either ``hist``, ``approx`` or ``gpu_hist``, enabling
+monotonic constraints may produce unnecessarily shallow trees. This is because the
 ``hist`` method reduces the number of candidate splits to be considered at each
-split. Monotonic constraints may wipe out all available split candidates, in
-which case no split is made. To reduce the effect, you may want to increase
-the ``max_bin`` parameter to consider more split candidates.
+split. Monotonic constraints may wipe out all available split candidates, in which case no
+split is made. To reduce the effect, you may want to increase the ``max_bin`` parameter to
+consider more split candidates.
+
+
+*******************
+Using feature names
+*******************
+
+XGBoost's Python package supports using feature names instead of feature index for
+specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
+monotonic constraint can be specified as ``{"f0": 1, "f2": -1}``, and ``"f1"`` will
+default to ``0`` (no constraint).

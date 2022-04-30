@@ -121,6 +121,8 @@ using bst_float = float;  // NOLINT
 using bst_cat_t = int32_t;  // NOLINT
 /*! \brief Type for data column (feature) index. */
 using bst_feature_t = uint32_t;  // NOLINT
+/*! \brief Type for histogram bin index. */
+using bst_bin_t = int32_t;  // NOLINT
 /*! \brief Type for data row index.
  *
  * Be careful `std::size_t' is implementation-defined.  Meaning that the binary

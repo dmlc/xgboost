@@ -86,6 +86,30 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   }
 }
 
+TEST(SparsePage, SortIndices) {
+  auto p_fmat = RandomDataGenerator{100, 10, 0.6}.GenerateDMatrix();
+  auto n_threads = common::OmpGetNumThreads(0);
+  SparsePage copy;
+  for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+    ASSERT_TRUE(page.IsIndicesSorted(n_threads));
+    copy.Push(page);
+  }
+  ASSERT_TRUE(copy.IsIndicesSorted(n_threads));
+
+  for (size_t ridx = 0; ridx < copy.Size(); ++ridx) {
+    auto beg = copy.offset.HostVector()[ridx];
+    auto end = copy.offset.HostVector()[ridx + 1];
+    auto& h_data = copy.data.HostVector();
+    if (end - beg >= 2) {
+      std::swap(h_data[beg], h_data[end - 1]);
+    }
+  }
+  ASSERT_FALSE(copy.IsIndicesSorted(n_threads));
+
+  copy.SortIndices(n_threads);
+  ASSERT_TRUE(copy.IsIndicesSorted(n_threads));
+}
+
 TEST(DMatrix, Uri) {
   size_t constexpr kRows {16};
   size_t constexpr kCols {8};

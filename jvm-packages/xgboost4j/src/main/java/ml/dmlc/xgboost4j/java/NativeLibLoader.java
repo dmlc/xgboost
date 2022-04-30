@@ -21,7 +21,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -34,6 +39,8 @@ import org.apache.commons.logging.LogFactory;
 class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
+  private static Path mappedFilesBaseDir = Paths.get("/proc/self/map_files");
+
   /**
    * Supported OS enum.
    */
@@ -41,12 +48,17 @@ class NativeLibLoader {
     WINDOWS("windows"),
     MACOS("macos"),
     LINUX("linux"),
+    LINUX_MUSL("linux-musl"),
     SOLARIS("solaris");
 
     final String name;
 
-    private OS(String name) {
+    OS(String name) {
       this.name = name;
+    }
+
+    static void setMappedFilesBaseDir(Path baseDir) {
+      mappedFilesBaseDir = baseDir;
     }
 
     /**
@@ -61,13 +73,47 @@ class NativeLibLoader {
       } else if (os.contains("win")) {
         return WINDOWS;
       } else if (os.contains("nux")) {
-        return LINUX;
+        return isMuslBased() ? LINUX_MUSL : LINUX;
       } else if (os.contains("sunos")) {
         return SOLARIS;
       } else {
         throw new IllegalStateException("Unsupported OS:" + os);
       }
     }
+
+    /**
+     * Checks if the Linux OS is musl based. For this, we check the memory-mapped
+     * filenames and see if one of those contains the string "musl".
+     *
+     * @return true if the Linux OS is musl based, false otherwise.
+     */
+    static boolean isMuslBased() {
+      try (Stream<Path> dirStream = Files.list(mappedFilesBaseDir)) {
+        Optional<String> muslRelatedMemoryMappedFilename = dirStream
+            .map(OS::toRealPath)
+            .filter(s -> s.toLowerCase().contains("musl"))
+            .findFirst();
+
+        muslRelatedMemoryMappedFilename.ifPresent(muslFilename -> {
+          logger.debug("Assuming that detected Linux OS is musl-based, "
+              + "because a memory-mapped file '" + muslFilename + "' was found.");
+        });
+
+        return muslRelatedMemoryMappedFilename.isPresent();
+      } catch (Exception ignored) {
+        // ignored
+      }
+      return false;
+    }
+
+    private static String toRealPath(Path path) {
+      try {
+        return path.toRealPath().toString();
+      } catch (IOException e) {
+        return "";
+      }
+    }
+
   }
 
   /**
@@ -80,7 +126,7 @@ class NativeLibLoader {
 
     final String name;
 
-    private Arch(String name) {
+    Arch(String name) {
       this.name = name;
     }
 
@@ -115,7 +161,7 @@ class NativeLibLoader {
    *   <li>Supported OS: macOS, Windows, Linux, Solaris.</li>
    *   <li>Supported Architectures: x86_64, aarch64, sparc.</li>
    * </ul>
-   * Throws UnsatisfiedLinkError if the library failed to load it's dependencies.
+   * Throws UnsatisfiedLinkError if the library failed to load its dependencies.
    * @throws IOException If the library could not be extracted from the jar.
    */
   static synchronized void initXGBoost() throws IOException {
@@ -129,18 +175,37 @@ class NativeLibLoader {
               platform + "/" + System.mapLibraryName(libName);
           loadLibraryFromJar(libraryPathInJar);
         } catch (UnsatisfiedLinkError ule) {
-          logger.error("Failed to load " + libName + " due to missing native dependencies for " +
-              "platform " + platform + ", this is likely due to a missing OpenMP dependency");
+          String failureMessageIncludingOpenMPHint = "Failed to load " + libName + " " +
+              "due to missing native dependencies for " +
+              "platform " + platform + ", " +
+              "this is likely due to a missing OpenMP dependency";
+
           switch (os) {
             case WINDOWS:
+              logger.error(failureMessageIncludingOpenMPHint);
               logger.error("You may need to install 'vcomp140.dll' or 'libgomp-1.dll'");
               break;
             case MACOS:
-              logger.error("You may need to install 'libomp.dylib', via `brew install libomp`" +
-                  " or similar");
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libomp.dylib', via `brew install libomp` " +
+                  "or similar");
               break;
             case LINUX:
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
+                  "manager.");
+              logger.error("Alternatively, your Linux OS is musl-based " +
+                  "but wasn't detected as such.");
+              break;
+            case LINUX_MUSL:
+              logger.error(failureMessageIncludingOpenMPHint);
+              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
+                  "manager.");
+              logger.error("Alternatively, your Linux OS was wrongly detected as musl-based, " +
+                  "although it is not.");
+              break;
             case SOLARIS:
+              logger.error(failureMessageIncludingOpenMPHint);
               logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
                   "manager.");
               break;

@@ -416,6 +416,27 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   API_END();
 }
 
+XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array,
+                                     void *ptr_schema) {
+  API_BEGIN();
+  static_cast<data::RecordBatchesIterAdapter *>(data_handle)
+      ->SetData(static_cast<struct ArrowArray *>(ptr_array),
+                static_cast<struct ArrowSchema *>(ptr_schema));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+                                             DMatrixHandle *out) {
+  API_BEGIN();
+  auto config = Json::Load(StringView{json_config});
+  auto missing = GetMissing(config);
+  int32_t n_threads = get<Integer const>(config["nthread"]);
+  n_threads = common::OmpGetNumThreads(n_threads);
+  data::RecordBatchesIterAdapter adapter(next, n_threads);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,
@@ -464,35 +485,30 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
-                                  const char* field,
-                                  const bst_float* info,
+XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle, const char *field, const bst_float *info,
                                   xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, xgboost::DataType::kFloat32, len);
+  auto const& p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, info, xgboost::DataType::kFloat32, len);
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
-                                          char const* field,
-                                          char const* interface_c_str) {
+XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle, char const *field,
+                                          char const *interface_c_str) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, interface_c_str);
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, interface_c_str);
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
-                                 const char* field,
-                                 const unsigned* info,
+XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle, const char *field, const unsigned *info,
                                  xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, xgboost::DataType::kUInt32, len);
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, info, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
@@ -528,25 +544,22 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void const *data, xgboost::bst_ulong size,
-                                  int type) {
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,
+                                  xgboost::bst_ulong size, int type) {
   API_BEGIN();
   CHECK_HANDLE();
-  auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   CHECK(type >= 1 && type <= 4);
-  info.SetInfo(field, data, static_cast<DataType>(type), size);
+  p_fmat->SetInfo(field, data, static_cast<DataType>(type), size);
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
-                              const unsigned* group,
-                              xgboost::bst_ulong len) {
+XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle, const unsigned *group, xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   LOG(WARNING) << "XGDMatrixSetGroup is deprecated, use `XGDMatrixSetUIntInfo` instead.";
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo("group", group, xgboost::DataType::kUInt32, len);
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo("group", group, xgboost::DataType::kUInt32, len);
   API_END();
 }
 

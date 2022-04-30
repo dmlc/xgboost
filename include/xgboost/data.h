@@ -124,7 +124,7 @@ class MetaInfo {
     label_order_cache_.resize(labels.Size());
     std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
     const auto& l = labels.Data()->HostVector();
-    XGBOOST_PARALLEL_SORT(label_order_cache_.begin(), label_order_cache_.end(),
+    XGBOOST_PARALLEL_STABLE_SORT(label_order_cache_.begin(), label_order_cache_.end(),
               [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
 
     return label_order_cache_;
@@ -148,13 +148,13 @@ class MetaInfo {
    * \param dtype The type of the source data.
    * \param num Number of elements in the source array.
    */
-  void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+  void SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype, size_t num);
   /*!
    * \brief Set information in the meta info with array interface.
    * \param key The key of the information.
    * \param interface_str String representation of json format array interface.
    */
-  void SetInfo(StringView key, StringView interface_str);
+  void SetInfo(Context const& ctx, StringView key, StringView interface_str);
 
   void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                const void** out_dptr) const;
@@ -176,8 +176,8 @@ class MetaInfo {
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
 
  private:
-  void SetInfoFromHost(StringView key, Json arr);
-  void SetInfoFromCUDA(StringView key, Json arr);
+  void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
+  void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);
 
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
@@ -200,6 +200,9 @@ struct Entry {
   /*! \brief reversely compare feature values */
   inline static bool CmpValue(const Entry& a, const Entry& b) {
     return a.fvalue < b.fvalue;
+  }
+  static bool CmpIndex(Entry const& a, Entry const& b) {
+    return a.index < b.index;
   }
   inline bool operator==(const Entry& other) const {
     return (this->index == other.index && this->fvalue == other.fvalue);
@@ -312,6 +315,15 @@ class SparsePage {
   }
 
   SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
+
+  /**
+   * \brief Sort the column index.
+   */
+  void SortIndices(int32_t n_threads);
+  /**
+   * \brief Check wether the column index is sorted.
+   */
+  bool IsIndicesSorted(int32_t n_threads) const;
 
   void SortRows(int32_t n_threads);
 
@@ -466,12 +478,13 @@ class DMatrix {
   DMatrix()  = default;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& Info() = 0;
-  virtual void SetInfo(const char *key, const void *dptr, DataType dtype,
-                       size_t num) {
-    this->Info().SetInfo(key, dptr, dtype, num);
+  virtual void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
+    auto const& ctx = *this->Ctx();
+    this->Info().SetInfo(ctx, key, dptr, dtype, num);
   }
   virtual void SetInfo(const char* key, std::string const& interface_str) {
-    this->Info().SetInfo(key, StringView{interface_str});
+    auto const& ctx = *this->Ctx();
+    this->Info().SetInfo(ctx, key, StringView{interface_str});
   }
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;
@@ -482,7 +495,7 @@ class DMatrix {
    * \brief Get the context object of this DMatrix.  The context is created during construction of
    *        DMatrix with user specified `nthread` parameter.
    */
-  virtual GenericParameter const* Ctx() const = 0;
+  virtual Context const* Ctx() const = 0;
 
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.

@@ -14,6 +14,7 @@ from .core import Metric
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
+from ._typing import ArrayLike, FeatureTypes
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -24,8 +25,6 @@ from .compat import (
     XGBRegressorBase,
     XGBoostLabelEncoder,
 )
-
-array_like = Any
 
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
@@ -212,6 +211,13 @@ __model_doc = f'''
         should be used to specify categorical data type.  Also, JSON/UBJSON
         serialization format is required.
 
+    feature_types : FeatureTypes
+
+        .. versionadded:: 2.0.0
+
+        Used for specifying feature types without constructing a dataframe. See
+        :py:class:`DMatrix` for details.
+
     max_cat_to_onehot : Optional[int]
 
         .. versionadded:: 1.6.0
@@ -395,6 +401,7 @@ def _wrap_evaluation_matrices(
     eval_qid: Optional[Sequence[Any]],
     create_dmatrix: Callable,
     enable_categorical: bool,
+    feature_types: FeatureTypes,
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
 
@@ -409,6 +416,7 @@ def _wrap_evaluation_matrices(
         feature_weights=feature_weights,
         missing=missing,
         enable_categorical=enable_categorical,
+        feature_types=feature_types,
     )
 
     n_validation = 0 if eval_set is None else len(eval_set)
@@ -456,6 +464,7 @@ def _wrap_evaluation_matrices(
                     base_margin=base_margin_eval_set[i],
                     missing=missing,
                     enable_categorical=enable_categorical,
+                    feature_types=feature_types,
                 )
                 evals.append(m)
         nevals = len(evals)
@@ -519,6 +528,7 @@ class XGBModel(XGBModelBase):
         validate_parameters: Optional[bool] = None,
         predictor: Optional[str] = None,
         enable_categorical: bool = False,
+        feature_types: FeatureTypes = None,
         max_cat_to_onehot: Optional[int] = None,
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
@@ -563,6 +573,7 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.predictor = predictor
         self.enable_categorical = enable_categorical
+        self.feature_types = feature_types
         self.max_cat_to_onehot = max_cat_to_onehot
         self.eval_metric = eval_metric
         self.early_stopping_rounds = early_stopping_rounds
@@ -685,6 +696,7 @@ class XGBModel(XGBModelBase):
             "enable_categorical",
             "early_stopping_rounds",
             "callbacks",
+            "feature_types",
         }
         filtered = {}
         for k, v in params.items():
@@ -715,6 +727,10 @@ class XGBModel(XGBModelBase):
             if k == 'classes_':
                 # numpy array is not JSON serializable
                 meta['classes_'] = self.classes_.tolist()
+                continue
+            if k == "feature_types":
+                # Use the `feature_types` attribute from booster instead.
+                meta["feature_types"] = None
                 continue
             try:
                 json.dumps({k: v})
@@ -754,6 +770,9 @@ class XGBModel(XGBModelBase):
             # generate it from `np.arange(self.n_classes_)`
             if k == 'classes_':
                 self.classes_ = np.array(v)
+                continue
+            if k == "feature_types":
+                self.feature_types = self.get_booster().feature_types
                 continue
             if k == "_estimator_type":
                 if self._get_type() != v:
@@ -862,19 +881,19 @@ class XGBModel(XGBModelBase):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, "XGBModel"]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBModel":
         # pylint: disable=invalid-name,attribute-defined-outside-init
@@ -945,6 +964,7 @@ class XGBModel(XGBModelBase):
             eval_qid=None,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types
         )
         params = self.get_xgb_params()
 
@@ -1001,11 +1021,11 @@ class XGBModel(XGBModelBase):
 
     def predict(
         self,
-        X: array_like,
+        X: ArrayLike,
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[array_like] = None,
+        base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
@@ -1064,9 +1084,11 @@ class XGBModel(XGBModelBase):
                 pass
 
         test = DMatrix(
-            X, base_margin=base_margin,
+            X,
+            base_margin=base_margin,
             missing=self.missing,
             nthread=self.n_jobs,
+            feature_types=self.feature_types,
             enable_categorical=self.enable_categorical
         )
         return self.get_booster().predict(
@@ -1077,7 +1099,7 @@ class XGBModel(XGBModelBase):
         )
 
     def apply(
-        self, X: array_like,
+        self, X: ArrayLike,
         ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None
     ) -> np.ndarray:
@@ -1107,7 +1129,9 @@ class XGBModel(XGBModelBase):
             self.get_booster(), ntree_limit, iteration_range
         )
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = DMatrix(X, missing=self.missing, nthread=self.n_jobs)
+        test_dmatrix = DMatrix(
+            X, missing=self.missing, feature_types=self.feature_types, nthread=self.n_jobs
+        )
         return self.get_booster().predict(
             test_dmatrix,
             pred_leaf=True,
@@ -1305,31 +1329,33 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         *,
         objective: _SklObjective = "binary:logistic",
-        use_label_encoder: bool = False,
+        use_label_encoder: Optional[bool] = None,
         **kwargs: Any
     ) -> None:
         # must match the parameters for `get_params`
         self.use_label_encoder = use_label_encoder
         if use_label_encoder is True:
             raise ValueError("Label encoder was removed in 1.6.")
+        if use_label_encoder is not None:
+            warnings.warn("`use_label_encoder` is deprecated in 2.0.0.")
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
@@ -1396,6 +1422,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             eval_qid=None,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
 
         self._Booster = train(
@@ -1425,11 +1452,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict(
         self,
-        X: array_like,
+        X: ArrayLike,
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[array_like] = None,
+        base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         class_probs = super().predict(
@@ -1464,10 +1491,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict_proba(
         self,
-        X: array_like,
+        X: ArrayLike,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[array_like] = None,
+        base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """ Predict the probability of each `X` example being of a given class.
@@ -1558,19 +1585,19 @@ class XGBRFClassifier(XGBClassifier):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRFClassifier":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -1630,19 +1657,19 @@ class XGBRFRegressor(XGBRegressor):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRFRegressor":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -1705,23 +1732,23 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        group: Optional[array_like] = None,
-        qid: Optional[array_like] = None,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
-        eval_group: Optional[Sequence[array_like]] = None,
-        eval_qid: Optional[Sequence[array_like]] = None,
+        group: Optional[ArrayLike] = None,
+        qid: Optional[ArrayLike] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
+        eval_group: Optional[Sequence[ArrayLike]] = None,
+        eval_qid: Optional[Sequence[ArrayLike]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = False,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
@@ -1827,6 +1854,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             eval_qid=eval_qid,
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
 
         evals_result: TrainingCallback.EvalsLog = {}

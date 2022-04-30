@@ -54,10 +54,11 @@ from .compat import scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import lazy_isinstance
 
+from ._typing import FeatureNames, FeatureTypes
+
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import Objective, Metric
-from .core import _deprecate_positional_args
-from .data import FeatNamesT
+from .core import _deprecate_positional_args, _has_categorical
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
@@ -326,8 +327,8 @@ class DaskDMatrix:
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
         silent: bool = False,  # pylint: disable=unused-argument
-        feature_names: FeatNamesT = None,
-        feature_types: Optional[List[str]] = None,
+        feature_names: FeatureNames = None,
+        feature_types: FeatureTypes = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
@@ -602,7 +603,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         qid: Optional[List[Any]] = None,
         label_lower_bound: Optional[List[Any]] = None,
         label_upper_bound: Optional[List[Any]] = None,
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
     ) -> None:
         self._data = data
@@ -645,7 +646,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
-        feature_names: FeatNamesT = None
+        feature_names: FeatureNames = None
         if self._feature_names:
             feature_names = self._feature_names
         else:
@@ -696,7 +697,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
         silent: bool = False,  # disable=unused-argument
-        feature_names: FeatNamesT = None,
+        feature_names: FeatureNames = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
         max_bin: int = 256,
         group: Optional[_DaskCollection] = None,
@@ -733,7 +734,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
 
 
 def _create_device_quantile_dmatrix(
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
     missing: float,
@@ -774,7 +775,7 @@ def _create_device_quantile_dmatrix(
 
 
 def _create_dmatrix(
-    feature_names: FeatNamesT,
+    feature_names: FeatureNames,
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
     missing: float,
@@ -1241,7 +1242,11 @@ async def _predict_async(
         booster: Booster, partition: Any, is_df: bool, columns: List[int], _: Any
     ) -> Any:
         with config.config_context(**global_config):
-            m = DMatrix(data=partition, missing=missing)
+            m = DMatrix(
+                data=partition,
+                missing=missing,
+                enable_categorical=_has_categorical(booster, partition)
+            )
             predt = booster.predict(
                 data=m,
                 output_margin=output_margin,
@@ -1597,7 +1602,11 @@ class DaskScikitLearnBase(XGBModel):
                 predts = predts.to_dask_array()
         else:
             test_dmatrix = await DaskDMatrix(
-                self.client, data=data, base_margin=base_margin, missing=self.missing
+                self.client,
+                data=data,
+                base_margin=base_margin,
+                missing=self.missing,
+                feature_types=self.feature_types
             )
             predts = await predict(
                 self.client,
@@ -1636,7 +1645,9 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = await DaskDMatrix(self.client, data=X, missing=self.missing)
+        test_dmatrix = await DaskDMatrix(
+            self.client, data=X, missing=self.missing, feature_types=self.feature_types,
+        )
         predts = await predict(
             self.client,
             model=self.get_booster(),
@@ -1751,6 +1762,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             eval_qid=None,
             missing=self.missing,
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
 
         if callable(self.objective):
@@ -1845,6 +1857,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             eval_qid=None,
             missing=self.missing,
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
 
         # pylint: disable=attribute-defined-outside-init
@@ -2050,6 +2063,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             eval_qid=eval_qid,
             missing=self.missing,
             enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
         )
         if eval_metric is not None:
             if callable(eval_metric):

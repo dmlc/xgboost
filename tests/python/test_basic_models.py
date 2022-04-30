@@ -8,8 +8,6 @@ import locale
 import tempfile
 
 dpath = os.path.join(tm.PROJECT_ROOT, 'demo/data/')
-dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
 rng = np.random.RandomState(1994)
 
@@ -38,6 +36,8 @@ class TestModels:
         param = {'verbosity': 0, 'objective': 'binary:logistic',
                  'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1,
                  'nthread': 1}
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
         bst = xgb.train(param, dtrain, num_round, watchlist)
@@ -124,7 +124,7 @@ class TestModels:
         predt_1 = bst.predict(margined)
 
         assert np.any(np.abs(predt_1 - predt_0) > 1e-6)
-
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         bst = xgb.train({'tree_method': 'hist'}, dtrain, 2)
         predt_2 = bst.predict(dtrain)
         assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
@@ -150,6 +150,8 @@ class TestModels:
             'objective': 'reg:logistic',
             "tree_method": tree_method
         }
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 10
 
@@ -195,6 +197,8 @@ class TestModels:
         self.run_custom_objective()
 
     def test_multi_eval_metric(self):
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         param = {'max_depth': 2, 'eta': 0.2, 'verbosity': 1,
                  'objective': 'binary:logistic'}
@@ -216,6 +220,7 @@ class TestModels:
             param['scale_pos_weight'] = ratio
             return (dtrain, dtest, param)
 
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         xgb.cv(param, dtrain, num_round, nfold=5,
                metrics={'auc'}, seed=0, fpreproc=fpreproc)
 
@@ -223,6 +228,7 @@ class TestModels:
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                  'objective': 'binary:logistic'}
         num_round = 2
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         xgb.cv(param, dtrain, num_round, nfold=5,
                metrics={'error'}, seed=0, show_stdv=False)
 
@@ -331,6 +337,7 @@ class TestModels:
         os.remove(model_path)
 
         try:
+            dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
             xgb.train({'objective': 'foo'}, dtrain, num_boost_round=1)
         except ValueError as e:
             e_str = str(e)
@@ -422,68 +429,58 @@ class TestModels:
             assert cls.get_booster().best_ntree_limit == 2
             assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize('booster', ['gbtree', 'dart'])
-    def test_slice(self, booster):
-        from sklearn.datasets import make_classification
-        num_classes = 3
-        X, y = make_classification(n_samples=1000, n_informative=5,
-                                   n_classes=num_classes)
-        dtrain = xgb.DMatrix(data=X, label=y)
-        num_parallel_tree = 4
-        num_boost_round = 16
-        total_trees = num_parallel_tree * num_classes * num_boost_round
-        booster = xgb.train({
-            'num_parallel_tree': 4, 'subsample': 0.5, 'num_class': 3, 'booster': booster,
-            'objective': 'multi:softprob'},
-                            num_boost_round=num_boost_round, dtrain=dtrain)
-        booster.feature_types = ["q"] * X.shape[1]
-
-        assert len(booster.get_dump()) == total_trees
+    def run_slice(
+        self,
+        booster: xgb.Booster,
+        dtrain: xgb.DMatrix,
+        num_parallel_tree: int,
+        num_classes: int,
+        num_boost_round: int
+    ):
         beg = 3
         end = 7
-        sliced: xgb.Booster = booster[beg: end]
+        sliced: xgb.Booster = booster[beg:end]
         assert sliced.feature_types == booster.feature_types
 
         sliced_trees = (end - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
 
         sliced_trees = sliced_trees // 2
-        sliced: xgb.Booster = booster[beg: end: 2]
+        sliced = booster[beg:end:2]
         assert sliced_trees == len(sliced.get_dump())
 
-        sliced: xgb.Booster = booster[beg: ...]
+        sliced = booster[beg: ...]
         sliced_trees = (num_boost_round - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
 
-        sliced: xgb.Booster = booster[beg:]
+        sliced = booster[beg:]
         sliced_trees = (num_boost_round - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
 
-        sliced: xgb.Booster = booster[:end]
+        sliced = booster[:end]
         sliced_trees = end * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
 
-        sliced: xgb.Booster = booster[...:end]
+        sliced = booster[...: end]
         sliced_trees = end * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
 
-        with pytest.raises(ValueError, match=r'>= 0'):
-            booster[-1: 0]
+        with pytest.raises(ValueError, match=r">= 0"):
+            booster[-1:0]
 
         # we do not accept empty slice.
         with pytest.raises(ValueError):
             booster[1:1]
         # stop can not be smaller than begin
-        with pytest.raises(ValueError, match=r'Invalid.*'):
+        with pytest.raises(ValueError, match=r"Invalid.*"):
             booster[3:0]
-        with pytest.raises(ValueError, match=r'Invalid.*'):
+        with pytest.raises(ValueError, match=r"Invalid.*"):
             booster[3:-1]
         # negative step is not supported.
-        with pytest.raises(ValueError, match=r'.*>= 1.*'):
+        with pytest.raises(ValueError, match=r".*>= 1.*"):
             booster[0:2:-1]
         # step can not be 0.
-        with pytest.raises(ValueError, match=r'.*>= 1.*'):
+        with pytest.raises(ValueError, match=r".*>= 1.*"):
             booster[0:2:0]
 
         trees = [_ for _ in booster]
@@ -492,12 +489,12 @@ class TestModels:
         with pytest.raises(TypeError):
             booster["wrong type"]
         with pytest.raises(IndexError):
-            booster[:num_boost_round+1]
+            booster[: num_boost_round + 1]
         with pytest.raises(ValueError):
-            booster[1, 2]       # too many dims
+            booster[1, 2]  # too many dims
         # setitem is not implemented as model is immutable during slicing.
         with pytest.raises(TypeError):
-            booster[...:end] = booster
+            booster[...: end] = booster
 
         sliced_0 = booster[1:3]
         np.testing.assert_allclose(
@@ -525,6 +522,44 @@ class TestModels:
         single = booster[1:7].predict(dtrain, output_margin=True)
         np.testing.assert_allclose(merged, single, atol=1e-6)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.parametrize("booster", ["gbtree", "dart"])
+    def test_slice(self, booster):
+        from sklearn.datasets import make_classification
+
+        num_classes = 3
+        X, y = make_classification(
+            n_samples=1000, n_informative=5, n_classes=num_classes
+        )
+        dtrain = xgb.DMatrix(data=X, label=y)
+        num_parallel_tree = 4
+        num_boost_round = 16
+        total_trees = num_parallel_tree * num_classes * num_boost_round
+        booster = xgb.train(
+            {
+                "num_parallel_tree": num_parallel_tree,
+                "subsample": 0.5,
+                "num_class": num_classes,
+                "booster": booster,
+                "objective": "multi:softprob",
+            },
+            num_boost_round=num_boost_round,
+            dtrain=dtrain,
+        )
+        booster.feature_types = ["q"] * X.shape[1]
+
+        assert len(booster.get_dump()) == total_trees
+
+        self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round)
+
+        bytesarray = booster.save_raw(raw_format="ubj")
+        booster = xgb.Booster(model_file=bytesarray)
+        self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round)
+
+        bytesarray = booster.save_raw(raw_format="deprecated")
+        booster = xgb.Booster(model_file=bytesarray)
+        self.run_slice(booster, dtrain, num_parallel_tree, num_classes, num_boost_round)
+
     @pytest.mark.skipif(**tm.no_pandas())
     def test_feature_info(self):
         import pandas as pd
@@ -534,7 +569,7 @@ class TestModels:
         y = rng.randn(rows)
         feature_names = ["test_feature_" + str(i) for i in range(cols)]
         X_pd = pd.DataFrame(X, columns=feature_names)
-        X_pd.iloc[:, 3] = X_pd.iloc[:, 3].astype(np.int)
+        X_pd.iloc[:, 3] = X_pd.iloc[:, 3].astype(np.int32)
 
         Xy = xgb.DMatrix(X_pd, y)
         assert Xy.feature_types[3] == "int"

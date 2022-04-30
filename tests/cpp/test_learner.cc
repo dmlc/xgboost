@@ -74,11 +74,9 @@ TEST(Learner, CheckGroup) {
     labels[i] = i % 2;
   }
 
-  p_mat->Info().SetInfo(
-      "weight", static_cast<void*>(weight.data()), DataType::kFloat32, kNumGroups);
-  p_mat->Info().SetInfo(
-      "group", group.data(), DataType::kUInt32, kNumGroups);
-  p_mat->Info().SetInfo("label", labels.data(), DataType::kFloat32, kNumRows);
+  p_mat->SetInfo("weight", static_cast<void *>(weight.data()), DataType::kFloat32, kNumGroups);
+  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups);
+  p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kNumRows);
 
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
@@ -88,7 +86,7 @@ TEST(Learner, CheckGroup) {
   group.resize(kNumGroups+1);
   group[3] = 4;
   group[4] = 1;
-  p_mat->Info().SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
+  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 }
 
@@ -105,7 +103,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   for (size_t i = 0; i < num_row; ++i) {
     labels[i] = i % 2;
   }
-  dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
+  dmat->SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});
@@ -430,8 +428,8 @@ TEST(Learner, MultiTarget) {
   size_t constexpr kRows{128}, kCols{10}, kTargets{3};
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   m->Info().labels.Reshape(kRows, kTargets);
-  linalg::ElementWiseKernelHost(m->Info().labels.HostView(), omp_get_max_threads(),
-                                [](auto i, auto) { return i; });
+  linalg::ElementWiseTransformHost(m->Info().labels.HostView(), omp_get_max_threads(),
+                                   [](auto i, auto) { return i; });
 
   {
     std::unique_ptr<Learner> learner{Learner::Create({m})};

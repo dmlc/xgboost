@@ -14,6 +14,7 @@ dependencies:
 - jsonschema
 - cupy
 - python-graphviz
-- modin-ray
 - pip
 - py-ubjson
+- cffi
+- pyarrow
