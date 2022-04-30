@@ -21,7 +21,7 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
                                            int32_t device) {
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, device};
-  if (cuts.HasCategorical() && !task.UseOneHot()) {
+  if (cuts.HasCategorical()) {
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
     auto beg = thrust::make_counting_iterator<size_t>(1ul);
