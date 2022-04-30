@@ -623,7 +623,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   auto d_ft = feature_types_.ConstDeviceSpan();
 
   std::vector<SketchEntry> max_values;
-  float max_cat{0.0};
+  float max_cat{-1.f};
   if (has_categorical_) {
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto key_it = dh::MakeTransformIterator<bst_feature_t>(
@@ -656,10 +656,9 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
       if (IsCat(h_feature_types, i)) {
         return max_values[i].value;
       }
-      return .0f;
+      return -1.f;
     });
-    max_cat = std::accumulate(max_it, max_it + max_values.size(), 0.f,
-                              [](float l, float r) { return l > r ? l : r; });
+    max_cat = *std::max_element(max_it, max_it + max_values.size());
     if (std::isinf(max_cat)) {
       InvalidCategory();
     }
