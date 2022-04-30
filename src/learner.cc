@@ -412,22 +412,24 @@ class LearnerConfiguration : public Learner {
     CHECK(IsA<Object>(in));
     auto origin_version = Version::Load(in);
 
+    if (!Version::Same(origin_version)) {
 #if XGBOOST_STRICT_R_MODE
-    LOG(FATAL) << "You are using XGBoost " << Version::String(Version::Self())
-               << " and attempting to load model from XGBoost "
-               << Version::String(origin_version) << " via readRDS()."
-               << "It is not possible to load an old model from RDS; please use "
-               << "xgb.save() and xgb.load() for long-term archival of models. "
-               << "For more information, visit "
-               << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
-#else  // XGBOOST_STRICT_R_MODE
-    LOG(WARNING) << "You are using XGBoost " << Version::String(Version::Self())
+      LOG(FATAL) << "You are using XGBoost " << Version::String(Version::Self())
                  << " and attempting to load model from XGBoost "
-                 << Version::String(origin_version) << " via pickle.load() or a similar "
-                 << "mechanism. For long-term archival of models, use the save_model() method. "
+                 << Version::String(origin_version) << " via readRDS()."
+                 << "It is not possible to load an old model from RDS; please use "
+                 << "xgb.save() and xgb.load() for long-term archival of models. "
                  << "For more information, visit "
                  << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
+#else  // XGBOOST_STRICT_R_MODE
+      LOG(WARNING) << "You are using XGBoost " << Version::String(Version::Self())
+                   << " and attempting to load model from XGBoost "
+                   << Version::String(origin_version) << " via pickle.load() or a similar "
+                   << "mechanism. For long-term archival of models, use the save_model() method. "
+                   << "For more information, visit "
+                   << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
 #endif  // XGBOOST_STRICT_R_MODE
+    }
 
     auto const& learner_parameters = get<Object>(in["learner"]);
     FromJson(learner_parameters.at("learner_train_param"), &tparam_);
