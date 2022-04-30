@@ -188,6 +188,11 @@ class IndexTransformIter {
    */
   explicit IndexTransformIter(Fn &&op) : fn_{op} {}
   IndexTransformIter(IndexTransformIter const &) = default;
+  IndexTransformIter& operator=(IndexTransformIter&&) = default;
+  IndexTransformIter& operator=(IndexTransformIter const& that) {
+    iter_ = that.iter_;
+    return *this;
+  }
 
   value_type operator*() const { return fn_(iter_); }
 
