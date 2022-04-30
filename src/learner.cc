@@ -19,7 +19,6 @@
 #include <stack>
 #include <utility>
 #include <vector>
-#include <tuple>
 
 #include "dmlc/any.h"
 #include "xgboost/base.h"
