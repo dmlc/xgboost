@@ -422,12 +422,12 @@ class LearnerConfiguration : public Learner {
                  << "For more information, visit "
                  << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
 #else  // XGBOOST_STRICT_R_MODE
-      LOG(WARNING) << "You are using XGBoost " << Version::String(Version::Self())
-                   << " and attempting to load model from XGBoost "
-                   << Version::String(origin_version) << " via pickle.load() or a similar "
-                   << "mechanism. For long-term archival of models, use the save_model() method. "
-                   << "For more information, visit "
-                   << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
+      LOG(FATAL) << "You are using XGBoost " << Version::String(Version::Self())
+                 << " and attempting to load model from XGBoost "
+                 << Version::String(origin_version) << " via pickle.load() or a similar "
+                 << "mechanism. For long-term archival of models, use the save_model() method. "
+                 << "For more information, visit "
+                 << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
 #endif  // XGBOOST_STRICT_R_MODE
     }
 
