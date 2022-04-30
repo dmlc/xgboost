@@ -408,7 +408,6 @@ class LearnerConfiguration : public Learner {
 
   void LoadConfig(Json const& in) override {
     // If configuration is loaded, ensure that the model came from the same version
-    // For now, enforce this requirement for R only; throw warning for Python users
     CHECK(IsA<Object>(in));
     auto origin_version = Version::Load(in);
 
