@@ -359,6 +359,7 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
                  HistogramCuts *cuts) {
   size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
   auto &cut_values = cuts->cut_values_.HostVector();
+  // we use the min_value as the first (0th) element, hence starting from 1.
   for (size_t i = 1; i < required_cuts; ++i) {
     bst_float cpt = summary.data[i].value;
     if (i == 1 || cpt > cut_values.back()) {
@@ -419,8 +420,8 @@ void SketchContainerImpl<WQSketch>::MakeCuts(HistogramCuts* cuts) {
     } else {
       AddCutPoint<WQSketch>(a, max_num_bins, cuts);
       // push a value that is greater than anything
-      const bst_float cpt = (a.size > 0) ? a.data[a.size - 1].value
-                                         : cuts->min_vals_.HostVector()[fid];
+      const bst_float cpt =
+          (a.size > 0) ? a.data[a.size - 1].value : cuts->min_vals_.HostVector()[fid];
       // this must be bigger than last value in a scale
       const bst_float last = cpt + (fabs(cpt) + 1e-5f);
       cuts->cut_values_.HostVector().push_back(last);

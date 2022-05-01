@@ -530,17 +530,17 @@ class TensorView {
   /**
    * \brief Number of items in the tensor.
    */
-  LINALG_HD [[nodiscard]] std::size_t Size() const { return size_; }
+  [[nodiscard]] LINALG_HD std::size_t Size() const { return size_; }
   /**
    * \brief Whether this is a contiguous array, both C and F contiguous returns true.
    */
-  LINALG_HD [[nodiscard]] bool Contiguous() const {
+  [[nodiscard]] LINALG_HD bool Contiguous() const {
     return data_.size() == this->Size() || this->CContiguous() || this->FContiguous();
   }
   /**
    * \brief Whether it's a c-contiguous array.
    */
-  LINALG_HD [[nodiscard]] bool CContiguous() const {
+  [[nodiscard]] LINALG_HD bool CContiguous() const {
     StrideT stride;
     static_assert(std::is_same<decltype(stride), decltype(stride_)>::value);
     // It's contiguous if the stride can be calculated from shape.
@@ -550,7 +550,7 @@ class TensorView {
   /**
    * \brief Whether it's a f-contiguous array.
    */
-  LINALG_HD [[nodiscard]] bool FContiguous() const {
+  [[nodiscard]] LINALG_HD bool FContiguous() const {
     StrideT stride;
     static_assert(std::is_same<decltype(stride), decltype(stride_)>::value);
     // It's contiguous if the stride can be calculated from shape.

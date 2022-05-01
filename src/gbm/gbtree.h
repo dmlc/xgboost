@@ -146,14 +146,22 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 
 namespace detail {
 // From here on, layer becomes concrete trees.
-inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const &model,
-                                                 size_t layer_begin,
-                                                 size_t layer_end) {
-  bst_group_t groups = model.learner_model_param->num_output_group;
-  uint32_t tree_begin = layer_begin * groups * model.param.num_parallel_tree;
-  uint32_t tree_end = layer_end * groups * model.param.num_parallel_tree;
+inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const& model,
+                                                 std::uint32_t layer_begin,
+                                                 std::uint32_t layer_end) {
+  std::uint32_t tree_begin;
+  std::uint32_t tree_end;
+  if (model.learner_model_param->IsVectorLeaf()) {
+    tree_begin = layer_begin * model.param.num_parallel_tree;
+    tree_end = layer_end * model.param.num_parallel_tree;
+  } else {
+    bst_group_t groups = model.learner_model_param->OutputLength();
+    tree_begin = layer_begin * groups * model.param.num_parallel_tree;
+    tree_end = layer_end * groups * model.param.num_parallel_tree;
+  }
+
   if (tree_end == 0) {
-    tree_end = static_cast<uint32_t>(model.trees.size());
+    tree_end = model.trees.size();
   }
   if (model.trees.size() != 0) {
     CHECK_LE(tree_begin, tree_end);
@@ -241,22 +249,25 @@ class GBTree : public GradientBooster {
   void LoadModel(Json const& in) override;
 
   // Number of trees per layer.
-  auto LayerTrees() const {
-    auto n_trees = model_.learner_model_param->num_output_group * model_.param.num_parallel_tree;
-    return n_trees;
+  [[nodiscard]] std::uint32_t LayerTrees() const {
+    if (model_.learner_model_param->IsVectorLeaf()) {
+      return model_.param.num_parallel_tree;
+    }
+    return model_.param.num_parallel_tree * model_.learner_model_param->OutputLength();
   }
 
   // slice the trees, out must be already allocated
   void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
              GradientBooster *out, bool* out_of_bound) const override;
 
-  int32_t BoostedRounds() const override {
+  [[nodiscard]] std::int32_t BoostedRounds() const override {
     CHECK_NE(model_.param.num_parallel_tree, 0);
     CHECK_NE(model_.learner_model_param->num_output_group, 0);
+
     return model_.trees.size() / this->LayerTrees();
   }
 
-  bool ModelFitted() const override {
+  [[nodiscard]] bool ModelFitted() const override {
     return !model_.trees.empty() || !model_.trees_to_update.empty();
   }
 

@@ -411,7 +411,7 @@ class DeviceModel {
 
     this->tree_beg_ = tree_begin;
     this->tree_end_ = tree_end;
-    this->num_group = model.learner_model_param->num_output_group;
+    this->num_group = model.learner_model_param->OutputLength();
   }
 };
 

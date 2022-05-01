@@ -32,6 +32,19 @@ def train_result(param, dmat: xgb.DMatrix, num_rounds: int) -> dict:
     return result
 
 
+class TestGPUUpdatersMulti:
+    @given(
+        hist_parameter_strategy, strategies.integers(1, 20), tm.multi_dataset_strategy
+    )
+    @settings(deadline=None, max_examples=50, print_blob=True)
+    def test_hist(self, param, num_rounds, dataset):
+        param["tree_method"] = "gpu_hist"
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        note(result)
+        assert tm.non_increasing(result["train"][dataset.metric])
+
+
 class TestGPUUpdaters:
     cputest = test_up.TestTreeMethod()
 
@@ -101,7 +114,7 @@ class TestGPUUpdaters:
     ) -> None:
         cat_parameters.update(hist_parameters)
         dataset = tm.TestDataset(
-            "ames_housing", tm.get_ames_housing, "reg:squarederror", "rmse"
+            "ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse"
         )
         cat_parameters["tree_method"] = "gpu_hist"
         results = train_result(cat_parameters, dataset.get_dmat(), 16)

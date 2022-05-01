@@ -889,6 +889,8 @@ void RegTree::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.size()));
   CHECK_EQ(param_.deprecated_num_roots, 1);
   CHECK_NE(param_.num_nodes, 0);
+  CHECK(!IsMultiTarget())
+      << "Please use JSON/UBJSON for saving models with multi-target trees.";
   CHECK(!HasCategoricalSplit())
       << "Please use JSON/UBJSON for saving models with categorical splits.";
 

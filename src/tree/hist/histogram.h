@@ -306,9 +306,9 @@ class HistogramBuilder {
 
 // Construct a work space for building histogram.  Eventually we should move this
 // function into histogram builder once hist tree method supports external memory.
-template <typename Partitioner>
+template <typename Partitioner, typename ExpandEntry = CPUExpandEntry>
 common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
-                                          std::vector<CPUExpandEntry> const &nodes_to_build) {
+                                          std::vector<ExpandEntry> const &nodes_to_build) {
   std::vector<size_t> partition_size(nodes_to_build.size(), 0);
   for (auto const &partition : partitioners) {
     size_t k = 0;

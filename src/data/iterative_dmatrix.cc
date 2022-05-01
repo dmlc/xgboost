@@ -257,6 +257,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
   }
   iter.Reset();
   CHECK_EQ(rbegin, Info().num_row_);
+  CHECK_EQ(this->ghist_->Features(), Info().num_col_);
 
   /**
    * Generate column matrix

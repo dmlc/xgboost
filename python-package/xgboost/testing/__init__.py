@@ -10,7 +10,6 @@ import os
 import platform
 import socket
 import sys
-import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import StringIO
@@ -29,7 +28,6 @@ from typing import (
     TypedDict,
     Union,
 )
-from urllib import request
 
 import numpy as np
 import pytest
@@ -38,6 +36,13 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost.core import ArrayLike
 from xgboost.sklearn import SklObjective
+from xgboost.testing.data import (
+    get_california_housing,
+    get_cancer,
+    get_digits,
+    get_sparse,
+    memory,
+)
 
 hypothesis = pytest.importorskip("hypothesis")
 
@@ -45,12 +50,7 @@ hypothesis = pytest.importorskip("hypothesis")
 from hypothesis import strategies
 from hypothesis.extra.numpy import arrays
 
-joblib = pytest.importorskip("joblib")
 datasets = pytest.importorskip("sklearn.datasets")
-
-Memory = joblib.Memory
-
-memory = Memory("./cachedir", verbose=0)
 
 PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
@@ -353,137 +353,6 @@ class TestDataset:
         return self.name
 
 
-@memory.cache
-def get_california_housing() -> Tuple[np.ndarray, np.ndarray]:
-    data = datasets.fetch_california_housing()
-    return data.data, data.target
-
-
-@memory.cache
-def get_digits() -> Tuple[np.ndarray, np.ndarray]:
-    data = datasets.load_digits()
-    return data.data, data.target
-
-
-@memory.cache
-def get_cancer() -> Tuple[np.ndarray, np.ndarray]:
-    return datasets.load_breast_cancer(return_X_y=True)
-
-
-@memory.cache
-def get_sparse() -> Tuple[np.ndarray, np.ndarray]:
-    rng = np.random.RandomState(199)
-    n = 2000
-    sparsity = 0.75
-    X, y = datasets.make_regression(n, random_state=rng)
-    flag = rng.binomial(1, sparsity, X.shape)
-    for i in range(X.shape[0]):
-        for j in range(X.shape[1]):
-            if flag[i, j]:
-                X[i, j] = np.nan
-    return X, y
-
-
-@memory.cache
-def get_ames_housing() -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Number of samples: 1460
-    Number of features: 20
-    Number of categorical features: 10
-    Number of numerical features: 10
-    """
-    from sklearn.datasets import fetch_openml
-
-    X, y = fetch_openml(data_id=42165, as_frame=True, return_X_y=True)
-
-    categorical_columns_subset: List[str] = [
-        "BldgType",  # 5 cats, no nan
-        "GarageFinish",  # 3 cats, nan
-        "LotConfig",  # 5 cats, no nan
-        "Functional",  # 7 cats, no nan
-        "MasVnrType",  # 4 cats, nan
-        "HouseStyle",  # 8 cats, no nan
-        "FireplaceQu",  # 5 cats, nan
-        "ExterCond",  # 5 cats, no nan
-        "ExterQual",  # 4 cats, no nan
-        "PoolQC",  # 3 cats, nan
-    ]
-
-    numerical_columns_subset: List[str] = [
-        "3SsnPorch",
-        "Fireplaces",
-        "BsmtHalfBath",
-        "HalfBath",
-        "GarageCars",
-        "TotRmsAbvGrd",
-        "BsmtFinSF1",
-        "BsmtFinSF2",
-        "GrLivArea",
-        "ScreenPorch",
-    ]
-
-    X = X[categorical_columns_subset + numerical_columns_subset]
-    X[categorical_columns_subset] = X[categorical_columns_subset].astype("category")
-    return X, y
-
-
-@memory.cache
-def get_mq2008(
-    dpath: str,
-) -> Tuple[
-    sparse.csr_matrix,
-    np.ndarray,
-    np.ndarray,
-    sparse.csr_matrix,
-    np.ndarray,
-    np.ndarray,
-    sparse.csr_matrix,
-    np.ndarray,
-    np.ndarray,
-]:
-    from sklearn.datasets import load_svmlight_files
-
-    src = "https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip"
-    target = os.path.join(os.path.expanduser(dpath), "MQ2008.zip")
-    if not os.path.exists(target):
-        request.urlretrieve(url=src, filename=target)
-
-    with zipfile.ZipFile(target, "r") as f:
-        f.extractall(path=dpath)
-
-    (
-        x_train,
-        y_train,
-        qid_train,
-        x_test,
-        y_test,
-        qid_test,
-        x_valid,
-        y_valid,
-        qid_valid,
-    ) = load_svmlight_files(
-        (
-            Path(dpath) / "MQ2008" / "Fold1" / "train.txt",
-            Path(dpath) / "MQ2008" / "Fold1" / "test.txt",
-            Path(dpath) / "MQ2008" / "Fold1" / "vali.txt",
-        ),
-        query_id=True,
-        zero_based=False,
-    )
-
-    return (
-        x_train,
-        y_train,
-        qid_train,
-        x_test,
-        y_test,
-        qid_test,
-        x_valid,
-        y_valid,
-        qid_valid,
-    )
-
-
 # pylint: disable=too-many-arguments,too-many-locals
 @memory.cache
 def make_categorical(
@@ -738,20 +607,7 @@ _unweighted_datasets_strategy = strategies.sampled_from(
         TestDataset(
             "calif_housing-l1", get_california_housing, "reg:absoluteerror", "mae"
         ),
-        TestDataset("digits", get_digits, "multi:softmax", "mlogloss"),
         TestDataset("cancer", get_cancer, "binary:logistic", "logloss"),
-        TestDataset(
-            "mtreg",
-            lambda: datasets.make_regression(n_samples=128, n_features=2, n_targets=3),
-            "reg:squarederror",
-            "rmse",
-        ),
-        TestDataset(
-            "mtreg-l1",
-            lambda: datasets.make_regression(n_samples=128, n_features=2, n_targets=3),
-            "reg:absoluteerror",
-            "mae",
-        ),
         TestDataset("sparse", get_sparse, "reg:squarederror", "rmse"),
         TestDataset("sparse-l1", get_sparse, "reg:absoluteerror", "mae"),
         TestDataset(
@@ -764,37 +620,71 @@ _unweighted_datasets_strategy = strategies.sampled_from(
 )
 
 
-@strategies.composite
-def _dataset_weight_margin(draw: Callable) -> TestDataset:
-    data: TestDataset = draw(_unweighted_datasets_strategy)
-    if draw(strategies.booleans()):
-        data.w = draw(
-            arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0))
-        )
-    if draw(strategies.booleans()):
-        num_class = 1
-        if data.objective == "multi:softmax":
-            num_class = int(np.max(data.y) + 1)
-        elif data.name.startswith("mtreg"):
-            num_class = data.y.shape[1]
+def make_datasets_with_margin(
+    unweighted_strategy: strategies.SearchStrategy,
+) -> Callable:
+    """Factory function for creating strategies that generates datasets with weight and
+    base margin.
 
-        data.margin = draw(
-            arrays(
-                np.float64,
-                (data.y.shape[0] * num_class),
-                elements=strategies.floats(0.5, 1.0),
+    """
+
+    @strategies.composite
+    def weight_margin(draw: Callable) -> TestDataset:
+        data: TestDataset = draw(unweighted_strategy)
+        if draw(strategies.booleans()):
+            data.w = draw(
+                arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0))
             )
-        )
-        assert data.margin is not None
-        if num_class != 1:
-            data.margin = data.margin.reshape(data.y.shape[0], num_class)
+        if draw(strategies.booleans()):
+            num_class = 1
+            if data.objective == "multi:softmax":
+                num_class = int(np.max(data.y) + 1)
+            elif data.name.startswith("mtreg"):
+                num_class = data.y.shape[1]
 
-    return data
+            data.margin = draw(
+                arrays(
+                    np.float64,
+                    (data.y.shape[0] * num_class),
+                    elements=strategies.floats(0.5, 1.0),
+                )
+            )
+            assert data.margin is not None
+            if num_class != 1:
+                data.margin = data.margin.reshape(data.y.shape[0], num_class)
+
+        return data
+
+    return weight_margin
 
 
-# A strategy for drawing from a set of example datasets
-# May add random weights to the dataset
-dataset_strategy = _dataset_weight_margin()
+# A strategy for drawing from a set of example datasets. May add random weights to the
+# dataset
+dataset_strategy = make_datasets_with_margin(_unweighted_datasets_strategy)()
+
+
+_unweighted_multi_datasets_strategy = strategies.sampled_from(
+    [
+        TestDataset("digits", get_digits, "multi:softmax", "mlogloss"),
+        TestDataset(
+            "mtreg",
+            lambda: datasets.make_regression(n_samples=128, n_features=2, n_targets=3),
+            "reg:squarederror",
+            "rmse",
+        ),
+        TestDataset(
+            "mtreg-l1",
+            lambda: datasets.make_regression(n_samples=128, n_features=2, n_targets=3),
+            "reg:absoluteerror",
+            "mae",
+        ),
+    ]
+)
+
+# A strategy for drawing from a set of multi-target/multi-class datasets.
+multi_dataset_strategy = make_datasets_with_margin(
+    _unweighted_multi_datasets_strategy
+)()
 
 
 def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
