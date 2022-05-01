@@ -20,7 +20,7 @@ from ._typing import (
     FeatureNames,
     NumpyDType,
     CupyT,
-    FloatCompatible
+    FloatCompatible, PandasDType
 )
 
 DispatchedDataBackendReturnType = Tuple[
@@ -294,7 +294,7 @@ def _pandas_feature_info(
     return feature_names, feature_types
 
 
-def is_nullable_dtype(dtype: NumpyDType) -> bool:
+def is_nullable_dtype(dtype: PandasDType) -> bool:
     """Wether dtype is a pandas nullable type."""
     from pandas.api.types import is_integer_dtype, is_bool_dtype
     # dtype: pd.core.arrays.numeric.NumericDtype
@@ -340,11 +340,11 @@ def _pandas_cat_null(data: DataFrame) -> DataFrame:
 def _transform_pandas_df(
     data: DataFrame,
     enable_categorical: bool,
-    feature_names: FeatureNames = None,
-    feature_types: FeatureTypes = None,
+    feature_names: Optional[FeatureNames] = None,
+    feature_types: Optional[FeatureTypes] = None,
     meta: Optional[str] = None,
-    meta_type: Optional[str] = None,
-) -> Tuple[np.ndarray, FeatureNames, FeatureTypes]:
+    meta_type: Optional[NumpyDType] = None,
+) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
     from pandas.api.types import (
         is_sparse,
         is_categorical_dtype,
@@ -1090,8 +1090,7 @@ def dispatch_meta_backend(
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_df(data):
-        data, _, _ = _transform_pandas_df(data, False, meta=name,
-                                          meta_type=dtype)
+        data, _, _ = _transform_pandas_df(data, False, meta=name, meta_type=dtype)
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_series(data):

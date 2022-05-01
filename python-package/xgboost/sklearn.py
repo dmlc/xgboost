@@ -401,7 +401,7 @@ def _wrap_evaluation_matrices(
     eval_qid: Optional[Sequence[Any]],
     create_dmatrix: Callable,
     enable_categorical: bool,
-    feature_types: FeatureTypes,
+    feature_types: Optional[FeatureTypes],
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
 

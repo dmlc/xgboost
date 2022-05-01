@@ -1592,7 +1592,7 @@ class Booster:
         """
         return self.__copy__()
 
-    def attr(self, key: str) -> str:
+    def attr(self, key: str) -> Optional[str]:
         """Get attribute string from the Booster.
 
         Parameters
