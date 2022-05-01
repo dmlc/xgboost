@@ -58,9 +58,9 @@ class GPUHistEvaluator {
   dh::device_vector<bst_feature_t> feature_idx_;
   // Training param used for evaluation
   TrainParam param_;
-  // whether the input data requires sort based split, which is more complicated so we try
-  // to avoid it if possible.
-  bool has_sort_{false};
+  // Do we have any categorical features that require sorting histograms?
+  // use this to skip the expensive sort step
+  bool need_sort_histogram_ = false;
 
   // Copy the categories from device to host asynchronously.
   void CopyToHost(EvaluateSplitInputs<GradientSumT> const &input, common::Span<CatST> cats_out);

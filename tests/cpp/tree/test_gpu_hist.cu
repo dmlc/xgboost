@@ -174,8 +174,6 @@ TEST(GpuHist, ApplySplit) {
     ASSERT_EQ(tree.GetSplitCategories().size(), 1);
     uint32_t bits = 1u << 30;  // bits: 0, 1, 0, 0, 0, ..., 0
     ASSERT_EQ(tree.GetSplitCategories().back(), bits);
-
-    ASSERT_EQ(updater.node_categories.size(), 1);
   }
 }
 
