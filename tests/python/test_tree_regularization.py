@@ -72,6 +72,6 @@ class TestTreeRegularization:
             grow_policy="lossguide",
             reg_lambda=0,
             max_leaves=128,
-            max_depth=0,
+            max_depth=0
         ).fit(x, y)
         assert np.array_equal(model.predict(x), y)

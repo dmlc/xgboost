@@ -22,7 +22,7 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *x, int32_t max_bin, double sparse_th
   this->Init(x, max_bin, sparse_thresh, sorted_sketch, n_threads, hess);
 }
 
-GHistIndexMatrix::~GHistIndexMatrix() = default;
+GHistIndexMatrix::~GHistIndexMatrix() {}
 
 void GHistIndexMatrix::PushBatch(SparsePage const &batch,
                                  common::Span<FeatureType const> ft,
@@ -166,13 +166,13 @@ void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, double sparse_thresh,
   this->columns_ = std::make_unique<common::ColumnMatrix>();
 
   // hessian is empty when hist tree method is used or when dataset is empty
-  if (hess.empty() && !std::isnan(sparse_thresh)) {
+  // if (hess.empty() && !std::isnan(sparse_thresh)) {
     // hist
-    CHECK(!sorted_sketch);
+    // CHECK(!sorted_sketch);
     for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
       this->columns_->Init(page, *this, sparse_thresh, n_threads);
     }
-  }
+  // }
 }
 
 void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType const> ft,
@@ -194,11 +194,12 @@ void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType co
 
   size_t rbegin = 0;
   size_t prev_sum = 0;
-
   this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
     this->columns_->Init(batch, *this, sparse_thresh, n_threads);
+  } else {
+    this->columns_->Init(batch, *this, 1, n_threads);
   }
 }
 

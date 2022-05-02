@@ -11,6 +11,7 @@
 #include <xgboost/tree_updater.h>
 
 #include <algorithm>
+#include <unordered_map>
 #include <limits>
 #include <memory>
 #include <string>
@@ -33,8 +34,10 @@
 #include "../common/timer.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
+#include "../common/opt_partition_builder.h"
 #include "../common/partition_builder.h"
 #include "../common/column_matrix.h"
+#include "./updater_approx.h"
 
 namespace xgboost {
 struct RandomReplace {
@@ -79,154 +82,148 @@ struct RandomReplace {
 };
 
 namespace tree {
-class HistRowPartitioner {
-  // heuristically chosen block size of parallel partitioning
-  static constexpr size_t kPartitionBlockSize = 2048;
-  // worker class that partition a block of rows
-  common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
-  // storage for row index
-  common::RowSetCollection row_set_collection_;
+// <<<<<<< HEAD
+// class HistRowPartitioner {
+//   // heuristically chosen block size of parallel partitioning
+//   static constexpr size_t kPartitionBlockSize = 2048;
+//   // worker class that partition a block of rows
+//   common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
+//   // storage for row index
+//   common::RowSetCollection row_set_collection_;
 
-  /**
-   * \brief Turn split values into discrete bin indices.
-   */
-  static void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
-                                  const GHistIndexMatrix& gmat,
-                                  std::vector<int32_t>* split_conditions);
-  /**
-   * \brief Update the row set for new splits specifed by nodes.
-   */
-  void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree const* p_tree);
+//   /**
+//    * \brief Turn split values into discrete bin indices.
+//    */
+//   static void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
+//                                   const GHistIndexMatrix& gmat,
+//                                   std::vector<int32_t>* split_conditions);
+//   /**
+//    * \brief Update the row set for new splits specifed by nodes.
+//    */
+//   void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree const* p_tree);
 
- public:
-  bst_row_t base_rowid = 0;
+//  public:
+//   bst_row_t base_rowid = 0;
 
- public:
-  HistRowPartitioner(size_t n_samples, size_t base_rowid, int32_t n_threads) {
-    row_set_collection_.Clear();
-    const size_t block_size = n_samples / n_threads + !!(n_samples % n_threads);
-    dmlc::OMPException exc;
-    std::vector<size_t>& row_indices = *row_set_collection_.Data();
-    row_indices.resize(n_samples);
-    size_t* p_row_indices = row_indices.data();
-    // parallel initialization o f row indices. (std::iota)
-#pragma omp parallel num_threads(n_threads)
-    {
-      exc.Run([&]() {
-        const size_t tid = omp_get_thread_num();
-        const size_t ibegin = tid * block_size;
-        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size), n_samples);
-        for (size_t i = ibegin; i < iend; ++i) {
-          p_row_indices[i] = i + base_rowid;
-        }
-      });
-    }
-    row_set_collection_.Init();
-    this->base_rowid = base_rowid;
-  }
+//  public:
+//   HistRowPartitioner(size_t n_samples, size_t base_rowid, int32_t n_threads) {
+//     row_set_collection_.Clear();
+//     const size_t block_size = n_samples / n_threads + !!(n_samples % n_threads);
+//     dmlc::OMPException exc;
+//     std::vector<size_t>& row_indices = *row_set_collection_.Data();
+//     row_indices.resize(n_samples);
+//     size_t* p_row_indices = row_indices.data();
+//     // parallel initialization o f row indices. (std::iota)
+// #pragma omp parallel num_threads(n_threads)
+//     {
+//       exc.Run([&]() {
+//         const size_t tid = omp_get_thread_num();
+//         const size_t ibegin = tid * block_size;
+//         const size_t iend = std::min(static_cast<size_t>(ibegin + block_size), n_samples);
+//         for (size_t i = ibegin; i < iend; ++i) {
+//           p_row_indices[i] = i + base_rowid;
+//         }
+//       });
+//     }
+//     row_set_collection_.Init();
+//     this->base_rowid = base_rowid;
+//   }
 
-  template <bool any_missing, bool any_cat>
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
-                      common::ColumnMatrix const& column_matrix,
-                      std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
-    // 1. Find split condition for each split
-    const size_t n_nodes = nodes.size();
-    std::vector<int32_t> split_conditions;
-    FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
-    // 2.1 Create a blocked space of size SUM(samples in each node)
-    common::BlockedSpace2d space(
-        n_nodes,
-        [&](size_t node_in_set) {
-          int32_t nid = nodes[node_in_set].nid;
-          return row_set_collection_[nid].Size();
-        },
-        kPartitionBlockSize);
-    // 2.2 Initialize the partition builder
-    // allocate buffers for storage intermediate results by each thread
-    partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
-      const int32_t nid = nodes[node_in_set].nid;
-      const size_t size = row_set_collection_[nid].Size();
-      const size_t n_tasks = size / kPartitionBlockSize + !!(size % kPartitionBlockSize);
-      return n_tasks;
-    });
-    CHECK_EQ(base_rowid, gmat.base_rowid);
-    // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
-    // Store results in intermediate buffers from partition_builder_
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-      size_t begin = r.begin();
-      const int32_t nid = nodes[node_in_set].nid;
-      const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
-      partition_builder_.AllocateForTask(task_id);
-      switch (column_matrix.GetTypeSize()) {
-        case common::kUint8BinsTypeSize:
-          partition_builder_.template Partition<uint8_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        case common::kUint16BinsTypeSize:
-          partition_builder_.template Partition<uint16_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        case common::kUint32BinsTypeSize:
-          partition_builder_.template Partition<uint32_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        default:
-          // no default behavior
-          CHECK(false) << column_matrix.GetTypeSize();
-      }
-    });
-    // 3. Compute offsets to copy blocks of row-indexes
-    // from partition_builder_ to row_set_collection_
-    partition_builder_.CalculateRowOffsets();
+//   template <bool any_missing, bool any_cat>
+//   void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
+//                       common::ColumnMatrix const& column_matrix,
+//                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
+//     // 1. Find split condition for each split
+//     const size_t n_nodes = nodes.size();
+//     std::vector<int32_t> split_conditions;
+//     FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+//     // 2.1 Create a blocked space of size SUM(samples in each node)
+//     common::BlockedSpace2d space(
+//         n_nodes,
+//         [&](size_t node_in_set) {
+//           int32_t nid = nodes[node_in_set].nid;
+//           return row_set_collection_[nid].Size();
+//         },
+//         kPartitionBlockSize);
+//     // 2.2 Initialize the partition builder
+//     // allocate buffers for storage intermediate results by each thread
+//     partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
+//       const int32_t nid = nodes[node_in_set].nid;
+//       const size_t size = row_set_collection_[nid].Size();
+//       const size_t n_tasks = size / kPartitionBlockSize + !!(size % kPartitionBlockSize);
+//       return n_tasks;
+//     });
+//     CHECK_EQ(base_rowid, gmat.base_rowid);
+//     // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
+//     // Store results in intermediate buffers from partition_builder_
+//     common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
+//       size_t begin = r.begin();
+//       const int32_t nid = nodes[node_in_set].nid;
+//       const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
+//       partition_builder_.AllocateForTask(task_id);
+//       switch (column_matrix.GetTypeSize()) {
+//         case common::kUint8BinsTypeSize:
+//           partition_builder_.template Partition<uint8_t, any_missing, any_cat>(
+//               node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
+//               row_set_collection_[nid].begin);
+//           break;
+//         case common::kUint16BinsTypeSize:
+//           partition_builder_.template Partition<uint16_t, any_missing, any_cat>(
+//               node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
+//               row_set_collection_[nid].begin);
+//           break;
+//         case common::kUint32BinsTypeSize:
+//           partition_builder_.template Partition<uint32_t, any_missing, any_cat>(
+//               node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
+//               row_set_collection_[nid].begin);
+//           break;
+//         default:
+//           // no default behavior
+//           CHECK(false) << column_matrix.GetTypeSize();
+//       }
+//     });
+//     // 3. Compute offsets to copy blocks of row-indexes
+//     // from partition_builder_ to row_set_collection_
+//     partition_builder_.CalculateRowOffsets();
 
-    // 4. Copy elements from partition_builder_ to row_set_collection_ back
-    // with updated row-indexes for each tree-node
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
-      const int32_t nid = nodes[node_in_set].nid;
-      partition_builder_.MergeToArray(node_in_set, r.begin(),
-                                      const_cast<size_t*>(row_set_collection_[nid].begin));
-    });
-    // 5. Add info about splits into row_set_collection_
-    AddSplitsToRowSet(nodes, p_tree);
-  }
+//     // 4. Copy elements from partition_builder_ to row_set_collection_ back
+//     // with updated row-indexes for each tree-node
+//     common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
+//       const int32_t nid = nodes[node_in_set].nid;
+//       partition_builder_.MergeToArray(node_in_set, r.begin(),
+//                                       const_cast<size_t*>(row_set_collection_[nid].begin));
+//     });
+//     // 5. Add info about splits into row_set_collection_
+//     AddSplitsToRowSet(nodes, p_tree);
+//   }
 
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& page,
-                      std::vector<CPUExpandEntry> const& applied, RegTree const* p_tree) {
-    auto const& column_matrix = page.Transpose();
-    if (page.cut.HasCategorical()) {
-      if (column_matrix.AnyMissing()) {
-        this->template UpdatePosition<true, true>(ctx, page, column_matrix, applied, p_tree);
-      } else {
-        this->template UpdatePosition<false, true>(ctx, page, column_matrix, applied, p_tree);
-      }
-    } else {
-      if (column_matrix.AnyMissing()) {
-        this->template UpdatePosition<true, false>(ctx, page, column_matrix, applied, p_tree);
-      } else {
-        this->template UpdatePosition<false, false>(ctx, page, column_matrix, applied, p_tree);
-      }
-    }
-  }
+//   void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& page,
+//                       std::vector<CPUExpandEntry> const& applied, RegTree const* p_tree) {
+//     auto const& column_matrix = page.Transpose();
+//     if (page.cut.HasCategorical()) {
+//       if (column_matrix.AnyMissing()) {
+//         this->template UpdatePosition<true, true>(ctx, page, column_matrix, applied, p_tree);
+//       } else {
+//         this->template UpdatePosition<false, true>(ctx, page, column_matrix, applied, p_tree);
+//       }
+//     } else {
+//       if (column_matrix.AnyMissing()) {
+//         this->template UpdatePosition<true, false>(ctx, page, column_matrix, applied, p_tree);
+//       } else {
+//         this->template UpdatePosition<false, false>(ctx, page, column_matrix, applied, p_tree);
+//       }
+//     }
+//   }
 
-  auto const& Partitions() const { return row_set_collection_; }
-  size_t Size() const {
-    return std::distance(row_set_collection_.begin(), row_set_collection_.end());
-  }
-
-  void LeafPartition(Context const* ctx, RegTree const& tree,
-                     common::Span<GradientPair const> gpair,
-                     std::vector<bst_node_t>* p_out_position) const {
-    partition_builder_.LeafPartition(
-        ctx, tree, this->Partitions(), p_out_position,
-        [&](size_t idx) -> bool { return gpair[idx].GetHess() - .0f == .0f; });
-  }
-
-  auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
-  auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
-};
+//   auto const& Partitions() const { return row_set_collection_; }
+//   size_t Size() const {
+//     return std::distance(row_set_collection_.begin(), row_set_collection_.end());
+//   }
+//   auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
+//   auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
+// };
+// =======
+// >>>>>>> fb16e1ca... partition optimizations
 
 inline BatchParam HistBatch(TrainParam const& param) {
   return {param.max_bin, param.sparse_threshold};
@@ -291,41 +288,97 @@ class QuantileHistMaker: public TreeUpdater {
 
     bool UpdatePredictionCache(DMatrix const* data, linalg::VectorView<float> out_preds) const;
 
-   private:
     // initialize temp data structure
-    void InitData(DMatrix* fmat, const RegTree& tree, std::vector<GradientPair>* gpair);
+    template <typename BinIdxType>
+    void InitData(const GHistIndexMatrix& gmat,
+                  const common::ColumnMatrix& column_matrix,
+                  const DMatrix& fmat,
+                  const RegTree& tree,
+                  std::vector<GradientPair>* gpair);
 
+   private:
     size_t GetNumberOfTrees();
 
     void InitSampling(const DMatrix& fmat, std::vector<GradientPair>* gpair);
+// <<<<<<< HEAD
 
-    CPUExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree,
-                            const std::vector<GradientPair>& gpair_h);
+//     CPUExpandEntry InitRoot(DMatrix* p_fmat, RegTree* p_tree,
+//                             const std::vector<GradientPair>& gpair_h);
 
-    void BuildHistogram(DMatrix* p_fmat, RegTree* p_tree,
-                        std::vector<CPUExpandEntry> const& valid_candidates,
-                        std::vector<GradientPair> const& gpair);
+//     void BuildHistogram(DMatrix* p_fmat, RegTree* p_tree,
+//                         std::vector<CPUExpandEntry> const& valid_candidates,
+//                         std::vector<GradientPair> const& gpair);
 
-    void LeafPartition(RegTree const& tree, common::Span<GradientPair const> gpair,
+    void LeafPartition(RegTree const& tree,  // common::Span<GradientPair const> gpair,
                        std::vector<bst_node_t>* p_out_position);
 
-    void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h,
+//     void ExpandTree(DMatrix* p_fmat, RegTree* p_tree, const std::vector<GradientPair>& gpair_h,
+//                     HostDeviceVector<bst_node_t>* p_out_position);
+
+//    private:
+// =======
+    void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
+                             const GHistIndexMatrix& gmat,
+                             std::unordered_map<uint32_t, int32_t>* split_conditions);
+
+    template <typename BinIdxType, bool any_missing>
+    void InitRoot(const GHistIndexMatrix &gmat,
+                  DMatrix* p_fmat,
+                  RegTree *p_tree,
+                  const std::vector<GradientPair> &gpair_h,
+                  int *num_leaves, std::vector<CPUExpandEntry> *expand);
+
+    // Split nodes to 2 sets depending on amount of rows in each node
+    // Histograms for small nodes will be built explicitly
+    // Histograms for big nodes will be built by 'Subtraction Trick'
+    void SplitSiblings(const std::vector<CPUExpandEntry>& nodes,
+                       std::vector<CPUExpandEntry>* nodes_to_evaluate,
+                       RegTree *p_tree);
+
+    void AddSplitsToTree(const std::vector<CPUExpandEntry>& expand,
+                         RegTree *p_tree,
+                         int *num_leaves,
+                         std::vector<CPUExpandEntry>* nodes_for_apply_split,
+                         std::unordered_map<uint32_t, bool>* smalest_nodes_mask_ptr, size_t depth
+                         , bool * is_left_small);
+
+    template <typename BinIdxType, bool any_missing>
+    void ExpandTree(const GHistIndexMatrix& gmat,
+                    const common::ColumnMatrix& column_matrix,
+                    DMatrix* p_fmat,
+                    RegTree* p_tree,
+                    const std::vector<GradientPair>& gpair_h,
                     HostDeviceVector<bst_node_t>* p_out_position);
 
-   private:
+    //  --data fields--
+// >>>>>>> 0755d8b2... partition optimizations
     const size_t n_trees_;
     const TrainParam& param_;
     std::shared_ptr<common::ColumnSampler> column_sampler_{
         std::make_shared<common::ColumnSampler>()};
 
+    // the internal row sets
+    common::RowSetCollection row_set_collection_;
+    std::vector<uint16_t> node_ids_;
+    std::unordered_map<uint32_t, int32_t> split_conditions_;
+    std::unordered_map<uint32_t, uint64_t> split_ind_;
+    std::vector<uint16_t> child_node_ids_;
     std::vector<GradientPair> gpair_local_;
+    common::HistogramCuts feature_values_;
 
     std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
-    std::vector<HistRowPartitioner> partitioner_;
+    // Right now there's only 1 partitioner in this vector, when external memory is fully
+    // supported we will have number of partitioners equal to number of pages.
+    std::vector<RowPartitioner> partitioner_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_{nullptr};
     DMatrix const* const p_last_fmat_;
+    // key is the node id which should be calculated by Subtraction Trick, value is the node which
+    // provides the evidence for subtraction
+    std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
+    // list of nodes whose histograms would be built explicitly.
+    std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
 
     std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>> histogram_builder_;
     ObjInfo task_;
@@ -333,6 +386,8 @@ class QuantileHistMaker: public TreeUpdater {
     GenericParameter const* ctx_;
 
     std::unique_ptr<common::Monitor> monitor_;
+    // common::Monitor builder_monitor_;
+    bool partition_is_initiated_{false};
   };
 
  protected:

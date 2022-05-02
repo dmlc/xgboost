@@ -24,6 +24,9 @@ struct CPUExpandEntry {
   }
 
   bool IsValid(const TrainParam& param, int num_leaves) const {
+    // std::cout << "depth:" << depth << " split.loss_chg: " << split.loss_chg << std::endl;
+    // std::cout << " split.left_sum.GetHess(): " << split.left_sum.GetHess()
+    // << "  split.right_sum.GetHess(): " <<  split.right_sum.GetHess() << std::endl;
     if (split.loss_chg <= kRtEps) return false;
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
       return false;

@@ -15,8 +15,10 @@ class DMatrixForTest : public data::SimpleDMatrix {
  public:
   using SimpleDMatrix::SimpleDMatrix;
   BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) override {
+// std::cout << "  GetGradientIndex!!!" << std::endl;
     auto backup = this->gradient_index_;
     auto iter = SimpleDMatrix::GetGradientIndex(param);
+// std::cout << "  backup != this->gradient_index_:" << (bool)(backup != this->gradient_index_) << "\n" << std::endl;
     n_regen_ += (backup != this->gradient_index_);
     return iter;
   }
@@ -66,9 +68,11 @@ class RegenTest : public ::testing::Test {
     learner->SetParam("objective", obj);
     learner->Configure();
 
+// std::cout << " !!!Iter(): " <<  Iter() << std::endl;
     for (auto i = 0; i < Iter(); ++i) {
       learner->UpdateOneIter(i, p_fmat_);
     }
+// std::cout << " ---!!!Iter(): " <<  Iter() << std::endl;
 
     auto for_test = dynamic_cast<DMatrixForTest*>(p_fmat_.get());
     CHECK(for_test);
