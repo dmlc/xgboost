@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include "xgboost/task.h"
 #include "../param.h"
 #include "../constraints.h"
 #include "../split_evaluator.h"
