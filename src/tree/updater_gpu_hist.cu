@@ -741,7 +741,7 @@ class GPUHistMaker : public TreeUpdater {
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
-              const std::vector<RegTree*>& trees) {
+              const std::vector<RegTree*>& trees) override {
     monitor_.Start("Update");
 
     // rescale learning rate according to size of trees
