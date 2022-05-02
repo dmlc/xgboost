@@ -29,10 +29,8 @@ DMLC_REGISTRY_FILE_TAG(updater_approx);
 
 namespace {
 // Return the BatchParam used by DMatrix.
-template <typename GradientSumT>
-auto BatchSpec(TrainParam const &p, common::Span<float> hess,
-               HistEvaluator<GradientSumT, CPUExpandEntry> const &evaluator) {
-  return BatchParam{p.max_bin, hess, !evaluator.Task().const_hess};
+auto BatchSpec(TrainParam const &p, common::Span<float> hess, ObjInfo const task) {
+  return BatchParam{p.max_bin, hess, !task.const_hess};
 }
 
 auto BatchSpec(TrainParam const &p, common::Span<float> hess) {
@@ -47,7 +45,8 @@ class GloablApproxBuilder {
   std::shared_ptr<common::ColumnSampler> col_sampler_;
   HistEvaluator<GradientSumT, CPUExpandEntry> evaluator_;
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram_builder_;
-  GenericParameter const *ctx_;
+  Context const *ctx_;
+  ObjInfo const task_;
 
   std::vector<ApproxRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
@@ -65,8 +64,7 @@ class GloablApproxBuilder {
     int32_t n_total_bins = 0;
     partitioner_.clear();
     // Generating the GHistIndexMatrix is quite slow, is there a way to speed it up?
-    for (auto const &page :
-         p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess, evaluator_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess, task_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
         feature_values_ = page.cut;
@@ -158,7 +156,7 @@ class GloablApproxBuilder {
   void LeafPartition(RegTree const &tree, common::Span<float> hess,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
-    if (!evaluator_.Task().UpdateTreeLeaf()) {
+    if (!task_.UpdateTreeLeaf()) {
       return;
     }
     for (auto const &part : partitioner_) {
@@ -173,8 +171,9 @@ class GloablApproxBuilder {
                                common::Monitor *monitor)
       : param_{std::move(param)},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{param_, info, ctx->Threads(), col_sampler_, task},
+        evaluator_{param_, info, ctx->Threads(), col_sampler_},
         ctx_{ctx},
+        task_{task},
         monitor_{monitor} {}
 
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,

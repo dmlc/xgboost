@@ -16,7 +16,7 @@ namespace xgboost {
 namespace tree {
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
-                                           common::Span<FeatureType const> ft, ObjInfo task,
+                                           common::Span<FeatureType const> ft,
                                            bst_feature_t n_features, TrainParam const &param,
                                            int32_t device) {
   param_ = param;
@@ -34,7 +34,7 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
       auto idx = i - 1;
       if (common::IsCat(ft, idx)) {
         auto n_bins = ptrs[i] - ptrs[idx];
-        bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
+        bool use_sort = !common::UseOneHot(n_bins, to_onehot);
         return use_sort;
       }
       return false;

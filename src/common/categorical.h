@@ -82,7 +82,7 @@ inline void InvalidCategory() {
 /*!
  * \brief Whether should we use onehot encoding for categorical data.
  */
-XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot, ObjInfo task) {
+XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot) {
   bool use_one_hot = n_cats < max_cat_to_onehot;
   return use_one_hot;
 }

@@ -199,13 +199,11 @@ __device__ void EvaluateFeature(
 }
 
 template <int BLOCK_THREADS, typename GradientSumT>
-__global__ void EvaluateSplitsKernel(
-    EvaluateSplitInputs<GradientSumT> left,
-    EvaluateSplitInputs<GradientSumT> right,
-    ObjInfo task,
-    common::Span<bst_feature_t> sorted_idx,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-    common::Span<DeviceSplitCandidate> out_candidates) {
+__global__ void EvaluateSplitsKernel(EvaluateSplitInputs<GradientSumT> left,
+                                     EvaluateSplitInputs<GradientSumT> right,
+                                     common::Span<bst_feature_t> sorted_idx,
+                                     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                                     common::Span<DeviceSplitCandidate> out_candidates) {
   // KeyValuePair here used as threadIdx.x -> gain_value
   using ArgMaxT = cub::KeyValuePair<int, float>;
   using BlockScanT =
@@ -241,7 +239,7 @@ __global__ void EvaluateSplitsKernel(
 
   if (common::IsCat(inputs.feature_types, fidx)) {
     auto n_bins_in_feat = inputs.feature_segments[fidx + 1] - inputs.feature_segments[fidx];
-    if (common::UseOneHot(n_bins_in_feat, inputs.param.max_cat_to_onehot, task)) {
+    if (common::UseOneHot(n_bins_in_feat, inputs.param.max_cat_to_onehot)) {
       EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT, TempStorage, GradientSumT,
                       kOneHot>(fidx, inputs, evaluator, sorted_idx, 0, &best_split, &temp_storage);
     } else {
@@ -310,7 +308,7 @@ __device__ void SortBasedSplit(EvaluateSplitInputs<GradientSumT> const &input,
 
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
-    EvaluateSplitInputs<GradientSumT> left, EvaluateSplitInputs<GradientSumT> right, ObjInfo task,
+    EvaluateSplitInputs<GradientSumT> left, EvaluateSplitInputs<GradientSumT> right,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
   if (!split_cats_.empty()) {
@@ -322,8 +320,8 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
 
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
-  dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
-      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, task, this->SortedIdx(left),
+  dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
+      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, this->SortedIdx(left),
       evaluator, dh::ToSpan(feature_best_splits));
 
   // Reduce to get best candidate for left and right child over all features
@@ -365,7 +363,7 @@ void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs<GradientSumT
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate, ObjInfo task,
+void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate,
                                                     EvaluateSplitInputs<GradientSumT> left,
                                                     EvaluateSplitInputs<GradientSumT> right,
                                                     common::Span<GPUExpandEntry> out_entries) {
@@ -373,7 +371,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate, Ob
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(2);
   auto out_splits = dh::ToSpan(splits_out_storage);
-  this->EvaluateSplits(left, right, task, evaluator, out_splits);
+  this->EvaluateSplits(left, right, evaluator, out_splits);
 
   auto d_sorted_idx = this->SortedIdx(left);
   auto d_entries = out_entries;
@@ -385,7 +383,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate, Ob
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat &&
-        !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot, task)) {
+        !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
       bool is_left = i == 0;
       auto out = is_left ? cats_out.first(cats_out.size() / 2) : cats_out.last(cats_out.size() / 2);
       SortBasedSplit(input, d_sorted_idx, fidx, is_left, out, &out_splits[i]);
@@ -405,11 +403,11 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate, Ob
 
 template <typename GradientSumT>
 GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
-    EvaluateSplitInputs<GradientSumT> input, float weight, ObjInfo task) {
+    EvaluateSplitInputs<GradientSumT> input, float weight) {
   dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
   auto out_split = dh::ToSpan(splits_out);
   auto evaluator = tree_evaluator_.GetEvaluator<GPUTrainingParam>();
-  this->EvaluateSplits(input, {}, task, evaluator, out_split);
+  this->EvaluateSplits(input, {}, evaluator, out_split);
 
   auto cats_out = this->DeviceCatStorage(input.nidx);
   auto d_sorted_idx = this->SortedIdx(input);
@@ -421,7 +419,7 @@ GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
     auto fidx = out_split[i].findex;
 
     if (split.is_cat &&
-        !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot, task)) {
+        !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
       SortBasedSplit(input, d_sorted_idx, fidx, true, cats_out, &out_split[i]);
     }
 

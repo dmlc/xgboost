@@ -39,7 +39,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   int32_t n_threads_ {0};
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
-  ObjInfo task_;
 
   // if sum of statistics for non-missing values in the node
   // is equal to sum of statistics for all values:
@@ -244,7 +243,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         }
         if (is_cat) {
           auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
-          if (common::UseOneHot(n_bins, param_.max_cat_to_onehot, task_)) {
+          if (common::UseOneHot(n_bins, param_.max_cat_to_onehot)) {
             EnumerateSplit<+1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
             EnumerateSplit<-1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
           } else {
@@ -345,7 +344,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
 
   auto Evaluator() const { return tree_evaluator_.GetEvaluator(); }
   auto const& Stats() const { return snode_; }
-  auto Task() const { return task_; }
 
   float InitRoot(GradStats const& root_sum) {
     snode_.resize(1);
@@ -363,12 +361,11 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   // The column sampler must be constructed by caller since we need to preserve the rng
   // for the entire training session.
   explicit HistEvaluator(TrainParam const &param, MetaInfo const &info, int32_t n_threads,
-                         std::shared_ptr<common::ColumnSampler> sampler, ObjInfo task)
+                         std::shared_ptr<common::ColumnSampler> sampler)
       : param_{param},
         column_sampler_{std::move(sampler)},
         tree_evaluator_{param, static_cast<bst_feature_t>(info.num_col_), GenericParameter::kCpuId},
-        n_threads_{n_threads},
-        task_{task} {
+        n_threads_{n_threads} {
     interaction_constraints_.Configure(param, info.num_col_);
     column_sampler_->Init(info.num_col_, info.feature_weights.HostVector(), param_.colsample_bynode,
                           param_.colsample_bylevel, param_.colsample_bytree);

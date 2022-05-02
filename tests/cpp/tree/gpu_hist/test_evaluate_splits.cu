@@ -57,8 +57,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   GPUHistEvaluator<GradientPair> evaluator{
       tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
   dh::device_vector<common::CatBitField::value_type> out_cats;
-  DeviceSplitCandidate result =
-      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, 0).split;
 
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
@@ -101,8 +100,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator(tparam, feature_set.size(), 0);
-  DeviceSplitCandidate result =
-      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, 0).split;
 
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
@@ -114,10 +112,8 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
 TEST(GpuHist, EvaluateSingleSplitEmpty) {
   TrainParam tparam = ZeroParam();
   GPUHistEvaluator<GradientPair> evaluator(tparam, 1, 0);
-  DeviceSplitCandidate result = evaluator
-                                    .EvaluateSingleSplit(EvaluateSplitInputs<GradientPair>{}, 0,
-                                                         ObjInfo{ObjInfo::kRegression})
-                                    .split;
+  DeviceSplitCandidate result =
+      evaluator.EvaluateSingleSplit(EvaluateSplitInputs<GradientPair>{}, 0).split;
   EXPECT_EQ(result.findex, -1);
   EXPECT_LT(result.loss_chg, 0.0f);
 }
@@ -152,8 +148,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator(tparam, feature_min_values.size(), 0);
-  DeviceSplitCandidate result =
-      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, 0).split;
 
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
@@ -191,8 +186,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator(tparam, feature_min_values.size(), 0);
-  DeviceSplitCandidate result =
-      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, 0).split;
 
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
@@ -243,8 +237,8 @@ TEST(GpuHist, EvaluateSplits) {
 
   GPUHistEvaluator<GradientPair> evaluator{
       tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
-  evaluator.EvaluateSplits(input_left, input_right, ObjInfo{ObjInfo::kRegression},
-                           evaluator.GetEvaluator(), dh::ToSpan(out_splits));
+  evaluator.EvaluateSplits(input_left, input_right, evaluator.GetEvaluator(),
+                           dh::ToSpan(out_splits));
 
   DeviceSplitCandidate result_left = out_splits[0];
   EXPECT_EQ(result_left.findex, 1);
@@ -264,8 +258,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   cuts_.cut_values_.SetDevice(0);
   cuts_.min_vals_.SetDevice(0);
 
-  ObjInfo task{ObjInfo::kRegression};
-  evaluator.Reset(cuts_, dh::ToSpan(ft), task, info_.num_col_, param_, 0);
+  evaluator.Reset(cuts_, dh::ToSpan(ft), info_.num_col_, param_, 0);
 
   dh::device_vector<GradientPairPrecise> d_hist(hist_[0].size());
   auto node_hist = hist_[0];
@@ -282,7 +275,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
                                                  cuts_.cut_values_.ConstDeviceSpan(),
                                                  cuts_.min_vals_.ConstDeviceSpan(),
                                                  dh::ToSpan(d_hist)};
-  auto split = evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
+  auto split = evaluator.EvaluateSingleSplit(input, 0).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-16);
 }
 }  // namespace tree
