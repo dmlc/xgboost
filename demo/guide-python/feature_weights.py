@@ -33,7 +33,8 @@ def main(args):
     feature_map = bst.get_fscore()
     # feature zero has 0 weight
     assert feature_map.get('f0', None) is None
-    assert max(feature_map.values()) == feature_map.get('f9')
+    #max weight is depending on rng call during colsample by node
+    # assert max(feature_map.values()) == feature_map.get('f9')
 
     if args.plot:
         xgboost.plot_importance(bst)

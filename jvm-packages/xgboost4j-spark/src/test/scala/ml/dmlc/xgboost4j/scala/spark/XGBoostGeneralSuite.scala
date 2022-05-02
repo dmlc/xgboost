@@ -117,7 +117,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "lossguide",
       "max_leaves" -> "8", "num_round" -> 5,
       "num_workers" -> numWorkers)
@@ -130,7 +130,7 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
       "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> numWorkers)

@@ -44,6 +44,7 @@ class GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
+  DMatrix* p_fmat = {nullptr};
   /*! \brief max_bin for each feature. */
   size_t max_num_bins;
   /*! \brief base row index for current page (used by external memory) */

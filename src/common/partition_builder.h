@@ -47,6 +47,7 @@ class PartitionBuilder {
     }
   }
 
+// <<<<<<< HEAD
   // split row indexes (rid_span) to 2 parts (left_part, right_part) depending
   // on comparison of indexes values (idx_span) and split point (split_cond)
   // Handle dense columns
@@ -87,6 +88,8 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
+// =======
+// >>>>>>> a20b4d1a... partition optimizations
   template <typename Pred>
   inline std::pair<size_t, size_t> PartitionRangeKernel(common::Span<const size_t> ridx,
                                                         common::Span<size_t> left_part,
@@ -106,6 +109,7 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
+// <<<<<<< HEAD
   template <typename BinIdxType, bool any_missing, bool any_cat>
   void Partition(const size_t node_in_set, const size_t nid, const common::Range1d range,
                  const int32_t split_cond, GHistIndexMatrix const& gmat,
@@ -115,7 +119,8 @@ class PartitionBuilder {
     common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
     const bst_uint fid = tree[nid].SplitIndex();
     const bool default_left = tree[nid].DefaultLeft();
-    const auto column_ptr = column_matrix.GetColumn<BinIdxType, any_missing>(fid);
+    std::shared_ptr<const Column<BinIdxType> > column_ptr =
+      std::move(column_matrix.GetColumn<BinIdxType, any_missing>(fid));
 
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
@@ -123,6 +128,7 @@ class PartitionBuilder {
     auto const& index = gmat.index;
     auto const& cut_values = gmat.cut.Values();
     auto const& cut_ptrs = gmat.cut.Ptrs();
+std::cout << "Partition kernel! 4" << std::endl;
 
     auto pred = [&](auto ridx, auto bin_id) {
       if (any_cat && is_cat) {
@@ -144,6 +150,7 @@ class PartitionBuilder {
         return bin_id <= split_cond;
       }
     };
+std::cout << "Partition kernel! 5" << std::endl;
 
     std::pair<size_t, size_t> child_nodes_sizes;
     if (column_ptr->GetType() == xgboost::common::kDenseColumn) {
@@ -176,6 +183,8 @@ class PartitionBuilder {
     SetNRightElems(node_in_set, range.begin(), range.end(), n_right);
   }
 
+// =======
+// >>>>>>> a20b4d1a... partition optimizations
   /**
    * \brief Partition tree nodes with specific range of row indices.
    *
