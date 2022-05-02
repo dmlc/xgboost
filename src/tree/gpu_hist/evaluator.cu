@@ -16,12 +16,12 @@ namespace xgboost {
 namespace tree {
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
-                                           common::Span<FeatureType const> ft, ObjInfo task,
+                                           common::Span<FeatureType const> ft,
                                            bst_feature_t n_features, TrainParam const &param,
                                            int32_t device) {
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, device};
-  if (cuts.HasCategorical() && !task.UseOneHot()) {
+  if (cuts.HasCategorical()) {
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
     auto beg = thrust::make_counting_iterator<size_t>(1ul);
@@ -35,21 +35,22 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
           auto idx = i - 1;
           if (common::IsCat(ft, idx)) {
             auto n_bins = ptrs[i] - ptrs[idx];
-            bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
+            bool use_sort = !common::UseOneHot(n_bins, to_onehot);
             return use_sort;
           }
           return false;
         });
 
-    auto bit_storage_size = common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
-    CHECK_NE(bit_storage_size, 0);
+    node_categorical_storage_size_ =
+        common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
+    CHECK_NE(node_categorical_storage_size_, 0);
     // We need to allocate for all nodes since the updater can grow the tree layer by
     // layer, all nodes in the same layer must be preserved until that layer is
     // finished.  We can allocate one layer at a time, but the best case is reducing the
     // size of the bitset by about a half, at the cost of invoking CUDA malloc many more
     // times than necessary.
-    split_cats_.resize(param.MaxNodes() * bit_storage_size);
-    h_split_cats_.resize(split_cats_.size());
+    split_cats_.resize(node_categorical_storage_size_);
+    h_split_cats_.resize(node_categorical_storage_size_);
     dh::safe_cuda(
         cudaMemsetAsync(split_cats_.data().get(), '\0', split_cats_.size() * sizeof(CatST)));
 

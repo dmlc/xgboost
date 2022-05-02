@@ -241,7 +241,7 @@ __global__ void EvaluateSplitsKernel(
 
   if (common::IsCat(inputs.feature_types, fidx)) {
     auto n_bins_in_feat = inputs.feature_segments[fidx + 1] - inputs.feature_segments[fidx];
-    if (common::UseOneHot(n_bins_in_feat, inputs.param.max_cat_to_onehot, task)) {
+    if (common::UseOneHot(n_bins_in_feat, inputs.param.max_cat_to_onehot)) {
       EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT, TempStorage, GradientSumT,
                       kOneHot>(fidx, inputs, evaluator, sorted_idx, 0, &best_split, &temp_storage);
     } else {
@@ -281,7 +281,7 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs<GradientSumT> const &inp
   out_split.split_cats = common::CatBitField{out};
 
   // Simple case for one hot split
-  if (common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot, task)) {
+  if (common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
     out_split.split_cats.Set(common::AsCat(out_split.fvalue));
     return;
   }

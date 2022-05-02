@@ -244,7 +244,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
         }
         if (is_cat) {
           auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
-          if (common::UseOneHot(n_bins, param_.max_cat_to_onehot, task_)) {
+          if (common::UseOneHot(n_bins, param_.max_cat_to_onehot)) {
             EnumerateSplit<+1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
             EnumerateSplit<-1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
           } else {

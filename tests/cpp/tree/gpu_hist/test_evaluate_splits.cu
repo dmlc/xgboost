@@ -24,14 +24,16 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
 
+  common::HistogramCuts cuts;
+  cuts.cut_values_.HostVector() = std::vector<float>{1.0, 2.0, 11.0, 12.0};
+  cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 2, 4};
+  cuts.min_vals_.HostVector() =  std::vector<float>{0.0, 0.0};
+  cuts.cut_ptrs_.SetDevice(0);
+  cuts.cut_values_.SetDevice(0);
+  cuts.min_vals_.SetDevice(0);
   thrust::device_vector<bst_feature_t> feature_set =
       std::vector<bst_feature_t>{0, 1};
-  thrust::device_vector<uint32_t> feature_segments =
-      std::vector<bst_row_t>{0, 2, 4};
-  thrust::device_vector<float> feature_values =
-      std::vector<float>{1.0, 2.0, 11.0, 12.0};
-  thrust::device_vector<float> feature_min_values =
-      std::vector<float>{0.0, 0.0};
+
   // Setup gradients so that second feature gets higher gain
   thrust::device_vector<GradientPair> feature_histogram =
       std::vector<GradientPair>{
@@ -42,21 +44,25 @@ void TestEvaluateSingleSplit(bool is_categorical) {
                                                FeatureType::kCategorical);
   common::Span<FeatureType> d_feature_types;
   if (is_categorical) {
+    auto max_cat = *std::max_element(cuts.cut_values_.HostVector().begin(),
+                                     cuts.cut_values_.HostVector().end());
+    cuts.SetCategorical(true, max_cat);
     d_feature_types = dh::ToSpan(feature_types);
   }
+
   EvaluateSplitInputs<GradientPair> input{1,
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
                                           d_feature_types,
-                                          dh::ToSpan(feature_segments),
-                                          dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
+                                          cuts.cut_ptrs_.ConstDeviceSpan(),
+                                          cuts.cut_values_.ConstDeviceSpan(),
+                                          cuts.min_vals_.ConstDeviceSpan(),
                                           dh::ToSpan(feature_histogram)};
 
   GPUHistEvaluator<GradientPair> evaluator{
-      tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
-  dh::device_vector<common::CatBitField::value_type> out_cats;
+      tparam, static_cast<bst_feature_t>(feature_set.size()), 0};
+  evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, 0);
   DeviceSplitCandidate result =
       evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
 
@@ -264,8 +270,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   cuts_.cut_values_.SetDevice(0);
   cuts_.min_vals_.SetDevice(0);
 
-  ObjInfo task{ObjInfo::kRegression};
-  evaluator.Reset(cuts_, dh::ToSpan(ft), task, info_.num_col_, param_, 0);
+  evaluator.Reset(cuts_, dh::ToSpan(ft), info_.num_col_, param_, 0);
 
   dh::device_vector<GradientPairPrecise> d_hist(hist_[0].size());
   auto node_hist = hist_[0];

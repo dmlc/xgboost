@@ -241,7 +241,7 @@ struct GPUHistMakerDevice {
                               param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
 
-    this->evaluator_.Reset(page->Cuts(), feature_types, task, dmat->Info().num_col_, param,
+    this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param,
                            ctx_->gpu_id);
 
     this->interaction_constraints.Reset();
@@ -571,7 +571,7 @@ struct GPUHistMakerDevice {
       split_cats.resize(common::CatBitField::ComputeStorageSize(max_cat + 1), 0);
       CHECK_LE(split_cats.size(), h_cats.size());
       std::copy(h_cats.data(), h_cats.data() + split_cats.size(), split_cats.data());
-      
+
       tree.ExpandCategorical(
           candidate.nid, candidate.split.findex, split_cats, candidate.split.dir == kLeftDir,
           base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_sum.GetHess(),
