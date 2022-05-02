@@ -40,12 +40,30 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  auto hist_builder = common::GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
+// <<<<<<< HEAD
+//   auto hist_builder = common::GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
+// =======
+// <<<<<<< HEAD
+//   auto hist_builder = GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
+// =======
+  auto hist_builder = common::GHistBuilder<GradientSumT>();
+// >>>>>>> 309479f0... partition optimization
+// >>>>>>> a20b4d1a... partition optimizations
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();
-  hist_builder.template BuildHist<false>(row_gpairs, row_set_collection[0],
-                                         gmat, hist[0]);
+  std::vector<uint16_t> node_ids(row_gpairs.size(), 0);
+  std::vector<uint16_t> mapping_ids(1, 0);
+  std::vector<std::vector<GradientSumT>> hists(1);
+  hists[0].resize(2*gmat.cut.Ptrs().back());
+  hist_builder.template BuildHist<uint8_t, false, true>(row_gpairs, nullptr, 0, row_gpairs.size(),
+                                         gmat, gmat.index.data<uint8_t>(), node_ids.data(),
+                                         &hists, mapping_ids.data());
+  GradientSumT* hist_data = reinterpret_cast<GradientSumT*>(hist[0].data());
+  // reduce hists
+  for (size_t bin = 0; bin < 2*gmat.cut.Ptrs().back(); ++bin) {
+    hist_data[bin] = hists[0][bin];
+  }
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;

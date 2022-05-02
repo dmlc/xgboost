@@ -13,6 +13,8 @@
 #include "expand_entry.h"
 #include "rabit/rabit.h"
 #include "xgboost/tree_model.h"
+#include "../../common/hist_builder.h"
+#include "../../common/opt_partition_builder.h"
 
 namespace xgboost {
 namespace tree {
@@ -42,54 +44,52 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
    * \param is_distributed   Mostly used for testing to allow injecting parameters instead
    *                         of using global rabit variable.
    */
-  void Reset(uint32_t total_bins, BatchParam p, int32_t n_threads, size_t n_batches,
-             bool is_distributed) {
+
+  void Reset(uint32_t total_bins, int32_t max_bin_per_feat, int32_t n_threads, size_t n_batches,
+             int32_t max_depth,
+             bool is_distributed = rabit::IsDistributed()) {
     CHECK_GE(n_threads, 1);
     n_threads_ = n_threads;
     n_batches_ = n_batches;
-    param_ = p;
     hist_.Init(total_bins);
     hist_local_worker_.Init(total_bins);
     buffer_.Init(total_bins);
-    builder_ = common::GHistBuilder<GradientSumT>(total_bins);
+    buffer_.AllocateHistBufer(max_depth, n_threads);
+    builder_ = common::GHistBuilder<GradientSumT>();
     is_distributed_ = is_distributed;
   }
 
-  template <bool any_missing>
-  void BuildLocalHistograms(size_t page_idx, common::BlockedSpace2d space,
-                            GHistIndexMatrix const &gidx,
-                            std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-                            common::RowSetCollection const &row_set_collection,
-                            const std::vector<GradientPair> &gpair_h) {
-    const size_t n_nodes = nodes_for_explicit_hist_build.size();
-    CHECK_GT(n_nodes, 0);
+  template <typename BinIdxType, bool any_missing, bool is_root, typename PartitionType>
+  void
+  BuildLocalHistograms(size_t page_idx,
+                       GHistIndexMatrix const &gidx,
+                       std::vector<ExpandEntry> nodes_for_explicit_hist_build,
+                       const std::vector<GradientPair> &gpair_h,
+                       const PartitionType* p_opt_partition_builder,
+                       // template?
+                       std::vector<uint16_t>* p_node_ids) {
+    const PartitionType& opt_partition_builder = *p_opt_partition_builder;
+    std::vector<uint16_t>& node_ids = *p_node_ids;
+    int nthreads = this->n_threads_;
 
-    std::vector<GHistRowT> target_hists(n_nodes);
-    for (size_t i = 0; i < n_nodes; ++i) {
-      const int32_t nid = nodes_for_explicit_hist_build[i].nid;
-      target_hists[i] = hist_[nid];
-    }
-    if (page_idx == 0) {
-      // FIXME(jiamingy): Handle different size of space.  Right now we use the maximum
-      // partition size for the buffer, which might not be efficient if partition sizes
-      // has significant variance.
-      buffer_.Reset(this->n_threads_, n_nodes, space, target_hists);
-    }
-
-    // Parallel processing by nodes and data in each node
-    common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
-      const auto tid = static_cast<unsigned>(omp_get_thread_num());
-      const int32_t nid = nodes_for_explicit_hist_build[nid_in_set].nid;
-      auto elem = row_set_collection[nid];
-      auto start_of_row_set = std::min(r.begin(), elem.Size());
-      auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                    elem.begin + end_of_row_set, nid);
-      auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-      if (rid_set.Size() != 0) {
-        builder_.template BuildHist<any_missing>(gpair_h, rid_set, gidx, hist);
+// for(size_t tid = 0; tid < nthreads; ++tid)
+    #pragma omp parallel num_threads(nthreads)
+    {
+      size_t tid = omp_get_thread_num();
+      const BinIdxType* numa = gidx.index.data<BinIdxType>();
+      const std::vector<common::Slice>& local_slices =
+        opt_partition_builder.GetSlices(tid);
+      buffer_.AllocateHistForLocalThread(
+        opt_partition_builder.GetNodes(tid), tid);
+      for (const common::Slice& slice : local_slices) {
+        const uint32_t* rows = slice.addr;
+        // CHECK(rows != nullptr);
+        builder_.template BuildHist<BinIdxType, any_missing, is_root>(
+          gpair_h, rows, slice.b, slice.e, gidx, numa, node_ids.data(),
+          &buffer_.histograms_buffer[tid], buffer_.local_threads_mapping[tid].data(),
+          opt_partition_builder.base_rowid);
       }
-    });
+    }
   }
 
   void
@@ -109,11 +109,15 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
   }
 
   /** Main entry point of this class, build histogram for tree nodes. */
-  void BuildHist(size_t page_id, common::BlockedSpace2d space, GHistIndexMatrix const &gidx,
-                 RegTree *p_tree, common::RowSetCollection const &row_set_collection,
+  template <typename BinIdxType, bool is_root, typename PartitionType>
+  void BuildHist(size_t page_id, GHistIndexMatrix const &gidx,
+                 RegTree *p_tree,
                  std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
                  std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-                 std::vector<GradientPair> const &gpair) {
+                 std::vector<GradientPair> const &gpair,
+                 const PartitionType* p_opt_partition_builder,
+                 std::vector<uint16_t>* p_node_ids,
+                 const std::vector<std::vector<uint16_t>>* merged_thread_ids = nullptr) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     if (page_id == 0) {
@@ -122,13 +126,13 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
                         nodes_for_subtraction_trick, p_tree);
     }
     if (gidx.IsDense()) {
-      this->BuildLocalHistograms<false>(page_id, space, gidx,
+      this->BuildLocalHistograms<BinIdxType, false, is_root>(page_id, gidx,
                                         nodes_for_explicit_hist_build,
-                                        row_set_collection, gpair);
+                                        gpair, p_opt_partition_builder, p_node_ids);
     } else {
-      this->BuildLocalHistograms<true>(page_id, space, gidx,
+      this->BuildLocalHistograms<uint32_t, true, is_root>(page_id, gidx,
                                        nodes_for_explicit_hist_build,
-                                       row_set_collection, gpair);
+                                       gpair, p_opt_partition_builder, p_node_ids);
     }
 
     CHECK_GE(n_batches_, 1);
@@ -139,39 +143,25 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     if (is_distributed_) {
       this->SyncHistogramDistributed(p_tree, nodes_for_explicit_hist_build,
                                      nodes_for_subtraction_trick,
-                                     starting_index, sync_count);
+                                     starting_index, sync_count,
+                                     p_opt_partition_builder, merged_thread_ids);
     } else {
       this->SyncHistogramLocal(p_tree, nodes_for_explicit_hist_build,
                                nodes_for_subtraction_trick, starting_index,
-                               sync_count);
+                               sync_count, p_opt_partition_builder, merged_thread_ids);
     }
   }
-  /** same as the other build hist but handles only single batch data (in-core) */
-  void BuildHist(size_t page_id, GHistIndexMatrix const &gidx, RegTree *p_tree,
-                 common::RowSetCollection const &row_set_collection,
-                 std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-                 std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-                 std::vector<GradientPair> const &gpair) {
-    const size_t n_nodes = nodes_for_explicit_hist_build.size();
-    // create space of size (# rows in each node)
-    common::BlockedSpace2d space(
-        n_nodes,
-        [&](size_t nidx_in_set) {
-          const int32_t nidx = nodes_for_explicit_hist_build[nidx_in_set].nid;
-          return row_set_collection[nidx].Size();
-        },
-        256);
-    this->BuildHist(page_id, space, gidx, p_tree, row_set_collection,
-                    nodes_for_explicit_hist_build, nodes_for_subtraction_trick,
-                    gpair);
-  }
 
+  template <typename PartitionType>
   void SyncHistogramDistributed(
       RegTree *p_tree,
       std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
       std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      int starting_index, int sync_count) {
-    const size_t nbins = builder_.GetNumBins();
+      int starting_index, int sync_count,
+      const PartitionType* p_opt_partition_builder,
+      const std::vector<std::vector<uint16_t>>* merged_thread_ids = nullptr) {
+    const PartitionType& opt_partition_builder = *p_opt_partition_builder;
+    const size_t nbins = hist_.GetNumBins();
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },
         1024);
@@ -180,7 +170,15 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
           const auto &entry = nodes_for_explicit_hist_build[node];
           auto this_hist = this->hist_[entry.nid];
           // Merging histograms from each thread into once
-          buffer_.ReduceHist(node, r.begin(), r.end());
+          if (merged_thread_ids) {
+            this->buffer_.ReduceHist(reinterpret_cast<GradientSumT*>(this_hist.data()),
+                                    (*merged_thread_ids)[node],
+                                    entry.nid, r.begin(), r.end());
+          } else {
+            this->buffer_.ReduceHist(reinterpret_cast<GradientSumT*>(this_hist.data()),
+                                    opt_partition_builder.GetThreadIdsForNode(entry.nid),
+                                    entry.nid, r.begin(), r.end());
+          }
           // Store posible parent node
           auto this_local = hist_local_worker_[entry.nid];
           common::CopyHist(this_local, this_hist, r.begin(), r.end());
@@ -200,7 +198,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
         });
 
     reducer_.Allreduce(this->hist_[starting_index].data(),
-                       builder_.GetNumBins() * sync_count);
+                       hist_.GetNumBins() * sync_count);
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
                             nodes_for_subtraction_trick, p_tree);
@@ -212,12 +210,16 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
                             nodes_for_explicit_hist_build, p_tree);
   }
 
+  template <typename PartitionType>
   void SyncHistogramLocal(
       RegTree *p_tree,
       std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
       std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      int starting_index, int sync_count) {
-    const size_t nbins = this->builder_.GetNumBins();
+      int starting_index, int sync_count,
+      const PartitionType* p_opt_partition_builder,
+      const std::vector<std::vector<uint16_t>>* merged_thread_ids = nullptr) {
+    const PartitionType& opt_partition_builder = *p_opt_partition_builder;
+    const size_t nbins = this->hist_.GetNumBins();
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },
         1024);
@@ -227,8 +229,15 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
           const auto &entry = nodes_for_explicit_hist_build[node];
           auto this_hist = this->hist_[entry.nid];
           // Merging histograms from each thread into once
-          this->buffer_.ReduceHist(node, r.begin(), r.end());
-
+          if (merged_thread_ids) {
+            this->buffer_.ReduceHist(reinterpret_cast<GradientSumT*>(this_hist.data()),
+                                    (*merged_thread_ids)[node],
+                                    entry.nid, r.begin(), r.end());
+          } else {
+            this->buffer_.ReduceHist(reinterpret_cast<GradientSumT*>(this_hist.data()),
+                                    opt_partition_builder.GetThreadIdsForNode(entry.nid),
+                                    entry.nid, r.begin(), r.end());
+          }
           if (!(*p_tree)[entry.nid].IsRoot()) {
             const size_t parent_id = (*p_tree)[entry.nid].Parent();
             const int subtraction_node_id =

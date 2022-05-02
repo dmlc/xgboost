@@ -309,8 +309,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
       tree.ExpandCategorical(
           candidate.nid, candidate.split.SplitIndex(), split_cats, candidate.split.DefaultLeft(),
           base_weight, left_weight * param_.learning_rate, right_weight * param_.learning_rate,
-          candidate.split.loss_chg, parent_sum.GetHess(), candidate.split.left_sum.GetHess(),
-          candidate.split.right_sum.GetHess());
+          candidate.split.loss_chg, parent_sum.GetHess(),
+          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                       candidate.split.DefaultLeft(), base_weight,
