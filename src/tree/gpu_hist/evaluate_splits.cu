@@ -361,6 +361,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs<GradientSumT> const &input,
                                                 common::Span<CatST> cats_out) {
+  if (cats_out.empty()) return;
   dh::CUDAEvent event;
   event.Record(dh::DefaultStream());
   auto h_cats = this->HostCatStorage(input.nidx);
