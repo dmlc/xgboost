@@ -29,7 +29,7 @@
 #include "../data/proxy_dmatrix.h"
 
 #if defined(XGBOOST_USE_FEDERATED)
-#include "../../../plugin/federated/federated_server.h"
+#include "../../plugin/federated/federated_server.h"
 #endif
 
 using namespace xgboost; // NOLINT(*);
@@ -97,6 +97,12 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["DEBUG"] = Boolean{true};
 #else
   info["DEBUG"] = Boolean{false};
+#endif
+
+#if defined(XGBOOST_USE_FEDERATED)
+  info["USE_FEDERATED"] = Boolean{true};
+#else
+  info["USE_FEDERATED"] = Boolean{false};
 #endif
 
   XGBBuildInfoDevice(&info);

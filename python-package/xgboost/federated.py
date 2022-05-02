@@ -1,6 +1,6 @@
 """XGBoost Federated Learning related API."""
 
-from .core import _LIB, _check_call, c_str
+from .core import _LIB, _check_call, c_str, build_info, XGBoostError
 
 
 def run_federated_server(port: int,
@@ -23,8 +23,14 @@ def run_federated_server(port: int,
     client_cert_path: str
         Path to the client certificate file.
     """
-    _check_call(_LIB.XGBRunFederatedServer(port,
-                                           world_size,
-                                           c_str(server_key_path),
-                                           c_str(server_cert_path),
-                                           c_str(client_cert_path)))
+    if build_info()['USE_FEDERATED']:
+        _check_call(_LIB.XGBRunFederatedServer(port,
+                                               world_size,
+                                               c_str(server_key_path),
+                                               c_str(server_cert_path),
+                                               c_str(client_cert_path)))
+    else:
+        raise XGBoostError(
+            "XGBoost needs to be built with the federated learning plugin "
+            "enabled in order to use this module"
+        )

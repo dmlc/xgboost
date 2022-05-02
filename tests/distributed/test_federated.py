@@ -1,8 +1,10 @@
 #!/usr/bin/python
 import multiprocessing
 import sys
+import time
 
 import xgboost as xgb
+import xgboost.federated
 
 SERVER_KEY = 'server-key.pem'
 SERVER_CERT = 'server-cert.pem'
@@ -11,7 +13,8 @@ CLIENT_CERT = 'client-cert.pem'
 
 
 def run_server(port: int, world_size: int) -> None:
-    xgb.run_federated_server(port, world_size, SERVER_KEY, SERVER_CERT, CLIENT_CERT)
+    xgboost.federated.run_federated_server(port, world_size, SERVER_KEY, SERVER_CERT,
+                                           CLIENT_CERT)
 
 
 def run_worker(port: int, world_size: int, rank: int) -> None:
@@ -57,6 +60,9 @@ def run_test() -> None:
 
     server = multiprocessing.Process(target=run_server, args=(port, world_size))
     server.start()
+    time.sleep(1)
+    if not server.is_alive():
+        raise Exception("Error starting Federated Learning server")
 
     workers = []
     for rank in range(world_size):

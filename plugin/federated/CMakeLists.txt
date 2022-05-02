@@ -1,6 +1,6 @@
 # gRPC needs to be installed first. See README.md.
-find_package(protobuf CONFIG REQUIRED)
-find_package(gRPC CONFIG REQUIRED)
+find_package(Protobuf REQUIRED)
+find_package(gRPC REQUIRED)
 find_package(Threads)
 
 # Generated code from the protobuf definition.
