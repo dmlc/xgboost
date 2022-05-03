@@ -38,9 +38,6 @@ struct ObjInfo {
   ObjInfo(Task t) : task{t} {}  // NOLINT
   ObjInfo(Task t, bool khess, bool zhess) : task{t}, const_hess{khess}, zero_hess(zhess) {}
 
-  XGBOOST_DEVICE bool UseOneHot() const {
-    return (task != ObjInfo::kRegression && task != ObjInfo::kBinary);
-  }
   /**
    * \brief Use adaptive tree if the objective doesn't have valid hessian value.
    */

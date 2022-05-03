@@ -232,16 +232,14 @@ struct GPUHistMakerDevice {
   // Reset values for each update iteration
   // Note that the column sampler must be passed by value because it is not
   // thread safe
-  void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns,
-             ObjInfo task) {
+  void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns) {
     auto const& info = dmat->Info();
     this->column_sampler.Init(num_columns, info.feature_weights.HostVector(),
                               param.colsample_bynode, param.colsample_bylevel,
                               param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
 
-    this->evaluator_.Reset(page->Cuts(), feature_types, task, dmat->Info().num_col_, param,
-                           ctx_->gpu_id);
+    this->evaluator_.Reset(page->Cuts(), feature_types, dmat->Info().num_col_, param, ctx_->gpu_id);
 
     this->interaction_constraints.Reset();
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(), GradientPairPrecise{});
@@ -263,7 +261,7 @@ struct GPUHistMakerDevice {
     hist.Reset();
   }
 
-  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum, float weight, ObjInfo task) {
+  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum, float weight) {
     int nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
@@ -280,12 +278,12 @@ struct GPUHistMakerDevice {
                                              matrix.gidx_fvalue_map,
                                              matrix.min_fvalue,
                                              hist.GetNodeHistogram(nidx)};
-    auto split = this->evaluator_.EvaluateSingleSplit(inputs, weight, task);
+    auto split = this->evaluator_.EvaluateSingleSplit(inputs, weight);
     return split;
   }
 
-  void EvaluateLeftRightSplits(GPUExpandEntry candidate, ObjInfo task, int left_nidx,
-                               int right_nidx, const RegTree& tree,
+  void EvaluateLeftRightSplits(GPUExpandEntry candidate, int left_nidx, int right_nidx,
+                               const RegTree& tree,
                                common::Span<GPUExpandEntry> pinned_candidates_out) {
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
     GPUTrainingParam gpu_param(param);
@@ -319,7 +317,7 @@ struct GPUHistMakerDevice {
                                             hist.GetNodeHistogram(right_nidx)};
 
     dh::TemporaryArray<GPUExpandEntry> entries(2);
-    this->evaluator_.EvaluateSplits(candidate, task, left, right, dh::ToSpan(entries));
+    this->evaluator_.EvaluateSplits(candidate, left, right, dh::ToSpan(entries));
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), entries.data().get(),
                                   sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
   }
@@ -613,7 +611,7 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  GPUExpandEntry InitRoot(RegTree* p_tree, ObjInfo task, dh::AllReducer* reducer) {
+  GPUExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto gpair_it = dh::MakeTransformIterator<GradientPairPrecise>(
@@ -634,7 +632,7 @@ struct GPUHistMakerDevice {
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
     // Generate first split
-    auto root_entry = this->EvaluateRootSplit(root_sum, weight, task);
+    auto root_entry = this->EvaluateRootSplit(root_sum, weight);
     return root_entry;
   }
 
@@ -645,11 +643,11 @@ struct GPUHistMakerDevice {
     Driver<GPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
 
     monitor.Start("Reset");
-    this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_, task);
+    this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);
     monitor.Stop("Reset");
 
     monitor.Start("InitRoot");
-    driver.Push({ this->InitRoot(p_tree, task, reducer) });
+    driver.Push({ this->InitRoot(p_tree, reducer) });
     monitor.Stop("InitRoot");
 
     auto num_leaves = 1;
@@ -686,7 +684,7 @@ struct GPUHistMakerDevice {
           monitor.Stop("BuildHist");
 
           monitor.Start("EvaluateSplits");
-          this->EvaluateLeftRightSplits(candidate, task, left_child_nidx, right_child_nidx, *p_tree,
+          this->EvaluateLeftRightSplits(candidate, left_child_nidx, right_child_nidx, *p_tree,
                                         new_candidates.subspan(i * 2, 2));
           monitor.Stop("EvaluateSplits");
         } else {
