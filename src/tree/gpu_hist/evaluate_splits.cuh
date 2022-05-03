@@ -114,7 +114,7 @@ class GPUHistEvaluator {
   /**
    * \brief Reset the evaluator, should be called before any use.
    */
-  void Reset(common::HistogramCuts const &cuts, common::Span<FeatureType const> ft, ObjInfo task,
+  void Reset(common::HistogramCuts const &cuts, common::Span<FeatureType const> ft,
              bst_feature_t n_features, TrainParam const &param, int32_t device);
 
   /**
@@ -150,21 +150,20 @@ class GPUHistEvaluator {
 
   // impl of evaluate splits, contains CUDA kernels so it's public
   void EvaluateSplits(EvaluateSplitInputs<GradientSumT> left,
-                      EvaluateSplitInputs<GradientSumT> right, ObjInfo task,
+                      EvaluateSplitInputs<GradientSumT> right,
                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                       common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(GPUExpandEntry candidate, ObjInfo task,
+  void EvaluateSplits(GPUExpandEntry candidate,
                       EvaluateSplitInputs<GradientSumT> left,
                       EvaluateSplitInputs<GradientSumT> right,
                       common::Span<GPUExpandEntry> out_splits);
   /**
    * \brief Evaluate splits for root node.
    */
-  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs<GradientSumT> input, float weight,
-                                     ObjInfo task);
+  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs<GradientSumT> input, float weight);
 };
 }  // namespace tree
 }  // namespace xgboost

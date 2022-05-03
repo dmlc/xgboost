@@ -36,10 +36,6 @@ struct ObjInfo {
 
   explicit ObjInfo(Task t) : task{t} {}
   ObjInfo(Task t, bool khess) : task{t}, const_hess{khess} {}
-
-  XGBOOST_DEVICE bool UseOneHot() const {
-    return (task != ObjInfo::kRegression && task != ObjInfo::kBinary);
-  }
 };
 }  // namespace xgboost
 #endif  // XGBOOST_TASK_H_

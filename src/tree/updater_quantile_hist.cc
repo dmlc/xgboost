@@ -342,7 +342,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(DMatrix *fmat, const Reg
   // store a pointer to the tree
   p_last_tree_ = &tree;
   evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
-      param_, info, this->ctx_->Threads(), column_sampler_, task_});
+      param_, info, this->ctx_->Threads(), column_sampler_});
 
   monitor_->Stop(__func__);
 }
