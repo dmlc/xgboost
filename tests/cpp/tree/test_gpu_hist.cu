@@ -277,8 +277,10 @@ void TestHistogramIndexImpl() {
   int constexpr kNRows = 1000, kNCols = 10;
 
   // Build 2 matrices and build a histogram maker with that
-  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker{ObjInfo{ObjInfo::kRegression}},
-      hist_maker_ext{ObjInfo{ObjInfo::kRegression}};
+  
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}},
+      hist_maker_ext{&generic_param,ObjInfo{ObjInfo::kRegression}};
   std::unique_ptr<DMatrix> hist_maker_dmat(
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
 
@@ -291,10 +293,9 @@ void TestHistogramIndexImpl() {
     {"max_leaves", "0"}
   };
 
-  GenericParameter generic_param(CreateEmptyGenericParam(0));
-  hist_maker.Configure(training_params, &generic_param);
+  hist_maker.Configure(training_params);
   hist_maker.InitDataOnce(hist_maker_dmat.get());
-  hist_maker_ext.Configure(training_params, &generic_param);
+  hist_maker_ext.Configure(training_params);
   hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
 
   // Extract the device maker from the histogram makers and from that its compressed
@@ -346,9 +347,9 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
       {"sampling_method", sampling_method},
   };
 
-  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker{ObjInfo{ObjInfo::kRegression}};
   GenericParameter generic_param(CreateEmptyGenericParam(0));
-  hist_maker.Configure(args, &generic_param);
+  tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}};
+  hist_maker.Configure(args);
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker.Update(gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position}, {tree});

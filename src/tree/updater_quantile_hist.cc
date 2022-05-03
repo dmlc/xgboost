@@ -411,6 +411,8 @@ template struct QuantileHistMaker::Builder<double>;
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
     .describe("Grow tree using quantized histogram.")
-    .set_body([](ObjInfo task) { return new QuantileHistMaker(task); });
+    .set_body([](GenericParameter const *ctx, ObjInfo task) {
+      return new QuantileHistMaker(ctx, task);
+    });
 }  // namespace tree
 }  // namespace xgboost

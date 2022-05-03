@@ -59,12 +59,10 @@ Supported parameters
 +--------------------------------+--------------+
 | ``interaction_constraints``    | |tick|       |
 +--------------------------------+--------------+
-| ``single_precision_histogram`` | |tick|       |
+| ``single_precision_histogram`` | |cross|      |
 +--------------------------------+--------------+
 
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
-
-The experimental parameter ``single_precision_histogram`` can be set to True to enable building histograms using single precision. This may improve speed, in particular on older architectures.
 
 The device ordinal (which GPU to use if you have many of them) can be selected using the
 ``gpu_id`` parameter, which defaults to 0 (the first device reported by CUDA runtime).
