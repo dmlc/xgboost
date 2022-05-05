@@ -111,11 +111,11 @@ __estimator_doc = '''
 __model_doc = f'''
     max_depth :  Optional[int]
         Maximum tree depth for base learners.
-    max_leaves :
+    max_leaves : Optional[int]
         Maximum number of leaves; 0 indicates no limit.
-    max_bin :
+    max_bin : Optional[int]
         If using histogram-based algorithm, maximum number of bins per feature
-    grow_policy :
+    grow_policy : Optional[str]
         Tree growing policy. 0: favor splitting at nodes closest to the node, i.e. grow
         depth-wise. 1: favor splitting at nodes with highest loss change.
     learning_rate : Optional[float]
@@ -146,7 +146,7 @@ __model_doc = f'''
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : Optional[float]
         Subsample ratio of the training instance.
-    sampling_method :
+    sampling_method : Optional[str]
         Sampling method. Used only by `gpu_hist` tree method.
           - `uniform`: select random training instances uniformly.
           - `gradient_based` select random training instances with higher probability when
@@ -173,8 +173,9 @@ __model_doc = f'''
            Using gblinear booster with shotgun updater is nondeterministic as
            it uses Hogwild algorithm.
 
-    missing : float, default np.nan
+    missing : float
         Value in the data which needs to be present as a missing value.
+        The default is np.nan.
     num_parallel_tree: Optional[int]
         Used for boosting random forest.
     monotone_constraints : Optional[Union[Dict[str, int], str]]
@@ -337,6 +338,25 @@ __custom_obj_note = '''
                 The value of the gradient for each sample point.
             hess: array_like of shape [n_samples]
                 The value of the second derivative for each sample point
+'''
+
+__objective_specific_doc = '''
+    tweedie_variance_power : float
+        Controls the variance of the Tweedie distribution.
+        Specific for objective=reg:tweedie.
+    huber_slope : float
+        Controls the \delta parameter of the Pseudo-Huber loss.
+        Specific for objective=reg:pseudohubererror.
+    aft_loss_distribution : str
+        Specifies the probability density function used for AFT models.
+        Can be either "norma", "logistic" or "extreme"
+        Specific for objective=survival:aft.
+    aft_loss_distribution_scale : float
+        Controls the scaling parameter of AFT models.
+        Specific for objective=survival:aft
+    num_class : int
+        Specifies the number of classes for multiclass classification
+        Specific for objective=multi:softmax
 '''
 
 
