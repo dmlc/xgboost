@@ -131,3 +131,6 @@ credentials.csv
 .vscode
 .metals
 .bloop
+
+# hypothesis python tests
+.hypothesis

@@ -271,12 +271,19 @@ __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
  * \brief Set the bits for categorical splits based on the split threshold.
  */
 template <typename GradientSumT>
-__device__ void SortBasedSplit(EvaluateSplitInputs<GradientSumT> const &input,
+__device__ void SetCategoricalSplit(EvaluateSplitInputs<GradientSumT> const &input,
                                common::Span<bst_feature_t const> d_sorted_idx, bst_feature_t fidx,
                                bool is_left, common::Span<common::CatBitField::value_type> out,
                                DeviceSplitCandidate *p_out_split) {
   auto &out_split = *p_out_split;
   out_split.split_cats = common::CatBitField{out};
+
+  // Simple case for one hot split
+  if (common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
+    out_split.split_cats.Set(common::AsCat(out_split.fvalue));
+    return;
+  }
+
   auto node_sorted_idx =
       is_left ? d_sorted_idx.subspan(0, input.feature_values.size())
               : d_sorted_idx.subspan(input.feature_values.size(), input.feature_values.size());
@@ -311,7 +318,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
     EvaluateSplitInputs<GradientSumT> left, EvaluateSplitInputs<GradientSumT> right,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
-  if (!split_cats_.empty()) {
+  if (need_sort_histogram_) {
     this->SortHistogram(left, right, evaluator);
   }
 
@@ -352,14 +359,13 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs<GradientSumT> const &input,
                                                 common::Span<CatST> cats_out) {
-  if (has_sort_) {
-    dh::CUDAEvent event;
-    event.Record(dh::DefaultStream());
-    auto h_cats = this->HostCatStorage(input.nidx);
-    copy_stream_.View().Wait(event);
-    dh::safe_cuda(cudaMemcpyAsync(h_cats.data(), cats_out.data(), cats_out.size_bytes(),
-                                  cudaMemcpyDeviceToHost, copy_stream_.View()));
-  }
+  if (cats_out.empty()) return;
+  dh::CUDAEvent event;
+  event.Record(dh::DefaultStream());
+  auto h_cats = this->HostCatStorage(input.nidx);
+  copy_stream_.View().Wait(event);
+  dh::safe_cuda(cudaMemcpyAsync(h_cats.data(), cats_out.data(), cats_out.size_bytes(),
+                                cudaMemcpyDeviceToHost, copy_stream_.View()));
 }
 
 template <typename GradientSumT>
@@ -376,17 +382,16 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate,
   auto d_sorted_idx = this->SortedIdx(left);
   auto d_entries = out_entries;
   auto cats_out = this->DeviceCatStorage(left.nidx);
-  // turn candidate into entry, along with hanlding sort based split.
+  // turn candidate into entry, along with handling sort based split.
   dh::LaunchN(right.feature_set.empty() ? 1 : 2, [=] __device__(size_t i) {
     auto const &input = i == 0 ? left : right;
     auto &split = out_splits[i];
     auto fidx = out_splits[i].findex;
 
-    if (split.is_cat &&
-        !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
+    if (split.is_cat) {
       bool is_left = i == 0;
       auto out = is_left ? cats_out.first(cats_out.size() / 2) : cats_out.last(cats_out.size() / 2);
-      SortBasedSplit(input, d_sorted_idx, fidx, is_left, out, &out_splits[i]);
+      SetCategoricalSplit(input, d_sorted_idx, fidx, is_left, out, &out_splits[i]);
     }
 
     float base_weight =
@@ -418,9 +423,8 @@ GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
     auto &split = out_split[i];
     auto fidx = out_split[i].findex;
 
-    if (split.is_cat &&
-        !common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
-      SortBasedSplit(input, d_sorted_idx, fidx, true, cats_out, &out_split[i]);
+    if (split.is_cat) {
+      SetCategoricalSplit(input, d_sorted_idx, fidx, true, cats_out, &out_split[i]);
     }
 
     float left_weight = evaluator.CalcWeight(0, input.param, GradStats{split.left_sum});
