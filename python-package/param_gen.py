@@ -5,7 +5,8 @@ import sys
 FIXES = {
     "typing.": "",
     ", NoneType": "",
-    "TrainingCallback": '"TrainingCallback"'
+    "TrainingCallback": '"TrainingCallback"',
+    "FeatureTypes": '"FeatureTypes"'
 }
 
 def parse_doc_string(doc_string: str):
@@ -17,9 +18,6 @@ def parse_doc_string(doc_string: str):
             param_type = param_type.lstrip()
             for base, fix in FIXES.items():
                 param_type = param_type.replace(base, fix)
-            if param_type.startswith("Optional["):
-                assert param_type[-1] == "]"
-                param_type = param_type[9:-1]
             params[param] = param_type
     return params
 
@@ -35,6 +33,7 @@ if __name__ == "__main__":
         "",
         "if TYPE_CHECKING:",
         "    from .callback import TrainingCallback",
+        "    from ._typing import FeatureTypes",
         "",
         "class Params(TypedDict, total=False):"
     ]
