@@ -1,6 +1,4 @@
 from xgboost.sklearn import __model_doc, __estimator_doc, __objective_specific_doc
-import sys
-# sys.path = ["."] + sys.path
 
 FIXES = {
     "typing.": "",
