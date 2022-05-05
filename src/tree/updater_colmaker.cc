@@ -57,7 +57,8 @@ DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
 /*! \brief column-wise update to construct a tree */
 class ColMaker: public TreeUpdater {
  public:
-  void Configure(const Args& args) override {
+  explicit ColMaker(GenericParameter const *ctx) : TreeUpdater(ctx) {}
+  void Configure(const Args &args) override {
     param_.UpdateAllowUnknown(args);
     colmaker_param_.UpdateAllowUnknown(args);
   }
@@ -614,8 +615,8 @@ class ColMaker: public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker")
 .describe("Grow tree with parallelization over columns.")
-.set_body([](ObjInfo) {
-    return new ColMaker();
+.set_body([](GenericParameter const* ctx, ObjInfo) {
+    return new ColMaker(ctx);
   });
 }  // namespace tree
 }  // namespace xgboost

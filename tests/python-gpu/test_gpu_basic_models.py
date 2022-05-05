@@ -16,11 +16,11 @@ class TestGPUBasicModels:
     cpu_test_bm = test_bm.TestModels()
 
     def run_cls(self, X, y):
-        cls = xgb.XGBClassifier(tree_method='gpu_hist', single_precision_histogram=True)
+        cls = xgb.XGBClassifier(tree_method='gpu_hist')
         cls.fit(X, y)
         cls.get_booster().save_model('test_deterministic_gpu_hist-0.json')
 
-        cls = xgb.XGBClassifier(tree_method='gpu_hist', single_precision_histogram=True)
+        cls = xgb.XGBClassifier(tree_method='gpu_hist')
         cls.fit(X, y)
         cls.get_booster().save_model('test_deterministic_gpu_hist-1.json')
 

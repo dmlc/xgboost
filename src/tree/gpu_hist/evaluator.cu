@@ -16,12 +16,12 @@ namespace xgboost {
 namespace tree {
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
-                                           common::Span<FeatureType const> ft, ObjInfo task,
+                                           common::Span<FeatureType const> ft,
                                            bst_feature_t n_features, TrainParam const &param,
                                            int32_t device) {
   param_ = param;
   tree_evaluator_ = TreeEvaluator{param, n_features, device};
-  if (cuts.HasCategorical() && !task.UseOneHot()) {
+  if (cuts.HasCategorical()) {
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
     auto beg = thrust::make_counting_iterator<size_t>(1ul);
@@ -30,46 +30,40 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
     // This condition avoids sort-based split function calls if the users want
     // onehot-encoding-based splits.
     // For some reason, any_of adds 1.5 minutes to compilation time for CUDA 11.x.
-    has_sort_ = thrust::any_of(thrust::cuda::par(alloc), beg, end, [=] XGBOOST_DEVICE(size_t i) {
-      auto idx = i - 1;
-      if (common::IsCat(ft, idx)) {
-        auto n_bins = ptrs[i] - ptrs[idx];
-        bool use_sort = !common::UseOneHot(n_bins, to_onehot, task);
-        return use_sort;
-      }
-      return false;
-    });
+    need_sort_histogram_ =
+        thrust::any_of(thrust::cuda::par(alloc), beg, end, [=] XGBOOST_DEVICE(size_t i) {
+          auto idx = i - 1;
+          if (common::IsCat(ft, idx)) {
+            auto n_bins = ptrs[i] - ptrs[idx];
+            bool use_sort = !common::UseOneHot(n_bins, to_onehot);
+            return use_sort;
+          }
+          return false;
+        });
 
-    if (has_sort_) {
-      auto bit_storage_size = common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
-      CHECK_NE(bit_storage_size, 0);
-      // We need to allocate for all nodes since the updater can grow the tree layer by
-      // layer, all nodes in the same layer must be preserved until that layer is
-      // finished.  We can allocate one layer at a time, but the best case is reducing the
-      // size of the bitset by about a half, at the cost of invoking CUDA malloc many more
-      // times than necessary.
-      split_cats_.resize(param.MaxNodes() * bit_storage_size);
-      h_split_cats_.resize(split_cats_.size());
-      dh::safe_cuda(
-          cudaMemsetAsync(split_cats_.data().get(), '\0', split_cats_.size() * sizeof(CatST)));
+    node_categorical_storage_size_ =
+        common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
+    CHECK_NE(node_categorical_storage_size_, 0);
+    split_cats_.resize(node_categorical_storage_size_);
+    h_split_cats_.resize(node_categorical_storage_size_);
+    dh::safe_cuda(
+        cudaMemsetAsync(split_cats_.data().get(), '\0', split_cats_.size() * sizeof(CatST)));
 
-      cat_sorted_idx_.resize(cuts.cut_values_.Size() * 2);  // evaluate 2 nodes at a time.
-      sort_input_.resize(cat_sorted_idx_.size());
+    cat_sorted_idx_.resize(cuts.cut_values_.Size() * 2);  // evaluate 2 nodes at a time.
+    sort_input_.resize(cat_sorted_idx_.size());
 
-      /**
-       * cache feature index binary search result
-       */
-      feature_idx_.resize(cat_sorted_idx_.size());
-      auto d_fidxes = dh::ToSpan(feature_idx_);
-      auto it = thrust::make_counting_iterator(0ul);
-      auto values = cuts.cut_values_.ConstDeviceSpan();
-      auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
-      thrust::transform(thrust::cuda::par(alloc), it, it + feature_idx_.size(),
-                        feature_idx_.begin(), [=] XGBOOST_DEVICE(size_t i) {
-                          auto fidx = dh::SegmentId(ptrs, i);
-                          return fidx;
-                        });
-    }
+    /**
+     * cache feature index binary search result
+     */
+    feature_idx_.resize(cat_sorted_idx_.size());
+    auto d_fidxes = dh::ToSpan(feature_idx_);
+    auto it = thrust::make_counting_iterator(0ul);
+    auto values = cuts.cut_values_.ConstDeviceSpan();
+    thrust::transform(thrust::cuda::par(alloc), it, it + feature_idx_.size(), feature_idx_.begin(),
+                      [=] XGBOOST_DEVICE(size_t i) {
+                        auto fidx = dh::SegmentId(ptrs, i);
+                        return fidx;
+                      });
   }
 }
 

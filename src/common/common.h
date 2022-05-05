@@ -188,10 +188,17 @@ class IndexTransformIter {
    */
   explicit IndexTransformIter(Fn &&op) : fn_{op} {}
   IndexTransformIter(IndexTransformIter const &) = default;
+  IndexTransformIter& operator=(IndexTransformIter&&) = default;
+  IndexTransformIter& operator=(IndexTransformIter const& that) {
+    iter_ = that.iter_;
+    return *this;
+  }
 
   value_type operator*() const { return fn_(iter_); }
 
   auto operator-(IndexTransformIter const &that) const { return iter_ - that.iter_; }
+  bool operator==(IndexTransformIter const &that) const { return iter_ == that.iter_; }
+  bool operator!=(IndexTransformIter const &that) const { return !(*this == that); }
 
   IndexTransformIter &operator++() {
     iter_++;

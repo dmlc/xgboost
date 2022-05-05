@@ -15,7 +15,6 @@ parameter_strategy = strategies.fixed_dictionaries({
     'max_leaves': strategies.integers(0, 256),
     'max_bin': strategies.integers(2, 1024),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
-    'single_precision_histogram': strategies.booleans(),
     'min_child_weight': strategies.floats(0.5, 2.0),
     'seed': strategies.integers(0, 10),
     # We cannot enable subsampling as the training loss can increase
@@ -60,6 +59,9 @@ class TestGPUUpdaters:
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self, rows, cols, rounds, cats):
         self.cputest.run_categorical_basic(rows, cols, rounds, cats, "gpu_hist")
+
+    def test_max_cat(self) -> None:
+        self.cputest.run_max_cat("gpu_hist")
 
     def test_categorical_32_cat(self):
         '''32 hits the bound of integer bitset, so special test'''

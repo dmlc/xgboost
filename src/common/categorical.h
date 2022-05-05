@@ -12,7 +12,6 @@
 #include "xgboost/data.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
-#include "xgboost/task.h"
 
 namespace xgboost {
 namespace common {
@@ -75,15 +74,20 @@ inline void InvalidCategory() {
   // values to be less than this last representable value.
   auto str = std::to_string(OutOfRangeCat());
   LOG(FATAL) << "Invalid categorical value detected.  Categorical value should be non-negative, "
-                "less than total umber of categories in training data and less than " +
+                "less than total number of categories in training data and less than " +
                     str;
+}
+
+inline void CheckMaxCat(float max_cat, size_t n_categories) {
+  CHECK_GE(max_cat + 1, n_categories)
+      << "Maximum cateogry should not be lesser than the total number of categories.";
 }
 
 /*!
  * \brief Whether should we use onehot encoding for categorical data.
  */
-XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot, ObjInfo task) {
-  bool use_one_hot = n_cats < max_cat_to_onehot || task.UseOneHot();
+XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot) {
+  bool use_one_hot = n_cats < max_cat_to_onehot;
   return use_one_hot;
 }
 
