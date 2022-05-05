@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2022 by XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
@@ -583,13 +583,13 @@ void SketchContainer::AllReduce() {
 
 namespace {
 struct InvalidCatOp {
-  Span<float const> values;
-  Span<uint32_t const> ptrs;
+  Span<SketchEntry const> values;
+  Span<size_t const> ptrs;
   Span<FeatureType const> ft;
 
   XGBOOST_DEVICE bool operator()(size_t i) const {
     auto fidx = dh::SegmentId(ptrs, i);
-    return IsCat(ft, fidx) && InvalidCat(values[i]);
+    return IsCat(ft, fidx) && InvalidCat(values[i].value);
   }
 };
 }  // anonymous namespace
@@ -611,7 +611,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
 
   p_cuts->min_vals_.SetDevice(device_);
   auto d_min_values = p_cuts->min_vals_.DeviceSpan();
-  auto in_cut_values = dh::ToSpan(this->Current());
+  auto const in_cut_values = dh::ToSpan(this->Current());
 
   // Set up output ptr
   p_cuts->cut_ptrs_.SetDevice(device_);
@@ -619,26 +619,70 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);
   auto const& h_feature_types = this->feature_types_.ConstHostSpan();
-  for (bst_feature_t i = 0; i < num_columns_; ++i) {
-    size_t column_size = std::max(static_cast<size_t>(1ul),
-                                  this->Column(i).size());
-    if (IsCat(h_feature_types, i)) {
-      h_out_columns_ptr.push_back(static_cast<size_t>(column_size));
-    } else {
-      h_out_columns_ptr.push_back(std::min(static_cast<size_t>(column_size),
-                                           static_cast<size_t>(num_bins_)));
+
+  auto d_ft = feature_types_.ConstDeviceSpan();
+
+  std::vector<SketchEntry> max_values;
+  float max_cat{-1.f};
+  if (has_categorical_) {
+    dh::XGBCachingDeviceAllocator<char> alloc;
+    auto key_it = dh::MakeTransformIterator<bst_feature_t>(
+        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> bst_feature_t {
+          return dh::SegmentId(d_in_columns_ptr, i);
+        });
+    auto invalid_op = InvalidCatOp{in_cut_values, d_in_columns_ptr, d_ft};
+    auto val_it = dh::MakeTransformIterator<SketchEntry>(
+        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
+          auto fidx = dh::SegmentId(d_in_columns_ptr, i);
+          auto v = in_cut_values[i];
+          if (IsCat(d_ft, fidx)) {
+            if (invalid_op(i)) {
+              // use inf to indicate invalid value, this way we can keep it as in
+              // indicator in the reduce operation as it's always the greatest value.
+              v.value = std::numeric_limits<float>::infinity();
+            }
+          }
+          return v;
+        });
+    CHECK_EQ(num_columns_, d_in_columns_ptr.size() - 1);
+    max_values.resize(d_in_columns_ptr.size() - 1);
+    dh::caching_device_vector<SketchEntry> d_max_values(d_in_columns_ptr.size() - 1);
+    thrust::reduce_by_key(thrust::cuda::par(alloc), key_it, key_it + in_cut_values.size(), val_it,
+                          thrust::make_discard_iterator(), d_max_values.begin(),
+                          thrust::equal_to<bst_feature_t>{},
+                          [] __device__(auto l, auto r) { return l.value > r.value ? l : r; });
+    dh::CopyDeviceSpanToVector(&max_values, dh::ToSpan(d_max_values));
+    auto max_it = common::MakeIndexTransformIter([&](auto i) {
+      if (IsCat(h_feature_types, i)) {
+        return max_values[i].value;
+      }
+      return -1.f;
+    });
+    max_cat = *std::max_element(max_it, max_it + max_values.size());
+    if (std::isinf(max_cat)) {
+      InvalidCategory();
     }
   }
-  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
-                   h_out_columns_ptr.begin());
-  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
 
   // Set up output cuts
+  for (bst_feature_t i = 0; i < num_columns_; ++i) {
+    size_t column_size = std::max(static_cast<size_t>(1ul), this->Column(i).size());
+    if (IsCat(h_feature_types, i)) {
+      // column_size is the number of unique values in that feature.
+      CheckMaxCat(max_values[i].value, column_size);
+      h_out_columns_ptr.push_back(max_values[i].value + 1);  // includes both max_cat and 0.
+    } else {
+      h_out_columns_ptr.push_back(
+          std::min(static_cast<size_t>(column_size), static_cast<size_t>(num_bins_)));
+    }
+  }
+  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(), h_out_columns_ptr.begin());
+  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
+
   size_t total_bins = h_out_columns_ptr.back();
   p_cuts->cut_values_.SetDevice(device_);
   p_cuts->cut_values_.Resize(total_bins);
   auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
-  auto d_ft = feature_types_.ConstDeviceSpan();
 
   dh::LaunchN(total_bins, [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
@@ -667,8 +711,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     }
 
     if (IsCat(d_ft, column_id)) {
-      assert(out_column.size() == in_column.size());
-      out_column[idx] = in_column[idx].value;
+      out_column[idx] = idx;
       return;
     }
 
@@ -684,36 +727,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     out_column[idx] = in_column[idx+1].value;
   });
 
-  float max_cat{-1.0f};
-  if (has_categorical_) {
-    auto invalid_op = InvalidCatOp{out_cut_values, d_out_columns_ptr, d_ft};
-    auto it = dh::MakeTransformIterator<thrust::pair<bool, float>>(
-        thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-          auto fidx = dh::SegmentId(d_out_columns_ptr, i);
-          if (IsCat(d_ft, fidx)) {
-            auto invalid = invalid_op(i);
-            auto v = out_cut_values[i];
-            return thrust::make_pair(invalid, v);
-          }
-          return thrust::make_pair(false, std::numeric_limits<float>::min());
-        });
-
-    bool invalid{false};
-    dh::XGBCachingDeviceAllocator<char> alloc;
-    thrust::tie(invalid, max_cat) =
-        thrust::reduce(thrust::cuda::par(alloc), it, it + out_cut_values.size(),
-                       thrust::make_pair(false, std::numeric_limits<float>::min()),
-                       [=] XGBOOST_DEVICE(thrust::pair<bool, bst_cat_t> const &l,
-                                          thrust::pair<bool, bst_cat_t> const &r) {
-                         return thrust::make_pair(l.first || r.first, std::max(l.second, r.second));
-                       });
-    if (invalid) {
-      InvalidCategory();
-    }
-  }
-
   p_cuts->SetCategorical(this->has_categorical_, max_cat);
-
   timer_.Stop(__func__);
 }
 }  // namespace common

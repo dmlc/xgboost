@@ -74,8 +74,13 @@ inline void InvalidCategory() {
   // values to be less than this last representable value.
   auto str = std::to_string(OutOfRangeCat());
   LOG(FATAL) << "Invalid categorical value detected.  Categorical value should be non-negative, "
-                "less than total umber of categories in training data and less than " +
+                "less than total number of categories in training data and less than " +
                     str;
+}
+
+inline void CheckMaxCat(float max_cat, size_t n_categories) {
+  CHECK_GE(max_cat + 1, n_categories)
+      << "Maximum cateogry should not be lesser than the total number of categories.";
 }
 
 /*!
