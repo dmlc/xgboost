@@ -33,11 +33,10 @@ namespace tree {
  * \brief base tree maker class that defines common operation
  *  needed in tree making
  */
-class BaseMaker: public TreeUpdater {
+class BaseMaker : public TreeUpdater {
  public:
-  void Configure(const Args& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
+  explicit BaseMaker(GenericParameter const *ctx) : TreeUpdater(ctx) {}
+  void Configure(const Args &args) override { param_.UpdateAllowUnknown(args); }
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);

@@ -12,7 +12,6 @@
 #include "xgboost/data.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
-#include "xgboost/task.h"
 
 namespace xgboost {
 namespace common {

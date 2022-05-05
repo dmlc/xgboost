@@ -35,6 +35,7 @@ class TreeUpdater : public Configurable {
   GenericParameter const* ctx_ = nullptr;
 
  public:
+  explicit TreeUpdater(const GenericParameter* ctx) : ctx_(ctx) {}
   /*! \brief virtual destructor */
   ~TreeUpdater() override = default;
   /*!
@@ -98,8 +99,9 @@ class TreeUpdater : public Configurable {
  * \brief Registry entry for tree updater.
  */
 struct TreeUpdaterReg
-    : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
-                                        std::function<TreeUpdater*(ObjInfo task)> > {};
+    : public dmlc::FunctionRegEntryBase<
+          TreeUpdaterReg,
+          std::function<TreeUpdater*(GenericParameter const* tparam, ObjInfo task)> > {};
 
 /*!
  * \brief Macro to register tree updater.

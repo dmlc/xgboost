@@ -178,7 +178,7 @@ void QuantileHistMaker::Builder<GradientSumT>::LeafPartition(
     RegTree const &tree, common::Span<GradientPair const> gpair,
     std::vector<bst_node_t> *p_out_position) {
   monitor_->Start(__func__);
-  if (!evaluator_->Task().UpdateTreeLeaf()) {
+  if (!task_.UpdateTreeLeaf()) {
     return;
   }
   for (auto const &part : partitioner_) {
@@ -363,7 +363,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(DMatrix *fmat, const Reg
   // store a pointer to the tree
   p_last_tree_ = &tree;
   evaluator_.reset(new HistEvaluator<GradientSumT, CPUExpandEntry>{
-      param_, info, this->ctx_->Threads(), column_sampler_, task_});
+      param_, info, this->ctx_->Threads(), column_sampler_});
 
   monitor_->Stop(__func__);
 }
@@ -411,6 +411,8 @@ template struct QuantileHistMaker::Builder<double>;
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
     .describe("Grow tree using quantized histogram.")
-    .set_body([](ObjInfo task) { return new QuantileHistMaker(task); });
+    .set_body([](GenericParameter const *ctx, ObjInfo task) {
+      return new QuantileHistMaker(ctx, task);
+    });
 }  // namespace tree
 }  // namespace xgboost

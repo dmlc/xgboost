@@ -20,8 +20,7 @@ TreeUpdater* TreeUpdater::Create(const std::string& name, GenericParameter const
   if (e == nullptr) {
     LOG(FATAL) << "Unknown tree updater " << name;
   }
-  auto p_updater = (e->body)(task);
-  p_updater->ctx_ = tparam;
+  auto p_updater = (e->body)(tparam, task);
   return p_updater;
 }
 
