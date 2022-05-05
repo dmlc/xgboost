@@ -44,11 +44,6 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
     node_categorical_storage_size_ =
         common::CatBitField::ComputeStorageSize(cuts.MaxCategory() + 1);
     CHECK_NE(node_categorical_storage_size_, 0);
-    // We need to allocate for all nodes since the updater can grow the tree layer by
-    // layer, all nodes in the same layer must be preserved until that layer is
-    // finished.  We can allocate one layer at a time, but the best case is reducing the
-    // size of the bitset by about a half, at the cost of invoking CUDA malloc many more
-    // times than necessary.
     split_cats_.resize(node_categorical_storage_size_);
     h_split_cats_.resize(node_categorical_storage_size_);
     dh::safe_cuda(
