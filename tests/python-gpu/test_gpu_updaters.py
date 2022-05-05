@@ -60,6 +60,9 @@ class TestGPUUpdaters:
     def test_categorical(self, rows, cols, rounds, cats):
         self.cputest.run_categorical_basic(rows, cols, rounds, cats, "gpu_hist")
 
+    def test_max_cat(self) -> None:
+        self.cputest.run_max_cat("gpu_hist")
+
     def test_categorical_32_cat(self):
         '''32 hits the bound of integer bitset, so special test'''
         rows = 1000
@@ -89,6 +92,8 @@ class TestGPUUpdaters:
            tm.dataset_strategy)
     @settings(deadline=None, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
+        if dataset.name.endswith("-l1"):
+            return
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
         param['tree_method'] = 'gpu_hist'

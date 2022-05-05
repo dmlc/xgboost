@@ -569,7 +569,7 @@ class TestModels:
         y = rng.randn(rows)
         feature_names = ["test_feature_" + str(i) for i in range(cols)]
         X_pd = pd.DataFrame(X, columns=feature_names)
-        X_pd.iloc[:, 3] = X_pd.iloc[:, 3].astype(np.int)
+        X_pd.iloc[:, 3] = X_pd.iloc[:, 3].astype(np.int32)
 
         Xy = xgb.DMatrix(X_pd, y)
         assert Xy.feature_types[3] == "int"

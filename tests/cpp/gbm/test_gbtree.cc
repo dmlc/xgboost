@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 XGBoost contributors
+ * Copyright 2019-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
@@ -69,13 +69,13 @@ TEST(GBTree, PredictionCache) {
   auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   auto gpair = GenerateRandomGradients(kRows);
   PredictionCacheEntry out_predictions;
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions);
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
 
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
   ASSERT_EQ(1, out_predictions.version);
   std::vector<float> first_iter = out_predictions.predictions.HostVector();
   // Add 1 more boosted round
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions);
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
   ASSERT_EQ(2, out_predictions.version);
   // Update the cache for all rounds
@@ -83,7 +83,7 @@ TEST(GBTree, PredictionCache) {
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 0, 0);
   ASSERT_EQ(2, out_predictions.version);
 
-  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions);
+  gbtree.DoBoost(p_m.get(), &gpair, &out_predictions, nullptr);
   // drop the cache.
   gbtree.PredictBatch(p_m.get(), &out_predictions, false, 1, 2);
   ASSERT_EQ(0, out_predictions.version);

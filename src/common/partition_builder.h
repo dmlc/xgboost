@@ -12,10 +12,12 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
+#include <limits>
 #include <vector>
 
 #include "categorical.h"
 #include "column_matrix.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
@@ -254,7 +256,7 @@ class PartitionBuilder {
         n_left += mem_blocks_[j]->n_left;
       }
       size_t n_right = 0;
-      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
+      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i + 1]; ++j) {
         mem_blocks_[j]->n_offset_right = n_left + n_right;
         n_right += mem_blocks_[j]->n_right;
       }
@@ -277,6 +279,30 @@ class PartitionBuilder {
 
   size_t GetTaskIdx(int nid, size_t begin) {
     return blocks_offsets_[nid] + begin / BlockSize;
+  }
+
+  // Copy row partitions into global cache for reuse in objective
+  template <typename Sampledp>
+  void LeafPartition(Context const* ctx, RegTree const& tree, RowSetCollection const& row_set,
+                     std::vector<bst_node_t>* p_position, Sampledp sampledp) const {
+    auto& h_pos = *p_position;
+    h_pos.resize(row_set.Data()->size(), std::numeric_limits<bst_node_t>::max());
+
+    auto p_begin = row_set.Data()->data();
+    ParallelFor(row_set.Size(), ctx->Threads(), [&](size_t i) {
+      auto const& node = row_set[i];
+      if (node.node_id < 0) {
+        return;
+      }
+      CHECK(tree[node.node_id].IsLeaf());
+      if (node.begin) {  // guard for empty node.
+        size_t ptr_offset = node.end - p_begin;
+        CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
+        for (auto idx = node.begin; idx != node.end; ++idx) {
+          h_pos[*idx] = sampledp(*idx) ? ~node.node_id : node.node_id;
+        }
+      }
+    });
   }
 
  protected:

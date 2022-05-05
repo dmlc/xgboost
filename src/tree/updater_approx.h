@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022 XGBoost contributors
  *
  * \brief Implementation for the approx tree method.
  */
@@ -18,6 +18,7 @@
 #include "hist/expand_entry.h"
 #include "hist/param.h"
 #include "param.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/json.h"
 #include "xgboost/tree_updater.h"
 
@@ -121,6 +122,12 @@ class ApproxRowPartitioner {
   }
 
   auto const &Partitions() const { return row_set_collection_; }
+
+  void LeafPartition(Context const *ctx, RegTree const &tree, common::Span<float const> hess,
+                     std::vector<bst_node_t> *p_out_position) const {
+    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), p_out_position,
+                                     [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
+  }
 
   auto operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
   auto const &operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }

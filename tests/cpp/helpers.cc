@@ -548,7 +548,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 
   PredictionCacheEntry predts;
 
-  gbm->DoBoost(p_dmat.get(), &gpair, &predts);
+  gbm->DoBoost(p_dmat.get(), &gpair, &predts, nullptr);
 
   return gbm;
 }

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2021 by Contributors
+ * Copyright 2014-2022 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -202,10 +202,16 @@ class GBTree : public GradientBooster {
   void ConfigureUpdaters();
   void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
+  /**
+   * \brief Optionally update the leaf value.
+   */
+  void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
+                      ObjFunction const* obj, size_t gidx,
+                      std::vector<std::unique_ptr<RegTree>>* p_trees);
+
   /*! \brief Carry out one iteration of boosting */
-  void DoBoost(DMatrix* p_fmat,
-               HostDeviceVector<GradientPair>* in_gpair,
-               PredictionCacheEntry* predt) override;
+  void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+               PredictionCacheEntry* predt, ObjFunction const* obj) override;
 
   bool UseGPU() const override {
     return
@@ -435,6 +441,9 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
+  // The node position for each row, 1 HDV for each tree in the forest.  Note that the
+  // position is negated if the row is sampled out.
+  std::vector<HostDeviceVector<bst_node_t>> node_position_;
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)

@@ -14,6 +14,10 @@
 #include "xgboost/data.h"
 
 namespace xgboost {
+namespace common {
+class ColumnMatrix;
+}  // namespace common
+
 /*!
  * \brief preprocessed global index matrix, in CSR format
  *
@@ -80,13 +84,13 @@ class GHistIndexMatrix {
       for (bst_uint j = 0; j < inst.size(); ++j) {
         auto e = inst[j];
         if (common::IsCat(ft, e.index)) {
-          auto bin_idx = cut.SearchCatBin(e);
+          bst_bin_t bin_idx = cut.SearchCatBin(e);
           index_data[ibegin + j] = get_offset(bin_idx, j);
           ++hit_count_tloc_[tid * nbins + bin_idx];
         } else {
-          uint32_t idx = cut.SearchBin(e.fvalue, e.index, ptrs, values);
-          index_data[ibegin + j] = get_offset(idx, j);
-          ++hit_count_tloc_[tid * nbins + idx];
+          bst_bin_t bin_idx = cut.SearchBin(e.fvalue, e.index, ptrs, values);
+          index_data[ibegin + j] = get_offset(bin_idx, j);
+          ++hit_count_tloc_[tid * nbins + bin_idx];
         }
       }
     });

@@ -90,9 +90,8 @@ class GradientBooster : public Model, public Configurable {
    * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat,
-                       HostDeviceVector<GradientPair>* in_gpair,
-                       PredictionCacheEntry*) = 0;
+  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+                       PredictionCacheEntry*, ObjFunction const* obj) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix

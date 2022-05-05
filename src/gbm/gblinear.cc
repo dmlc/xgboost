@@ -134,9 +134,8 @@ class GBLinear : public GradientBooster {
     this->updater_->SaveConfig(&j_updater);
   }
 
-  void DoBoost(DMatrix *p_fmat,
-               HostDeviceVector<GradientPair> *in_gpair,
-               PredictionCacheEntry*) override {
+  void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair, PredictionCacheEntry*,
+               ObjFunction const*) override {
     monitor_.Start("DoBoost");
 
     model_.LazyInitModel();

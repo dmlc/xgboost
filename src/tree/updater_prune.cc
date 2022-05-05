@@ -50,9 +50,9 @@ class TreePruner : public TreeUpdater {
   }
 
   // update the tree, do pruning
-  void Update(HostDeviceVector<GradientPair> *gpair,
-              DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+  void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              const std::vector<RegTree*>& trees) override {
     pruner_monitor_.Start("PrunerUpdate");
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
@@ -61,7 +61,7 @@ class TreePruner : public TreeUpdater {
       this->DoPrune(tree);
     }
     param_.learning_rate = lr;
-    syncher_->Update(gpair, p_fmat, trees);
+    syncher_->Update(gpair, p_fmat, out_position, trees);
     pruner_monitor_.Stop("PrunerUpdate");
   }
 

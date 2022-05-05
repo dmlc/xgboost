@@ -397,7 +397,7 @@ class LearnerConfiguration : public Learner {
       this->ValidateParameters();
     }
 
-    // FIXME(trivialfis): Clear the cache once binary IO is gone.
+    cfg_.clear();
     monitor_.Stop("Configure");
   }
 
@@ -1169,7 +1169,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, &predt);
+    gbm_->DoBoost(train.get(), &gpair_, &predt, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -1186,7 +1186,7 @@ class LearnerImpl : public LearnerIO {
     auto local_cache = this->GetPredictionCache();
     local_cache->Cache(train, generic_parameters_.gpu_id);
 
-    gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()));
+    gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()), obj_.get());
     monitor_.Stop("BoostOneIter");
   }
 
@@ -1200,16 +1200,6 @@ class LearnerImpl : public LearnerIO {
     os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
-      auto warn_default_eval_metric = [](const std::string& objective, const std::string& before,
-                                         const std::string& after, const std::string& version) {
-        LOG(WARNING) << "Starting in XGBoost " << version << ", the default evaluation metric "
-                     << "used with the objective '" << objective << "' was changed from '"
-                     << before << "' to '" << after << "'. Explicitly set eval_metric if you'd "
-                     << "like to restore the old behavior.";
-      };
-      if (tparam_.objective == "binary:logitraw") {
-        warn_default_eval_metric(tparam_.objective, "auc", "logloss", "1.4.0");
-      }
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }

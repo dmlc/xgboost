@@ -1,7 +1,7 @@
 """Copyright 2019-2022 XGBoost contributors"""
 import sys
 import os
-from typing import Type, TypeVar, Any, Dict, List, Tuple
+from typing import Type, TypeVar, Any, Dict, List
 import pytest
 import numpy as np
 import asyncio
@@ -82,7 +82,7 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
 
     cp.testing.assert_allclose(single_node, predictions.compute())
     np.testing.assert_allclose(single_node,
-                               series_predictions.compute().to_array())
+                               series_predictions.compute().to_numpy())
 
     predt = dxgb.predict(client, out, X)
     assert isinstance(predt, dd.Series)
@@ -198,9 +198,19 @@ def run_gpu_hist(
         dtrain=m,
         num_boost_round=num_rounds,
         evals=[(m, "train")],
-    )["history"]
+    )["history"]["train"][dataset.metric]
     note(history)
-    assert tm.non_increasing(history["train"][dataset.metric])
+
+    # See note on `ObjFunction::UpdateTreeLeaf`.
+    update_leaf = dataset.name.endswith("-l1")
+    if update_leaf and len(history) == 2:
+        assert history[0] + 1e-2 >= history[-1]
+        return
+    if update_leaf and len(history) > 2:
+        assert history[0] >= history[-1]
+        return
+    else:
+        assert tm.non_increasing(history)
 
 
 @pytest.mark.skipif(**tm.no_cudf())
@@ -305,8 +315,7 @@ class TestDistributedGPU:
 
     def test_empty_dmatrix(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
-            parameters = {'tree_method': 'gpu_hist',
-                          'debug_synchronize': True}
+            parameters = {'tree_method': 'gpu_hist', 'debug_synchronize': True}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
 

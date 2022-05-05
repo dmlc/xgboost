@@ -36,9 +36,7 @@ parameter ``enable_categorical``:
 .. code:: python
 
   # Supported tree methods are `gpu_hist`, `approx`, and `hist`.
-  clf = xgb.XGBClassifier(
-      tree_method="gpu_hist", enable_categorical=True, use_label_encoder=False
-  )
+  clf = xgb.XGBClassifier(tree_method="gpu_hist", enable_categorical=True)
   # X is the dataframe we created in previous snippet
   clf.fit(X, y)
   # Must use JSON/UBJSON for serialization, otherwise the information is lost.
@@ -74,23 +72,20 @@ Optimal Partitioning
 .. versionadded:: 1.6
 
 Optimal partitioning is a technique for partitioning the categorical predictors for each
-node split, the proof of optimality for numerical objectives like ``RMSE`` was first
-introduced by `[1] <#references>`__. The algorithm is used in decision trees for handling
-regression and binary classification tasks `[2] <#references>`__, later LightGBM `[3]
-<#references>`__ brought it to the context of gradient boosting trees and now is also
-adopted in XGBoost as an optional feature for handling categorical splits. More
-specifically, the proof by Fisher `[1] <#references>`__ states that, when trying to
-partition a set of discrete values into groups based on the distances between a measure of
-these values, one only needs to look at sorted partitions instead of enumerating all
-possible permutations. In the context of decision trees, the discrete values are
-categories, and the measure is the output leaf value.  Intuitively, we want to group the
-categories that output similar leaf values. During split finding, we first sort the
-gradient histogram to prepare the contiguous partitions then enumerate the splits
+node split, the proof of optimality for numerical output was first introduced by `[1]
+<#references>`__. The algorithm is used in decision trees `[2] <#references>`__, later
+LightGBM `[3] <#references>`__ brought it to the context of gradient boosting trees and
+now is also adopted in XGBoost as an optional feature for handling categorical
+splits. More specifically, the proof by Fisher `[1] <#references>`__ states that, when
+trying to partition a set of discrete values into groups based on the distances between a
+measure of these values, one only needs to look at sorted partitions instead of
+enumerating all possible permutations. In the context of decision trees, the discrete
+values are categories, and the measure is the output leaf value.  Intuitively, we want to
+group the categories that output similar leaf values. During split finding, we first sort
+the gradient histogram to prepare the contiguous partitions then enumerate the splits
 according to these sorted values. One of the related parameters for XGBoost is
 ``max_cat_to_one_hot``, which controls whether one-hot encoding or partitioning should be
-used for each feature, see :doc:`/parameter` for details.  When objective is not
-regression or binary classification, XGBoost will fallback to using onehot encoding
-instead.
+used for each feature, see :doc:`/parameter` for details.
 
 
 **********************
