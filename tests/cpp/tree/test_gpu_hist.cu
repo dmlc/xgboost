@@ -29,38 +29,29 @@ TEST(GpuHist, DeviceHistogram) {
   constexpr size_t kNBins = 128;
   constexpr size_t kNNodes = 4;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
-  DeviceHistogramStorage<GradientPairPrecise, kStopGrowing> histogram;
+  DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
   histogram.Init(0, kNBins);
-  for (int i = 0; i < kNNodes; ++i) {
-    histogram.AllocateHistograms({i});
+  for (size_t i = 0; i < kNNodes; ++i) {
+    histogram.AllocateHistogram(i);
   }
   histogram.Reset();
   ASSERT_EQ(histogram.Data().size(), kStopGrowing);
 
   // Use allocated memory but do not erase nidx_map.
-  for (int i = 0; i < kNNodes; ++i) {
-    histogram.AllocateHistograms({i});
+  for (size_t i = 0; i < kNNodes; ++i) {
+    histogram.AllocateHistogram(i);
   }
-  for (int i = 0; i < kNNodes; ++i) {
+  for (size_t i = 0; i < kNNodes; ++i) {
     ASSERT_TRUE(histogram.HistogramExists(i));
   }
 
-  // Add two new nodes
-  histogram.AllocateHistograms({kNNodes});
-  histogram.AllocateHistograms({kNNodes+1});
-
-  // Old cached nodes should still exist
-  for (int i = 0; i < kNNodes; ++i) {
-    ASSERT_TRUE(histogram.HistogramExists(i));
+  // Erase existing nidx_map.
+  for (size_t i = kNNodes; i < kNNodes * 2; ++i) {
+    histogram.AllocateHistogram(i);
   }
-
-  // Should be deleted
-  ASSERT_FALSE(histogram.HistogramExists({kNNodes}));
-  // Most recent node should exist
-  ASSERT_TRUE(histogram.HistogramExists({kNNodes + 1}));
-
-  // Add same node again - should fail
-  EXPECT_ANY_THROW(histogram.AllocateHistograms({kNNodes+1}););
+  for (size_t i = 0; i < kNNodes; ++i) {
+    ASSERT_FALSE(histogram.HistogramExists(i));
+  }
 }
 
 std::vector<GradientPairPrecise> GetHostHistGpair() {
@@ -104,9 +95,9 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
-  maker.hist.AllocateHistograms({0});
+  maker.hist.AllocateHistogram(0);
   maker.gpair = gpair.DeviceSpan();
-  maker.histogram_rounding = CreateRoundingFactor<GradientSumT>(maker.gpair);
+  maker.histogram_rounding = CreateRoundingFactor<GradientSumT>(maker.gpair);;
 
   BuildGradientHistogram(
       page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
@@ -114,7 +105,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
       maker.hist.GetNodeHistogram(0), maker.histogram_rounding,
       !use_shared_memory_histograms);
 
-  DeviceHistogramStorage<GradientSumT>& d_hist = maker.hist;
+  DeviceHistogram<GradientSumT>& d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
@@ -137,10 +128,12 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
 TEST(GpuHist, BuildHistGlobalMem) {
   TestBuildHist<GradientPairPrecise>(false);
+  TestBuildHist<GradientPair>(false);
 }
 
 TEST(GpuHist, BuildHistSharedMem) {
   TestBuildHist<GradientPairPrecise>(true);
+  TestBuildHist<GradientPair>(true);
 }
 
 TEST(GpuHist, ApplySplit) {
@@ -180,6 +173,8 @@ TEST(GpuHist, ApplySplit) {
     ASSERT_EQ(tree.GetSplitCategories().size(), 1);
     uint32_t bits = 1u << 30;  // bits: 0, 1, 0, 0, 0, ..., 0
     ASSERT_EQ(tree.GetSplitCategories().back(), bits);
+
+    ASSERT_EQ(updater.node_categories.size(), 1);
   }
 }
 
@@ -243,7 +238,7 @@ TEST(GpuHist, EvaluateRootSplit) {
 
   // Initialize GPUHistMakerDevice::hist
   maker.hist.Init(0, (max_bins - 1) * kNCols);
-  maker.hist.AllocateHistograms({0});
+  maker.hist.AllocateHistogram(0);
   // Each row of hist_gpair represents gpairs for one feature.
   // Each entry represents a bin.
   std::vector<GradientPairPrecise> hist_gpair = GetHostHistGpair();
