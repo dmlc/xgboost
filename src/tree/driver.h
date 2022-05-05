@@ -57,7 +57,7 @@ class Driver {
 
   // Can a child of this entry still be expanded?
   // can be used to avoid extra work
-  bool IsChildValid(ExpandEntryT const& parent_entry){
+  bool IsChildValid(ExpandEntryT const& parent_entry) {
     if (param_.max_depth > 0 && parent_entry.depth + 1 >= param_.max_depth) return false;
     if (param_.max_leaves > 0 && num_leaves_ >= param_.max_leaves) return false;
     return true;
@@ -100,7 +100,7 @@ class Driver {
 
  private:
   TrainParam param_;
-  std::size_t num_leaves_=1;
+  std::size_t num_leaves_ = 1;
   ExpandQueue queue_;
 };
 }  // namespace tree

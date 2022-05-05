@@ -637,7 +637,7 @@ struct GPUHistMakerDevice {
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
-      for(auto & candidate: expand_set){
+      for (auto& candidate : expand_set) {
         this->ApplySplit(candidate, p_tree);
       }
       // Get the candidates we are allowed to expand further
@@ -649,7 +649,7 @@ struct GPUHistMakerDevice {
       auto new_candidates =
           pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
 
-      for(const auto &e:filtered_expand_set){
+      for (const auto& e : filtered_expand_set) {
         monitor.Start("UpdatePosition");
         // Update position is only run when child is valid, instead of right after apply
         // split (as in approx tree method).  Hense we have the finalise position call
