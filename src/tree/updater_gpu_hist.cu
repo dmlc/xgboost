@@ -62,7 +62,7 @@ DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
 #endif  // !defined(GTEST_TEST)
 
 /**
- * \struct  DeviceHistogram
+ * \struct  DeviceHistogramStorage
  *
  * \summary Data storage for node histograms on device. Automatically expands.
  *
@@ -72,12 +72,18 @@ DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
  * \author  Rory
  * \date    28/07/2018
  */
-template <typename GradientSumT, size_t kStopGrowingSize = 1 << 26>
-class DeviceHistogram {
+template <typename GradientSumT, size_t kStopGrowingSize = 1 << 28>
+class DeviceHistogramStorage {
  private:
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
+  // Large buffer of zeroed memory, caches histograms
   dh::device_vector<typename GradientSumT::ValueT> data_;
+  // If we run out of storage allocate one histogram at a time
+  // in overflow. Not cached, overwritten when a new histogram
+  // is requested
+  dh::device_vector<typename GradientSumT::ValueT> overflow_;
+  std::map<int, size_t> overflow_nidx_map_;
   int n_bins_;
   int device_id_;
   static constexpr size_t kNumItemsInGradientSum =
@@ -86,6 +92,8 @@ class DeviceHistogram {
                 "Number of items in gradient type should be 2.");
 
  public:
+  // Start with about 16mb
+  DeviceHistogramStorage() { data_.reserve(1 << 22); }
   void Init(int device_id, int n_bins) {
     this->n_bins_ = n_bins;
     this->device_id_ = device_id;
@@ -93,52 +101,48 @@ class DeviceHistogram {
 
   void Reset() {
     auto d_data = data_.data().get();
-    dh::LaunchN(data_.size(),
-                [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
+    dh::LaunchN(data_.size(), [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     nidx_map_.clear();
+    overflow_nidx_map_.clear();
   }
   bool HistogramExists(int nidx) const {
-    return nidx_map_.find(nidx) != nidx_map_.cend();
+    return nidx_map_.find(nidx) != nidx_map_.cend() || overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
   }
   int Bins() const {
     return n_bins_;
   }
-  size_t HistogramSize() const {
-    return n_bins_ * kNumItemsInGradientSum;
-  }
+  size_t HistogramSize() const { return n_bins_ * kNumItemsInGradientSum; }
+  dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
 
-  dh::device_vector<typename GradientSumT::ValueT>& Data() {
-    return data_;
-  }
-
-  void AllocateHistogram(int nidx) {
-    if (HistogramExists(nidx)) return;
+  void AllocateHistograms(const std::vector<int>& new_nidxs) {
+    for (int nidx : new_nidxs) {
+      CHECK(!HistogramExists(nidx));
+    }
     // Number of items currently used in data
     const size_t used_size = nidx_map_.size() * HistogramSize();
-    const size_t new_used_size = used_size + HistogramSize();
-    if (data_.size() >= kStopGrowingSize) {
-      // Recycle histogram memory
-      if (new_used_size <= data_.size()) {
-        // no need to remove old node, just insert the new one.
-        nidx_map_[nidx] = used_size;
-        // memset histogram size in bytes
-      } else {
-        std::pair<int, size_t> old_entry = *nidx_map_.begin();
-        nidx_map_.erase(old_entry.first);
-        nidx_map_[nidx] = old_entry.second;
+    const size_t new_used_size = used_size + HistogramSize() * new_nidxs.size();
+    if (used_size >= kStopGrowingSize) {
+      // Use overflow
+      // Delete previous entries
+      overflow_nidx_map_.clear();
+      overflow_.resize(HistogramSize() * new_nidxs.size());
+      // Zero memory
+      auto d_data = overflow_.data().get();
+      dh::LaunchN(overflow_.size(),
+                  [=] __device__(size_t idx) { d_data[idx] = 0.0; });
+      // Append new histograms
+      for (int nidx : new_nidxs) {
+        overflow_nidx_map_[nidx] = overflow_nidx_map_.size() * HistogramSize();
       }
-      // Zero recycled memory
-      auto d_data = data_.data().get() + nidx_map_[nidx];
-      dh::LaunchN(n_bins_ * 2,
-                  [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     } else {
-      // Append new node histogram
-      nidx_map_[nidx] = used_size;
-      // Check there is enough memory for another histogram node
-      if (data_.size() < new_used_size + HistogramSize()) {
-        size_t new_required_memory =
-            std::max(data_.size() * 2, HistogramSize());
-        data_.resize(new_required_memory);
+      CHECK_GE(data_.size(), used_size);
+      // Expand if necessary
+      if (data_.size() < new_used_size) {
+        data_.resize(std::max(data_.size() * 2, new_used_size));
+      }
+      // Append new histograms
+      for (int nidx : new_nidxs) {
+        nidx_map_[nidx] = nidx_map_.size() * HistogramSize();
       }
     }
 
@@ -152,9 +156,16 @@ class DeviceHistogram {
    */
   common::Span<GradientSumT> GetNodeHistogram(int nidx) {
     CHECK(this->HistogramExists(nidx));
-    auto ptr = data_.data().get() + nidx_map_.at(nidx);
-    return common::Span<GradientSumT>(
-        reinterpret_cast<GradientSumT*>(ptr), n_bins_);
+
+    if (nidx_map_.find(nidx) != nidx_map_.cend()) {
+      // Fetch from normal cache
+      auto ptr = data_.data().get() + nidx_map_.at(nidx);
+      return common::Span<GradientSumT>(reinterpret_cast<GradientSumT*>(ptr), n_bins_);
+    } else {
+      // Fetch from overflow
+      auto ptr = overflow_.data().get() + overflow_nidx_map_.at(nidx);
+      return common::Span<GradientSumT>(reinterpret_cast<GradientSumT*>(ptr), n_bins_);
+    }
   }
 };
 
@@ -171,7 +182,7 @@ struct GPUHistMakerDevice {
   BatchParam batch_param;
 
   std::unique_ptr<RowPartitioner> row_partitioner;
-  DeviceHistogram<GradientSumT> hist{};
+  DeviceHistogramStorage<GradientSumT> hist{};
 
   dh::caching_device_vector<GradientPair> d_gpair;  // storage for gpair;
   common::Span<GradientPair> gpair;
@@ -322,7 +333,6 @@ struct GPUHistMakerDevice {
   }
 
   void BuildHist(int nidx) {
-    hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(ctx_->gpu_id),
@@ -330,8 +340,12 @@ struct GPUHistMakerDevice {
                            d_ridx, d_node_hist, histogram_rounding);
   }
 
-  void SubtractionTrick(int nidx_parent, int nidx_histogram,
-                        int nidx_subtraction) {
+  // Attempt to do subtraction trick
+  // return true if succeeded
+  bool SubtractionTrick(int nidx_parent, int nidx_histogram, int nidx_subtraction) {
+    if (!hist.HistogramExists(nidx_histogram) || !hist.HistogramExists(nidx_parent)) {
+      return false;
+    }
     auto d_node_hist_parent = hist.GetNodeHistogram(nidx_parent);
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
@@ -340,12 +354,7 @@ struct GPUHistMakerDevice {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
-  }
-
-  bool CanDoSubtractionTrick(int nidx_parent, int nidx_histogram, int nidx_subtraction) {
-    // Make sure histograms are already allocated
-    hist.AllocateHistogram(nidx_subtraction);
-    return hist.HistogramExists(nidx_histogram) && hist.HistogramExists(nidx_parent);
+    return true;
   }
 
   void UpdatePosition(const GPUExpandEntry &e, RegTree* p_tree) {
@@ -505,13 +514,15 @@ struct GPUHistMakerDevice {
     row_partitioner.reset();
   }
 
-  void AllReduceHist(int nidx, dh::AllReducer* reducer) {
+  // num histograms is the number of contiguous histograms in memory to reduce over
+  void AllReduceHist(int nidx, dh::AllReducer* reducer, int num_histograms) {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
-    reducer->AllReduceSum(
-        reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        page->Cuts().TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+    reducer->AllReduceSum(reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+                          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+                          page->Cuts().TotalBins() *
+                              (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)) *
+                              num_histograms);
 
     monitor.Stop("AllReduce");
   }
@@ -519,33 +530,50 @@ struct GPUHistMakerDevice {
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
-  void BuildHistLeftRight(const GPUExpandEntry &candidate, int nidx_left,
-        int nidx_right, dh::AllReducer* reducer) {
-    auto build_hist_nidx = nidx_left;
-    auto subtraction_trick_nidx = nidx_right;
+  void BuildHistLeftRight(std::vector<GPUExpandEntry> const& candidates, dh::AllReducer* reducer,
+                          const RegTree& tree) {
+    if (candidates.empty()) return;
+    // Some nodes we will manually compute histograms
+    // others we will do by subtraction
+    std::vector<int> hist_nidx;
+    std::vector<int> subtraction_nidx;
+    for (auto& e : candidates) {
+      // Decide whether to build the left histogram or right histogram
+      // Use sum of Hessian as a heuristic to select node with fewest training instances
+      bool fewer_right = e.split.right_sum.GetHess() < e.split.left_sum.GetHess();
+      if (fewer_right) {
+        hist_nidx.emplace_back(tree[e.nid].RightChild());
+        subtraction_nidx.emplace_back(tree[e.nid].LeftChild());
+      } else {
+        hist_nidx.emplace_back(tree[e.nid].LeftChild());
+        subtraction_nidx.emplace_back(tree[e.nid].RightChild());
+      }
+    }
+    std::vector<int> all_new = hist_nidx;
+    all_new.insert(all_new.end(), subtraction_nidx.begin(), subtraction_nidx.end());
+    // Allocate the histograms
+    // Guaranteed contiguous memory
+    hist.AllocateHistograms(all_new);
 
-    // Decide whether to build the left histogram or right histogram
-    // Use sum of Hessian as a heuristic to select node with fewest training instances
-    bool fewer_right = candidate.split.right_sum.GetHess() < candidate.split.left_sum.GetHess();
-    if (fewer_right) {
-      std::swap(build_hist_nidx, subtraction_trick_nidx);
+    for (auto nidx : hist_nidx) {
+      this->BuildHist(nidx);
     }
 
-    this->BuildHist(build_hist_nidx);
-    this->AllReduceHist(build_hist_nidx, reducer);
+    // Reduce all in one go
+    // This gives much better latency in a distributed setting
+    // when processing a large batch
+    this->AllReduceHist(hist_nidx.at(0), reducer, hist_nidx.size());
 
-    // Check whether we can use the subtraction trick to calculate the other
-    bool do_subtraction_trick = this->CanDoSubtractionTrick(
-        candidate.nid, build_hist_nidx, subtraction_trick_nidx);
+    for (int i = 0; i < subtraction_nidx.size(); i++) {
+      auto build_hist_nidx = hist_nidx.at(i);
+      auto subtraction_trick_nidx = subtraction_nidx.at(i);
+      auto parent_nidx = candidates.at(i).nid;
 
-    if (do_subtraction_trick) {
-      // Calculate other histogram using subtraction trick
-      this->SubtractionTrick(candidate.nid, build_hist_nidx,
-                             subtraction_trick_nidx);
-    } else {
-      // Calculate other histogram manually
-      this->BuildHist(subtraction_trick_nidx);
-      this->AllReduceHist(subtraction_trick_nidx, reducer);
+      if (!this->SubtractionTrick(parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
+        // Calculate other histogram manually
+        this->BuildHist(subtraction_trick_nidx);
+        this->AllReduceHist(subtraction_trick_nidx, reducer, 1);
+      }
     }
   }
 
@@ -605,8 +633,9 @@ struct GPUHistMakerDevice {
                    GradientPairPrecise{}, thrust::plus<GradientPairPrecise>{});
     rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double*>(&root_sum), 2);
 
+    hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
-    this->AllReduceHist(kRootNIdx, reducer);
+    this->AllReduceHist(kRootNIdx, reducer, 1);
 
     // Remember root stats
     node_sum_gradients[kRootNIdx] = root_sum;
@@ -646,6 +675,7 @@ struct GPUHistMakerDevice {
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(filtered_expand_set),
                    [&](const auto& e) { return driver.IsChildValid(e); });
 
+
       auto new_candidates =
           pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
 
@@ -658,18 +688,12 @@ struct GPUHistMakerDevice {
         monitor.Stop("UpdatePosition");
       }
 
-      for (auto i = 0ull; i < filtered_expand_set.size(); i++) {
-        auto candidate = expand_set.at(i);
-        int left_child_nidx = tree[candidate.nid].LeftChild();
-        int right_child_nidx = tree[candidate.nid].RightChild();
-
-        monitor.Start("BuildHist");
-        this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
-        monitor.Stop("BuildHist");
-      }
+      monitor.Start("BuildHist");
+      this->BuildHistLeftRight(filtered_expand_set, reducer, tree);
+      monitor.Stop("BuildHist");
 
       for (auto i = 0ull; i < filtered_expand_set.size(); i++) {
-        auto candidate = expand_set.at(i);
+        auto candidate = filtered_expand_set.at(i);
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
 

@@ -103,7 +103,7 @@ class GPUHistEvaluator {
   }
 
   /**
-   * \brief Get sorted index storage based on the left node of inputs .
+   * \brief Get sorted index storage based on the left node of inputs.
    */
   auto SortedIdx(EvaluateSplitInputs<GradientSumT> left) {
     if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
