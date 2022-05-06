@@ -1,12 +1,13 @@
 import os
 
 from nvflare.apis.executor import Executor
-from nvflare.apis.fl_constant import ReservedKey, ReturnCode, FLContextKey
+from nvflare.apis.fl_constant import ReturnCode, FLContextKey
 from nvflare.apis.fl_context import FLContext
 from nvflare.apis.shareable import Shareable, make_reply
 from nvflare.apis.signal import Signal
 
 import xgboost as xgb
+from xgboost import callback
 
 
 class SupportedTasks(object):
@@ -69,7 +70,8 @@ class XGBoostTrainer(Executor):
 
         # Run training, all the features in training API is available.
         bst = xgb.train(param, dtrain, num_round, evals=watchlist,
-                        early_stopping_rounds=2)
+                        early_stopping_rounds=2, verbose_eval=False,
+                        callbacks=[callback.EvaluationMonitor(rank=rank)])
 
         # Save the model.
         workspace = fl_ctx.get_prop(FLContextKey.WORKSPACE_OBJECT)
