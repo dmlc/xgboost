@@ -24,8 +24,8 @@ template <typename GradientSumT> void TestEvaluateSplits() {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
 
-  auto evaluator = HistEvaluator<GradientSumT, CPUExpandEntry>{
-      param, dmat->Info(), n_threads, sampler, ObjInfo{ObjInfo::kRegression}};
+  auto evaluator =
+      HistEvaluator<GradientSumT, CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
   common::HistCollection<GradientSumT> hist;
   std::vector<GradientPair> row_gpairs = {
       {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},  {2.27f, 0.28f},
@@ -97,8 +97,7 @@ TEST(HistEvaluator, Apply) {
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator_ = HistEvaluator<float, CPUExpandEntry>{param, dmat->Info(), 4, sampler,
-                                                         ObjInfo{ObjInfo::kRegression}};
+  auto evaluator_ = HistEvaluator<float, CPUExpandEntry>{param, dmat->Info(), 4, sampler};
 
   CPUExpandEntry entry{0, 0, 10.0f};
   entry.split.left_sum = GradStats{0.4, 0.6f};
@@ -125,7 +124,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   std::vector<FeatureType> ft{FeatureType::kCategorical};
   auto sampler = std::make_shared<common::ColumnSampler>();
   HistEvaluator<double, CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0),
-                                                  sampler, ObjInfo{ObjInfo::kRegression}};
+                                                  sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
@@ -156,8 +155,8 @@ auto CompareOneHotAndPartition(bool onehot) {
 
   int32_t n_threads = 16;
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator = HistEvaluator<GradientSumT, CPUExpandEntry>{
-      param, dmat->Info(), n_threads, sampler, ObjInfo{ObjInfo::kRegression}};
+  auto evaluator =
+      HistEvaluator<GradientSumT, CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
   std::vector<CPUExpandEntry> entries(1);
 
   for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
