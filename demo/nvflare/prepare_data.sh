@@ -19,5 +19,7 @@ mkdir -p poc/admin/transfer/hello-xgboost
 cp -fr config custom poc/admin/transfer/hello-xgboost
 cp server-*.pem client-cert.pem poc/server/
 for id in $(eval echo "{1..$world_size}"); do
-  cp server-cert.pem client-*.pem agaricus.txt.{train,test}-site-"$id" poc/site-"$id"/
+  cp server-cert.pem client-*.pem poc/site-"$id"/
+  cp agaricus.txt.train-site-"$id" poc/site-"$id"/agaricus.txt.train
+  cp agaricus.txt.test-site-"$id" poc/site-"$id"/agaricus.txt.test
 done

@@ -57,8 +57,8 @@ class XGBoostTrainer(Executor):
         xgb.rabit.init([e.encode() for e in rabit_env])
 
         # Load file, file will not be sharded in federated mode.
-        dtrain = xgb.DMatrix('agaricus.txt.train-%s' % client_name)
-        dtest = xgb.DMatrix('agaricus.txt.test-%s' % client_name)
+        dtrain = xgb.DMatrix('agaricus.txt.train')
+        dtest = xgb.DMatrix('agaricus.txt.test')
 
         # Specify parameters via map, definition are same as c++ version
         param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
