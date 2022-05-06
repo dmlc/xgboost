@@ -3,37 +3,37 @@
 This directory contains a demo of Federated Learning using [NVFlare](https://nvidia.github.io/).
 
 To run the demo, first install NVFlare:
-```console
+```shell
 pip install nvflare
 ```
 
 Prepare the data:
-```console
+```shell
 ./prepare_data.sh
 ```
 
 Start the NVFlare federated server:
-```console
+```shell
 ./poc/server/startup/start.sh
 ```
 
 In another terminal, start the first worker:
-```console
+```shell
 ./poc/site-1/startup/start.sh
 ```
 
 And the second worker:
-```console
+```shell
 ./poc/site-2/startup/start.sh
 ```
 
 Then start the admin CLI, using `admin/admin` as username/password:
-```console
+```shell
 ./poc/admin/startup/fl_admin.sh
 ```
 
 In the admin CLI, run the following commands:
-```console
+```shell
 upload_app hello-xgboost
 set_run_number 1
 deploy_app hello-xgboost all
@@ -45,7 +45,7 @@ Once the training finishes, the model file should be written into
 respectively.
 
 Finally, shutdown everything from the admin CLI:
-```console
+```shell
 shutdown client
 shutdown server
 ```
