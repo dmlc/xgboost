@@ -769,7 +769,7 @@ class XGBModel(XGBModelBase):
     def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         # pylint: disable=attribute-defined-outside-init
         if not hasattr(self, '_Booster'):
-            self._Booster = Booster(Parameters({'n_jobs': self.n_jobs}))
+            self._Booster = Booster({'n_jobs': self.n_jobs})
         self.get_booster().load_model(fname)
         meta_str = self.get_booster().attr('scikit_learn')
         if meta_str is None:
