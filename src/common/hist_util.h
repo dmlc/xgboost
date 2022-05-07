@@ -201,17 +201,18 @@ struct BinTypeMap {
 };
 
 template <>
-struct BinTypeMap<1> {
+struct BinTypeMap<kUint8BinsTypeSize> {
     using type = uint8_t;
 };
 
 template <>
-struct BinTypeMap<2> {
+struct BinTypeMap<kUint16BinsTypeSize> {
     using type = uint16_t;
 };
 
-using BinTypeSizeSequence = std::integer_sequence<unsigned int,
-  1, 2, 4>;
+using BinTypeSizeSequence = std::integer_sequence<uint32_t,
+  BinTypeSize::kUint8BinsTypeSize, BinTypeSize::kUint16BinsTypeSize,
+  BinTypeSize::kUint32BinsTypeSize>;
 using BoolSequence = std::integer_sequence<bool, true, false>;
 
 /**

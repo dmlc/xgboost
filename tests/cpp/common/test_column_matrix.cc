@@ -25,36 +25,19 @@ TEST(DenseColumn, Test) {
       column_matrix.Init(page, gmat, sparse_thresh, common::OmpGetNumThreads(0));
     }
 
+    const auto& column_list = column_matrix.GetColumnList();
     for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
       for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
-          switch (column_matrix.GetTypeSize()) {
-            case kUint8BinsTypeSize: {
-                auto col = column_matrix.GetColumn<uint8_t, false>(j);
-                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          (*col.get()).GetGlobalBinIdx(i));
-              }
-              break;
-            case kUint16BinsTypeSize: {
-                auto col = column_matrix.GetColumn<uint16_t, false>(j);
-                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          (*col.get()).GetGlobalBinIdx(i));
-              }
-              break;
-            case kUint32BinsTypeSize: {
-                auto col = column_matrix.GetColumn<uint32_t, false>(j);
-                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          (*col.get()).GetGlobalBinIdx(i));
-              }
-              break;
-        }
+        const auto& col = column_list[j];
+        ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
+                  (*col.get()).GetGlobalBinIdx(i));
       }
     }
   }
 }
 
-template<typename BinIdxType>
-inline void CheckSparseColumn(const Column<BinIdxType>& col_input, const GHistIndexMatrix& gmat) {
-  const SparseColumn<BinIdxType>& col = static_cast<const SparseColumn<BinIdxType>& >(col_input);
+inline void CheckSparseColumn(const Column& col_input, const GHistIndexMatrix& gmat) {
+  const SparseColumn& col = static_cast<const SparseColumn& >(col_input);
   ASSERT_EQ(col.Size(), gmat.index.Size());
   for (auto i = 0ull; i < col.Size(); i++) {
     ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
@@ -73,30 +56,15 @@ TEST(SparseColumn, Test) {
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.Init(page, gmat, 1.0, common::OmpGetNumThreads(0));
     }
-    switch (column_matrix.GetTypeSize()) {
-      case kUint8BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint8_t, true>(0);
-          CheckSparseColumn(*col.get(), gmat);
-        }
-        break;
-      case kUint16BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint16_t, true>(0);
-          CheckSparseColumn(*col.get(), gmat);
-        }
-        break;
-      case kUint32BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint32_t, true>(0);
-          CheckSparseColumn(*col.get(), gmat);
-        }
-        break;
-    }
+    const auto& column_list = column_matrix.GetColumnList();
+    const auto& col = column_list[0];
+    CheckSparseColumn(*col.get(), gmat);
   }
 }
 
-template<typename BinIdxType>
-inline void CheckColumWithMissingValue(const Column<BinIdxType>& col_input,
+inline void CheckColumWithMissingValue(const Column& col_input,
                                        const GHistIndexMatrix& gmat) {
-  const DenseColumn<BinIdxType, true>& col = static_cast<const DenseColumn<BinIdxType, true>& >(col_input);
+  const DenseColumn& col = static_cast<const DenseColumn& >(col_input);
   for (auto i = 0ull; i < col.Size(); i++) {
     if (col.IsMissing(i)) continue;
     EXPECT_EQ(gmat.index[gmat.row_ptr[i]],
@@ -115,23 +83,9 @@ TEST(DenseColumnWithMissing, Test) {
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.Init(page, gmat, 0.2, common::OmpGetNumThreads(0));
     }
-    switch (column_matrix.GetTypeSize()) {
-      case kUint8BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint8_t, true>(0);
-          CheckColumWithMissingValue(*col.get(), gmat);
-        }
-        break;
-      case kUint16BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint16_t, true>(0);
-          CheckColumWithMissingValue(*col.get(), gmat);
-        }
-        break;
-      case kUint32BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint32_t, true>(0);
-          CheckColumWithMissingValue(*col.get(), gmat);
-        }
-        break;
-    }
+    const auto& column_list = column_matrix.GetColumnList();
+    const auto& col = column_list[0];
+    CheckColumWithMissingValue(*col.get(), gmat);
   }
 }
 
