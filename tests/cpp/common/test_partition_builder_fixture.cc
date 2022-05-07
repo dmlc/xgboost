@@ -96,7 +96,9 @@ using DMatrixP = std::shared_ptr<DMatrix>;
                       gmat, gmat.cut.Ptrs().size() - 1,
                       0, node_ids, false);
     size_t split_bin_id = 0;
-    auto [left_cnt, right_cnt] = GetRef(gmat, split_bin_id);
+    size_t left_cnt; 
+    size_t right_cnt;
+    std::tie(left_cnt, right_cnt) = GetRef(gmat, split_bin_id);
     ASSERT_EQ(opt_partition_builder.summ_size, left_cnt);
     ASSERT_EQ(row_count_ - opt_partition_builder.summ_size, right_cnt);
   }
