@@ -410,8 +410,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
     //                                  [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
   }
 
-  // auto operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
-  // auto const &operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
   auto const &GetThreadTasks(const size_t tid) const {
     return opt_partition_builder_.GetSlices(tid);
   }
@@ -423,7 +421,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
   RowPartitioner() = default;
   explicit RowPartitioner(GenericParameter const *ctx,
                                 GHistIndexMatrix const &gmat,
-                                // common::ColumnMatrix const &column_matrix,
                                 const RegTree* p_tree_local,
                                 size_t max_depth,
                                 bool is_loss_guide) {
@@ -470,7 +467,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
 
   void Reset(GenericParameter const *ctx,
                      GHistIndexMatrix const &gmat,
-                    //  common::ColumnMatrix const & column_matrix,
                      const RegTree* p_tree_local,
                      size_t max_depth,
                      bool is_loss_guide) {
