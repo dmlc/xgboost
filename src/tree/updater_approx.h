@@ -35,6 +35,9 @@ class RowPartitioner {
   using SplitFtrListT = std::unordered_map<uint32_t, int32_t>;
   using SplitIndListT = std::unordered_map<uint32_t, uint64_t>;
 
+  const uint32_t one = 1;
+  const uint32_t zero = 0;
+
  private:
   common::OptPartitionBuilder opt_partition_builder_;
   NodeIdListT node_ids_;
@@ -75,7 +78,6 @@ class RowPartitioner {
    public:
     UpdatePositionHelper(xgboost::tree::RowPartitioner* row_partitioner,
       GenericParameter const* ctx, GHistIndexMatrix const& gmat,
-      // common::ColumnMatrix const& column_matrix,
       std::vector<xgboost::tree::CPUExpandEntry> const& nodes,
       RegTree const* p_tree,
       int depth,
@@ -90,7 +92,6 @@ class RowPartitioner {
         row_partitioner_(*row_partitioner),
         ctx_(ctx),
         gmat_(gmat),
-        // column_matrix_(gmat.Transpose()),
         nodes_(nodes),
         p_tree_(p_tree),
         depth_(depth),
@@ -108,7 +109,6 @@ class RowPartitioner {
       row_partitioner_.template UpdatePosition<missing, BinType, is_loss_guide, has_cat>(
         ctx_,
         gmat_,
-        // column_matrix_,
         nodes_,
         p_tree_,
         depth_,
@@ -126,7 +126,6 @@ class RowPartitioner {
     xgboost::tree::RowPartitioner& row_partitioner_;
     GenericParameter const* ctx_;
     GHistIndexMatrix const& gmat_;
-    // common::ColumnMatrix const& column_matrix_;
     std::vector<xgboost::tree::CPUExpandEntry> const& nodes_;
     RegTree const* p_tree_;
     int depth_;
@@ -145,21 +144,17 @@ class RowPartitioner {
   void DispatchFromHasMissing(UpdatePositionHelper&& pos_updater,
     const DispatchParameterSet&& dispatch_values,
     std::integer_sequence<bool, switch_values_set...>) {
-      const unsigned int one = 1;
-      const unsigned int zero = 0;
-    std::initializer_list<unsigned int>{(dispatch_values.GetHasMissing()
+    std::initializer_list<uint32_t>{(dispatch_values.GetHasMissing()
       == switch_values_set ?
       DispatchFromBinType<switch_values_set>(std::move(pos_updater), std::move(dispatch_values),
       std::move(common::BinTypeSizeSequence{})), one : zero)...};
   }
 
-  template <bool missing, unsigned int ... switch_values_set>
+  template <bool missing, uint32_t ... switch_values_set>
   void DispatchFromBinType(UpdatePositionHelper&& pos_updater,
     const DispatchParameterSet&& dispatch_values,
-                           std::integer_sequence<unsigned int, switch_values_set...>) {
-      const unsigned int one = 1;
-      const unsigned int zero = 0;
-      std::initializer_list<unsigned int>{(dispatch_values.GetBinTypeSize() == switch_values_set ?
+                           std::integer_sequence<uint32_t, switch_values_set...>) {
+      std::initializer_list<uint32_t>{(dispatch_values.GetBinTypeSize() == switch_values_set ?
                     DispatchFromLossGuide<missing,
                     typename common::BinTypeMap<switch_values_set>::type>(std::move(pos_updater),
                     std::move(dispatch_values), std::move(common::BoolSequence{})), one : zero)...};
@@ -167,12 +162,9 @@ class RowPartitioner {
 
   template <bool missing, typename BinType, bool ... switch_values_set>
   void DispatchFromLossGuide(UpdatePositionHelper&& pos_updater,
-    const DispatchParameterSet&& dispatch_values,
+                             const DispatchParameterSet&& dispatch_values,
                              std::integer_sequence<bool, switch_values_set...>) {
-      const unsigned int one = 1;
-      const unsigned int zero = 0;
-                             std::initializer_list<unsigned int>{(dispatch_values.GetLossGuide()
-                             == switch_values_set ?
+    std::initializer_list<uint32_t>{(dispatch_values.GetLossGuide() == switch_values_set ?
                              DispatchFromHasCategorical<missing, BinType,
                              switch_values_set>(std::move(pos_updater),
                              std::move(dispatch_values),
@@ -181,14 +173,11 @@ class RowPartitioner {
 
   template <bool missing, typename BinType, bool is_loss_guide, bool ... switch_values_set>
   void DispatchFromHasCategorical(UpdatePositionHelper&& pos_updater,
-    const DispatchParameterSet&& dispatch_values,
-    std::integer_sequence<bool, switch_values_set...>) {
-    const unsigned int one = 1;
-    const unsigned int zero = 0;
-    std::initializer_list<unsigned int>{(dispatch_values.GetHasCategorical()
-    == switch_values_set ?
-    pos_updater.template Call<missing, BinType, is_loss_guide,
-    switch_values_set>(), one : zero)...};
+                                    const DispatchParameterSet&& dispatch_values,
+                                    std::integer_sequence<bool, switch_values_set...>) {
+    std::initializer_list<uint32_t>{(dispatch_values.GetHasCategorical() == switch_values_set ?
+        pos_updater.template Call<missing, BinType, is_loss_guide, switch_values_set>(), one
+        : zero)...};
   }
 
   /**
@@ -236,31 +225,13 @@ class RowPartitioner {
     bool is_left_small = true,
     bool check_is_left_small = false) {
     common::ColumnMatrix const& column_matrix = gmat.Transpose();
-if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
-    column_matrix.GetMissing() != opt_partition_builder_.missing_ptr ||
-    column_matrix.GetRowId() != opt_partition_builder_.row_ind_ptr) {
-  // CHECK(false);
-    // common::ColumnMatrix const &column_matrix = gmat.Transpose();
-    switch (column_matrix.GetTypeSize()) {
-      case common::kUint8BinsTypeSize:
-        opt_partition_builder_.Init<uint8_t>(gmat, column_matrix, p_tree,
+    if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
+        column_matrix.GetMissing() != opt_partition_builder_.missing_ptr ||
+        column_matrix.GetRowId() != opt_partition_builder_.row_ind_ptr) {
+        opt_partition_builder_.Init(gmat, column_matrix, p_tree,
                                                 ctx->Threads(), max_depth,
                                                 is_loss_guided);
-        break;
-      case common::kUint16BinsTypeSize:
-        opt_partition_builder_.Init<uint16_t>(gmat, column_matrix, p_tree,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guided);
-        break;
-      case common::kUint32BinsTypeSize:
-        opt_partition_builder_.Init<uint32_t>(gmat, column_matrix, p_tree,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guided);
-        break;
-      default:
-        CHECK(false);  // no default behavior
     }
-}
 
     // 1. Find split condition for each split
     const size_t n_nodes = nodes.size();
@@ -269,7 +240,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
     const uint32_t* offsets = gmat.index.Offset();
     const uint64_t rows_offset = gmat.row_ptr.size() - 1;
     std::vector<uint32_t> split_nodes(n_nodes, 0);
-    // std::cout << "nodes spliting info:" << std::endl;
     for (size_t i = 0; i < n_nodes; ++i) {
         const int32_t nid = nodes[i].nid;
         split_nodes[i] = nid;
@@ -310,7 +280,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
       if (any_cat && is_cat) {
         const bst_uint fid = tree[nid].SplitIndex();
         const bool default_left = tree[nid].DefaultLeft();
-        // const auto column_ptr = column_matrix.GetColumn<BinIdxType, any_missing>(fid);
         auto node_cats = tree.NodeCats(nid);
         auto begin = gmat.RowIdx(ridx);
         auto end = gmat.RowIdx(ridx + 1);
@@ -331,21 +300,18 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
       }
     };
     if (max_depth != 0) {
-    // for (size_t tid = 0; tid < nthreads; ++tid)
     #pragma omp parallel num_threads(nthreads)
       {
         size_t tid = omp_get_thread_num();
         const BinIdxType* numa = tid < nthreads/2 ?
           reinterpret_cast<const BinIdxType*>(column_matrix.GetIndexData()) :
           reinterpret_cast<const BinIdxType*>(column_matrix.GetIndexData());
-          // reinterpret_cast<const BinIdxType*>(column_matrix.GetIndexSecondData());
         size_t chunck_size = common::GetBlockSize(depth_size, nthreads);
         size_t thread_size = chunck_size;
         size_t begin = thread_size * tid;
         size_t end = std::min(begin + thread_size, depth_size);
         begin += depth_begin;
         end += depth_begin;
-        // std::cout << "partitioner:" << std::endl;
         opt_partition_builder_.template CommonPartition<BinIdxType,
                                                         is_loss_guided,
                                                         !any_missing,
@@ -357,7 +323,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
           &smalest_nodes_mask_vec,
           column_matrix,
           split_nodes, pred, depth);
-        // std::cout << std::endl;
       }
     } else {
     #pragma omp parallel num_threads(nthreads)
@@ -366,7 +331,6 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
         const BinIdxType* numa = tid < nthreads/2 ?
           reinterpret_cast<const BinIdxType*>(column_matrix.GetIndexData()) :
           reinterpret_cast<const BinIdxType*>(column_matrix.GetIndexData());
-          // reinterpret_cast<const BinIdxType*>(column_matrix.GetIndexSecondData());
         size_t chunck_size = common::GetBlockSize(depth_size, nthreads);
         size_t thread_size = chunck_size;
         size_t begin = thread_size * tid;
@@ -443,25 +407,9 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
       }
     }
     common::ColumnMatrix const &column_matrix = gmat.Transpose();
-    switch (column_matrix.GetTypeSize()) {
-      case common::kUint8BinsTypeSize:
-        opt_partition_builder_.Init<uint8_t>(gmat, column_matrix, p_tree_local,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guide);
-        break;
-      case common::kUint16BinsTypeSize:
-        opt_partition_builder_.Init<uint16_t>(gmat, column_matrix, p_tree_local,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guide);
-        break;
-      case common::kUint32BinsTypeSize:
-        opt_partition_builder_.Init<uint32_t>(gmat, column_matrix, p_tree_local,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guide);
-        break;
-      default:
-        CHECK(false);  // no default behavior
-    }
+    opt_partition_builder_.Init(gmat, column_matrix, p_tree_local,
+                                            ctx->Threads(), max_depth,
+                                            is_loss_guide);
     opt_partition_builder_.SetSlice(0, 0, gmat.row_ptr.size() - 1);
     node_ids_.resize(gmat.row_ptr.size() - 1, 0);
   }
@@ -488,25 +436,9 @@ if (column_matrix.GetIndexData() != opt_partition_builder_.data_hash ||
         }
       }
     }
-    switch (column_matrix.GetTypeSize()) {
-      case common::kUint8BinsTypeSize:
-        opt_partition_builder_.Init<uint8_t>(gmat, column_matrix, p_tree_local,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guide);
-        break;
-      case common::kUint16BinsTypeSize:
-        opt_partition_builder_.Init<uint16_t>(gmat, column_matrix, p_tree_local,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guide);
-        break;
-      case common::kUint32BinsTypeSize:
-        opt_partition_builder_.Init<uint32_t>(gmat, column_matrix, p_tree_local,
-                                                ctx->Threads(), max_depth,
-                                                is_loss_guide);
-        break;
-      default:
-        CHECK(false);  // no default behavior
-    }
+    opt_partition_builder_.Init(gmat, column_matrix, p_tree_local,
+                                            ctx->Threads(), max_depth,
+                                            is_loss_guide);
     opt_partition_builder_.SetSlice(0, 0, gmat.row_ptr.size() - 1);
     node_ids_.resize(gmat.row_ptr.size() - 1, 0);
   }

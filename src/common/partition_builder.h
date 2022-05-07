@@ -47,12 +47,11 @@ class PartitionBuilder {
     }
   }
 
-// <<<<<<< HEAD
   // split row indexes (rid_span) to 2 parts (left_part, right_part) depending
   // on comparison of indexes values (idx_span) and split point (split_cond)
   // Handle dense columns
   // Analog of std::stable_partition, but in no-inplace manner
-  template <bool default_left, bool any_missing, typename ColumnType, typename Predicate>
+  template <typename BinIdxType, bool default_left, typename ColumnType, typename Predicate>
   inline std::pair<size_t, size_t> PartitionKernel(const ColumnType& column,
                                                    common::Span<const size_t> row_indices,
                                                    common::Span<size_t> left_part,
@@ -69,8 +68,9 @@ class PartitionBuilder {
 
     for (size_t i = 0; i < n_samples; ++i) {
       auto rid = p_row_indices[i];
-      const int32_t bin_id = column.GetBinIdx(rid - base_rowid, &state);
-      if (any_missing && bin_id == ColumnType::kMissingId) {
+      const int32_t bin_id =
+                        column.template GetBinIdx<BinIdxType, int32_t>(rid - base_rowid, &state);
+      if (bin_id == ColumnType::kMissingId) {
         if (default_left) {
           p_left_part[nleft_elems++] = rid;
         } else {
@@ -88,8 +88,6 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
-// =======
-// >>>>>>> a20b4d1a... partition optimizations
   template <typename Pred>
   inline std::pair<size_t, size_t> PartitionRangeKernel(common::Span<const size_t> ridx,
                                                         common::Span<size_t> left_part,
@@ -109,7 +107,6 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
-// <<<<<<< HEAD
   template <typename BinIdxType, bool any_missing, bool any_cat>
   void Partition(const size_t node_in_set, const size_t nid, const common::Range1d range,
                  const int32_t split_cond, GHistIndexMatrix const& gmat,
@@ -119,8 +116,7 @@ class PartitionBuilder {
     common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
     const bst_uint fid = tree[nid].SplitIndex();
     const bool default_left = tree[nid].DefaultLeft();
-    std::shared_ptr<const Column<BinIdxType> > column_ptr =
-      std::move(column_matrix.GetColumn<BinIdxType, any_missing>(fid));
+    const auto& column_ptr = column_matrix.GetColumnViewList()[fid];
 
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
@@ -153,27 +149,14 @@ std::cout << "Partition kernel! 4" << std::endl;
 std::cout << "Partition kernel! 5" << std::endl;
 
     std::pair<size_t, size_t> child_nodes_sizes;
-    if (column_ptr->GetType() == xgboost::common::kDenseColumn) {
-      const common::DenseColumn<BinIdxType, any_missing>& column =
-            static_cast<const common::DenseColumn<BinIdxType, any_missing>& >(*(column_ptr.get()));
-      if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(column, rid_span, left, right,
-                                                               gmat.base_rowid, pred);
-      } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(column, rid_span, left, right,
-                                                                gmat.base_rowid, pred);
-      }
+    if (default_left) {
+      child_nodes_sizes = PartitionKernel<BinIdxType, true>(*column_ptr.get(),
+                                                             rid_span, left, right,
+                                                             gmat.base_rowid, pred);
     } else {
-      CHECK_EQ(any_missing, true);
-      const common::SparseColumn<BinIdxType>& column
-        = static_cast<const common::SparseColumn<BinIdxType>& >(*(column_ptr.get()));
-      if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(column, rid_span, left, right,
-                                                               gmat.base_rowid, pred);
-      } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(column, rid_span, left, right,
-                                                                gmat.base_rowid, pred);
-      }
+      child_nodes_sizes = PartitionKernel<BinIdxType, false>(*column_ptr.get(),
+                                                              rid_span, left, right,
+                                                              gmat.base_rowid, pred);
     }
 
     const size_t n_left  = child_nodes_sizes.first;
@@ -183,8 +166,6 @@ std::cout << "Partition kernel! 5" << std::endl;
     SetNRightElems(node_in_set, range.begin(), range.end(), n_right);
   }
 
-// =======
-// >>>>>>> a20b4d1a... partition optimizations
   /**
    * \brief Partition tree nodes with specific range of row indices.
    *
