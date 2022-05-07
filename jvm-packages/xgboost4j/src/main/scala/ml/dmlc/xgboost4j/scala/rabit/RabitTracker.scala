@@ -76,7 +76,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
 
   var workerEnvs: Map[String, String] = Map.empty
   private val logger = LogFactory.getLog("XGBoostSpark")
-  logger.info("SUCCESS SUCCESS ERROR Enter Init in RabitTracker.scala in xgboost4j")
+  logger.info("SUCCESS SUCCESS ERROR Enter Init  in RabitTracker.scala in xgboost4j")
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
     handler ? RabitTrackerHandler.InterruptTracker(e)
   }
