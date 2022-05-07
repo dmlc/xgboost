@@ -26,6 +26,7 @@ import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerHandler
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success, Try}
+import org.apache.commons.logging.LogFactory
 
 /**
   * Scala implementation of the Rabit tracker interface without Python dependency.
@@ -74,7 +75,8 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
   private[this] val tcpBindingTimeout: Duration = 1 minute
 
   var workerEnvs: Map[String, String] = Map.empty
-
+  private val logger = LogFactory.getLog("XGBoostSpark")
+  logger.info("SUCCESS SUCCESS ERROR Enter Init in RabitTracker.scala in xgboost4j")
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
     handler ? RabitTrackerHandler.InterruptTracker(e)
   }
@@ -93,6 +95,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     * @return Boolean flag indicating if the Rabit tracker starts successfully.
     */
   private def start(timeout: Duration): Boolean = {
+    logger.info("SUCCESS SUCCESS ERROR Enter Start in RabitTracker.scala in xgboost4j")
     val hostAddress = Option(TrackerProperties.getInstance().getHostIp)
       .map(InetAddress.getByName).getOrElse(InetAddress.getLocalHost)
 
@@ -156,6 +159,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     */
   private def waitFor(atMost: Duration): Int = {
     // request the completion Future from the tracker actor
+    logger.info("SUCCESS SUCCESS ERROR Enter waitFor in RabitTracker.scala in xgboost4j")
     Try(Await.result(handler ? RabitTrackerHandler.RequestCompletionFuture, askTimeout.duration)
       .asInstanceOf[Future[Int]]) match {
       case Success(futureCompleted) =>

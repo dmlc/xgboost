@@ -408,7 +408,9 @@ object XGBoost extends Serializable {
 
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
+      logger.info("SUCCESS SUCCESS SUCCESS Before start tracker in XGBoost.scala")
       val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
+      logger.info("SUCCESS SUCCESS SUCCESS After start tracker in XGBoost.scala")
       val (booster, metrics) = try {
         tracker.getWorkerEnvs().putAll(xgbRabitParams)
         val rabitEnv = tracker.getWorkerEnvs
