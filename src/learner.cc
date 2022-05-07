@@ -406,8 +406,14 @@ class LearnerConfiguration : public Learner {
   }
 
   void LoadConfig(Json const& in) override {
+    // If configuration is loaded, ensure that the model came from the same version
     CHECK(IsA<Object>(in));
-    Version::Load(in);
+    auto origin_version = Version::Load(in);
+
+    if (!Version::Same(origin_version)) {
+      LOG(WARNING) << ModelMsg();
+      return;  // skip configuration if version is not matched
+    }
 
     auto const& learner_parameters = get<Object>(in["learner"]);
     FromJson(learner_parameters.at("learner_train_param"), &tparam_);
