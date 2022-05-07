@@ -20,10 +20,6 @@ TEST(OptPartitionBuilder, BasicTest) {
   std::vector<GradientPair> row_gpairs =
     { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
     {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
-  // ColumnMatrix column_matrix;
-  // column_matrix.Init(page, gmat, 0.5, 1);
-
-  // column_matrix.Init(gmat, 0, 1);
   RegTree tree;
   tree.ExpandNode(0, 0, 0, true, 0, 0, 0, 0, 0, 0, 0);
 
@@ -34,8 +30,8 @@ TEST(OptPartitionBuilder, BasicTest) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(gmat.Transpose().GetIndexData());
   const size_t fid = 0;
   const size_t split = 0;
-  std::unordered_map<uint32_t, int32_t> split_conditions;//(1, split - gmat.cut.Ptrs()[fid]);
-  std::unordered_map<uint32_t, uint64_t> split_ind;//(1, fid*((gmat.IsDense() ? kNRows : 1)));
+  std::unordered_map<uint32_t, int32_t> split_conditions;
+  std::unordered_map<uint32_t, uint64_t> split_ind;
   std::vector<uint16_t> node_ids(kNRows, 0);
   std::unordered_map<uint32_t, bool> smalest_nodes_mask;
   smalest_nodes_mask[1] = true;
