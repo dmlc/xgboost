@@ -90,9 +90,6 @@ void TestSyncHist(bool is_distributed) {
                            ->GetBatches<GHistIndexMatrix>(
                                BatchParam{GenericParameter::kCpuId, kMaxBins})
                            .begin());
-  // auto const& page = *(p_fmat->GetBatches<SparsePage>().begin());
-  // common::ColumnMatrix column_matrix;
-  // column_matrix.Init(page, gmat, 1, 1);
 
   HistogramBuilder<GradientSumT, CPUExpandEntry> histogram;
   uint32_t total_bins = gmat.cut.Ptrs().back();
@@ -324,13 +321,10 @@ void TestHistogramCategorical(size_t n_categories) {
    * Generate hist with cat data.
    */
   HistogramBuilder<double, CPUExpandEntry> cat_hist;
-  // auto const& spage = *(cat_m->GetBatches<SparsePage>().begin());
   for (auto const &gidx : cat_m->GetBatches<GHistIndexMatrix>({kBins, 0.5})) {
     auto total_bins = gidx.cut.TotalBins();
 
     common::OptPartitionBuilder opt_partition_builder;
-    // common::ColumnMatrix column_matrix;
-    // column_matrix.Init(spage, gidx, 1, 1);
     auto n_rows_in_node = gidx.Size();
     opt_partition_builder.template Init<uint8_t>(gidx, gidx.Transpose(), &tree,
     omp_get_max_threads(), 8, false);
@@ -353,8 +347,6 @@ void TestHistogramCategorical(size_t n_categories) {
     auto total_bins = gidx.cut.TotalBins();
 
     common::OptPartitionBuilder opt_partition_builder;
-    // common::ColumnMatrix column_matrix;
-    // column_matrix.Init(gidx, 1, 1);
     auto n_rows_in_node = gidx.Size();
     opt_partition_builder.template Init<uint8_t>(gidx, gidx.Transpose(), &tree,
     omp_get_max_threads(), 8, false);
@@ -414,8 +406,6 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
     size_t page_idx{0};
     for (auto const &page : m->GetBatches<GHistIndexMatrix>(batch_param)) {
       common::OptPartitionBuilder opt_partition_builder;
-      // common::ColumnMatrix column_matrix;
-      // column_matrix.Init(page, 1, 1);
       auto n_rows_in_node = page.Size();
       opt_partition_builder.template Init<uint8_t>(page, page.Transpose(), &tree,
         omp_get_max_threads(), 8, false);
@@ -448,8 +438,6 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
               common::OmpGetNumThreads(0), hess);
     size_t n_batches{0};
       common::OptPartitionBuilder opt_partition_builder;
-      // common::ColumnMatrix column_matrix;
-      // column_matrix.Init(gmat, 1, 1);
       opt_partition_builder.template Init<uint8_t>(gmat, gmat.Transpose(), &tree,
         omp_get_max_threads(), 8, false);
       std::vector<uint16_t> node_ids(kEntries, 0);
