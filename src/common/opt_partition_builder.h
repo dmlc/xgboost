@@ -42,15 +42,6 @@ class OptPartitionBuilder {
   std::vector<Slice> partitions;
   std::vector<std::vector<uint32_t>> vec_rows;
   std::vector<std::vector<uint32_t>> vec_rows_remain;
-  std::vector<std::shared_ptr<const Column<uint8_t> >> columns8;
-  std::vector<const DenseColumn<uint8_t, true>*> dcolumns8;
-  std::vector<const SparseColumn<uint8_t>*> scolumns8;
-  std::vector<std::shared_ptr<const Column<uint16_t> >> columns16;
-  std::vector<const DenseColumn<uint16_t, true>*> dcolumns16;
-  std::vector<const SparseColumn<uint16_t>*> scolumns16;
-  std::vector<std::shared_ptr<const Column<uint32_t> >> columns32;
-  std::vector<const DenseColumn<uint32_t, true>*> dcolumns32;
-  std::vector<const SparseColumn<uint32_t>*> scolumns32;
   std::vector<std::unordered_map<uint32_t, size_t> > states;
   const RegTree* p_tree;
   // can be common for all threads!
@@ -67,60 +58,6 @@ class OptPartitionBuilder {
   uint32_t summ_size_remain = 0;
   uint32_t max_depth = 0;
 
-  template<typename BinIdxType>
-  std::vector<std::shared_ptr<const Column<BinIdxType> >>& GetColumnsRef() {
-    const BinIdxType dummy = 0;
-    return GetColumnsRefImpl(&dummy);
-  }
-
-  std::vector<std::shared_ptr<const Column<uint8_t> >>& GetColumnsRefImpl(const uint8_t* dummy) {
-      return columns8;
-  }
-
-  std::vector<std::shared_ptr<const Column<uint16_t> >>& GetColumnsRefImpl(const uint16_t* dummy) {
-      return columns16;
-  }
-
-  std::vector<std::shared_ptr<const Column<uint32_t> >>& GetColumnsRefImpl(const uint32_t* dummy) {
-      return columns32;
-  }
-
-  template<typename BinIdxType>
-  std::vector<const DenseColumn<BinIdxType, true>*>& GetDenseColumnsRef() {
-    const BinIdxType dummy = 0;
-    return GetDenseColumnsRefImpl(&dummy);
-  }
-
-  std::vector<const DenseColumn<uint8_t, true>*>& GetDenseColumnsRefImpl(const uint8_t* dummy) {
-      return dcolumns8;
-  }
-
-  std::vector<const DenseColumn<uint16_t, true>*>& GetDenseColumnsRefImpl(const uint16_t* dummy) {
-      return dcolumns16;
-  }
-
-  std::vector<const DenseColumn<uint32_t, true>*>& GetDenseColumnsRefImpl(const uint32_t* dummy) {
-      return dcolumns32;
-  }
-
-  template<typename BinIdxType>
-  std::vector<const SparseColumn<BinIdxType>*>& GetSparseColumnsRef() {
-    const BinIdxType dummy = 0;
-    return GetSparseColumnsRefImpl(&dummy);
-  }
-
-  std::vector<const SparseColumn<uint8_t>*>& GetSparseColumnsRefImpl(const uint8_t* dummy) {
-      return scolumns8;
-  }
-
-  std::vector<const SparseColumn<uint16_t>*>& GetSparseColumnsRefImpl(const uint16_t* dummy) {
-      return scolumns16;
-  }
-
-  std::vector<const SparseColumn<uint32_t>*>& GetSparseColumnsRefImpl(const uint32_t* dummy) {
-      return scolumns32;
-  }
-
   const std::vector<Slice> &GetSlices(const uint32_t tid) const {
     return threads_addr[tid];
   }
@@ -135,6 +72,25 @@ class OptPartitionBuilder {
     } else {
       const std::vector<uint16_t> & res = threads_id_for_nodes.at(nid);
       return res;
+    }
+  }
+
+  void Init(GHistIndexMatrix const& gmat, const ColumnMatrix& column_matrix,
+            const RegTree* p_tree_local, size_t nthreads, size_t max_depth,
+            bool is_lossguide) {
+    switch (column_matrix.GetTypeSize()) {
+      case common::kUint8BinsTypeSize:
+        Init<BinTypeMap<kUint8BinsTypeSize>::type>(gmat, column_matrix,
+            p_tree_local, nthreads, max_depth, is_lossguide);
+        break;
+      case common::kUint16BinsTypeSize:
+        Init<BinTypeMap<kUint16BinsTypeSize>::type>(gmat, column_matrix,
+            p_tree_local, nthreads, max_depth, is_lossguide);
+        break;
+      default:
+        Init<BinTypeMap<kUint32BinsTypeSize>::type>(gmat, column_matrix,
+            p_tree_local, nthreads, max_depth, is_lossguide);
+        break;
     }
   }
 
@@ -156,25 +112,6 @@ class OptPartitionBuilder {
       default_flags.clear();
       states.resize(nthreads);
       default_flags.resize(nthreads);
-      GetColumnsRef<BinIdxType>().clear();
-      GetDenseColumnsRef<BinIdxType>().clear();
-      GetSparseColumnsRef<BinIdxType>().clear();
-      GetColumnsRef<BinIdxType>().resize(column_matrix.GetNumFeature());
-      GetDenseColumnsRef<BinIdxType>().resize(column_matrix.GetNumFeature());
-      GetSparseColumnsRef<BinIdxType>().resize(column_matrix.GetNumFeature());
-      for (size_t fid = 0; fid < column_matrix.GetNumFeature(); ++fid) {
-        if (column_matrix.AnyMissing()) {
-                GetColumnsRef<BinIdxType>()[fid] =
-                  std::move(column_matrix.GetColumn<BinIdxType, true>(fid));
-        } else {
-                GetColumnsRef<BinIdxType>()[fid] =
-                  std::move(column_matrix.GetColumn<BinIdxType, false>(fid));
-        }
-        GetDenseColumnsRef<BinIdxType>()[fid] = dynamic_cast<const DenseColumn<BinIdxType, true>*>(
-                                                GetColumnsRef<BinIdxType>()[fid].get());
-        GetSparseColumnsRef<BinIdxType>()[fid] =
-          dynamic_cast<const SparseColumn<BinIdxType>*>(GetColumnsRef<BinIdxType>()[fid].get());
-      }
     }
     data_hash = reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData());
     n_threads = nthreads;
@@ -208,6 +145,39 @@ class OptPartitionBuilder {
     UpdateRootThreadWork();
   }
 
+  template<bool is_loss_guided, bool all_dense, bool any_cat, typename Predicate>
+  void CommonPartition(size_t tid, const size_t row_indices_begin,
+                       const size_t row_indices_end, uint16_t* nodes_ids,
+                       std::unordered_map<uint32_t, int32_t>* split_conditions,
+                       std::unordered_map<uint32_t, uint64_t>* split_ind,
+                       std::unordered_map<uint32_t, bool>* smalest_nodes_mask,
+                       const ColumnMatrix& column_matrix,
+                       const std::vector<uint32_t>& split_nodes, Predicate&& pred, size_t depth) {
+    switch (column_matrix.GetTypeSize()) {
+      case common::kUint8BinsTypeSize:
+        CommonPartition<BinTypeMap<kUint8BinsTypeSize>::type, is_loss_guided, all_dense, any_cat>(
+                           tid, row_indices_begin, row_indices_end,
+                           column_matrix.template GetIndexData<uint8_t>(),
+                           nodes_ids, split_conditions, split_ind, smalest_nodes_mask,
+                           column_matrix, split_nodes, std::forward<Predicate>(pred), depth);
+        break;
+      case common::kUint16BinsTypeSize:
+        CommonPartition<BinTypeMap<kUint16BinsTypeSize>::type, is_loss_guided, all_dense, any_cat>(
+                           tid, row_indices_begin, row_indices_end,
+                           column_matrix.template GetIndexData<uint16_t>(),
+                           nodes_ids, split_conditions, split_ind, smalest_nodes_mask,
+                           column_matrix, split_nodes, std::forward<Predicate>(pred), depth);
+        break;
+      default:
+        CommonPartition<BinTypeMap<kUint32BinsTypeSize>::type, is_loss_guided, all_dense, any_cat>(
+                           tid, row_indices_begin, row_indices_end,
+                           column_matrix.template GetIndexData<uint32_t>(),
+                           nodes_ids, split_conditions, split_ind, smalest_nodes_mask,
+                           column_matrix, split_nodes, std::forward<Predicate>(pred), depth);
+        break;
+    }
+  }
+
   template<typename BinIdxType, bool is_loss_guided,
            bool all_dense, bool any_cat, typename Predicate>
   void CommonPartition(size_t tid, const size_t row_indices_begin,
@@ -218,10 +188,7 @@ class OptPartitionBuilder {
                        const ColumnMatrix& column_matrix,
                        const std::vector<uint32_t>& split_nodes, Predicate&& pred, size_t depth) {
 CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData()));
-    std::vector<std::shared_ptr<
-                const Column<BinIdxType> > >& columns = GetColumnsRef<BinIdxType>();
-    const auto& dense_columns = GetDenseColumnsRef<BinIdxType>();
-    const auto& sparse_columns = GetSparseColumnsRef<BinIdxType>();
+    const auto& column_list = column_matrix.GetColumnViewList();
     uint32_t rows_count = 0;
     uint32_t rows_left_count = 0;
     uint32_t* rows = vec_rows[tid].data();
@@ -237,11 +204,7 @@ CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData(
       const uint32_t first_row_id = !is_loss_guided ? row_indices_begin :
                                                       row_indices_ptr[row_indices_begin];
       for (const auto& nid : split_nodes) {
-        if (columns[split_ind_data[nid]]->GetType() == common::kDenseColumn) {
-          states[tid][nid] = dense_columns[split_ind_data[nid]]->GetInitialState(first_row_id);
-        } else {
-          states[tid][nid] = sparse_columns[split_ind_data[nid]]->GetInitialState(first_row_id);
-        }
+        states[tid][nid] = column_list[split_ind_data[nid]]->GetInitialState(first_row_id);
         default_flags[tid][nid] = (*p_tree)[nid].DefaultLeft();
       }
     }
@@ -264,28 +227,20 @@ CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData(
         const int32_t cmp_value = static_cast<int32_t>(columnar_data[si + i]);
         nodes_ids[i] = cmp_value <= sc ? (*p_tree)[nid].LeftChild() : (*p_tree)[nid].RightChild();
       } else {
-        int32_t cmp_value = 0;
         uint64_t si = split_ind_data.find(nid) != split_ind_data.end() ? split_ind_data[nid] : 0;
-        if (columns[si]->GetType() == common::kDenseColumn) {
-          cmp_value = dense_columns[si]->GetBinIdx(i, nullptr);
-        } else {
-          cmp_value = sparse_columns[si]->GetBinIdx(i, &(states[tid][nid]));
-        }
-        if (cmp_value == Column<BinIdxType>::kMissingId) {
-          const bool default_left = default_flags[tid][nid];
-          if (default_left) {
-            nodes_ids[i] = (*p_tree)[nid].LeftChild();
-          } else {
-            nodes_ids[i] = (*p_tree)[nid].RightChild();
-          }
+        int32_t cmp_value = column_list[si]->template GetBinIdx<BinIdxType, int32_t>(i,
+                                                                        &(states[tid][nid]));
+
+        if (cmp_value == Column::kMissingId) {
+          nodes_ids[i] = default_flags[tid][nid]
+                         ? (*p_tree)[nid].LeftChild()
+                         : (*p_tree)[nid].RightChild();
         } else {
           nodes_ids[i] = cmp_value <= sc ? (*p_tree)[nid].LeftChild() :
                          (*p_tree)[nid].RightChild();
         }
       }
       const uint16_t check_node_id = nodes_ids[i];
-      // // std::cout << "i:" << i << " nid: " << nid << " sc:"
-      // << sc << " check_node_id: " << check_node_id << std::endl;
       uint32_t inc = smalest_nodes_mask->find(check_node_id) != smalest_nodes_mask->end() ?
                      static_cast<uint32_t>((*smalest_nodes_mask)[check_node_id]) : 0;
       rows[1 + rows_count] = i;
@@ -313,11 +268,8 @@ CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData(
                        std::vector<bool>* smalest_nodes_mask,
                        const ColumnMatrix& column_matrix,
                        const std::vector<uint32_t>& split_nodes, Predicate&& pred, size_t depth) {
-// CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData()));
-    std::vector<std::shared_ptr<
-                const Column<BinIdxType> > >& columns = GetColumnsRef<BinIdxType>();
-    const auto& dense_columns = GetDenseColumnsRef<BinIdxType>();
-    const auto& sparse_columns = GetSparseColumnsRef<BinIdxType>();
+    const auto& column_list = column_matrix.GetColumnViewList();
+
     uint32_t rows_count = 0;
     uint32_t rows_left_count = 0;
     uint32_t* rows = vec_rows[tid].data();
@@ -340,14 +292,12 @@ CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData(
       const uint32_t first_row_id = !is_loss_guided ? row_indices_begin :
                                                       row_indices_ptr[row_indices_begin];
       for (const auto& nid : split_nodes) {
-        if (columns[split_ind_data[nid]]->GetType() == common::kDenseColumn) {
-          states[tid][nid] = dense_columns[split_ind_data[nid]]->GetInitialState(first_row_id);
-        } else {
-          states[tid][nid] = sparse_columns[split_ind_data[nid]]->GetInitialState(first_row_id);
-        }
+        size_t ar = column_list[split_ind_data[nid]]->GetInitialState(first_row_id);
+        states[tid][nid] = column_list[split_ind_data[nid]]->GetInitialState(first_row_id);
         default_flags[tid][nid] = (*p_tree)[nid].DefaultLeft();
       }
     }
+
     for (size_t ii = row_indices_begin; ii < row_indices_end; ++ii) {
       const uint32_t i = !is_loss_guided ? ii : row_indices_ptr[ii];
       const uint32_t nid = nodes_ids[i];
@@ -363,21 +313,13 @@ CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData(
         const int32_t cmp_value = static_cast<int32_t>(columnar_data[split_ind_data[nid] + i]);
         nodes_ids[i] = cmp_value <= sc ? (*p_tree)[nid].LeftChild() : (*p_tree)[nid].RightChild();
       } else {
-        int32_t cmp_value = 0;
         uint64_t si = split_ind_data[nid];
-        // std::cout << "{(states[tid][nid]):" <<  (states[tid][nid]) << " ";
-        if (columns[si]->GetType() == common::kDenseColumn) {
-          cmp_value = dense_columns[si]->GetBinIdx(i, nullptr);
-        } else {
-          cmp_value = sparse_columns[si]->GetBinIdx(i, &(states[tid][nid]));
-        }
-        if (cmp_value == Column<BinIdxType>::kMissingId) {
-          const bool default_left = default_flags[tid][nid];
-          if (default_left) {
-            nodes_ids[i] = (*p_tree)[nid].LeftChild();
-          } else {
-            nodes_ids[i] = (*p_tree)[nid].RightChild();
-          }
+        int32_t cmp_value = column_list[si]->template GetBinIdx<BinIdxType, int32_t>(i,
+                                                                        &(states[tid][nid]));
+        if (cmp_value == Column::kMissingId) {
+          nodes_ids[i] = default_flags[tid][nid]
+                         ? (*p_tree)[nid].LeftChild()
+                         : (*p_tree)[nid].RightChild();
         } else {
           nodes_ids[i] = cmp_value <= sc ? (*p_tree)[nid].LeftChild() : (*p_tree)[nid].RightChild();
         }
@@ -394,6 +336,7 @@ CHECK_EQ(data_hash, reinterpret_cast<const uint8_t*>(column_matrix.GetIndexData(
         nodes_count[check_node_id] += inc;
       }
     }
+
     for (size_t i = 0; i < threads_nodes_count_vec[tid].size(); ++i) {
       if (nodes_count[i] != 0) {
         threads_nodes_count[tid][i] = nodes_count[i];
