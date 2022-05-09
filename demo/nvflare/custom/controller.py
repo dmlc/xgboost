@@ -33,7 +33,6 @@ class XGBoostController(Controller):
         self._server_cert_path = server_cert_path
         self._client_cert_path = client_cert_path
         self._server = None
-        self.run_dir = None
 
     def start_controller(self, fl_ctx: FLContext):
         self._server = multiprocessing.Process(

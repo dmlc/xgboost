@@ -20,7 +20,11 @@ class XGBoostTrainer(Executor):
         """Trainer for federated XGBoost.
 
         Args:
-            data_root: directory with local train/test data.
+            server_address: address for the gRPC server to connect to.
+            world_size: the number of sites.
+            server_cert_path: the path to the server certificate file.
+            client_key_path: the path to the client key file.
+            client_cert_path: the path to the client certificate file.
         """
         super().__init__()
         self._server_address = server_address

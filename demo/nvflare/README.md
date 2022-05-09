@@ -1,9 +1,12 @@
-# Federated XGBoost Demo
+# Federated XGBoost Demo using NVFlare
 
 This directory contains a demo of Federated Learning using
 [NVFlare](https://nvidia.github.io/NVFlare/).
 
-To run the demo, first install NVFlare:
+To run the demo, first build XGBoost with the federated learning plugin enabled (see the
+[README](../../plugin/federated/README.md)).
+
+Install NVFlare:
 ```shell
 pip install nvflare
 ```
