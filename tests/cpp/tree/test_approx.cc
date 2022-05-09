@@ -3,7 +3,7 @@
  */
 #include <gtest/gtest.h>
 
-#include "../../../src/tree/updater_approx.h"
+#include "../../../src/tree/common_row_partitioner.h"
 #include "../helpers.h"
 #include "test_partitioner.h"
 
@@ -35,7 +35,7 @@ TEST(Approx, Partitioner) {
           /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
           /*left_sum=*/0.0f,
           /*right_sum=*/0.0f);
-      RowPartitioner partitioner(&ctx, page, &tree, 2, false);
+      CommonRowPartitioner partitioner(&ctx, page, &tree, 2, false);
       candidates[0].split.split_value = min_value;
       candidates[0].split.sindex = 0;
       candidates[0].split.sindex |= (1U << 31);
@@ -73,7 +73,7 @@ TEST(Approx, Partitioner) {
           /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
           /*left_sum=*/0.0f,
           /*right_sum=*/0.0f);
-      RowPartitioner partitioner(&ctx, page, &tree, 2, false);
+      CommonRowPartitioner partitioner(&ctx, page, &tree, 2, false);
       candidates[0].split.split_value = split_value;
       candidates[0].split.sindex = 0;
       candidates[0].split.sindex |= (1U << 31);

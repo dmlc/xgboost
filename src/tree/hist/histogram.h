@@ -72,7 +72,6 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     std::vector<uint16_t>& node_ids = *p_node_ids;
     int nthreads = this->n_threads_;
 
-// for(size_t tid = 0; tid < nthreads; ++tid)
     #pragma omp parallel num_threads(nthreads)
     {
       size_t tid = omp_get_thread_num();
