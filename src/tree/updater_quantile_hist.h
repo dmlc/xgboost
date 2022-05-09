@@ -35,9 +35,8 @@
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/opt_partition_builder.h"
-#include "../common/partition_builder.h"
 #include "../common/column_matrix.h"
-#include "./updater_approx.h"
+#include "./common_row_partitioner.h"
 
 namespace xgboost {
 struct RandomReplace {
@@ -213,7 +212,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
     // Right now there's only 1 partitioner in this vector, when external memory is fully
     // supported we will have number of partitioners equal to number of pages.
-    std::vector<RowPartitioner> partitioner_;
+    std::vector<CommonRowPartitioner> partitioner_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_{nullptr};

@@ -47,11 +47,11 @@ class Column {
   uint32_t GetGlobalBinIdx(size_t idx) const {
     uint32_t res = index_base_;
     if (GetBinTypeSize() == kUint8BinsTypeSize) {
-      res += GetFeatureBinIdx<BinTypeMap<kUint8BinsTypeSize>::type>(idx);
+      res += GetFeatureBinIdx<BinTypeMap<kUint8BinsTypeSize>::Type>(idx);
     } else if (GetBinTypeSize() == kUint16BinsTypeSize) {
-      res += GetFeatureBinIdx<BinTypeMap<kUint16BinsTypeSize>::type>(idx);
+      res += GetFeatureBinIdx<BinTypeMap<kUint16BinsTypeSize>::Type>(idx);
     } else {
-      res += GetFeatureBinIdx<BinTypeMap<kUint32BinsTypeSize>::type>(idx);
+      res += GetFeatureBinIdx<BinTypeMap<kUint32BinsTypeSize>::Type>(idx);
     }
     return res;
   }
@@ -128,7 +128,6 @@ class SparseColumn: public Column {
  private:
   /* indexes of rows */
   common::Span<const size_t> row_ind_;
-  size_t feature_offset_val;
 };
 
 class DenseColumn: public Column {
@@ -165,10 +164,12 @@ class DenseColumn: public Column {
 class ColumnView final {
  public:
   ColumnView() = delete;
-  ColumnView(const SparseColumn * sparse_clmn_ptr) : sparse_clmn_ptr_(sparse_clmn_ptr),
-                                                     dense_clmn_ptr_(nullptr) { }
-  ColumnView(const DenseColumn * dense_clmn_ptr) : sparse_clmn_ptr_(nullptr),
-                                                   dense_clmn_ptr_(dense_clmn_ptr) { }
+  explicit ColumnView(const SparseColumn * sparse_clmn_ptr) :
+    sparse_clmn_ptr_(sparse_clmn_ptr),
+    dense_clmn_ptr_(nullptr) { }
+  explicit ColumnView(const DenseColumn * dense_clmn_ptr) :
+    sparse_clmn_ptr_(nullptr),
+    dense_clmn_ptr_(dense_clmn_ptr) { }
 
   uint32_t GetGlobalBinIdx(size_t idx) const {
     return sparse_clmn_ptr_ ? sparse_clmn_ptr_->GetGlobalBinIdx(idx)
@@ -568,7 +569,7 @@ class ColumnMatrix {
   // index_base_[fid]: least bin id for feature fid
   uint32_t const* index_base_ = nullptr;
   std::vector<ByteType> missing_flags_;
-  BinTypeSize bin_type_size_ = (BinTypeSize)(0);
+  BinTypeSize bin_type_size_ = static_cast<BinTypeSize>(0);
   bool any_missing_;
   common::HistogramCuts cut_;
 

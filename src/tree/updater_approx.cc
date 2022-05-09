@@ -3,14 +3,13 @@
  *
  * \brief Implementation for the approx tree method.
  */
-#include "updater_approx.h"
-
 #include <algorithm>
 #include <unordered_map>
 #include <memory>
 #include <vector>
 #include <set>
 
+#include "common_row_partitioner.h"
 #include "../common/random.h"
 #include "../common/column_matrix.h"
 
@@ -29,7 +28,6 @@
 
 namespace xgboost {
 namespace tree {
-using BinIdxType = uint8_t;
 DMLC_REGISTRY_FILE_TAG(updater_approx);
 
 namespace {
@@ -53,7 +51,7 @@ class GloablApproxBuilder {
   Context const *ctx_;
   ObjInfo const task_;
 
-  std::vector<RowPartitioner> partitioner_;
+  std::vector<CommonRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
   RegTree *p_last_tree_{nullptr};
   common::Monitor *monitor_;
@@ -64,7 +62,6 @@ class GloablApproxBuilder {
   std::unordered_map<uint32_t, int32_t> split_conditions_;
   std::unordered_map<uint32_t, uint64_t> split_ind_;
   std::vector<uint16_t> child_node_ids_;
-  bool init_column_matrix{true};
 
  public:
   void InitData(DMatrix *p_fmat, common::Span<float> hess) {
@@ -73,7 +70,6 @@ class GloablApproxBuilder {
     n_batches_ = 0;
     int32_t n_total_bins = 0;
     partitioner_.clear();
-    // column_matrix_.clear();
     // Generating the GHistIndexMatrix is quite slow, is there a way to speed it up?
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess, task_))) {
       if (n_total_bins == 0) {
@@ -83,15 +79,11 @@ class GloablApproxBuilder {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
 
-      // if (init_column_matrix) {
-      //   column_matrix_[n_batches_].Init(page, param_.sparse_threshold, ctx_->Threads());
-      // }
       partitioner_.emplace_back(ctx_, page,
                                 p_last_tree_, param_.max_depth,
                                 param_.grow_policy == TrainParam::kLossGuide);
       n_batches_++;
     }
-    init_column_matrix = false;
 
     histogram_builder_.Reset(n_total_bins, param_.max_bin,
                              ctx_->Threads(), n_batches_, param_.max_depth, rabit::IsDistributed());
@@ -140,8 +132,8 @@ class GloablApproxBuilder {
     size_t page_disp = 0;
     size_t i = 0;
     for (auto &part : partitioner_) {
-      xgboost::tree::RowPartitioner& prt =
-        const_cast<xgboost::tree::RowPartitioner&>(partitioner_[i++]);
+      xgboost::tree::CommonRowPartitioner& prt =
+        const_cast<xgboost::tree::CommonRowPartitioner&>(partitioner_[i++]);
       common::BlockedSpace2d space(1, [&](size_t node) {
         return prt.GetNodeAssignments().size();
       }, 1024);
@@ -164,7 +156,6 @@ class GloablApproxBuilder {
       });
       page_disp += prt.GetNodeAssignments().size();
     }
-// >>>>>>> fb16e1ca... partition optimizations
     monitor_->Stop(__func__);
   }
 
@@ -176,23 +167,13 @@ class GloablApproxBuilder {
                       const std::vector<CPUExpandEntry>& nodes_to_sub) {
     monitor_->Start(__func__);
 
-// <<<<<<< HEAD
-//     auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-//     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
-//       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(),
-//                                    nodes_to_build, nodes_to_sub, gpair);
-// =======
     std::vector<std::set<uint16_t>> merged_thread_ids_set(nodes_to_build.size());
     std::vector<std::vector<uint16_t>> merged_thread_ids(nodes_to_build.size());
     for (size_t nid = 0; nid < nodes_to_build.size(); ++nid) {
       const auto &entry = nodes_to_build[nid];
-      for (size_t partition_id = 0; partition_id < partitioner_.size(); ++partition_id) {
-        for (size_t tid = 0; tid <
-             partitioner_[partition_id].GetOptPartition().
-             GetThreadIdsForNode(entry.nid).size(); ++tid) {
-          merged_thread_ids_set[nid].insert(
-            partitioner_[partition_id].GetOptPartition().
-            GetThreadIdsForNode(entry.nid)[tid]);
+      for (auto & partitioner : partitioner_) {
+        for (auto&  tid : partitioner.GetOptPartition().GetThreadIdsForNode(entry.nid)) {
+          merged_thread_ids_set[nid].insert(tid);
         }
       }
       merged_thread_ids[nid].resize(merged_thread_ids_set[nid].size());
@@ -262,7 +243,6 @@ class GloablApproxBuilder {
     split_ind_.clear();
 
     Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
-    // CHECK_EQ(param_.grow_policy, 0);
     auto &tree = *p_tree;
     driver.Push({this->InitRoot(p_fmat, gpair, hess, p_tree)});
     bst_node_t num_leaves{1};
@@ -280,7 +260,6 @@ class GloablApproxBuilder {
      *   Not applied: That node is root of the subtree, same rule as root.
      *   Applied: Ditto
      */
-
     while (!expand_set.empty()) {
       child_node_ids_.clear();
       std::unordered_map<uint32_t, CPUExpandEntry> applied;
@@ -296,7 +275,6 @@ class GloablApproxBuilder {
           continue;
         }
         evaluator_.ApplyTreeSplit(candidate, p_tree);
-        // CHECK_LT(candidate.nid, applied.size());
         applied[candidate.nid] = candidate;
         applied_vec.push_back(candidate);
         is_applied = true;
@@ -343,36 +321,30 @@ class GloablApproxBuilder {
         nodes_to_sub.push_back(CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), {}});
       }
       monitor_->Start("UpdatePosition");
-// <<<<<<< HEAD
-//       size_t page_id = 0;
-//       for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
-//         partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
-//         page_id++;
-// =======
-      size_t i = 0;
 
       if (applied_vec.size()) {
+        size_t i = 0;
         for (auto const &page :
              p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
-              const common::ColumnMatrix& column_matrix = page.Transpose();
-         partitioner_.at(i).UpdatePositionDispatched({column_matrix.AnyMissing(),
-         column_matrix.GetTypeSize(),
-         is_loss_guide, page.cut.HasCategorical()},
-           ctx_,
-           page,
-          //  column_matrix_[i],
-           applied_vec,
-           p_tree,
-           depth,
-           &smalest_nodes_mask,
-           is_loss_guide,
-           &split_conditions_,
-           &split_ind_, param_.max_depth,
-           &child_node_ids_, is_left_small,
-           true);
+          const common::ColumnMatrix& column_matrix = page.Transpose();
+          // clang-format off
+          partitioner_.at(i).UpdatePositionDispatched({column_matrix.AnyMissing(),
+            column_matrix.GetTypeSize(),
+            is_loss_guide, page.cut.HasCategorical()},
+            ctx_,
+            page,
+            applied_vec,
+            p_tree,
+            depth,
+            &smalest_nodes_mask,
+            is_loss_guide,
+            &split_conditions_,
+            &split_ind_, param_.max_depth,
+            &child_node_ids_, is_left_small,
+            true);
+          // clang-format on
           i++;
         }
-// >>>>>>> fb16e1ca... partition optimizations
       }
       monitor_->Stop("UpdatePosition");
 

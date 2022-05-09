@@ -68,9 +68,6 @@ TEST(OptPartitionBuilder, BasicTest) {
         }
     }
   }
-  std::cout << "opt_partition_builder.summ_size: " << opt_partition_builder.summ_size << std::endl;
-  std::cout << "left_cnt: " << left_cnt << std::endl;
-  std::cout << "right_cnt: " << right_cnt << std::endl;
   ASSERT_EQ(opt_partition_builder.summ_size, left_cnt);
   ASSERT_EQ(kNRows - opt_partition_builder.summ_size, right_cnt);
 }
