@@ -90,6 +90,7 @@ class DeviceHistogramStorage {
       sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
   static_assert(kNumItemsInGradientSum == 2,
                 "Number of items in gradient type should be 2.");
+  
 
  public:
   // Start with about 16mb
@@ -205,6 +206,7 @@ struct GPUHistMakerDevice {
   std::unique_ptr<GradientBasedSampler> sampler;
 
   std::unique_ptr<FeatureGroups> feature_groups;
+
 
   GPUHistMakerDevice(Context const* ctx, EllpackPageImpl const* _page,
                      common::Span<FeatureType const> _feature_types, bst_uint _n_rows,
@@ -653,7 +655,8 @@ struct GPUHistMakerDevice {
                   RegTree* p_tree, dh::AllReducer* reducer,
                   HostDeviceVector<bst_node_t>* p_out_position) {
     auto& tree = *p_tree;
-    Driver<GPUExpandEntry> driver(param);
+    // Process maximum 32 nodes at a time
+    Driver<GPUExpandEntry> driver(param, 32);
 
     monitor.Start("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);

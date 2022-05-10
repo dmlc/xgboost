@@ -8,8 +8,8 @@ namespace tree {
 TEST(GpuHist, DriverDepthWise) {
   TrainParam p;
   p.InitAllowUnknown(Args{});
-  p.grow_policy=TrainParam::kDepthWise;
-  Driver<GPUExpandEntry> driver(p);
+  p.grow_policy = TrainParam::kDepthWise;
+  Driver<GPUExpandEntry> driver(p, 2);
   EXPECT_TRUE(driver.Pop().empty());
   DeviceSplitCandidate split;
   split.loss_chg = 1.0f;
@@ -20,15 +20,23 @@ TEST(GpuHist, DriverDepthWise) {
   EXPECT_EQ(driver.Pop().front().nid, 0);
   driver.Push({GPUExpandEntry{1, 1, split, 2.0f, 1.0f, 1.0f}});
   driver.Push({GPUExpandEntry{2, 1, split, 2.0f, 1.0f, 1.0f}});
-  driver.Push({GPUExpandEntry{3, 2, split, 2.0f, 1.0f, 1.0f}});
-  // Should return entries from level 1
+  driver.Push({GPUExpandEntry{3, 1, split, 2.0f, 1.0f, 1.0f}});
+  driver.Push({GPUExpandEntry{4, 2, split, 2.0f, 1.0f, 1.0f}});
+  // Should return 2 entries from level 1
+  // as we limited the driver to pop maximum 2 nodes
   auto res = driver.Pop();
   EXPECT_EQ(res.size(), 2);
   for (auto &e : res) {
     EXPECT_EQ(e.depth, 1);
   }
+
+  // Should now return 1 entry from level 1
   res = driver.Pop();
-  EXPECT_EQ(res[0].depth, 2);
+  EXPECT_EQ(res.size(), 1);
+  EXPECT_EQ(res.at(0).depth, 1);
+
+  res = driver.Pop();
+  EXPECT_EQ(res.at(0).depth, 2);
   EXPECT_TRUE(driver.Pop().empty());
 }
 

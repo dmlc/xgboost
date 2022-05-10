@@ -33,10 +33,11 @@ class Driver {
                           std::function<bool(ExpandEntryT, ExpandEntryT)>>;
 
  public:
-  explicit Driver(TrainParam param)
+  explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)
       : param_(param),
-        queue_(param.grow_policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT> :
-                                                  LossGuide<ExpandEntryT>) {}
+        max_node_batch_size_(max_node_batch_size),
+        queue_(param.grow_policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT>
+                                                           : LossGuide<ExpandEntryT>) {}
   template <typename EntryIterT>
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
@@ -84,7 +85,7 @@ class Driver {
     std::vector<ExpandEntryT> result;
     ExpandEntryT e = queue_.top();
     int level = e.depth;
-    while (e.depth == level && !queue_.empty()) {
+    while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
       queue_.pop();
       if (e.IsValid(param_, num_leaves_)) {
         num_leaves_++;
@@ -101,6 +102,7 @@ class Driver {
  private:
   TrainParam param_;
   std::size_t num_leaves_ = 1;
+  std::size_t max_node_batch_size_;
   ExpandQueue queue_;
 };
 }  // namespace tree
