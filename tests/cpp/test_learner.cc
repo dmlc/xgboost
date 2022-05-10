@@ -107,7 +107,6 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});
-  // learner->SetParams(Args{{"nthreads", '1'}});
   learner->UpdateOneIter(0, dmat);
 }
 

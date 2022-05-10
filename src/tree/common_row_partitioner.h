@@ -3,8 +3,8 @@
  *
  * \brief Implementation for the approx tree method.
  */
-#ifndef XGBOOST_TREE_UPDATER_APPROX_H_
-#define XGBOOST_TREE_UPDATER_APPROX_H_
+#ifndef XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
+#define XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 
 #include <limits>
 #include <utility>
@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include "../common/partition_builder.h"
 #include "../common/opt_partition_builder.h"
 #include "../common/column_matrix.h"
 #include "../common/random.h"
@@ -27,7 +26,7 @@
 
 namespace xgboost {
 namespace tree {
-class RowPartitioner {
+class CommonRowPartitioner {
  public:
   using NodeIdListT = std::vector<uint16_t>;
   using NodeMaskListT = std::unordered_map<uint32_t, bool>;
@@ -75,7 +74,7 @@ class RowPartitioner {
    */
   class UpdatePositionHelper final {
    public:
-    UpdatePositionHelper(xgboost::tree::RowPartitioner* row_partitioner,
+    UpdatePositionHelper(xgboost::tree::CommonRowPartitioner* row_partitioner,
       GenericParameter const* ctx, GHistIndexMatrix const& gmat,
       std::vector<xgboost::tree::CPUExpandEntry> const& nodes,
       RegTree const* p_tree,
@@ -122,7 +121,7 @@ class RowPartitioner {
     }
 
    private:
-    xgboost::tree::RowPartitioner& row_partitioner_;
+    xgboost::tree::CommonRowPartitioner& row_partitioner_;
     GenericParameter const* ctx_;
     GHistIndexMatrix const& gmat_;
     std::vector<xgboost::tree::CPUExpandEntry> const& nodes_;
@@ -139,45 +138,60 @@ class RowPartitioner {
   };
 
  public:
+  // clang-format off
+  template <typename Type>
+  void InitilizerCall(Type) {}
+
   template <bool ... switch_values_set>
   void DispatchFromHasMissing(UpdatePositionHelper&& pos_updater,
     const DispatchParameterSet&& dispatch_values,
     std::integer_sequence<bool, switch_values_set...>) {
-    std::initializer_list<uint32_t>{(dispatch_values.GetHasMissing()
+    InitilizerCall<std::initializer_list<uint32_t>>({(dispatch_values.GetHasMissing()
       == switch_values_set ?
       DispatchFromBinType<switch_values_set>(std::move(pos_updater), std::move(dispatch_values),
-      std::move(common::BinTypeSizeSequence{})), one : zero)...};
+      std::move(common::BinTypeSizeSequence{})), one : zero)...});
   }
 
   template <bool missing, uint32_t ... switch_values_set>
   void DispatchFromBinType(UpdatePositionHelper&& pos_updater,
     const DispatchParameterSet&& dispatch_values,
                            std::integer_sequence<uint32_t, switch_values_set...>) {
-      std::initializer_list<uint32_t>{(dispatch_values.GetBinTypeSize() == switch_values_set ?
-                    DispatchFromLossGuide<missing,
-                    typename common::BinTypeMap<switch_values_set>::type>(std::move(pos_updater),
-                    std::move(dispatch_values), std::move(common::BoolSequence{})), one : zero)...};
+      InitilizerCall<std::initializer_list<uint32_t>>({(dispatch_values.GetBinTypeSize() ==
+        switch_values_set ?
+        DispatchFromLossGuide<missing,
+        typename common::BinTypeMap<switch_values_set>::Type>(std::move(pos_updater),
+        std::move(dispatch_values), std::move(common::BoolSequence{})), one : zero)...});
   }
 
   template <bool missing, typename BinType, bool ... switch_values_set>
   void DispatchFromLossGuide(UpdatePositionHelper&& pos_updater,
                              const DispatchParameterSet&& dispatch_values,
                              std::integer_sequence<bool, switch_values_set...>) {
-    std::initializer_list<uint32_t>{(dispatch_values.GetLossGuide() == switch_values_set ?
-                             DispatchFromHasCategorical<missing, BinType,
-                             switch_values_set>(std::move(pos_updater),
-                             std::move(dispatch_values),
-                             std::move(common::BoolSequence{})), one : zero)...};
+    InitilizerCall<std::initializer_list<uint32_t>>({
+      (dispatch_values.GetLossGuide() == switch_values_set ?
+      DispatchFromHasCategorical<missing, BinType,
+      switch_values_set>(std::move(pos_updater),
+      std::move(dispatch_values),
+      std::move(common::BoolSequence{})), one : zero)...});
   }
 
   template <bool missing, typename BinType, bool is_loss_guide, bool ... switch_values_set>
   void DispatchFromHasCategorical(UpdatePositionHelper&& pos_updater,
                                     const DispatchParameterSet&& dispatch_values,
                                     std::integer_sequence<bool, switch_values_set...>) {
-    std::initializer_list<uint32_t>{(dispatch_values.GetHasCategorical() == switch_values_set ?
-        pos_updater.template Call<missing, BinType, is_loss_guide, switch_values_set>(), one
-        : zero)...};
+    InitilizerCall<std::initializer_list<uint32_t>>({
+      (dispatch_values.GetHasCategorical() == switch_values_set ?
+      pos_updater.template Call<missing, BinType, is_loss_guide, switch_values_set>(), one
+      : zero)...});
   }
+
+  template <typename ... Args>
+  void UpdatePositionDispatched(DispatchParameterSet&& dispatch_params, Args&& ... args) {
+      UpdatePositionHelper helper(this, std::forward<Args>(args)...);
+      DispatchFromHasMissing(std::move(helper), std::move(dispatch_params),
+      std::move(common::BoolSequence{}));
+  }
+  // clang-format on
 
   /**
    * \brief Turn split values into discrete bin indices.
@@ -202,13 +216,6 @@ class RowPartitioner {
       }
       (*split_conditions)[nid] = split_cond;
     }
-  }
-
-  template <typename ... Args>
-  void UpdatePositionDispatched(DispatchParameterSet&& dispatch_params, Args&& ... args) {
-      UpdatePositionHelper helper(this, std::forward<Args>(args)...);
-      DispatchFromHasMissing(std::move(helper), std::move(dispatch_params),
-      std::move(common::BoolSequence{}));
   }
 
   template <bool any_missing, typename BinIdxType,
@@ -252,7 +259,7 @@ class RowPartitioner {
     if (max_depth != 0) {
       split_ind_data_vec.resize((1 << (max_depth + 2)), 0);
       split_conditions_data_vec.resize((1 << (max_depth + 2)), 0);
-      smalest_nodes_mask_vec.resize((1 << (max_depth + 2)), 0);
+      smalest_nodes_mask_vec.resize((1 << (max_depth + 2)), false);
       for (size_t nid = 0; nid < (1 << (max_depth + 2)); ++nid) {
         split_ind_data_vec[nid] = (*split_ind_)[nid];
         split_conditions_data_vec[nid] = (*split_conditions_)[nid];
@@ -362,7 +369,7 @@ class RowPartitioner {
 
   NodeIdListT &GetNodeAssignments() { return node_ids_; }
 
-  void LeafPartition(Context const *ctx, RegTree const &tree,  // common::Span<float const> hess,
+  void LeafPartition(Context const *ctx, RegTree const &tree,
                      std::vector<bst_node_t> *p_out_position) const {
     auto& h_pos = *p_out_position;
     const uint16_t* node_ids_data_ptr = node_ids_.data();
@@ -370,8 +377,6 @@ class RowPartitioner {
     xgboost::common::ParallelFor(node_ids_.size(), ctx->Threads(), [&](size_t i) {
       h_pos[i] = node_ids_data_ptr[i];
     });
-    // partition_builder_.LeafPartition(ctx, tree, this->Partitions(), p_out_position,
-    //                                  [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
   }
 
   auto const &GetThreadTasks(const size_t tid) const {
@@ -382,8 +387,8 @@ class RowPartitioner {
     return opt_partition_builder_;
   }
 
-  RowPartitioner() = default;
-  explicit RowPartitioner(GenericParameter const *ctx,
+  CommonRowPartitioner() = default;
+  explicit CommonRowPartitioner(GenericParameter const *ctx,
                                 GHistIndexMatrix const &gmat,
                                 const RegTree* p_tree_local,
                                 size_t max_depth,
@@ -444,4 +449,4 @@ class RowPartitioner {
 };
 }  // namespace tree
 }  // namespace xgboost
-#endif  // XGBOOST_TREE_UPDATER_APPROX_H_
+#endif  // XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_

@@ -136,7 +136,6 @@ void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   CHECK_GE(nthreads, 1);
 
   dmlc::OMPException exc;
-// for (size_t tid = 0; tid < nthreads; ++tid)
 #pragma omp parallel num_threads(nthreads)
   {
     exc.Run([&]() {

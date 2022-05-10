@@ -60,15 +60,15 @@ using DMatrixP = std::shared_ptr<DMatrix>;
                                 const RegTree& tree) {
     OptPartitionBuilder opt_partition_builder;
 
-    constexpr size_t max_depth = 3;
-    constexpr size_t depth = 1;
-    constexpr size_t thread_count = 1;
-    constexpr bool is_loss_guide = false;
-    constexpr bool all_dense = true;
-    constexpr bool has_cat = false;
+    constexpr size_t kMaxDepth = 3;
+    constexpr size_t kDepth = 1;
+    constexpr size_t kThreadCount = 1;
+    constexpr bool kIsLossGuide = false;
+    constexpr bool kAllDense = true;
+    constexpr bool kHasCat = false;
 
     opt_partition_builder.Init(gmat, gmat.Transpose(), &tree,
-                               thread_count, max_depth, is_loss_guide);
+                               kThreadCount, kMaxDepth, kIsLossGuide);
     const size_t fid = 0;
     const size_t split = 0;
     std::unordered_map<uint32_t, int32_t> split_conditions;
@@ -84,14 +84,13 @@ using DMatrixP = std::shared_ptr<DMatrix>;
 
     const size_t thread_id = 0;
     const size_t row_ind_begin = 0;
-    const size_t row_ind_end = row_count_;
-    opt_partition_builder.template CommonPartition<is_loss_guide, all_dense, has_cat>(thread_id,
+    opt_partition_builder.template CommonPartition<kIsLossGuide, kAllDense, kHasCat>(thread_id,
                 row_ind_begin, row_count_,
                 node_ids.data(),
                 &split_conditions,
                 &split_ind,
                 &smalest_nodes_mask,  // row_gpairs,
-                gmat.Transpose(), split_nodes, pred, depth);
+                gmat.Transpose(), split_nodes, pred, kDepth);
     opt_partition_builder.UpdateRowBuffer(node_ids,
                       gmat, gmat.cut.Ptrs().size() - 1,
                       0, node_ids, false);
@@ -120,7 +119,7 @@ TEST_P(OptPartitionBuilderTestFixture, TestCommonPartitionCheck) {
   this->CommonPartitionCheck(bin_matrix, tree);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     OptPartitionBuilderValueParametrized,
     OptPartitionBuilderTestFixture,
     testing::Combine(testing::Values(8),  // row count

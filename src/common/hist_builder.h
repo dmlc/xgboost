@@ -55,7 +55,6 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
                      uint16_t* nodes_ids,
                      std::vector<std::vector<FPType>>* p_hists,
                      const uint16_t* mapping_ids, uint32_t base_rowid = 0) {
-  const size_t size = row_end - row_begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
   const BinIdxType* gradient_index = numa_data;
   const size_t* row_ptr =  gmat.row_ptr.data();

@@ -39,15 +39,7 @@ void TestEvaluateSplits() {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-// <<<<<<< HEAD
-//   auto hist_builder = common::GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
-// =======
-// <<<<<<< HEAD
-//   auto hist_builder = GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
-// =======
   auto hist_builder = common::GHistBuilder();
-// >>>>>>> 309479f0... partition optimization
-// >>>>>>> a20b4d1a... partition optimizations
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();

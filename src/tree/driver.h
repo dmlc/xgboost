@@ -41,7 +41,9 @@ class Driver {
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
       const ExpandEntryT& e = *it;
-      queue_.push(e);
+      if (e.split.loss_chg > kRtEps) {
+        queue_.push(e);
+      }
     }
   }
   void Push(const std::vector<ExpandEntryT> &entries) {

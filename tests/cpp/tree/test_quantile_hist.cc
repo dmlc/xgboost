@@ -35,7 +35,7 @@ TEST(QuantileHist, Partitioner) {
     {
       auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree;
-      RowPartitioner partitioner{&ctx, gmat, &tree, 8, false};
+      CommonRowPartitioner partitioner{&ctx, gmat, &tree, 8, false};
       GetSplit(&tree, min_value, &candidates);
 
       std::unordered_map<uint32_t, bool> smalest_nodes_mask;
@@ -65,19 +65,16 @@ TEST(QuantileHist, Partitioner) {
         ++result[node_id];
         ++count;
       }
-      bool is_cat = tree.GetSplitTypes()[0] == FeatureType::kCategorical;
       ASSERT_EQ(count, assignments.size());
       ASSERT_EQ(result[0], 0);
       ASSERT_EQ(result[2], assignments.size());
     }
     {
-      // RowPartitioner partitioner{n_samples, base_rowid, 1};
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree;
-      RowPartitioner partitioner{&ctx, gmat, &tree, 8, false};
+      CommonRowPartitioner partitioner{&ctx, gmat, &tree, 8, false};
       GetSplit(&tree, split_value, &candidates);
-      auto left_nidx = tree[RegTree::kRoot].LeftChild();
 
       std::unordered_map<uint32_t, bool> smalest_nodes_mask;
       smalest_nodes_mask[2] = true;

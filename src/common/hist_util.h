@@ -197,17 +197,17 @@ enum BinTypeSize : unsigned int {
 
 template <unsigned int size>
 struct BinTypeMap {
-    using type = uint32_t;
+    using Type = uint32_t;
 };
 
 template <>
 struct BinTypeMap<kUint8BinsTypeSize> {
-    using type = uint8_t;
+    using Type = uint8_t;
 };
 
 template <>
 struct BinTypeMap<kUint16BinsTypeSize> {
-    using type = uint16_t;
+    using Type = uint16_t;
 };
 
 using BinTypeSizeSequence = std::integer_sequence<uint32_t,

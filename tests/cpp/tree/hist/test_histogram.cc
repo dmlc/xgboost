@@ -219,9 +219,6 @@ void TestBuildHistogram(bool is_distributed) {
                            ->GetBatches<GHistIndexMatrix>(
                                BatchParam{GenericParameter::kCpuId, kMaxBins})
                            .begin());
-  // auto const& page = *(p_fmat->GetBatches<SparsePage>().begin());
-  // common::ColumnMatrix column_matrix;
-  // column_matrix.Init(page, gmat, 1, 1);
   uint32_t total_bins = gmat.cut.Ptrs().back();
 
   static double constexpr kEps = 1e-6;
