@@ -2,7 +2,6 @@
 # pylint: disable=too-many-return-statements, import-error
 '''Data dispatching for DMatrix.'''
 import ctypes
-from distutils import version
 import json
 import warnings
 import os
