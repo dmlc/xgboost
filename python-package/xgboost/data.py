@@ -590,7 +590,6 @@ def _from_arrow(
     if enable_categorical:
         raise ValueError("categorical data in arrow is not supported yet.")
 
-    major, _, _ = version.StrictVersion(pa.__version__).version
     rb_iter = iter(data.to_batches())
     it = record_batch_data_iter(rb_iter)
     next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(it)
