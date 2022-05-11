@@ -6,7 +6,7 @@ This directory contains a demo of Federated Learning using
 To run the demo, first build XGBoost with the federated learning plugin enabled (see the
 [README](../../plugin/federated/README.md)).
 
-Install NVFlare:
+Install NVFlare (note that currently NVFlare only supports Python 3.8):
 ```shell
 pip install nvflare
 ```
