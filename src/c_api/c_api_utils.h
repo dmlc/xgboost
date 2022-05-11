@@ -115,7 +115,7 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
   }
   }
   CHECK_EQ(
-      std::accumulate(shape.cbegin(), shape.cend(), 1, std::multiplies<>{}),
+      std::accumulate(shape.cbegin(), shape.cend(), static_cast<bst_ulong>(1), std::multiplies<>{}),
       chunksize * rows);
 }
 

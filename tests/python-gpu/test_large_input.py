@@ -18,4 +18,6 @@ def test_large_input():
     X = cp.ones((m, n), dtype=np.float32)
     y = cp.ones(m)
     dmat = xgb.DeviceQuantileDMatrix(X, y)
-    xgb.train({"tree_method": "gpu_hist", "max_depth": 1}, dmat, 1)
+    booster = xgb.train({"tree_method": "gpu_hist", "max_depth": 1}, dmat, 1)
+    del y
+    booster.inplace_predict(X)
