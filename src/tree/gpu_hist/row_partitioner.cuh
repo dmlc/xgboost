@@ -9,9 +9,52 @@
 #include "xgboost/generic_parameters.h"
 #include "xgboost/task.h"
 #include "xgboost/tree_model.h"
+#include <thrust/execution_policy.h>
 
 namespace xgboost {
 namespace tree {
+
+  /** \brief Used to demarcate a contiguous set of row indices associated with
+ * some tree node. */
+struct Segment {
+  size_t begin{0};
+  size_t end{0};
+
+  Segment() = default;
+
+  Segment(size_t begin, size_t end) : begin(begin), end(end) { CHECK_GE(end, begin); }
+  __host__ __device__ size_t Size() const { return end - begin; }
+};
+
+constexpr int kUpdatePositionMaxBatch = 32;
+struct UpdatePositionBatchArgs {
+  bst_node_t nidx_batch[kUpdatePositionMaxBatch];
+  bst_node_t left_nidx_batch[kUpdatePositionMaxBatch];
+  bst_node_t right_nidx_batch[kUpdatePositionMaxBatch];
+  Segment segments_batch[kUpdatePositionMaxBatch];
+};
+
+template <typename OpT>
+__global__ void UpdatePositionBatchKernel(UpdatePositionBatchArgs args,
+                                          OpT op, common::Span<bst_uint> ridx,
+                                          common::Span<bst_node_t> position,
+                                          common::Span<int64_t> left_counts) {
+  auto segment = args.segments_batch[blockIdx.x];
+  auto ridx_segment = ridx.subspan(segment.begin, segment.Size());
+  auto position_segment = position.subspan(segment.begin, segment.Size());
+  thrust::sort_by_key(thrust::seq, ridx_segment.data(), ridx_segment.data()+ridx_segment.size(),
+                      position_segment.data(), [=] __device__(auto a, auto b) { return op(a) < op(b); });
+
+  auto left_nidx = args.left_nidx_batch[blockIdx.x];
+  int64_t left_count = 0;
+  for (int i = segment.begin; i < segment.end; i++) {
+    bst_node_t new_position = op(ridx[i]);  // new node id
+    left_count += new_position == left_nidx;
+    position[i] = new_position;
+  }
+  left_counts[blockIdx.x] = left_count;
+}
+
 /*! \brief Count how many rows are assigned to left node. */
 __forceinline__ __device__ void AtomicIncrement(int64_t* d_count, bool increment) {
 #if __CUDACC_VER_MAJOR__ > 8
@@ -36,7 +79,6 @@ __forceinline__ __device__ void AtomicIncrement(int64_t* d_count, bool increment
 class RowPartitioner {
  public:
   using RowIndexT = bst_uint;
-  struct Segment;
   static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
@@ -97,6 +139,47 @@ class RowPartitioner {
    * \brief Convenience method for testing
    */
   std::vector<bst_node_t> GetPositionHost();
+
+  template <typename UpdatePositionOpT>
+  void UpdatePositionBatch(const std::vector<bst_node_t>& nidx,
+                           const std::vector<bst_node_t>& left_nidx,
+                           const std::vector<bst_node_t>& right_nidx, UpdatePositionOpT op) {
+    // Impose this limit because we are passing arguments for each node to the kernel by parameter
+    // this avoids memcpy but we cannot pass arbitrary number of arguments
+    CHECK_EQ(nidx.size(), left_nidx.size());
+    CHECK_EQ(nidx.size(), right_nidx.size());
+    CHECK_LE(nidx.size(), kUpdatePositionMaxBatch);
+    auto left_counts = pinned_.GetSpan<int64_t>(nidx.size(), 0);
+
+
+    // Prepare kernel arguments
+    UpdatePositionBatchArgs args;
+    std::copy(nidx.begin(),nidx.end(),args.nidx_batch);
+    std::copy(left_nidx.begin(),left_nidx.end(),args.left_nidx_batch);
+    std::copy(right_nidx.begin(),right_nidx.end(),args.right_nidx_batch);
+    for(int i = 0; i < nidx.size(); i++){
+      args.segments_batch[i]=ridx_segments_.at(nidx[i]);
+    }
+
+    // 1 block per node
+    UpdatePositionBatchKernel<<<nidx.size(), 1>>>(
+        args, op, ridx_.CurrentSpan(),
+        position_.CurrentSpan(), left_counts);
+
+    dh::safe_cuda(cudaDeviceSynchronize());
+
+    // Update segments
+    for (int i = 0; i < nidx.size(); i++) {
+      auto segment=ridx_segments_.at(nidx[i]);
+      auto left_count = left_counts[i];
+      CHECK_LE(left_count, segment.Size());
+      CHECK_GE(left_count, 0);
+      ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
+                                     std::max(left_nidx[i], right_nidx[i]) + 1));
+      ridx_segments_[left_nidx[i]] = Segment(segment.begin, segment.begin + left_count);
+      ridx_segments_[right_nidx[i]] = Segment(segment.begin + left_count, segment.end);
+    }
+  }
 
   /**
    * \brief Updates the tree position for set of training instances being split
@@ -215,19 +298,6 @@ class RowPartitioner {
   void SortPositionAndCopy(const Segment& segment, bst_node_t left_nidx,
                            bst_node_t right_nidx, int64_t* d_left_count,
                            cudaStream_t stream);
-  /** \brief Used to demarcate a contiguous set of row indices associated with
-   * some tree node. */
-  struct Segment {
-    size_t begin { 0 };
-    size_t end { 0 };
-
-    Segment() = default;
-
-    Segment(size_t begin, size_t end) : begin(begin), end(end) {
-      CHECK_GE(end, begin);
-    }
-    size_t Size() const { return end - begin; }
-  };
 };
 };  // namespace tree
 };  // namespace xgboost
