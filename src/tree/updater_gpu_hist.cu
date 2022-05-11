@@ -88,9 +88,7 @@ class DeviceHistogramStorage {
   int device_id_;
   static constexpr size_t kNumItemsInGradientSum =
       sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
-  static_assert(kNumItemsInGradientSum == 2,
-                "Number of items in gradient type should be 2.");
-  
+  static_assert(kNumItemsInGradientSum == 2, "Number of items in gradient type should be 2.");
 
  public:
   // Start with about 16mb
@@ -107,11 +105,10 @@ class DeviceHistogramStorage {
     overflow_nidx_map_.clear();
   }
   bool HistogramExists(int nidx) const {
-    return nidx_map_.find(nidx) != nidx_map_.cend() || overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
+    return nidx_map_.find(nidx) != nidx_map_.cend() ||
+           overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
   }
-  int Bins() const {
-    return n_bins_;
-  }
+  int Bins() const { return n_bins_; }
   size_t HistogramSize() const { return n_bins_ * kNumItemsInGradientSum; }
   dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
 

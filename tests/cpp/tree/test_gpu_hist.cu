@@ -27,7 +27,7 @@ TEST(GpuHist, DeviceHistogram) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   dh::safe_cuda(cudaSetDevice(0));
   constexpr size_t kNBins = 128;
-  constexpr size_t kNNodes = 4;
+  constexpr int kNNodes = 4;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
   DeviceHistogramStorage<GradientPairPrecise, kStopGrowing> histogram;
   histogram.Init(0, kNBins);
@@ -47,7 +47,7 @@ TEST(GpuHist, DeviceHistogram) {
 
   // Add two new nodes
   histogram.AllocateHistograms({kNNodes});
-  histogram.AllocateHistograms({kNNodes+1});
+  histogram.AllocateHistograms({kNNodes + 1});
 
   // Old cached nodes should still exist
   for (int i = 0; i < kNNodes; ++i) {
