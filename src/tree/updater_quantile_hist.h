@@ -267,7 +267,6 @@ class QuantileHistMaker: public TreeUpdater {
   // actual builder that runs the algorithm
   struct Builder {
    public:
-    using GradientPairT = xgboost::GradientPairPrecise;
     // constructor
     explicit Builder(const size_t n_trees, const TrainParam& param, DMatrix const* fmat,
                      ObjInfo task, GenericParameter const* ctx)
