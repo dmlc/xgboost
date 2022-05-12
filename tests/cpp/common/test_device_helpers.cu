@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <thrust/device_vector.h>
+#include <thrust/random.h>
 #include <vector>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
@@ -264,4 +265,132 @@ void TestAtomicAdd() {
 TEST(AtomicAdd, Int64) {
   TestAtomicAdd();
 }
+
+template <int kBlockSize>
+class BlockPartition {
+ public:
+  template <typename IterT, typename OpT>
+  __device__ std::size_t Partition(IterT begin, IterT end, OpT op) {
+    typedef cub::BlockScan<std::size_t, kBlockSize> BlockScanT;
+    __shared__ typename BlockScanT::TempStorage temp1, temp2;
+    __shared__ std::size_t lcomp[kBlockSize];
+    __shared__ std::size_t rcomp[kBlockSize];
+
+    // Get left count
+    std::size_t left_count = 0;
+    if (threadIdx.x == 0) {
+      for (int i = 0; i < (end - begin); i++) {
+        left_count += op(begin[i]);
+      }
+      lcomp[0] = left_count;
+    }
+    __syncthreads();
+    left_count = lcomp[0];
+    //
+
+    std::size_t loffset = 0, part = left_count, roffset = part;
+    auto count = end - begin;
+    std::size_t lflag = 0, rflag = 0, llen = 0, rlen = 0, minlen = 0;
+    auto tid = threadIdx.x;
+    while (loffset < part && roffset < count) {
+      // find the samples in the left that belong to right and vice-versa
+      auto loff = loffset + tid, roff = roffset + tid;
+      if (llen == minlen) lflag = loff < part ? !op(begin[loff]) : 0;
+      if (rlen == minlen) rflag = roff < count ? op(begin[roff]) : 0;
+      // scan to compute the locations for each 'misfit' in the two partitions
+      std::size_t lidx, ridx;
+      BlockScanT(temp1).ExclusiveSum(lflag, lidx, llen);
+      BlockScanT(temp2).ExclusiveSum(rflag, ridx, rlen);
+      __syncthreads();
+      minlen = llen < rlen ? llen : rlen;
+      // compaction to figure out the right locations to swap
+      if (lflag) lcomp[lidx] = loff;
+      if (rflag) rcomp[ridx] = roff;
+      __syncthreads();
+      // reset the appropriate flags for the longer of the two
+      if (lidx < minlen) lflag = 0;
+      if (ridx < minlen) rflag = 0;
+      if (llen == minlen) loffset += kBlockSize;
+      if (rlen == minlen) roffset += kBlockSize;
+      // swap the 'misfit's
+      if (tid < minlen) {
+        auto a = begin[lcomp[tid]];
+        auto b = begin[rcomp[tid]];
+        begin[lcomp[tid]] = b;
+        begin[rcomp[tid]] = a;
+      }
+    }
+    return left_count;
+  }
+};
+
+template <int kBlockSize, typename OpT>
+__global__ void TestBlockPartitionKernel(int* begin, int* end, std::size_t* count_out, OpT op) {
+  auto count = BlockPartition<kBlockSize>().Partition(begin, end, op);
+  if (threadIdx.x == 0) {
+    *count_out = count;
+  }
+}
+
+template <int kBlockSize>
+void TestBlockPartition(thrust::device_vector<int>& x) {
+  thrust::device_vector<std::size_t> count(1);
+
+  auto op = [] __device__(int y) { return y % 2 == 0; };
+  TestBlockPartitionKernel<kBlockSize>
+      <<<1, kBlockSize>>>(x.data().get(), x.data().get() + x.size(), count.data().get(), op);
+
+  auto reference = thrust::count_if(x.begin(), x.end(), op);
+  EXPECT_EQ(count[0], reference);
+
+  auto left_partition_count = thrust::count_if(x.begin(), x.begin() + count[0], op);
+  EXPECT_EQ(count[0], left_partition_count);
+  auto right_partition_count = thrust::count_if(x.begin() + count[0], x.end(), op);
+  EXPECT_EQ(0, right_partition_count);
+}
+
+TEST(BlockPartition, BlockPartitionEmpty) {
+  thrust::device_vector<int> x;
+  TestBlockPartition<256>(x);
+}
+
+TEST(BlockPartition, BlockPartitionUniform) {
+  thrust::device_vector<int> x(100);
+  TestBlockPartition<256>(x);
+  thrust::fill(x.begin(),x.end(),1);
+  TestBlockPartition<256>(x);
+}
+
+void MakeRandom(thrust::device_vector<int>& x, int seed) {
+  auto counting = thrust::make_counting_iterator(0);
+  thrust::transform(counting, counting + x.size(), x.begin(), [=] __device__(auto idx) {
+    thrust::default_random_engine gen(seed);
+    thrust::uniform_int_distribution<int> dist;
+    gen.discard(idx);
+    return dist(gen);
+  });
+}
+
+TEST(BlockPartition, BlockPartitionBasic) {
+  thrust::device_vector<int> x = std::vector<int>{0,1,2};
+  TestBlockPartition<256>(x);
+}
+
+TEST(BlockPartition, BlockPartition) {
+  int sizes[] = {1, 37, 1092};
+  int seeds[] = {0, 1, 2, 3, 4};
+  for (auto seed : seeds) {
+    for (auto size : sizes) {
+      thrust::device_vector<int> x(size);
+      MakeRandom(x, seed);
+      thrust::device_vector<int> y = x;
+      TestBlockPartition<1>(y);
+      y = x;
+      TestBlockPartition<1024>(y);
+      y = x;
+      TestBlockPartition<37>(y);
+    }
+  }
+}
+
 }  // namespace xgboost
