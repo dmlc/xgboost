@@ -4,7 +4,8 @@
 #ifndef XGBOOST_COMMON_NUMERIC_H_
 #define XGBOOST_COMMON_NUMERIC_H_
 
-#include <iterator>  // std::iterator_traits
+#include <algorithm>  // std::max
+#include <iterator>   // std::iterator_traits
 #include <vector>
 
 #include "threading_utils.h"
