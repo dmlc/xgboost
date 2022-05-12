@@ -157,8 +157,7 @@ class GradientPairInternal {
     hess_ += hess;
   }
 
-  DMLC_ALWAYS_INLINE static void Reduce(GradientPairInternal<T> &a,  // NOLINT
-                                        const GradientPairInternal<T> &b) {
+  inline static void Reduce(GradientPairInternal<T>& a, const GradientPairInternal<T>& b) { // NOLINT(*)
     a += b;
   }
 

@@ -51,6 +51,7 @@ class HistogramBuilder {
     buffer_.Init(total_bins);
     builder_ = common::GHistBuilder(total_bins);
     is_distributed_ = is_distributed;
+    auto DMLC_ATTRIBUTE_UNUSED __force_instantiation = &GradientPairPrecise::Reduce;
   }
 
   template <bool any_missing>
