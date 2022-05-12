@@ -275,21 +275,24 @@ class BlockPartition {
     __shared__ typename BlockScanT::TempStorage temp1, temp2;
     __shared__ std::size_t lcomp[kBlockSize];
     __shared__ std::size_t rcomp[kBlockSize];
+    __shared__ int64_t tmp_sum;
 
-    // Get left count
-    std::size_t left_count = 0;
     if (threadIdx.x == 0) {
-      for (int i = 0; i < (end - begin); i++) {
-        left_count += op(begin[i]);
-      }
-      lcomp[0] = left_count;
+      tmp_sum = 0;
     }
     __syncthreads();
-    left_count = lcomp[0];
-    //
+
+    // Get left count
+    std::size_t count = end - begin;
+    std::size_t left_count = 0;
+    for (auto idx : dh::BlockStrideRange(std::size_t(0), count)) {
+      left_count += op(begin[idx]);
+    }
+    atomicAdd(&tmp_sum, left_count);
+    __syncthreads();
+    left_count = tmp_sum;
 
     std::size_t loffset = 0, part = left_count, roffset = part;
-    auto count = end - begin;
     std::size_t lflag = 0, rflag = 0, llen = 0, rlen = 0, minlen = 0;
     auto tid = threadIdx.x;
     while (loffset < part && roffset < count) {
