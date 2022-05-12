@@ -97,7 +97,7 @@ except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
 __all__ = [
-    "RabitContext",
+    "DaskRabitContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
     "DaskXGBRegressor",
@@ -224,24 +224,15 @@ def _assert_dask_support() -> None:
         LOGGER.warning(msg)
 
 
-class RabitContext:
+class DaskRabitContext(rabit.RabitContext):
     """A context controlling rabit initialization and finalization."""
 
     def __init__(self, args: List[bytes]) -> None:
-        self.args = args
+        super().__init__(args)
         worker = distributed.get_worker()
         self.args.append(
             ("DMLC_TASK_ID=[xgboost.dask]:" + str(worker.address)).encode()
         )
-
-    def __enter__(self) -> None:
-        rabit.init(self.args)
-        assert rabit.is_distributed()
-        LOGGER.debug("-------------- rabit say hello ------------------")
-
-    def __exit__(self, *args: List) -> None:
-        rabit.finalize()
-        LOGGER.debug("--------------- rabit say bye ------------------")
 
 
 def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
@@ -953,7 +944,7 @@ async def _train_async(
             n_threads = worker.nthreads
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
         local_history: TrainingCallback.EvalsLog = {}
-        with RabitContext(rabit_args), config.config_context(**global_config):
+        with DaskRabitContext(rabit_args), config.config_context(**global_config):
             Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
             evals: List[Tuple[DMatrix, str]] = []
             for i, ref in enumerate(refs):

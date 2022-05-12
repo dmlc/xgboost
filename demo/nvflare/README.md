@@ -1,4 +1,4 @@
-# Federated XGBoost Demo using NVFlare
+# Experimental Support of Federated XGBoost using NVFlare
 
 This directory contains a demo of Federated Learning using
 [NVFlare](https://nvidia.github.io/NVFlare/).

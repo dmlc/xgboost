@@ -59,31 +59,26 @@ class XGBoostTrainer(Executor):
             f'federated_client_key={self._client_key_path}',
             f'federated_client_cert={self._client_cert_path}'
         ]
-        xgb.rabit.init([e.encode() for e in rabit_env])
+        with xgb.rabit.RabitContext([e.encode() for e in rabit_env]):
+            # Load file, file will not be sharded in federated mode.
+            dtrain = xgb.DMatrix('agaricus.txt.train')
+            dtest = xgb.DMatrix('agaricus.txt.test')
 
-        # Load file, file will not be sharded in federated mode.
-        dtrain = xgb.DMatrix('agaricus.txt.train')
-        dtest = xgb.DMatrix('agaricus.txt.test')
+            # Specify parameters via map, definition are same as c++ version
+            param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
 
-        # Specify parameters via map, definition are same as c++ version
-        param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
+            # Specify validations set to watch performance
+            watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+            num_round = 20
 
-        # Specify validations set to watch performance
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        num_round = 20
+            # Run training, all the features in training API is available.
+            bst = xgb.train(param, dtrain, num_round, evals=watchlist,
+                            early_stopping_rounds=2, verbose_eval=False,
+                            callbacks=[callback.EvaluationMonitor(rank=rank)])
 
-        # Run training, all the features in training API is available.
-        bst = xgb.train(param, dtrain, num_round, evals=watchlist,
-                        early_stopping_rounds=2, verbose_eval=False,
-                        callbacks=[callback.EvaluationMonitor(rank=rank)])
-
-        # Save the model.
-        workspace = fl_ctx.get_prop(FLContextKey.WORKSPACE_OBJECT)
-        run_number = fl_ctx.get_prop(FLContextKey.CURRENT_RUN)
-        run_dir = workspace.get_run_dir(run_number)
-        bst.save_model(os.path.join(run_dir, "test.model.json"))
-        xgb.rabit.tracker_print("Finished training\n")
-
-        # Notify the tracker all training has been successful
-        # This is only needed in distributed training.
-        xgb.rabit.finalize()
+            # Save the model.
+            workspace = fl_ctx.get_prop(FLContextKey.WORKSPACE_OBJECT)
+            run_number = fl_ctx.get_prop(FLContextKey.CURRENT_RUN)
+            run_dir = workspace.get_run_dir(run_number)
+            bst.save_model(os.path.join(run_dir, "test.model.json"))
+            xgb.rabit.tracker_print("Finished training\n")
