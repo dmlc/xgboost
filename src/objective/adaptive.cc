@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../common/common.h"
+#include "../common/numeric.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "xgboost/tree_model.h"
