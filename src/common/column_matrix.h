@@ -196,7 +196,7 @@ class ColumnMatrix {
       /* For sparse DMatrix gmat.index.getBinTypeSize() returns always kUint32BinsTypeSize
          but for ColumnMatrix we still have a chance to reduce the memory consumption */
     } else {
-      SetIndex<uint32_t>(page, gmat.index.data<uint32_t>(), gmat, nfeature);
+      SetIndex(page, gmat.index.data<uint32_t>(), gmat, nfeature);
     }
   }
 
@@ -219,8 +219,9 @@ class ColumnMatrix {
   }
 
   template <typename T>
-  inline void SetIndexAllDense(SparsePage const& page, T const* index, const GHistIndexMatrix& gmat,
-                               const size_t nrow, const size_t nfeature, const bool noMissingValues,
+  inline void SetIndexAllDense(SparsePage const& page, T const* row_index,
+                               const GHistIndexMatrix& gmat, const size_t nrow,
+                               const size_t nfeature, const bool noMissingValues,
                                int32_t n_threads) {
     bst_bin_t* local_index = index_.data();
 
@@ -233,7 +234,7 @@ class ColumnMatrix {
         size_t j = 0;
         for (size_t i = ibegin; i < iend; ++i, ++j) {
           const size_t idx = feature_offsets_[j];
-          local_index[idx + rid] = static_cast<bst_bin_t>(index[i]);
+          local_index[idx + rid] = static_cast<bst_bin_t>(row_index[i]);
         }
       });
     } else {
@@ -243,7 +244,7 @@ class ColumnMatrix {
         /* rbegin allows to store indexes from specific SparsePage batch */
         local_index[idx + rid] = static_cast<bst_bin_t>(bin_id);
       };
-      this->SetIndexSparse(page, index, gmat, nfeature, get_bin_idx);
+      this->SetIndexSparse(page, row_index, gmat, nfeature, get_bin_idx);
     }
   }
 
@@ -251,7 +252,7 @@ class ColumnMatrix {
   // this and remove the dependency on SparsePage.  This way we can have quantilized
   // matrix for host similar to `DeviceQuantileDMatrix`.
   template <typename T, typename BinFn>
-  void SetIndexSparse(SparsePage const& batch, T* index, const GHistIndexMatrix& gmat,
+  void SetIndexSparse(SparsePage const& batch, T* row_index, const GHistIndexMatrix& gmat,
                       const size_t nfeature, BinFn&& assign_bin) {
     std::vector<size_t> num_nonzeros(nfeature, 0ul);
     const xgboost::Entry* data_ptr = batch.data.HostVector().data();
@@ -269,33 +270,32 @@ class ColumnMatrix {
       CHECK_EQ(ibegin + inst.size(), iend);
       size_t j = 0;
       for (size_t i = ibegin; i < iend; ++i, ++j) {
-        const uint32_t bin_id = index[i];
+        const uint32_t bin_id = row_index[i];
         auto fid = inst[j].index;
         assign_bin(bin_id, rid, fid);
       }
     }
   }
 
-  template <typename T>
-  inline void SetIndex(SparsePage const& page, uint32_t const* index, const GHistIndexMatrix& gmat,
-                       const size_t nfeature) {
-    T* local_index = reinterpret_cast<T*>(&index_[0]);
+  void SetIndex(SparsePage const& page, uint32_t const* row_index, const GHistIndexMatrix& gmat,
+                const size_t nfeature) {
+    bst_bin_t* local_index = index_.data();
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);
     std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
 
     auto get_bin_idx = [&](auto bin_id, auto rid, bst_feature_t fid) {
       if (type_[fid] == kDenseColumn) {
-        T* begin = &local_index[feature_offsets_[fid]];
+        auto* begin = &local_index[feature_offsets_[fid]];
         begin[rid] = bin_id - index_base_[fid];
       } else {
-        T* begin = &local_index[feature_offsets_[fid]];
+        auto* begin = &local_index[feature_offsets_[fid]];
         begin[num_nonzeros[fid]] = bin_id - index_base_[fid];
         row_ind_[feature_offsets_[fid] + num_nonzeros[fid]] = rid;
         ++num_nonzeros[fid];
       }
     };
-    this->SetIndexSparse(page, index, gmat, nfeature, get_bin_idx);
+    this->SetIndexSparse(page, row_index, gmat, nfeature, get_bin_idx);
   }
 
   // This is just an utility function
