@@ -12,7 +12,7 @@
 
 namespace xgboost {
 namespace tree {
-template <typename GradientSumT> void TestEvaluateSplits() {
+void TestEvaluateSplits() {
   int static constexpr kRows = 8, kCols = 16;
   auto orig = omp_get_max_threads();
   int32_t n_threads = std::min(omp_get_max_threads(), 4);
@@ -24,9 +24,8 @@ template <typename GradientSumT> void TestEvaluateSplits() {
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Seed(3).GenerateDMatrix();
 
-  auto evaluator =
-      HistEvaluator<GradientSumT, CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
-  common::HistCollection<GradientSumT> hist;
+  auto evaluator = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
+  common::HistCollection hist;
   std::vector<GradientPair> row_gpairs = {
       {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f},  {2.27f, 0.28f},
       {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f}};
@@ -40,7 +39,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  auto hist_builder = common::GHistBuilder<GradientSumT>(gmat.cut.Ptrs().back());
+  auto hist_builder = common::GHistBuilder(gmat.cut.Ptrs().back());
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();
@@ -85,10 +84,7 @@ template <typename GradientSumT> void TestEvaluateSplits() {
   omp_set_num_threads(orig);
 }
 
-TEST(HistEvaluator, Evaluate) {
-  TestEvaluateSplits<float>();
-  TestEvaluateSplits<double>();
-}
+TEST(HistEvaluator, Evaluate) { TestEvaluateSplits(); }
 
 TEST(HistEvaluator, Apply) {
   RegTree tree;
@@ -97,7 +93,7 @@ TEST(HistEvaluator, Apply) {
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator_ = HistEvaluator<float, CPUExpandEntry>{param, dmat->Info(), 4, sampler};
+  auto evaluator_ = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), 4, sampler};
 
   CPUExpandEntry entry{0, 0, 10.0f};
   entry.split.left_sum = GradStats{0.4, 0.6f};
@@ -123,8 +119,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   // check the evaluator is returning the optimal split
   std::vector<FeatureType> ft{FeatureType::kCategorical};
   auto sampler = std::make_shared<common::ColumnSampler>();
-  HistEvaluator<double, CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0),
-                                                  sampler};
+  HistEvaluator<CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0), sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
   std::vector<CPUExpandEntry> entries(1);
@@ -155,12 +150,11 @@ auto CompareOneHotAndPartition(bool onehot) {
 
   int32_t n_threads = 16;
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator =
-      HistEvaluator<GradientSumT, CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
+  auto evaluator = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
   std::vector<CPUExpandEntry> entries(1);
 
   for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {
-    common::HistCollection<GradientSumT> hist;
+    common::HistCollection hist;
 
     entries.front().nid = 0;
     entries.front().depth = 0;

@@ -22,7 +22,8 @@
 namespace xgboost {
 namespace tree {
 
-template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
+template <typename ExpandEntry>
+class HistEvaluator {
  private:
   struct NodeEntry {
     /*! \brief statics for node entry */
@@ -57,7 +58,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   // a non-missing value for the particular feature fid.
   template <int d_step, SplitType split_type>
   GradStats EnumerateSplit(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
-                           const common::GHistRow<GradientSumT> &hist, bst_feature_t fidx,
+                           const common::GHistRow &hist, bst_feature_t fidx,
                            bst_node_t nidx,
                            TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                            SplitEntry *p_best) const {
@@ -197,10 +198,8 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
   }
 
  public:
-  void EvaluateSplits(const common::HistCollection<GradientSumT> &hist,
-                      common::HistogramCuts const &cut,
-                      common::Span<FeatureType const> feature_types,
-                      const RegTree &tree,
+  void EvaluateSplits(const common::HistCollection &hist, common::HistogramCuts const &cut,
+                      common::Span<FeatureType const> feature_types, const RegTree &tree,
                       std::vector<ExpandEntry> *p_entries) {
     auto& entries = *p_entries;
     // All nodes are on the same level, so we can store the shared ptr.
@@ -377,10 +376,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistEvaluator {
  *
  * \param p_last_tree The last tree being updated by tree updater
  */
-template <typename Partitioner, typename GradientSumT, typename ExpandEntry>
+template <typename Partitioner, typename ExpandEntry>
 void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
-                               HistEvaluator<GradientSumT, ExpandEntry> const &hist_evaluator,
+                               HistEvaluator<ExpandEntry> const &hist_evaluator,
                                TrainParam const &param, linalg::VectorView<float> out_preds) {
   CHECK_GT(out_preds.Size(), 0U);
 

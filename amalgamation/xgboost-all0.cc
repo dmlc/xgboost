@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors.
+ * Copyright 2015-2022 by Contributors.
  * \brief XGBoost Amalgamation.
  *  This offers an alternative way to compile the entire library from this single file.
  *
@@ -50,7 +50,6 @@
 
 // trees
 #include "../src/tree/constraints.cc"
-#include "../src/tree/hist/param.cc"
 #include "../src/tree/param.cc"
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"

@@ -34,34 +34,6 @@ Supported parameters
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718
 
-+--------------------------------+--------------+
-| parameter                      | ``gpu_hist`` |
-+================================+==============+
-| ``subsample``                  | |tick|       |
-+--------------------------------+--------------+
-| ``sampling_method``            | |tick|       |
-+--------------------------------+--------------+
-| ``colsample_bytree``           | |tick|       |
-+--------------------------------+--------------+
-| ``colsample_bylevel``          | |tick|       |
-+--------------------------------+--------------+
-| ``max_bin``                    | |tick|       |
-+--------------------------------+--------------+
-| ``gamma``                      | |tick|       |
-+--------------------------------+--------------+
-| ``gpu_id``                     | |tick|       |
-+--------------------------------+--------------+
-| ``predictor``                  | |tick|       |
-+--------------------------------+--------------+
-| ``grow_policy``                | |tick|       |
-+--------------------------------+--------------+
-| ``monotone_constraints``       | |tick|       |
-+--------------------------------+--------------+
-| ``interaction_constraints``    | |tick|       |
-+--------------------------------+--------------+
-| ``single_precision_histogram`` | |cross|      |
-+--------------------------------+--------------+
-
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
 
 The device ordinal (which GPU to use if you have many of them) can be selected using the

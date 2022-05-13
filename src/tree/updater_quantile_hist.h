@@ -24,7 +24,6 @@
 #include "hist/evaluate_splits.h"
 #include "hist/histogram.h"
 #include "hist/expand_entry.h"
-#include "hist/param.h"
 
 #include "constraints.h"
 #include "./param.h"
@@ -236,7 +235,7 @@ inline BatchParam HistBatch(TrainParam const& param) {
 class QuantileHistMaker: public TreeUpdater {
  public:
   explicit QuantileHistMaker(GenericParameter const* ctx, ObjInfo task)
-      : task_{task}, TreeUpdater(ctx) {}
+      : TreeUpdater(ctx), task_{task} {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
@@ -249,12 +248,10 @@ class QuantileHistMaker: public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("train_param"), &this->param_);
-    FromJson(config.at("cpu_hist_train_param"), &this->hist_maker_param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["train_param"] = ToJson(param_);
-    out["cpu_hist_train_param"] = ToJson(hist_maker_param_);
   }
 
   char const* Name() const override {
@@ -264,22 +261,19 @@ class QuantileHistMaker: public TreeUpdater {
   bool HasNodePosition() const override { return true; }
 
  protected:
-  CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
 
   // actual builder that runs the algorithm
-  template<typename GradientSumT>
   struct Builder {
    public:
-    using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
     explicit Builder(const size_t n_trees, const TrainParam& param, DMatrix const* fmat,
                      ObjInfo task, GenericParameter const* ctx)
         : n_trees_(n_trees),
           param_(param),
           p_last_fmat_(fmat),
-          histogram_builder_{new HistogramBuilder<GradientSumT, CPUExpandEntry>},
+          histogram_builder_{new HistogramBuilder<CPUExpandEntry>},
           task_{task},
           ctx_{ctx},
           monitor_{std::make_unique<common::Monitor>()} {
@@ -320,14 +314,14 @@ class QuantileHistMaker: public TreeUpdater {
 
     std::vector<GradientPair> gpair_local_;
 
-    std::unique_ptr<HistEvaluator<GradientSumT, CPUExpandEntry>> evaluator_;
+    std::unique_ptr<HistEvaluator<CPUExpandEntry>> evaluator_;
     std::vector<HistRowPartitioner> partitioner_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_{nullptr};
     DMatrix const* const p_last_fmat_;
 
-    std::unique_ptr<HistogramBuilder<GradientSumT, CPUExpandEntry>> histogram_builder_;
+    std::unique_ptr<HistogramBuilder<CPUExpandEntry>> histogram_builder_;
     ObjInfo task_;
     // Context for number of threads
     GenericParameter const* ctx_;
@@ -336,8 +330,7 @@ class QuantileHistMaker: public TreeUpdater {
   };
 
  protected:
-  std::unique_ptr<Builder<float>> float_builder_;
-  std::unique_ptr<Builder<double>> double_builder_;
+  std::unique_ptr<Builder> pimpl_;
   ObjInfo task_;
 };
 }  // namespace tree

@@ -36,78 +36,51 @@ HistogramCuts::HistogramCuts() {
 /*!
  * \brief fill a histogram by zeros in range [begin, end)
  */
-template<typename GradientSumT>
-void InitilizeHistByZeroes(GHistRow<GradientSumT> hist, size_t begin, size_t end) {
+void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end) {
 #if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  std::fill(hist.begin() + begin, hist.begin() + end,
-            xgboost::detail::GradientPairInternal<GradientSumT>());
+  std::fill(hist.begin() + begin, hist.begin() + end, xgboost::GradientPairPrecise());
 #else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  memset(hist.data() + begin, '\0', (end-begin)*
-         sizeof(xgboost::detail::GradientPairInternal<GradientSumT>));
+  memset(hist.data() + begin, '\0', (end - begin) * sizeof(xgboost::GradientPairPrecise));
 #endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 }
-template void InitilizeHistByZeroes(GHistRow<float> hist, size_t begin,
-                                    size_t end);
-template void InitilizeHistByZeroes(GHistRow<double> hist, size_t begin,
-                                    size_t end);
 
 /*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
-template<typename GradientSumT>
-void IncrementHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> add,
-                   size_t begin, size_t end) {
-  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.data());
-  const GradientSumT* padd = reinterpret_cast<const GradientSumT*>(add.data());
+void IncrementHist(GHistRow dst, const GHistRow add, size_t begin, size_t end) {
+  double* pdst = reinterpret_cast<double*>(dst.data());
+  const double *padd = reinterpret_cast<const double *>(add.data());
 
   for (size_t i = 2 * begin; i < 2 * end; ++i) {
     pdst[i] += padd[i];
   }
 }
-template void IncrementHist(GHistRow<float> dst, const GHistRow<float> add,
-                            size_t begin, size_t end);
-template void IncrementHist(GHistRow<double> dst, const GHistRow<double> add,
-                            size_t begin, size_t end);
 
 /*!
  * \brief Copy hist from src to dst in range [begin, end)
  */
-template<typename GradientSumT>
-void CopyHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> src,
-              size_t begin, size_t end) {
-  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.data());
-  const GradientSumT* psrc = reinterpret_cast<const GradientSumT*>(src.data());
+void CopyHist(GHistRow dst, const GHistRow src, size_t begin, size_t end) {
+  double *pdst = reinterpret_cast<double *>(dst.data());
+  const double *psrc = reinterpret_cast<const double *>(src.data());
 
   for (size_t i = 2 * begin; i < 2 * end; ++i) {
     pdst[i] = psrc[i];
   }
 }
-template void CopyHist(GHistRow<float> dst, const GHistRow<float> src,
-                       size_t begin, size_t end);
-template void CopyHist(GHistRow<double> dst, const GHistRow<double> src,
-                       size_t begin, size_t end);
 
 /*!
  * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
  */
-template<typename GradientSumT>
-void SubtractionHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> src1,
-                     const GHistRow<GradientSumT> src2,
-                     size_t begin, size_t end) {
-  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.data());
-  const GradientSumT* psrc1 = reinterpret_cast<const GradientSumT*>(src1.data());
-  const GradientSumT* psrc2 = reinterpret_cast<const GradientSumT*>(src2.data());
+void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, size_t begin,
+                     size_t end) {
+  double* pdst = reinterpret_cast<double*>(dst.data());
+  const double* psrc1 = reinterpret_cast<const double*>(src1.data());
+  const double* psrc2 = reinterpret_cast<const double*>(src2.data());
 
   for (size_t i = 2 * begin; i < 2 * end; ++i) {
     pdst[i] = psrc1[i] - psrc2[i];
   }
 }
-template void SubtractionHist(GHistRow<float> dst, const GHistRow<float> src1,
-                              const GHistRow<float> src2,
-                              size_t begin, size_t end);
-template void SubtractionHist(GHistRow<double> dst, const GHistRow<double> src1,
-                              const GHistRow<double> src2,
-                              size_t begin, size_t end);
 
 struct Prefetch {
  public:
@@ -132,11 +105,10 @@ struct Prefetch {
 
 constexpr size_t Prefetch::kNoPrefetchSize;
 
-template <typename FPType, bool do_prefetch, typename BinIdxType,
-          bool first_page, bool any_missing = true>
+template <bool do_prefetch, typename BinIdxType, bool first_page, bool any_missing = true>
 void BuildHistKernel(const std::vector<GradientPair> &gpair,
-                     const RowSetCollection::Elem row_indices,
-                     const GHistIndexMatrix &gmat, GHistRow<FPType> hist) {
+                     const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
+                     GHistRow hist) {
   const size_t size = row_indices.Size();
   const size_t *rid = row_indices.begin;
   auto const *pgh = reinterpret_cast<const float *>(gpair.data());
@@ -154,7 +126,7 @@ void BuildHistKernel(const std::vector<GradientPair> &gpair,
 
   const size_t n_features =
       get_row_ptr(row_indices.begin[0] + 1) - get_row_ptr(row_indices.begin[0]);
-  auto hist_data = reinterpret_cast<FPType *>(hist.data());
+  auto hist_data = reinterpret_cast<double *>(hist.data());
   const uint32_t two{2};  // Each element from 'gpair' and 'hist' contains
                           // 2 FP values: gradient and hessian.
                           // So we need to multiply each row-index/bin-index by 2
@@ -195,24 +167,21 @@ void BuildHistKernel(const std::vector<GradientPair> &gpair,
   }
 }
 
-template <typename FPType, bool do_prefetch, bool any_missing>
+template <bool do_prefetch, bool any_missing>
 void BuildHistDispatch(const std::vector<GradientPair> &gpair,
-                       const RowSetCollection::Elem row_indices,
-                       const GHistIndexMatrix &gmat, GHistRow<FPType> hist) {
+                       const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
+                       GHistRow hist) {
   auto first_page = gmat.base_rowid == 0;
   if (first_page) {
     switch (gmat.index.GetBinTypeSize()) {
     case kUint8BinsTypeSize:
-      BuildHistKernel<FPType, do_prefetch, uint8_t, true, any_missing>(
-          gpair, row_indices, gmat, hist);
+      BuildHistKernel<do_prefetch, uint8_t, true, any_missing>(gpair, row_indices, gmat, hist);
       break;
     case kUint16BinsTypeSize:
-      BuildHistKernel<FPType, do_prefetch, uint16_t, true, any_missing>(
-          gpair, row_indices, gmat, hist);
+      BuildHistKernel<do_prefetch, uint16_t, true, any_missing>(gpair, row_indices, gmat, hist);
       break;
     case kUint32BinsTypeSize:
-      BuildHistKernel<FPType, do_prefetch, uint32_t, true, any_missing>(
-          gpair, row_indices, gmat, hist);
+      BuildHistKernel<do_prefetch, uint32_t, true, any_missing>(gpair, row_indices, gmat, hist);
       break;
     default:
       CHECK(false);  // no default behavior
@@ -220,16 +189,13 @@ void BuildHistDispatch(const std::vector<GradientPair> &gpair,
   } else {
     switch (gmat.index.GetBinTypeSize()) {
     case kUint8BinsTypeSize:
-      BuildHistKernel<FPType, do_prefetch, uint8_t, false, any_missing>(
-          gpair, row_indices, gmat, hist);
+      BuildHistKernel<do_prefetch, uint8_t, false, any_missing>(gpair, row_indices, gmat, hist);
       break;
     case kUint16BinsTypeSize:
-      BuildHistKernel<FPType, do_prefetch, uint16_t, false, any_missing>(
-          gpair, row_indices, gmat, hist);
+      BuildHistKernel<do_prefetch, uint16_t, false, any_missing>(gpair, row_indices, gmat, hist);
       break;
     case kUint32BinsTypeSize:
-      BuildHistKernel<FPType, do_prefetch, uint32_t, false, any_missing>(
-          gpair, row_indices, gmat, hist);
+      BuildHistKernel<do_prefetch, uint32_t, false, any_missing>(gpair, row_indices, gmat, hist);
       break;
     default:
       CHECK(false);  // no default behavior
@@ -237,12 +203,10 @@ void BuildHistDispatch(const std::vector<GradientPair> &gpair,
   }
 }
 
-template <typename GradientSumT>
 template <bool any_missing>
-void GHistBuilder<GradientSumT>::BuildHist(
-    const std::vector<GradientPair> &gpair,
-    const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-    GHistRowT hist) const {
+void GHistBuilder::BuildHist(const std::vector<GradientPair> &gpair,
+                             const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
+                             GHistRow hist) const {
   const size_t nrows = row_indices.Size();
   const size_t no_prefetch_size = Prefetch::NoPrefetchSize(nrows);
 
@@ -252,7 +216,7 @@ void GHistBuilder<GradientSumT>::BuildHist(
 
   if (contiguousBlock) {
     // contiguous memory access, built-in HW prefetching is enough
-    BuildHistDispatch<GradientSumT, false, any_missing>(gpair, row_indices,
+    BuildHistDispatch<false, any_missing>(gpair, row_indices,
                                                         gmat, hist);
   } else {
     const RowSetCollection::Elem span1(row_indices.begin,
@@ -260,33 +224,18 @@ void GHistBuilder<GradientSumT>::BuildHist(
     const RowSetCollection::Elem span2(row_indices.end - no_prefetch_size,
                                        row_indices.end);
 
-    BuildHistDispatch<GradientSumT, true, any_missing>(gpair, span1, gmat,
-                                                       hist);
+    BuildHistDispatch<true, any_missing>(gpair, span1, gmat, hist);
     // no prefetching to avoid loading extra memory
-    BuildHistDispatch<GradientSumT, false, any_missing>(gpair, span2, gmat,
-                                                        hist);
+    BuildHistDispatch<false, any_missing>(gpair, span2, gmat, hist);
   }
 }
 
-template void
-GHistBuilder<float>::BuildHist<true>(const std::vector<GradientPair> &gpair,
-                                     const RowSetCollection::Elem row_indices,
-                                     const GHistIndexMatrix &gmat,
-                                     GHistRow<float> hist) const;
-template void
-GHistBuilder<float>::BuildHist<false>(const std::vector<GradientPair> &gpair,
-                                      const RowSetCollection::Elem row_indices,
-                                      const GHistIndexMatrix &gmat,
-                                      GHistRow<float> hist) const;
-template void
-GHistBuilder<double>::BuildHist<true>(const std::vector<GradientPair> &gpair,
-                                      const RowSetCollection::Elem row_indices,
-                                      const GHistIndexMatrix &gmat,
-                                      GHistRow<double> hist) const;
-template void
-GHistBuilder<double>::BuildHist<false>(const std::vector<GradientPair> &gpair,
-                                       const RowSetCollection::Elem row_indices,
-                                       const GHistIndexMatrix &gmat,
-                                       GHistRow<double> hist) const;
+template void GHistBuilder::BuildHist<true>(const std::vector<GradientPair> &gpair,
+                                            const RowSetCollection::Elem row_indices,
+                                            const GHistIndexMatrix &gmat, GHistRow hist) const;
+
+template void GHistBuilder::BuildHist<false>(const std::vector<GradientPair> &gpair,
+                                             const RowSetCollection::Elem row_indices,
+                                             const GHistIndexMatrix &gmat, GHistRow hist) const;
 }  // namespace common
 }  // namespace xgboost
