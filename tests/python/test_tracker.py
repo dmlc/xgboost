@@ -24,7 +24,7 @@ def test_rabit_tracker():
 
 def run_rabit_ops(client, n_workers):
     from test_with_dask import _get_client_workers
-    from xgboost.dask import DaskRabitContext, _get_rabit_args
+    from xgboost.dask import RabitContext, _get_rabit_args
     from xgboost import rabit
 
     workers = _get_client_workers(client)
@@ -34,7 +34,7 @@ def run_rabit_ops(client, n_workers):
     assert n_workers == n_workers_from_dask
 
     def local_test(worker_id):
-        with DaskRabitContext(rabit_args):
+        with RabitContext(rabit_args):
             a = 1
             assert rabit.is_distributed()
             a = np.array([a])

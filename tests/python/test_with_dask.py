@@ -1489,7 +1489,7 @@ class TestWithDask:
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
-                    with xgb.dask.DaskRabitContext(rabit_args):
+                    with xgb.dask.RabitContext(rabit_args):
                         local_dtrain = xgb.dask._dmatrix_from_list_of_parts(
                             **data_ref, nthread=7
                         )

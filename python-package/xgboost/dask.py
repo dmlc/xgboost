@@ -97,7 +97,7 @@ except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
 __all__ = [
-    "DaskRabitContext",
+    "RabitContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
     "DaskXGBRegressor",
@@ -224,7 +224,7 @@ def _assert_dask_support() -> None:
         LOGGER.warning(msg)
 
 
-class DaskRabitContext(rabit.RabitContext):
+class RabitContext(rabit.RabitContext):
     """A context controlling rabit initialization and finalization."""
 
     def __init__(self, args: List[bytes]) -> None:
@@ -944,7 +944,7 @@ async def _train_async(
             n_threads = worker.nthreads
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
         local_history: TrainingCallback.EvalsLog = {}
-        with DaskRabitContext(rabit_args), config.config_context(**global_config):
+        with RabitContext(rabit_args), config.config_context(**global_config):
             Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
             evals: List[Tuple[DMatrix, str]] = []
             for i, ref in enumerate(refs):
