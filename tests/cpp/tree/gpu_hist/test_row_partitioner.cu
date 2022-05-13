@@ -114,10 +114,10 @@ void TestUpdatePositionBatch() {
   for (auto i = 0ull; i < kNumRows; i++) {
     EXPECT_EQ(rows[i], i);
   }
+  std::vector<int> extra_data = {0};
   // Send the first five training instances to the right node
   // and the second 5 to the left node
-  rp.UpdatePosition({0}, {1}, {2},
-    [=] __device__(RowPartitioner::RowIndexT ridx) {
+  rp.UpdatePositionBatch({0}, {1}, {2}, extra_data, [=] __device__(RowPartitioner::RowIndexT ridx, int) {
     if (ridx > 4) {
       return 1;
     }
@@ -135,7 +135,7 @@ void TestUpdatePositionBatch() {
   }
 
   // Split the left node again
-  rp.UpdatePositionBatch({1}, {3}, {4}, [=] __device__(RowPartitioner::RowIndexT ridx) {
+  rp.UpdatePositionBatch({1}, {3}, {4}, extra_data,[=] __device__(RowPartitioner::RowIndexT ridx, int) {
     if (ridx < 7) {
       return 3;
     }
@@ -143,8 +143,6 @@ void TestUpdatePositionBatch() {
   });
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
-  // Check position is as expected
-  EXPECT_EQ(rp.GetPositionHost(), std::vector<bst_node_t>({3,3,4,4,4,2,2,2,2,2}));
 }
 
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }

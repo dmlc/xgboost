@@ -356,33 +356,49 @@ struct GPUHistMakerDevice {
     return true;
   }
 
-  void UpdatePosition(const GPUExpandEntry &e, RegTree* p_tree) {
-    RegTree::Node split_node = (*p_tree)[e.nid];
-    auto split_type = p_tree->NodeSplitType(e.nid);
-    auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-    auto node_cats = e.split.split_cats.Bits();
+  // Extra data for each node that is used
+  // in the update position function
+  struct NodeSplitData {
+    RegTree::Node split_node;
+    FeatureType split_type;
+    common::CatBitField node_cats;
+  };
 
-    row_partitioner->UpdatePosition(
-        e.nid, split_node.LeftChild(), split_node.RightChild(),
-        [=] __device__(bst_uint ridx) {
+  void UpdatePosition(const std::vector<GPUExpandEntry>& candidates, RegTree* p_tree) {
+    std::vector<int> nidx(candidates.size());
+    std::vector<int> left_nidx(candidates.size());
+    std::vector<int> right_nidx(candidates.size());
+    std::vector<NodeSplitData> split_data(candidates.size());
+    for (int i = 0; i < candidates.size(); i++) {
+      auto& e = candidates[i];
+      RegTree::Node split_node = (*p_tree)[e.nid];
+      auto split_type = p_tree->NodeSplitType(e.nid);
+      nidx.at(i) = e.nid;
+      left_nidx.at(i) = split_node.LeftChild();
+      right_nidx.at(i) = split_node.RightChild();
+      split_data.at(i) = NodeSplitData{ split_node, split_type, e.split.split_cats };
+    }
+
+    auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+    row_partitioner->UpdatePositionBatch(
+        nidx, left_nidx, right_nidx, split_data, [=] __device__(bst_uint ridx, const NodeSplitData& data) {
           // given a row index, returns the node id it belongs to
-          bst_float cut_value =
-              d_matrix.GetFvalue(ridx, split_node.SplitIndex());
+          bst_float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
           bst_node_t new_position = 0;
           if (isnan(cut_value)) {
-            new_position = split_node.DefaultChild();
+            new_position = data.split_node.DefaultChild();
           } else {
             bool go_left = true;
-            if (split_type == FeatureType::kCategorical) {
-              go_left = common::Decision<false>(node_cats, cut_value, split_node.DefaultLeft());
+            if (data.split_type == FeatureType::kCategorical) {
+              go_left = common::Decision<false>(data.node_cats.Bits(), cut_value, data.split_node.DefaultLeft());
             } else {
-              go_left = cut_value <= split_node.SplitCond();
+              go_left = cut_value <= data.split_node.SplitCond();
             }
             if (go_left) {
-              new_position = split_node.LeftChild();
+              new_position = data.split_node.LeftChild();
             } else {
-              new_position = split_node.RightChild();
+              new_position = data.split_node.RightChild();
             }
           }
           return new_position;
@@ -679,14 +695,12 @@ struct GPUHistMakerDevice {
       auto new_candidates =
           pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
 
-      for (const auto& e : filtered_expand_set) {
-        monitor.Start("UpdatePosition");
-        // Update position is only run when child is valid, instead of right after apply
-        // split (as in approx tree method).  Hense we have the finalise position call
-        // in GPU Hist.
-        this->UpdatePosition(e, p_tree);
-        monitor.Stop("UpdatePosition");
-      }
+      monitor.Start("UpdatePosition");
+      // Update position is only run when child is valid, instead of right after apply
+      // split (as in approx tree method).  Hense we have the finalise position call
+      // in GPU Hist.
+      this->UpdatePosition(filtered_expand_set, p_tree);
+      monitor.Stop("UpdatePosition");
 
       monitor.Start("BuildHist");
       this->BuildHistLeftRight(filtered_expand_set, reducer, tree);

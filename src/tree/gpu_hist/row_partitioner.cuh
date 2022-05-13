@@ -27,32 +27,32 @@ struct Segment {
 };
 
 constexpr int kUpdatePositionMaxBatch = 32;
+template <typename OpDataT>
 struct UpdatePositionBatchArgs {
   bst_node_t nidx_batch[kUpdatePositionMaxBatch];
   bst_node_t left_nidx_batch[kUpdatePositionMaxBatch];
   bst_node_t right_nidx_batch[kUpdatePositionMaxBatch];
   Segment segments_batch[kUpdatePositionMaxBatch];
+  OpDataT data_batch[kUpdatePositionMaxBatch];
 };
 
-template <typename OpT>
-__global__ void UpdatePositionBatchKernel(UpdatePositionBatchArgs args,
+template <int kBlockSize, typename OpDataT, typename OpT>
+__global__ void UpdatePositionBatchKernel(UpdatePositionBatchArgs<OpDataT> args,
                                           OpT op, common::Span<bst_uint> ridx,
                                           common::Span<bst_node_t> position,
                                           common::Span<int64_t> left_counts) {
   auto segment = args.segments_batch[blockIdx.x];
+  auto data = args.data_batch[blockIdx.x];
   auto ridx_segment = ridx.subspan(segment.begin, segment.Size());
   auto position_segment = position.subspan(segment.begin, segment.Size());
-  thrust::sort_by_key(thrust::seq, ridx_segment.data(), ridx_segment.data()+ridx_segment.size(),
-                      position_segment.data(), [=] __device__(auto a, auto b) { return op(a) < op(b); });
 
   auto left_nidx = args.left_nidx_batch[blockIdx.x];
-  int64_t left_count = 0;
-  for (int i = segment.begin; i < segment.end; i++) {
-    bst_node_t new_position = op(ridx[i]);  // new node id
-    left_count += new_position == left_nidx;
-    position[i] = new_position;
+  auto left_count = dh::BlockPartition<kBlockSize>().Partition(
+      ridx_segment.begin(), ridx_segment.end(), [=] __device__(auto e) { return op(e, data) == left_nidx; });
+
+  if (threadIdx.x == 0) {
+    left_counts[blockIdx.x] = left_count;
   }
-  left_counts[blockIdx.x] = left_count;
 }
 
 /*! \brief Count how many rows are assigned to left node. */
@@ -140,10 +140,11 @@ class RowPartitioner {
    */
   std::vector<bst_node_t> GetPositionHost();
 
-  template <typename UpdatePositionOpT>
+  template <typename UpdatePositionOpT, typename OpDataT>
   void UpdatePositionBatch(const std::vector<bst_node_t>& nidx,
                            const std::vector<bst_node_t>& left_nidx,
-                           const std::vector<bst_node_t>& right_nidx, UpdatePositionOpT op) {
+                           const std::vector<bst_node_t>& right_nidx,
+                           const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
     // Impose this limit because we are passing arguments for each node to the kernel by parameter
     // this avoids memcpy but we cannot pass arbitrary number of arguments
     CHECK_EQ(nidx.size(), left_nidx.size());
@@ -153,16 +154,18 @@ class RowPartitioner {
 
 
     // Prepare kernel arguments
-    UpdatePositionBatchArgs args;
+    UpdatePositionBatchArgs<OpDataT> args;
     std::copy(nidx.begin(),nidx.end(),args.nidx_batch);
     std::copy(left_nidx.begin(),left_nidx.end(),args.left_nidx_batch);
     std::copy(right_nidx.begin(),right_nidx.end(),args.right_nidx_batch);
+    std::copy(op_data.begin(),op_data.end(),args.data_batch);
     for(int i = 0; i < nidx.size(); i++){
       args.segments_batch[i]=ridx_segments_.at(nidx[i]);
     }
 
     // 1 block per node
-    UpdatePositionBatchKernel<<<nidx.size(), 1>>>(
+    constexpr int kBlockSize = 512;
+    UpdatePositionBatchKernel<kBlockSize><<<nidx.size(), kBlockSize>>>(
         args, op, ridx_.CurrentSpan(),
         position_.CurrentSpan(), left_counts);
 
