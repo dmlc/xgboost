@@ -34,99 +34,102 @@ class Column {
  public:
   static constexpr int32_t kMissingId = -1;
 
-  Column(ColumnType type, common::Span<const BinIdxType> index, const bst_bin_t index_base)
-      : type_(type), index_(index), index_base_{index_base} {}
-
+  Column(common::Span<const BinIdxType> index, bst_bin_t least_bin_idx)
+      : index_(index), index_base_(least_bin_idx) {}
   virtual ~Column() = default;
 
-  uint32_t GetGlobalBinIdx(size_t idx) const {
+  int32_t GetGlobalBinIdx(size_t idx) const {
     return index_base_ + static_cast<uint32_t>(index_[idx]);
   }
-
-  BinIdxType GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
-
-  uint32_t GetBaseIdx() const { return index_base_; }
-
-  common::Span<const BinIdxType> GetFeatureBinIdxPtr() const { return index_; }
-
-  ColumnType GetType() const { return type_; }
 
   /* returns number of elements in column */
   size_t Size() const { return index_.size(); }
 
  private:
-  /* type of column */
-  ColumnType type_;
   /* bin indexes in range [0, max_bins - 1] */
   common::Span<const BinIdxType> index_;
   /* bin index offset for specific feature */
   bst_bin_t const index_base_;
 };
 
-template <typename BinIdxType>
-class SparseColumn : public Column<BinIdxType> {
+template <typename BinIdxT>
+class SparseColumnIter : public Column<BinIdxT> {
+  using Base = Column<BinIdxT>;
+
  public:
-  SparseColumn(ColumnType type, common::Span<const BinIdxType> index, bst_bin_t index_base,
-               common::Span<const size_t> row_ind)
-      : Column<BinIdxType>(type, index, index_base), row_ind_(row_ind) {}
-
-  const size_t* GetRowData() const { return row_ind_.data(); }
-
-  bst_bin_t GetBinIdx(size_t rid, size_t* state) const {
-    const size_t column_size = this->Size();
-    if (!((*state) < column_size)) {
-      return this->kMissingId;
-    }
-    while ((*state) < column_size && GetRowIdx(*state) < rid) {
-      ++(*state);
-    }
-    if (((*state) < column_size) && GetRowIdx(*state) == rid) {
-      return this->GetGlobalBinIdx(*state);
-    } else {
-      return this->kMissingId;
-    }
-  }
-
-  size_t GetInitialState(const size_t first_row_id) const {
-    const size_t* row_data = GetRowData();
-    const size_t column_size = this->Size();
-    // search first nonzero row with index >= rid_span.front()
-    const size_t* p = std::lower_bound(row_data, row_data + column_size, first_row_id);
-    // column_size if all messing
-    return p - row_data;
-  }
-
-  size_t GetRowIdx(size_t idx) const { return row_ind_.data()[idx]; }
+  using BinIdxType = BinIdxT;
 
  private:
   /* indexes of rows */
   common::Span<const size_t> row_ind_;
-};
+  size_t idx_;
 
-template <typename BinIdxType, bool any_missing>
-class DenseColumn : public Column<BinIdxType> {
+  size_t const* RowIndices() const { return row_ind_.data(); }
+
  public:
-  DenseColumn(ColumnType type, common::Span<const BinIdxType> index, uint32_t index_base,
-              const std::vector<bool>& missing_flags, size_t feature_offset)
-      : Column<BinIdxType>(type, index, index_base),
-        missing_flags_(missing_flags),
-        feature_offset_(feature_offset) {}
-  bool IsMissing(size_t idx) const { return missing_flags_[feature_offset_ + idx]; }
+  SparseColumnIter(common::Span<const BinIdxT> index, bst_bin_t least_bin_idx,
+                   common::Span<const size_t> row_ind, bst_row_t first_row_idx)
+      : Base{index, least_bin_idx}, row_ind_(row_ind) {
+    // first_row_id is the first row in the leaf partition
+    const size_t* row_data = RowIndices();
+    const size_t column_size = this->Size();
+    // search first nonzero row with index >= rid_span.front()
+    // note that the input row partition is always sorted.
+    const size_t* p = std::lower_bound(row_data, row_data + column_size, first_row_idx);
+    // column_size if all missing
+    idx_ = p - row_data;
+  }
+  SparseColumnIter(SparseColumnIter const&) = delete;
+  SparseColumnIter(SparseColumnIter&&) = default;
 
-  int32_t GetBinIdx(size_t idx, size_t* state) const {
-    if (any_missing) {
-      return IsMissing(idx) ? this->kMissingId : this->GetGlobalBinIdx(idx);
+  size_t GetRowIdx(size_t idx) const { return RowIndices()[idx]; }
+  bst_bin_t operator[](size_t rid) {
+    const size_t column_size = this->Size();
+    if (!((idx_) < column_size)) {
+      return this->kMissingId;
+    }
+    // find next non-missing row
+    while ((idx_) < column_size && GetRowIdx(idx_) < rid) {
+      ++(idx_);
+    }
+    if (((idx_) < column_size) && GetRowIdx(idx_) == rid) {
+      // non-missing row found
+      return this->GetGlobalBinIdx(idx_);
     } else {
-      return this->GetGlobalBinIdx(idx);
+      // at the end of column
+      return this->kMissingId;
     }
   }
+};
 
-  size_t GetInitialState(const size_t first_row_id) const { return 0; }
+template <typename BinIdxT, bool any_missing>
+class DenseColumnIter : public Column<BinIdxT> {
+  using Base = Column<BinIdxT>;
+
+ public:
+  using BinIdxType = BinIdxT;
 
  private:
   /* flags for missing values in dense columns */
-  const std::vector<bool>& missing_flags_;
+  std::vector<bool> const& missing_flags_;
   size_t feature_offset_;
+
+ public:
+  explicit DenseColumnIter(common::Span<const BinIdxType> index, bst_bin_t index_base,
+                           std::vector<bool> const& missing_flags, size_t feature_offset)
+      : Base{index, index_base}, missing_flags_{missing_flags}, feature_offset_{feature_offset} {}
+  DenseColumnIter(DenseColumnIter const&) = delete;
+  DenseColumnIter(DenseColumnIter&&) = default;
+
+  bool IsMissing(size_t ridx) const { return missing_flags_[feature_offset_ + ridx] == 1; }
+
+  int32_t operator[](size_t ridx) const {
+    if (any_missing) {
+      return IsMissing(ridx) ? this->kMissingId : this->GetGlobalBinIdx(ridx);
+    } else {
+      return this->GetGlobalBinIdx(ridx);
+    }
+  }
 };
 
 /*! \brief a collection of columns, with support for construction from
@@ -234,27 +237,26 @@ class ColumnMatrix {
     }
   }
 
-  /* Fetch an individual column. This code should be used with type swith
-     to determine type of bin id's */
-  template <typename BinIdxType, bool any_missing>
-  std::unique_ptr<const Column<BinIdxType> > GetColumn(unsigned fid) const {
-    CHECK_EQ(sizeof(BinIdxType), bins_type_size_);
-
-    const size_t feature_offset = feature_offsets_[fid];  // to get right place for certain feature
-    const size_t column_size = feature_offsets_[fid + 1] - feature_offset;
+  template <typename BinIdxType>
+  auto SparseColumn(bst_feature_t fidx, bst_row_t first_row_idx) const {
+    const size_t feature_offset = feature_offsets_[fidx];  // to get right place for certain feature
+    const size_t column_size = feature_offsets_[fidx + 1] - feature_offset;
     common::Span<const BinIdxType> bin_index = {
         reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
         column_size};
-    std::unique_ptr<const Column<BinIdxType> > res;
-    if (type_[fid] == ColumnType::kDenseColumn) {
-      CHECK_EQ(any_missing, any_missing_);
-      res.reset(new DenseColumn<BinIdxType, any_missing>(type_[fid], bin_index, index_base_[fid],
-                                                         missing_flags_, feature_offset));
-    } else {
-      res.reset(new SparseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
-                                             {&row_ind_[feature_offset], column_size}));
-    }
-    return res;
+    return SparseColumnIter<BinIdxType>(bin_index, index_base_[fidx],
+                                        {&row_ind_[feature_offset], column_size}, first_row_idx);
+  }
+
+  template <typename BinIdxType, bool any_missing>
+  auto DenseColumn(bst_feature_t fidx) const {
+    const size_t feature_offset = feature_offsets_[fidx];  // to get right place for certain feature
+    const size_t column_size = feature_offsets_[fidx + 1] - feature_offset;
+    common::Span<const BinIdxType> bin_index = {
+        reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
+        column_size};
+    return std::move(DenseColumnIter<BinIdxType, any_missing>{
+        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_flags_, feature_offset});
   }
 
   template <typename T>
@@ -342,6 +344,7 @@ class ColumnMatrix {
   }
 
   BinTypeSize GetTypeSize() const { return bins_type_size_; }
+  auto GetColumnType(bst_feature_t fidx) const { return type_[fidx]; }
 
   // This is just an utility function
   bool NoMissingValues(const size_t n_elements, const size_t n_row, const size_t n_features) {
