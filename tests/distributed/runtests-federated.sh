@@ -4,7 +4,7 @@ set -e
 
 rm -f ./*.model* ./agaricus* ./*.pem
 
-world_size=3
+world_size=2
 
 # Generate server and client certificates.
 openssl req -x509 -newkey rsa:2048 -days 7 -nodes -keyout server-key.pem -out server-cert.pem -subj "/C=US/CN=localhost"
@@ -14,4 +14,4 @@ openssl req -x509 -newkey rsa:2048 -days 7 -nodes -keyout client-key.pem -out cl
 split -n l/${world_size} -d ../../demo/data/agaricus.txt.train agaricus.txt.train-
 split -n l/${world_size} -d ../../demo/data/agaricus.txt.test agaricus.txt.test-
 
-python test_federated.py ${world_size}
+CUDA_VISIBLE_DEVICES=0,1 python test_federated.py ${world_size}
