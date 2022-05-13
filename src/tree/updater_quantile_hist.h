@@ -157,26 +157,9 @@ class HistRowPartitioner {
       const int32_t nid = nodes[node_in_set].nid;
       const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
       partition_builder_.AllocateForTask(task_id);
-      switch (column_matrix.GetTypeSize()) {
-        case common::kUint8BinsTypeSize:
-          partition_builder_.template Partition<uint8_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        case common::kUint16BinsTypeSize:
-          partition_builder_.template Partition<uint16_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        case common::kUint32BinsTypeSize:
-          partition_builder_.template Partition<uint32_t, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
-          break;
-        default:
-          // no default behavior
-          CHECK(false) << column_matrix.GetTypeSize();
-      }
+      partition_builder_.template Partition<any_missing, any_cat>(
+          node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
+          row_set_collection_[nid].begin);
     });
     // 3. Compute offsets to copy blocks of row-indexes
     // from partition_builder_ to row_set_collection_
