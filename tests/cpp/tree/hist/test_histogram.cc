@@ -167,7 +167,7 @@ void TestSyncHist(bool is_distributed) {
   n_ids[1] = 5;
   for (size_t i : n_ids) {
     auto this_hist = histogram.Histogram()[i];
-    double *p_hist = reinterpret_cast<double_t *>(this_hist.data());
+    double *p_hist = reinterpret_cast<double *>(this_hist.data());
     for (size_t bin_id = 0; bin_id < 2 * total_bins; ++bin_id) {
       p_hist[bin_id] = bin_id;
     }
