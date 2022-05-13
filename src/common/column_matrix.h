@@ -54,10 +54,12 @@ class Column {
  private:
   /* type of column */
   ColumnType type_;
-  /* bin indexes in range [0, max_bins - 1] */
-  common::Span<bst_bin_t const> index_;
   /* bin index offset for specific feature */
   bst_bin_t const index_base_;
+
+ protected:
+  /* bin indexes in range [0, max_bins - 1] */
+  common::Span<bst_bin_t const> index_;
 };
 
 class SparseColumn : public Column {
@@ -104,8 +106,18 @@ class DenseColumn : public Column {
  public:
   DenseColumn(ColumnType type, common::Span<int32_t const> index, uint32_t index_base)
       : Column(type, index, index_base) {}
+  bool IsMissing(size_t idx) const {
+    return index_[idx] == Column::MissingIdx();
+  }
 
-  bst_bin_t GetBinIdx(size_t idx, size_t* state) const { return this->GetGlobalBinIdx(idx); }
+  bst_bin_t GetBinIdx(size_t idx, size_t* state) const {
+    if (any_missing) {
+      return IsMissing(idx) ? Column::MissingIdx() : this->GetGlobalBinIdx(idx);
+    } else {
+      this->GetGlobalBinIdx(idx);
+    }
+    return this->GetGlobalBinIdx(idx);
+  }
   size_t GetInitialState(const size_t first_row_id) const { return 0; }
 };
 
@@ -194,8 +206,7 @@ class ColumnMatrix {
   std::unique_ptr<const Column> GetColumn(unsigned fid) const {
     const size_t feature_offset = feature_offsets_[fid];  // to get right place for certain feature
     const size_t column_size = feature_offsets_[fid + 1] - feature_offset;
-    common::Span<const int32_t> bin_index = {
-        reinterpret_cast<const int32_t*>(&index_[feature_offset]), column_size};
+    auto bin_index = Span<const int32_t>{index_}.subspan(feature_offset, column_size);
     std::unique_ptr<const Column> res;
     if (type_[fid] == ColumnType::kDenseColumn) {
       CHECK_EQ(any_missing, any_missing_);
