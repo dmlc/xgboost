@@ -274,24 +274,6 @@ template <typename Indexable>
 XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
   return indptr[group + 1] - 1;
 }
-
-/**
- * \brief Run length encode on CPU, input must be sorted.
- */
-template <typename Iter, typename Idx>
-void RunLengthEncode(Iter begin, Iter end, std::vector<Idx> *p_out) {
-  auto &out = *p_out;
-  out = std::vector<Idx>{0};
-  size_t n = std::distance(begin, end);
-  for (size_t i = 1; i < n; ++i) {
-    if (begin[i] != begin[i - 1]) {
-      out.push_back(i);
-    }
-  }
-  if (out.back() != n) {
-    out.push_back(n);
-  }
-}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_
