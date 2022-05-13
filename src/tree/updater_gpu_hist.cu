@@ -356,8 +356,8 @@ struct GPUHistMakerDevice {
     return true;
   }
 
-  // Extra data for each node that is used
-  // in the update position function
+  // Extra data for each node that is passed
+  // to the update position function
   struct NodeSplitData {
     RegTree::Node split_node;
     FeatureType split_type;
@@ -365,6 +365,7 @@ struct GPUHistMakerDevice {
   };
 
   void UpdatePosition(const std::vector<GPUExpandEntry>& candidates, RegTree* p_tree) {
+    if (candidates.empty()) return;
     std::vector<int> nidx(candidates.size());
     std::vector<int> left_nidx(candidates.size());
     std::vector<int> right_nidx(candidates.size());

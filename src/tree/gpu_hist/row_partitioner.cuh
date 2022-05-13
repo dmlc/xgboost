@@ -145,13 +145,14 @@ class RowPartitioner {
                            const std::vector<bst_node_t>& left_nidx,
                            const std::vector<bst_node_t>& right_nidx,
                            const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
+    if (nidx.empty()) return;
     // Impose this limit because we are passing arguments for each node to the kernel by parameter
     // this avoids memcpy but we cannot pass arbitrary number of arguments
     CHECK_EQ(nidx.size(), left_nidx.size());
     CHECK_EQ(nidx.size(), right_nidx.size());
+    CHECK_EQ(nidx.size(), op_data.size());
     CHECK_LE(nidx.size(), kUpdatePositionMaxBatch);
     auto left_counts = pinned_.GetSpan<int64_t>(nidx.size(), 0);
-
 
     // Prepare kernel arguments
     UpdatePositionBatchArgs<OpDataT> args;
