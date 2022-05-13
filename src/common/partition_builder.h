@@ -52,11 +52,12 @@ class PartitionBuilder {
   // Handle dense columns
   // Analog of std::stable_partition, but in no-inplace manner
   template <bool default_left, bool any_missing, typename ColumnType, typename Predicate>
-  inline std::pair<size_t, size_t> PartitionKernel(ColumnType& column,
+  inline std::pair<size_t, size_t> PartitionKernel(ColumnType* p_column,
                                                    common::Span<const size_t> row_indices,
                                                    common::Span<size_t> left_part,
                                                    common::Span<size_t> right_part,
                                                    size_t base_rowid, Predicate&& pred) {
+    auto& column = *p_column;
     size_t* p_left_part = left_part.data();
     size_t* p_right_part = right_part.data();
     size_t nleft_elems = 0;
@@ -146,20 +147,20 @@ class PartitionBuilder {
     if (column_matrix.GetColumnType(fid) == xgboost::common::kDenseColumn) {
       auto column = column_matrix.DenseColumn<BinIdxType, any_missing>(fid);
       if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(column, rid_span, left, right,
+        child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
                                                                gmat.base_rowid, pred);
       } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(column, rid_span, left, right,
+        child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
                                                                 gmat.base_rowid, pred);
       }
     } else {
       CHECK_EQ(any_missing, true);
       auto column = column_matrix.SparseColumn<BinIdxType>(fid, rid_span.front() - gmat.base_rowid);
       if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(column, rid_span, left, right,
+        child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
                                                                gmat.base_rowid, pred);
       } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(column, rid_span, left, right,
+        child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
                                                                 gmat.base_rowid, pred);
       }
     }
