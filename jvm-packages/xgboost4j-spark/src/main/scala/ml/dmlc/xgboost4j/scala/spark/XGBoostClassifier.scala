@@ -66,8 +66,6 @@ class XGBoostClassifier (
 
   def setMissing(value: Float): this.type = set(missing, value)
 
-  def setTimeoutRequestWorkers(value: Long): this.type = set(timeoutRequestWorkers, value)
-
   def setCheckpointPath(value: String): this.type = set(checkpointPath, value)
 
   def setCheckpointInterval(value: Int): this.type = set(checkpointInterval, value)
