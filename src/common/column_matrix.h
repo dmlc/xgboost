@@ -31,10 +31,7 @@ enum ColumnType : uint8_t { kDenseColumn, kSparseColumn };
     to reduce the memory usage. */
 class Column {
  public:
-  static constexpr bst_bin_t kMissingId = -1;
-  static constexpr bst_bin_t MissingIdx() {
-    return kMissingId;
-  }
+  static constexpr bst_bin_t MissingIdx() { return -1; }
 
   Column(ColumnType type, common::Span<bst_bin_t const> index, const bst_bin_t index_base)
       : type_(type), index_(index), index_base_{index_base} {}
@@ -73,7 +70,7 @@ class SparseColumn : public Column {
   bst_bin_t GetBinIdx(size_t rid, size_t* state) const {
     const size_t column_size = this->Size();
     if (!((*state) < column_size)) {
-      return this->kMissingId;
+      return MissingIdx();
     }
     while ((*state) < column_size && GetRowIdx(*state) < rid) {
       ++(*state);
@@ -81,7 +78,7 @@ class SparseColumn : public Column {
     if (((*state) < column_size) && GetRowIdx(*state) == rid) {
       return this->GetGlobalBinIdx(*state);
     } else {
-      return this->kMissingId;
+      return MissingIdx();
     }
   }
 
