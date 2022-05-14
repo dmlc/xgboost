@@ -224,24 +224,15 @@ def _assert_dask_support() -> None:
         LOGGER.warning(msg)
 
 
-class RabitContext:
+class RabitContext(rabit.RabitContext):
     """A context controlling rabit initialization and finalization."""
 
     def __init__(self, args: List[bytes]) -> None:
-        self.args = args
+        super().__init__(args)
         worker = distributed.get_worker()
         self.args.append(
             ("DMLC_TASK_ID=[xgboost.dask]:" + str(worker.address)).encode()
         )
-
-    def __enter__(self) -> None:
-        rabit.init(self.args)
-        assert rabit.is_distributed()
-        LOGGER.debug("-------------- rabit say hello ------------------")
-
-    def __exit__(self, *args: List) -> None:
-        rabit.finalize()
-        LOGGER.debug("--------------- rabit say bye ------------------")
 
 
 def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
