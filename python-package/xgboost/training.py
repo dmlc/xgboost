@@ -13,10 +13,9 @@ from .callback import TrainingCallback, CallbackContainer, EvaluationMonitor, Ea
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .core import Metric, Objective
 from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold, DataFrame
-from ._typing import _F, FPreProcCallable, ParamType
+from ._typing import _F, FPreProcCallable, BoosterParam
 
 _CVFolds = Sequence["CVPack"]
-FEvalCallable = Optional[Metric]
 
 
 def _assert_new_callback(
@@ -33,7 +32,7 @@ def _assert_new_callback(
 
 
 def _configure_custom_metric(
-    feval: FEvalCallable, custom_metric: FEvalCallable
+    feval: Optional[Metric], custom_metric: Optional[Metric]
 ) -> Optional[Metric]:
     if feval is not None:
         link = "https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html"
@@ -58,14 +57,14 @@ def train(
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
     obj: Optional[Objective] = None,
-    feval: FEvalCallable = None,
+    feval: Optional[Metric] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: TrainingCallback.EvalsLog = None,
     verbose_eval: Optional[Union[bool, int]] = True,
     xgb_model: Optional[Union[str, os.PathLike, Booster, bytearray]] = None,
     callbacks: Optional[Sequence[TrainingCallback]] = None,
-    custom_metric: FEvalCallable = None,
+    custom_metric: Optional[Metric] = None,
 ) -> Booster:
     """Train a booster with given parameters.
 
@@ -215,7 +214,7 @@ class CVPack:
         """"Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
-    def eval(self, iteration: int, feval: FEvalCallable, output_margin: bool) -> str:
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> str:
         """"Evaluate the CVPack for one iteration."""
         return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
 
@@ -229,7 +228,7 @@ class _PackedBooster:
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration: int, feval: FEvalCallable, output_margin: bool) -> List[str]:
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> List[str]:
         '''Iterate through folds for eval'''
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
@@ -275,7 +274,7 @@ def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarr
     return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
 
 
-def mkgroupfold(dall: DMatrix, nfold: int, param: ParamType,
+def mkgroupfold(dall: DMatrix, nfold: int, param: BoosterParam,
                 evals: Sequence[str] = (), fpreproc: FPreProcCallable = None,
                 shuffle: bool = True) -> List[CVPack]:
     """
@@ -317,7 +316,7 @@ def mkgroupfold(dall: DMatrix, nfold: int, param: ParamType,
     return ret
 
 
-def mknfold(dall: DMatrix, nfold: int, param: ParamType, seed: int,
+def mknfold(dall: DMatrix, nfold: int, param: BoosterParam, seed: int,
             evals: Sequence[str] = (), fpreproc: FPreProcCallable = None,
             stratified: bool = False, folds: XGBStratifiedKFold = None, shuffle: bool = True
             ) -> List[CVPack]:
@@ -373,14 +372,14 @@ def mknfold(dall: DMatrix, nfold: int, param: ParamType, seed: int,
     return ret
 
 
-def cv(params: ParamType, dtrain: DMatrix, num_boost_round: int = 10, nfold: int = 3,
+def cv(params: BoosterParam, dtrain: DMatrix, num_boost_round: int = 10, nfold: int = 3,
        stratified: bool = False, folds: XGBStratifiedKFold = None,
        metrics: Sequence[str] = (), obj: Optional[Objective] = None,
-       feval: FEvalCallable = None, maximize: bool = None, early_stopping_rounds: int = None,
+       feval: Optional[Metric] = None, maximize: bool = None, early_stopping_rounds: int = None,
        fpreproc: FPreProcCallable = None, as_pandas: bool = True,
        verbose_eval: Optional[Union[int, bool]] = None, show_stdv: bool = True,
        seed: int = 0, callbacks: Sequence[TrainingCallback] = None, shuffle: bool = True,
-       custom_metric: FEvalCallable = None) -> Union[Dict[str, float], DataFrame]:
+       custom_metric: Optional[Metric] = None) -> Union[Dict[str, float], DataFrame]:
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 

@@ -14,7 +14,7 @@ DataType = Any
 FeatureInfo = Sequence[str]
 FeatureNames = FeatureInfo
 FeatureTypes = FeatureInfo
-ParamType = Union[List, Dict]  # better be sequence but need to remove isinstance(..., list) first
+BoosterParam = Union[List, Dict]  # better be sequence
 
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]

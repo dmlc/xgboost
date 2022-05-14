@@ -34,7 +34,8 @@ from ._typing import (
     FeatureTypes,
     FeatureNames,
     _T,
-    CupyT
+    CupyT,
+    BoosterParam
 )
 
 
@@ -1329,7 +1330,7 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
     return num_parallel_tree, num_groups
 
 
-def _configure_metrics(params: Union[Dict, List]) -> Union[Dict, List]:
+def _configure_metrics(params: BoosterParam) -> BoosterParam:
     if (
         isinstance(params, dict)
         and "eval_metric" in params
@@ -1355,7 +1356,7 @@ class Booster:
 
     def __init__(
         self,
-        params: Optional[Union[Dict, List]] = None,
+        params: Optional[BoosterParam] = None,
         cache: Optional[Sequence[DMatrix]] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None
     ) -> None:
@@ -1450,7 +1451,7 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: Union[List, Dict]) -> Union[List, Dict]:
+    def _configure_constraints(self, params: BoosterParam) -> BoosterParam:
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value is not None:
@@ -2570,10 +2571,10 @@ class Booster:
             )
         # Booster can't accept data with different feature names
         if self.feature_names != data.feature_names:
-            dat_missing = set(cast(Sequence[str], self.feature_names)) - \
-                          set(cast(Sequence[str], data.feature_names))
-            my_missing = set(cast(Sequence[str], data.feature_names)) - \
-                         set(cast(Sequence[str], self.feature_names))
+            dat_missing = set(cast(FeatureNames, self.feature_names)) - \
+                          set(cast(FeatureNames, data.feature_names))
+            my_missing = set(cast(FeatureNames, data.feature_names)) - \
+                         set(cast(FeatureNames, self.feature_names))
 
             msg = 'feature_names mismatch: {0} {1}'
 
