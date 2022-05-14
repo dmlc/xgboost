@@ -22,7 +22,7 @@ inline XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bs
                  ? node.LeftChild()
                  : node.RightChild();
     } else {
-      return node.LeftChild() + !(fvalue < node.SplitCond());
+      return  fvalue < node.SplitCond() ? node.LeftChild() : node.RightChild();
     }
   }
 }
