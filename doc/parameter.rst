@@ -238,10 +238,6 @@ Parameters for Tree Booster
 Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
 ===========================================================================
 
-* ``single_precision_histogram``, [default= ``false``]
-
-  - Use single precision to build histograms instead of double precision. Currently disabled for ``gpu_hist``.
-
 * ``max_cat_to_onehot``
 
   .. versionadded:: 1.6

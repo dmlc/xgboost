@@ -156,6 +156,7 @@ def _load_lib() -> ctypes.CDLL:
             os.environ['PATH'] = os.pathsep.join(
                 pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
+            setattr(lib, "path", os.path.normpath(lib_path))
             lib_success = True
         except OSError as e:
             os_error_list.append(str(e))
@@ -233,6 +234,7 @@ def build_info() -> dict:
     _check_call(_LIB.XGBuildInfo(ctypes.byref(j_info)))
     assert j_info.value is not None
     res = json.loads(j_info.value.decode())  # pylint: disable=no-member
+    res["libxgboost"] = _LIB.path
     return res
 
 
@@ -1405,9 +1407,11 @@ class Booster:
         self.set_param(params_processed or {})
 
     def _transform_monotone_constrains(
-        self, value: Union[Dict[str, int], str]
+        self, value: Union[Dict[str, int], str, Tuple[int, ...]]
     ) -> Union[Tuple[int, ...], str]:
         if isinstance(value, str):
+            return value
+        if isinstance(value, tuple):
             return value
 
         constrained_features = set(value.keys())

@@ -171,8 +171,6 @@ Will print out something similar to (not actual output as it's too long for demo
             "grow_gpu_hist": {
               "gpu_hist_train_param": {
                 "debug_synchronize": "0",
-                "gpu_batch_nrows": "0",
-                "single_precision_histogram": "0"
               },
               "train_param": {
                 "alpha": "0",

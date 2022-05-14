@@ -21,6 +21,7 @@
 #include "../common/io.h"
 #include "../common/linalg_op.h"
 #include "../common/math.h"
+#include "../common/numeric.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../common/threading_utils.h"

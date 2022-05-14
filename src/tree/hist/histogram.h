@@ -16,17 +16,15 @@
 
 namespace xgboost {
 namespace tree {
-template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
-  using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
-  using GHistRowT = common::GHistRow<GradientSumT>;
-
+template <typename ExpandEntry>
+class HistogramBuilder {
   /*! \brief culmulative histogram of gradients. */
-  common::HistCollection<GradientSumT> hist_;
+  common::HistCollection hist_;
   /*! \brief culmulative local parent histogram of gradients. */
-  common::HistCollection<GradientSumT> hist_local_worker_;
-  common::GHistBuilder<GradientSumT> builder_;
-  common::ParallelGHistBuilder<GradientSumT> buffer_;
-  rabit::Reducer<GradientPairT, GradientPairT::Reduce> reducer_;
+  common::HistCollection hist_local_worker_;
+  common::GHistBuilder builder_;
+  common::ParallelGHistBuilder buffer_;
+  rabit::Reducer<GradientPairPrecise, GradientPairPrecise::Reduce> reducer_;
   BatchParam param_;
   int32_t n_threads_{-1};
   size_t n_batches_{0};
@@ -51,8 +49,10 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     hist_.Init(total_bins);
     hist_local_worker_.Init(total_bins);
     buffer_.Init(total_bins);
-    builder_ = common::GHistBuilder<GradientSumT>(total_bins);
+    builder_ = common::GHistBuilder(total_bins);
     is_distributed_ = is_distributed;
+    // Workaround s390x gcc 7.5.0
+    auto DMLC_ATTRIBUTE_UNUSED __force_instantiation = &GradientPairPrecise::Reduce;
   }
 
   template <bool any_missing>
@@ -64,7 +64,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     const size_t n_nodes = nodes_for_explicit_hist_build.size();
     CHECK_GT(n_nodes, 0);
 
-    std::vector<GHistRowT> target_hists(n_nodes);
+    std::vector<common::GHistRow> target_hists(n_nodes);
     for (size_t i = 0; i < n_nodes; ++i) {
       const int32_t nid = nodes_for_explicit_hist_build[i].nid;
       target_hists[i] = hist_[nid];
@@ -243,9 +243,7 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
 
  public:
   /* Getters for tests. */
-  common::HistCollection<GradientSumT> const& Histogram() {
-    return hist_;
-  }
+  common::HistCollection const &Histogram() { return hist_; }
   auto& Buffer() { return buffer_; }
 
  private:

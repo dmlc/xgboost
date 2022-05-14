@@ -51,7 +51,8 @@ private[spark] object DefaultXGBoostParamsReader {
       sparkVersion: String,
       params: JValue,
       metadata: JValue,
-      metadataJson: String) {
+      metadataJson: String,
+      xgboostVersion: Option[String] = None) {
 
     /**
      * Get the JSON value of the [[org.apache.spark.ml.param.Param]] of the given name.
@@ -108,8 +109,8 @@ private[spark] object DefaultXGBoostParamsReader {
       require(className == expectedClassName, s"Error loading metadata: Expected class name" +
         s" $expectedClassName but found class name $className")
     }
-
-    Metadata(className, uid, timestamp, sparkVersion, params, metadata, metadataStr)
+    val xgboostVersion = (metadata \ "xgboostVersion").extractOpt[String]
+    Metadata(className, uid, timestamp, sparkVersion, params, metadata, metadataStr, xgboostVersion)
   }
 
   private def handleBrokenlyChangedValue[T](paramName: String, value: T): T = {
