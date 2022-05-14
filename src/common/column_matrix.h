@@ -33,14 +33,14 @@ enum ColumnType : uint8_t { kDenseColumn, kSparseColumn };
 template <typename BinIdxType>
 class Column {
  public:
-  static constexpr int32_t kMissingId = -1;
+  static constexpr bst_bin_t kMissingId = -1;
 
   Column(common::Span<const BinIdxType> index, bst_bin_t least_bin_idx)
       : index_(index), index_base_(least_bin_idx) {}
   virtual ~Column() = default;
 
-  int32_t GetGlobalBinIdx(size_t idx) const {
-    return index_base_ + static_cast<uint32_t>(index_[idx]);
+  bst_bin_t GetGlobalBinIdx(size_t idx) const {
+    return index_base_ + static_cast<bst_bin_t>(index_[idx]);
   }
 
   /* returns number of elements in column */
@@ -116,7 +116,7 @@ class DenseColumnIter : public Column<BinIdxT> {
 
   bool IsMissing(size_t ridx) const { return missing_flags_[feature_offset_ + ridx]; }
 
-  int32_t operator[](size_t ridx) const {
+  bst_bin_t operator[](size_t ridx) const {
     if (any_missing) {
       return IsMissing(ridx) ? this->kMissingId : this->GetGlobalBinIdx(ridx);
     } else {
