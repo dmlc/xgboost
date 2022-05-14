@@ -114,7 +114,7 @@ class DenseColumnIter : public Column<BinIdxT> {
   DenseColumnIter(DenseColumnIter const&) = delete;
   DenseColumnIter(DenseColumnIter&&) = default;
 
-  bool IsMissing(size_t ridx) const { return missing_flags_[feature_offset_ + ridx] == 1; }
+  bool IsMissing(size_t ridx) const { return missing_flags_[feature_offset_ + ridx]; }
 
   int32_t operator[](size_t ridx) const {
     if (any_missing) {
