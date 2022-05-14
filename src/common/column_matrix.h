@@ -55,12 +55,8 @@ class Column {
 
 template <typename BinIdxT>
 class SparseColumnIter : public Column<BinIdxT> {
-  using Base = Column<BinIdxT>;
-
- public:
-  using BinIdxType = BinIdxT;
-
  private:
+  using Base = Column<BinIdxT>;
   /* indexes of rows */
   common::Span<const size_t> row_ind_;
   size_t idx_;
@@ -105,18 +101,14 @@ class SparseColumnIter : public Column<BinIdxT> {
 
 template <typename BinIdxT, bool any_missing>
 class DenseColumnIter : public Column<BinIdxT> {
-  using Base = Column<BinIdxT>;
-
- public:
-  using BinIdxType = BinIdxT;
-
  private:
+  using Base = Column<BinIdxT>;
   /* flags for missing values in dense columns */
   std::vector<bool> const& missing_flags_;
   size_t feature_offset_;
 
  public:
-  explicit DenseColumnIter(common::Span<const BinIdxType> index, bst_bin_t index_base,
+  explicit DenseColumnIter(common::Span<const BinIdxT> index, bst_bin_t index_base,
                            std::vector<bool> const& missing_flags, size_t feature_offset)
       : Base{index, index_base}, missing_flags_{missing_flags}, feature_offset_{feature_offset} {}
   DenseColumnIter(DenseColumnIter const&) = delete;
