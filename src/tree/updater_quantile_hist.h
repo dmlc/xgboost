@@ -324,7 +324,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::unique_ptr<HistogramBuilder<CPUExpandEntry>> histogram_builder_;
     ObjInfo task_;
     // Context for number of threads
-    GenericParameter const* ctx_;
+    Context const* ctx_;
 
     std::unique_ptr<common::Monitor> monitor_;
   };

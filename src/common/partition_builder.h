@@ -108,7 +108,7 @@ class PartitionBuilder {
 
   template <typename BinIdxType, bool any_missing, bool any_cat>
   void Partition(const size_t node_in_set, const size_t nid, const common::Range1d range,
-                 const int32_t split_cond, GHistIndexMatrix const& gmat,
+                 const bst_bin_t split_cond, GHistIndexMatrix const& gmat,
                  const ColumnMatrix& column_matrix, const RegTree& tree, const size_t* rid) {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
