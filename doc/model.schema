@@ -207,7 +207,7 @@
         }
       }
     },
-    "pseduo_huber_param": {
+    "pseudo_huber_param": {
       "type": "object",
       "properties": {
         "huber_slope": {
