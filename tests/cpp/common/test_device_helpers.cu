@@ -266,18 +266,18 @@ TEST(AtomicAdd, Int64) {
   TestAtomicAdd();
 }
 
+/*
 template <int kBlockSize>
 class BlockPartitionTune {
  public:
   template <typename IterT, typename OpT>
-  __device__ std::size_t Partition(IterT begin, IterT end, OpT op) {
-    typedef cub::BlockScan<std::size_t, kBlockSize> BlockScanT;
+  __device__ int Partition(IterT begin, IterT end, OpT op) {
+    typedef cub::BlockScan<int, kBlockSize> BlockScanT;
     __shared__ typename BlockScanT::TempStorage temp1, temp2;
-    __shared__ std::size_t lcomp[kBlockSize];
-    __shared__ std::size_t rcomp[kBlockSize];
+    __shared__ int lcomp[kBlockSize];
+    __shared__ int rcomp[kBlockSize];
 
-    /*
-    __shared__ unsigned long long int tmp_sum;
+    __shared__ int64_t tmp_sum;
 
     if (threadIdx.x == 0) {
       tmp_sum = 0;
@@ -285,41 +285,98 @@ class BlockPartitionTune {
     __syncthreads();
 
     // Get left count
-    std::size_t count = end - begin;
-    std::size_t left_count = 0;
-    for (auto idx : dh::BlockStrideRange(std::size_t(0), count)) {
+    int count = end - begin;
+    int left_count = 0;
+    for (auto idx : dh::BlockStrideRange(int(0), count)) {
       left_count += op(begin[idx]);
     }
     atomicAdd(&tmp_sum, left_count);
     __syncthreads();
     left_count = tmp_sum;
-    */
-    std::size_t count = end - begin;
-    std::size_t left_count = count/2;
-
-    std::size_t loffset = 0, part = left_count, roffset = part;
-    std::size_t lflag = 0, rflag = 0, llen = 0, rlen = 0, minlen = 0;
+    int loffset = 0, part = left_count, roffset = part;
+    int llen = 0, rlen = 0, minlen = 0;
     auto tid = threadIdx.x;
     while (loffset < part && roffset < count) {
       // find the samples in the left that belong to right and vice-versa
       auto loff = loffset + tid, roff = roffset + tid;
-      if (llen == minlen) lflag = loff < part ? !op(begin[loff]) : 0;
-      if (rlen == minlen) rflag = roff < count ? op(begin[roff]) : 0;
+      int lflag  = loff < part ? !op(begin[loff]) : 0;
+      int rflag = roff < count ? op(begin[roff]) : 0;
       // scan to compute the locations for each 'misfit' in the two partitions
-      std::size_t lidx, ridx;
+      int lidx, ridx;
       BlockScanT(temp1).ExclusiveSum(lflag, lidx, llen);
       BlockScanT(temp2).ExclusiveSum(rflag, ridx, rlen);
-      //__syncthreads();
+      __syncthreads();
       minlen = llen < rlen ? llen : rlen;
       // compaction to figure out the right locations to swap
       if (lflag) lcomp[lidx] = loff;
       if (rflag) rcomp[ridx] = roff;
       __syncthreads();
+      loffset += (llen == minlen) ? kBlockSize : minlen;
+      roffset += (rlen == minlen) ? kBlockSize : minlen;
+      //  swap the 'misfit's
+      if (tid < minlen) {
+        auto a = begin[lcomp[tid]];
+        auto b = begin[rcomp[tid]];
+        begin[lcomp[tid]] = b;
+        begin[rcomp[tid]] = a;
+      }
+    }
+    return left_count;
+  }
+};
+*/
+struct PartitionScanPair{
+  int left;
+  int right;
+};
+
+template <int kBlockSize>
+class BlockPartitionTune {
+ public:
+  template <typename IterT, typename OpT>
+  __device__ int Partition(IterT begin, IterT end, OpT op) {
+    typedef cub::BlockScan<int, kBlockSize> BlockScanT;
+    __shared__ typename BlockScanT::TempStorage temp1, temp2;
+    __shared__ int lcomp[kBlockSize];
+    __shared__ int rcomp[kBlockSize];
+    __shared__ int64_t tmp_sum;
+
+    if (threadIdx.x == 0) {
+      tmp_sum = 0;
+    }
+    __syncthreads();
+
+    // Get left count
+    int count = end - begin;
+    int left_count = 0;
+    for (auto idx : dh::BlockStrideRange(int(0), count)) {
+      left_count += op(begin[idx]);
+    }
+    atomicAdd(&tmp_sum, left_count);
+    __syncthreads();
+    left_count = tmp_sum;
+
+    int loffset = 0, part = left_count, roffset = part;
+    int llen = 0, rlen = 0, minlen = 0;
+    auto tid = threadIdx.x;
+    while (loffset < part && roffset < count) {
+      // find the samples in the left that belong to right and vice-versa
+      auto loff = loffset + tid, roff = roffset + tid;
+      int lflag = loff < part ? !op(begin[loff]) : 0;
+      int rflag = roff < count ? op(begin[roff]) : 0;
+      // scan to compute the locations for each 'misfit' in the two partitions
+      int lidx, ridx;
+      BlockScanT(temp1).ExclusiveSum(lflag, lidx, llen);
+      BlockScanT(temp2).ExclusiveSum(rflag, ridx, rlen);
+      minlen = llen < rlen ? llen : rlen;
+      // compaction to figure out the right locations to swap
+      if (lflag) lcomp[lidx] = loff;
+      if (rflag) rcomp[ridx] = roff;
+      __syncthreads();
+
       // reset the appropriate flags for the longer of the two
-      if (lidx < minlen) lflag = 0;
-      if (ridx < minlen) rflag = 0;
-      if (llen == minlen) loffset += kBlockSize;
-      if (rlen == minlen) roffset += kBlockSize;
+      loffset = llen == minlen || llen == 0 ? loffset + kBlockSize : lcomp[minlen];
+      roffset = rlen == minlen || rlen == 0 ? roffset + kBlockSize : rcomp[minlen];
       // swap the 'misfit's
       if (tid < minlen) {
         auto a = begin[lcomp[tid]];
@@ -331,7 +388,6 @@ class BlockPartitionTune {
     return left_count;
   }
 };
-
 
 template <int kBlockSize, typename OpT>
 __global__ void TestBlockPartitionKernel(int* begin, int* end, std::size_t* count_out, OpT op) {
@@ -403,9 +459,12 @@ TEST(BlockPartition, BlockPartition) {
 }
 
 TEST(BlockPartition, BlockPartitionBenchmark) {
-  thrust::device_vector<int> x(10000000);
-  thrust::sequence(x. begin(),x.end());
-  TestBlockPartition<1024>(x);
+  for (int i = 0; i < 20; i++) {
+    thrust::device_vector<int> x(10000000);
+    MakeRandom(x, i);
+    // thrust::sequence(x.begin(), x.end());
+    TestBlockPartition<1024>(x);
+  }
 }
 
 }  // namespace xgboost
