@@ -48,7 +48,7 @@ __global__ void UpdatePositionBatchKernel(UpdatePositionBatchArgs<OpDataT> args,
 
   auto left_nidx = args.left_nidx_batch[blockIdx.x];
   auto left_count = dh::BlockPartition<kBlockSize>().Partition(
-      ridx_segment.begin(), ridx_segment.end(), [=] __device__(auto e) { return op(e, data) == left_nidx; });
+      ridx_segment.data(), ridx_segment.data()+ridx_segment.size(), [=] __device__(auto e) { return op(e, data) == left_nidx; });
 
   if (threadIdx.x == 0) {
     left_counts[blockIdx.x] = left_count;
