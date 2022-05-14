@@ -368,7 +368,7 @@ def _transform_pandas_df(
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
-    dtype: Union[Type[np.floating], str] = meta_type if meta_type else np.float32
+    dtype = meta_type if meta_type else np.float32
     arr: np.ndarray = transformed.values
     if meta_type:
         arr = arr.astype(dtype)
