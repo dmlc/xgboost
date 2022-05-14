@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <utility>  // std::move
 #include <vector>
 
 #include "../data/gradient_index.h"
