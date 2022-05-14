@@ -256,12 +256,12 @@ class _PackedBooster:
     @property
     def best_iteration(self) -> int:
         '''Get best_iteration'''
-        return int(self.cvfolds[0].bst.attr("best_iteration"))
+        return int(cast(int, self.cvfolds[0].bst.attr("best_iteration")))
 
     @property
     def best_score(self) -> float:
         """Get best_score."""
-        return float(self.cvfolds[0].bst.attr("best_score"))
+        return float(cast(float, self.cvfolds[0].bst.attr("best_score")))
 
 
 def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarray:
