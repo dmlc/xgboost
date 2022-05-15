@@ -450,15 +450,13 @@ class HistCollection {
   std::vector<size_t> row_ptr_;
 };
 
-
-// template<typename GradientSumT>
 void ReduceHist(double* dest_hist,
                 const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                 std::vector<std::vector<std::vector<double>>>* histograms,
                 const size_t node_id,
                 const std::vector<uint16_t>& threads_id_for_node,
                 size_t begin, size_t end);
-// template<typename GradientSumT>
+
 void ClearHist(double* dest_hist,
                 size_t begin, size_t end);
 /*!
@@ -468,7 +466,6 @@ void ClearHist(double* dest_hist,
  */
 class ParallelGHistBuilder {
  public:
-  // using GHistRowT = GHistRow<GradientSumT>;
   std::vector<std::vector<std::vector<double>>> histograms_buffer;
   std::vector<std::vector<uint16_t>> local_threads_mapping;
 

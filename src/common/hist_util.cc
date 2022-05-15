@@ -76,19 +76,13 @@ void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, siz
   }
 }
 
-// template<typename GradientSumT>
 void ClearHist(double* dest_hist,
                 size_t begin, size_t end) {
   for (size_t bin_id = begin; bin_id < end; ++bin_id) {
     dest_hist[bin_id]  = 0;
   }
 }
-// template void ClearHist(float* dest_hist,
-//                         size_t begin, size_t end);
-// template void ClearHist(double* dest_hist,
-//                         size_t begin, size_t end);
 
-// template<typename GradientSumT>
 void ReduceHist(double* dest_hist,
                 const std::vector<std::vector<uint16_t>>& local_threads_mapping,
                 std::vector<std::vector<std::vector<double>>>* histograms,
@@ -115,19 +109,6 @@ void ReduceHist(double* dest_hist,
     }
   }
 }
-
-// template void ReduceHist(float* dest_hist,
-//                          const std::vector<std::vector<uint16_t>>& local_threads_mapping,
-//                          std::vector<std::vector<std::vector<float>>>* histograms,
-//                          const size_t node_displace,
-//                          const std::vector<uint16_t>& threads_id_for_node,
-//                          size_t begin, size_t end);
-// template void ReduceHist(double* dest_hist,
-//                          const std::vector<std::vector<uint16_t>>& local_threads_mapping,
-//                          std::vector<std::vector<std::vector<double>>>* histograms,
-//                          const size_t node_displace,
-//                          const std::vector<uint16_t>& threads_id_for_node,
-//                          size_t begin, size_t end);
 
 }  // namespace common
 }  // namespace xgboost

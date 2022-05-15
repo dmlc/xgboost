@@ -122,8 +122,6 @@ class GloablApproxBuilder {
     CHECK_EQ(out_preds.Size(), data->Info().num_row_);
     CHECK(p_last_tree_);
 
-    size_t n_nodes = p_last_tree_->GetNodes().size();
-
     auto evaluator = evaluator_.Evaluator();
     auto const &tree = *p_last_tree_;
     auto const &snode = evaluator_.Stats();
@@ -275,7 +273,6 @@ class GloablApproxBuilder {
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied[candidate.nid] = candidate;
         applied_vec.push_back(candidate);
-        is_applied = true;
         CHECK_EQ(applied[candidate.nid].nid, candidate.nid);
         num_leaves++;
         int left_child_nidx = tree[candidate.nid].LeftChild();

@@ -164,53 +164,20 @@ void QuantileHistMaker::Builder::AddSplitsToTree(
   const bool is_loss_guided = static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy)
                               != TrainParam::kDepthWise;
   std::vector<uint16_t> complete_node_ids;
-  if (param_.max_depth == 0) {
-    size_t max_nid = 0;
-    int max_nid_child = 0;
-    size_t it = 0;
-    for (auto const& entry : expand) {
-      max_nid = std::max(max_nid, static_cast<size_t>(2*entry.nid + 2));
-      if (entry.IsValid(param_, *num_leaves)) {
-        nodes_for_apply_split->push_back(entry);
-        evaluator_->ApplyTreeSplit(entry, p_tree);
-        ++(*num_leaves);
-        ++it;
-        max_nid_child = std::max(max_nid_child,
-                                static_cast<int>(std::max((*p_tree)[entry.nid].LeftChild(),
-                                (*p_tree)[entry.nid].RightChild())));
-      }
-    }
-    (*num_leaves) -= it;
-    for (auto const& entry : expand) {
-      if (entry.IsValid(param_, *num_leaves)) {
-        (*num_leaves)++;
-        complete_node_ids.push_back((*p_tree)[entry.nid].LeftChild());
-        complete_node_ids.push_back((*p_tree)[entry.nid].RightChild());
-        *is_left_small = entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess();
-        if (entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess() || is_loss_guided) {
-          smalest_nodes_mask[(*p_tree)[entry.nid].LeftChild()] = true;
-        } else {
-          smalest_nodes_mask[(*p_tree)[entry.nid].RightChild()] = true;
-        }
-      }
-    }
-
-  } else {
-    for (auto const& entry : expand) {
-      if (entry.IsValid(param_, *num_leaves)) {
-        nodes_for_apply_split->push_back(entry);
-        evaluator_->ApplyTreeSplit(entry, p_tree);
-        (*num_leaves)++;
-        complete_node_ids.push_back((*p_tree)[entry.nid].LeftChild());
-        complete_node_ids.push_back((*p_tree)[entry.nid].RightChild());
-        *is_left_small = entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess();
-        if (entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess() || is_loss_guided) {
-          smalest_nodes_mask[(*p_tree)[entry.nid].LeftChild()] = true;
-          smalest_nodes_mask[(*p_tree)[entry.nid].RightChild()] = false;
-        } else {
-          smalest_nodes_mask[(*p_tree)[entry.nid].RightChild()] = true;
-          smalest_nodes_mask[ (*p_tree)[entry.nid].LeftChild()] = false;
-        }
+  for (auto const& entry : expand) {
+    if (entry.IsValid(param_, *num_leaves)) {
+      nodes_for_apply_split->push_back(entry);
+      evaluator_->ApplyTreeSplit(entry, p_tree);
+      (*num_leaves)++;
+      complete_node_ids.push_back((*p_tree)[entry.nid].LeftChild());
+      complete_node_ids.push_back((*p_tree)[entry.nid].RightChild());
+      *is_left_small = entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess();
+      if (entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess() || is_loss_guided) {
+        smalest_nodes_mask[(*p_tree)[entry.nid].LeftChild()] = true;
+        smalest_nodes_mask[(*p_tree)[entry.nid].RightChild()] = false;
+      } else {
+        smalest_nodes_mask[(*p_tree)[entry.nid].RightChild()] = true;
+        smalest_nodes_mask[ (*p_tree)[entry.nid].LeftChild()] = false;
       }
     }
   }
@@ -245,15 +212,13 @@ void QuantileHistMaker::Builder::SplitSiblings(
     const CPUExpandEntry right_node = CPUExpandEntry(cright, p_tree->GetDepth(cright), 0.0);
     nodes_to_evaluate->push_back(left_node);
     nodes_to_evaluate->push_back(right_node);
-    bool is_loss_guide =  static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy) ==
-                          TrainParam::kDepthWise ? false : true;
-      if (entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess()) {
-        nodes_for_explicit_hist_build_.push_back(left_node);
-        nodes_for_subtraction_trick_.push_back(right_node);
-      } else {
-        nodes_for_explicit_hist_build_.push_back(right_node);
-        nodes_for_subtraction_trick_.push_back(left_node);
-      }
+    if (entry.split.left_sum.GetHess() <= entry.split.right_sum.GetHess()) {
+      nodes_for_explicit_hist_build_.push_back(left_node);
+      nodes_for_subtraction_trick_.push_back(right_node);
+    } else {
+      nodes_for_explicit_hist_build_.push_back(right_node);
+      nodes_for_subtraction_trick_.push_back(left_node);
+    }
   }
   monitor_->Stop("SplitSiblings");
 }
@@ -308,47 +273,20 @@ void QuantileHistMaker::Builder::ExpandTree(
       size_t page_id{0};
       for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
         CommonRowPartitioner &partitioner = this->partitioner_.at(page_id);
-        if (is_loss_guide) {
-          if (page.cut.HasCategorical()) {
-            partitioner.UpdatePosition<any_missing, BinIdxType, true, true>(this->ctx_, page,
-                        nodes_for_apply_split, p_tree,
-                        depth,
-                        &smalest_nodes_mask,
-                        is_loss_guide,
-                        &split_conditions_,
-                        &split_ind_, param_.max_depth,
-                        &child_node_ids_, is_left_small, true);
-          } else {
-            partitioner.UpdatePosition<any_missing, BinIdxType, true, false>(this->ctx_, page,
-                        nodes_for_apply_split, p_tree,
-                        depth,
-                        &smalest_nodes_mask,
-                        is_loss_guide,
-                        &split_conditions_,
-                        &split_ind_, param_.max_depth,
-                        &child_node_ids_, is_left_small, true);
-          }
-        } else {
-          if (page.cut.HasCategorical()) {
-            partitioner.UpdatePosition<any_missing, BinIdxType, false, true>(this->ctx_, page,
-                        nodes_for_apply_split, p_tree,
-                        depth,
-                        &smalest_nodes_mask,
-                        is_loss_guide,
-                        &split_conditions_,
-                        &split_ind_, param_.max_depth,
-                        &child_node_ids_, is_left_small, true);
-          } else {
-            partitioner.UpdatePosition<any_missing, BinIdxType, false, false>(this->ctx_, page,
-                        nodes_for_apply_split, p_tree,
-                        depth,
-                        &smalest_nodes_mask,
-                        is_loss_guide,
-                        &split_conditions_,
-                        &split_ind_, param_.max_depth,
-                        &child_node_ids_, is_left_small, true);
-          }
-        }
+        partitioner.UpdatePositionDispatched({any_missing,
+          static_cast<common::BinTypeSize>(sizeof(BinIdxType)),
+          is_loss_guide, page.cut.HasCategorical()},
+          this->ctx_,
+          page,
+          nodes_for_apply_split,
+          p_tree,
+          depth,
+          &smalest_nodes_mask,
+          is_loss_guide,
+          &split_conditions_,
+          &split_ind_, param_.max_depth,
+          &child_node_ids_, is_left_small,
+          true);
         ++page_id;
       }
 
