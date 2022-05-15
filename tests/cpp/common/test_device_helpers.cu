@@ -338,12 +338,12 @@ __device__ PartitionScanPair operator+(const PartitionScanPair& a, const Partiti
 template <int kBlockSize>
 class BlockPartitionTune {
  public:
-  template <typename IterT, typename OpT>
+  template <typename IterT, typename OpT,int kItemsPerThread=4>
   __device__ int Partition(IterT begin, IterT end, OpT op) {
     typedef cub::BlockScan<PartitionScanPair, kBlockSize> BlockScanT;
     __shared__ typename BlockScanT::TempStorage temp;
-    __shared__ int lcomp[kBlockSize];
-    __shared__ int rcomp[kBlockSize];
+    __shared__ int lcomp[kBlockSize*kItemsPerThread];
+    __shared__ int rcomp[kBlockSize*kItemsPerThread];
     __shared__ int64_t tmp_sum;
 
     if (threadIdx.x == 0) {
@@ -362,34 +362,36 @@ class BlockPartitionTune {
     left_count = tmp_sum;
 
     int loffset = 0, part = left_count, roffset = part;
-    int minlen = 0;
     auto tid = threadIdx.x;
     while (loffset < part && roffset < count) {
       // find the samples in the left that belong to right and vice-versa
-      auto loff = loffset + tid, roff = roffset + tid;
-      
-      PartitionScanPair flag;
-      flag.left = loff < part ? !op(begin[loff]) : 0;
-      flag.right = roff < count ? op(begin[roff]) : 0;
+      auto loff = loffset + tid * kItemsPerThread, roff = roffset + tid * kItemsPerThread;
+
+      PartitionScanPair flag[kItemsPerThread];
+      for (int i = 0; i < kItemsPerThread; i++) {
+        flag[i].left = loff+i < part ? !op(begin[loff+i]) : 0;
+        flag[i].right = roff+i < count ? op(begin[roff+i]) : 0;
+      }
       // scan to compute the locations for each 'misfit' in the two partitions
-      PartitionScanPair partial_sum;
+      PartitionScanPair partial_sum[kItemsPerThread];
       PartitionScanPair sum;
       BlockScanT(temp).ExclusiveSum(flag, partial_sum, sum);
-      minlen = sum.left < sum.right ? sum.left : sum.right;
+      int minlen = sum.left < sum.right ? sum.left : sum.right;
       // compaction to figure out the right locations to swap
-      if (flag.left) lcomp[partial_sum.left] = loff;
-      if (flag.right) rcomp[partial_sum.right] = roff;
+      for (int i = 0; i < kItemsPerThread; i++) {
+        if (flag[i].left) lcomp[partial_sum[i].left] = loff+i;
+        if (flag[i].right) rcomp[partial_sum[i].right] = roff+i;
+      }
       __syncthreads();
 
-      // reset the appropriate flags for the longer of the two
-      loffset = sum.left== minlen || sum.left== 0 ? loffset + kBlockSize : lcomp[minlen];
-      roffset = sum.right == minlen || sum.right == 0 ? roffset + kBlockSize : rcomp[minlen];
+      loffset = sum.left == minlen ? loffset + kBlockSize*kItemsPerThread : lcomp[minlen];
+      roffset = sum.right == minlen ? roffset + kBlockSize*kItemsPerThread  : rcomp[minlen];
       // swap the 'misfit's
-      if (tid < minlen) {
-        auto a = begin[lcomp[tid]];
-        auto b = begin[rcomp[tid]];
-        begin[lcomp[tid]] = b;
-        begin[rcomp[tid]] = a;
+      for(int i = tid; i < minlen; i += kBlockSize){
+        auto a = begin[lcomp[i]];
+        auto b = begin[rcomp[i]];
+        begin[lcomp[i]] = b;
+        begin[rcomp[i]] = a;
       }
     }
     return left_count;
