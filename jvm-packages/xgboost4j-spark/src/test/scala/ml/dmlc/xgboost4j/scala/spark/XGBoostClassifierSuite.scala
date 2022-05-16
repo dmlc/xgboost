@@ -109,28 +109,24 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(!transformedDf.columns.contains("probability"))
   }
 
-  test("objective should be set correctly") {
+  test("throw exception when objective is not set correctly") {
     val training = buildDataFrame(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "objective" -> "multi:softprob",
       "num_round" -> 5, "num_workers" -> numWorkers,
       "tree_method" -> treeMethod)
-
     val xgb = new XGBoostClassifier(paramMap)
-    assert(xgb.getObjective == "multi:softprob")
-    val model = xgb.fit(training)
-    assert(xgb.getObjective == "binary:logistic")
-    assert(model.getObjective == "binary:logistic")
+    intercept[IllegalArgumentException] {
+      xgb.fit(training)
+    }
 
     val paramMap1 = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "num_class" -> "6", "num_round" -> 5,
       "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val trainingDF = buildDataFrame(MultiClassification.train)
     val xgb1 = new XGBoostClassifier(paramMap1)
-    assert(xgb1.getObjective == "binary:logistic")
-    val model1 = xgb1.fit(trainingDF)
-    // after train, XGBoostClassifier has changed the objective to multi:softprob
-    assert(xgb1.getObjective == "multi:softprob")
-    assert(model1.getObjective == "multi:softprob")
+    intercept[IllegalArgumentException] {
+      xgb1.fit(trainingDF)
+    }
   }
 
   test("use base margin") {

@@ -179,15 +179,13 @@ class XGBoostClassifier (
 
     if (_numClasses == 2) {
       if (getObjective != "binary:logistic") {
-        logWarning(s"Incorrect objective [${getObjective}] for classification " +
-          "when num class = 2, force to binary:logistic")
-        setObjective("binary:logistic")
+        throw new IllegalArgumentException("when num class = 2, the objective must be set to" +
+          s" binary:logistic, found $getObjective")
       }
     } else if (_numClasses > 2) {
       if (getObjective != "multi:softprob" && getObjective != "multi:softmax") {
-        logWarning(s"Incorrect objective [${getObjective}] for classification " +
-          s"when num class > 2, force to multi:softprob")
-        setObjective("multi:softprob")
+        throw new IllegalArgumentException("when num class > 2, the objective must be set to " +
+          s"multi:softprob or multi:softmax, Found: $getObjective")
       }
     } else {
       throw new RuntimeException(s"The number of classes [${_numClasses}] is not correct")
