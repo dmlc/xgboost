@@ -264,7 +264,7 @@ class GlobalApproxUpdater : public TreeUpdater {
 
  public:
   explicit GlobalApproxUpdater(GenericParameter const *ctx, ObjInfo task)
-      : task_{task}, TreeUpdater(ctx) {
+      : TreeUpdater(ctx), task_{task} {
     monitor_.Init(__func__);
   }
 

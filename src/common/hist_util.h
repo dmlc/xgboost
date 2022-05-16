@@ -113,7 +113,7 @@ class HistogramCuts {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    bst_bin_t idx = it - values.cbegin();
+    auto idx = it - values.cbegin();
     idx -= !!(idx == end);
     return idx;
   }
@@ -189,11 +189,29 @@ inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_thr
   return out;
 }
 
-enum BinTypeSize : uint32_t {
-  kUint8BinsTypeSize  = 1,
+enum BinTypeSize : uint8_t {
+  kUint8BinsTypeSize = 1,
   kUint16BinsTypeSize = 2,
   kUint32BinsTypeSize = 4
 };
+
+/**
+ * \brief Dispatch for bin type, fn is a function that accepts a scalar of the bin type.
+ */
+template <typename Fn>
+auto DispatchBinType(BinTypeSize type, Fn&& fn) {
+  switch (type) {
+    case kUint8BinsTypeSize: {
+      return fn(uint8_t{});
+    }
+    case kUint16BinsTypeSize: {
+      return fn(uint16_t{});
+    }
+    case kUint32BinsTypeSize: {
+      return fn(uint32_t{});
+    }
+  }
+}
 
 /**
  * \brief Optionally compressed gradient index. The compression works only with dense

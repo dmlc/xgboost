@@ -355,11 +355,11 @@ void HistRowPartitioner::FindSplitConditions(const std::vector<CPUExpandEntry> &
     const bst_float split_pt = tree[nid].SplitCond();
     const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
     const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
-    int32_t split_cond = -1;
+    bst_bin_t split_cond = -1;
     // convert floating-point split_pt into corresponding bin_id
     // split_cond = -1 indicates that split_pt is less than all known cut points
     CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    for (uint32_t bound = lower_bound; bound < upper_bound; ++bound) {
+    for (auto bound = lower_bound; bound < upper_bound; ++bound) {
       if (split_pt == gmat.cut.Values()[bound]) {
         split_cond = static_cast<int32_t>(bound);
       }
