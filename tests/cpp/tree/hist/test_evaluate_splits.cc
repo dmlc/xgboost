@@ -140,7 +140,6 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
 namespace {
 auto CompareOneHotAndPartition(bool onehot) {
   int static constexpr kRows = 128, kCols = 1;
-  using GradientSumT = double;
   std::vector<FeatureType> ft(kCols, FeatureType::kCategorical);
 
   TrainParam param;
