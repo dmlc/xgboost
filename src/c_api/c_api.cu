@@ -86,11 +86,17 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   API_END();
 }
 
-int InplacePreidctCuda(BoosterHandle handle, char const *c_json_config,
-                       std::shared_ptr<DMatrix> p_m, xgboost::bst_ulong const **out_shape,
-                       xgboost::bst_ulong *out_dim, const float **out_result) {
+int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
+                       char const *c_json_config, std::shared_ptr<DMatrix> p_m,
+                       xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
+                       const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
+  if (!p_m) {
+    p_m.reset(new data::DMatrixProxy);
+  }
+  dynamic_cast<data::DMatrixProxy *>(p_m.get())->SetData(c_array_interface);
+
   auto config = Json::Load(StringView{c_json_config});
   CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<Learner *>(handle);
@@ -116,30 +122,27 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_json_config,
   API_END();
 }
 
-XGB_DLL int XGBoosterPredictFromCudaColumnar(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
-    DMatrixHandle m, xgboost::bst_ulong const **out_shape,
-    xgboost::bst_ulong *out_dim, const float **out_result) {
-  std::shared_ptr<DMatrix> p_m {nullptr};
-  if (!m) {
-    p_m.reset(new data::DMatrixProxy);
-  } else {
+XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *c_json_strs,
+                                             char const *c_json_config, DMatrixHandle m,
+                                             xgboost::bst_ulong const **out_shape,
+                                             xgboost::bst_ulong *out_dim,
+                                             const float **out_result) {
+  std::shared_ptr<DMatrix> p_m{nullptr};
+  if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
-  dynamic_cast<data::DMatrixProxy *>(p_m.get())->SetData(c_json_strs);
-  return InplacePreidctCuda(handle, c_json_config, p_m, out_shape, out_dim, out_result);
+  return InplacePreidctCuda(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
+                            out_result);
 }
 
-XGB_DLL int XGBoosterPredictFromCudaArray(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
-    DMatrixHandle m, xgboost::bst_ulong const **out_shape,
-    xgboost::bst_ulong *out_dim, const float **out_result) {
-  std::shared_ptr<DMatrix> p_m {nullptr};
-  if (!m) {
-    p_m.reset(new data::DMatrixProxy);
-  } else {
+XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *c_json_strs,
+                                          char const *c_json_config, DMatrixHandle m,
+                                          xgboost::bst_ulong const **out_shape,
+                                          xgboost::bst_ulong *out_dim, const float **out_result) {
+  std::shared_ptr<DMatrix> p_m{nullptr};
+  if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
-  dynamic_cast<data::DMatrixProxy *>(p_m.get())->SetData(c_json_strs);
-  return InplacePreidctCuda(handle, c_json_config, p_m, out_shape, out_dim, out_result);
+  return InplacePreidctCuda(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
+                            out_result);
 }
