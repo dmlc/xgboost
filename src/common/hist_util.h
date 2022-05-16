@@ -113,7 +113,7 @@ class HistogramCuts {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    bst_bin_t idx = it - values.cbegin();
+    auto idx = it - values.cbegin();
     idx -= !!(idx == end);
     return idx;
   }
