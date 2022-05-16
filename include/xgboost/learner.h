@@ -148,12 +148,9 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param          layer_begin Beginning of boosted tree layer used for prediction.
    * \param          layer_end   End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const &x,
-                              std::shared_ptr<DMatrix> p_m,
-                              PredictionType type,
-                              float missing,
-                              HostDeviceVector<bst_float> **out_preds,
-                              uint32_t layer_begin, uint32_t layer_end) = 0;
+  virtual void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
+                              HostDeviceVector<bst_float>** out_preds, uint32_t layer_begin,
+                              uint32_t layer_end) = 0;
 
   /*!
    * \brief Calculate feature score.  See doc in C API for outputs.

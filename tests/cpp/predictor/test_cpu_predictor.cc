@@ -5,11 +5,12 @@
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
+#include "../../../src/data/adapter.h"
+#include "../../../src/data/proxy_dmatrix.h"
+#include "../../../src/gbm/gbtree.h"
+#include "../../../src/gbm/gbtree_model.h"
 #include "../helpers.h"
 #include "test_predictor.h"
-#include "../../../src/gbm/gbtree_model.h"
-#include "../../../src/gbm/gbtree.h"
-#include "../../../src/data/adapter.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
@@ -172,8 +173,11 @@ TEST(CpuPredictor, InplacePredict) {
     HostDeviceVector<float> data;
     gen.GenerateDense(&data);
     ASSERT_EQ(data.Size(), kRows * kCols);
-    std::shared_ptr<data::DenseAdapter> x{
-      new data::DenseAdapter(data.HostPointer(), kRows, kCols)};
+    std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
+    auto array_interface = GetArrayInterface(&data, kRows, kCols);
+    std::string arr_str;
+    Json::Dump(array_interface, &arr_str);
+    x->SetArrayData(arr_str.data());
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 
@@ -182,9 +186,15 @@ TEST(CpuPredictor, InplacePredict) {
     HostDeviceVector<bst_row_t> rptrs;
     HostDeviceVector<bst_feature_t> columns;
     gen.GenerateCSR(&data, &rptrs, &columns);
-    std::shared_ptr<data::CSRAdapter> x{new data::CSRAdapter(
-        rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), kRows,
-        data.Size(), kCols)};
+    auto data_interface = GetArrayInterface(&data, kRows * kCols, 1);
+    auto rptr_interface = GetArrayInterface(&rptrs, kRows + 1, 1);
+    auto col_interface = GetArrayInterface(&columns, kRows * kCols, 1);
+    std::string data_str, rptr_str, col_str;
+    Json::Dump(data_interface, &data_str);
+    Json::Dump(rptr_interface, &rptr_str);
+    Json::Dump(col_interface, &col_str);
+    std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy};
+    x->SetCSRData(rptr_str.data(), col_str.data(), data_str.data(), kCols, true);
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }

@@ -1,16 +1,17 @@
 /*!
  * Copyright 2019-2022 XGBoost contributors
  */
-#include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
+#include <gtest/gtest.h>
 #include <xgboost/generic_parameters.h>
 
+#include "../../../src/data/adapter.h"
+#include "../../../src/data/proxy_dmatrix.h"
+#include "../../../src/gbm/gbtree.h"
+#include "../helpers.h"
 #include "xgboost/base.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/learner.h"
-#include "../helpers.h"
-#include "../../../src/gbm/gbtree.h"
-#include "../../../src/data/adapter.h"
 #include "xgboost/predictor.h"
 
 namespace xgboost {
@@ -246,14 +247,18 @@ TEST(Dart, JsonIO) {
   ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0ul);
 }
 
-TEST(Dart, Prediction) {
+void TestDartPrediction(std::string predictor) {
   size_t constexpr kRows = 16, kCols = 10;
 
   HostDeviceVector<float> data;
-  auto array_str = RandomDataGenerator(kRows, kCols, 0).GenerateArrayInterface(&data);
+  auto rng = RandomDataGenerator(kRows, kCols, 0);
+  if (predictor == "gpu_predictor") {
+    rng.Device(0);
+  }
+  auto array_str = rng.GenerateArrayInterface(&data);
   auto p_mat = GetDMatrixFromData(data.HostVector(), kRows, kCols);
 
-  std::vector<bst_float> labels (kRows);
+  std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < kRows; ++i) {
     labels[i] = i % 2;
   }
@@ -268,13 +273,19 @@ TEST(Dart, Prediction) {
     learner->UpdateOneIter(i, p_mat);
   }
 
+  learner->SetParam("predictor", predictor);
+
   HostDeviceVector<float> predts_training;
   learner->Predict(p_mat, false, &predts_training, 0, 0, true);
 
   HostDeviceVector<float>* inplace_predts;
-  auto adapter = std::shared_ptr<data::ArrayAdapter>(new data::ArrayAdapter{StringView{array_str}});
-  learner->InplacePredict(adapter, nullptr, PredictionType::kValue,
-                          std::numeric_limits<float>::quiet_NaN(),
+  std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
+  if (predictor == "gpu_predictor") {
+    x->SetData(array_str.c_str());
+  } else {
+    x->SetArrayData(array_str.c_str());
+  }
+  learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &inplace_predts, 0, 0);
   CHECK(inplace_predts);
 
@@ -292,6 +303,14 @@ TEST(Dart, Prediction) {
     // Inplace prediction is inference.
     ASSERT_LT(h_inplace_predts[i] - h_predts_inference[i], kRtEps / 10);
   }
+}
+
+TEST(Dart, Prediction) {
+  TestDartPrediction("auto");
+  TestDartPrediction("cpu_predictor");
+#if defined(XGBOOST_USE_CUDA)
+  TestDartPrediction("gpu_predictor");
+#endif  // defined(XGBOOST_USE_CUDA)
 }
 
 std::pair<Json, Json> TestModelSlice(std::string booster) {
@@ -485,19 +504,20 @@ TEST(GBTree, PredictRange) {
     // inplace predict
     HostDeviceVector<float> raw_storage;
     auto raw = RandomDataGenerator{n_samples, n_features, 0.5}.GenerateArrayInterface(&raw_storage);
-    std::shared_ptr<data::ArrayAdapter> x{new data::ArrayAdapter{StringView{raw}}};
+    std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
+    x->SetArrayData(raw.data());
 
     HostDeviceVector<float>* out_predt;
-    learner->InplacePredict(x, nullptr, PredictionType::kValue,
-                            std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 2);
+    learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
+                            &out_predt, 0, 2);
     auto h_out_predt = out_predt->HostVector();
-    learner->InplacePredict(x, nullptr, PredictionType::kValue,
-                            std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 0);
+    learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
+                            &out_predt, 0, 0);
     auto h_out_predt_full = out_predt->HostVector();
 
     ASSERT_TRUE(std::equal(h_out_predt.begin(), h_out_predt.end(), h_out_predt_full.begin()));
 
-    ASSERT_THROW(learner->InplacePredict(x, nullptr, PredictionType::kValue,
+    ASSERT_THROW(learner->InplacePredict(x, PredictionType::kValue,
                                          std::numeric_limits<float>::quiet_NaN(), &out_predt, 0, 3),
                  dmlc::Error);
   }

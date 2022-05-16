@@ -117,9 +117,7 @@ class GradientBooster : public Model, public Configurable {
    * \param           layer_begin (Optional) Beginning of boosted tree layer used for prediction.
    * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const &, std::shared_ptr<DMatrix>, float,
-                              PredictionCacheEntry*,
-                              uint32_t,
+  virtual void InplacePredict(std::shared_ptr<DMatrix>, float, PredictionCacheEntry*, uint32_t,
                               uint32_t) const {
     LOG(FATAL) << "Inplace predict is not supported by current booster.";
   }
