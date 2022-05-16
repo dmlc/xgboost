@@ -61,15 +61,14 @@ class GpuPreXGBoost extends PreXGBoostProvider {
    * @param estimator [[XGBoostClassifier]] or [[XGBoostRegressor]]
    * @param dataset   the training data
    * @param params    all user defined and defaulted params
-   * @return [[XGBoostExecutionParams]] => (Boolean, RDD[[() => Watches]], Option[ RDD[_] ])
-   *         Boolean if building DMatrix in rabit context
+   * @return [[XGBoostExecutionParams]] => (RDD[[() => Watches]], Option[ RDD[_] ])
    *         RDD[() => Watches] will be used as the training input
    *         Option[ RDD[_] ] is the optional cached RDD
    */
   override def buildDatasetToRDD(estimator: Estimator[_],
       dataset: Dataset[_],
       params: Map[String, Any]):
-    XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]]) = {
+    XGBoostExecutionParams => (RDD[() => Watches], Option[RDD[_]]) = {
     GpuPreXGBoost.buildDatasetToRDD(estimator, dataset, params)
   }
 
@@ -123,8 +122,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
    * @param estimator supports XGBoostClassifier and XGBoostRegressor
    * @param dataset   the training data
    * @param params    all user defined and defaulted params
-   * @return [[XGBoostExecutionParams]] => (Boolean, RDD[[() => Watches]], Option[ RDD[_] ])
-   *         Boolean if building DMatrix in rabit context
+   * @return [[XGBoostExecutionParams]] => (RDD[[() => Watches]], Option[ RDD[_] ])
    *         RDD[() => Watches] will be used as the training input to build DMatrix
    *         Option[ RDD[_] ] is the optional cached RDD
    */
@@ -132,7 +130,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
       estimator: Estimator[_],
       dataset: Dataset[_],
       params: Map[String, Any]):
-    XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]]) = {
+    XGBoostExecutionParams => (RDD[() => Watches], Option[RDD[_]]) = {
 
     val (Seq(labelName, weightName, marginName), feturesCols, groupName, evalSets) =
       estimator match {
@@ -170,7 +168,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
     xgbExecParams: XGBoostExecutionParams =>
       val dataMap = prepareInputData(trainingData, evalDataMap, xgbExecParams.numWorkers,
         xgbExecParams.cacheTrainingSet)
-      (true, buildRDDWatches(dataMap, xgbExecParams, evalDataMap.isEmpty), None)
+      (buildRDDWatches(dataMap, xgbExecParams, evalDataMap.isEmpty), None)
   }
 
   /**
