@@ -101,16 +101,6 @@ class XGBoostLabelEncoder(LabelEncoder):
         self.__dict__.update(meta)
 
 
-# dask
-try:
-    import pkg_resources
-    pkg_resources.get_distribution('dask')
-    DASK_INSTALLED = True
-except pkg_resources.DistributionNotFound:
-    dask = None
-    DASK_INSTALLED = False
-
-
 try:
     import scipy.sparse as scipy_sparse
     from scipy.sparse import csr_matrix as scipy_csr
