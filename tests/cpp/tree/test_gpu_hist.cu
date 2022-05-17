@@ -60,7 +60,7 @@ TEST(GpuHist, DeviceHistogram) {
   ASSERT_TRUE(histogram.HistogramExists(kNNodes + 1));
 
   // Add same node again - should fail
-  EXPECT_ANY_THROW(histogram.AllocateHistograms(kNNodes + 1););
+  EXPECT_ANY_THROW(histogram.AllocateHistograms({kNNodes + 1}););
 }
 
 std::vector<GradientPairPrecise> GetHostHistGpair() {
