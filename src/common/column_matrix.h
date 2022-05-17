@@ -303,7 +303,7 @@ class ColumnMatrix {
         auto line = batch.GetLine(rid);
         for (size_t i = 0; i < line.Size(); ++i) {
           auto coo = line.GetElement(i);
-          if (data::IsValidFunctor{missing}(coo)) {
+          if (data::IsValidFunctor {missing}(coo)) {
             auto fid = coo.column_idx;
             const uint32_t bin_id = row_index[k];
             get_bin_idx(bin_id, rid, fid);
