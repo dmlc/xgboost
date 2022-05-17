@@ -43,7 +43,7 @@ class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
 
 
-def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, CStrPptr]:
+def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
     """Convert a Python str or list of Python str to C pointer
 
     Parameters
@@ -55,9 +55,9 @@ def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, CStrPptr]:
     if isinstance(data, str):
         return bytes(data, "utf-8")
     if isinstance(data, list):
-        pointers: ctypes.pointer = (ctypes.c_char_p * len(data))()
+        pointers: ctypes.Array[ctypes.c_char_p] = (ctypes.c_char_p * len(data))()
         data_as_bytes = [bytes(d, 'utf-8') for d in data]
-        pointers[:] = data_as_bytes
+        pointers[:] = data_as_bytes  # type: ignore
         return pointers
     raise TypeError()
 
@@ -272,7 +272,7 @@ def _cuda_array_interface(data: DataType) -> bytes:
 def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
     ctype: Type[CNumeric] = _numpy2ctypes_type(dtype)
-    if not isinstance(cptr, ctypes.POINTER(ctype)):
+    if not isinstance(cptr, ctypes.POINTER(ctype)):  # type: ignore
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type: ignore
@@ -287,7 +287,10 @@ def ctypes2cupy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> CupyT
     from cupy.cuda.memory import MemoryPointer
     from cupy.cuda.memory import UnownedMemory
 
-    CUPY_TO_CTYPES_MAPPING = {cupy.float32: ctypes.c_float, cupy.uint32: ctypes.c_uint}
+    CUPY_TO_CTYPES_MAPPING: Dict[Type[np.number], Type[CNumeric]] = {
+        cupy.float32: ctypes.c_float,
+        cupy.uint32: ctypes.c_uint,
+    }
     if dtype not in CUPY_TO_CTYPES_MAPPING:
         raise RuntimeError(f"Supported types: {CUPY_TO_CTYPES_MAPPING.keys()}")
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
@@ -1611,7 +1614,9 @@ class Booster:
         _check_call(_LIB.XGBoosterGetAttr(
             self.handle, c_str(key), ctypes.byref(ret), ctypes.byref(success)))
         if success.value != 0:
-            return py_str(ret.value)
+            value = ret.value
+            assert value
+            return py_str(value)
         return None
 
     def attributes(self) -> Dict[str, Optional[str]]:
@@ -1639,12 +1644,10 @@ class Booster:
             The attributes to set. Setting a value to None deletes an attribute.
         """
         for key, value in kwargs.items():
+            c_value = None
             if value is not None:
-                if not isinstance(value, str):
-                    raise ValueError("Set Attr only accepts string values")
-                value = c_str(str(value))
-            _check_call(_LIB.XGBoosterSetAttr(
-                self.handle, c_str(key), value))
+                c_value = c_str(str(value))
+            _check_call(_LIB.XGBoosterSetAttr(self.handle, c_str(key), c_value))
 
     def _get_feature_info(self, field: str) -> Optional[FeatureInfo]:
         length = c_bst_ulong()

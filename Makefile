@@ -91,10 +91,7 @@ endif
 # If any of the dask tests failed, contributor won't see the other error.
 mypy:
 	cd python-package; \
-	mypy ./xgboost/dask.py && \
-	mypy ./xgboost/rabit.py && \
-	mypy ./xgboost/tracker.py && \
-	mypy ./xgboost/sklearn.py && \
+	mypy . && \
 	mypy ../demo/guide-python/external_memory.py && \
 	mypy ../demo/guide-python/categorical.py && \
 	mypy ../demo/guide-python/cat_in_the_dat.py && \
