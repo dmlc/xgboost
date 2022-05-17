@@ -1640,15 +1640,26 @@ class CUDAStream {
   void Sync() { this->View().Sync(); }
 };
 
+struct PartitionScanPair {
+  int left;
+  int right;
+};
+
+inline __device__ PartitionScanPair operator+(const PartitionScanPair& a, const PartitionScanPair& b) {
+  PartitionScanPair c{a.left + b.left, a.right + b.right};
+  return c;
+}
+
 template <int kBlockSize>
-class BlockPartition {
+class BlockPartition{
  public:
-  template <typename IterT, typename OpT>
-  __device__ std::size_t Partition(IterT begin, IterT end, OpT op) {
-    typedef cub::BlockScan<std::size_t, kBlockSize> BlockScanT;
-    __shared__ typename BlockScanT::TempStorage temp1, temp2;
-    __shared__ std::size_t lcomp[kBlockSize];
-    __shared__ std::size_t rcomp[kBlockSize];
+  template <typename IterT, typename OpT,int kItemsPerThread=4>
+  __device__ int Partition(IterT begin, IterT end, OpT op) {
+    typedef cub::BlockScan<PartitionScanPair, kBlockSize> BlockScanT;
+    __shared__ typename BlockScanT::TempStorage temp;
+
+    __shared__ int16_t lcomp[kBlockSize*kItemsPerThread];
+    __shared__ int16_t rcomp[kBlockSize*kItemsPerThread];
     __shared__ unsigned long long int tmp_sum;
 
     if (threadIdx.x == 0) {
@@ -1657,45 +1668,47 @@ class BlockPartition {
     __syncthreads();
 
     // Get left count
-    std::size_t count = end - begin;
-    std::size_t left_count = 0;
-    for (auto idx : dh::BlockStrideRange(std::size_t(0), count)) {
+    int count = end - begin;
+    int left_count = 0;
+    for (auto idx : dh::BlockStrideRange(int(0), count)) {
       left_count += op(begin[idx]);
     }
     atomicAdd(&tmp_sum, left_count);
     __syncthreads();
     left_count = tmp_sum;
 
-    std::size_t loffset = 0, part = left_count, roffset = part;
-    std::size_t lflag = 0, rflag = 0, llen = 0, rlen = 0, minlen = 0;
+    int loffset = 0, part = left_count, roffset = part;
     auto tid = threadIdx.x;
     while (loffset < part && roffset < count) {
       // find the samples in the left that belong to right and vice-versa
-      auto loff = loffset + tid, roff = roffset + tid;
-      if (llen == minlen) lflag = loff < part ? !op(begin[loff]) : 0;
-      if (rlen == minlen) rflag = roff < count ? op(begin[roff]) : 0;
-      // scan to compute the locations for each 'misfit' in the two partitions
-      std::size_t lidx, ridx;
-      BlockScanT(temp1).ExclusiveSum(lflag, lidx, llen);
-      BlockScanT(temp2).ExclusiveSum(rflag, ridx, rlen);
-      __syncthreads();
-      minlen = llen < rlen ? llen : rlen;
-      // compaction to figure out the right locations to swap
-      if (lflag) lcomp[lidx] = loff;
-      if (rflag) rcomp[ridx] = roff;
-      __syncthreads();
-      // reset the appropriate flags for the longer of the two
-      if (lidx < minlen) lflag = 0;
-      if (ridx < minlen) rflag = 0;
-      if (llen == minlen) loffset += kBlockSize;
-      if (rlen == minlen) roffset += kBlockSize;
-      // swap the 'misfit's
-      if (tid < minlen) {
-        auto a = begin[lcomp[tid]];
-        auto b = begin[rcomp[tid]];
-        begin[lcomp[tid]] = b;
-        begin[rcomp[tid]] = a;
+      auto loff = loffset + tid * kItemsPerThread, roff = roffset + tid * kItemsPerThread;
+
+      PartitionScanPair flag[kItemsPerThread];
+      for (int i = 0; i < kItemsPerThread; i++) {
+        flag[i].left = loff + i < part ? !op(begin[loff + i]) : 0;
+        flag[i].right = roff + i < count ? op(begin[roff + i]) : 0;
       }
+      // scan to compute the locations for each 'misfit' in the two partitions
+      PartitionScanPair partial_sum[kItemsPerThread];
+      PartitionScanPair sum;
+      BlockScanT(temp).ExclusiveSum(flag, partial_sum, sum);
+      int minlen = sum.left < sum.right ? sum.left : sum.right;
+      // compaction to figure out the right locations to swap
+      for (int i = 0; i < kItemsPerThread; i++) {
+        if (flag[i].left) lcomp[partial_sum[i].left] = tid * kItemsPerThread+i;
+        if (flag[i].right) rcomp[partial_sum[i].right] = tid * kItemsPerThread+i;
+      }
+      __syncthreads();
+
+      // swap the 'misfit's
+      for (int i = tid; i < minlen; i += kBlockSize) {
+        auto a = begin[lcomp[i] + loffset];
+        auto b = begin[rcomp[i] + roffset];
+        begin[lcomp[i] + loffset] = b;
+        begin[rcomp[i] + roffset] = a;
+      }
+      loffset = sum.left == minlen ? loffset + kBlockSize * kItemsPerThread : loffset + lcomp[minlen];
+      roffset = sum.right == minlen ? roffset + kBlockSize * kItemsPerThread : roffset + rcomp[minlen];
     }
     return left_count;
   }

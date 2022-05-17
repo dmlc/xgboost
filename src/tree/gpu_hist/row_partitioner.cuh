@@ -37,18 +37,23 @@ struct UpdatePositionBatchArgs {
 };
 
 template <int kBlockSize, typename OpDataT, typename OpT>
-__global__ void UpdatePositionBatchKernel(UpdatePositionBatchArgs<OpDataT> args,
+__global__ void 
+__launch_bounds__(1024, 1)
+UpdatePositionBatchKernel(UpdatePositionBatchArgs<OpDataT> args,
                                           OpT op, common::Span<bst_uint> ridx,
                                           common::Span<bst_node_t> position,
                                           common::Span<int64_t> left_counts) {
-  auto segment = args.segments_batch[blockIdx.x];
-  auto data = args.data_batch[blockIdx.x];
-  auto ridx_segment = ridx.subspan(segment.begin, segment.Size());
-  auto position_segment = position.subspan(segment.begin, segment.Size());
+
+
+  const auto& segment = args.segments_batch[blockIdx.x];
+  const auto& data = args.data_batch[blockIdx.x];
+  const auto& ridx_segment = ridx.subspan(segment.begin, segment.Size());
+  const auto& position_segment = position.subspan(segment.begin, segment.Size());
 
   auto left_nidx = args.left_nidx_batch[blockIdx.x];
   auto left_count = dh::BlockPartition<kBlockSize>().Partition(
-      ridx_segment.data(), ridx_segment.data()+ridx_segment.size(), [=] __device__(auto e) { return op(e, data) == left_nidx; });
+      ridx_segment.data(), ridx_segment.data() + ridx_segment.size(),
+      [&] __device__(auto e) { return op(e, data) == left_nidx; });
 
   if (threadIdx.x == 0) {
     left_counts[blockIdx.x] = left_count;
@@ -138,7 +143,7 @@ class RowPartitioner {
     }
 
     // 1 block per node
-    constexpr int kBlockSize = 512;
+    constexpr int kBlockSize = 1024;
     UpdatePositionBatchKernel<kBlockSize><<<nidx.size(), kBlockSize>>>(
         args, op, dh::ToSpan(ridx_),
         dh::ToSpan(position_), left_counts);
