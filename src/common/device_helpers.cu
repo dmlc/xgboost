@@ -30,19 +30,15 @@ std::string PrintUUID(xgboost::common::Span<uint64_t, kUuidLength> uuid) {
   return ss.str();
 }
 
-
-void AllReducer::Init(int _device_ordinal) {
 #ifdef XGBOOST_USE_NCCL
-  device_ordinal_ = _device_ordinal;
-  dh::safe_cuda(cudaSetDevice(device_ordinal_));
-
+void NcclAllReducer::DoInit(int _device_ordinal) {
   int32_t const rank = rabit::GetRank();
   int32_t const world = rabit::GetWorldSize();
 
   std::vector<uint64_t> uuids(world * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};
   auto s_this_uuid = s_uuid.subspan(rank * kUuidLength, kUuidLength);
-  GetCudaUUID(world, rank, device_ordinal_, s_this_uuid);
+  GetCudaUUID(world, rank, _device_ordinal, s_this_uuid);
 
   // No allgather yet.
   rabit::Allreduce<rabit::op::Sum, uint64_t>(uuids.data(), uuids.size());
@@ -66,20 +62,11 @@ void AllReducer::Init(int _device_ordinal) {
   id_ = GetUniqueId();
   dh::safe_nccl(ncclCommInitRank(&comm_, rabit::GetWorldSize(), id_, rank));
   safe_cuda(cudaStreamCreate(&stream_));
-  initialised_ = true;
-#else
-  if (rabit::IsDistributed()) {
-    LOG(FATAL) << "XGBoost is not compiled with NCCL.";
-  }
-#endif  // XGBOOST_USE_NCCL
 }
 
-void AllReducer::AllGather(void const *data, size_t length_bytes,
-                           std::vector<size_t> *segments,
-                           dh::caching_device_vector<char> *recvbuf) {
-#ifdef XGBOOST_USE_NCCL
-  CHECK(initialised_);
-  dh::safe_cuda(cudaSetDevice(device_ordinal_));
+void NcclAllReducer::DoAllGather(void const *data, size_t length_bytes,
+                                 std::vector<size_t> *segments,
+                                 dh::caching_device_vector<char> *recvbuf) {
   size_t world = rabit::GetWorldSize();
   segments->clear();
   segments->resize(world, 0);
@@ -98,11 +85,9 @@ void AllReducer::AllGather(void const *data, size_t length_bytes,
     offset += as_bytes;
   }
   safe_nccl(ncclGroupEnd());
-#endif  // XGBOOST_USE_NCCL
 }
 
-AllReducer::~AllReducer() {
-#ifdef XGBOOST_USE_NCCL
+NcclAllReducer::~NcclAllReducer() {
   if (initialised_) {
     dh::safe_cuda(cudaStreamDestroy(stream_));
     ncclCommDestroy(comm_);
@@ -112,7 +97,7 @@ AllReducer::~AllReducer() {
     LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
     LOG(CONSOLE) << "AllReduce total MiB communicated: " << allreduce_bytes_/1048576;
   }
-#endif  // XGBOOST_USE_NCCL
 }
+#endif  // XGBOOST_USE_NCCL
 
 }  // namespace dh

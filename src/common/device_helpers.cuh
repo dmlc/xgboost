@@ -741,29 +741,43 @@ using TypedDiscard =
  * streams. Must be initialised before use. If XGBoost is compiled without NCCL
  * this is a dummy class that will error if used with more than one GPU.
  */
-class AllReducer {
-  bool initialised_ {false};
-  size_t allreduce_bytes_ {0};  // Keep statistics of the number of bytes communicated
-  size_t allreduce_calls_ {0};  // Keep statistics of the number of reduce calls
-#ifdef XGBOOST_USE_NCCL
-  ncclComm_t comm_;
-  cudaStream_t stream_;
-  int device_ordinal_;
-  ncclUniqueId id_;
-#endif
-
+template <typename AllReducer>
+class AllReducerBase : public xgboost::common::Crtp<AllReducer> {
  public:
-  AllReducer() = default;
+  virtual ~AllReducerBase() = default;
 
   /**
-   * \brief Initialise with the desired device ordinal for this communication
-   * group.
+   * \brief Initialise with the desired device ordinal for this all-reducer.
    *
    * \param device_ordinal The device ordinal.
    */
-  void Init(int _device_ordinal);
+  void Init(int _device_ordinal) {
+    device_ordinal_ = _device_ordinal;
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    this->Underlying().DoInit(_device_ordinal);
+    initialised_ = true;
+  }
 
-  ~AllReducer();
+  /**
+   * \brief Allgather implemented as grouped calls to Broadcast.  This way we can accept
+   *        different size of data on different workers.
+   * \param length_bytes Size of input data in bytes.
+   * \param segments     Size of data on each worker.
+   * \param recvbuf      Buffer storing the result of data from all workers.
+   */
+  void AllGather(void const *data, size_t length_bytes, std::vector<size_t> *segments,
+                 dh::caching_device_vector<char> *recvbuf) {
+    CHECK(initialised_);
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    this->Underlying().DoAllGather(data, length_bytes, segments, recvbuf);
+  }
+
+  void AllGather(uint32_t const *data, size_t length,
+                 dh::caching_device_vector<uint32_t> *recvbuf) {
+    CHECK(initialised_);
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    this->Underlying().DoAllGather(data, length, recvbuf);
+  }
 
   /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing
@@ -775,34 +789,11 @@ class AllReducer {
    */
 
   void AllReduceSum(const double *sendbuff, double *recvbuff, int count) {
-#ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum, comm_, stream_));
+    this->Underlying().DoAllReduceSum(sendbuff, recvbuff, count);
     allreduce_bytes_ += count * sizeof(double);
     allreduce_calls_ += 1;
-#endif
-  }
-
-  /**
-   * \brief Allgather implemented as grouped calls to Broadcast.  This way we can accept
-   *        different size of data on different workers.
-   * \param length_bytes Size of input data in bytes.
-   * \param segments     Size of data on each worker.
-   * \param recvbuf      Buffer storing the result of data from all workers.
-   */
-  void AllGather(void const* data, size_t length_bytes,
-                 std::vector<size_t>* segments, dh::caching_device_vector<char>* recvbuf);
-
-  void AllGather(uint32_t const* data, size_t length,
-                 dh::caching_device_vector<uint32_t>* recvbuf) {
-#ifdef XGBOOST_USE_NCCL
-    CHECK(initialised_);
-    size_t world = rabit::GetWorldSize();
-    recvbuf->resize(length * world);
-    safe_nccl(ncclAllGather(data, recvbuf->data().get(), length, ncclUint32,
-                            comm_, stream_));
-#endif  // XGBOOST_USE_NCCL
   }
 
   /**
@@ -815,13 +806,11 @@ class AllReducer {
    */
 
   void AllReduceSum(const float *sendbuff, float *recvbuff, int count) {
-#ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum, comm_, stream_));
+    this->Underlying().DoAllReduceSum(sendbuff, recvbuff, count);
     allreduce_bytes_ += count * sizeof(float);
     allreduce_calls_ += 1;
-#endif
   }
 
   /**
@@ -835,30 +824,27 @@ class AllReducer {
    */
 
   void AllReduceSum(const int64_t *sendbuff, int64_t *recvbuff, int count) {
-#ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum, comm_, stream_));
-#endif
+    this->Underlying().DoAllReduceSum(sendbuff, recvbuff, count);
+    allreduce_bytes_ += count * sizeof(int64_t);
+    allreduce_calls_ += 1;
   }
 
   void AllReduceSum(const uint32_t *sendbuff, uint32_t *recvbuff, int count) {
-#ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint32, ncclSum, comm_, stream_));
-#endif
+    this->Underlying().DoAllReduceSum(sendbuff, recvbuff, count);
+    allreduce_bytes_ += count * sizeof(uint32_t);
+    allreduce_calls_ += 1;
   }
 
   void AllReduceSum(const uint64_t *sendbuff, uint64_t *recvbuff, int count) {
-#ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
-#endif
+    this->Underlying().DoAllReduceSum(sendbuff, recvbuff, count);
+    allreduce_bytes_ += count * sizeof(uint64_t);
+    allreduce_calls_ += 1;
   }
 
   // Specialization for size_t, which is implementation defined so it might or might not
@@ -867,14 +853,13 @@ class AllReducer {
             std::enable_if_t<std::is_same<size_t, T>::value &&
                              !std::is_same<size_t, unsigned long long>::value>  // NOLINT
                 * = nullptr>
-  void AllReduceSum(const T *sendbuff, T *recvbuff, int count) { // NOLINT
-#ifdef XGBOOST_USE_NCCL
+  void AllReduceSum(const T *sendbuff, T *recvbuff, int count) {  // NOLINT
     CHECK(initialised_);
-
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), ""); // NOLINT
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
-#endif
+    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), "");  // NOLINT
+    this->Underlying().DoAllReduceSum(sendbuff, recvbuff, count);
+    allreduce_bytes_ += count * sizeof(T);
+    allreduce_calls_ += 1;
   }
 
   /**
@@ -883,13 +868,146 @@ class AllReducer {
    * \brief Synchronizes the entire communication group.
    */
   void Synchronize() {
-#ifdef XGBOOST_USE_NCCL
+    CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_cuda(cudaStreamSynchronize(stream_));
-#endif
-  };
+    this->Underlying().DoSynchronize();
+  }
+
+ protected:
+  bool initialised_{false};
+  size_t allreduce_bytes_{0};  // Keep statistics of the number of bytes communicated.
+  size_t allreduce_calls_{0};  // Keep statistics of the number of reduce calls.
+
+ private:
+  int device_ordinal_{-1};
+};
+
+class DummyAllReducer : public AllReducerBase<DummyAllReducer> {
+ public:
+  friend class AllReducerBase<DummyAllReducer>;
+
+ private:
+  static void DoInit(int _device_ordinal) { ThrowError(); }
+
+  static void DoAllGather(void const *data, size_t length_bytes, std::vector<size_t> *segments,
+                          dh::caching_device_vector<char> *recvbuf) {
+    ThrowError();
+  }
+
+  static void DoAllGather(uint32_t const *data, size_t length,
+                          dh::caching_device_vector<uint32_t> *recvbuf) {
+    ThrowError();
+  }
+
+  template <typename T>
+  static void DoAllReduceSum(const T *sendbuff, T *recvbuff, int count) {
+    ThrowError();
+  }
+
+  static void DoSynchronize() { ThrowError(); }
+
+  static void ThrowError() {
+    if (rabit::IsDistributed()) {
+      LOG(FATAL) << "XGBoost is not compiled with NCCL or Federated Learning.";
+    }
+  }
+};
 
 #ifdef XGBOOST_USE_NCCL
+class NcclAllReducer : public AllReducerBase<NcclAllReducer> {
+ public:
+  friend class AllReducerBase<NcclAllReducer>;
+
+  ~NcclAllReducer() override;
+
+ private:
+  /**
+   * \brief Initialise with the desired device ordinal for this communication
+   * group.
+   *
+   * \param device_ordinal The device ordinal.
+   */
+  void DoInit(int _device_ordinal);
+
+  /**
+   * \brief Allgather implemented as grouped calls to Broadcast.  This way we can accept
+   *        different size of data on different workers.
+   * \param length_bytes Size of input data in bytes.
+   * \param segments     Size of data on each worker.
+   * \param recvbuf      Buffer storing the result of data from all workers.
+   */
+  void DoAllGather(void const *data, size_t length_bytes, std::vector<size_t> *segments,
+                   dh::caching_device_vector<char> *recvbuf);
+
+  void DoAllGather(uint32_t const *data, size_t length,
+                   dh::caching_device_vector<uint32_t> *recvbuf) {
+    size_t world = rabit::GetWorldSize();
+    recvbuf->resize(length * world);
+    safe_nccl(ncclAllGather(data, recvbuf->data().get(), length, ncclUint32, comm_, stream_));
+  }
+
+  /**
+   * \brief Allreduce. Use in exactly the same way as NCCL but without needing
+   * streams or comms.
+   *
+   * \param sendbuff                The sendbuff.
+   * \param recvbuff                The recvbuff.
+   * \param count                   Number of elements.
+   */
+  void DoAllReduceSum(const double *sendbuff, double *recvbuff, int count) {
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum, comm_, stream_));
+  }
+
+  /**
+   * \brief Allreduce. Use in exactly the same way as NCCL but without needing
+   * streams or comms.
+   *
+   * \param sendbuff                The sendbuff.
+   * \param recvbuff                The recvbuff.
+   * \param count                   Number of elements.
+   */
+  void DoAllReduceSum(const float *sendbuff, float *recvbuff, int count) {
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum, comm_, stream_));
+  }
+
+  /**
+   * \brief Allreduce. Use in exactly the same way as NCCL but without needing streams or comms.
+   *
+   * \param count Number of.
+   *
+   * \param sendbuff                The sendbuff.
+   * \param recvbuff                The recvbuff.
+   * \param count                   Number of.
+   */
+  void DoAllReduceSum(const int64_t *sendbuff, int64_t *recvbuff, int count) {
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum, comm_, stream_));
+  }
+
+  void DoAllReduceSum(const uint32_t *sendbuff, uint32_t *recvbuff, int count) {
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint32, ncclSum, comm_, stream_));
+  }
+
+  void DoAllReduceSum(const uint64_t *sendbuff, uint64_t *recvbuff, int count) {
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
+  }
+
+  // Specialization for size_t, which is implementation defined so it might or might not
+  // be one of uint64_t/uint32_t/unsigned long long/unsigned long.
+  template <typename T = size_t,
+            std::enable_if_t<std::is_same<size_t, T>::value &&
+                             !std::is_same<size_t, unsigned long long>::value>  // NOLINT
+                * = nullptr>
+  void DoAllReduceSum(const T *sendbuff, T *recvbuff, int count) {  // NOLINT
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
+  }
+
+  /**
+   * \fn  void Synchronize()
+   *
+   * \brief Synchronizes the entire communication group.
+   */
+  void DoSynchronize() { dh::safe_cuda(cudaStreamSynchronize(stream_)); }
+
   /**
    * \fn  ncclUniqueId GetUniqueId()
    *
@@ -904,14 +1022,19 @@ class AllReducer {
     if (rabit::GetRank() == kRootRank) {
       dh::safe_nccl(ncclGetUniqueId(&id));
     }
-    rabit::Broadcast(
-        static_cast<void*>(&id),
-        sizeof(ncclUniqueId),
-        static_cast<int>(kRootRank));
+    rabit::Broadcast(static_cast<void *>(&id), sizeof(ncclUniqueId), static_cast<int>(kRootRank));
     return id;
   }
-#endif
+
+  ncclComm_t comm_;
+  cudaStream_t stream_;
+  ncclUniqueId id_;
 };
+
+using AllReducer = NcclAllReducer;
+#else
+using AllReducer = DummyAllReducer;
+#endif
 
 template <typename VectorT, typename T = typename VectorT::value_type,
   typename IndexT = typename xgboost::common::Span<T>::index_type>
