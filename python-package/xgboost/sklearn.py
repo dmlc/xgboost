@@ -14,7 +14,7 @@ from .core import Metric
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
-from ._typing import ArrayLike, FeatureTypes
+from ._typing import ArrayLike, FeatureNames, FeatureTypes
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -1231,7 +1231,7 @@ class XGBModel(XGBModelBase):
             importance_type=self.importance_type if self.importance_type else dft()
         )
         if b.feature_names is None:
-            feature_names: Sequence[str] = [f"f{i}" for i in range(self.n_features_in_)]
+            feature_names: FeatureNames = [f"f{i}" for i in range(self.n_features_in_)]
         else:
             feature_names = b.feature_names
         # gblinear returns all features so the `get` in next line is only for gbtree.
