@@ -211,6 +211,8 @@ auto DispatchBinType(BinTypeSize type, Fn&& fn) {
       return fn(uint32_t{});
     }
   }
+  LOG(FATAL) << "Unreachable";
+  return fn(uint32_t{});
 }
 
 /**
