@@ -30,10 +30,12 @@ from ._typing import (
     ArrayLike,
     CFloatPtr,
     NumpyOrCupy,
-    FeatureNames,
+    FeatureInfo,
     FeatureTypes,
+    FeatureNames,
     _T,
     CupyT,
+    BoosterParam
 )
 
 
@@ -273,7 +275,7 @@ def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.n
     if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
-    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
+    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type: ignore
         raise RuntimeError("memmove failed")
     return res
 
@@ -310,7 +312,7 @@ def ctypes2buffer(cptr: CStrPtr, length: int) -> bytearray:
         raise RuntimeError('expected char pointer')
     res = bytearray(length)
     rptr = (ctypes.c_char * length).from_buffer(res)
-    if not ctypes.memmove(rptr, cptr, length):
+    if not ctypes.memmove(rptr, cptr, length):  # type: ignore
         raise RuntimeError('memmove failed')
     return res
 
@@ -434,8 +436,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         def data_handle(
             data: Any,
             *,
-            feature_names: FeatureNames = None,
-            feature_types: Optional[List[str]] = None,
+            feature_names: Optional[FeatureNames] = None,
+            feature_types: Optional[FeatureTypes] = None,
             **kwargs: Any,
         ) -> None:
             from .data import dispatch_proxy_set_data
@@ -555,8 +557,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatureNames = None,
-        feature_types: FeatureTypes = None,
+        feature_names: Optional[FeatureNames] = None,
+        feature_types: Optional[FeatureTypes] = None,
         nthread: Optional[int] = None,
         group: Optional[ArrayLike] = None,
         qid: Optional[ArrayLike] = None,
@@ -718,8 +720,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         qid: Optional[ArrayLike] = None,
         label_lower_bound: Optional[ArrayLike] = None,
         label_upper_bound: Optional[ArrayLike] = None,
-        feature_names: FeatureNames = None,
-        feature_types: Optional[List[str]] = None,
+        feature_names: Optional[FeatureNames] = None,
+        feature_types: Optional[FeatureTypes] = None,
         feature_weights: Optional[ArrayLike] = None
     ) -> None:
         """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
@@ -1000,7 +1002,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return res
 
     @property
-    def feature_names(self) -> Optional[List[str]]:
+    def feature_names(self) -> Optional[FeatureNames]:
         """Get feature names (column labels).
 
         Returns
@@ -1023,7 +1025,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         return feature_names
 
     @feature_names.setter
-    def feature_names(self, feature_names: FeatureNames) -> None:
+    def feature_names(self, feature_names: Optional[FeatureNames]) -> None:
         """Set feature names (column labels).
 
         Parameters
@@ -1039,7 +1041,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 else:
                     feature_names = [feature_names]
             except TypeError:
-                feature_names = [feature_names]
+                feature_names = [cast(str, feature_names)]
 
             if len(feature_names) != len(set(feature_names)):
                 raise ValueError('feature_names must be unique')
@@ -1069,8 +1071,13 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
             self.feature_types = None
 
     @property
-    def feature_types(self) -> Optional[List[str]]:
-        """Get feature types. See :py:class:`DMatrix` for details."""
+    def feature_types(self) -> Optional[FeatureTypes]:
+        """Get feature types (column types).
+
+        Returns
+        -------
+        feature_types : list or None
+        """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         _check_call(_LIB.XGDMatrixGetStrFeatureInfo(self.handle,
@@ -1111,7 +1118,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 else:
                     feature_types = [feature_types]
             except TypeError:
-                feature_types = [feature_types]
+                feature_types = [cast(str, feature_types)]
             feature_types_bytes = [bytes(f, encoding='utf-8')
                                for f in feature_types]
             c_feature_types = (ctypes.c_char_p *
@@ -1203,8 +1210,8 @@ class DeviceQuantileDMatrix(DMatrix):
         base_margin: Optional[ArrayLike] = None,
         missing: Optional[float] = None,
         silent: bool = False,
-        feature_names: FeatureNames = None,
-        feature_types: Optional[List[str]] = None,
+        feature_names: Optional[FeatureNames] = None,
+        feature_types: Optional[FeatureTypes] = None,
         nthread: Optional[int] = None,
         max_bin: int = 256,
         group: Optional[ArrayLike] = None,
@@ -1323,7 +1330,7 @@ def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
     return num_parallel_tree, num_groups
 
 
-def _configure_metrics(params: Union[Dict, List]) -> Union[Dict, List]:
+def _configure_metrics(params: BoosterParam) -> BoosterParam:
     if (
         isinstance(params, dict)
         and "eval_metric" in params
@@ -1349,7 +1356,7 @@ class Booster:
 
     def __init__(
         self,
-        params: Optional[Dict] = None,
+        params: Optional[BoosterParam] = None,
         cache: Optional[Sequence[DMatrix]] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None
     ) -> None:
@@ -1444,7 +1451,7 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: Union[List, Dict]) -> Union[List, Dict]:
+    def _configure_constraints(self, params: BoosterParam) -> BoosterParam:
         if isinstance(params, dict):
             value = params.get("monotone_constraints")
             if value is not None:
@@ -1607,7 +1614,7 @@ class Booster:
             return py_str(ret.value)
         return None
 
-    def attributes(self) -> Dict[str, str]:
+    def attributes(self) -> Dict[str, Optional[str]]:
         """Get attributes stored in the Booster as a dictionary.
 
         Returns
@@ -1639,7 +1646,7 @@ class Booster:
             _check_call(_LIB.XGBoosterSetAttr(
                 self.handle, c_str(key), value))
 
-    def _get_feature_info(self, field: str) -> Optional[List[str]]:
+    def _get_feature_info(self, field: str) -> Optional[FeatureInfo]:
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if not hasattr(self, "handle") or self.handle is None:
@@ -1652,7 +1659,7 @@ class Booster:
         feature_info = from_cstr_to_pystr(sarr, length)
         return feature_info if feature_info else None
 
-    def _set_feature_info(self, features: Optional[Sequence[str]], field: str) -> None:
+    def _set_feature_info(self, features: Optional[FeatureInfo], field: str) -> None:
         if features is not None:
             assert isinstance(features, list)
             feature_info_bytes = [bytes(f, encoding="utf-8") for f in features]
@@ -1670,7 +1677,7 @@ class Booster:
             )
 
     @property
-    def feature_types(self) -> Optional[List[str]]:
+    def feature_types(self) -> Optional[FeatureTypes]:
         """Feature types for this booster.  Can be directly set by input data or by
         assignment.  See :py:class:`DMatrix` for details.
 
@@ -1678,11 +1685,11 @@ class Booster:
         return self._get_feature_info("feature_type")
 
     @feature_types.setter
-    def feature_types(self, features: Optional[List[str]]) -> None:
+    def feature_types(self, features: Optional[FeatureTypes]) -> None:
         self._set_feature_info(features, "feature_type")
 
     @property
-    def feature_names(self) -> Optional[List[str]]:
+    def feature_names(self) -> Optional[FeatureNames]:
         """Feature names for this booster.  Can be directly set by input data or by
         assignment.
 
@@ -1690,7 +1697,7 @@ class Booster:
         return self._get_feature_info("feature_name")
 
     @feature_names.setter
-    def feature_names(self, features: FeatureNames) -> None:
+    def feature_names(self, features: Optional[FeatureNames]) -> None:
         self._set_feature_info(features, "feature_name")
 
     def set_param(
@@ -1711,7 +1718,7 @@ class Booster:
             params = params.items()
         elif isinstance(params, str) and value is not None:
             params = [(params, value)]
-        for key, val in params:
+        for key, val in cast(Iterable[Tuple[str, str]], params):
             if val is not None:
                 _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key),
                                                    c_str(str(val))))
@@ -2564,8 +2571,10 @@ class Booster:
             )
         # Booster can't accept data with different feature names
         if self.feature_names != data.feature_names:
-            dat_missing = set(self.feature_names) - set(data.feature_names)
-            my_missing = set(data.feature_names) - set(self.feature_names)
+            dat_missing = set(cast(FeatureNames, self.feature_names)) - \
+                          set(cast(FeatureNames, data.feature_names))
+            my_missing = set(cast(FeatureNames, data.feature_names)) - \
+                         set(cast(FeatureNames, self.feature_names))
 
             msg = 'feature_names mismatch: {0} {1}'
 

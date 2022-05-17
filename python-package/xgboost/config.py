@@ -4,12 +4,20 @@ import ctypes
 import json
 from contextlib import contextmanager
 from functools import wraps
+from typing import Optional, Callable, Any, Dict, cast, Iterator
 
 from .core import _LIB, _check_call, c_str, py_str
+from ._typing import _F
 
 
-def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
-               see_also=None):
+def config_doc(
+    *,
+    header: Optional[str] = None,
+    extra_note: Optional[str] = None,
+    parameters: Optional[str] = None,
+    returns: Optional[str] = None,
+    see_also: Optional[str] = None
+) -> Callable[[_F], _F]:
     """Decorator to format docstring for config functions.
 
     Parameters
@@ -64,19 +72,19 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
         assert xgb.get_config()['verbosity'] == 2  # old value restored
     """
 
-    def none_to_str(value):
+    def none_to_str(value: Optional[str]) -> str:
         return '' if value is None else value
 
-    def config_doc_decorator(func):
+    def config_doc_decorator(func: _F) -> _F:
         func.__doc__ = (doc_template.format(header=none_to_str(header),
                                             extra_note=none_to_str(extra_note))
                         + none_to_str(parameters) + none_to_str(returns)
                         + none_to_str(common_example) + none_to_str(see_also))
 
         @wraps(func)
-        def wrap(*args, **kwargs):
+        def wrap(*args: Any, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
-        return wrap
+        return cast(_F, wrap)
     return config_doc_decorator
 
 
@@ -89,7 +97,7 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
     new_config: Dict[str, Any]
         Keyword arguments representing the parameters and their values
             """)
-def set_config(**new_config):
+def set_config(**new_config: Any) -> None:
     config = json.dumps(new_config)
     _check_call(_LIB.XGBSetGlobalConfig(c_str(config)))
 
@@ -103,7 +111,7 @@ def set_config(**new_config):
     args: Dict[str, Any]
         The list of global parameters and their values
             """)
-def get_config():
+def get_config() -> Dict[str, Any]:
     config_str = ctypes.c_char_p()
     _check_call(_LIB.XGBGetGlobalConfig(ctypes.byref(config_str)))
     config = json.loads(py_str(config_str.value))
@@ -132,7 +140,7 @@ def get_config():
     set_config: Set global XGBoost configuration
     get_config: Get current values of the global configuration
             """)
-def config_context(**new_config):
+def config_context(**new_config: Any) -> Iterator[None]:
     old_config = get_config().copy()
     set_config(**new_config)
 
