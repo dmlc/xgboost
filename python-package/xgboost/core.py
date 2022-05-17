@@ -325,10 +325,12 @@ def c_str(string: str) -> ctypes.c_char_p:
     return ctypes.c_char_p(string.encode('utf-8'))
 
 
-def c_array(ctype: Type[CTypeT], values: ArrayLike) -> ctypes.Array:
+def c_array(
+    ctype: Type[CTypeT], values: ArrayLike
+) -> Union[ctypes.Array, ctypes.pointer]:
     """Convert a python string to c array."""
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
-        return (ctype * len(values)).from_buffer_copy(values)
+        return values.ctypes.data_as(ctypes.POINTER(ctype))
     return (ctype * len(values))(*values)
 
 
@@ -2631,10 +2633,10 @@ class Booster:
         bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)
 
         nph = np.histogram(values, bins=bins)
-        nph = np.column_stack((nph[1][1:], nph[0]))
-        nph = nph[nph[:, 1] > 0]
+        nph_stacked = np.column_stack((nph[1][1:], nph[0]))
+        nph_stacked = nph_stacked[nph_stacked[:, 1] > 0]
 
-        if nph.size == 0:
+        if nph_stacked.size == 0:
             ft = self.feature_types
             fn = self.feature_names
             if fn is None:
@@ -2652,11 +2654,11 @@ class Booster:
                 )
 
         if as_pandas and PANDAS_INSTALLED:
-            return DataFrame(nph, columns=['SplitValue', 'Count'])
+            return DataFrame(nph_stacked, columns=['SplitValue', 'Count'])
         if as_pandas and not PANDAS_INSTALLED:
             warnings.warn(
                 "Returning histogram as ndarray"
                 " (as_pandas == True, but pandas is not installed).",
                 UserWarning
             )
-        return nph
+        return nph_stacked
