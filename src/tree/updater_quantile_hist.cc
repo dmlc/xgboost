@@ -175,10 +175,9 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
                                             HostDeviceVector<bst_node_t> *p_out_position) {
   monitor_->Start(__func__);
 
-  Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+  Driver<CPUExpandEntry> driver(param_);
   driver.Push(this->InitRoot(p_fmat, p_tree, gpair_h));
   auto const &tree = *p_tree;
-  bst_node_t num_leaves{1};
   auto expand_set = driver.Pop();
 
   while (!expand_set.empty()) {
@@ -188,13 +187,9 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
     std::vector<CPUExpandEntry> applied;
     int32_t depth = expand_set.front().depth + 1;
     for (auto const& candidate : expand_set) {
-      if (!candidate.IsValid(param_, num_leaves)) {
-        continue;
-      }
       evaluator_->ApplyTreeSplit(candidate, p_tree);
       applied.push_back(candidate);
-      num_leaves++;
-      if (CPUExpandEntry::ChildIsValid(param_, depth, num_leaves)) {
+      if (driver.IsChildValid(candidate)) {
         valid_candidates.emplace_back(candidate);
       }
     }

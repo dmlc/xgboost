@@ -179,10 +179,9 @@ class GloablApproxBuilder {
     p_last_tree_ = p_tree;
     this->InitData(p_fmat, hess);
 
-    Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+    Driver<CPUExpandEntry> driver(param_);
     auto &tree = *p_tree;
     driver.Push({this->InitRoot(p_fmat, gpair, hess, p_tree)});
-    bst_node_t num_leaves{1};
     auto expand_set = driver.Pop();
 
     /**
@@ -201,14 +200,9 @@ class GloablApproxBuilder {
       // candidates that can be applied.
       std::vector<CPUExpandEntry> applied;
       for (auto const &candidate : expand_set) {
-        if (!candidate.IsValid(param_, num_leaves)) {
-          continue;
-        }
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied.push_back(candidate);
-        num_leaves++;
-        int left_child_nidx = tree[candidate.nid].LeftChild();
-        if (CPUExpandEntry::ChildIsValid(param_, p_tree->GetDepth(left_child_nidx), num_leaves)) {
+        if (driver.IsChildValid(candidate)) {
           valid_candidates.emplace_back(candidate);
         }
       }
