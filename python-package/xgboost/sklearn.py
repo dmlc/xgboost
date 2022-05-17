@@ -4,8 +4,19 @@ import copy
 import warnings
 import json
 import os
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type, cast
-from typing import Sequence
+from typing import (
+    Union,
+    Optional,
+    List,
+    Dict,
+    Callable,
+    Sequence,
+    Tuple,
+    Any,
+    TypeVar,
+    Type,
+    cast,
+)
 import numpy as np
 
 from .core import Booster, DMatrix, XGBoostError

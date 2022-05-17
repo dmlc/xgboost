@@ -372,14 +372,27 @@ def mknfold(dall: DMatrix, nfold: int, param: BoosterParam, seed: int,
     return ret
 
 
-def cv(params: BoosterParam, dtrain: DMatrix, num_boost_round: int = 10, nfold: int = 3,
-       stratified: bool = False, folds: XGBStratifiedKFold = None,
-       metrics: Sequence[str] = (), obj: Optional[Objective] = None,
-       feval: Optional[Metric] = None, maximize: bool = None, early_stopping_rounds: int = None,
-       fpreproc: FPreProcCallable = None, as_pandas: bool = True,
-       verbose_eval: Optional[Union[int, bool]] = None, show_stdv: bool = True,
-       seed: int = 0, callbacks: Sequence[TrainingCallback] = None, shuffle: bool = True,
-       custom_metric: Optional[Metric] = None) -> Union[Dict[str, float], DataFrame]:
+def cv(
+    params: BoosterParam,
+    dtrain: DMatrix,
+    num_boost_round: int = 10,
+    nfold: int = 3,
+    stratified: bool = False,
+    folds: XGBStratifiedKFold = None,
+    metrics: Sequence[str] = (),
+    obj: Optional[Objective] = None,
+    feval: Optional[Metric] = None,
+    maximize: bool = None,
+    early_stopping_rounds: int = None,
+    fpreproc: FPreProcCallable = None,
+    as_pandas: bool = True,
+    verbose_eval: Optional[Union[int, bool]] = None,
+    show_stdv: bool = True,
+    seed: int = 0,
+    callbacks: Sequence[TrainingCallback] = None,
+    shuffle: bool = True,
+    custom_metric: Optional[Metric] = None,
+) -> Union[Dict[str, float], DataFrame]:
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
