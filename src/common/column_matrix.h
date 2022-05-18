@@ -277,6 +277,7 @@ class ColumnMatrix {
                             const GHistIndexMatrix& gmat, size_t n_features, float missing) {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(n_features, 0);
+    auto is_valid = data::IsValidFunctor {missing};
 
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
@@ -303,7 +304,7 @@ class ColumnMatrix {
         auto line = batch.GetLine(rid);
         for (size_t i = 0; i < line.Size(); ++i) {
           auto coo = line.GetElement(i);
-          if (data::IsValidFunctor {missing}(coo)) {
+          if (is_valid(coo)) {
             auto fid = coo.column_idx;
             const uint32_t bin_id = row_index[k];
             get_bin_idx(bin_id, rid, fid);

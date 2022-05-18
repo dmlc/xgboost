@@ -1140,7 +1140,7 @@ class SparsePageAdapterBatch {
     SparsePage::Inst inst;
     bst_row_t ridx;
     COOTuple GetElement(size_t idx) const {
-      return COOTuple{ridx, inst[idx].index, inst[idx].fvalue};
+      return COOTuple{ridx, inst.data()[idx].index, inst.data()[idx].fvalue};
     }
     size_t Size() const { return inst.size(); }
   };
