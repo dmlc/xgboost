@@ -247,71 +247,77 @@ TEST(Dart, JsonIO) {
   ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0ul);
 }
 
-void TestDartPrediction(std::string predictor) {
-  size_t constexpr kRows = 16, kCols = 10;
+namespace {
+class Dart : public testing::TestWithParam<char const*> {
+ public:
+  void Run(std::string predictor) {
+    size_t constexpr kRows = 16, kCols = 10;
 
-  HostDeviceVector<float> data;
-  auto rng = RandomDataGenerator(kRows, kCols, 0);
-  if (predictor == "gpu_predictor") {
-    rng.Device(0);
+    HostDeviceVector<float> data;
+    auto rng = RandomDataGenerator(kRows, kCols, 0);
+    if (predictor == "gpu_predictor") {
+      rng.Device(0);
+    }
+    auto array_str = rng.GenerateArrayInterface(&data);
+    auto p_mat = GetDMatrixFromData(data.HostVector(), kRows, kCols);
+
+    std::vector<bst_float> labels(kRows);
+    for (size_t i = 0; i < kRows; ++i) {
+      labels[i] = i % 2;
+    }
+    p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kRows);
+
+    auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+    learner->SetParam("booster", "dart");
+    learner->SetParam("rate_drop", "0.5");
+    learner->Configure();
+
+    for (size_t i = 0; i < 16; ++i) {
+      learner->UpdateOneIter(i, p_mat);
+    }
+
+    learner->SetParam("predictor", predictor);
+
+    HostDeviceVector<float> predts_training;
+    learner->Predict(p_mat, false, &predts_training, 0, 0, true);
+
+    HostDeviceVector<float>* inplace_predts;
+    std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
+    if (predictor == "gpu_predictor") {
+      x->SetCUDAArray(array_str.c_str());
+    } else {
+      x->SetArrayData(array_str.c_str());
+    }
+    learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
+                            &inplace_predts, 0, 0);
+    CHECK(inplace_predts);
+
+    HostDeviceVector<float> predts_inference;
+    learner->Predict(p_mat, false, &predts_inference, 0, 0, false);
+
+    auto const& h_predts_training = predts_training.ConstHostVector();
+    auto const& h_predts_inference = predts_inference.ConstHostVector();
+    auto const& h_inplace_predts = inplace_predts->HostVector();
+    ASSERT_EQ(h_predts_training.size(), h_predts_inference.size());
+    ASSERT_EQ(h_inplace_predts.size(), h_predts_inference.size());
+    for (size_t i = 0; i < predts_inference.Size(); ++i) {
+      // Inference doesn't drop tree.
+      ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps * 10);
+      // Inplace prediction is inference.
+      ASSERT_LT(h_inplace_predts[i] - h_predts_inference[i], kRtEps / 10);
+    }
   }
-  auto array_str = rng.GenerateArrayInterface(&data);
-  auto p_mat = GetDMatrixFromData(data.HostVector(), kRows, kCols);
+};
+}  // anonymous namespace
 
-  std::vector<bst_float> labels(kRows);
-  for (size_t i = 0; i < kRows; ++i) {
-    labels[i] = i % 2;
-  }
-  p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kRows);
+TEST_P(Dart, Prediction) { this->Run(GetParam()); }
 
-  auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
-  learner->SetParam("booster", "dart");
-  learner->SetParam("rate_drop", "0.5");
-  learner->Configure();
-
-  for (size_t i = 0; i < 16; ++i) {
-    learner->UpdateOneIter(i, p_mat);
-  }
-
-  learner->SetParam("predictor", predictor);
-
-  HostDeviceVector<float> predts_training;
-  learner->Predict(p_mat, false, &predts_training, 0, 0, true);
-
-  HostDeviceVector<float>* inplace_predts;
-  std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
-  if (predictor == "gpu_predictor") {
-    x->SetData(array_str.c_str());
-  } else {
-    x->SetArrayData(array_str.c_str());
-  }
-  learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
-                          &inplace_predts, 0, 0);
-  CHECK(inplace_predts);
-
-  HostDeviceVector<float> predts_inference;
-  learner->Predict(p_mat, false, &predts_inference, 0, 0, false);
-
-  auto const& h_predts_training = predts_training.ConstHostVector();
-  auto const& h_predts_inference = predts_inference.ConstHostVector();
-  auto const& h_inplace_predts = inplace_predts->HostVector();
-  ASSERT_EQ(h_predts_training.size(), h_predts_inference.size());
-  ASSERT_EQ(h_inplace_predts.size(), h_predts_inference.size());
-  for (size_t i = 0; i < predts_inference.Size(); ++i) {
-    // Inference doesn't drop tree.
-    ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps * 10);
-    // Inplace prediction is inference.
-    ASSERT_LT(h_inplace_predts[i] - h_predts_inference[i], kRtEps / 10);
-  }
-}
-
-TEST(Dart, Prediction) {
-  TestDartPrediction("auto");
-  TestDartPrediction("cpu_predictor");
+INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart,
+                         testing::Values("auto", "cpu_predictor",
 #if defined(XGBOOST_USE_CUDA)
-  TestDartPrediction("gpu_predictor");
+                                         "gpu_predictor"
 #endif  // defined(XGBOOST_USE_CUDA)
-}
+                                         ));
 
 std::pair<Json, Json> TestModelSlice(std::string booster) {
   size_t constexpr kRows = 1000, kCols = 100, kForest = 2, kClasses = 3;

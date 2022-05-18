@@ -138,7 +138,7 @@ TEST(GPUPredictor, InplacePredictCupy) {
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
-  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetData(interface_str.c_str());
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
   TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
 }
 
@@ -149,7 +149,7 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
-  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetData(interface_str.c_str());
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
   TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
 }
 
@@ -165,7 +165,7 @@ TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
-  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetData(interface_str.c_str());
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
   TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 1);
   EXPECT_THROW(TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0), dmlc::Error);
 }

@@ -97,7 +97,7 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
   }
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
-  proxy->SetData(c_array_interface);
+  proxy->SetCUDAArray(c_array_interface);
 
   auto config = Json::Load(StringView{c_json_config});
   CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";

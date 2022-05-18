@@ -300,7 +300,7 @@ XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
   CHECK(p_m);
   auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
   CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetData(c_interface_str);
+  m->SetCUDAArray(c_interface_str);
   API_END();
 }
 
@@ -312,7 +312,7 @@ XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
   CHECK(p_m);
   auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
   CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetData(c_interface_str);
+  m->SetCUDAArray(c_interface_str);
   API_END();
 }
 
