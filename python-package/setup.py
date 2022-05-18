@@ -335,11 +335,12 @@ if __name__ == '__main__':
               'scipy',
           ],
           ext_modules=[CMakeExtension('libxgboost')],
+          # error: expected "str": "Type[Command]"
           cmdclass={
-              'build_ext': BuildExt,
-              'sdist': Sdist,
-              'install_lib': InstallLib,
-              'install': Install
+              'build_ext': BuildExt,     # type: ignore
+              'sdist': Sdist,            # type: ignore
+              'install_lib': InstallLib,  # type: ignore
+              'install': Install          # type: ignore
           },
           extras_require={
               'pandas': ['pandas'],

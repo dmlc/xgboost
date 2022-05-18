@@ -8,12 +8,10 @@ import importlib.util
 import logging
 import numpy as np
 
-from xgboost._typing import CStrPtr
-
 assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
 
-def py_str(x: CStrPtr) -> str:
+def py_str(x: bytes) -> str:
     """convert c string back to python string"""
     return x.decode('utf-8')  # type: ignore
 
@@ -101,16 +99,6 @@ class XGBoostLabelEncoder(LabelEncoder):
                 continue
             meta[k] = v
         self.__dict__.update(meta)
-
-
-# dask
-try:
-    import pkg_resources
-    pkg_resources.get_distribution('dask')
-    DASK_INSTALLED = True
-except pkg_resources.DistributionNotFound:
-    dask = None
-    DASK_INSTALLED = False
 
 
 try:

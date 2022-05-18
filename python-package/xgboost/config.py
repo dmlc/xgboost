@@ -114,7 +114,9 @@ def set_config(**new_config: Any) -> None:
 def get_config() -> Dict[str, Any]:
     config_str = ctypes.c_char_p()
     _check_call(_LIB.XGBGetGlobalConfig(ctypes.byref(config_str)))
-    config = json.loads(py_str(config_str.value))
+    value = config_str.value
+    assert value
+    config = json.loads(py_str(value))
     return config
 
 
