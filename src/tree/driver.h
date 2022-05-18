@@ -101,7 +101,7 @@ class Driver {
 
  private:
   TrainParam param_;
-  std::size_t num_leaves_ = 1;
+  bst_node_t num_leaves_ = 1;
   std::size_t max_node_batch_size_;
   ExpandQueue queue_;
 };
