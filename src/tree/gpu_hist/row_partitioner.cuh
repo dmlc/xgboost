@@ -26,38 +26,125 @@ struct Segment {
   __host__ __device__ size_t Size() const { return end - begin; }
 };
 
-constexpr int kUpdatePositionMaxBatch = 32;
+
+const int kMaxBatch = 32;
 template <typename OpDataT>
-struct UpdatePositionBatchArgs {
-  bst_node_t nidx_batch[kUpdatePositionMaxBatch];
-  bst_node_t left_nidx_batch[kUpdatePositionMaxBatch];
-  bst_node_t right_nidx_batch[kUpdatePositionMaxBatch];
-  Segment segments_batch[kUpdatePositionMaxBatch];
-  OpDataT data_batch[kUpdatePositionMaxBatch];
+struct KernelArgs {
+  Segment segments[kMaxBatch];
+  OpDataT data[kMaxBatch];
+
+  // Given a global thread idx, assign it to an item from one of the segments
+  __device__ void AssignBatch(std::size_t idx, int &batch_idx, std::size_t &item_idx) const {
+    std::size_t sum = 0;
+    for (int i = 0; i < kMaxBatch; i++) {
+      if (sum + segments[i].Size() > idx) {
+        batch_idx = i;
+        item_idx = (idx - sum) + segments[i].begin;
+        break;
+      }
+      sum += segments[i].Size();
+    }
+  }
+  std::size_t TotalRows() const {
+    std::size_t total_rows = 0;
+    for (auto segment : segments) {
+      total_rows += segment.Size();
+    }
+    return total_rows;
+  }
 };
 
-template <int kBlockSize, typename OpDataT, typename OpT>
-__global__ void 
-__launch_bounds__(1024, 1)
-UpdatePositionBatchKernel(UpdatePositionBatchArgs<OpDataT> args,
-                                          OpT op, common::Span<bst_uint> ridx,
-                                          common::Span<bst_node_t> position,
-                                          common::Span<int64_t> left_counts) {
+template <typename RowIndexT, typename OpT, typename OpDataT>
+void GetLeftCounts(const KernelArgs<OpDataT>&args,common::Span<RowIndexT> ridx,
+                   common::Span<unsigned long long int> d_left_counts, OpT op
+                   ) {
 
+  // Launch 1 thread for each row
+  dh::LaunchN<1, 128>(args.TotalRows(), [=] __device__(std::size_t idx) {
+    // Assign this thread to a row
+    int batch_idx;
+    std::size_t item_idx;
+    args.AssignBatch(idx, batch_idx, item_idx);
+    auto op_res = op(ridx[item_idx], args.data[batch_idx]);
+    atomicAdd(&d_left_counts[batch_idx], op(ridx[item_idx], args.data[batch_idx]));
+  });
+}
 
-  const auto& segment = args.segments_batch[blockIdx.x];
-  const auto& data = args.data_batch[blockIdx.x];
-  const auto& ridx_segment = ridx.subspan(segment.begin, segment.Size());
-  const auto& position_segment = position.subspan(segment.begin, segment.Size());
+struct IndexFlagTuple {
+  size_t idx;
+  bool flag;
+  size_t flag_scan;
+  int batch_idx;
+};
 
-  auto left_nidx = args.left_nidx_batch[blockIdx.x];
-  auto left_count = dh::BlockPartition<kBlockSize>().Partition(
-      ridx_segment.data(), ridx_segment.data() + ridx_segment.size(),
-      [&] __device__(auto e) { return op(e, data) == left_nidx; });
-
-  if (threadIdx.x == 0) {
-    left_counts[blockIdx.x] = left_count;
+struct IndexFlagOp {
+  __device__ IndexFlagTuple operator()(const IndexFlagTuple& a, const IndexFlagTuple& b) const {
+    if (a.batch_idx == b.batch_idx) {
+      return {b.idx, b.flag, a.flag_scan + b.flag_scan, b.batch_idx};
+    } else {
+      return b;
+    }
   }
+};
+
+template<typename OpDataT,typename OpT>
+struct WriteResultsFunctor {
+  KernelArgs<OpDataT> args;
+  OpT op;
+  common::Span<bst_uint> ridx_in;
+  common::Span<bst_uint> ridx_out;
+  common::Span<unsigned long long int> left_counts;
+
+  __device__ IndexFlagTuple operator()(const IndexFlagTuple& x) {
+    // the ex_scan_result represents how many rows have been assigned to left
+    // node so far during scan.
+    std::size_t scatter_address;
+    if (x.flag) {
+      scatter_address = args.segments[x.batch_idx].begin + x.flag_scan - 1;  // -1 because inclusive scan
+    } else {
+      // current number of rows belong to right node + total number of rows
+      // belong to left node
+      scatter_address  = (x.idx - x.flag_scan) + left_counts[x.batch_idx];
+    }
+    ridx_out[scatter_address] = ridx_in[x.idx];
+    // Discard
+    return {};
+  }
+};
+
+template <typename RowIndexT, typename OpT, typename OpDataT>
+void SortPositionBatch(const KernelArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
+                       common::Span<RowIndexT> ridx_tmp,
+                       common::Span<unsigned long long int> left_counts, OpT op,
+                       cudaStream_t stream) {
+  WriteResultsFunctor<OpDataT,OpT> write_results{args,op,ridx, ridx_tmp, left_counts};
+  auto discard_write_iterator =
+      thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
+  auto counting = thrust::make_counting_iterator(0llu);
+  auto input_iterator =
+      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(size_t idx) {
+        int batch_idx;
+        std::size_t item_idx;
+        args.AssignBatch(idx, batch_idx, item_idx);
+        auto go_left = op(ridx[item_idx], args.data[batch_idx]);
+        return IndexFlagTuple{item_idx, go_left,go_left, batch_idx};
+      });
+  size_t temp_bytes = 0;
+  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator,
+                                 discard_write_iterator, IndexFlagOp(),
+                                 args.TotalRows(), stream);
+  dh::TemporaryArray<int8_t> temp(temp_bytes);
+  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes, input_iterator,
+                                 discard_write_iterator, IndexFlagOp(), args.TotalRows(), stream);
+
+  // copy active segments back to original buffer
+  dh::LaunchN(args.TotalRows(), [=] __device__(std::size_t idx) {
+    // Assign this thread to a row
+    int batch_idx;
+    std::size_t item_idx;
+    args.AssignBatch(idx, batch_idx, item_idx);
+    ridx[item_idx] = ridx_tmp[item_idx];
+  });
 }
 
 /** \brief Class responsible for tracking subsets of rows as we add splits and
@@ -84,6 +171,8 @@ class RowPartitioner {
    * rows idx | 3, 5, 1 | 13, 31 |
    */
   dh::TemporaryArray<RowIndexT> ridx_;
+  // Staging area for sorting ridx
+  dh::TemporaryArray<RowIndexT> ridx_tmp_;
   /*! \brief mapping for row -> node id. */
   dh::TemporaryArray<bst_node_t> position_;
   dh::PinnedMemory pinned_;
@@ -129,31 +218,32 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), left_nidx.size());
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
-    CHECK_LE(nidx.size(), kUpdatePositionMaxBatch);
-    auto left_counts = pinned_.GetSpan<int64_t>(nidx.size(), 0);
+    CHECK_LE(nidx.size(), kMaxBatch);
+    auto h_left_counts = pinned_.GetSpan<int64_t>(nidx.size(), 0);
+    dh::TemporaryArray<unsigned long long int> d_left_counts(nidx.size(), 0);
 
     // Prepare kernel arguments
-    UpdatePositionBatchArgs<OpDataT> args;
-    std::copy(nidx.begin(),nidx.end(),args.nidx_batch);
-    std::copy(left_nidx.begin(),left_nidx.end(),args.left_nidx_batch);
-    std::copy(right_nidx.begin(),right_nidx.end(),args.right_nidx_batch);
-    std::copy(op_data.begin(),op_data.end(),args.data_batch);
-    for(int i = 0; i < nidx.size(); i++){
-      args.segments_batch[i]=ridx_segments_.at(nidx[i]);
+    KernelArgs<OpDataT> args;
+    std::copy(op_data.begin(), op_data.end(), args.data);
+    for (int i = 0; i < nidx.size(); i++) {
+      args.segments[i] = ridx_segments_.at(nidx[i]);
     }
+    GetLeftCounts(args, dh::ToSpan(ridx_), dh::ToSpan(d_left_counts), op);
 
-    // 1 block per node
-    constexpr int kBlockSize = 1024;
-    UpdatePositionBatchKernel<kBlockSize><<<nidx.size(), kBlockSize>>>(
-        args, op, dh::ToSpan(ridx_),
-        dh::ToSpan(position_), left_counts);
+    dh::safe_cuda(
+        cudaMemcpyAsync(h_left_counts.data(), d_left_counts.data().get(),
+                        sizeof(decltype(d_left_counts)::value_type) * d_left_counts.size(),
+                        cudaMemcpyDefault, nullptr));
+
+    SortPositionBatch(args, dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_left_counts), op,
+                      nullptr);
 
     dh::safe_cuda(cudaDeviceSynchronize());
 
     // Update segments
     for (int i = 0; i < nidx.size(); i++) {
       auto segment=ridx_segments_.at(nidx[i]);
-      auto left_count = left_counts[i];
+      auto left_count = h_left_counts[i];
       CHECK_LE(left_count, segment.Size());
       CHECK_GE(left_count, 0);
       ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),

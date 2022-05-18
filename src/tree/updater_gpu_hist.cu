@@ -386,23 +386,17 @@ struct GPUHistMakerDevice {
           // given a row index, returns the node id it belongs to
           bst_float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
-          bst_node_t new_position = 0;
+          bool go_left = true;
           if (isnan(cut_value)) {
-            new_position = data.split_node.DefaultChild();
+            go_left = data.split_node.DefaultLeft();
           } else {
-            bool go_left = true;
             if (data.split_type == FeatureType::kCategorical) {
               go_left = common::Decision<false>(data.node_cats.Bits(), cut_value, data.split_node.DefaultLeft());
             } else {
               go_left = cut_value <= data.split_node.SplitCond();
             }
-            if (go_left) {
-              new_position = data.split_node.LeftChild();
-            } else {
-              new_position = data.split_node.RightChild();
-            }
           }
-          return new_position;
+          return go_left;
         });
   }
 
