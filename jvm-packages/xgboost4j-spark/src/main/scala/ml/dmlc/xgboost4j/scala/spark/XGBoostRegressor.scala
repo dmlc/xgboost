@@ -169,6 +169,11 @@ class XGBoostRegressor (
 
   override protected def train(dataset: Dataset[_]): XGBoostRegressionModel = {
 
+    if (!isDefined(objective)) {
+      // If user doesn't set objective, force it to reg:squarederror
+      setObjective("reg:squarederror")
+    }
+
     if (!isDefined(evalMetric) || $(evalMetric).isEmpty) {
       set(evalMetric, setupDefaultEvalMetric())
     }

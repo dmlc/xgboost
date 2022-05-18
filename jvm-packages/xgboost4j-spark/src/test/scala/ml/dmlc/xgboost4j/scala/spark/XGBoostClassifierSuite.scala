@@ -112,6 +112,34 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     assert(!transformedDf.columns.contains("probability"))
   }
 
+  test("objective will be set if not specifying it") {
+    val training = buildDataFrame(Classification.train)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6",
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
+    val xgb = new XGBoostClassifier(paramMap)
+    assert(!xgb.isDefined(xgb.objective))
+    xgb.fit(training)
+    assert(xgb.getObjective == "binary:logistic")
+
+    val trainingDF = buildDataFrame(MultiClassification.train)
+    val paramMap1 = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "num_class" -> "6", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
+    val xgb1 = new XGBoostClassifier(paramMap1)
+    assert(!xgb1.isDefined(xgb1.objective))
+    xgb1.fit(trainingDF)
+    assert(xgb1.getObjective == "multi:softprob")
+
+    // shouldn't change user's objective setting
+    val paramMap2 = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "num_class" -> "6", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod, "objective" -> "multi:softmax")
+    val xgb2 = new XGBoostClassifier(paramMap2)
+    assert(xgb2.getObjective == "multi:softmax")
+    xgb2.fit(trainingDF)
+    assert(xgb2.getObjective == "multi:softmax")
+  }
+
   test("use base margin") {
     val training1 = buildDataFrame(Classification.train)
     val training2 = training1.withColumn("margin", functions.rand())
