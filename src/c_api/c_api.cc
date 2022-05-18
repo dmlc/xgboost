@@ -862,7 +862,9 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_in
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
-  dynamic_cast<data::DMatrixProxy *>(p_m.get())->SetArrayData(array_interface);
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << "Invalid input type for inplace predict.";
+  proxy->SetArrayData(array_interface);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
@@ -881,7 +883,9 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
   } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
-  dynamic_cast<data::DMatrixProxy *>(p_m.get())->SetCSRData(indptr, indices, data, cols, true);
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << "Invalid input type for inplace predict.";
+  proxy->SetCSRData(indptr, indices, data, cols, true);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();

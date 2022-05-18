@@ -95,26 +95,28 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
   if (!p_m) {
     p_m.reset(new data::DMatrixProxy);
   }
-  dynamic_cast<data::DMatrixProxy *>(p_m.get())->SetData(c_array_interface);
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << "Invalid input type for inplace predict.";
+  proxy->SetData(c_array_interface);
 
   auto config = Json::Load(StringView{c_json_config});
   CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<Learner *>(handle);
 
   HostDeviceVector<float> *p_predt{nullptr};
-  auto type = PredictionType(get<Integer const>(config["type"]));
+  auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   float missing = GetMissing(config);
 
   learner->InplacePredict(p_m, type, missing, &p_predt,
-                          get<Integer const>(config["iteration_begin"]),
-                          get<Integer const>(config["iteration_end"]));
+                          RequiredArg<Integer>(config, "iteration_begin", __func__),
+                          RequiredArg<Integer>(config, "iteration_end", __func__));
   CHECK(p_predt);
   CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
 
   auto &shape = learner->GetThreadLocal().prediction_shape;
   size_t n_samples = p_m->Info().num_row_;
   auto chunksize = n_samples == 0 ? 0 : p_predt->Size() / n_samples;
-  bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
   CalcPredictShape(strict_shape, type, n_samples, p_m->Info().num_col_, chunksize,
                    learner->Groups(), learner->BoostedRounds(), &shape, out_dim);
   *out_shape = dmlc::BeginPtr(shape);
