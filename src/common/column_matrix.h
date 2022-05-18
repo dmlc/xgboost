@@ -16,6 +16,7 @@
 #include <utility>  // std::move
 #include <vector>
 
+#include "../data/adapter.h"
 #include "../data/gradient_index.h"
 #include "hist_util.h"
 
@@ -128,7 +129,7 @@ class DenseColumnIter : public Column<BinIdxT> {
 /**
  * \brief Column major matrix for gradient index. This matrix contains both dense column
  * and sparse column, the type of the column is controlled by sparse threshold. When the
- * number of missing values in a column is below the threshold it classified as dense
+ * number of missing values in a column is below the threshold it's classified as dense
  * column.
  */
 class ColumnMatrix {
@@ -136,9 +137,9 @@ class ColumnMatrix {
   // get number of features
   bst_feature_t GetNumFeature() const { return static_cast<bst_feature_t>(type_.size()); }
 
-  // construct column matrix from GHistIndexMatrix
-  void Init(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
-            int32_t n_threads) {
+  template <typename Batch>
+  void Init(Batch const& batch, float missing, GHistIndexMatrix const& gmat,
+            double sparse_threshold, int32_t n_threads) {
     auto const nfeature = static_cast<bst_feature_t>(gmat.cut.Ptrs().size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
     // identify type of each column
@@ -190,6 +191,7 @@ class ColumnMatrix {
     any_missing_ = !gmat.IsDense();
 
     missing_flags_.clear();
+
     // pre-fill index_ for dense columns
     BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
     if (!any_missing_) {
@@ -197,12 +199,19 @@ class ColumnMatrix {
       // row index is compressed, we need to dispatch it.
       DispatchBinType(gmat_bin_size, [&, nrow, nfeature, n_threads](auto t) {
         using RowBinIdxT = decltype(t);
-        SetIndexNoMissing(page, gmat.index.data<RowBinIdxT>(), nrow, nfeature, n_threads);
+        SetIndexNoMissing(gmat.index.data<RowBinIdxT>(), nrow, nfeature, n_threads);
       });
     } else {
       missing_flags_.resize(feature_offsets_[nfeature], true);
-      SetIndexMixedColumns(page, gmat.index.data<uint32_t>(), gmat, nfeature);
+      SetIndexMixedColumns(batch, gmat.index.data<uint32_t>(), gmat, nfeature, missing);
     }
+  }
+
+  // construct column matrix from GHistIndexMatrix
+  void Init(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
+            int32_t n_threads) {
+    auto batch = data::SparsePageAdapterBatch{page.GetView()};
+    this->Init(batch, std::numeric_limits<float>::quiet_NaN(), gmat, sparse_threshold, n_threads);
   }
 
   /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
@@ -241,8 +250,8 @@ class ColumnMatrix {
   // all columns are dense column and has no missing value
   // FIXME(jiamingy): We don't need a column matrix if there's no missing value.
   template <typename RowBinIdxT>
-  void SetIndexNoMissing(SparsePage const& page, RowBinIdxT const* row_index,
-                         const size_t n_samples, const size_t n_features, int32_t n_threads) {
+  void SetIndexNoMissing(RowBinIdxT const* row_index, const size_t n_samples,
+                         const size_t n_features, int32_t n_threads) {
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
       auto column_index = Span<ColumnBinT>{reinterpret_cast<ColumnBinT*>(index_.data()),
@@ -263,10 +272,12 @@ class ColumnMatrix {
   /**
    * \brief Set column index for both dense and sparse columns
    */
-  void SetIndexMixedColumns(SparsePage const& page, uint32_t const* row_index,
-                            const GHistIndexMatrix& gmat, size_t n_features) {
+  template <typename Batch>
+  void SetIndexMixedColumns(Batch const& batch, uint32_t const* row_index,
+                            const GHistIndexMatrix& gmat, size_t n_features, float missing) {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(n_features, 0);
+    auto is_valid = data::IsValidFunctor {missing};
 
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
@@ -276,7 +287,8 @@ class ColumnMatrix {
         if (type_[fid] == kDenseColumn) {
           ColumnBinT* begin = &local_index[feature_offsets_[fid]];
           begin[rid] = bin_id - index_base_[fid];
-          // not thread-safe with bool vector.
+          // not thread-safe with bool vector.  FIXME(jiamingy): We can directly assign
+          // kMissingId to the index to avoid missing flags.
           missing_flags_[feature_offsets_[fid] + rid] = false;
         } else {
           ColumnBinT* begin = &local_index[feature_offsets_[fid]];
@@ -286,22 +298,18 @@ class ColumnMatrix {
         }
       };
 
-      const xgboost::Entry* data_ptr = page.data.HostVector().data();
-      const std::vector<bst_row_t>& offset_vec = page.offset.HostVector();
       const size_t batch_size = gmat.Size();
-      CHECK_LT(batch_size, offset_vec.size());
+      size_t k{0};
       for (size_t rid = 0; rid < batch_size; ++rid) {
-        const size_t ibegin = gmat.row_ptr[rid];
-        const size_t iend = gmat.row_ptr[rid + 1];
-        const size_t size = offset_vec[rid + 1] - offset_vec[rid];
-        SparsePage::Inst inst = {data_ptr + offset_vec[rid], size};
-
-        CHECK_EQ(ibegin + inst.size(), iend);
-        size_t j = 0;
-        for (size_t i = ibegin; i < iend; ++i, ++j) {
-          const uint32_t bin_id = row_index[i];
-          auto fid = inst[j].index;
-          get_bin_idx(bin_id, rid, fid);
+        auto line = batch.GetLine(rid);
+        for (size_t i = 0; i < line.Size(); ++i) {
+          auto coo = line.GetElement(i);
+          if (is_valid(coo)) {
+            auto fid = coo.column_idx;
+            const uint32_t bin_id = row_index[k];
+            get_bin_idx(bin_id, rid, fid);
+            ++k;
+          }
         }
       }
     });
