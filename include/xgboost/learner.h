@@ -139,9 +139,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*!
    * \brief Inplace prediction.
    *
-   * \param          x           A type erased data adapter.
-   * \param          p_m         An optional Proxy DMatrix object storing meta info like
-   *                             base margin.  Can be nullptr.
+   * \param          p_fmat      A proxy DMatrix that contains the data and related meta info.
    * \param          type        Prediction type.
    * \param          missing     Missing value in the data.
    * \param [in,out] out_preds   Pointer to output prediction vector.

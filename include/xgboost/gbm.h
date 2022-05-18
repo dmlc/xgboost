@@ -111,7 +111,8 @@ class GradientBooster : public Model, public Configurable {
   /*!
    * \brief Inplace prediction.
    *
-   * \param           x                      A type erased data adapter.
+   * \param           p_fmat                 A proxy DMatrix that contains the data and related
+   *                                         meta info.
    * \param           missing                Missing value in the data.
    * \param [in,out]  out_preds              The output preds.
    * \param           layer_begin (Optional) Beginning of boosted tree layer used for prediction.

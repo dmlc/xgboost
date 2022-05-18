@@ -850,7 +850,6 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   *out_shape = dmlc::BeginPtr(shape);
 }
 
-// A hidden API as cache id is not being supported yet.
 XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_interface,
                                       char const *c_json_config, DMatrixHandle m,
                                       xgboost::bst_ulong const **out_shape,
@@ -869,7 +868,6 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_in
   API_END();
 }
 
-// A hidden API as cache id is not being supported yet.
 XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, char const *indices,
                                     char const *data, xgboost::bst_ulong cols,
                                     char const *c_json_config, DMatrixHandle m,
