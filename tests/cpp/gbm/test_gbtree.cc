@@ -313,8 +313,9 @@ class Dart : public testing::TestWithParam<char const*> {
 TEST_P(Dart, Prediction) { this->Run(GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart,
-                         testing::Values("auto", "cpu_predictor",
+                         testing::Values("auto", "cpu_predictor"
 #if defined(XGBOOST_USE_CUDA)
+                                         ,
                                          "gpu_predictor"
 #endif  // defined(XGBOOST_USE_CUDA)
                                          ));
