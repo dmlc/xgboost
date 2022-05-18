@@ -68,6 +68,12 @@ a filename with ``.json`` or ``.ubj`` as file extension, the latter is the exten
 
   xgb.save(bst, 'model_file_name.json')
 
+.. note::
+
+  Only load models from JSON files that were produced by XGBoost. Attempting to load
+  JSON files that were produced by an external source may lead to undefined behaviors
+  and crashes.
+
 While for memory snapshot, UBJSON is the default starting with xgboost 1.6.
 
 ***************************************************************
