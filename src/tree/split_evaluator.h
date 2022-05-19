@@ -162,10 +162,10 @@ class TreeEvaluator {
 
     auto max_nidx = std::max(leftid, rightid);
     if (lower_bounds_.Size() <= max_nidx) {
-      lower_bounds_.Resize(max_nidx * 2 + 1);
+      lower_bounds_.Resize(max_nidx * 2 + 1, -std::numeric_limits<float>::max());
     }
     if (upper_bounds_.Size() <= max_nidx) {
-      upper_bounds_.Resize(max_nidx * 2 + 1);
+      upper_bounds_.Resize(max_nidx * 2 + 1, std::numeric_limits<float>::max());
     }
 
     common::Transform<>::Init(
