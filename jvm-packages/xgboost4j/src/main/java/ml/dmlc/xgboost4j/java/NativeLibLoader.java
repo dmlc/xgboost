@@ -67,6 +67,7 @@ class NativeLibLoader {
     /**
      * Detects the OS using the system properties.
      * Throws IllegalStateException if the OS is not recognized.
+     *
      * @return The OS.
      */
     static OS detectOS() {
@@ -152,6 +153,9 @@ class NativeLibLoader {
     }
   }
 
+  /**
+   * Utility class to determine the path of a native library.
+   */
   static class LibraryPathProvider {
 
     private static final String nativeResourcePath = "/lib";
@@ -161,6 +165,13 @@ class NativeLibLoader {
       return customNativeLibraryPathPropertyPrefix + libName;
     }
 
+    /**
+     * If a library-specific system property is set, this value is
+     * being used without further processing.
+     * Otherwise, the library path depends on the OS and architecture.
+     *
+     * @return path of the native library
+     */
     static String getLibraryPathFor(OS os, Arch arch, String libName) {
 
       String libraryPath = System.getProperty(getPropertyNameForLibrary(libName));
