@@ -154,11 +154,22 @@ class NativeLibLoader {
   static class LibraryPathProvider {
 
     private static final String nativeResourcePath = "/lib";
+    private static final String customNativeLibraryPathPropertyPrefix = "xgboostruntime.native.";
 
     static String getLibraryPathFor(OS os, Arch arch, String libName) {
-      return nativeResourcePath + "/" +
-        getPlatformFor(os, arch) + "/" +
-        System.mapLibraryName(libName);
+
+      String customNativeLibraryPathProperty = customNativeLibraryPathPropertyPrefix + libName;
+      String libraryPath = System.getProperty(customNativeLibraryPathProperty);
+
+      if (libraryPath == null) {
+        libraryPath = nativeResourcePath + "/" +
+                getPlatformFor(os, arch) + "/" +
+                System.mapLibraryName(libName);
+      }
+
+      logger.debug("Using path " + libraryPath + " for library with name " + libName);
+
+      return libraryPath;
     }
 
   }
