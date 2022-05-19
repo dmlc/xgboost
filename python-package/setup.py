@@ -44,6 +44,8 @@ def lib_name() -> str:
         name = 'libxgboost.dylib'
     elif system() == 'Windows':
         name = 'xgboost.dll'
+    elif system() == 'OS400':
+        name = 'libxgboost.so'
     return name
 
 

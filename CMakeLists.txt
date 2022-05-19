@@ -159,6 +159,11 @@ if (USE_OPENMP)
   endif (APPLE)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
+#Add for IBM i
+if (${CMAKE_SYSTEM_NAME} MATCHES "OS400")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+  set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X64 qc <TARGET> <OBJECTS>")
+endif()
 
 if (USE_NCCL)
   find_package(Nccl REQUIRED)
