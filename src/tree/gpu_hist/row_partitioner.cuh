@@ -27,9 +27,9 @@ struct Segment {
 };
 
 
-const int kMaxBatch = 32;
 template <typename OpDataT>
-struct KernelArgs {
+struct KernelBatchArgs {
+  static const int kMaxBatch = 8;
   Segment segments[kMaxBatch];
   OpDataT data[kMaxBatch];
 
@@ -54,14 +54,28 @@ struct KernelArgs {
   }
 };
 
-// Should be 16 bytes aligned
+// We can scan over this tuple, where the scan gives us information on how to partition inputs
+// according to the flag
 struct IndexFlagTuple {
-  bst_uint idx;
-  bst_uint flag_scan;
-  bst_uint segment_start;
-  int16_t batch_idx;
-  bool flag;
+  bst_uint idx;            // The location of the item we are working on in ridx_
+  bst_uint flag_scan;      // This gets populated after scanning
+  bst_uint segment_start;  // Start offset of this node segment
+  int16_t batch_idx;       // Which node in the batch does this item belong to
+  bool flag;               // Result of op (is this item going left?)
 };
+
+struct IndexFlagOp {
+  __device__ IndexFlagTuple operator()(const IndexFlagTuple& a, const IndexFlagTuple& b) const {
+    // Segmented scan - resets if we cross batch boundaries
+    if (a.batch_idx == b.batch_idx) {
+      // Accumulate the flags, everything else stays the same
+      return {b.idx, a.flag_scan + b.flag_scan, b.segment_start, b.batch_idx, b.flag};
+    } else {
+      return b;
+    }
+  }
+};
+
 
 /*! \brief Count how many rows are assigned to left node. */
 __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bool increment,
@@ -83,10 +97,9 @@ __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bo
 }
 
 template <typename RowIndexT, typename OpT, typename OpDataT>
-void GetLeftCounts(const KernelArgs<OpDataT>&args,common::Span<RowIndexT> ridx,common::Span<IndexFlagTuple> scan_tmp,
-                   common::Span<unsigned long long int> d_left_counts, OpT op
-                   ) {
-
+void GetLeftCounts(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
+                   common::Span<IndexFlagTuple> scan_inputs,
+                   common::Span<unsigned long long int> d_left_counts, OpT op) {
   // Launch 1 thread for each row
   dh::LaunchN<1, 128>(args.TotalRows(), [=] __device__(std::size_t idx) {
     // Assign this thread to a row
@@ -94,22 +107,18 @@ void GetLeftCounts(const KernelArgs<OpDataT>&args,common::Span<RowIndexT> ridx,c
     std::size_t item_idx;
     args.AssignBatch(idx, batch_idx, item_idx);
     auto op_res = op(ridx[item_idx], args.data[batch_idx]);
-    scan_tmp[idx] = IndexFlagTuple{bst_uint(item_idx), op_res, bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
+    scan_inputs[idx] = IndexFlagTuple{bst_uint(item_idx), op_res,
+                                      bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
 
-    AtomicIncrement(d_left_counts.data(),op(ridx[item_idx], args.data[batch_idx]), batch_idx);
+    AtomicIncrement(d_left_counts.data(), op(ridx[item_idx], args.data[batch_idx]), batch_idx);
   });
 }
 
-struct IndexFlagOp {
-  __device__ IndexFlagTuple operator()(const IndexFlagTuple& a, const IndexFlagTuple& b) const {
-    if (a.batch_idx == b.batch_idx) {
-      return {b.idx, a.flag_scan + b.flag_scan, b.segment_start, b.batch_idx, b.flag};
-    } else {
-      return b;
-    }
-  }
-};
-
+// This is a transformer output iterator
+// It takes the result of the scan and performs the partition
+// To understand how a scan is used to partition elements see:
+// Harris, Mark, Shubhabrata Sengupta, and John D. Owens. "Parallel prefix sum (scan) with CUDA."
+// GPU gems 3.39 (2007): 851-876.
 struct WriteResultsFunctor {
   bst_uint* ridx_in;
   bst_uint* ridx_out;
@@ -132,10 +141,10 @@ struct WriteResultsFunctor {
   }
 };
 
-template <typename RowIndexT, typename OpT, typename OpDataT>
-void SortPositionBatch(const KernelArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
-                       common::Span<RowIndexT> ridx_tmp, common::Span<IndexFlagTuple> scan_tmp,
-                       common::Span<unsigned long long int> left_counts, OpT op,
+template <typename RowIndexT, typename OpDataT>
+void SortPositionBatch(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
+                       common::Span<RowIndexT> ridx_tmp, common::Span<IndexFlagTuple> scan_inputs,
+                       common::Span<unsigned long long int> left_counts,
                        cudaStream_t stream) {
   static_assert(sizeof(IndexFlagTuple) == 16, "Struct should be 16 bytes aligned.");
   WriteResultsFunctor write_results{ridx.data(), ridx_tmp.data(), left_counts.data()};
@@ -143,16 +152,16 @@ void SortPositionBatch(const KernelArgs<OpDataT>& args, common::Span<RowIndexT> 
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
   size_t temp_bytes = 0;
-  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, scan_tmp.data(),
+  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, scan_inputs.data(),
                                  discard_write_iterator, IndexFlagOp(),
                                  args.TotalRows(), stream);
   dh::TemporaryArray<int8_t> temp(temp_bytes);
-  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes,  scan_tmp.data(),
+  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes,  scan_inputs.data(),
                                  discard_write_iterator, IndexFlagOp(), args.TotalRows(), stream);
 
   // copy active segments back to original buffer
   dh::LaunchN(args.TotalRows(), [=] __device__(std::size_t idx) {
-    auto item_idx = scan_tmp[idx].idx;
+    auto item_idx = scan_inputs[idx].idx;
     ridx[item_idx] = ridx_tmp[item_idx];
   });
 }
@@ -183,7 +192,7 @@ class RowPartitioner {
   dh::TemporaryArray<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
-  dh::TemporaryArray<IndexFlagTuple> scan_tmp_;
+  dh::TemporaryArray<IndexFlagTuple> scan_inputs_;
   /*! \brief mapping for row -> node id. */
   dh::TemporaryArray<bst_node_t> position_;
   dh::PinnedMemory pinned_;
@@ -226,43 +235,59 @@ class RowPartitioner {
                            const std::vector<bst_node_t>& right_nidx,
                            const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
     if (nidx.empty()) return;
-    // Impose this limit because we are passing arguments for each node to the kernel by parameter
-    // this avoids memcpy but we cannot pass arbitrary number of arguments
     CHECK_EQ(nidx.size(), left_nidx.size());
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
-    CHECK_LE(nidx.size(), kMaxBatch);
-    auto h_left_counts = pinned_.GetSpan<int64_t>(nidx.size(), 0);
-    dh::TemporaryArray<unsigned long long int> d_left_counts(nidx.size(), 0);
 
-    // Prepare kernel arguments
-    KernelArgs<OpDataT> args;
-    std::copy(op_data.begin(), op_data.end(), args.data);
-    for (int i = 0; i < nidx.size(); i++) {
-      args.segments[i] = ridx_segments_.at(nidx[i]);
-    }
-    GetLeftCounts(args, dh::ToSpan(ridx_), dh::ToSpan(scan_tmp_), dh::ToSpan(d_left_counts), op);
+    // Process nodes in batches to amortise the fixed latency costs of launching kernels and copying
+    // memory from device to host
+    for (std::size_t batch_start = 0; batch_start < nidx.size();
+         batch_start += KernelBatchArgs<OpDataT>::kMaxBatch) {
+      // Temporary arrays
+      auto h_left_counts = pinned_.GetSpan<int64_t>(KernelBatchArgs<OpDataT>::kMaxBatch, 0);
+      dh::TemporaryArray<unsigned long long int> d_left_counts(KernelBatchArgs<OpDataT>::kMaxBatch, 0);
 
-    dh::safe_cuda(
-        cudaMemcpyAsync(h_left_counts.data(), d_left_counts.data().get(),
-                        sizeof(decltype(d_left_counts)::value_type) * d_left_counts.size(),
-                        cudaMemcpyDefault, streams_[0]));
+      std::size_t batch_end = std::min(batch_start + KernelBatchArgs<OpDataT>::kMaxBatch, nidx.size());
+      // Prepare kernel arguments
+      KernelBatchArgs<OpDataT> args;
+      std::copy(op_data.begin() + batch_start, op_data.begin() + batch_end, args.data);
+      for (int i = 0; i < (batch_end - batch_start); i++) {
+        args.segments[i] = ridx_segments_.at(nidx[batch_start + i]);
+      }
 
-    SortPositionBatch(args, dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(scan_tmp_),
-                      dh::ToSpan(d_left_counts), op, streams_[1]);
+      // Evaluate the operator for each row, where true means 'go left'
+      // Store the result of the operator for the next step
+      // Count the number of rows going left, store in d_left_counts
+      GetLeftCounts(args, dh::ToSpan(ridx_), dh::ToSpan(scan_inputs_), dh::ToSpan(d_left_counts), op);
 
-    dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
+      // Start copying the counts to the host
+      // We overlap this transfer with the sort step using streams
+      // We only need the result after sorting to update the segment boundaries
+      dh::safe_cuda(
+          cudaMemcpyAsync(h_left_counts.data(), d_left_counts.data().get(),
+                          sizeof(decltype(d_left_counts)::value_type) * d_left_counts.size(),
+                          cudaMemcpyDefault, streams_[0]));
 
-    // Update segments
-    for (int i = 0; i < nidx.size(); i++) {
-      auto segment = ridx_segments_.at(nidx[i]);
-      auto left_count = h_left_counts[i];
-      CHECK_LE(left_count, segment.Size());
-      CHECK_GE(left_count, 0);
-      ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
-                                     std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[left_nidx[i]] = Segment(segment.begin, segment.begin + left_count);
-      ridx_segments_[right_nidx[i]] = Segment(segment.begin + left_count, segment.end);
+      // Partition the rows according to the operator
+      SortPositionBatch(args, dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(scan_inputs_),
+                        dh::ToSpan(d_left_counts), streams_[1]);
+
+      dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
+
+      // Update segments
+      for (int i = 0; i < (batch_end - batch_start); i++) {
+        auto segment = ridx_segments_.at(nidx[batch_start + i]);
+        auto left_count = h_left_counts[i];
+        CHECK_LE(left_count, segment.Size());
+        CHECK_GE(left_count, 0);
+        ridx_segments_.resize(
+            std::max(static_cast<bst_node_t>(ridx_segments_.size()),
+                     std::max(left_nidx[batch_start + i], right_nidx[batch_start + i]) + 1));
+        ridx_segments_[left_nidx[batch_start + i]] =
+            Segment(segment.begin, segment.begin + left_count);
+        ridx_segments_[right_nidx[batch_start + i]] =
+            Segment(segment.begin + left_count, segment.end);
+      }
     }
   }
 

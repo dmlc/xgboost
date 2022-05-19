@@ -117,11 +117,11 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op = [=] __device__(auto ridx, int data) { return ridx % 2 == 0; };
   std::vector<int> op_data(segments.size());
-  KernelArgs<int> args;
+  KernelBatchArgs<int> args;
   std::copy(segments.begin(), segments.end(), args.segments);
   std::copy(op_data.begin(), op_data.end(), args.data);
   GetLeftCounts(args, dh::ToSpan(ridx), dh::ToSpan(scan_tmp),dh::ToSpan(left_counts), op);
-  SortPositionBatch(args, dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(scan_tmp), dh::ToSpan(left_counts), op,
+  SortPositionBatch(args, dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(scan_tmp), dh::ToSpan(left_counts), 
                     nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
