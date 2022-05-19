@@ -223,7 +223,7 @@ struct GPUHistMakerDevice {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
     }
-    node_sum_gradients.resize(param.MaxNodes());
+    node_sum_gradients.resize(256);
 
     // Init histogram
     hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
@@ -625,12 +625,17 @@ struct GPUHistMakerDevice {
     }
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
-    node_sum_gradients[tree[candidate.nid].LeftChild()] = candidate.split.left_sum;
-    node_sum_gradients[tree[candidate.nid].RightChild()] = candidate.split.right_sum;
+    const auto& parent = tree[candidate.nid];
+    std::size_t max_nidx = std::max(parent.LeftChild(), parent.RightChild());
+    // Grow as needed
+    if (node_sum_gradients.size() <= max_nidx) {
+      node_sum_gradients.resize(max_nidx * 2 + 1);
+    }
+    node_sum_gradients[parent.LeftChild()] = candidate.split.left_sum;
+    node_sum_gradients[parent.RightChild()] = candidate.split.right_sum;
 
-    interaction_constraints.Split(candidate.nid, tree[candidate.nid].SplitIndex(),
-                                  tree[candidate.nid].LeftChild(),
-                                  tree[candidate.nid].RightChild());
+    interaction_constraints.Split(candidate.nid, parent.SplitIndex(), parent.LeftChild(),
+                                  parent.RightChild());
   }
 
   GPUExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
