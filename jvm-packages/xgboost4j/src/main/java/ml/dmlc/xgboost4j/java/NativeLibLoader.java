@@ -32,6 +32,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import static ml.dmlc.xgboost4j.java.NativeLibLoader.LibraryPathProvider.getLibraryPathFor;
+import static ml.dmlc.xgboost4j.java.NativeLibLoader.LibraryPathProvider.getPropertyNameForLibrary;
 
 /**
  * class to load native library
@@ -156,10 +157,13 @@ class NativeLibLoader {
     private static final String nativeResourcePath = "/lib";
     private static final String customNativeLibraryPathPropertyPrefix = "xgboostruntime.native.";
 
+    static String getPropertyNameForLibrary(String libName) {
+      return customNativeLibraryPathPropertyPrefix + libName;
+    }
+
     static String getLibraryPathFor(OS os, Arch arch, String libName) {
 
-      String customNativeLibraryPathProperty = customNativeLibraryPathPropertyPrefix + libName;
-      String libraryPath = System.getProperty(customNativeLibraryPathProperty);
+      String libraryPath = System.getProperty(getPropertyNameForLibrary(libName));
 
       if (libraryPath == null) {
         libraryPath = nativeResourcePath + "/" +
@@ -216,8 +220,9 @@ class NativeLibLoader {
               logger.error(failureMessageIncludingOpenMPHint);
               logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
                   "manager.");
-              logger.error("Alternatively, your Linux OS is musl-based " +
-                  "but wasn't detected as such.");
+              logger.error("Alternatively, if your Linux OS is musl-based, you should set " +
+                      "the path for the native library " + libName + " " +
+                      "via the system property " + getPropertyNameForLibrary(libName));
               break;
             case LINUX_MUSL:
               logger.error(failureMessageIncludingOpenMPHint);
