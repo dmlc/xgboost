@@ -31,6 +31,8 @@ import java.util.stream.Stream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import static ml.dmlc.xgboost4j.java.NativeLibLoader.LibraryPathProvider.getLibraryPathFor;
+
 /**
  * class to load native library
  *
@@ -149,8 +151,19 @@ class NativeLibLoader {
     }
   }
 
+  static class LibraryPathProvider {
+
+    private static final String nativeResourcePath = "/lib";
+
+    static String getLibraryPathFor(OS os, Arch arch, String libName) {
+      return nativeResourcePath + "/" +
+        getPlatformFor(os, arch) + "/" +
+        System.mapLibraryName(libName);
+    }
+
+  }
+
   private static boolean initialized = false;
-  private static final String nativeResourcePath = "/lib";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
   /**
@@ -168,16 +181,14 @@ class NativeLibLoader {
     if (!initialized) {
       OS os = OS.detectOS();
       Arch arch = Arch.detectArch();
-      String platform = os.name + "/" + arch.name;
       for (String libName : libNames) {
         try {
-          String libraryPathInJar = nativeResourcePath + "/" +
-              platform + "/" + System.mapLibraryName(libName);
+          String libraryPathInJar = getLibraryPathFor(os, arch, libName);
           loadLibraryFromJar(libraryPathInJar);
         } catch (UnsatisfiedLinkError ule) {
           String failureMessageIncludingOpenMPHint = "Failed to load " + libName + " " +
               "due to missing native dependencies for " +
-              "platform " + platform + ", " +
+              "platform " + getPlatformFor(os, arch) + ", " +
               "this is likely due to a missing OpenMP dependency";
 
           switch (os) {
@@ -212,7 +223,8 @@ class NativeLibLoader {
           }
           throw ule;
         } catch (IOException ioe) {
-          logger.error("Failed to load " + libName + " library from jar for platform " + platform);
+          logger.error("Failed to load " + libName + " library from jar for platform " +
+                  getPlatformFor(os, arch));
           throw ioe;
         }
       }
@@ -305,6 +317,10 @@ class NativeLibLoader {
     }
 
     return temp.getAbsolutePath();
+  }
+
+  private static String getPlatformFor(OS os, Arch arch) {
+    return os.name + "/" + arch.name;
   }
 
 }
