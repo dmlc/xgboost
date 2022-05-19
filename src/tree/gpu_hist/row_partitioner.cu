@@ -20,11 +20,22 @@ void Reset(int device_idx, common::Span<RowPartitioner::RowIndexT> ridx,
 }
 
 RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
-    : device_idx_(device_idx), ridx_(num_rows),ridx_tmp_(num_rows),position_(num_rows) {
+    : device_idx_(device_idx), ridx_(num_rows),ridx_tmp_(num_rows),scan_tmp_(num_rows),position_(num_rows) {
   dh::safe_cuda(cudaSetDevice(device_idx_));
   ridx_segments_.emplace_back(Segment(0, num_rows));
 
   Reset(device_idx, dh::ToSpan(ridx_), dh::ToSpan(position_));
+  streams_.resize(2);
+  for (auto& stream : streams_) {
+    dh::safe_cuda(cudaStreamCreate(&stream));
+  }
+}
+
+RowPartitioner::~RowPartitioner() {
+  dh::safe_cuda(cudaSetDevice(device_idx_));
+  for (auto& stream : streams_) {
+    dh::safe_cuda(cudaStreamDestroy(stream));
+  }
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(

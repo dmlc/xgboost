@@ -34,9 +34,9 @@ struct KernelArgs {
   OpDataT data[kMaxBatch];
 
   // Given a global thread idx, assign it to an item from one of the segments
-  __device__ void AssignBatch(std::size_t idx, int &batch_idx, std::size_t &item_idx) const {
+  __device__ void AssignBatch(std::size_t idx, int16_t &batch_idx, std::size_t &item_idx) const {
     std::size_t sum = 0;
-    for (int i = 0; i < kMaxBatch; i++) {
+    for (int16_t i = 0; i < kMaxBatch; i++) {
       if (sum + segments[i].Size() > idx) {
         batch_idx = i;
         item_idx = (idx - sum) + segments[i].begin;
@@ -54,53 +54,73 @@ struct KernelArgs {
   }
 };
 
+// Should be 16 bytes aligned
+struct IndexFlagTuple {
+  bst_uint idx;
+  bst_uint flag_scan;
+  bst_uint segment_start;
+  int16_t batch_idx;
+  bool flag;
+};
+
+/*! \brief Count how many rows are assigned to left node. */
+__forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bool increment,
+                                                int batch_idx) {
+  int mask = __activemask();
+  bool group_is_contiguous = __all_sync(mask, batch_idx == __shfl_sync(mask, batch_idx, 0));
+  // If all threads here are working on the same node
+  // we can do a more efficient reduction with warp intrinsics
+  if (group_is_contiguous) {
+    unsigned ballot = __ballot_sync(mask, increment);
+    int leader = __ffs(mask) - 1;
+    if (threadIdx.x % 32 == leader) {
+      atomicAdd(d_counts + batch_idx,  // NOLINT
+                __popc(ballot));   // NOLINT
+    }
+  } else {
+    atomicAdd(d_counts + batch_idx, increment);
+  }
+}
+
 template <typename RowIndexT, typename OpT, typename OpDataT>
-void GetLeftCounts(const KernelArgs<OpDataT>&args,common::Span<RowIndexT> ridx,
+void GetLeftCounts(const KernelArgs<OpDataT>&args,common::Span<RowIndexT> ridx,common::Span<IndexFlagTuple> scan_tmp,
                    common::Span<unsigned long long int> d_left_counts, OpT op
                    ) {
 
   // Launch 1 thread for each row
   dh::LaunchN<1, 128>(args.TotalRows(), [=] __device__(std::size_t idx) {
     // Assign this thread to a row
-    int batch_idx;
+    int16_t batch_idx;
     std::size_t item_idx;
     args.AssignBatch(idx, batch_idx, item_idx);
     auto op_res = op(ridx[item_idx], args.data[batch_idx]);
-    atomicAdd(&d_left_counts[batch_idx], op(ridx[item_idx], args.data[batch_idx]));
+    scan_tmp[idx] = IndexFlagTuple{bst_uint(item_idx), op_res, bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
+
+    AtomicIncrement(d_left_counts.data(),op(ridx[item_idx], args.data[batch_idx]), batch_idx);
   });
 }
-
-struct IndexFlagTuple {
-  size_t idx;
-  bool flag;
-  size_t flag_scan;
-  int batch_idx;
-};
 
 struct IndexFlagOp {
   __device__ IndexFlagTuple operator()(const IndexFlagTuple& a, const IndexFlagTuple& b) const {
     if (a.batch_idx == b.batch_idx) {
-      return {b.idx, b.flag, a.flag_scan + b.flag_scan, b.batch_idx};
+      return {b.idx, a.flag_scan + b.flag_scan, b.segment_start, b.batch_idx, b.flag};
     } else {
       return b;
     }
   }
 };
 
-template<typename OpDataT,typename OpT>
 struct WriteResultsFunctor {
-  KernelArgs<OpDataT> args;
-  OpT op;
-  common::Span<bst_uint> ridx_in;
-  common::Span<bst_uint> ridx_out;
-  common::Span<unsigned long long int> left_counts;
+  bst_uint* ridx_in;
+  bst_uint* ridx_out;
+  unsigned long long int* left_counts;
 
   __device__ IndexFlagTuple operator()(const IndexFlagTuple& x) {
     // the ex_scan_result represents how many rows have been assigned to left
     // node so far during scan.
     std::size_t scatter_address;
     if (x.flag) {
-      scatter_address = args.segments[x.batch_idx].begin + x.flag_scan - 1;  // -1 because inclusive scan
+      scatter_address = x.segment_start + x.flag_scan - 1;  // -1 because inclusive scan
     } else {
       // current number of rows belong to right node + total number of rows
       // belong to left node
@@ -114,35 +134,25 @@ struct WriteResultsFunctor {
 
 template <typename RowIndexT, typename OpT, typename OpDataT>
 void SortPositionBatch(const KernelArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
-                       common::Span<RowIndexT> ridx_tmp,
+                       common::Span<RowIndexT> ridx_tmp, common::Span<IndexFlagTuple> scan_tmp,
                        common::Span<unsigned long long int> left_counts, OpT op,
                        cudaStream_t stream) {
-  WriteResultsFunctor<OpDataT,OpT> write_results{args,op,ridx, ridx_tmp, left_counts};
+  static_assert(sizeof(IndexFlagTuple) == 16, "Struct should be 16 bytes aligned.");
+  WriteResultsFunctor write_results{ridx.data(), ridx_tmp.data(), left_counts.data()};
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
-  auto input_iterator =
-      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(size_t idx) {
-        int batch_idx;
-        std::size_t item_idx;
-        args.AssignBatch(idx, batch_idx, item_idx);
-        auto go_left = op(ridx[item_idx], args.data[batch_idx]);
-        return IndexFlagTuple{item_idx, go_left,go_left, batch_idx};
-      });
   size_t temp_bytes = 0;
-  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator,
+  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, scan_tmp.data(),
                                  discard_write_iterator, IndexFlagOp(),
                                  args.TotalRows(), stream);
   dh::TemporaryArray<int8_t> temp(temp_bytes);
-  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes, input_iterator,
+  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes,  scan_tmp.data(),
                                  discard_write_iterator, IndexFlagOp(), args.TotalRows(), stream);
 
   // copy active segments back to original buffer
   dh::LaunchN(args.TotalRows(), [=] __device__(std::size_t idx) {
-    // Assign this thread to a row
-    int batch_idx;
-    std::size_t item_idx;
-    args.AssignBatch(idx, batch_idx, item_idx);
+    auto item_idx = scan_tmp[idx].idx;
     ridx[item_idx] = ridx_tmp[item_idx];
   });
 }
@@ -173,12 +183,15 @@ class RowPartitioner {
   dh::TemporaryArray<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
+  dh::TemporaryArray<IndexFlagTuple> scan_tmp_;
   /*! \brief mapping for row -> node id. */
   dh::TemporaryArray<bst_node_t> position_;
   dh::PinnedMemory pinned_;
+  std::vector<cudaStream_t> streams_;
 
  public:
   RowPartitioner(int device_idx, size_t num_rows);
+   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;
 
@@ -228,21 +241,21 @@ class RowPartitioner {
     for (int i = 0; i < nidx.size(); i++) {
       args.segments[i] = ridx_segments_.at(nidx[i]);
     }
-    GetLeftCounts(args, dh::ToSpan(ridx_), dh::ToSpan(d_left_counts), op);
+    GetLeftCounts(args, dh::ToSpan(ridx_), dh::ToSpan(scan_tmp_), dh::ToSpan(d_left_counts), op);
 
     dh::safe_cuda(
         cudaMemcpyAsync(h_left_counts.data(), d_left_counts.data().get(),
                         sizeof(decltype(d_left_counts)::value_type) * d_left_counts.size(),
-                        cudaMemcpyDefault, nullptr));
+                        cudaMemcpyDefault, streams_[0]));
 
-    SortPositionBatch(args, dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_left_counts), op,
-                      nullptr);
+    SortPositionBatch(args, dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(scan_tmp_),
+                      dh::ToSpan(d_left_counts), op, streams_[1]);
 
-    dh::safe_cuda(cudaDeviceSynchronize());
+    dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
 
     // Update segments
     for (int i = 0; i < nidx.size(); i++) {
-      auto segment=ridx_segments_.at(nidx[i]);
+      auto segment = ridx_segments_.at(nidx[i]);
       auto left_count = h_left_counts[i];
       CHECK_LE(left_count, segment.Size());
       CHECK_GE(left_count, 0);

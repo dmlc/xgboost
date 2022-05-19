@@ -113,14 +113,15 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   thrust::device_vector<uint32_t> ridx = ridx_in;
   thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());
   thrust::device_vector<unsigned long long int> left_counts(segments.size());
+  thrust::device_vector<IndexFlagTuple> scan_tmp(ridx_in.size());
 
   auto op = [=] __device__(auto ridx, int data) { return ridx % 2 == 0; };
   std::vector<int> op_data(segments.size());
   KernelArgs<int> args;
   std::copy(segments.begin(), segments.end(), args.segments);
   std::copy(op_data.begin(), op_data.end(), args.data);
-  GetLeftCounts(args, dh::ToSpan(ridx), dh::ToSpan(left_counts), op);
-  SortPositionBatch(args, dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(left_counts), op,
+  GetLeftCounts(args, dh::ToSpan(ridx), dh::ToSpan(scan_tmp),dh::ToSpan(left_counts), op);
+  SortPositionBatch(args, dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(scan_tmp), dh::ToSpan(left_counts), op,
                     nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
