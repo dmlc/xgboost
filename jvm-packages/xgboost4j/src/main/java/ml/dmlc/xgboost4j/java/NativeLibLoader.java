@@ -21,12 +21,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Locale;
-import java.util.Optional;
-import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,8 +37,6 @@ import static ml.dmlc.xgboost4j.java.NativeLibLoader.LibraryPathProvider.getProp
 class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
-  private static Path mappedFilesBaseDir = Paths.get("/proc/self/map_files");
-
   /**
    * Supported OS enum.
    */
@@ -51,17 +44,12 @@ class NativeLibLoader {
     WINDOWS("windows"),
     MACOS("macos"),
     LINUX("linux"),
-    LINUX_MUSL("linux-musl"),
     SOLARIS("solaris");
 
     final String name;
 
     OS(String name) {
       this.name = name;
-    }
-
-    static void setMappedFilesBaseDir(Path baseDir) {
-      mappedFilesBaseDir = baseDir;
     }
 
     /**
@@ -77,44 +65,11 @@ class NativeLibLoader {
       } else if (os.contains("win")) {
         return WINDOWS;
       } else if (os.contains("nux")) {
-        return isMuslBased() ? LINUX_MUSL : LINUX;
+        return LINUX;
       } else if (os.contains("sunos")) {
         return SOLARIS;
       } else {
         throw new IllegalStateException("Unsupported OS:" + os);
-      }
-    }
-
-    /**
-     * Checks if the Linux OS is musl based. For this, we check the memory-mapped
-     * filenames and see if one of those contains the string "musl".
-     *
-     * @return true if the Linux OS is musl based, false otherwise.
-     */
-    static boolean isMuslBased() {
-      try (Stream<Path> dirStream = Files.list(mappedFilesBaseDir)) {
-        Optional<String> muslRelatedMemoryMappedFilename = dirStream
-            .map(OS::toRealPath)
-            .filter(s -> s.toLowerCase().contains("musl"))
-            .findFirst();
-
-        muslRelatedMemoryMappedFilename.ifPresent(muslFilename -> {
-          logger.debug("Assuming that detected Linux OS is musl-based, "
-              + "because a memory-mapped file '" + muslFilename + "' was found.");
-        });
-
-        return muslRelatedMemoryMappedFilename.isPresent();
-      } catch (Exception ignored) {
-        // ignored
-      }
-      return false;
-    }
-
-    private static String toRealPath(Path path) {
-      try {
-        return path.toRealPath().toString();
-      } catch (IOException e) {
-        return "";
       }
     }
 
@@ -234,13 +189,6 @@ class NativeLibLoader {
               logger.error("Alternatively, if your Linux OS is musl-based, you should set " +
                       "the path for the native library " + libName + " " +
                       "via the system property " + getPropertyNameForLibrary(libName));
-              break;
-            case LINUX_MUSL:
-              logger.error(failureMessageIncludingOpenMPHint);
-              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
-                  "manager.");
-              logger.error("Alternatively, your Linux OS was wrongly detected as musl-based, " +
-                  "although it is not.");
               break;
             case SOLARIS:
               logger.error(failureMessageIncludingOpenMPHint);
