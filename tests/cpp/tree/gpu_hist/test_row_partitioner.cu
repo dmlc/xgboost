@@ -87,5 +87,27 @@ TEST(GpuHist, SortPositionBatch) {
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
 }
 
+void TestAtomicIncrement(const std::vector<int>& group_in, const std::vector<int>& increment_in) {
+  thrust::device_vector<int> group(group_in);
+  thrust::device_vector<int> increment(increment_in);
+  thrust::device_vector<unsigned long long> reference(group_in.size());
+  thrust::device_vector<unsigned long long> result(group_in.size());
+
+  auto d_group = group.data().get();
+  auto d_increment = increment.data().get();
+  auto d_reference = reference.data().get();
+  auto d_result = result.data().get();
+  dh::LaunchN(group.size(), [=] __device__(std::size_t idx) {
+    AtomicIncrement(d_result, d_increment[idx], d_group[idx]);
+    atomicAdd(d_reference + d_group[idx], d_increment[idx]);
+  });
+
+  EXPECT_EQ(reference, result);
+}
+
+TEST(GpuHist, AtomicIncrement) {
+  TestAtomicIncrement({0, 0, 0}, {1, 0, 1});
+  TestAtomicIncrement({0, 0, 1}, {1, 0, 1});
+}
 }  // namespace tree
 }  // namespace xgboost

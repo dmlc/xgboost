@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <thrust/device_vector.h>
-#include <thrust/random.h>
 #include <vector>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
@@ -265,82 +264,4 @@ void TestAtomicAdd() {
 TEST(AtomicAdd, Int64) {
   TestAtomicAdd();
 }
-
-template <int kBlockSize, typename OpT>
-__global__ void TestBlockPartitionKernel(int* begin, int* end, std::size_t* count_out, OpT op) {
-  auto count = dh::BlockPartition<kBlockSize>().Partition(begin, end, op);
-  if (threadIdx.x == 0) {
-    *count_out = count;
-  }
-}
-
-template <int kBlockSize>
-void TestBlockPartition(thrust::device_vector<int>& x) {
-  thrust::device_vector<std::size_t> count(1);
-
-  auto op = [] __device__(int y) { return y % 2 == 0; };
-  TestBlockPartitionKernel<kBlockSize>
-      <<<1, kBlockSize>>>(x.data().get(), x.data().get() + x.size(), count.data().get(), op);
-
-  auto reference = thrust::count_if(x.begin(), x.end(), op);
-  EXPECT_EQ(count[0], reference);
-
-  auto left_partition_count = thrust::count_if(x.begin(), x.begin() + count[0], op);
-  EXPECT_EQ(count[0], left_partition_count);
-  auto right_partition_count = thrust::count_if(x.begin() + count[0], x.end(), op);
-  EXPECT_EQ(0, right_partition_count);
-}
-
-TEST(BlockPartition, BlockPartitionEmpty) {
-  thrust::device_vector<int> x;
-  TestBlockPartition<256>(x);
-}
-
-TEST(BlockPartition, BlockPartitionUniform) {
-  thrust::device_vector<int> x(100);
-  TestBlockPartition<256>(x);
-  thrust::fill(x.begin(),x.end(),1);
-  TestBlockPartition<256>(x);
-}
-
-void MakeRandom(thrust::device_vector<int>& x, int seed) {
-  auto counting = thrust::make_counting_iterator(0);
-  thrust::transform(counting, counting + x.size(), x.begin(), [=] __device__(auto idx) {
-    thrust::default_random_engine gen(seed);
-    thrust::uniform_int_distribution<int> dist;
-    gen.discard(idx);
-    return dist(gen);
-  });
-}
-
-TEST(BlockPartition, BlockPartitionBasic) {
-  thrust::device_vector<int> x = std::vector<int>{0,1,2};
-  TestBlockPartition<256>(x);
-}
-
-TEST(BlockPartition, BlockPartition) {
-  int sizes[] = {1, 37, 1092};
-  int seeds[] = {0, 1, 2, 3, 4};
-  for (auto seed : seeds) {
-    for (auto size : sizes) {
-      thrust::device_vector<int> x(size);
-      MakeRandom(x, seed);
-      thrust::device_vector<int> y = x;
-      TestBlockPartition<1>(y);
-      y = x;
-      TestBlockPartition<1024>(y);
-      y = x;
-      TestBlockPartition<37>(y);
-    }
-  }
-}
-
-TEST(BlockPartition, BlockPartitionBenchmark) {
-  for (int i = 0; i < 20; i++) {
-    thrust::device_vector<int> x(10000000);
-    MakeRandom(x, i);
-    TestBlockPartition<1024>(x);
-  }
-}
-
 }  // namespace xgboost

@@ -29,7 +29,7 @@ struct Segment {
 
 template <typename OpDataT>
 struct KernelBatchArgs {
-  static const int kMaxBatch = 8;
+  static const int kMaxBatch = 32;
   Segment segments[kMaxBatch];
   OpDataT data[kMaxBatch];
 
@@ -81,12 +81,12 @@ struct IndexFlagOp {
 __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bool increment,
                                                 int batch_idx) {
   int mask = __activemask();
-  bool group_is_contiguous = __all_sync(mask, batch_idx == __shfl_sync(mask, batch_idx, 0));
+  int leader = __ffs(mask) - 1;
+  bool group_is_contiguous = __all_sync(mask, batch_idx == __shfl_sync(mask, batch_idx, leader));
   // If all threads here are working on the same node
   // we can do a more efficient reduction with warp intrinsics
   if (group_is_contiguous) {
     unsigned ballot = __ballot_sync(mask, increment);
-    int leader = __ffs(mask) - 1;
     if (threadIdx.x % 32 == leader) {
       atomicAdd(d_counts + batch_idx,  // NOLINT
                 __popc(ballot));   // NOLINT
@@ -197,7 +197,7 @@ class RowPartitioner {
 
  public:
   RowPartitioner(int device_idx, size_t num_rows);
-   ~RowPartitioner();
+  ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;
 
