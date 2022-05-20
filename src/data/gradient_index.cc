@@ -60,7 +60,7 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
 GHistIndexMatrix::~GHistIndexMatrix() = default;
 
 void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureType const> ft,
-                                 uint32_t nbins, int32_t n_threads) {
+                                 bst_bin_t n_total_bins, int32_t n_threads) {
   auto page = batch.GetView();
   auto it = common::MakeIndexTransformIter([&](size_t ridx) { return page[ridx].size(); });
   common::PartialSum(n_threads, it, it + page.Size(), static_cast<size_t>(0), row_ptr.begin());
@@ -79,44 +79,33 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureTy
   }
   uint32_t const *offsets = index.Offset();
 
+  auto n_bins_total = cut.TotalBins();
+  auto is_valid = [](auto) { return true; };  // SparsePage always contains valid entries
+  data::SparsePageAdapterBatch adapter_batch{page};
   if (isDense_) {
     // Inside the lambda functions, bin_idx is the index for cut value across all
     // features. By subtracting it with starting pointer of each feature, we can reduce
     // it to smaller value and compress it to smaller types.
-    common::BinTypeSize curent_bin_size = index.GetBinTypeSize();
-    if (curent_bin_size == common::kUint8BinsTypeSize) {
-      common::Span<uint8_t> index_data_span = {index.data<uint8_t>(), n_index};
-      SetIndexData(index_data_span, ft, batch_threads, batch, nbins,
-                   [offsets](auto bin_idx, auto fidx) {
-                     return static_cast<uint8_t>(bin_idx - offsets[fidx]);
-                   });
-    } else if (curent_bin_size == common::kUint16BinsTypeSize) {
-      common::Span<uint16_t> index_data_span = {index.data<uint16_t>(), n_index};
-      SetIndexData(index_data_span, ft, batch_threads, batch, nbins,
-                   [offsets](auto bin_idx, auto fidx) {
-                     return static_cast<uint16_t>(bin_idx - offsets[fidx]);
-                   });
-    } else {
-      CHECK_EQ(curent_bin_size, common::kUint32BinsTypeSize);
-      common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
-      SetIndexData(index_data_span, ft, batch_threads, batch, nbins,
-                   [offsets](auto bin_idx, auto fidx) {
-                     return static_cast<uint32_t>(bin_idx - offsets[fidx]);
-                   });
-    }
+    common::DispatchBinType(index.GetBinTypeSize(), [&](auto dtype) {
+      using T = decltype(dtype);
+      common::Span<T> index_data_span = {index.data<T>(), index.Size()};
+      SetIndexData(
+          index_data_span, {}, batch_threads, adapter_batch, is_valid, n_bins_total,
+          [offsets](auto bin_idx, auto fidx) { return static_cast<T>(bin_idx - offsets[fidx]); });
+    });
   } else {
     /* For sparse DMatrix we have to store index of feature for each bin
        in index field to chose right offset. So offset is nullptr and index is
        not reduced */
     common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
-    SetIndexData(index_data_span, ft, batch_threads, batch, nbins,
+    SetIndexData(index_data_span, {}, batch_threads, adapter_batch, is_valid, n_bins_total,
                  [](auto idx, auto) { return idx; });
   }
 
-  common::ParallelFor(nbins, n_threads, [&](bst_omp_uint idx) {
+  common::ParallelFor(n_total_bins, n_threads, [&](bst_omp_uint idx) {
     for (int32_t tid = 0; tid < n_threads; ++tid) {
-      hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
-      hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
+      hit_count[idx] += hit_count_tloc_[tid * n_total_bins + idx];
+      hit_count_tloc_[tid * n_total_bins + idx] = 0;  // reset for next batch
     }
   });
 }
