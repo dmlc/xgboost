@@ -738,8 +738,8 @@ using TypedDiscard =
  * \class AllReducer
  *
  * \brief All reducer class that manages its own communication group and
- * streams. Must be initialised before use. If XGBoost is compiled without NCCL
- * this is a dummy class that will error if used with more than one GPU.
+ * streams. Must be initialised before use. If XGBoost is compiled without NCCL,
+ * this falls back to use Rabit.
  */
 template <typename AllReducer>
 class AllReducerBase : public xgboost::common::Crtp<AllReducer> {
@@ -882,37 +882,6 @@ class AllReducerBase : public xgboost::common::Crtp<AllReducer> {
   int device_ordinal_{-1};
 };
 
-class DummyAllReducer : public AllReducerBase<DummyAllReducer> {
- public:
-  friend class AllReducerBase<DummyAllReducer>;
-
- private:
-  static void DoInit(int _device_ordinal) { ThrowError(); }
-
-  static void DoAllGather(void const *data, size_t length_bytes, std::vector<size_t> *segments,
-                          dh::caching_device_vector<char> *recvbuf) {
-    ThrowError();
-  }
-
-  static void DoAllGather(uint32_t const *data, size_t length,
-                          dh::caching_device_vector<uint32_t> *recvbuf) {
-    ThrowError();
-  }
-
-  template <typename T>
-  static void DoAllReduceSum(const T *sendbuff, T *recvbuff, int count) {
-    ThrowError();
-  }
-
-  static void DoSynchronize() { ThrowError(); }
-
-  static void ThrowError() {
-    if (rabit::IsDistributed()) {
-      LOG(FATAL) << "XGBoost is not compiled with NCCL or Federated Learning.";
-    }
-  }
-};
-
 #ifdef XGBOOST_USE_NCCL
 class NcclAllReducer : public AllReducerBase<NcclAllReducer> {
  public:
@@ -1033,7 +1002,72 @@ class NcclAllReducer : public AllReducerBase<NcclAllReducer> {
 
 using AllReducer = NcclAllReducer;
 #else
-using AllReducer = DummyAllReducer;
+class RabitAllReducer : public AllReducerBase<RabitAllReducer> {
+ public:
+  friend class AllReducerBase<RabitAllReducer>;
+
+ private:
+  void DoInit(int _device_ordinal) {}
+
+  void DoAllGather(void const *data, size_t length_bytes, std::vector<size_t> *segments,
+                   dh::caching_device_vector<char> *recvbuf);
+
+  void DoAllGather(uint32_t *data, size_t length, dh::caching_device_vector<uint32_t> *recvbuf) {
+    size_t world = rabit::GetWorldSize();
+    auto total_size = length * world;
+    recvbuf->resize(total_size);
+    sendrecvbuf_.reserve(total_size);
+    auto rank = rabit::GetRank();
+    safe_cuda(cudaMemcpy(sendrecvbuf_.data() + rank * length, data, length, cudaMemcpyDefault));
+    rabit::Allgather(sendrecvbuf_.data(), total_size, rank * length, length, length);
+    safe_cuda(cudaMemcpy(data, sendrecvbuf_.data(), total_size, cudaMemcpyDefault));
+  }
+
+  void DoAllReduceSum(const double *sendbuff, double *recvbuff, int count) {
+    RabitAllReduceSum(sendbuff, recvbuff, count);
+  }
+
+  void DoAllReduceSum(const float *sendbuff, float *recvbuff, int count) {
+    RabitAllReduceSum(sendbuff, recvbuff, count);
+  }
+
+  void DoAllReduceSum(const int64_t *sendbuff, int64_t *recvbuff, int count) {
+    RabitAllReduceSum(sendbuff, recvbuff, count);
+  }
+
+  void DoAllReduceSum(const uint32_t *sendbuff, uint32_t *recvbuff, int count) {
+    RabitAllReduceSum(sendbuff, recvbuff, count);
+  }
+
+  void DoAllReduceSum(const uint64_t *sendbuff, uint64_t *recvbuff, int count) {
+    RabitAllReduceSum(sendbuff, recvbuff, count);
+  }
+
+  // Specialization for size_t, which is implementation defined so it might or might not
+  // be one of uint64_t/uint32_t/unsigned long long/unsigned long.
+  template <typename T = size_t,
+            std::enable_if_t<std::is_same<size_t, T>::value &&
+                             !std::is_same<size_t, unsigned long long>::value>  // NOLINT
+                * = nullptr>
+  void DoAllReduceSum(const T *sendbuff, T *recvbuff, int count) {  // NOLINT
+    RabitAllReduceSum(sendbuff, recvbuff, count);
+  }
+
+  void DoSynchronize() {}
+
+  template <typename T>
+  void RabitAllReduceSum(const T *sendbuff, T *recvbuff, int count) {
+    auto total_size = count * sizeof(T);
+    sendrecvbuf_.reserve(total_size);
+    safe_cuda(cudaMemcpy(sendrecvbuf_.data(), sendbuff, total_size, cudaMemcpyDefault));
+    rabit::Allreduce<rabit::op::Sum>(reinterpret_cast<T*>(sendrecvbuf_.data()), count);
+    safe_cuda(cudaMemcpy(recvbuff, sendrecvbuf_.data(), total_size, cudaMemcpyDefault));
+  }
+
+  std::vector<char> sendrecvbuf_{};
+};
+
+using AllReducer = RabitAllReducer;
 #endif
 
 template <typename VectorT, typename T = typename VectorT::value_type,

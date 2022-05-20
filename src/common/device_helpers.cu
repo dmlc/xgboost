@@ -98,6 +98,32 @@ NcclAllReducer::~NcclAllReducer() {
     LOG(CONSOLE) << "AllReduce total MiB communicated: " << allreduce_bytes_/1048576;
   }
 }
+#else
+void RabitAllReducer::DoAllGather(void const *data, size_t length_bytes,
+                                  std::vector<size_t> *segments,
+                                  dh::caching_device_vector<char> *recvbuf) {
+  size_t world = rabit::GetWorldSize();
+  segments->clear();
+  segments->resize(world, 0);
+  segments->at(rabit::GetRank()) = length_bytes;
+  rabit::Allreduce<rabit::op::Max>(segments->data(), segments->size());
+  auto total_bytes = std::accumulate(segments->cbegin(), segments->cend(), 0UL);
+  recvbuf->resize(total_bytes);
+
+  sendrecvbuf_.reserve(total_bytes);
+  auto rank = rabit::GetRank();
+  size_t offset = 0;
+  for (int32_t i = 0; i < world; ++i) {
+    size_t as_bytes = segments->at(i);
+    if (i == rank) {
+      safe_cuda(
+          cudaMemcpy(sendrecvbuf_.data() + offset, data, segments->at(rank), cudaMemcpyDefault));
+    }
+    rabit::Broadcast(sendrecvbuf_.data() + offset, as_bytes, i);
+    offset += as_bytes;
+  }
+  safe_cuda(cudaMemcpy(recvbuf->data().get(), sendrecvbuf_.data(), total_bytes, cudaMemcpyDefault));
+}
 #endif  // XGBOOST_USE_NCCL
 
 }  // namespace dh
