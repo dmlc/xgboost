@@ -50,13 +50,11 @@ class GHistIndexMatrix {
   size_t base_rowid{0};
 
   GHistIndexMatrix();
-  GHistIndexMatrix(DMatrix* x, int32_t max_bin, double sparse_thresh, bool sorted_sketch,
-                   int32_t n_threads, common::Span<float> hess = {});
+  GHistIndexMatrix(DMatrix* x, bst_bin_t max_bins_per_feat, double sparse_thresh,
+                   bool sorted_sketch, int32_t n_threads, common::Span<float> hess = {});
   ~GHistIndexMatrix();
 
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_bins, double sparse_thresh, bool sorted_sketch,
-            int32_t n_threads, common::Span<float> hess);
   void Init(SparsePage const& page, common::Span<FeatureType const> ft,
             common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,
             double sparse_thresh, int32_t n_threads);

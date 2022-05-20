@@ -17,10 +17,48 @@ namespace xgboost {
 
 GHistIndexMatrix::GHistIndexMatrix() : columns_{std::make_unique<common::ColumnMatrix>()} {}
 
-GHistIndexMatrix::GHistIndexMatrix(DMatrix *x, int32_t max_bin, double sparse_thresh,
-                                   bool sorted_sketch, int32_t n_threads,
+GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
+                                   double sparse_thresh, bool sorted_sketch, int32_t n_threads,
                                    common::Span<float> hess) {
-  this->Init(x, max_bin, sparse_thresh, sorted_sketch, n_threads, hess);
+  CHECK(p_fmat->SingleColBlock());
+  // We use sorted sketching for approx tree method since it's more efficient in
+  // computation time (but higher memory usage).
+  cut = common::SketchOnDMatrix(p_fmat, max_bins_per_feat, n_threads, sorted_sketch, hess);
+
+  max_num_bins = max_bins_per_feat;
+  const uint32_t nbins = cut.Ptrs().back();
+  hit_count.resize(nbins, 0);
+  hit_count_tloc_.resize(n_threads * nbins, 0);
+
+  size_t new_size = 1;
+  for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+    new_size += batch.Size();
+  }
+
+  row_ptr.resize(new_size);
+  row_ptr[0] = 0;
+
+  size_t rbegin = 0;
+  size_t prev_sum = 0;
+  const bool isDense = p_fmat->IsDense();
+  this->isDense_ = isDense;
+  auto ft = p_fmat->Info().feature_types.ConstHostSpan();
+
+  for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+    this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
+    prev_sum = row_ptr[rbegin + batch.Size()];
+    rbegin += batch.Size();
+  }
+  this->columns_ = std::make_unique<common::ColumnMatrix>();
+
+  // hessian is empty when hist tree method is used or when dataset is empty
+  if (hess.empty() && !std::isnan(sparse_thresh)) {
+    // hist
+    CHECK(!sorted_sketch);
+    for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
+      this->columns_->Init(page, *this, sparse_thresh, n_threads);
+    }
+  }
 }
 
 GHistIndexMatrix::~GHistIndexMatrix() = default;
@@ -87,48 +125,6 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch,
       hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
     }
   });
-}
-
-void GHistIndexMatrix::Init(DMatrix *p_fmat, int max_bins, double sparse_thresh, bool sorted_sketch,
-                            int32_t n_threads, common::Span<float> hess) {
-  // We use sorted sketching for approx tree method since it's more efficient in
-  // computation time (but higher memory usage).
-  cut = common::SketchOnDMatrix(p_fmat, max_bins, n_threads, sorted_sketch, hess);
-
-  max_num_bins = max_bins;
-  const uint32_t nbins = cut.Ptrs().back();
-  hit_count.resize(nbins, 0);
-  hit_count_tloc_.resize(n_threads * nbins, 0);
-
-  size_t new_size = 1;
-  for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    new_size += batch.Size();
-  }
-
-  row_ptr.resize(new_size);
-  row_ptr[0] = 0;
-
-  size_t rbegin = 0;
-  size_t prev_sum = 0;
-  const bool isDense = p_fmat->IsDense();
-  this->isDense_ = isDense;
-  auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-
-  for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    this->PushBatch(batch, ft, rbegin, prev_sum, nbins, n_threads);
-    prev_sum = row_ptr[rbegin + batch.Size()];
-    rbegin += batch.Size();
-  }
-  this->columns_ = std::make_unique<common::ColumnMatrix>();
-
-  // hessian is empty when hist tree method is used or when dataset is empty
-  if (hess.empty() && !std::isnan(sparse_thresh)) {
-    // hist
-    CHECK(!sorted_sketch);
-    for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-      this->columns_->Init(page, *this, sparse_thresh, n_threads);
-    }
-  }
 }
 
 void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType const> ft,
