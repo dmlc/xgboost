@@ -53,6 +53,23 @@ class TestGPUUpdaters:
         note(result)
         assert tm.non_increasing(result["train"][dataset.metric])
 
+    @given(tm.sparse_datasets_strategy)
+    @settings(deadline=None, print_blob=True)
+    def test_sparse(self, dataset):
+        param = {"tree_method": "hist", "max_bin": 64}
+        hist_result = train_result(param, dataset.get_dmat(), 16)
+        note(hist_result)
+        assert tm.non_increasing(hist_result['train'][dataset.metric])
+
+        param = {"tree_method": "gpu_hist", "max_bin": 64}
+        approx_result = train_result(param, dataset.get_dmat(), 16)
+        note(approx_result)
+        assert tm.non_increasing(approx_result['train'][dataset.metric])
+
+        np.testing.assert_allclose(
+            hist_result["train"]["rmse"], approx_result["train"]["rmse"], rtol=1e-2
+        )
+
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
