@@ -1,3 +1,4 @@
+"""Script to generate a TypedDict of Booster parameters from the doc-strings."""
 from xgboost.sklearn import __model_doc, __estimator_doc, __objective_specific_doc
 
 FIXES = {
@@ -8,23 +9,27 @@ FIXES = {
 }
 
 def parse_doc_string(doc_string: str):
-    params = {}
+    """
+    Parses parameters and typing information from the given doc-string.
+    """
+    parsed_params = {}
     for l in doc_string.splitlines():
         if l[:4] == ' ' * 4 and l[4] != ' ':
-            param, param_type = l.lstrip().split(":")
-            param = param.rstrip()
-            param_type = param_type.lstrip()
+            parsed_name, parsed_type = l.lstrip().split(":")
+            parsed_name = parsed_name.rstrip()
+            parsed_type = parsed_type.lstrip()
             for base, fix in FIXES.items():
-                param_type = param_type.replace(base, fix)
-            params[param] = param_type
-    return params
+                parsed_type = parsed_type.replace(base, fix)
+            parsed_params[parsed_name] = parsed_type
+    return parsed_params
 
 if __name__ == "__main__":
     params = {}
-    for doc_string in [__model_doc, __estimator_doc, __objective_specific_doc]:
-        params.update(parse_doc_string(doc_string))
+    for to_parse in [__model_doc, __estimator_doc, __objective_specific_doc]:
+        params.update(parse_doc_string(to_parse))
     params.pop("kwargs", None)
     params_file_cont = [
+        '"""Typing information for Booster parameters."""',
         "import numpy",
         "from typing import Union, Callable, Tuple, List, Dict, TYPE_CHECKING",
         "from mypy_extensions import TypedDict",
@@ -37,5 +42,5 @@ if __name__ == "__main__":
     ]
     for param_name, param_type in params.items():
         params_file_cont.append(f"    {param_name}: {param_type}")
-    with open("xgboost/_parameter_typing.py", "w") as parameter_types:
+    with open("xgboost/_parameter_typing.py", "w", encoding="ascii") as parameter_types:
         parameter_types.write("\n".join(params_file_cont))
