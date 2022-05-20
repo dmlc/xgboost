@@ -247,15 +247,6 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   dh::safe_cuda(cudaGetLastError());
 }
 
-template void BuildGradientHistogram<GradientPair>(
-    EllpackDeviceAccessor const& matrix,
-    FeatureGroupsAccessor const& feature_groups,
-    common::Span<GradientPair const> gpair,
-    common::Span<const uint32_t> ridx,
-    common::Span<GradientPair> histogram,
-    HistRounding<GradientPair> rounding,
-    bool force_global_memory);
-
 template void BuildGradientHistogram<GradientPairPrecise>(
     EllpackDeviceAccessor const& matrix,
     FeatureGroupsAccessor const& feature_groups,

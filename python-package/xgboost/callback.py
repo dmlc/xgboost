@@ -10,8 +10,7 @@ from abc import ABC
 import collections
 import os
 import pickle
-from typing import Callable, List, Optional, Union, Dict, Tuple, TypeVar, cast
-from typing import Sequence
+from typing import Callable, List, Optional, Union, Dict, Tuple, TypeVar, cast, Sequence, Any
 import numpy
 
 from . import rabit
@@ -24,10 +23,13 @@ __all__ = [
     "EarlyStopping",
     "EvaluationMonitor",
     "TrainingCheckPoint",
+    "CallbackContainer"
 ]
 
 _Score = Union[float, Tuple[float, float]]
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
+
+_Model = Any  # real type is Union[Booster, CVPack]; need more work
 
 
 # pylint: disable=unused-argument
@@ -43,19 +45,19 @@ class TrainingCallback(ABC):
     def __init__(self) -> None:
         pass
 
-    def before_training(self, model):
+    def before_training(self, model: _Model) -> _Model:
         '''Run before training starts.'''
         return model
 
-    def after_training(self, model):
+    def after_training(self, model: _Model) -> _Model:
         '''Run after training is finished.'''
         return model
 
-    def before_iteration(self, model, epoch: int, evals_log: EvalsLog) -> bool:
+    def before_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         '''Run before each iteration.  Return True when training should stop.'''
         return False
 
-    def after_iteration(self, model, epoch: int, evals_log: EvalsLog) -> bool:
+    def after_iteration(self, model: _Model, epoch: int, evals_log: EvalsLog) -> bool:
         '''Run after each iteration.  Return True when training should stop.'''
         return False
 
@@ -122,7 +124,7 @@ class CallbackContainer:
     def __init__(
         self,
         callbacks: Sequence[TrainingCallback],
-        metric: Callable = None,
+        metric: Optional[Callable] = None,
         output_margin: bool = True,
         is_cv: bool = False
     ) -> None:
@@ -140,7 +142,7 @@ class CallbackContainer:
         if self.is_cv:
             self.aggregated_cv = None
 
-    def before_training(self, model):
+    def before_training(self, model: _Model) -> _Model:
         '''Function called before training.'''
         for c in self.callbacks:
             model = c.before_training(model=model)
@@ -151,7 +153,7 @@ class CallbackContainer:
                 assert isinstance(model, Booster), msg
         return model
 
-    def after_training(self, model):
+    def after_training(self, model: _Model) -> _Model:
         '''Function called after training.'''
         for c in self.callbacks:
             model = c.after_training(model=model)
@@ -182,7 +184,7 @@ class CallbackContainer:
         return model
 
     def before_iteration(
-        self, model, epoch: int, dtrain: DMatrix, evals: Optional[List[Tuple[DMatrix, str]]]
+        self, model: _Model, epoch: int, dtrain: DMatrix, evals: Optional[List[Tuple[DMatrix, str]]]
     ) -> bool:
         '''Function called before training iteration.'''
         return any(c.before_iteration(model, epoch, self.history)
@@ -220,7 +222,7 @@ class CallbackContainer:
 
     def after_iteration(
         self,
-        model,
+        model: _Model,
         epoch: int,
         dtrain: DMatrix,
         evals: Optional[List[Tuple[DMatrix, str]]],
@@ -276,7 +278,7 @@ class LearningRateScheduler(TrainingCallback):
         super().__init__()
 
     def after_iteration(
-        self, model, epoch: int, evals_log: TrainingCallback.EvalsLog
+        self, model: _Model, epoch: int, evals_log: TrainingCallback.EvalsLog
     ) -> bool:
         model.set_param("learning_rate", self.learning_rates(epoch))
         return False
@@ -344,12 +346,12 @@ class EarlyStopping(TrainingCallback):
         self.starting_round: int = 0
         super().__init__()
 
-    def before_training(self, model):
+    def before_training(self, model: _Model) -> _Model:
         self.starting_round = model.num_boosted_rounds()
         return model
 
     def _update_rounds(
-        self, score: _Score, name: str, metric: str, model, epoch: int
+        self, score: _Score, name: str, metric: str, model: _Model, epoch: int
     ) -> bool:
         def get_s(x: _Score) -> float:
             """get score if it's cross validation history."""
@@ -403,7 +405,7 @@ class EarlyStopping(TrainingCallback):
             return True
         return False
 
-    def after_iteration(self, model, epoch: int,
+    def after_iteration(self, model: _Model, epoch: int,
                         evals_log: TrainingCallback.EvalsLog) -> bool:
         epoch += self.starting_round  # training continuation
         msg = 'Must have at least 1 validation dataset for early stopping.'
@@ -431,7 +433,7 @@ class EarlyStopping(TrainingCallback):
         score = data_log[metric_name][-1]
         return self._update_rounds(score, data_name, metric_name, model, epoch)
 
-    def after_training(self, model):
+    def after_training(self, model: _Model) -> _Model:
         try:
             if self.save_best:
                 model = model[: int(model.attr("best_iteration")) + 1]
@@ -477,7 +479,7 @@ class EvaluationMonitor(TrainingCallback):
             msg = f"\t{data + '-' + metric}:{score:.5f}"
         return msg
 
-    def after_iteration(self, model, epoch: int,
+    def after_iteration(self, model: _Model, epoch: int,
                         evals_log: TrainingCallback.EvalsLog) -> bool:
         if not evals_log:
             return False
@@ -503,7 +505,7 @@ class EvaluationMonitor(TrainingCallback):
                 self._latest = msg
         return False
 
-    def after_training(self, model):
+    def after_training(self, model: _Model) -> _Model:
         if rabit.get_rank() == self.printer_rank and self._latest is not None:
             rabit.tracker_print(self._latest)
         return model
@@ -544,7 +546,7 @@ class TrainingCheckPoint(TrainingCallback):
         self._epoch = 0
         super().__init__()
 
-    def after_iteration(self, model, epoch: int,
+    def after_iteration(self, model: _Model, epoch: int,
                         evals_log: TrainingCallback.EvalsLog) -> bool:
         if self._epoch == self._iterations:
             path = os.path.join(self._path, self._name + '_' + str(epoch) +

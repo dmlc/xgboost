@@ -255,16 +255,16 @@ class PseudoHuberRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("reg:pseudohubererror");
-    out["pseduo_huber_param"] = ToJson(param_);
+    out["pseudo_huber_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    if (config.find("pseduo_huber_param") == config.cend()) {
+    if (config.find("pseudo_huber_param") == config.cend()) {
       // The parameter is added in 1.6.
       return;
     }
-    FromJson(in["pseduo_huber_param"], &param_);
+    FromJson(in["pseudo_huber_param"], &param_);
   }
 };
 

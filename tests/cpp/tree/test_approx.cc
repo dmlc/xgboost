@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 
+#include "../../../src/common/numeric.h"
 #include "../../../src/tree/updater_approx.h"
 #include "../helpers.h"
 #include "test_partitioner.h"

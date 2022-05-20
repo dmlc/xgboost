@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -62,11 +62,12 @@ object SparkTraining {
     val Array(train, eval1, eval2, test) = xgbInput.randomSplit(Array(0.6, 0.2, 0.1, 0.1))
 
     /**
-     * setup  "timeout_request_workers" -> 60000L to make this application if it cannot get enough resources
-     * to get 2 workers within 60000 ms
+     * setup spark.scheduler.barrier.maxConcurrentTasksCheck.interval and
+     * spark.scheduler.barrier.maxConcurrentTasksCheck.maxFailures to make this application
+     * if it cannot get enough resources to get 2 workers within interval * maxFailures s
      *
-     * setup "checkpoint_path" -> "/checkpoints" and "checkpoint_interval" -> 2 to save checkpoint for every
-     * two iterations
+     * setup "checkpoint_path" -> "/checkpoints" and "checkpoint_interval" -> 2 to save
+     * checkpoint for every two iterations
      */
     val xgbParam = Map("eta" -> 0.1f,
       "max_depth" -> 2,

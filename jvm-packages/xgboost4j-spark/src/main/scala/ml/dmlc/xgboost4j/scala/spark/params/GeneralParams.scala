@@ -113,15 +113,6 @@ private[spark] trait GeneralParams extends Params {
   final def getAllowNonZeroForMissingValue: Boolean = $(allowNonZeroForMissing)
 
   /**
-    * the maximum time to wait for the job requesting new workers. default: 30 minutes
-    */
-  final val timeoutRequestWorkers = new LongParam(this, "timeoutRequestWorkers", "the maximum " +
-    "time to request new Workers if numCores are insufficient. The timeout will be disabled " +
-    "if this value is set smaller than or equal to 0.")
-
-  final def getTimeoutRequestWorkers: Long = $(timeoutRequestWorkers)
-
-  /**
     * The hdfs folder to load and save checkpoint boosters. default: `empty_string`
     */
   final val checkpointPath = new Param[String](this, "checkpointPath", "the hdfs folder to load " +
@@ -181,7 +172,7 @@ private[spark] trait GeneralParams extends Params {
   setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
     useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
-    trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
+    trackerConf -> TrackerConf(), seed -> 0,
     checkpointPath -> "", checkpointInterval -> -1,
     allowNonZeroForMissing -> false)
 }

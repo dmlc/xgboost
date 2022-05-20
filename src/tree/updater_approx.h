@@ -16,7 +16,6 @@
 #include "driver.h"
 #include "hist/evaluate_splits.h"
 #include "hist/expand_entry.h"
-#include "hist/param.h"
 #include "param.h"
 #include "xgboost/generic_parameters.h"
 #include "xgboost/json.h"

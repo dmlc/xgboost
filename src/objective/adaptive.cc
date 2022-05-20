@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../common/common.h"
+#include "../common/numeric.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "xgboost/tree_model.h"
@@ -27,7 +28,7 @@ void EncodeTreeLeafHost(RegTree const& tree, std::vector<bst_node_t> const& posi
     sorted_pos[i] = position[ridx[i]];
   }
   // find the first non-sampled row
-  auto begin_pos =
+  size_t begin_pos =
       std::distance(sorted_pos.cbegin(), std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
                                                       [](bst_node_t nidx) { return nidx >= 0; }));
   CHECK_LE(begin_pos, sorted_pos.size());

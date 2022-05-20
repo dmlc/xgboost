@@ -13,8 +13,10 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <utility>  // std::move
 #include <vector>
 
+#include "../data/adapter.h"
 #include "../data/gradient_index.h"
 #include "hist_util.h"
 
@@ -32,113 +34,112 @@ enum ColumnType : uint8_t { kDenseColumn, kSparseColumn };
 template <typename BinIdxType>
 class Column {
  public:
-  static constexpr int32_t kMissingId = -1;
+  static constexpr bst_bin_t kMissingId = -1;
 
-  Column(ColumnType type, common::Span<const BinIdxType> index, const bst_bin_t index_base)
-      : type_(type), index_(index), index_base_{index_base} {}
-
+  Column(common::Span<const BinIdxType> index, bst_bin_t least_bin_idx)
+      : index_(index), index_base_(least_bin_idx) {}
   virtual ~Column() = default;
 
-  uint32_t GetGlobalBinIdx(size_t idx) const {
-    return index_base_ + static_cast<uint32_t>(index_[idx]);
+  bst_bin_t GetGlobalBinIdx(size_t idx) const {
+    return index_base_ + static_cast<bst_bin_t>(index_[idx]);
   }
-
-  BinIdxType GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
-
-  uint32_t GetBaseIdx() const { return index_base_; }
-
-  common::Span<const BinIdxType> GetFeatureBinIdxPtr() const { return index_; }
-
-  ColumnType GetType() const { return type_; }
 
   /* returns number of elements in column */
   size_t Size() const { return index_.size(); }
 
  private:
-  /* type of column */
-  ColumnType type_;
   /* bin indexes in range [0, max_bins - 1] */
   common::Span<const BinIdxType> index_;
   /* bin index offset for specific feature */
   bst_bin_t const index_base_;
 };
 
-template <typename BinIdxType>
-class SparseColumn : public Column<BinIdxType> {
- public:
-  SparseColumn(ColumnType type, common::Span<const BinIdxType> index, bst_bin_t index_base,
-               common::Span<const size_t> row_ind)
-      : Column<BinIdxType>(type, index, index_base), row_ind_(row_ind) {}
-
-  const size_t* GetRowData() const { return row_ind_.data(); }
-
-  bst_bin_t GetBinIdx(size_t rid, size_t* state) const {
-    const size_t column_size = this->Size();
-    if (!((*state) < column_size)) {
-      return this->kMissingId;
-    }
-    while ((*state) < column_size && GetRowIdx(*state) < rid) {
-      ++(*state);
-    }
-    if (((*state) < column_size) && GetRowIdx(*state) == rid) {
-      return this->GetGlobalBinIdx(*state);
-    } else {
-      return this->kMissingId;
-    }
-  }
-
-  size_t GetInitialState(const size_t first_row_id) const {
-    const size_t* row_data = GetRowData();
-    const size_t column_size = this->Size();
-    // search first nonzero row with index >= rid_span.front()
-    const size_t* p = std::lower_bound(row_data, row_data + column_size, first_row_id);
-    // column_size if all messing
-    return p - row_data;
-  }
-
-  size_t GetRowIdx(size_t idx) const { return row_ind_.data()[idx]; }
-
+template <typename BinIdxT>
+class SparseColumnIter : public Column<BinIdxT> {
  private:
+  using Base = Column<BinIdxT>;
   /* indexes of rows */
   common::Span<const size_t> row_ind_;
-};
+  size_t idx_;
 
-template <typename BinIdxType, bool any_missing>
-class DenseColumn : public Column<BinIdxType> {
+  size_t const* RowIndices() const { return row_ind_.data(); }
+
  public:
-  DenseColumn(ColumnType type, common::Span<const BinIdxType> index, uint32_t index_base,
-              const std::vector<bool>& missing_flags, size_t feature_offset)
-      : Column<BinIdxType>(type, index, index_base),
-        missing_flags_(missing_flags),
-        feature_offset_(feature_offset) {}
-  bool IsMissing(size_t idx) const { return missing_flags_[feature_offset_ + idx]; }
+  SparseColumnIter(common::Span<const BinIdxT> index, bst_bin_t least_bin_idx,
+                   common::Span<const size_t> row_ind, bst_row_t first_row_idx)
+      : Base{index, least_bin_idx}, row_ind_(row_ind) {
+    // first_row_id is the first row in the leaf partition
+    const size_t* row_data = RowIndices();
+    const size_t column_size = this->Size();
+    // search first nonzero row with index >= rid_span.front()
+    // note that the input row partition is always sorted.
+    const size_t* p = std::lower_bound(row_data, row_data + column_size, first_row_idx);
+    // column_size if all missing
+    idx_ = p - row_data;
+  }
+  SparseColumnIter(SparseColumnIter const&) = delete;
+  SparseColumnIter(SparseColumnIter&&) = default;
 
-  int32_t GetBinIdx(size_t idx, size_t* state) const {
-    if (any_missing) {
-      return IsMissing(idx) ? this->kMissingId : this->GetGlobalBinIdx(idx);
+  size_t GetRowIdx(size_t idx) const { return RowIndices()[idx]; }
+  bst_bin_t operator[](size_t rid) {
+    const size_t column_size = this->Size();
+    if (!((idx_) < column_size)) {
+      return this->kMissingId;
+    }
+    // find next non-missing row
+    while ((idx_) < column_size && GetRowIdx(idx_) < rid) {
+      ++(idx_);
+    }
+    if (((idx_) < column_size) && GetRowIdx(idx_) == rid) {
+      // non-missing row found
+      return this->GetGlobalBinIdx(idx_);
     } else {
-      return this->GetGlobalBinIdx(idx);
+      // at the end of column
+      return this->kMissingId;
     }
   }
-
-  size_t GetInitialState(const size_t first_row_id) const { return 0; }
-
- private:
-  /* flags for missing values in dense columns */
-  const std::vector<bool>& missing_flags_;
-  size_t feature_offset_;
 };
 
-/*! \brief a collection of columns, with support for construction from
-    GHistIndexMatrix. */
+template <typename BinIdxT, bool any_missing>
+class DenseColumnIter : public Column<BinIdxT> {
+ private:
+  using Base = Column<BinIdxT>;
+  /* flags for missing values in dense columns */
+  std::vector<bool> const& missing_flags_;
+  size_t feature_offset_;
+
+ public:
+  explicit DenseColumnIter(common::Span<const BinIdxT> index, bst_bin_t index_base,
+                           std::vector<bool> const& missing_flags, size_t feature_offset)
+      : Base{index, index_base}, missing_flags_{missing_flags}, feature_offset_{feature_offset} {}
+  DenseColumnIter(DenseColumnIter const&) = delete;
+  DenseColumnIter(DenseColumnIter&&) = default;
+
+  bool IsMissing(size_t ridx) const { return missing_flags_[feature_offset_ + ridx]; }
+
+  bst_bin_t operator[](size_t ridx) const {
+    if (any_missing) {
+      return IsMissing(ridx) ? this->kMissingId : this->GetGlobalBinIdx(ridx);
+    } else {
+      return this->GetGlobalBinIdx(ridx);
+    }
+  }
+};
+
+/**
+ * \brief Column major matrix for gradient index. This matrix contains both dense column
+ * and sparse column, the type of the column is controlled by sparse threshold. When the
+ * number of missing values in a column is below the threshold it's classified as dense
+ * column.
+ */
 class ColumnMatrix {
  public:
   // get number of features
   bst_feature_t GetNumFeature() const { return static_cast<bst_feature_t>(type_.size()); }
 
-  // construct column matrix from GHistIndexMatrix
-  inline void Init(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
-                   int32_t n_threads) {
+  template <typename Batch>
+  void Init(Batch const& batch, float missing, GHistIndexMatrix const& gmat,
+            double sparse_threshold, int32_t n_threads) {
     auto const nfeature = static_cast<bst_feature_t>(gmat.cut.Ptrs().size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
     // identify type of each column
@@ -149,13 +150,14 @@ class ColumnMatrix {
     for (bst_feature_t fid = 0; fid < nfeature; ++fid) {
       CHECK_LE(gmat.cut.Ptrs()[fid + 1] - gmat.cut.Ptrs()[fid], max_val);
     }
-    bool all_dense = gmat.IsDense();
+
+    bool all_dense_column = true;
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
     for (bst_feature_t fid = 0; fid < nfeature; ++fid) {
       if (static_cast<double>(feature_counts_[fid]) < sparse_threshold * nrow) {
         type_[fid] = kSparseColumn;
-        all_dense = false;
+        all_dense_column = false;
       } else {
         type_[fid] = kDenseColumn;
       }
@@ -164,189 +166,157 @@ class ColumnMatrix {
     // want to compute storage boundary for each feature
     // using variants of prefix sum scan
     feature_offsets_.resize(nfeature + 1);
-    size_t accum_index_ = 0;
-    feature_offsets_[0] = accum_index_;
+    size_t accum_index = 0;
+    feature_offsets_[0] = accum_index;
     for (bst_feature_t fid = 1; fid < nfeature + 1; ++fid) {
       if (type_[fid - 1] == kDenseColumn) {
-        accum_index_ += static_cast<size_t>(nrow);
+        accum_index += static_cast<size_t>(nrow);
       } else {
-        accum_index_ += feature_counts_[fid - 1];
+        accum_index += feature_counts_[fid - 1];
       }
-      feature_offsets_[fid] = accum_index_;
+      feature_offsets_[fid] = accum_index;
     }
 
     SetTypeSize(gmat.max_num_bins);
-
-    index_.resize(feature_offsets_[nfeature] * bins_type_size_, 0);
-    if (!all_dense) {
+    auto storage_size =
+        feature_offsets_.back() * static_cast<std::underlying_type_t<BinTypeSize>>(bins_type_size_);
+    index_.resize(storage_size, 0);
+    if (!all_dense_column) {
       row_ind_.resize(feature_offsets_[nfeature]);
     }
 
     // store least bin id for each feature
     index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
 
-    const bool noMissingValues = NoMissingValues(gmat.row_ptr[nrow], nrow, nfeature);
-    any_missing_ = !noMissingValues;
+    any_missing_ = !gmat.IsDense();
 
     missing_flags_.clear();
-    if (noMissingValues) {
-      missing_flags_.resize(feature_offsets_[nfeature], false);
-    } else {
-      missing_flags_.resize(feature_offsets_[nfeature], true);
-    }
 
     // pre-fill index_ for dense columns
-    if (all_dense) {
-      BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
-      if (gmat_bin_size == kUint8BinsTypeSize) {
-        SetIndexAllDense(page, gmat.index.data<uint8_t>(), gmat, nrow, nfeature, noMissingValues,
-                         n_threads);
-      } else if (gmat_bin_size == kUint16BinsTypeSize) {
-        SetIndexAllDense(page, gmat.index.data<uint16_t>(), gmat, nrow, nfeature, noMissingValues,
-                         n_threads);
-      } else {
-        CHECK_EQ(gmat_bin_size, kUint32BinsTypeSize);
-        SetIndexAllDense(page, gmat.index.data<uint32_t>(), gmat, nrow, nfeature, noMissingValues,
-                         n_threads);
-      }
-      /* For sparse DMatrix gmat.index.getBinTypeSize() returns always kUint32BinsTypeSize
-         but for ColumnMatrix we still have a chance to reduce the memory consumption */
+    BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
+    if (!any_missing_) {
+      missing_flags_.resize(feature_offsets_[nfeature], false);
+      // row index is compressed, we need to dispatch it.
+      DispatchBinType(gmat_bin_size, [&, nrow, nfeature, n_threads](auto t) {
+        using RowBinIdxT = decltype(t);
+        SetIndexNoMissing(gmat.index.data<RowBinIdxT>(), nrow, nfeature, n_threads);
+      });
     } else {
-      if (bins_type_size_ == kUint8BinsTypeSize) {
-        SetIndex<uint8_t>(page, gmat.index.data<uint32_t>(), gmat, nfeature);
-      } else if (bins_type_size_ == kUint16BinsTypeSize) {
-        SetIndex<uint16_t>(page, gmat.index.data<uint32_t>(), gmat, nfeature);
-      } else {
-        CHECK_EQ(bins_type_size_, kUint32BinsTypeSize);
-        SetIndex<uint32_t>(page, gmat.index.data<uint32_t>(), gmat, nfeature);
-      }
+      missing_flags_.resize(feature_offsets_[nfeature], true);
+      SetIndexMixedColumns(batch, gmat.index.data<uint32_t>(), gmat, nfeature, missing);
     }
   }
 
+  // construct column matrix from GHistIndexMatrix
+  void Init(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
+            int32_t n_threads) {
+    auto batch = data::SparsePageAdapterBatch{page.GetView()};
+    this->Init(batch, std::numeric_limits<float>::quiet_NaN(), gmat, sparse_threshold, n_threads);
+  }
+
   /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
-  void SetTypeSize(size_t max_num_bins) {
-    if ((max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint8_t>::max())) {
+  void SetTypeSize(size_t max_bin_per_feat) {
+    if ((max_bin_per_feat - 1) <= static_cast<int>(std::numeric_limits<uint8_t>::max())) {
       bins_type_size_ = kUint8BinsTypeSize;
-    } else if ((max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint16_t>::max())) {
+    } else if ((max_bin_per_feat - 1) <= static_cast<int>(std::numeric_limits<uint16_t>::max())) {
       bins_type_size_ = kUint16BinsTypeSize;
     } else {
       bins_type_size_ = kUint32BinsTypeSize;
     }
   }
 
-  /* Fetch an individual column. This code should be used with type swith
-     to determine type of bin id's */
-  template <typename BinIdxType, bool any_missing>
-  std::unique_ptr<const Column<BinIdxType> > GetColumn(unsigned fid) const {
-    CHECK_EQ(sizeof(BinIdxType), bins_type_size_);
-
-    const size_t feature_offset = feature_offsets_[fid];  // to get right place for certain feature
-    const size_t column_size = feature_offsets_[fid + 1] - feature_offset;
+  template <typename BinIdxType>
+  auto SparseColumn(bst_feature_t fidx, bst_row_t first_row_idx) const {
+    const size_t feature_offset = feature_offsets_[fidx];  // to get right place for certain feature
+    const size_t column_size = feature_offsets_[fidx + 1] - feature_offset;
     common::Span<const BinIdxType> bin_index = {
         reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
         column_size};
-    std::unique_ptr<const Column<BinIdxType> > res;
-    if (type_[fid] == ColumnType::kDenseColumn) {
-      CHECK_EQ(any_missing, any_missing_);
-      res.reset(new DenseColumn<BinIdxType, any_missing>(type_[fid], bin_index, index_base_[fid],
-                                                         missing_flags_, feature_offset));
-    } else {
-      res.reset(new SparseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
-                                             {&row_ind_[feature_offset], column_size}));
-    }
-    return res;
+    return SparseColumnIter<BinIdxType>(bin_index, index_base_[fidx],
+                                        {&row_ind_[feature_offset], column_size}, first_row_idx);
   }
 
-  template <typename T>
-  inline void SetIndexAllDense(SparsePage const& page, T const* index, const GHistIndexMatrix& gmat,
-                               const size_t nrow, const size_t nfeature, const bool noMissingValues,
-                               int32_t n_threads) {
-    T* local_index = reinterpret_cast<T*>(&index_[0]);
+  template <typename BinIdxType, bool any_missing>
+  auto DenseColumn(bst_feature_t fidx) const {
+    const size_t feature_offset = feature_offsets_[fidx];  // to get right place for certain feature
+    const size_t column_size = feature_offsets_[fidx + 1] - feature_offset;
+    common::Span<const BinIdxType> bin_index = {
+        reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
+        column_size};
+    return std::move(DenseColumnIter<BinIdxType, any_missing>{
+        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_flags_, feature_offset});
+  }
 
-    /* missing values make sense only for column with type kDenseColumn,
-       and if no missing values were observed it could be handled much faster. */
-    if (noMissingValues) {
-      ParallelFor(nrow, n_threads, [&](auto rid) {
-        const size_t ibegin = rid * nfeature;
-        const size_t iend = (rid + 1) * nfeature;
+  // all columns are dense column and has no missing value
+  // FIXME(jiamingy): We don't need a column matrix if there's no missing value.
+  template <typename RowBinIdxT>
+  void SetIndexNoMissing(RowBinIdxT const* row_index, const size_t n_samples,
+                         const size_t n_features, int32_t n_threads) {
+    DispatchBinType(bins_type_size_, [&](auto t) {
+      using ColumnBinT = decltype(t);
+      auto column_index = Span<ColumnBinT>{reinterpret_cast<ColumnBinT*>(index_.data()),
+                                           index_.size() / sizeof(ColumnBinT)};
+      ParallelFor(n_samples, n_threads, [&](auto rid) {
+        const size_t ibegin = rid * n_features;
+        const size_t iend = (rid + 1) * n_features;
         size_t j = 0;
         for (size_t i = ibegin; i < iend; ++i, ++j) {
           const size_t idx = feature_offsets_[j];
-          local_index[idx + rid] = index[i];
+          // No need to add offset, as row index is compressed and stores the local index
+          column_index[idx + rid] = row_index[i];
         }
       });
-    } else {
-      /* to handle rows in all batches, sum of all batch sizes equal to gmat.row_ptr.size() - 1 */
-      auto get_bin_idx = [&](auto bin_id, auto rid, bst_feature_t fid) {
-        // T* begin = &local_index[feature_offsets_[fid]];
-        const size_t idx = feature_offsets_[fid];
-        /* rbegin allows to store indexes from specific SparsePage batch */
-        local_index[idx + rid] = bin_id;
-
-        missing_flags_[idx + rid] = false;
-      };
-      this->SetIndexSparse(page, index, gmat, nfeature, get_bin_idx);
-    }
+    });
   }
 
-  // FIXME(jiamingy): In the future we might want to simply use binary search to simplify
-  // this and remove the dependency on SparsePage.  This way we can have quantilized
-  // matrix for host similar to `DeviceQuantileDMatrix`.
-  template <typename T, typename BinFn>
-  void SetIndexSparse(SparsePage const& batch, T* index, const GHistIndexMatrix& gmat,
-                      const size_t nfeature, BinFn&& assign_bin) {
-    std::vector<size_t> num_nonzeros(nfeature, 0ul);
-    const xgboost::Entry* data_ptr = batch.data.HostVector().data();
-    const std::vector<bst_row_t>& offset_vec = batch.offset.HostVector();
-    auto rbegin = 0;
-    const size_t batch_size = gmat.Size();
-    CHECK_LT(batch_size, offset_vec.size());
-
-    for (size_t rid = 0; rid < batch_size; ++rid) {
-      const size_t ibegin = gmat.row_ptr[rbegin + rid];
-      const size_t iend = gmat.row_ptr[rbegin + rid + 1];
-      const size_t size = offset_vec[rid + 1] - offset_vec[rid];
-      SparsePage::Inst inst = {data_ptr + offset_vec[rid], size};
-
-      CHECK_EQ(ibegin + inst.size(), iend);
-      size_t j = 0;
-      for (size_t i = ibegin; i < iend; ++i, ++j) {
-        const uint32_t bin_id = index[i];
-        auto fid = inst[j].index;
-        assign_bin(bin_id, rid, fid);
-      }
-    }
-  }
-
-  template <typename T>
-  inline void SetIndex(SparsePage const& page, uint32_t const* index, const GHistIndexMatrix& gmat,
-                       const size_t nfeature) {
-    T* local_index = reinterpret_cast<T*>(&index_[0]);
+  /**
+   * \brief Set column index for both dense and sparse columns
+   */
+  template <typename Batch>
+  void SetIndexMixedColumns(Batch const& batch, uint32_t const* row_index,
+                            const GHistIndexMatrix& gmat, size_t n_features, float missing) {
     std::vector<size_t> num_nonzeros;
-    num_nonzeros.resize(nfeature);
-    std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
+    num_nonzeros.resize(n_features, 0);
+    auto is_valid = data::IsValidFunctor {missing};
 
-    auto get_bin_idx = [&](auto bin_id, auto rid, bst_feature_t fid) {
-      if (type_[fid] == kDenseColumn) {
-        T* begin = &local_index[feature_offsets_[fid]];
-        begin[rid] = bin_id - index_base_[fid];
-        missing_flags_[feature_offsets_[fid] + rid] = false;
-      } else {
-        T* begin = &local_index[feature_offsets_[fid]];
-        begin[num_nonzeros[fid]] = bin_id - index_base_[fid];
-        row_ind_[feature_offsets_[fid] + num_nonzeros[fid]] = rid;
-        ++num_nonzeros[fid];
+    DispatchBinType(bins_type_size_, [&](auto t) {
+      using ColumnBinT = decltype(t);
+      ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
+
+      auto get_bin_idx = [&](auto bin_id, auto rid, bst_feature_t fid) {
+        if (type_[fid] == kDenseColumn) {
+          ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+          begin[rid] = bin_id - index_base_[fid];
+          // not thread-safe with bool vector.  FIXME(jiamingy): We can directly assign
+          // kMissingId to the index to avoid missing flags.
+          missing_flags_[feature_offsets_[fid] + rid] = false;
+        } else {
+          ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+          begin[num_nonzeros[fid]] = bin_id - index_base_[fid];
+          row_ind_[feature_offsets_[fid] + num_nonzeros[fid]] = rid;
+          ++num_nonzeros[fid];
+        }
+      };
+
+      const size_t batch_size = gmat.Size();
+      size_t k{0};
+      for (size_t rid = 0; rid < batch_size; ++rid) {
+        auto line = batch.GetLine(rid);
+        for (size_t i = 0; i < line.Size(); ++i) {
+          auto coo = line.GetElement(i);
+          if (is_valid(coo)) {
+            auto fid = coo.column_idx;
+            const uint32_t bin_id = row_index[k];
+            get_bin_idx(bin_id, rid, fid);
+            ++k;
+          }
+        }
       }
-    };
-    this->SetIndexSparse(page, index, gmat, nfeature, get_bin_idx);
+    });
   }
 
   BinTypeSize GetTypeSize() const { return bins_type_size_; }
-
-  // This is just an utility function
-  bool NoMissingValues(const size_t n_elements, const size_t n_row, const size_t n_features) {
-    return n_elements == n_features * n_row;
-  }
+  auto GetColumnType(bst_feature_t fidx) const { return type_[fidx]; }
 
   // And this returns part of state
   bool AnyMissing() const { return any_missing_; }

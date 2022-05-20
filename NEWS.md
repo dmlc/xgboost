@@ -3,6 +3,19 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.6.1 (2022 May 9)
+This is a patch release for bug fixes and Spark barrier mode support. The R package is unchanged.
+
+### Experimental support for categorical data
+- Fix segfault when the number of samples is smaller than the number of categories. (https://github.com/dmlc/xgboost/pull/7853)
+- Enable partition-based split for all model types. (https://github.com/dmlc/xgboost/pull/7857)
+
+### JVM packages
+We replaced the old parallelism tracker with spark barrier mode to improve the robustness of the JVM package and fix the GPU training pipeline.
+- Fix GPU training pipeline quantile synchronization. (#7823, #7834)
+- Use barrier model in spark package. (https://github.com/dmlc/xgboost/pull/7836, https://github.com/dmlc/xgboost/pull/7840, https://github.com/dmlc/xgboost/pull/7845, https://github.com/dmlc/xgboost/pull/7846)
+- Fix shared object loading on some platforms. (https://github.com/dmlc/xgboost/pull/7844)
+
 ## v1.6.0 (2022 Apr 16)
 
 After a long period of development, XGBoost v1.6.0 is packed with many new features and

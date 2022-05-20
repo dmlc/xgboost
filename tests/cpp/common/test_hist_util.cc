@@ -16,7 +16,6 @@ namespace common {
 
 size_t GetNThreads() { return common::OmpGetNumThreads(0); }
 
-template <typename GradientSumT>
 void ParallelGHistBuilderReset() {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
@@ -25,16 +24,16 @@ void ParallelGHistBuilderReset() {
   constexpr double kValue = 1.0;
   const size_t nthreads = GetNThreads();
 
-  HistCollection<GradientSumT> collection;
+  HistCollection collection;
   collection.Init(kBins);
 
   for(size_t inode = 0; inode < kNodesExtended; inode++) {
     collection.AddHistRow(inode);
   }
   collection.AllocateAllData();
-  ParallelGHistBuilder<GradientSumT> hist_builder;
+  ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
-  std::vector<GHistRow<GradientSumT>> target_hist(kNodes);
+  std::vector<GHistRow> target_hist(kNodes);
   for(size_t i = 0; i < target_hist.size(); ++i) {
     target_hist[i] = collection[i];
   }
@@ -45,7 +44,7 @@ void ParallelGHistBuilderReset() {
   common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d r) {
     const size_t tid = omp_get_thread_num();
 
-    GHistRow<GradientSumT> hist = hist_builder.GetInitializedHist(tid, inode);
+    GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
     // fill hist by some non-null values
     for(size_t j = 0; j < kBins; ++j) {
       hist[j].Add(kValue, kValue);
@@ -63,7 +62,7 @@ void ParallelGHistBuilderReset() {
   common::ParallelFor2d(space2, nthreads, [&](size_t inode, common::Range1d r) {
     const size_t tid = omp_get_thread_num();
 
-    GHistRow<GradientSumT> hist = hist_builder.GetInitializedHist(tid, inode);
+    GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
     // fill hist by some non-null values
     for(size_t j = 0; j < kBins; ++j) {
       ASSERT_EQ(0.0, hist[j].GetGrad());
@@ -72,8 +71,6 @@ void ParallelGHistBuilderReset() {
   });
 }
 
-
-template <typename GradientSumT>
 void ParallelGHistBuilderReduceHist(){
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
@@ -81,16 +78,16 @@ void ParallelGHistBuilderReduceHist(){
   constexpr double kValue = 1.0;
   const size_t nthreads = GetNThreads();
 
-  HistCollection<GradientSumT> collection;
+  HistCollection collection;
   collection.Init(kBins);
 
   for(size_t inode = 0; inode < kNodes; inode++) {
     collection.AddHistRow(inode);
   }
   collection.AllocateAllData();
-  ParallelGHistBuilder<GradientSumT> hist_builder;
+  ParallelGHistBuilder hist_builder;
   hist_builder.Init(kBins);
-  std::vector<GHistRow<GradientSumT>> target_hist(kNodes);
+  std::vector<GHistRow> target_hist(kNodes);
   for(size_t i = 0; i < target_hist.size(); ++i) {
     target_hist[i] = collection[i];
   }
@@ -102,7 +99,7 @@ void ParallelGHistBuilderReduceHist(){
   common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d r) {
     const size_t tid = omp_get_thread_num();
 
-    GHistRow<GradientSumT> hist = hist_builder.GetInitializedHist(tid, inode);
+    GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
     for(size_t i = 0; i < kBins; ++i) {
       hist[i].Add(kValue, kValue);
     }
@@ -120,21 +117,9 @@ void ParallelGHistBuilderReduceHist(){
   }
 }
 
-TEST(ParallelGHistBuilder, ResetDouble) {
-  ParallelGHistBuilderReset<double>();
-}
+TEST(ParallelGHistBuilder, Reset) { ParallelGHistBuilderReset(); }
 
-TEST(ParallelGHistBuilder, ResetFloat) {
-  ParallelGHistBuilderReset<float>();
-}
-
-TEST(ParallelGHistBuilder, ReduceHistDouble) {
-  ParallelGHistBuilderReduceHist<double>();
-}
-
-TEST(ParallelGHistBuilder, ReduceHistFloat) {
-  ParallelGHistBuilderReduceHist<float>();
-}
+TEST(ParallelGHistBuilder, ReduceHist) { ParallelGHistBuilderReduceHist(); }
 
 TEST(CutsBuilder, SearchGroupInd) {
   size_t constexpr kNumGroups = 4;

@@ -68,6 +68,12 @@ a filename with ``.json`` or ``.ubj`` as file extension, the latter is the exten
 
   xgb.save(bst, 'model_file_name.json')
 
+.. note::
+
+  Only load models from JSON files that were produced by XGBoost. Attempting to load
+  JSON files that were produced by an external source may lead to undefined behaviors
+  and crashes.
+
 While for memory snapshot, UBJSON is the default starting with xgboost 1.6.
 
 ***************************************************************
@@ -171,8 +177,6 @@ Will print out something similar to (not actual output as it's too long for demo
             "grow_gpu_hist": {
               "gpu_hist_train_param": {
                 "debug_synchronize": "0",
-                "gpu_batch_nrows": "0",
-                "single_precision_histogram": "0"
               },
               "train_param": {
                 "alpha": "0",

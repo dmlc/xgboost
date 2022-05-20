@@ -147,7 +147,7 @@ XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters <
 
   .. code-block:: python
 
-    evallist = [(dtest, 'eval'), (dtrain, 'train')]
+    evallist = [(dtrain, 'train'), (dtest, 'eval')]
 
 Training
 --------

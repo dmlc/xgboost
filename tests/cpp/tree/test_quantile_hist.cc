@@ -35,7 +35,7 @@ TEST(QuantileHist, Partitioner) {
 
   for (auto const& page : Xy->GetBatches<SparsePage>()) {
     GHistIndexMatrix gmat;
-    gmat.Init(page, {}, cuts, 64, false, 0.5, ctx.Threads());
+    gmat.Init(page, {}, cuts, 64, true, 0.5, ctx.Threads());
     bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
     column_indices.Init(page, gmat, 0.5, ctx.Threads());

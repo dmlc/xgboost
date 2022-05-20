@@ -406,8 +406,14 @@ class LearnerConfiguration : public Learner {
   }
 
   void LoadConfig(Json const& in) override {
+    // If configuration is loaded, ensure that the model came from the same version
     CHECK(IsA<Object>(in));
-    Version::Load(in);
+    auto origin_version = Version::Load(in);
+
+    if (!Version::Same(origin_version)) {
+      LOG(WARNING) << ModelMsg();
+      return;  // skip configuration if version is not matched
+    }
 
     auto const& learner_parameters = get<Object>(in["learner"]);
     FromJson(learner_parameters.at("learner_train_param"), &tparam_);
@@ -1271,15 +1277,12 @@ class LearnerImpl : public LearnerIO {
     return (*LearnerAPIThreadLocalStore::Get())[this];
   }
 
-  void InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
-                      PredictionType type, float missing,
-                      HostDeviceVector<bst_float> **out_preds,
-                      uint32_t iteration_begin,
+  void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
+                      HostDeviceVector<bst_float>** out_preds, uint32_t iteration_begin,
                       uint32_t iteration_end) override {
     this->Configure();
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
-    this->gbm_->InplacePredict(x, p_m, missing, &out_predictions,
-                               iteration_begin, iteration_end);
+    this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
     if (type == PredictionType::kValue) {
       obj_->PredTransform(&out_predictions.predictions);
     } else if (type == PredictionType::kMargin) {

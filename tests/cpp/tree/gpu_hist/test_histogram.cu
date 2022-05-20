@@ -95,7 +95,6 @@ TEST(Histogram, GPUDeterministic) {
   std::vector<int> shm_sizes{48 * 1024, 64 * 1024, 160 * 1024};
   for (bool is_dense : is_dense_array) {
     for (int shm_size : shm_sizes) {
-      TestDeterministicHistogram<GradientPair>(is_dense, shm_size);
       TestDeterministicHistogram<GradientPairPrecise>(is_dense, shm_size);
     }
   }

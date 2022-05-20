@@ -113,7 +113,7 @@ class HistogramCuts {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    bst_bin_t idx = it - values.cbegin();
+    auto idx = it - values.cbegin();
     idx -= !!(idx == end);
     return idx;
   }
@@ -189,11 +189,31 @@ inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_thr
   return out;
 }
 
-enum BinTypeSize : uint32_t {
-  kUint8BinsTypeSize  = 1,
+enum BinTypeSize : uint8_t {
+  kUint8BinsTypeSize = 1,
   kUint16BinsTypeSize = 2,
   kUint32BinsTypeSize = 4
 };
+
+/**
+ * \brief Dispatch for bin type, fn is a function that accepts a scalar of the bin type.
+ */
+template <typename Fn>
+auto DispatchBinType(BinTypeSize type, Fn&& fn) {
+  switch (type) {
+    case kUint8BinsTypeSize: {
+      return fn(uint8_t{});
+    }
+    case kUint16BinsTypeSize: {
+      return fn(uint16_t{});
+    }
+    case kUint32BinsTypeSize: {
+      return fn(uint32_t{});
+    }
+  }
+  LOG(FATAL) << "Unreachable";
+  return fn(uint32_t{});
+}
 
 /**
  * \brief Optionally compressed gradient index. The compression works only with dense
@@ -322,56 +342,44 @@ bst_bin_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
   return -1;
 }
 
-template<typename GradientSumT>
-using GHistRow = Span<xgboost::detail::GradientPairInternal<GradientSumT> >;
+using GHistRow = Span<xgboost::GradientPairPrecise>;
 
 /*!
  * \brief fill a histogram by zeros
  */
-template<typename GradientSumT>
-void InitilizeHistByZeroes(GHistRow<GradientSumT> hist, size_t begin, size_t end);
+void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end);
 
 /*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
-template<typename GradientSumT>
-void IncrementHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> add,
-                   size_t begin, size_t end);
+void IncrementHist(GHistRow dst, const GHistRow add, size_t begin, size_t end);
 
 /*!
  * \brief Copy hist from src to dst in range [begin, end)
  */
-template<typename GradientSumT>
-void CopyHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> src,
-              size_t begin, size_t end);
+void CopyHist(GHistRow dst, const GHistRow src, size_t begin, size_t end);
 
 /*!
  * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
  */
-template<typename GradientSumT>
-void SubtractionHist(GHistRow<GradientSumT> dst, const GHistRow<GradientSumT> src1,
-                     const GHistRow<GradientSumT> src2,
-                     size_t begin, size_t end);
+void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, size_t begin,
+                     size_t end);
 
 /*!
  * \brief histogram of gradient statistics for multiple nodes
  */
-template<typename GradientSumT>
 class HistCollection {
  public:
-  using GHistRowT = GHistRow<GradientSumT>;
-  using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
-
   // access histogram for i-th node
-  GHistRowT operator[](bst_uint nid) const {
+  GHistRow operator[](bst_uint nid) const {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
     const size_t id = row_ptr_.at(nid);
     CHECK_NE(id, kMax);
-    GradientPairT* ptr = nullptr;
+    GradientPairPrecise* ptr = nullptr;
     if (contiguous_allocation_) {
-      ptr = const_cast<GradientPairT*>(data_[0].data() + nbins_*id);
+      ptr = const_cast<GradientPairPrecise*>(data_[0].data() + nbins_*id);
     } else {
-      ptr = const_cast<GradientPairT*>(data_[id].data());
+      ptr = const_cast<GradientPairPrecise*>(data_[id].data());
     }
     return {ptr, nbins_};
   }
@@ -431,7 +439,7 @@ class HistCollection {
   /*! \brief flag to identify contiguous memory allocation */
   bool contiguous_allocation_ = false;
 
-  std::vector<std::vector<GradientPairT>> data_;
+  std::vector<std::vector<GradientPairPrecise>> data_;
 
   /*! \brief row_ptr_[nid] locates bin for histogram of node nid */
   std::vector<size_t> row_ptr_;
@@ -442,11 +450,8 @@ class HistCollection {
  * Supports processing multiple tree-nodes for nested parallelism
  * Able to reduce histograms across threads in efficient way
  */
-template<typename GradientSumT>
 class ParallelGHistBuilder {
  public:
-  using GHistRowT = GHistRow<GradientSumT>;
-
   void Init(size_t nbins) {
     if (nbins != nbins_) {
       hist_buffer_.Init(nbins);
@@ -457,7 +462,7 @@ class ParallelGHistBuilder {
   // Add new elements if needed, mark all hists as unused
   // targeted_hists - already allocated hists which should contain final results after Reduce() call
   void Reset(size_t nthreads, size_t nodes, const BlockedSpace2d& space,
-             const std::vector<GHistRowT>& targeted_hists) {
+             const std::vector<GHistRow>& targeted_hists) {
     hist_buffer_.Init(nbins_);
     tid_nid_to_hist_.clear();
     threads_to_nids_map_.clear();
@@ -478,7 +483,7 @@ class ParallelGHistBuilder {
   }
 
   // Get specified hist, initialize hist by zeros if it wasn't used before
-  GHistRowT GetInitializedHist(size_t tid, size_t nid) {
+  GHistRow GetInitializedHist(size_t tid, size_t nid) {
     CHECK_LT(nid, nodes_);
     CHECK_LT(tid, nthreads_);
 
@@ -486,7 +491,7 @@ class ParallelGHistBuilder {
     if (idx >= 0) {
       hist_buffer_.AllocateData(idx);
     }
-    GHistRowT hist = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
+    GHistRow hist = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
     if (!hist_was_used_[tid * nodes_ + nid]) {
       InitilizeHistByZeroes(hist, 0, hist.size());
@@ -501,7 +506,7 @@ class ParallelGHistBuilder {
     CHECK_GT(end, begin);
     CHECK_LT(nid, nodes_);
 
-    GHistRowT dst = targeted_hists_[nid];
+    GHistRow dst = targeted_hists_[nid];
 
     bool is_updated = false;
     for (size_t tid = 0; tid < nthreads_; ++tid) {
@@ -509,7 +514,7 @@ class ParallelGHistBuilder {
         is_updated = true;
 
         int idx = tid_nid_to_hist_.at({tid, nid});
-        GHistRowT src = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
+        GHistRow src = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
         if (dst.data() != src.data()) {
           IncrementHist(dst, src, begin, end);
@@ -595,7 +600,7 @@ class ParallelGHistBuilder {
   /*! \brief number of nodes which will be processed in parallel  */
   size_t nodes_ = 0;
   /*! \brief Buffer for additional histograms for Parallel processing  */
-  HistCollection<GradientSumT> hist_buffer_;
+  HistCollection hist_buffer_;
   /*!
    * \brief Marks which hists were used, it means that they should be merged.
    * Contains only {true or false} values
@@ -606,7 +611,7 @@ class ParallelGHistBuilder {
   /*! \brief Buffer for additional histograms for Parallel processing  */
   std::vector<bool> threads_to_nids_map_;
   /*! \brief Contains histograms for final results  */
-  std::vector<GHistRowT> targeted_hists_;
+  std::vector<GHistRow> targeted_hists_;
   /*!
    * \brief map pair {tid, nid} to index of allocated histogram from hist_buffer_ and targeted_hists_,
    * -1 is reserved for targeted_hists_
@@ -617,19 +622,15 @@ class ParallelGHistBuilder {
 /*!
  * \brief builder for histograms of gradient statistics
  */
-template<typename GradientSumT>
 class GHistBuilder {
  public:
-  using GHistRowT = GHistRow<GradientSumT>;
-
   GHistBuilder() = default;
   explicit GHistBuilder(uint32_t nbins): nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
   template <bool any_missing>
-  void BuildHist(const std::vector<GradientPair> &gpair,
-                 const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix &gmat, GHistRowT hist) const;
+  void BuildHist(const std::vector<GradientPair>& gpair, const RowSetCollection::Elem row_indices,
+                 const GHistIndexMatrix& gmat, GHistRow hist) const;
   uint32_t GetNumBins() const {
       return nbins_;
   }
