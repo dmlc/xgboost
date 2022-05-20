@@ -383,7 +383,8 @@ struct GPUHistMakerDevice {
 
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     row_partitioner->UpdatePositionBatch(
-        nidx, left_nidx, right_nidx, split_data, [=] __device__(bst_uint ridx, const NodeSplitData& data) {
+        nidx, left_nidx, right_nidx, split_data,
+        [=] __device__(bst_uint ridx, const NodeSplitData& data) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
@@ -392,7 +393,8 @@ struct GPUHistMakerDevice {
             go_left = data.split_node.DefaultLeft();
           } else {
             if (data.split_type == FeatureType::kCategorical) {
-              go_left = common::Decision<false>(data.node_cats.Bits(), cut_value, data.split_node.DefaultLeft());
+              go_left = common::Decision<false>(data.node_cats.Bits(), cut_value,
+                                                data.split_node.DefaultLeft());
             } else {
               go_left = cut_value <= data.split_node.SplitCond();
             }
@@ -449,39 +451,38 @@ struct GPUHistMakerDevice {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
     auto new_position_op = [=] __device__(size_t row_id) {
-          // What happens if user prune the tree?
-          if (!d_matrix.IsInRange(row_id)) {
-            return -1;
-          }
-          int position = RegTree::kRoot;
-          auto node = d_nodes[position];
+      // What happens if user prune the tree?
+      if (!d_matrix.IsInRange(row_id)) {
+        return -1;
+      }
+      int position = RegTree::kRoot;
+      auto node = d_nodes[position];
 
-          while (!node.IsLeaf()) {
-            bst_float element = d_matrix.GetFvalue(row_id, node.SplitIndex());
-            // Missing value
-            if (isnan(element)) {
-              position = node.DefaultChild();
-            } else {
-              bool go_left = true;
-              if (common::IsCat(d_feature_types, position)) {
-                auto node_cats =
-                    categories.subspan(categories_segments[position].beg,
-                                       categories_segments[position].size);
-                go_left = common::Decision<false>(node_cats, element, node.DefaultLeft());
-              } else {
-                go_left = element <= node.SplitCond();
-              }
-              if (go_left) {
-                position = node.LeftChild();
-              } else {
-                position = node.RightChild();
-              }
-            }
-            node = d_nodes[position];
+      while (!node.IsLeaf()) {
+        bst_float element = d_matrix.GetFvalue(row_id, node.SplitIndex());
+        // Missing value
+        if (isnan(element)) {
+          position = node.DefaultChild();
+        } else {
+          bool go_left = true;
+          if (common::IsCat(d_feature_types, position)) {
+            auto node_cats = categories.subspan(categories_segments[position].beg,
+                                                categories_segments[position].size);
+            go_left = common::Decision<false>(node_cats, element, node.DefaultLeft());
+          } else {
+            go_left = element <= node.SplitCond();
           }
+          if (go_left) {
+            position = node.LeftChild();
+          } else {
+            position = node.RightChild();
+          }
+        }
+        node = d_nodes[position];
+      }
 
-          return position;
-        };
+      return position;
+    }; // NOLINT
     p_out_position->SetDevice(ctx_->gpu_id);
     p_out_position->Resize(page->n_rows);
     update_predictions.resize(page->n_rows);
@@ -489,11 +490,11 @@ struct GPUHistMakerDevice {
     auto sorted_position = p_out_position->DevicePointer();
     dh::LaunchN(page->n_rows, [=] __device__(size_t idx) {
       bst_node_t position = new_position_op(idx);
-      d_update_predictions[idx]=d_nodes[position].LeafValue();
+      d_update_predictions[idx] = d_nodes[position].LeafValue();
       // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
       // the sampler compacts the gradient vector.
       bool is_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
-      sorted_position[idx] = is_sampled? ~position : position;
+      sorted_position[idx] = is_sampled ? ~position : position;
     });
   }
 

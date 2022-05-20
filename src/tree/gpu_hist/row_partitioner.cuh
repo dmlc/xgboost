@@ -192,8 +192,6 @@ class RowPartitioner {
   // Staging area for sorting ridx
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
   dh::TemporaryArray<IndexFlagTuple> scan_inputs_;
-  /*! \brief mapping for row -> node id. */
-  dh::TemporaryArray<bst_node_t> position_;
   dh::PinnedMemory pinned_;
   std::vector<cudaStream_t> streams_;
 
