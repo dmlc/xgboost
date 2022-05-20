@@ -52,63 +52,6 @@ void TestUpdatePositionBatch() {
 
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 
-void TestFinalise() {
-  const int kNumRows = 10;
-
-  ObjInfo task{ObjInfo::kRegression, false, false};
-  HostDeviceVector<bst_node_t> position;
-  Context ctx;
-  ctx.gpu_id = 0;
-
-  {
-    RowPartitioner rp(0, kNumRows);
-    rp.FinalisePosition(
-        &ctx, task, &position,
-        [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
-        [] XGBOOST_DEVICE(size_t idx) { return false; });
-
-    auto position = rp.GetPositionHost();
-    for (auto p : position) {
-      EXPECT_EQ(p, 7);
-    }
-  }
-
-  /**
-   * Test for sampling.
-   */
-  dh::device_vector<float> hess(kNumRows);
-  for (size_t i = 0; i < hess.size(); ++i) {
-    // removed rows, 0, 3, 6, 9
-    if (i % 3 == 0) {
-      hess[i] = 0;
-    } else {
-      hess[i] = i;
-    }
-  }
-
-  auto d_hess = dh::ToSpan(hess);
-
-  RowPartitioner rp(0, kNumRows);
-  rp.FinalisePosition(
-      &ctx, task, &position,
-      [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
-        return ridx % 2 == 0 ? 1 : 2;
-      },
-      [d_hess] __device__(size_t ridx) { return d_hess[ridx] - 0.f == 0.f; });
-
-  auto const& h_position = position.ConstHostVector();
-  for (size_t ridx = 0; ridx < h_position.size(); ++ridx) {
-    if (ridx % 3 == 0) {
-      ASSERT_LT(h_position[ridx], 0);
-    } else {
-      ASSERT_EQ(h_position[ridx], ridx % 2 == 0 ? 1 : 2);
-    }
-  }
-}
-
-TEST(RowPartitioner, Finalise) { TestFinalise(); }
-
-
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
   thrust::device_vector<uint32_t> ridx = ridx_in;
   thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());

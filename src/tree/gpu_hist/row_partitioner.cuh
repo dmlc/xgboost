@@ -214,19 +214,9 @@ class RowPartitioner {
   common::Span<const RowIndexT> GetRows();
 
   /**
-   * \brief Gets the tree position of all training instances.
-   */
-  common::Span<const bst_node_t> GetPosition();
-
-  /**
    * \brief Convenience method for testing
    */
   std::vector<RowIndexT> GetRowsHost(bst_node_t nidx);
-
-  /**
-   * \brief Convenience method for testing
-   */
-  std::vector<bst_node_t> GetPositionHost();
 
   template <typename UpdatePositionOpT, typename OpDataT>
   void UpdatePositionBatch(const std::vector<bst_node_t>& nidx,
@@ -288,40 +278,6 @@ class RowPartitioner {
             Segment(segment.begin + left_count, segment.end);
       }
     }
-  }
-
-  /**
-   * \brief Finalise the position of all training instances after tree construction is
-   * complete. Does not update any other meta information in this data structure, so
-   * should only be used at the end of training.
-   *
-   *   When the task requires update leaf, this function will copy the node index into
-   *   p_out_position. The index is negated if it's being sampled in current iteration.
-   *
-   * \param p_out_position Node index for each row.
-   * \param op Device lambda. Should provide the row index and current position as an
-   *           argument and return the new position for this training instance.
-   * \param sampled A device lambda to inform the partitioner whether a row is sampled.
-   */
-  template <typename FinalisePositionOpT, typename Sampledp>
-  void FinalisePosition(Context const* ctx, ObjInfo task,
-                        HostDeviceVector<bst_node_t>* p_out_position, FinalisePositionOpT op,
-                        Sampledp sampledp) {
-    auto d_position = position_.data().get();
-    const auto d_ridx = ridx_.data().get();
-    p_out_position->SetDevice(ctx->gpu_id);
-    p_out_position->Resize(position_.size());
-    auto sorted_position = p_out_position->DevicePointer();
-    dh::LaunchN(position_.size(), [=] __device__(size_t idx) {
-      auto position = d_position[idx];
-      RowIndexT ridx = d_ridx[idx];
-      bst_node_t new_position = op(ridx, position);
-      sorted_position[ridx] = sampledp(ridx) ? ~new_position : new_position;
-      if (new_position == -1) {
-        return;
-      }
-      d_position[idx] = new_position;
-    });
   }
 };
 };  // namespace tree

@@ -53,22 +53,12 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
   return dh::ToSpan(ridx_);
 }
 
-common::Span<const bst_node_t> RowPartitioner::GetPosition() {
-  return dh::ToSpan(position_);
-}
 std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(
     bst_node_t nidx) {
   auto span = GetRows(nidx);
   std::vector<RowIndexT> rows(span.size());
   dh::CopyDeviceSpanToVector(&rows, span);
   return rows;
-}
-
-std::vector<bst_node_t> RowPartitioner::GetPositionHost() {
-  auto span = GetPosition();
-  std::vector<bst_node_t> position(span.size());
-  dh::CopyDeviceSpanToVector(&position, span);
-  return position;
 }
 
 };  // namespace tree
