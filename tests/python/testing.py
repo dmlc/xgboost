@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import os
-import psutil
+import multiprocessing
 from typing import Tuple, Union
 import urllib
 import zipfile
@@ -346,7 +346,7 @@ def make_sparse_regression(
     """
     # Use multi-thread to speed up the generation, convenient if you use this function
     # for benchmarking.
-    n_threads = psutil.cpu_count(logical=False)
+    n_threads = multiprocessing.cpu_count()
     n_threads = min(n_threads, n_features)
 
     def random_csc(t_id: int) -> sparse.csc_matrix:
