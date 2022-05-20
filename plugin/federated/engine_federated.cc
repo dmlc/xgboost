@@ -111,9 +111,7 @@ class FederatedEngine : public IEngine {
 
   void TrackerPrint(const std::string &msg) override {
     // simply print information into the tracker
-    if (GetRank() == 0) {
-      utils::Printf("%s", msg.c_str());
-    }
+    utils::Printf("%s", msg.c_str());
   }
 
  private:

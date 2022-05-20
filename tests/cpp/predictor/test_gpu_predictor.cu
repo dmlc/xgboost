@@ -1,17 +1,19 @@
 /*!
  * Copyright 2017-2020 XGBoost contributors
  */
-#include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
+#include <gtest/gtest.h>
 #include <xgboost/c_api.h>
-#include <xgboost/predictor.h>
-#include <xgboost/logging.h>
 #include <xgboost/learner.h>
+#include <xgboost/logging.h>
+#include <xgboost/predictor.h>
+
 #include <string>
 
-#include "../helpers.h"
-#include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/data/device_adapter.cuh"
+#include "../../../src/data/proxy_dmatrix.h"
+#include "../../../src/gbm/gbtree_model.h"
+#include "../helpers.h"
 #include "test_predictor.h"
 
 namespace xgboost {
@@ -135,8 +137,9 @@ TEST(GPUPredictor, InplacePredictCupy) {
   gen.Device(0);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
-  auto x = std::make_shared<data::CupyAdapter>(interface_str);
-  TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
+  std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
+  TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
 }
 
 TEST(GPUPredictor, InplacePredictCuDF) {
@@ -145,8 +148,9 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   gen.Device(0);
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
-  auto x = std::make_shared<data::CudfAdapter>(interface_str);
-  TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
+  std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
+  TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
 }
 
 TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
@@ -160,10 +164,10 @@ TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
   gen.Device(1);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
-  auto x = std::make_shared<data::CupyAdapter>(interface_str);
-  TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 1);
-  EXPECT_THROW(TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0),
-               dmlc::Error);
+  std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
+  TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 1);
+  EXPECT_THROW(TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0), dmlc::Error);
 }
 
 TEST(GpuPredictor, LesserFeatures) {

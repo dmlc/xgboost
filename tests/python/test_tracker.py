@@ -16,10 +16,9 @@ def test_rabit_tracker():
     rabit_env = []
     for k, v in worker_env.items():
         rabit_env.append(f"{k}={v}".encode())
-    xgb.rabit.init(rabit_env)
-    ret = xgb.rabit.broadcast('test1234', 0)
-    assert str(ret) == 'test1234'
-    xgb.rabit.finalize()
+    with xgb.rabit.RabitContext(rabit_env):
+        ret = xgb.rabit.broadcast('test1234', 0)
+        assert str(ret) == 'test1234'
 
 
 def run_rabit_ops(client, n_workers):

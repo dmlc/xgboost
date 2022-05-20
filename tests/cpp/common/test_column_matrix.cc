@@ -15,6 +15,7 @@ TEST(DenseColumn, Test) {
   int32_t max_num_bins[] = {static_cast<int32_t>(std::numeric_limits<uint8_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 1,
                             static_cast<int32_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  BinTypeSize last{kUint8BinsTypeSize};
   for (int32_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
     auto sparse_thresh = 0.2;
@@ -24,41 +25,38 @@ TEST(DenseColumn, Test) {
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.Init(page, gmat, sparse_thresh, common::OmpGetNumThreads(0));
     }
-
+    ASSERT_GE(column_matrix.GetTypeSize(), last);
+    ASSERT_LE(column_matrix.GetTypeSize(), kUint32BinsTypeSize);
+    last = column_matrix.GetTypeSize();
+    ASSERT_FALSE(column_matrix.AnyMissing());
     for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
       for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
-          switch (column_matrix.GetTypeSize()) {
-            case kUint8BinsTypeSize: {
-                auto col = column_matrix.GetColumn<uint8_t, false>(j);
-                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          (*col.get()).GetGlobalBinIdx(i));
-              }
-              break;
-            case kUint16BinsTypeSize: {
-                auto col = column_matrix.GetColumn<uint16_t, false>(j);
-                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          (*col.get()).GetGlobalBinIdx(i));
-              }
-              break;
-            case kUint32BinsTypeSize: {
-                auto col = column_matrix.GetColumn<uint32_t, false>(j);
-                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          (*col.get()).GetGlobalBinIdx(i));
-              }
-              break;
-        }
+        DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
+          using T = decltype(dtype);
+          auto col = column_matrix.DenseColumn<T, false>(j);
+          ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j], col.GetGlobalBinIdx(i));
+        });
       }
     }
   }
 }
 
-template<typename BinIdxType>
-inline void CheckSparseColumn(const Column<BinIdxType>& col_input, const GHistIndexMatrix& gmat) {
-  const SparseColumn<BinIdxType>& col = static_cast<const SparseColumn<BinIdxType>& >(col_input);
+template <typename BinIdxType>
+void CheckSparseColumn(SparseColumnIter<BinIdxType>* p_col, const GHistIndexMatrix& gmat) {
+  auto& col = *p_col;
+
+  size_t n_samples = gmat.row_ptr.size() - 1;
   ASSERT_EQ(col.Size(), gmat.index.Size());
   for (auto i = 0ull; i < col.Size(); i++) {
-    ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
-              col.GetGlobalBinIdx(i));
+    ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]], col.GetGlobalBinIdx(i));
+  }
+
+  for (auto i = 0ull; i < n_samples; i++) {
+    if (col[i] == Column<BinIdxType>::kMissingId) {
+      auto beg = gmat.row_ptr[i];
+      auto end = gmat.row_ptr[i + 1];
+      ASSERT_EQ(end - beg, 0);
+    }
   }
 }
 
@@ -73,34 +71,20 @@ TEST(SparseColumn, Test) {
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.Init(page, gmat, 1.0, common::OmpGetNumThreads(0));
     }
-    switch (column_matrix.GetTypeSize()) {
-      case kUint8BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint8_t, true>(0);
-          CheckSparseColumn(*col.get(), gmat);
-        }
-        break;
-      case kUint16BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint16_t, true>(0);
-          CheckSparseColumn(*col.get(), gmat);
-        }
-        break;
-      case kUint32BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint32_t, true>(0);
-          CheckSparseColumn(*col.get(), gmat);
-        }
-        break;
-    }
+    common::DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
+      using T = decltype(dtype);
+      auto col = column_matrix.SparseColumn<T>(0, 0);
+      CheckSparseColumn(&col, gmat);
+    });
   }
 }
 
-template<typename BinIdxType>
-inline void CheckColumWithMissingValue(const Column<BinIdxType>& col_input,
-                                       const GHistIndexMatrix& gmat) {
-  const DenseColumn<BinIdxType, true>& col = static_cast<const DenseColumn<BinIdxType, true>& >(col_input);
+template <typename BinIdxType>
+void CheckColumWithMissingValue(const DenseColumnIter<BinIdxType, true>& col,
+                                const GHistIndexMatrix& gmat) {
   for (auto i = 0ull; i < col.Size(); i++) {
     if (col.IsMissing(i)) continue;
-    EXPECT_EQ(gmat.index[gmat.row_ptr[i]],
-              col.GetGlobalBinIdx(i));
+    EXPECT_EQ(gmat.index[gmat.row_ptr[i]], col.GetGlobalBinIdx(i));
   }
 }
 
@@ -115,23 +99,12 @@ TEST(DenseColumnWithMissing, Test) {
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
       column_matrix.Init(page, gmat, 0.2, common::OmpGetNumThreads(0));
     }
-    switch (column_matrix.GetTypeSize()) {
-      case kUint8BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint8_t, true>(0);
-          CheckColumWithMissingValue(*col.get(), gmat);
-        }
-        break;
-      case kUint16BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint16_t, true>(0);
-          CheckColumWithMissingValue(*col.get(), gmat);
-        }
-        break;
-      case kUint32BinsTypeSize: {
-          auto col = column_matrix.GetColumn<uint32_t, true>(0);
-          CheckColumWithMissingValue(*col.get(), gmat);
-        }
-        break;
-    }
+    ASSERT_TRUE(column_matrix.AnyMissing());
+    DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
+      using T = decltype(dtype);
+      auto col = column_matrix.DenseColumn<T, true>(0);
+      CheckColumWithMissingValue(col, gmat);
+    });
   }
 }
 

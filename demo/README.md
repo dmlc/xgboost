@@ -78,7 +78,7 @@ XGBoost is extensively used by machine learning practitioners to create state of
 this is a list of machine learning winning solutions with XGBoost.
 Please send pull requests if you find ones that are missing here.
 
-
+- Bishwarup Bhattacharjee, 1st place winner of [Allstate Claims Severity](https://www.kaggle.com/competitions/allstate-claims-severity/overview) conducted on December 2016. Link to [discussion](https://www.kaggle.com/competitions/allstate-claims-severity/discussion/26416)
 - Benedikt Schifferer, Gilberto Titericz, Chris Deotte, Christof Henkel, Kazuki Onodera, Jiwei Liu, Bojan Tunguz, Even Oldridge, Gabriel De Souza Pereira Moreira and Ahmet Erdem, 1st place winner of [Twitter RecSys Challenge 2020](https://recsys-twitter.com/) conducted from June,20-August,20. [GPU Accelerated Feature Engineering and Training for Recommender Systems](https://medium.com/rapids-ai/winning-solution-of-recsys2020-challenge-gpu-accelerated-feature-engineering-and-training-for-cd67c5a87b1f)
 - Eugene Khvedchenya,Jessica Fridrich, Jan Butora, Yassine Yousfi 1st place winner in [ALASKA2 Image Steganalysis](https://www.kaggle.com/c/alaska2-image-steganalysis/overview). Link to [discussion](https://www.kaggle.com/c/alaska2-image-steganalysis/discussion/168546)
 - Dan Ofer, Seffi Cohen, Noa Dagan, Nurit, 1st place in WiDS Datathon 2020. Link to [discussion](https://www.kaggle.com/c/widsdatathon2020/discussion/133189)

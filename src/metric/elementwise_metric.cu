@@ -171,11 +171,11 @@ class PseudoErrorLoss : public Metric {
  public:
   const char* Name() const override { return "mphe"; }
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
-  void LoadConfig(Json const& in) override { FromJson(in["pseduo_huber_param"], &param_); }
+  void LoadConfig(Json const& in) override { FromJson(in["pseudo_huber_param"], &param_); }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(this->Name());
-    out["pseduo_huber_param"] = ToJson(param_);
+    out["pseudo_huber_param"] = ToJson(param_);
   }
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,

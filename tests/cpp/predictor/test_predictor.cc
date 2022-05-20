@@ -2,19 +2,20 @@
  * Copyright 2020-2021 by Contributors
  */
 
-#include <gtest/gtest.h>
-#include <xgboost/predictor.h>
-#include <xgboost/data.h>
-#include <xgboost/host_device_vector.h>
-#include <xgboost/generic_parameters.h>
-
 #include "test_predictor.h"
 
-#include "../helpers.h"
-#include "../../../src/data/adapter.h"
-#include "../../../src/common/io.h"
-#include "../../../src/common/categorical.h"
+#include <gtest/gtest.h>
+#include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
+#include <xgboost/predictor.h>
+
 #include "../../../src/common/bitfield.h"
+#include "../../../src/common/categorical.h"
+#include "../../../src/common/io.h"
+#include "../../../src/data/adapter.h"
+#include "../../../src/data/proxy_dmatrix.h"
+#include "../helpers.h"
 
 namespace xgboost {
 TEST(Predictor, PredictionCache) {
@@ -83,9 +84,8 @@ void TestTrainingPrediction(size_t rows, size_t bins,
   train("gpu_predictor", &predictions_1);
 }
 
-void TestInplacePrediction(dmlc::any x, std::string predictor,
-                           bst_row_t rows, bst_feature_t cols,
-                           int32_t device) {
+void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bst_row_t rows,
+                           bst_feature_t cols, int32_t device) {
   size_t constexpr kClasses { 4 };
   auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(device);
   std::shared_ptr<DMatrix> m = gen.GenerateDMatrix(true, false, kClasses);
@@ -105,24 +105,21 @@ void TestInplacePrediction(dmlc::any x, std::string predictor,
   }
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
-  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
-                          std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_0, 0, 2);
   CHECK(p_out_predictions_0);
   HostDeviceVector<float> predict_0 (p_out_predictions_0->Size());
   predict_0.Copy(*p_out_predictions_0);
 
   HostDeviceVector<float> *p_out_predictions_1{nullptr};
-  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
-                          std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_1, 2, 4);
   CHECK(p_out_predictions_1);
   HostDeviceVector<float> predict_1 (p_out_predictions_1->Size());
   predict_1.Copy(*p_out_predictions_1);
 
   HostDeviceVector<float>* p_out_predictions{nullptr};
-  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
-                          std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, PredictionType::kMargin, std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions, 0, 4);
 
   auto& h_pred = p_out_predictions->HostVector();
@@ -378,25 +375,28 @@ void TestSparsePrediction(float sparsity, std::string predictor) {
   learner->SetParam("predictor", predictor);
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
 
-  std::vector<float> with_nan(kRows * kCols, std::numeric_limits<float>::quiet_NaN());
-  for (auto const& page : Xy->GetBatches<SparsePage>()) {
+  HostDeviceVector<float> with_nan(kRows * kCols, std::numeric_limits<float>::quiet_NaN());
+  auto& h_with_nan = with_nan.HostVector();
+  for (auto const &page : Xy->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     for (size_t i = 0; i < batch.Size(); ++i) {
       auto row = batch[i];
       for (auto e : row) {
-        with_nan[i * kCols + e.index] = e.fvalue;
+        h_with_nan[i * kCols + e.index] = e.fvalue;
       }
     }
   }
 
   learner->SetParam("predictor", "cpu_predictor");
   // Xcode_12.4 doesn't compile with `std::make_shared`.
-  auto dense = std::shared_ptr<data::DenseAdapter>(
-      new data::DenseAdapter(with_nan.data(), kRows, kCols));
+  auto dense = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
+  auto array_interface = GetArrayInterface(&with_nan, kRows, kCols);
+  std::string arr_str;
+  Json::Dump(array_interface, &arr_str);
+  dynamic_cast<data::DMatrixProxy *>(dense.get())->SetArrayData(arr_str.data());
   HostDeviceVector<float> *p_dense_predt;
-  learner->InplacePredict(dmlc::any(dense), nullptr, PredictionType::kValue,
-                          std::numeric_limits<float>::quiet_NaN(), &p_dense_predt,
-                          0, 0);
+  learner->InplacePredict(dense, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
+                          &p_dense_predt, 0, 0);
 
   auto const& dense_predt = *p_dense_predt;
   if (predictor == "cpu_predictor") {

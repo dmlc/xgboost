@@ -75,7 +75,6 @@ private[scala] case class XGBoostExecutionParams(
     missing: Float,
     allowNonZeroForMissing: Boolean,
     trackerConf: TrackerConf,
-    timeoutRequestWorkers: Long,
     checkpointParam: Option[ExternalCheckpointParams],
     xgbInputParams: XGBoostExecutionInputParams,
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
@@ -201,12 +200,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
         "instance of TrackerConf.")
     }
-    val timeoutRequestWorkers: Long = overridedParams.get("timeout_request_workers") match {
-      case None => 0L
-      case Some(interval: Long) => interval
-      case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
-        " an instance of Long.")
-    }
     val checkpointParam =
       ExternalCheckpointParams.extractParams(overridedParams)
 
@@ -227,7 +220,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
 
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
       missing, allowNonZeroForMissing, trackerConf,
-      timeoutRequestWorkers,
       checkpointParam,
       inputParams,
       xgbExecEarlyStoppingParams,
@@ -294,7 +286,6 @@ object XGBoost extends Serializable {
   }
 
   private def buildDistributedBooster(
-      buildDMatrixInRabit: Boolean,
       buildWatches: () => Watches,
       xgbExecutionParam: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
@@ -303,11 +294,6 @@ object XGBoost extends Serializable {
       prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
 
     var watches: Watches = null
-    if (!buildDMatrixInRabit) {
-      // for CPU pipeline, we need to build DMatrix out of rabit context
-      watches = buildWatchesAndCheck(buildWatches)
-    }
-
     val taskId = TaskContext.getPartitionId().toString
     val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
@@ -318,10 +304,7 @@ object XGBoost extends Serializable {
     try {
       Rabit.init(rabitEnv)
 
-      if (buildDMatrixInRabit) {
-        // for GPU pipeline, we need to move dmatrix building into rabit context
-        watches = buildWatchesAndCheck(buildWatches)
-      }
+      watches = buildWatchesAndCheck(buildWatches)
 
       val numEarlyStoppingRounds = xgbExecutionParam.earlyStoppingParams.numEarlyStoppingRounds
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](numRounds))
@@ -385,7 +368,7 @@ object XGBoost extends Serializable {
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
       sc: SparkContext,
-      buildTrainingData: XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]]),
+      buildTrainingData: XGBoostExecutionParams => (RDD[() => Watches], Option[RDD[_]]),
       params: Map[String, Any]):
     (Booster, Map[String, Array[Float]]) = {
 
@@ -404,7 +387,7 @@ object XGBoost extends Serializable {
     }.orNull
 
     // Get the training data RDD and the cachedRDD
-    val (buildDMatrixInRabit, trainingRDD, optionalCachedRDD) = buildTrainingData(xgbExecParams)
+    val (trainingRDD, optionalCachedRDD) = buildTrainingData(xgbExecParams)
 
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
@@ -421,9 +404,8 @@ object XGBoost extends Serializable {
             optionWatches = Some(iter.next())
           }
 
-          optionWatches.map { buildWatches => buildDistributedBooster(buildDMatrixInRabit,
-            buildWatches, xgbExecParams, rabitEnv, xgbExecParams.obj,
-            xgbExecParams.eval, prevBooster)}
+          optionWatches.map { buildWatches => buildDistributedBooster(buildWatches,
+            xgbExecParams, rabitEnv, xgbExecParams.obj, xgbExecParams.eval, prevBooster)}
             .getOrElse(throw new RuntimeException("No Watches to train"))
 
         }}

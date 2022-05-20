@@ -101,8 +101,7 @@ object PreXGBoost extends PreXGBoostProvider {
    * @param estimator supports XGBoostClassifier and XGBoostRegressor
    * @param dataset the training data
    * @param params all user defined and defaulted params
-   * @return [[XGBoostExecutionParams]] => (Boolean, RDD[[() => Watches]], Option[ RDD[_] ])
-   *         Boolean if building DMatrix in rabit context
+   * @return [[XGBoostExecutionParams]] => (RDD[[() => Watches]], Option[ RDD[_] ])
    *         RDD[() => Watches] will be used as the training input
    *         Option[RDD[_]\] is the optional cached RDD
    */
@@ -110,7 +109,7 @@ object PreXGBoost extends PreXGBoostProvider {
       estimator: Estimator[_],
       dataset: Dataset[_],
       params: Map[String, Any]): XGBoostExecutionParams =>
-    (Boolean, RDD[() => Watches], Option[RDD[_]]) = {
+    (RDD[() => Watches], Option[RDD[_]]) = {
 
     if (optionProvider.isDefined && optionProvider.get.providerEnabled(Some(dataset))) {
       return optionProvider.get.buildDatasetToRDD(estimator, dataset, params)
@@ -172,12 +171,12 @@ object PreXGBoost extends PreXGBoostProvider {
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (false, trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
         case Right(trainingData) =>
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (false, trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
       }
 
   }
@@ -324,7 +323,7 @@ object PreXGBoost extends PreXGBoostProvider {
       trainingSet: RDD[XGBLabeledPoint],
       evalRDDMap: Map[String, RDD[XGBLabeledPoint]] = Map(),
       hasGroup: Boolean = false):
-  XGBoostExecutionParams => (Boolean, RDD[() => Watches], Option[RDD[_]]) = {
+  XGBoostExecutionParams => (RDD[() => Watches], Option[RDD[_]]) = {
 
     xgbExecParams: XGBoostExecutionParams =>
       composeInputData(trainingSet, hasGroup, xgbExecParams.numWorkers) match {
@@ -332,12 +331,12 @@ object PreXGBoost extends PreXGBoostProvider {
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (false, trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (trainForRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
         case Right(trainingData) =>
           val cachedRDD = if (xgbExecParams.cacheTrainingSet) {
             Some(trainingData.persist(StorageLevel.MEMORY_AND_DISK))
           } else None
-          (false, trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
+          (trainForNonRanking(trainingData, xgbExecParams, evalRDDMap), cachedRDD)
       }
   }
 

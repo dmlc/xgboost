@@ -146,6 +146,24 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     prediction.foreach(x => assert(math.abs(x.getAs[Double]("prediction") - first) <= 0.01f))
   }
 
+  test("objective will be set if not specifying it") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
+    val training = buildDataFrame(Regression.train)
+    val xgb = new XGBoostRegressor(paramMap)
+    assert(!xgb.isDefined(xgb.objective))
+    xgb.fit(training)
+    assert(xgb.getObjective == "reg:squarederror")
+
+    val paramMap1 = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod,
+      "objective" -> "reg:squaredlogerror")
+    val xgb1 = new XGBoostRegressor(paramMap1)
+    assert(xgb1.getObjective == "reg:squaredlogerror")
+    xgb1.fit(training)
+    assert(xgb1.getObjective == "reg:squaredlogerror")
+  }
+
   test("test predictionLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,

@@ -1131,6 +1131,24 @@ class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
   struct ArrowSchemaImporter schema_;
   ArrowColumnarBatchVec batches_;
 };
+
+class SparsePageAdapterBatch {
+  HostSparsePageView page_;
+
+ public:
+  struct Line {
+    SparsePage::Inst inst;
+    bst_row_t ridx;
+    COOTuple GetElement(size_t idx) const {
+      return COOTuple{ridx, inst.data()[idx].index, inst.data()[idx].fvalue};
+    }
+    size_t Size() const { return inst.size(); }
+  };
+
+  explicit SparsePageAdapterBatch(HostSparsePageView page) : page_{std::move(page)} {}
+  Line GetLine(size_t ridx) const { return Line{page_[ridx], ridx}; }
+  size_t Size() const { return page_.Size(); }
+};
 };  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_ADAPTER_H_

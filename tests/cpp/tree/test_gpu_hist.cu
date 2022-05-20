@@ -55,12 +55,12 @@ TEST(GpuHist, DeviceHistogram) {
   }
 
   // Should be deleted
-  ASSERT_FALSE(histogram.HistogramExists({kNNodes}));
+  ASSERT_FALSE(histogram.HistogramExists(kNNodes));
   // Most recent node should exist
-  ASSERT_TRUE(histogram.HistogramExists({kNNodes + 1}));
+  ASSERT_TRUE(histogram.HistogramExists(kNNodes + 1));
 
   // Add same node again - should fail
-  EXPECT_ANY_THROW(histogram.AllocateHistograms({kNNodes+1}););
+  EXPECT_ANY_THROW(histogram.AllocateHistograms({kNNodes + 1}););
 }
 
 std::vector<GradientPairPrecise> GetHostHistGpair() {
