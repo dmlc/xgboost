@@ -90,7 +90,7 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureTy
       using T = decltype(dtype);
       common::Span<T> index_data_span = {index.data<T>(), index.Size()};
       SetIndexData(
-          index_data_span, {}, batch_threads, adapter_batch, is_valid, n_bins_total,
+          index_data_span, ft, batch_threads, adapter_batch, is_valid, n_bins_total,
           [offsets](auto bin_idx, auto fidx) { return static_cast<T>(bin_idx - offsets[fidx]); });
     });
   } else {
@@ -98,7 +98,7 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureTy
        in index field to chose right offset. So offset is nullptr and index is
        not reduced */
     common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
-    SetIndexData(index_data_span, {}, batch_threads, adapter_batch, is_valid, n_bins_total,
+    SetIndexData(index_data_span, ft, batch_threads, adapter_batch, is_valid, n_bins_total,
                  [](auto idx, auto) { return idx; });
   }
 
