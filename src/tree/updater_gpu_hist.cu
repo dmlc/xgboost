@@ -182,10 +182,11 @@ struct GPUHistMakerDevice {
   std::unique_ptr<RowPartitioner> row_partitioner;
   DeviceHistogramStorage<GradientSumT> hist{};
 
-  dh::caching_device_vector<GradientPair> d_gpair;  // storage for gpair;
+  dh::device_vector<GradientPair> d_gpair;  // storage for gpair;
   common::Span<GradientPair> gpair;
 
-  dh::caching_device_vector<int> monotone_constraints;
+  dh::device_vector<int> monotone_constraints;
+  dh::device_vector<float> update_predictions;
 
   /*! \brief Sum gradient for each node. */
   std::vector<GradientPairPrecise> node_sum_gradients;
@@ -405,6 +406,16 @@ struct GPUHistMakerDevice {
   // prediction cache
   void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, ObjInfo task,
                         HostDeviceVector<bst_node_t>* p_out_position) {
+    if (task.UpdateTreeLeaf() && !p_fmat->SingleColBlock() && param.subsample != 1.0) {
+      // see comment in the `FinalisePositionInPage`.
+      LOG(FATAL) << "Current objective function can not be used with subsampled external memory.";
+    }
+
+    // External memory will not use prediction cache
+    if (!p_fmat->SingleColBlock()) {
+      return;
+    }
+
     dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
     dh::safe_cuda(cudaMemcpyAsync(d_nodes.data().get(), p_tree->GetNodes().data(),
                                   d_nodes.size() * sizeof(RegTree::Node),
@@ -423,25 +434,9 @@ struct GPUHistMakerDevice {
       dh::CopyToD(categories_segments, &d_categories_segments);
     }
 
-    if (row_partitioner->GetRows().size() != p_fmat->Info().num_row_) {
-      row_partitioner.reset();  // Release the device memory first before reallocating
-      row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, p_fmat->Info().num_row_));
-    }
-    if (task.UpdateTreeLeaf() && !p_fmat->SingleColBlock() && param.subsample != 1.0) {
-      // see comment in the `FinalisePositionInPage`.
-      LOG(FATAL) << "Current objective function can not be used with subsampled external memory.";
-    }
-    if (page->n_rows == p_fmat->Info().num_row_) {
-      FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                             dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                             p_out_position);
-    } else {
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
-        FinalisePositionInPage(batch.Impl(), dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                               dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                               p_out_position);
-      }
-    }
+    FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
+                           p_out_position);
   }
 
   void FinalisePositionInPage(EllpackPageImpl const *page,
@@ -453,13 +448,12 @@ struct GPUHistMakerDevice {
                               HostDeviceVector<bst_node_t>* p_out_position) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
-    row_partitioner->FinalisePosition(
-        ctx_, task, p_out_position,
-        [=] __device__(size_t row_id, int position) {
+    auto new_position_op = [=] __device__(size_t row_id) {
           // What happens if user prune the tree?
           if (!d_matrix.IsInRange(row_id)) {
-            return RowPartitioner::kIgnoredTreePosition;
+            return -1;
           }
+          int position = RegTree::kRoot;
           auto node = d_nodes[position];
 
           while (!node.IsLeaf()) {
@@ -487,41 +481,33 @@ struct GPUHistMakerDevice {
           }
 
           return position;
-        },
-        [d_gpair] __device__(size_t ridx) {
-          // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
-          // the sampler compacts the gradient vector.
-          return d_gpair[ridx].GetHess() - .0f == 0.f;
-        });
+        };
+    p_out_position->SetDevice(ctx_->gpu_id);
+    p_out_position->Resize(page->n_rows);
+    update_predictions.resize(page->n_rows);
+    auto d_update_predictions = dh::ToSpan(update_predictions);
+    auto sorted_position = p_out_position->DevicePointer();
+    dh::LaunchN(page->n_rows, [=] __device__(size_t idx) {
+      bst_node_t position = new_position_op(idx);
+      d_update_predictions[idx]=d_nodes[position].LeafValue();
+      // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
+      // the sampler compacts the gradient vector.
+      bool is_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
+      sorted_position[idx] = is_sampled? ~position : position;
+    });
   }
 
-  void UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
+  bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
     CHECK(p_tree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     CHECK_EQ(out_preds_d.DeviceIdx(), ctx_->gpu_id);
-    auto d_ridx = row_partitioner->GetRows();
-
-    GPUTrainingParam param_d(param);
-    dh::TemporaryArray<GradientPairPrecise> device_node_sum_gradients(node_sum_gradients.size());
-
-    dh::safe_cuda(cudaMemcpyAsync(device_node_sum_gradients.data().get(), node_sum_gradients.data(),
-                                  sizeof(GradientPairPrecise) * node_sum_gradients.size(),
-                                  cudaMemcpyHostToDevice));
-    auto d_position = row_partitioner->GetPosition();
-    auto d_node_sum_gradients = device_node_sum_gradients.data().get();
-    auto tree_evaluator = evaluator_.GetEvaluator();
-
-    auto const& h_nodes = p_tree->GetNodes();
-    dh::caching_device_vector<RegTree::Node> nodes(h_nodes.size());
-    dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
-                                  h_nodes.size() * sizeof(RegTree::Node), cudaMemcpyHostToDevice));
-    auto d_nodes = dh::ToSpan(nodes);
-    dh::LaunchN(d_ridx.size(), [=] XGBOOST_DEVICE(size_t idx) mutable {
-      bst_node_t nidx = d_position[idx];
-      auto weight = d_nodes[nidx].LeafValue();
-      out_preds_d(d_ridx[idx]) += weight;
+    auto d_update_predictions = dh::ToSpan(update_predictions);
+    if (d_update_predictions.empty()) return false;
+    CHECK_EQ(out_preds_d.Size(), d_update_predictions.size());
+    dh::LaunchN(out_preds_d.Size(), [=] XGBOOST_DEVICE(size_t idx) mutable {
+      out_preds_d(idx) += d_update_predictions[idx];
     });
-    row_partitioner.reset();
+    return true;
   }
 
   // num histograms is the number of contiguous histograms in memory to reduce over
@@ -853,9 +839,9 @@ class GPUHistMaker : public TreeUpdater {
       return false;
     }
     monitor_.Start("UpdatePredictionCache");
-    maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
+    auto result = maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
     monitor_.Stop("UpdatePredictionCache");
-    return true;
+    return result;
   }
 
   TrainParam param_;  // NOLINT

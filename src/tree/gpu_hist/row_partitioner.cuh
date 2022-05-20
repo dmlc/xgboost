@@ -171,7 +171,6 @@ void SortPositionBatch(const KernelBatchArgs<OpDataT>& args, common::Span<RowInd
 class RowPartitioner {
  public:
   using RowIndexT = bst_uint;
-  static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
   int device_idx_;
@@ -310,19 +309,6 @@ class RowPartitioner {
                         Sampledp sampledp) {
     auto d_position = position_.data().get();
     const auto d_ridx = ridx_.data().get();
-    if (!task.UpdateTreeLeaf()) {
-      dh::LaunchN(position_.size(), [=] __device__(size_t idx) {
-        auto position = d_position[idx];
-        RowIndexT ridx = d_ridx[idx];
-        bst_node_t new_position = op(ridx, position);
-        if (new_position == kIgnoredTreePosition) {
-          return;
-        }
-        d_position[idx] = new_position;
-      });
-      return;
-    }
-
     p_out_position->SetDevice(ctx->gpu_id);
     p_out_position->Resize(position_.size());
     auto sorted_position = p_out_position->DevicePointer();
@@ -331,7 +317,7 @@ class RowPartitioner {
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx, position);
       sorted_position[ridx] = sampledp(ridx) ? ~new_position : new_position;
-      if (new_position == kIgnoredTreePosition) {
+      if (new_position == -1) {
         return;
       }
       d_position[idx] = new_position;
