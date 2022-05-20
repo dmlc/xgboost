@@ -414,8 +414,15 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
     single_build.Reset(total_bins, batch_param, common::OmpGetNumThreads(0), 1, false);
     SparsePage concat;
     std::vector<float> hess(m->Info().num_row_, 1.0f);
-    GHistIndexMatrix gmat(m.get(), batch_param.max_bin, std::numeric_limits<double>::quiet_NaN(),
-                          false, common::OmpGetNumThreads(0), hess);
+    for (auto const& page : m->GetBatches<SparsePage>()) {
+      concat.Push(page);
+    }
+
+    auto cut = common::SketchOnDMatrix(m.get(), batch_param.max_bin, common::OmpGetNumThreads(0),
+                                       false, hess);
+    GHistIndexMatrix gmat;
+    gmat.Init(concat, {}, cut, batch_param.max_bin, false, std::numeric_limits<double>::quiet_NaN(),
+              common::OmpGetNumThreads(0));
     single_build.BuildHist(0, gmat, &tree, row_set_collection, nodes, {}, h_gpair);
     single_page = single_build.Histogram()[0];
   }
