@@ -174,11 +174,12 @@ class QuantileHistMaker: public TreeUpdater {
                        RegTree *p_tree);
 
     void AddSplitsToTree(const std::vector<CPUExpandEntry>& expand,
+                         Driver<CPUExpandEntry>* driver, 
                          RegTree *p_tree,
                          int *num_leaves,
                          std::vector<CPUExpandEntry>* nodes_for_apply_split,
-                         std::unordered_map<uint32_t, bool>* smalest_nodes_mask_ptr, size_t depth
-                         , bool * is_left_small);
+                         std::unordered_map<uint32_t, bool>* smalest_nodes_mask_ptr, size_t depth,
+                         bool * is_left_small);
 
     template <typename BinIdxType, bool any_missing>
     void ExpandTree(const GHistIndexMatrix& gmat,

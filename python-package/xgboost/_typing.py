@@ -1,21 +1,32 @@
 """Shared typing definition."""
 import ctypes
 import os
-from typing import Optional, Any, TypeVar, Union, Sequence
+from typing import Any, TypeVar, Union, Type, Sequence, Callable, List, Dict
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack
+import numpy as np
+
 DataType = Any
 
 # xgboost accepts some other possible types in practice due to historical reason, which is
 # lesser tested.  For now we encourage users to pass a simple list of string.
-FeatureNames = Optional[Sequence[str]]
-FeatureTypes = Optional[Sequence[str]]
+FeatureInfo = Sequence[str]
+FeatureNames = FeatureInfo
+FeatureTypes = FeatureInfo
+BoosterParam = Union[List, Dict]  # better be sequence
 
 ArrayLike = Any
 PathLike = Union[str, os.PathLike]
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
 NumpyOrCupy = Any
+NumpyDType = Union[str, Type[np.number]]
+PandasDType = Any  # real type is pandas.core.dtypes.base.ExtensionDtype
+
+FloatCompatible = Union[float, np.float32, np.float64]
+
+# callables
+FPreProcCallable = Callable
 
 # ctypes
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
@@ -59,3 +70,4 @@ CNumericPtr = ctypes.pointer
 
 # template parameter
 _T = TypeVar("_T")
+_F = TypeVar("_F", bound=Callable[..., Any])

@@ -4,8 +4,19 @@ import copy
 import warnings
 import json
 import os
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type, cast
-from typing import Sequence
+from typing import (
+    Union,
+    Optional,
+    List,
+    Dict,
+    Callable,
+    Sequence,
+    Tuple,
+    Any,
+    TypeVar,
+    Type,
+    cast,
+)
 import numpy as np
 
 from .core import Booster, DMatrix, XGBoostError
@@ -14,7 +25,7 @@ from .core import Metric
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
-from ._typing import ArrayLike, FeatureTypes
+from ._typing import ArrayLike, FeatureNames, FeatureTypes
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -401,7 +412,7 @@ def _wrap_evaluation_matrices(
     eval_qid: Optional[Sequence[Any]],
     create_dmatrix: Callable,
     enable_categorical: bool,
-    feature_types: FeatureTypes,
+    feature_types: Optional[FeatureTypes],
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
 
@@ -717,7 +728,7 @@ class XGBModel(XGBModelBase):
         return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: Union[str, os.PathLike]) -> None:
-        meta = {}
+        meta: Dict[str, Any] = {}
         for k, v in self.__dict__.items():
             if k == '_le':
                 meta['_le'] = self._le.to_json()
@@ -1231,7 +1242,7 @@ class XGBModel(XGBModelBase):
             importance_type=self.importance_type if self.importance_type else dft()
         )
         if b.feature_names is None:
-            feature_names = [f"f{i}" for i in range(self.n_features_in_)]
+            feature_names: FeatureNames = [f"f{i}" for i in range(self.n_features_in_)]
         else:
             feature_names = b.feature_names
         # gblinear returns all features so the `get` in next line is only for gbtree.

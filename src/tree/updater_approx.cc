@@ -238,10 +238,9 @@ class GloablApproxBuilder {
     split_conditions_.clear();
     split_ind_.clear();
 
-    Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+    Driver<CPUExpandEntry> driver(param_);
     auto &tree = *p_tree;
     driver.Push({this->InitRoot(p_fmat, gpair, hess, p_tree)});
-    bst_node_t num_leaves{1};
     auto expand_set = driver.Pop();
     int depth = 0;
     bool is_loss_guide = static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy) ==
@@ -267,16 +266,14 @@ class GloablApproxBuilder {
       bool is_applied = false;
       // candidates that can be applied.
       for (auto const &candidate : expand_set) {
-        if (!candidate.IsValid(param_, num_leaves)) {
-          continue;
-        }
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied[candidate.nid] = candidate;
         applied_vec.push_back(candidate);
         CHECK_EQ(applied[candidate.nid].nid, candidate.nid);
-        num_leaves++;
+        // num_leaves++;
         int left_child_nidx = tree[candidate.nid].LeftChild();
-        if (CPUExpandEntry::ChildIsValid(param_, p_tree->GetDepth(left_child_nidx), num_leaves)) {
+//        if (CPUExpandEntry::ChildIsValid(param_, p_tree->GetDepth(left_child_nidx), num_leaves)) {
+        if (driver.IsChildValid(candidate)) {
           valid_candidates.emplace_back(candidate);
         } else {
           if (param_.grow_policy == TrainParam::kLossGuide) {

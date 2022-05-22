@@ -5,20 +5,24 @@
 import copy
 import os
 import warnings
-from typing import Optional, Dict, Any, Union, Tuple, Sequence
+from typing import Optional, Dict, Any, Union, Tuple, Sequence, List, cast, Iterable
 
 import numpy as np
+
+from .callback import TrainingCallback, CallbackContainer, EvaluationMonitor, EarlyStopping
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .core import Metric, Objective
-from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
-from . import callback
+from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold, DataFrame
+from ._typing import _F, FPreProcCallable, BoosterParam
+
+_CVFolds = Sequence["CVPack"]
 
 
 def _assert_new_callback(
-    callbacks: Optional[Sequence[callback.TrainingCallback]]
+    callbacks: Optional[Sequence[TrainingCallback]]
 ) -> None:
     is_new_callback: bool = not callbacks or all(
-        isinstance(c, callback.TrainingCallback) for c in callbacks
+        isinstance(c, TrainingCallback) for c in callbacks
     )
     if not is_new_callback:
         link = "https://xgboost.readthedocs.io/en/latest/python/callbacks.html"
@@ -56,10 +60,10 @@ def train(
     feval: Optional[Metric] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
-    evals_result: callback.TrainingCallback.EvalsLog = None,
+    evals_result: TrainingCallback.EvalsLog = None,
     verbose_eval: Optional[Union[bool, int]] = True,
     xgb_model: Optional[Union[str, os.PathLike, Booster, bytearray]] = None,
-    callbacks: Optional[Sequence[callback.TrainingCallback]] = None,
+    callbacks: Optional[Sequence[TrainingCallback]] = None,
     custom_metric: Optional[Metric] = None,
 ) -> Booster:
     """Train a booster with given parameters.
@@ -159,12 +163,12 @@ def train(
     _assert_new_callback(callbacks)
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
-        callbacks.append(callback.EvaluationMonitor(period=verbose_eval))
+        callbacks.append(EvaluationMonitor(period=verbose_eval))
     if early_stopping_rounds:
         callbacks.append(
-            callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
+            EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
         )
-    cb_container = callback.CallbackContainer(
+    cb_container = CallbackContainer(
         callbacks,
         metric=metric_fn,
         # For old `feval` parameter, the behavior is unchanged.  For the new
@@ -194,71 +198,73 @@ def train(
 
 class CVPack:
     """"Auxiliary datastruct to hold one fold of CV."""
-    def __init__(self, dtrain, dtest, param):
+    def __init__(self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Union[Dict, List]]) -> None:
         """"Initialize the CVPack"""
         self.dtrain = dtrain
         self.dtest = dtest
         self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
         self.bst = Booster(param, [dtrain, dtest])
 
-    def __getattr__(self, name):
-        def _inner(*args, **kwargs):
+    def __getattr__(self, name: str) -> _F:
+        def _inner(*args: Any, **kwargs: Any) -> Any:
             return getattr(self.bst, name)(*args, **kwargs)
-        return _inner
+        return cast(_F, _inner)
 
-    def update(self, iteration, fobj):
+    def update(self, iteration: int, fobj: Optional[Objective]) -> None:
         """"Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
-    def eval(self, iteration, feval, output_margin):
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> str:
         """"Evaluate the CVPack for one iteration."""
         return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
 
 
 class _PackedBooster:
-    def __init__(self, cvfolds) -> None:
+    def __init__(self, cvfolds: _CVFolds) -> None:
         self.cvfolds = cvfolds
 
-    def update(self, iteration, obj):
+    def update(self, iteration: int, obj: Optional[Objective]) -> None:
         '''Iterate through folds for update'''
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration, feval, output_margin):
+    def eval(self, iteration: int, feval: Optional[Metric], output_margin: bool) -> List[str]:
         '''Iterate through folds for eval'''
         result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
 
-    def set_attr(self, **kwargs):
+    def set_attr(self, **kwargs: Optional[str]) -> Any:
         '''Iterate through folds for setting attributes'''
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
 
-    def attr(self, key):
+    def attr(self, key: str) -> Optional[str]:
         '''Redirect to booster attr.'''
         return self.cvfolds[0].bst.attr(key)
 
-    def set_param(self, params, value=None):
+    def set_param(self,
+                  params: Union[Dict, Iterable[Tuple[str, Any]], str],
+                  value: Optional[str] = None) -> None:
         """Iterate through folds for set_param"""
         for f in self.cvfolds:
             f.bst.set_param(params, value)
 
-    def num_boosted_rounds(self):
+    def num_boosted_rounds(self) -> int:
         '''Number of boosted rounds.'''
         return self.cvfolds[0].num_boosted_rounds()
 
     @property
-    def best_iteration(self):
+    def best_iteration(self) -> int:
         '''Get best_iteration'''
-        return int(self.cvfolds[0].bst.attr("best_iteration"))
+        return int(cast(int, self.cvfolds[0].bst.attr("best_iteration")))
 
     @property
-    def best_score(self):
+    def best_score(self) -> float:
         """Get best_score."""
-        return float(self.cvfolds[0].bst.attr("best_score"))
+        return float(cast(float, self.cvfolds[0].bst.attr("best_score")))
 
 
-def groups_to_rows(groups, boundaries):
+def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarray:
     """
     Given group row boundaries, convert ground indexes to row indexes
     :param groups: list of groups for testing
@@ -268,7 +274,9 @@ def groups_to_rows(groups, boundaries):
     return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
 
 
-def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
+def mkgroupfold(dall: DMatrix, nfold: int, param: BoosterParam,
+                evals: Sequence[str] = (), fpreproc: FPreProcCallable = None,
+                shuffle: bool = True) -> List[CVPack]:
     """
     Make n folds for cross-validation maintaining groups
     :return: cross-validation folds
@@ -308,8 +316,10 @@ def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
     return ret
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
-            folds=None, shuffle=True):
+def mknfold(dall: DMatrix, nfold: int, param: BoosterParam, seed: int,
+            evals: Sequence[str] = (), fpreproc: FPreProcCallable = None,
+            stratified: bool = False, folds: XGBStratifiedKFold = None, shuffle: bool = True
+            ) -> List[CVPack]:
     """
     Make an n-fold list of CVPack from random indices.
     """
@@ -362,11 +372,27 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     return ret
 
 
-def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj: Optional[Objective] = None,
-       feval=None, maximize=None, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None, shuffle=True, custom_metric: Optional[Metric] = None):
+def cv(
+    params: BoosterParam,
+    dtrain: DMatrix,
+    num_boost_round: int = 10,
+    nfold: int = 3,
+    stratified: bool = False,
+    folds: XGBStratifiedKFold = None,
+    metrics: Sequence[str] = (),
+    obj: Optional[Objective] = None,
+    feval: Optional[Metric] = None,
+    maximize: bool = None,
+    early_stopping_rounds: int = None,
+    fpreproc: FPreProcCallable = None,
+    as_pandas: bool = True,
+    verbose_eval: Optional[Union[int, bool]] = None,
+    show_stdv: bool = True,
+    seed: int = 0,
+    callbacks: Sequence[TrainingCallback] = None,
+    shuffle: bool = True,
+    custom_metric: Optional[Metric] = None,
+) -> Union[Dict[str, float], DataFrame]:
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
@@ -477,7 +503,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     params.pop("eval_metric", None)
 
-    results = {}
+    results: Dict[str, List[float]] = {}
     cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
                       stratified, folds, shuffle)
 
@@ -490,13 +516,13 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     if verbose_eval:
         verbose_eval = 1 if verbose_eval is True else verbose_eval
         callbacks.append(
-            callback.EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
+            EvaluationMonitor(period=verbose_eval, show_stdv=show_stdv)
         )
     if early_stopping_rounds:
         callbacks.append(
-            callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
+            EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
         )
-    callbacks = callback.CallbackContainer(
+    callbacks_container = CallbackContainer(
         callbacks,
         metric=metric_fn,
         is_cv=True,
@@ -504,16 +530,16 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     )
 
     booster = _PackedBooster(cvfolds)
-    callbacks.before_training(booster)
+    callbacks_container.before_training(booster)
 
     for i in range(num_boost_round):
-        if callbacks.before_iteration(booster, i, dtrain, None):
+        if callbacks_container.before_iteration(booster, i, dtrain, None):
             break
         booster.update(i, obj)
 
-        should_break = callbacks.after_iteration(booster, i, dtrain, None)
-        res = callbacks.aggregated_cv
-        for key, mean, std in res:
+        should_break = callbacks_container.after_iteration(booster, i, dtrain, None)
+        res = callbacks_container.aggregated_cv
+        for key, mean, std in cast(List[Tuple[str, float, float]], res):
             if key + '-mean' not in results:
                 results[key + '-mean'] = []
             if key + '-std' not in results:
@@ -532,6 +558,6 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         except ImportError:
             pass
 
-    callbacks.after_training(booster)
+    callbacks_container.after_training(booster)
 
     return results

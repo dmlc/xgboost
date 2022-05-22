@@ -261,8 +261,7 @@ class GBTree : public GradientBooster {
   void PredictBatch(DMatrix *p_fmat, PredictionCacheEntry *out_preds,
                     bool training, unsigned layer_begin, unsigned layer_end) override;
 
-  void InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
-                      float missing, PredictionCacheEntry *out_preds,
+  void InplacePredict(std::shared_ptr<DMatrix> p_m, float missing, PredictionCacheEntry* out_preds,
                       uint32_t layer_begin, unsigned layer_end) const override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
@@ -278,15 +277,14 @@ class GBTree : public GradientBooster {
     if (tparam_.predictor == PredictorType::kAuto) {
       // Try both predictor implementations
       for (auto const &p : predictors) {
-        if (p && p->InplacePredict(x, p_m, model_, missing, out_preds,
-                                   tree_begin, tree_end)) {
+        if (p && p->InplacePredict(p_m, model_, missing, out_preds, tree_begin, tree_end)) {
           return;
         }
       }
       LOG(FATAL) << msg;
     } else {
-      bool success = this->GetPredictor()->InplacePredict(
-          x, p_m, model_, missing, out_preds, tree_begin, tree_end);
+      bool success = this->GetPredictor()->InplacePredict(p_m, model_, missing, out_preds,
+                                                          tree_begin, tree_end);
       CHECK(success) << msg << std::endl
                      << "Current Predictor: "
                      << (tparam_.predictor == PredictorType::kCPUPredictor

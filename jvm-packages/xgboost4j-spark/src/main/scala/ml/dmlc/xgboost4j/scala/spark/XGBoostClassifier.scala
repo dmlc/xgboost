@@ -169,6 +169,23 @@ class XGBoostClassifier (
   }
 
   override protected def train(dataset: Dataset[_]): XGBoostClassificationModel = {
+    val _numClasses = getNumClasses(dataset)
+    if (isDefined(numClass) && $(numClass) != _numClasses) {
+      throw new Exception("The number of classes in dataset doesn't match " +
+        "\'num_class\' in xgboost params.")
+    }
+
+    if (_numClasses == 2) {
+      if (!isDefined(objective)) {
+        // If user doesn't set objective, force it to binary:logistic
+        setObjective("binary:logistic")
+      }
+    } else if (_numClasses > 2) {
+      if (!isDefined(objective)) {
+        // If user doesn't set objective, force it to multi:softprob
+        setObjective("multi:softprob")
+      }
+    }
 
     if (!isDefined(evalMetric) || $(evalMetric).isEmpty) {
       set(evalMetric, setupDefaultEvalMetric())
@@ -176,12 +193,6 @@ class XGBoostClassifier (
 
     if (isDefined(customObj) && $(customObj) != null) {
       set(objectiveType, "classification")
-    }
-
-    val _numClasses = getNumClasses(dataset)
-    if (isDefined(numClass) && $(numClass) != _numClasses) {
-      throw new Exception("The number of classes in dataset doesn't match " +
-        "\'num_class\' in xgboost params.")
     }
 
     // Packing with all params plus params user defined
