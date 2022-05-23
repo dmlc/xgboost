@@ -344,6 +344,19 @@ def make_sparse_regression(
       Return the matrix as np.ndarray with missing values filled by NaN
 
     """
+    if not hasattr(np.random, "default_rng"):
+        # old version of numpy on s390x
+        rng = np.random.RandomState(1994)
+        X = sparse.random(
+            m=n_samples,
+            n=n_features,
+            density=1.0 - sparsity,
+            random_state=rng,
+            format="csr",
+        )
+        y = rng.normal(loc=0.0, scale=1.0, size=n_samples)
+        return X, y
+
     # Use multi-thread to speed up the generation, convenient if you use this function
     # for benchmarking.
     n_threads = multiprocessing.cpu_count()
