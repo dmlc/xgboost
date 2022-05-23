@@ -62,12 +62,12 @@ class TestGPUUpdaters:
         assert tm.non_increasing(hist_result['train'][dataset.metric])
 
         param = {"tree_method": "gpu_hist", "max_bin": 64}
-        approx_result = train_result(param, dataset.get_dmat(), 16)
-        note(approx_result)
-        assert tm.non_increasing(approx_result['train'][dataset.metric])
+        gpu_hist_result = train_result(param, dataset.get_dmat(), 16)
+        note(gpu_hist_result)
+        assert tm.non_increasing(gpu_hist_result['train'][dataset.metric])
 
         np.testing.assert_allclose(
-            hist_result["train"]["rmse"], approx_result["train"]["rmse"], rtol=1e-2
+            hist_result["train"]["rmse"], gpu_hist_result["train"]["rmse"], rtol=1e-2
         )
 
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
