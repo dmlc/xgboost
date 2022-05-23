@@ -1,12 +1,16 @@
-# coding: utf-8
 """XGBoost: eXtreme Gradient Boosting library.
 
 Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
-import os
-
-from .core import DMatrix, DeviceQuantileDMatrix, Booster, DataIter, build_info
+from .core import (
+    DMatrix,
+    DeviceQuantileDMatrix,
+    Booster,
+    DataIter,
+    build_info,
+    _py_version,
+)
 from .training import train, cv
 from . import rabit  # noqa
 from . import tracker  # noqa
@@ -21,9 +25,9 @@ try:
 except ImportError:
     pass
 
-VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION")
-with open(VERSION_FILE, encoding="ascii") as f:
-    __version__ = f.read().strip()
+
+__version__ = _py_version()
+
 
 __all__ = [
     # core

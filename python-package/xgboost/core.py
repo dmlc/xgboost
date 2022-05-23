@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import json
+from packaging import version
 import warnings
 from functools import wraps
 from inspect import signature, Parameter
@@ -139,6 +140,22 @@ def _get_log_callback_func() -> Callable:
     return c_callback(_log_callback)
 
 
+def _lib_version(lib: ctypes.CDLL) -> Tuple[int, int, int]:
+    """Get the XGBoost version from native shared object."""
+    major = ctypes.c_int()
+    minor = ctypes.c_int()
+    patch = ctypes.c_int()
+    lib.XGBoostVersion(ctypes.byref(major), ctypes.byref(minor), ctypes.byref(patch))
+    return major.value, minor.value, patch.value
+
+
+def _py_version() -> str:
+    """Get the XGBoost version from Python version file."""
+    VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION")
+    with open(VERSION_FILE, encoding="ascii") as f:
+        return f.read().strip()
+
+
 def _load_lib() -> ctypes.CDLL:
     """Load xgboost Library."""
     lib_paths = find_lib_path()
@@ -146,7 +163,7 @@ def _load_lib() -> ctypes.CDLL:
         # This happens only when building document.
         return None  # type: ignore
     try:
-        pathBackup = os.environ['PATH'].split(os.pathsep)
+        pathBackup = os.environ["PATH"].split(os.pathsep)
     except KeyError:
         pathBackup = []
     lib_success = False
@@ -155,8 +172,9 @@ def _load_lib() -> ctypes.CDLL:
         try:
             # needed when the lib is linked with non-system-available
             # dependencies
-            os.environ['PATH'] = os.pathsep.join(
-                pathBackup + [os.path.dirname(lib_path)])
+            os.environ["PATH"] = os.pathsep.join(
+                pathBackup + [os.path.dirname(lib_path)]
+            )
             lib = ctypes.cdll.LoadLibrary(lib_path)
             setattr(lib, "path", os.path.normpath(lib_path))
             lib_success = True
@@ -164,7 +182,7 @@ def _load_lib() -> ctypes.CDLL:
             os_error_list.append(str(e))
             continue
         finally:
-            os.environ['PATH'] = os.pathsep.join(pathBackup)
+            os.environ["PATH"] = os.pathsep.join(pathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
@@ -180,11 +198,29 @@ Likely causes:
   * You are running 32-bit Python on a 64-bit OS
 
 Error message(s): {os_error_list}
-""")
+"""
+        )
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()  # type: ignore
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
         raise XGBoostError(lib.XGBGetLastError())
+
+    libver = _lib_version(lib)
+    pyver = version.parse(_py_version())
+    assert isinstance(pyver, version.Version)
+
+    # verify that we are loading the correct binary.
+    if (pyver.major, pyver.minor, pyver.micro) != libver:
+        msg = (
+            "Mismatched version between the Python package and the native shared "
+            f"""object. Shared object is loaded from: {lib.path}.
+Likely cause:
+  * XGBoost is first installed with anaconda then upgraded with pip. To fix it """
+            "please remove one of the installations."
+        )
+        raise ValueError(msg)
+    assert (pyver.major, pyver.minor, pyver.micro) == libver, msg
+
     return lib
 
 
