@@ -4,7 +4,6 @@
  */
 #include "test_transform_range.cc"
 
-#if defined(XGBOOST_USE_NCCL)
 namespace xgboost {
 namespace common {
 
@@ -34,4 +33,3 @@ TEST(Transform, MGPU_SpecifiedGpuId) {  // NOLINT
 
 }  // namespace common
 }  // namespace xgboost
-#endif

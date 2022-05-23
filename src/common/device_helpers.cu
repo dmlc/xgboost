@@ -99,6 +99,14 @@ NcclAllReducer::~NcclAllReducer() {
   }
 }
 #else
+void RabitAllReducer::DoInit(int _device_ordinal) {
+#if !defined(XGBOOST_USE_FEDERATED)
+  if (rabit::IsDistributed()) {
+    LOG(CONSOLE) << "XGBoost is not compiled with NCCL, falling back to Rabit.";
+  }
+#endif
+}
+
 void RabitAllReducer::DoAllGather(void const *data, size_t length_bytes,
                                   std::vector<size_t> *segments,
                                   dh::caching_device_vector<char> *recvbuf) {

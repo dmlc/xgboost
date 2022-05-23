@@ -339,7 +339,6 @@ TEST(GPUQuantile, MultiMerge) {
 TEST(GPUQuantile, AllReduceBasic) {
   // This test is supposed to run by a python test that setups the environment.
   std::string msg {"Skipping AllReduce test"};
-#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
   auto n_gpus = AllVisibleGPUs();
   InitRabitContext(msg, n_gpus);
   auto world = rabit::GetWorldSize();
@@ -420,15 +419,10 @@ TEST(GPUQuantile, AllReduceBasic) {
     }
   });
   rabit::Finalize();
-#else
-  LOG(WARNING) << msg;
-  return;
-#endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
 }
 
 TEST(GPUQuantile, SameOnAllWorkers) {
   std::string msg {"Skipping SameOnAllWorkers test"};
-#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
   auto n_gpus = AllVisibleGPUs();
   InitRabitContext(msg, n_gpus);
   auto world = rabit::GetWorldSize();
@@ -495,10 +489,6 @@ TEST(GPUQuantile, SameOnAllWorkers) {
       offset += size_as_float;
     }
   });
-#else
-  LOG(WARNING) << msg;
-  return;
-#endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
 }
 
 TEST(GPUQuantile, Push) {

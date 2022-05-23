@@ -1007,7 +1007,7 @@ class RabitAllReducer : public AllReducerBase<RabitAllReducer> {
   friend class AllReducerBase<RabitAllReducer>;
 
  private:
-  void DoInit(int _device_ordinal) {}
+  static void DoInit(int _device_ordinal);
 
   void DoAllGather(void const *data, size_t length_bytes, std::vector<size_t> *segments,
                    dh::caching_device_vector<char> *recvbuf);
