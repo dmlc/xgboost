@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import json
-from packaging import version
 import warnings
 from functools import wraps
 from inspect import signature, Parameter
@@ -205,21 +204,28 @@ Error message(s): {os_error_list}
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
         raise XGBoostError(lib.XGBGetLastError())
 
+    def parse(ver: str) -> Tuple[int, int, int]:
+        """Avoid dependency on packaging (PEP 440)."""
+        # 2.0.0-dev or 2.0.0
+        major, minor, patch = ver.split("-")[0].split(".")
+        return int(major), int(minor), int(patch)
+
     libver = _lib_version(lib)
-    pyver = version.parse(_py_version())
-    assert isinstance(pyver, version.Version)
+    pyver = parse(_py_version())
 
     # verify that we are loading the correct binary.
-    if (pyver.major, pyver.minor, pyver.micro) != libver:
+    if pyver != libver:
+        pyver_str = ".".join((str(v) for v in pyver))
+        libver_str = ".".join((str(v) for v in libver))
         msg = (
             "Mismatched version between the Python package and the native shared "
-            f"""object. Shared object is loaded from: {lib.path}.
+            f"""object.  Python package version: {pyver_str}. Shared object """
+            f"""version: {libver_str}. Shared object is loaded from: {lib.path}.
 Likely cause:
   * XGBoost is first installed with anaconda then upgraded with pip. To fix it """
             "please remove one of the installations."
         )
         raise ValueError(msg)
-    assert (pyver.major, pyver.minor, pyver.micro) == libver, msg
 
     return lib
 
