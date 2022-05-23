@@ -33,10 +33,11 @@ class Driver {
                           std::function<bool(ExpandEntryT, ExpandEntryT)>>;
 
  public:
-  explicit Driver(TrainParam::TreeGrowPolicy policy)
-      : policy_(policy),
-        queue_(policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT> :
-                                                  LossGuide<ExpandEntryT>) {}
+  explicit Driver(TrainParam param, std::size_t max_node_batch_size = 256)
+      : param_(param),
+        max_node_batch_size_(max_node_batch_size),
+        queue_(param.grow_policy == TrainParam::kDepthWise ? DepthWise<ExpandEntryT>
+                                                           : LossGuide<ExpandEntryT>) {}
   template <typename EntryIterT>
   void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
@@ -55,24 +56,42 @@ class Driver {
     return queue_.empty();
   }
 
+  // Can a child of this entry still be expanded?
+  // can be used to avoid extra work
+  bool IsChildValid(ExpandEntryT const& parent_entry) {
+    if (param_.max_depth > 0 && parent_entry.depth + 1 >= param_.max_depth) return false;
+    if (param_.max_leaves > 0 && num_leaves_ >= param_.max_leaves) return false;
+    return true;
+  }
+
   // Return the set of nodes to be expanded
   // This set has no dependencies between entries so they may be expanded in
   // parallel or asynchronously
   std::vector<ExpandEntryT> Pop() {
     if (queue_.empty()) return {};
     // Return a single entry for loss guided mode
-    if (policy_ == TrainParam::kLossGuide) {
+    if (param_.grow_policy == TrainParam::kLossGuide) {
       ExpandEntryT e = queue_.top();
       queue_.pop();
-      return {e};
+
+      if (e.IsValid(param_, num_leaves_)) {
+        num_leaves_++;
+        return {e};
+      } else {
+        return {};
+      }
     }
     // Return nodes on same level for depth wise
     std::vector<ExpandEntryT> result;
     ExpandEntryT e = queue_.top();
     int level = e.depth;
-    while (e.depth == level && !queue_.empty()) {
+    while (e.depth == level && !queue_.empty() && result.size() < max_node_batch_size_) {
       queue_.pop();
-      result.emplace_back(e);
+      if (e.IsValid(param_, num_leaves_)) {
+        num_leaves_++;
+        result.emplace_back(e);
+      }
+
       if (!queue_.empty()) {
         e = queue_.top();
       }
@@ -81,7 +100,9 @@ class Driver {
   }
 
  private:
-  TrainParam::TreeGrowPolicy policy_;
+  TrainParam param_;
+  bst_node_t num_leaves_ = 1;
+  std::size_t max_node_batch_size_;
   ExpandQueue queue_;
 };
 }  // namespace tree

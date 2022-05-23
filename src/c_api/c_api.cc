@@ -300,7 +300,7 @@ XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
   CHECK(p_m);
   auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
   CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetData(c_interface_str);
+  m->SetCUDAArray(c_interface_str);
   API_END();
 }
 
@@ -312,7 +312,7 @@ XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
   CHECK(p_m);
   auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
   CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetData(c_interface_str);
+  m->SetCUDAArray(c_interface_str);
   API_END();
 }
 
@@ -825,74 +825,69 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   API_END();
 }
 
-template <typename T>
-void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
-                        char const *c_json_config, Learner *learner,
-                        size_t n_rows, size_t n_cols,
-                        xgboost::bst_ulong const **out_shape,
-                        xgboost::bst_ulong *out_dim, const float **out_result) {
+void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config, Learner *learner,
+                        xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
+                        const float **out_result) {
   auto config = Json::Load(StringView{c_json_config});
   CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
 
-  HostDeviceVector<float>* p_predt { nullptr };
+  HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
   float missing = GetMissing(config);
-  learner->InplacePredict(x, p_m, type, missing, &p_predt,
+  learner->InplacePredict(p_m, type, missing, &p_predt,
                           RequiredArg<Integer>(config, "iteration_begin", __func__),
                           RequiredArg<Integer>(config, "iteration_end", __func__));
   CHECK(p_predt);
   auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto chunksize = n_rows == 0 ? 0 : p_predt->Size() / n_rows;
+  auto const &info = p_m->Info();
+  auto n_samples = info.num_row_;
+  auto n_features = info.num_col_;
+  auto chunksize = n_samples == 0 ? 0 : p_predt->Size() / n_samples;
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-  CalcPredictShape(strict_shape, type, n_rows, n_cols, chunksize, learner->Groups(),
+  CalcPredictShape(strict_shape, type, n_samples, n_features, chunksize, learner->Groups(),
                    learner->BoostedRounds(), &shape, out_dim);
   *out_result = dmlc::BeginPtr(p_predt->HostVector());
   *out_shape = dmlc::BeginPtr(shape);
 }
 
-// A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
-                                      char const *array_interface,
-                                      char const *c_json_config,
-                                      DMatrixHandle m,
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_interface,
+                                      char const *c_json_config, DMatrixHandle m,
                                       xgboost::bst_ulong const **out_shape,
-                                      xgboost::bst_ulong *out_dim,
-                                      const float **out_result) {
+                                      xgboost::bst_ulong *out_dim, const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::shared_ptr<xgboost::data::ArrayAdapter> x{
-      new xgboost::data::ArrayAdapter(StringView{array_interface})};
-  std::shared_ptr<DMatrix> p_m {nullptr};
-  if (m) {
+  std::shared_ptr<DMatrix> p_m{nullptr};
+  if (!m) {
+    p_m.reset(new data::DMatrixProxy);
+  } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << "Invalid input type for inplace predict.";
+  proxy->SetArrayData(array_interface);
   auto *learner = static_cast<xgboost::Learner *>(handle);
-  InplacePredictImpl(x, p_m, c_json_config, learner, x->NumRows(),
-                     x->NumColumns(), out_shape, out_dim, out_result);
+  InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
 }
 
-// A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
-                                    char const *indices, char const *data,
-                                    xgboost::bst_ulong cols,
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, char const *indices,
+                                    char const *data, xgboost::bst_ulong cols,
                                     char const *c_json_config, DMatrixHandle m,
                                     xgboost::bst_ulong const **out_shape,
-                                    xgboost::bst_ulong *out_dim,
-                                    const float **out_result) {
+                                    xgboost::bst_ulong *out_dim, const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::shared_ptr<xgboost::data::CSRArrayAdapter> x{
-      new xgboost::data::CSRArrayAdapter{StringView{indptr},
-                                         StringView{indices}, StringView{data},
-                                         static_cast<size_t>(cols)}};
-  std::shared_ptr<DMatrix> p_m {nullptr};
-  if (m) {
+  std::shared_ptr<DMatrix> p_m{nullptr};
+  if (!m) {
+    p_m.reset(new data::DMatrixProxy);
+  } else {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
+  auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
+  CHECK(proxy) << "Invalid input type for inplace predict.";
+  proxy->SetCSRData(indptr, indices, data, cols, true);
   auto *learner = static_cast<xgboost::Learner *>(handle);
-  InplacePredictImpl(x, p_m, c_json_config, learner, x->NumRows(),
-                     x->NumColumns(), out_shape, out_dim, out_result);
+  InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
 }
 

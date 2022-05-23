@@ -1,12 +1,15 @@
 """Distributed XGBoost Rabit related API."""
 import ctypes
 from enum import IntEnum, unique
+import logging
 import pickle
 from typing import Any, TypeVar, Callable, Optional, cast, List, Union
 
 import numpy as np
 
 from .core import _LIB, c_str, _check_call
+
+LOGGER = logging.getLogger("[xgboost.rabit]")
 
 
 def _init_rabit() -> None:
@@ -222,6 +225,24 @@ def version_number() -> int:
     """
     ret = _LIB.RabitVersionNumber()
     return ret
+
+
+class RabitContext:
+    """A context controlling rabit initialization and finalization."""
+
+    def __init__(self, args: List[bytes] = None) -> None:
+        if args is None:
+            args = []
+        self.args = args
+
+    def __enter__(self) -> None:
+        init(self.args)
+        assert is_distributed()
+        LOGGER.debug("-------------- rabit say hello ------------------")
+
+    def __exit__(self, *args: List) -> None:
+        finalize()
+        LOGGER.debug("--------------- rabit say bye ------------------")
 
 
 # initialization script

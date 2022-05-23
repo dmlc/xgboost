@@ -27,34 +27,29 @@ def run_worker(port: int, world_size: int, rank: int, with_gpu: bool) -> None:
         f'federated_client_key={CLIENT_KEY}',
         f'federated_client_cert={CLIENT_CERT}'
     ]
-    xgb.rabit.init([e.encode() for e in rabit_env])
+    with xgb.rabit.RabitContext([e.encode() for e in rabit_env]):
+        # Load file, file will not be sharded in federated mode.
+        dtrain = xgb.DMatrix('agaricus.txt.train-%02d' % rank)
+        dtest = xgb.DMatrix('agaricus.txt.test-%02d' % rank)
 
-    # Load file, file will not be sharded in federated mode.
-    dtrain = xgb.DMatrix('agaricus.txt.train-%02d' % rank)
-    dtest = xgb.DMatrix('agaricus.txt.test-%02d' % rank)
+        # Specify parameters via map, definition are same as c++ version
+        param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
+        if with_gpu:
+            param['tree_method'] = 'gpu_hist'
+            param['gpu_id'] = rank
 
-    # Specify parameters via map, definition are same as c++ version
-    param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
-    if with_gpu:
-        param['tree_method'] = 'gpu_hist'
-        param['gpu_id'] = rank
+        # Specify validations set to watch performance
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        num_round = 20
 
-    # Specify validations set to watch performance
-    watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-    num_round = 20
+        # Run training, all the features in training API is available.
+        bst = xgb.train(param, dtrain, num_round, evals=watchlist,
+                        early_stopping_rounds=2)
 
-    # Run training, all the features in training API is available.
-    # Currently, this script only support calling train once for fault recovery purpose.
-    bst = xgb.train(param, dtrain, num_round, evals=watchlist, early_stopping_rounds=2)
-
-    # Save the model, only ask process 0 to save the model.
-    if xgb.rabit.get_rank() == 0:
-        bst.save_model("test.model.json")
-        xgb.rabit.tracker_print("Finished training\n")
-
-    # Notify the tracker all training has been successful
-    # This is only needed in distributed training.
-    xgb.rabit.finalize()
+        # Save the model, only ask process 0 to save the model.
+        if xgb.rabit.get_rank() == 0:
+            bst.save_model("test.model.json")
+            xgb.rabit.tracker_print("Finished training\n")
 
 
 def run_test(with_gpu: bool = False) -> None:

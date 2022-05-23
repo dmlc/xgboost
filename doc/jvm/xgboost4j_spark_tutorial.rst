@@ -349,7 +349,23 @@ With regards to ML pipeline save and load, please refer the next section.
 
 Interact with Other Bindings of XGBoost
 ---------------------------------------
-After we train a model with XGBoost4j-Spark on massive dataset, sometimes we want to do model serving in single machine or integrate it with other single node libraries for further processing. XGBoost4j-Spark supports export model to local by:
+After we train a model with XGBoost4j-Spark on massive dataset, sometimes we want to do model serving
+in single machine or integrate it with other single node libraries for further processing.
+
+After saving the model, we can load this model with single node Python XGBoost directly from ``version 2.0.0+``.
+
+.. code-block:: scala
+
+  val xgbClassificationModelPath = "/tmp/xgbClassificationModel"
+  xgbClassificationModel.write.overwrite().save(xgbClassificationModelPath)
+
+.. code-block:: python
+
+  import xgboost as xgb
+  bst = xgb.Booster({'nthread': 4})
+  bst.load_model("/tmp/xgbClassificationModel/data/XGBoostClassificationModel")
+
+Before ``version 2.0.0``, XGBoost4j-Spark needs to export model to local manually by:
 
 .. code-block:: scala
 

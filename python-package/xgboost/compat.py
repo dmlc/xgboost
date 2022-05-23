@@ -1,7 +1,7 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
 """For compatibility and optional dependencies."""
-from typing import Any
+from typing import Any, Type, Dict, Optional, List
 import sys
 import types
 import importlib.util
@@ -11,20 +11,20 @@ import numpy as np
 assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
 
-def py_str(x):
+def py_str(x: bytes) -> str:
     """convert c string back to python string"""
-    return x.decode('utf-8')
+    return x.decode('utf-8')  # type: ignore
 
 
-def lazy_isinstance(instance, module, name):
+def lazy_isinstance(instance: Type[object], module: str, name: str) -> bool:
     """Use string representation to identify a type."""
 
     # Notice, we use .__class__ as opposed to type() in order
     # to support object proxies such as weakref.proxy
     cls = instance.__class__
-    module = cls.__module__ == module
-    name = cls.__name__ == name
-    return module and name
+    is_same_module = cls.__module__ == module
+    has_same_name = cls.__name__ == name
+    return is_same_module and has_same_name
 
 
 # pandas
@@ -37,53 +37,33 @@ try:
 except ImportError:
 
     MultiIndex = object
-    DataFrame: Any = object
+    DataFrame = object
     Series = object
     pandas_concat = None
     PANDAS_INSTALLED = False
 
 # sklearn
 try:
-    from sklearn.base import BaseEstimator
-    from sklearn.base import RegressorMixin, ClassifierMixin
+    from sklearn.base import (
+         BaseEstimator as XGBModelBase,
+         RegressorMixin as XGBRegressorBase,
+         ClassifierMixin as XGBClassifierBase
+    )
     from sklearn.preprocessing import LabelEncoder
 
     try:
-        from sklearn.model_selection import KFold, StratifiedKFold
+        from sklearn.model_selection import (
+            KFold as XGBKFold,
+            StratifiedKFold as XGBStratifiedKFold
+        )
     except ImportError:
-        from sklearn.cross_validation import KFold, StratifiedKFold
+        from sklearn.cross_validation import (
+            KFold as XGBKFold,
+            StratifiedKFold as XGBStratifiedKFold
+        )
 
     SKLEARN_INSTALLED = True
 
-    XGBModelBase = BaseEstimator
-    XGBRegressorBase = RegressorMixin
-    XGBClassifierBase = ClassifierMixin
-
-    XGBKFold = KFold
-    XGBStratifiedKFold = StratifiedKFold
-
-    class XGBoostLabelEncoder(LabelEncoder):
-        '''Label encoder with JSON serialization methods.'''
-        def to_json(self):
-            '''Returns a JSON compatible dictionary'''
-            meta = {}
-            for k, v in self.__dict__.items():
-                if isinstance(v, np.ndarray):
-                    meta[k] = v.tolist()
-                else:
-                    meta[k] = v
-            return meta
-
-        def from_json(self, doc):
-            # pylint: disable=attribute-defined-outside-init
-            '''Load the encoder back from a JSON compatible dict.'''
-            meta = {}
-            for k, v in doc.items():
-                if k == 'classes_':
-                    self.classes_ = np.array(v)
-                    continue
-                meta[k] = v
-            self.__dict__.update(meta)
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -91,20 +71,34 @@ except ImportError:
     XGBModelBase = object
     XGBClassifierBase = object
     XGBRegressorBase = object
+    LabelEncoder = object
 
     XGBKFold = None
     XGBStratifiedKFold = None
-    XGBoostLabelEncoder = None
 
 
-# dask
-try:
-    import pkg_resources
-    pkg_resources.get_distribution('dask')
-    DASK_INSTALLED = True
-except pkg_resources.DistributionNotFound:
-    dask = None
-    DASK_INSTALLED = False
+class XGBoostLabelEncoder(LabelEncoder):
+    '''Label encoder with JSON serialization methods.'''
+    def to_json(self) -> Dict:
+        '''Returns a JSON compatible dictionary'''
+        meta = {}
+        for k, v in self.__dict__.items():
+            if isinstance(v, np.ndarray):
+                meta[k] = v.tolist()
+            else:
+                meta[k] = v
+        return meta
+
+    def from_json(self, doc: Dict) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        '''Load the encoder back from a JSON compatible dict.'''
+        meta = {}
+        for k, v in doc.items():
+            if k == 'classes_':
+                self.classes_ = np.array(v)
+                continue
+            meta[k] = v
+        self.__dict__.update(meta)
 
 
 try:
@@ -113,7 +107,7 @@ try:
     SCIPY_INSTALLED = True
 except ImportError:
     scipy_sparse = False
-    scipy_csr: Any = object
+    scipy_csr = object
     SCIPY_INSTALLED = False
 
 
@@ -136,15 +130,21 @@ class LazyLoader(types.ModuleType):
     """Lazily import a module, mainly to avoid pulling in large dependencies.
     """
 
-    def __init__(self, local_name, parent_module_globals, name, warning=None):
+    def __init__(
+         self,
+         local_name: str,
+         parent_module_globals: Dict,
+         name: str,
+         warning: Optional[str] = None
+    ) -> None:
         self._local_name = local_name
         self._parent_module_globals = parent_module_globals
         self._warning = warning
-        self.module = None
+        self.module: Optional[types.ModuleType] = None
 
         super().__init__(name)
 
-    def _load(self):
+    def _load(self) -> types.ModuleType:
         """Load the module and insert it into the parent's globals."""
         # Import the target module and insert it into the parent's namespace
         module = importlib.import_module(self.__name__)
@@ -163,12 +163,12 @@ class LazyLoader(types.ModuleType):
 
         return module
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str) -> Any:
         if not self.module:
             self.module = self._load()
         return getattr(self.module, item)
 
-    def __dir__(self):
+    def __dir__(self) -> List[str]:
         if not self.module:
             self.module = self._load()
         return dir(self.module)

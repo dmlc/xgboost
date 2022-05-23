@@ -22,8 +22,8 @@ import org.apache.spark.SparkContext
 import org.apache.spark.ml.param.{ParamPair, Params}
 import org.json4s.jackson.JsonMethods._
 import org.json4s.{JArray, JBool, JDouble, JField, JInt, JNothing, JObject, JString, JValue}
-
 import JsonDSLXGBoost._
+import ml.dmlc.xgboost4j.scala.spark
 
 // This originates from apache-spark DefaultPramsWriter copy paste
 private[spark] object DefaultXGBoostParamsWriter {
@@ -78,6 +78,7 @@ private[spark] object DefaultXGBoostParamsWriter {
       ("timestamp" -> System.currentTimeMillis()) ~
       ("sparkVersion" -> sc.version) ~
       ("uid" -> uid) ~
+      ("xgboostVersion" -> spark.VERSION) ~
       ("paramMap" -> jsonParams)
     val metadata = extraMetadata match {
       case Some(jObject) =>

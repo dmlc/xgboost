@@ -169,6 +169,23 @@ class XGBoostClassifier (
   }
 
   override protected def train(dataset: Dataset[_]): XGBoostClassificationModel = {
+    val _numClasses = getNumClasses(dataset)
+    if (isDefined(numClass) && $(numClass) != _numClasses) {
+      throw new Exception("The number of classes in dataset doesn't match " +
+        "\'num_class\' in xgboost params.")
+    }
+
+    if (_numClasses == 2) {
+      if (!isDefined(objective)) {
+        // If user doesn't set objective, force it to binary:logistic
+        setObjective("binary:logistic")
+      }
+    } else if (_numClasses > 2) {
+      if (!isDefined(objective)) {
+        // If user doesn't set objective, force it to multi:softprob
+        setObjective("multi:softprob")
+      }
+    }
 
     if (!isDefined(evalMetric) || $(evalMetric).isEmpty) {
       set(evalMetric, setupDefaultEvalMetric())
@@ -176,12 +193,6 @@ class XGBoostClassifier (
 
     if (isDefined(customObj) && $(customObj) != null) {
       set(objectiveType, "classification")
-    }
-
-    val _numClasses = getNumClasses(dataset)
-    if (isDefined(numClass) && $(numClass) != _numClasses) {
-      throw new Exception("The number of classes in dataset doesn't match " +
-        "\'num_class\' in xgboost params.")
     }
 
     // Packing with all params plus params user defined
@@ -463,7 +474,6 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostClassificationModel")
       val outputStream = internalPath.getFileSystem(sc.hadoopConfiguration).create(internalPath)
-      outputStream.writeInt(instance.numClasses)
       instance._booster.saveModel(outputStream)
       outputStream.close()
     }
@@ -477,13 +487,22 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
     override def load(path: String): XGBoostClassificationModel = {
       implicit val sc = super.sparkSession.sparkContext
 
-
       val metadata = DefaultXGBoostParamsReader.loadMetadata(path, sc, className)
 
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostClassificationModel")
       val dataInStream = internalPath.getFileSystem(sc.hadoopConfiguration).open(internalPath)
-      val numClasses = dataInStream.readInt()
+
+      // The xgboostVersion in the meta can specify if the model is the old xgboost in-compatible
+      // or the new xgboost compatible.
+      val numClasses = metadata.xgboostVersion.map { _ =>
+        implicit val format = DefaultFormats
+        // For binary:logistic, the numClass parameter can't be set to 2 or not be set.
+        // For multi:softprob or multi:softmax, the numClass parameter must be set correctly,
+        //   or else, XGBoost will throw exception.
+        // So it's safe to get numClass from meta data.
+        (metadata.params \ "numClass").extractOpt[Int].getOrElse(2)
+      }.getOrElse(dataInStream.readInt())
 
       val booster = SXGBoost.loadModel(dataInStream)
       val model = new XGBoostClassificationModel(metadata.uid, numClasses, booster)

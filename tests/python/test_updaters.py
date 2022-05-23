@@ -99,6 +99,23 @@ class TestTreeMethod:
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric])
 
+    @given(tm.sparse_datasets_strategy)
+    @settings(deadline=None, print_blob=True)
+    def test_sparse(self, dataset):
+        param = {"tree_method": "hist", "max_bin": 64}
+        hist_result = train_result(param, dataset.get_dmat(), 16)
+        note(hist_result)
+        assert tm.non_increasing(hist_result['train'][dataset.metric])
+
+        param = {"tree_method": "approx", "max_bin": 64}
+        approx_result = train_result(param, dataset.get_dmat(), 16)
+        note(approx_result)
+        assert tm.non_increasing(approx_result['train'][dataset.metric])
+
+        np.testing.assert_allclose(
+            hist_result["train"]["rmse"], approx_result["train"]["rmse"]
+        )
+
     def test_hist_categorical(self):
         # hist must be same as exact on all-categorial data
         dpath = 'demo/data/'

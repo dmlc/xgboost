@@ -175,10 +175,9 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
                                             HostDeviceVector<bst_node_t> *p_out_position) {
   monitor_->Start(__func__);
 
-  Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+  Driver<CPUExpandEntry> driver(param_);
   driver.Push(this->InitRoot(p_fmat, p_tree, gpair_h));
   auto const &tree = *p_tree;
-  bst_node_t num_leaves{1};
   auto expand_set = driver.Pop();
 
   while (!expand_set.empty()) {
@@ -188,13 +187,9 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
     std::vector<CPUExpandEntry> applied;
     int32_t depth = expand_set.front().depth + 1;
     for (auto const& candidate : expand_set) {
-      if (!candidate.IsValid(param_, num_leaves)) {
-        continue;
-      }
       evaluator_->ApplyTreeSplit(candidate, p_tree);
       applied.push_back(candidate);
-      num_leaves++;
-      if (CPUExpandEntry::ChildIsValid(param_, depth, num_leaves)) {
+      if (driver.IsChildValid(candidate)) {
         valid_candidates.emplace_back(candidate);
       }
     }
@@ -355,11 +350,11 @@ void HistRowPartitioner::FindSplitConditions(const std::vector<CPUExpandEntry> &
     const bst_float split_pt = tree[nid].SplitCond();
     const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
     const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
-    int32_t split_cond = -1;
+    bst_bin_t split_cond = -1;
     // convert floating-point split_pt into corresponding bin_id
     // split_cond = -1 indicates that split_pt is less than all known cut points
     CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    for (uint32_t bound = lower_bound; bound < upper_bound; ++bound) {
+    for (auto bound = lower_bound; bound < upper_bound; ++bound) {
       if (split_pt == gmat.cut.Values()[bound]) {
         split_cond = static_cast<int32_t>(bound);
       }

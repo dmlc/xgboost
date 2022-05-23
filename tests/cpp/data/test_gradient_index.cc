@@ -44,9 +44,7 @@ TEST(GradientIndex, FromCategoricalBasic) {
   h_ft.resize(kCols, FeatureType::kCategorical);
 
   BatchParam p(max_bins, 0.8);
-  GHistIndexMatrix gidx;
-
-  gidx.Init(m.get(), max_bins, p.sparse_thresh, false, common::OmpGetNumThreads(0), {});
+  GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, common::OmpGetNumThreads(0), {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());
