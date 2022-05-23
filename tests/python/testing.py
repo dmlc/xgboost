@@ -350,10 +350,7 @@ def make_sparse_regression(
     n_threads = min(n_threads, n_features)
 
     def random_csc(t_id: int) -> sparse.csc_matrix:
-        if hasattr(np.random, "default_rng"):
-            rng = np.random.default_rng(1994 * t_id)
-        else:
-            rng = np.random.RandomState(1994 * t_id)
+        rng = np.random.default_rng(1994 * t_id)
         thread_size = n_features // n_threads
         if t_id == n_threads - 1:
             n_features_tloc = n_features - t_id * thread_size
