@@ -32,9 +32,8 @@ struct KernelBatchArgs {
   static const int kMaxBatch = 32;
   Segment segments[kMaxBatch];
   OpDataT data[kMaxBatch];
-
   // Given a global thread idx, assign it to an item from one of the segments
-  __device__ void AssignBatch(std::size_t idx, int16_t &batch_idx, std::size_t &item_idx) const {
+  __device__ void AssignBatch(std::size_t idx, int16_t &batch_idx, std::size_t &item_idx) {
     std::size_t sum = 0;
     for (int16_t i = 0; i < kMaxBatch; i++) {
       if (sum + segments[i].Size() > idx) {
@@ -96,22 +95,63 @@ __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bo
   }
 }
 
+
+template <int kBlockSize, typename RowIndexT, typename OpT, typename OpDataT>
+__global__ void GetLeftCountsKernel(KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
+                   common::Span<IndexFlagTuple> scan_inputs,
+                   common::Span<unsigned long long int> d_left_counts, OpT op, std::size_t n){
+
+    __shared__ KernelBatchArgs<OpDataT> s_args;
+
+    for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>); i += kBlockSize) {
+      reinterpret_cast<char*>(&s_args)[i] = reinterpret_cast<const char*>(&args)[i];
+    }
+    __syncthreads();
+    // Assign this thread to a row
+    std::size_t idx =  blockIdx.x *blockDim.x + threadIdx.x;
+    if (idx >= n) return;
+    int16_t batch_idx;
+    std::size_t item_idx;
+    s_args.AssignBatch(idx, batch_idx, item_idx);
+    auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
+    scan_inputs[idx] = IndexFlagTuple{bst_uint(item_idx), op_res,
+                                      bst_uint(s_args.segments[batch_idx].begin), batch_idx, op_res};
+
+    AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
+}
+
+
 template <typename RowIndexT, typename OpT, typename OpDataT>
 void GetLeftCounts(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
                    common::Span<IndexFlagTuple> scan_inputs,
                    common::Span<unsigned long long int> d_left_counts, OpT op) {
   // Launch 1 thread for each row
-  dh::LaunchN<1, 128>(args.TotalRows(), [=] __device__(std::size_t idx) {
+  constexpr int kBlockSize = 256;
+  const int grid_size = 
+      static_cast<int>(xgboost::common::DivRoundUp(args.TotalRows(), kBlockSize));
+
+GetLeftCountsKernel<kBlockSize><<<grid_size,kBlockSize>>>(args, ridx, scan_inputs,d_left_counts,op, args.TotalRows());
+
+/*
+  dh::LaunchN<1, kBlockSize>(args.TotalRows(), [=] __device__(std::size_t idx) {
+    __shared__ KernelBatchArgs<OpDataT> s_args;
+
+    for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>); i += kBlockSize) {
+      reinterpret_cast<char*>(&s_args)[i] = reinterpret_cast<const char*>(&args)[i];
+    }
+    __syncthreads();
+
     // Assign this thread to a row
     int16_t batch_idx;
     std::size_t item_idx;
-    args.AssignBatch(idx, batch_idx, item_idx);
-    auto op_res = op(ridx[item_idx], args.data[batch_idx]);
+    s_args.AssignBatch(idx, batch_idx, item_idx);
+    auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
     scan_inputs[idx] = IndexFlagTuple{bst_uint(item_idx), op_res,
                                       bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
 
-    AtomicIncrement(d_left_counts.data(), op(ridx[item_idx], args.data[batch_idx]), batch_idx);
+    AtomicIncrement(d_left_counts.data(), op(ridx[item_idx], s_args.data[batch_idx]), batch_idx);
   });
+  */
 }
 
 // This is a transformer output iterator
