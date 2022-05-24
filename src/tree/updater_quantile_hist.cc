@@ -66,9 +66,10 @@ bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
   }
 }
 
-CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
-    DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h) {
-  CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
+CPUExpandEntry QuantileHistMaker::Builder::InitRoot(DMatrix *p_fmat, RegTree *p_tree,
+                                                    const std::vector<GradientPair> &gpair_h) {
+  CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0),
+                      static_cast<bst_row_t>(p_fmat->Info().num_row_));
 
   size_t page_id = 0;
   auto space = ConstructHistSpace(partitioner_, {node});
@@ -142,8 +143,8 @@ void QuantileHistMaker::Builder::BuildHistogram(DMatrix *p_fmat, RegTree *p_tree
     if (fewer_right) {
       std::swap(build_nidx, subtract_nidx);
     }
-    nodes_to_build[n_idx] = CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), {}};
-    nodes_to_sub[n_idx] = CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), {}};
+    nodes_to_build[n_idx] = CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), 0, {}};
+    nodes_to_sub[n_idx] = CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), 0, {}};
     n_idx++;
   }
 
@@ -206,10 +207,12 @@ void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
     if (!valid_candidates.empty()) {
       this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair_h);
       for (auto const &candidate : valid_candidates) {
-        int left_child_nidx = tree[candidate.nid].LeftChild();
-        int right_child_nidx = tree[candidate.nid].RightChild();
-        CPUExpandEntry l_best{left_child_nidx, depth, 0.0};
-        CPUExpandEntry r_best{right_child_nidx, depth, 0.0};
+        bst_node_t left_child_nidx = tree[candidate.nid].LeftChild();
+        bst_node_t right_child_nidx = tree[candidate.nid].RightChild();
+
+        auto acc_samples{CalcNodeSize(partitioner_, {left_child_nidx, right_child_nidx})};
+        CPUExpandEntry l_best{left_child_nidx, depth, acc_samples[0], {}};
+        CPUExpandEntry r_best{right_child_nidx, depth, acc_samples[1], {}};
         best_splits.push_back(l_best);
         best_splits.push_back(r_best);
       }

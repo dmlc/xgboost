@@ -13,15 +13,13 @@ namespace tree {
 struct CPUExpandEntry {
   int nid;
   int depth;
+  bst_row_t n_samples{0};
   SplitEntry split;
+
   CPUExpandEntry() = default;
   XGBOOST_DEVICE
-  CPUExpandEntry(int nid, int depth, SplitEntry split)
-      : nid(nid), depth(depth), split(std::move(split)) {}
-  CPUExpandEntry(int nid, int depth, float loss_chg)
-      : nid(nid), depth(depth)  {
-    split.loss_chg = loss_chg;
-  }
+  CPUExpandEntry(int nid, int depth, bst_row_t n_samples, SplitEntry split = {})
+      : nid(nid), depth(depth), n_samples{n_samples}, split(std::move(split)) {}
 
   bool IsValid(const TrainParam& param, int num_leaves) const {
     if (split.loss_chg <= kRtEps) return false;

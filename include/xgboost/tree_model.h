@@ -103,6 +103,7 @@ struct RTreeNodeStat {
   /*! \brief weight of current node */
   bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
+  // Unused, we should use size_t for this value
   int leaf_child_cnt {0};
 
   RTreeNodeStat() = default;

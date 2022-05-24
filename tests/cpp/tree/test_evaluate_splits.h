@@ -30,6 +30,7 @@ class TestPartitionBasedSplit : public ::testing::Test {
     sorted_idx_.resize(n_bins_);
     std::iota(sorted_idx_.begin(), sorted_idx_.end(), 0);
 
+    info_.num_row_ = 64;
     info_.num_col_ = 1;
 
     cuts_.cut_ptrs_.Resize(2);

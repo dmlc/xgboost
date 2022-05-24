@@ -341,6 +341,20 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
       nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
   return space;
 }
+
+template <typename Partitioner>
+auto CalcNodeSize(Partitioner const &partitioners, std::array<bst_node_t, 2> nidxs) {
+  std::array<size_t, 2> acc_samples{0, 0};
+  for (auto const &partition : partitioners) {
+    size_t k = 0;
+    for (auto nidx : nidxs) {
+      auto n_rows_in_node = partition.Partitions()[nidx].Size();
+      acc_samples[k] = std::max(acc_samples[k], n_rows_in_node);
+      k++;
+    }
+  }
+  return acc_samples;
+}
 }      // namespace tree
 }      // namespace xgboost
 #endif  // XGBOOST_TREE_HIST_HISTOGRAM_H_

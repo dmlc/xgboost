@@ -81,9 +81,8 @@ class GloablApproxBuilder {
   CPUExpandEntry InitRoot(DMatrix *p_fmat, std::vector<GradientPair> const &gpair,
                           common::Span<float> hess, RegTree *p_tree) {
     monitor_->Start(__func__);
-    CPUExpandEntry best;
-    best.nid = RegTree::kRoot;
-    best.depth = 0;
+    CPUExpandEntry best{RegTree::kRoot, 0, static_cast<bst_row_t>(p_fmat->Info().num_row_)};
+
     GradStats root_sum;
     for (auto const &g : gpair) {
       root_sum.Add(g);
@@ -137,8 +136,9 @@ class GloablApproxBuilder {
       if (fewer_right) {
         std::swap(build_nidx, subtract_nidx);
       }
-      nodes_to_build.push_back(CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), {}});
-      nodes_to_sub.push_back(CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), {}});
+
+      nodes_to_build.push_back(CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), 0, {}});
+      nodes_to_sub.push_back(CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), 0, {}});
     }
 
     size_t i = 0;
@@ -219,10 +219,14 @@ class GloablApproxBuilder {
       if (!valid_candidates.empty()) {
         this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair, hess);
         for (auto const &candidate : valid_candidates) {
-          int left_child_nidx = tree[candidate.nid].LeftChild();
-          int right_child_nidx = tree[candidate.nid].RightChild();
-          CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx), {}};
-          CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx), {}};
+          bst_node_t left_child_nidx = tree[candidate.nid].LeftChild();
+          bst_node_t right_child_nidx = tree[candidate.nid].RightChild();
+
+          auto acc_samples{CalcNodeSize(partitioner_, {left_child_nidx, right_child_nidx})};
+          CPUExpandEntry l_best{
+              left_child_nidx, tree.GetDepth(left_child_nidx), acc_samples[0], {}};
+          CPUExpandEntry r_best{
+              right_child_nidx, tree.GetDepth(right_child_nidx), acc_samples[1], {}};
           best_splits.push_back(l_best);
           best_splits.push_back(r_best);
         }

@@ -43,6 +43,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
+
+  size_t min_child_samples{0};
+
   // L2 regularization factor
   float reg_lambda;
   // L1 regularization factor
@@ -117,6 +120,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_lower_bound(0.0f)
         .set_default(1.0f)
         .describe("Minimum sum of instance weight(hessian) needed in a child.");
+    DMLC_DECLARE_FIELD(min_child_samples)
+        .set_lower_bound(1)
+        .set_default(1)
+        .describe("Minimum number of samples needed in a child.");
     DMLC_DECLARE_FIELD(reg_lambda)
         .set_lower_bound(0.0f)
         .set_default(1.0f)

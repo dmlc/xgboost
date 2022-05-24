@@ -20,7 +20,8 @@ TEST(Approx, Partitioner) {
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   GenericParameter ctx;
   ctx.InitAllowUnknown(Args{});
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0, n_samples}};
+  candidates.front().split.loss_chg = 0.4;
 
   auto grad = GenerateRandomGradients(n_samples);
   std::vector<float> hess(grad.Size());
@@ -73,7 +74,9 @@ void TestLeafPartition(size_t n_samples) {
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   GenericParameter ctx;
-  std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
+  std::vector<CPUExpandEntry> candidates{{0, 0, n_samples}};
+  candidates.front().split.loss_chg = 0.4;
+
   RegTree tree;
   std::vector<float> hess(n_samples, 0);
   // emulate sampling
@@ -81,11 +84,9 @@ void TestLeafPartition(size_t n_samples) {
     size_t const kSampleFactor{3};
     return i % kSampleFactor != 0;
   };
-  size_t n{0};
   for (size_t i = 0; i < hess.size(); ++i) {
     if (not_sampled(i)) {
       hess[i] = 1.0f;
-      ++n;
     }
   }
 
