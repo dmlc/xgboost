@@ -313,5 +313,5 @@ class TestTreeMethod:
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self, rows, cols, rounds, cats):
-        # self.run_categorical_basic(rows, cols, rounds, cats, "approx")
+        self.run_categorical_basic(rows, cols, rounds, cats, "approx")
         self.run_categorical_basic(rows, cols, rounds, cats, "hist")
