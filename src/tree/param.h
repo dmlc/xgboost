@@ -44,7 +44,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
 
-  size_t min_child_samples{0};
+  size_t min_child_samples{1};
 
   // L2 regularization factor
   float reg_lambda;
