@@ -323,12 +323,14 @@ class HistogramBuilder {
   }
 };
 
-// Construct a work space for building histogram.  Eventually we should move this
-// function into histogram builder once hist tree method supports external memory.
+/**
+ * \brief Construct a work space for building histogram.
+ */
 template <typename Partitioner>
 common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
                                           std::vector<CPUExpandEntry> const &nodes_to_build) {
   std::vector<size_t> partition_size(nodes_to_build.size(), 0);
+  // iterate over external memory batches
   for (auto const &partition : partitioners) {
     size_t k = 0;
     for (auto node : nodes_to_build) {
@@ -342,9 +344,13 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   return space;
 }
 
+/**
+ * \brief Calculate the node size with support for external memory.
+ */
 template <typename Partitioner>
 auto CalcNodeSize(Partitioner const &partitioners, std::array<bst_node_t, 2> nidxs) {
   std::array<size_t, 2> acc_samples{0, 0};
+  // iterate over external memory batches
   for (auto const &partition : partitioners) {
     size_t k = 0;
     for (auto nidx : nidxs) {
