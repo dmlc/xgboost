@@ -201,7 +201,7 @@ void SortPositionBatch(const KernelBatchArgs<OpDataT>& args, common::Span<RowInd
                                  discard_write_iterator, IndexFlagOp(), args.TotalRows(), stream);
 
   // copy active segments back to original buffer
-  dh::LaunchN(args.TotalRows(), [=] __device__(std::size_t idx) {
+  dh::LaunchN(args.TotalRows(), stream, [=] __device__(std::size_t idx) {
     auto item_idx = scan_inputs[idx].idx;
     ridx[item_idx] = ridx_tmp[item_idx];
   });
