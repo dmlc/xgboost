@@ -97,27 +97,27 @@ __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bo
 
 
 template <int kBlockSize, typename RowIndexT, typename OpT, typename OpDataT>
-__global__ void GetLeftCountsKernel(KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
+__global__ void GetLeftCountsKernel(const KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
                    common::Span<IndexFlagTuple> scan_inputs,
                    common::Span<unsigned long long int> d_left_counts, OpT op, std::size_t n){
 
     __shared__ KernelBatchArgs<OpDataT> s_args;
 
-    for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>); i += kBlockSize) {
-      reinterpret_cast<char*>(&s_args)[i] = reinterpret_cast<const char*>(&args)[i];
+    for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>)/8; i += kBlockSize) {
+      reinterpret_cast<int64_t*>(&s_args)[i] = reinterpret_cast<const int64_t*>(&args)[i];
     }
     __syncthreads();
-    // Assign this thread to a row
-    std::size_t idx =  blockIdx.x *blockDim.x + threadIdx.x;
-    if (idx >= n) return;
-    int16_t batch_idx;
-    std::size_t item_idx;
-    s_args.AssignBatch(idx, batch_idx, item_idx);
-    auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
-    scan_inputs[idx] = IndexFlagTuple{bst_uint(item_idx), op_res,
-                                      bst_uint(s_args.segments[batch_idx].begin), batch_idx, op_res};
+    for (std::size_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {
+      int16_t batch_idx;
+      std::size_t item_idx;
+      s_args.AssignBatch(idx, batch_idx, item_idx);
+      auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
+      scan_inputs[idx] =
+          IndexFlagTuple{bst_uint(item_idx), op_res, bst_uint(s_args.segments[batch_idx].begin),
+                         batch_idx, op_res};
 
-    AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
+      AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
+    }
 }
 
 
@@ -128,9 +128,10 @@ void GetLeftCounts(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT>
   // Launch 1 thread for each row
   constexpr int kBlockSize = 256;
   const int grid_size = 
-      static_cast<int>(xgboost::common::DivRoundUp(args.TotalRows(), kBlockSize));
+      std::max(256,static_cast<int>(xgboost::common::DivRoundUp(args.TotalRows(), kBlockSize)));
 
-GetLeftCountsKernel<kBlockSize><<<grid_size,kBlockSize>>>(args, ridx, scan_inputs,d_left_counts,op, args.TotalRows());
+
+  GetLeftCountsKernel<kBlockSize><<<grid_size,kBlockSize>>>(args, ridx, scan_inputs,d_left_counts,op, args.TotalRows());
 
 /*
   dh::LaunchN<1, kBlockSize>(args.TotalRows(), [=] __device__(std::size_t idx) {
