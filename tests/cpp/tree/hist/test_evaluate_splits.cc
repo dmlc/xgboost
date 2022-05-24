@@ -13,10 +13,8 @@
 namespace xgboost {
 namespace tree {
 void TestEvaluateSplits() {
-  int static constexpr kRows = 8, kCols = 16;
-  auto orig = omp_get_max_threads();
-  int32_t n_threads = std::min(omp_get_max_threads(), 4);
-  omp_set_num_threads(n_threads);
+  size_t static constexpr kRows = 8, kCols = 16;
+  int32_t n_threads = common::OmpGetNumThreads(0);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
   TrainParam param;
@@ -32,7 +30,7 @@ void TestEvaluateSplits() {
 
   size_t constexpr kMaxBins = 4;
   // dense, no missing values
-  GHistIndexMatrix gmat(dmat.get(), kMaxBins, 0.5, false, common::OmpGetNumThreads(0));
+  GHistIndexMatrix gmat(dmat.get(), kMaxBins, 0.5, false, n_threads);
   common::RowSetCollection row_set_collection;
   std::vector<size_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
@@ -53,9 +51,7 @@ void TestEvaluateSplits() {
   }
 
   RegTree tree;
-  std::vector<CPUExpandEntry> entries(1);
-  entries.front().nid = 0;
-  entries.front().depth = 0;
+  std::vector<CPUExpandEntry> entries{{0, 0, kRows}};
 
   evaluator.InitRoot(GradStats{total_gpair});
   evaluator.EvaluateSplits(hist, gmat.cut, {}, tree, &entries);
@@ -80,22 +76,21 @@ void TestEvaluateSplits() {
       right.SetSubstract(GradStats{total_gpair}, left);
     }
   }
-
-  omp_set_num_threads(orig);
 }
 
 TEST(HistEvaluator, Evaluate) { TestEvaluateSplits(); }
 
 TEST(HistEvaluator, Apply) {
   RegTree tree;
-  int static constexpr kNRows = 8, kNCols = 16;
+  size_t static constexpr kNRows = 8, kNCols = 16;
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
   auto sampler = std::make_shared<common::ColumnSampler>();
   auto evaluator_ = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), 4, sampler};
 
-  CPUExpandEntry entry{0, 0, 10.0f};
+  CPUExpandEntry entry{0, 0, kNRows};
+  entry.split.loss_chg = 10.0f;
   entry.split.left_sum = GradStats{0.4, 0.6f};
   entry.split.right_sum = GradStats{0.5, 0.5f};
 
@@ -122,7 +117,7 @@ TEST_F(TestPartitionBasedSplit, CPUHist) {
   HistEvaluator<CPUExpandEntry> evaluator{param_, info_, common::OmpGetNumThreads(0), sampler};
   evaluator.InitRoot(GradStats{total_gpair_});
   RegTree tree;
-  std::vector<CPUExpandEntry> entries(1);
+  std::vector<CPUExpandEntry> entries{{0, 0, info_.num_row_}};
   evaluator.EvaluateSplits(hist_, cuts_, {ft}, tree, &entries);
   ASSERT_NEAR(entries[0].split.loss_chg, best_score_, 1e-16);
 }

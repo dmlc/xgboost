@@ -80,7 +80,11 @@ Parameters for Tree Booster
 * ``min_child_weight`` [default=1]
 
   - Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than ``min_child_weight``, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger ``min_child_weight`` is, the more conservative the algorithm will be.
-  - range: [0,∞]
+  - range: [0, ∞)
+
+* ``min_child_samples`` [default=1]
+  - Minimum number of samples needed in a child. Similar to ``min_child_weight`` which uses sum of Hessian while ``min_child_samples`` uses number of samples. Only available for ``hist`` and ``approx``.
+  - range: [1, ∞)
 
 * ``max_delta_step`` [default=0]
 

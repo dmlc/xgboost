@@ -153,6 +153,8 @@ __model_doc = f'''
         leaf node of the tree.
     min_child_weight : Optional[float]
         Minimum sum of instance weight(hessian) needed in a child.
+    min_child_samples : Optional[int]
+        Minimum number of samples needed in a child.
     max_delta_step : Optional[float]
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : Optional[float]
@@ -519,6 +521,7 @@ class XGBModel(XGBModelBase):
         n_jobs: Optional[int] = None,
         gamma: Optional[float] = None,
         min_child_weight: Optional[float] = None,
+        min_child_samples: Optional[int] = None,
         max_delta_step: Optional[float] = None,
         subsample: Optional[float] = None,
         sampling_method: Optional[str] = None,
@@ -563,6 +566,7 @@ class XGBModel(XGBModelBase):
         self.tree_method = tree_method
         self.gamma = gamma
         self.min_child_weight = min_child_weight
+        self.min_child_samples = min_child_samples
         self.max_delta_step = max_delta_step
         self.subsample = subsample
         self.sampling_method = sampling_method

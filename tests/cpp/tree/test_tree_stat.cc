@@ -184,4 +184,56 @@ TEST_F(TestMinSplitLoss, Hist) { this->RunTest("grow_quantile_histmaker"); }
 #if defined(XGBOOST_USE_CUDA)
 TEST_F(TestMinSplitLoss, GpuHist) { this->RunTest("grow_gpu_hist"); }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+class TestMinChildSamples : public ::testing::Test {
+  std::shared_ptr<DMatrix> dmat_;
+  HostDeviceVector<GradientPair> gpair_;
+
+  void SetUp() override {
+    size_t constexpr kRows = 256;
+    size_t constexpr kCols = 16;
+    float constexpr kSparsity = 0.6;
+    dmat_ = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
+    gpair_ = GenerateRandomGradients(kRows);
+  }
+
+ public:
+  void RunTest(std::string updater) {
+    // Disable all other parameters.
+    Args args{{"colsample_bynode", "1"},    {"colsample_bylevel", "1"}, {"colsample_bytree", "1"},
+              {"min_child_weight", "0.01"}, {"reg_alpha", "0"},         {"reg_lambda", "0"},
+              {"max_delta_step", "0"}};
+    Args args2{args};
+    args2.emplace_back("min_child_samples", std::to_string(gpair_.Size()));
+
+    Context ctx(CreateEmptyGenericParam(0));
+
+    {
+      auto up = std::unique_ptr<TreeUpdater>{
+          TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kRegression})};
+      RegTree tree;
+      std::vector<HostDeviceVector<bst_node_t>> position(1);
+      up->Configure(args2);
+      up->Update(&gpair_, dmat_.get(), position, {&tree});
+      // no split can be found
+      ASSERT_EQ(tree.NumExtraNodes(), 0);
+    }
+
+    Args args3{args};
+    args3.emplace_back("min_child_samples", std::to_string(8));
+    {
+      auto up = std::unique_ptr<TreeUpdater>{
+          TreeUpdater::Create(updater, &ctx, ObjInfo{ObjInfo::kRegression})};
+      RegTree tree;
+      std::vector<HostDeviceVector<bst_node_t>> position(1);
+      up->Configure(args3);
+      up->Update(&gpair_, dmat_.get(), position, {&tree});
+      ASSERT_NE(tree.NumExtraNodes(), 0);
+    }
+  }
+};
+
+TEST_F(TestMinChildSamples, Approx) { this->RunTest("grow_histmaker"); }
+
+TEST_F(TestMinChildSamples, Hist) { this->RunTest("grow_quantile_histmaker"); }
 }  // namespace xgboost

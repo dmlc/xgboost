@@ -4,8 +4,9 @@
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
 
-#include <algorithm>
-#include <limits>
+#include <algorithm>  // std::sort
+#include <array>      // std::array
+#include <limits>     // std::numeric_limits
 #include <vector>
 
 #include "../../common/hist_util.h"
@@ -323,12 +324,14 @@ class HistogramBuilder {
   }
 };
 
-// Construct a work space for building histogram.  Eventually we should move this
-// function into histogram builder once hist tree method supports external memory.
+/**
+ * \brief Construct a work space for building histogram.
+ */
 template <typename Partitioner>
 common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
                                           std::vector<CPUExpandEntry> const &nodes_to_build) {
   std::vector<size_t> partition_size(nodes_to_build.size(), 0);
+  // iterate over external memory batches
   for (auto const &partition : partitioners) {
     size_t k = 0;
     for (auto node : nodes_to_build) {
@@ -340,6 +343,24 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
   common::BlockedSpace2d space{
       nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
   return space;
+}
+
+/**
+ * \brief Calculate the node size with support for external memory.
+ */
+template <typename Partitioner>
+auto CalcNodeSize(Partitioner const &partitioners, bst_node_t left_nidx, bst_node_t right_nidx) {
+  std::array<size_t, 2> acc_samples{0, 0};
+  // iterate over external memory batches
+  for (auto const &partition : partitioners) {
+    size_t k = 0;
+    for (auto nidx : {left_nidx, right_nidx}) {
+      auto n_rows_in_node = partition.Partitions()[nidx].Size();
+      acc_samples[k] = std::max(acc_samples[k], n_rows_in_node);
+      k++;
+    }
+  }
+  return acc_samples;
 }
 }      // namespace tree
 }      // namespace xgboost

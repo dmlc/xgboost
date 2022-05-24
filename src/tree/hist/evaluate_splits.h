@@ -45,12 +45,16 @@ class HistEvaluator {
   // then - there are no missing values
   // else - there are missing values
   bool static SplitContainsMissingValues(const GradStats e, const NodeEntry &snode) {
-    if (e.GetGrad() == snode.stats.GetGrad() &&
-        e.GetHess() == snode.stats.GetHess()) {
+    if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
       return false;
     } else {
       return true;
     }
+  }
+
+  bool IsValid(GradStats const &l, GradStats const &r, bst_row_t l_cnt, bst_row_t r_cnt) const {
+    return l.GetHess() >= param_.min_child_weight && r.GetHess() >= param_.min_child_weight &&
+           l_cnt >= param_.min_child_samples && r_cnt >= param_.min_child_samples;
   }
 
   // Enumerate/Scan the split values of specific feature
@@ -58,7 +62,7 @@ class HistEvaluator {
   // a non-missing value for the particular feature fid.
   template <int d_step, SplitType split_type>
   GradStats EnumerateSplit(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
-                           const common::GHistRow &hist, bst_feature_t fidx,
+                           const common::GHistRow &hist, size_t n_samples, bst_feature_t fidx,
                            bst_node_t nidx,
                            TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                            SplitEntry *p_best) const {
@@ -94,9 +98,15 @@ class HistEvaluator {
       iend = static_cast<int32_t>(cut_ptr[fidx]) - 1;
     }
 
+    double const cnt_factor = static_cast<double>(n_samples) / parent.stats.GetHess();
+    bst_row_t left_cnt{0}, right_cnt{0};
     auto calc_bin_value = [&](auto i) {
       switch (split_type) {
         case kNum: {
+          auto cnt = std::ceil(hist[i].GetHess() * cnt_factor);
+          left_cnt += cnt;
+          right_cnt = n_samples - left_cnt;
+
           left_sum.Add(hist[i].GetGrad(), hist[i].GetHess());
           right_sum.SetSubstract(parent.stats, left_sum);
           break;
@@ -105,12 +115,19 @@ class HistEvaluator {
           // not-chosen categories go to left
           right_sum = GradStats{hist[i]};
           left_sum.SetSubstract(parent.stats, right_sum);
+
+          right_cnt = std::ceil(cnt_factor * right_sum.GetHess());
+          left_cnt = n_samples - right_cnt;
           break;
         }
         case kPart: {
           auto j = d_step == 1 ? (i - ibegin) : (ibegin - i);
-          right_sum.Add(f_hist[sorted_idx[j]].GetGrad(), f_hist[sorted_idx[j]].GetHess());
+          auto const &gpair = f_hist[sorted_idx[j]];
+          right_sum.Add(gpair.GetGrad(), gpair.GetHess());
           left_sum.SetSubstract(parent.stats, right_sum);
+
+          right_cnt = std::ceil(cnt_factor * gpair.GetHess());
+          left_cnt = n_samples - right_cnt;
           break;
         }
       }
@@ -121,9 +138,9 @@ class HistEvaluator {
       // start working
       // try to find a split
       calc_bin_value(i);
+
       bool improved{false};
-      if (left_sum.GetHess() >= param_.min_child_weight &&
-          right_sum.GetHess() >= param_.min_child_weight) {
+      if (IsValid(left_sum, right_sum, left_cnt, right_cnt)) {
         bst_float loss_chg;
         bst_float split_pt;
         if (d_step > 0) {
@@ -207,12 +224,10 @@ class HistEvaluator {
         entries.size());
     for (size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
       auto nidx = entries[nidx_in_set].nid;
-      features[nidx_in_set] =
-          column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
+      features[nidx_in_set] = column_sampler_->GetFeatureSet(tree.GetDepth(nidx));
     }
     CHECK(!features.empty());
-    const size_t grain_size =
-        std::max<size_t>(1, features.front()->Size() / n_threads_);
+    const size_t grain_size = std::max<size_t>(1, features.front()->Size() / n_threads_);
     common::BlockedSpace2d space(entries.size(), [&](size_t nidx_in_set) {
       return features[nidx_in_set]->Size();
     }, grain_size);
@@ -229,6 +244,8 @@ class HistEvaluator {
     common::ParallelFor2d(space, n_threads_, [&](size_t nidx_in_set, common::Range1d r) {
       auto tidx = omp_get_thread_num();
       auto entry = &tloc_candidates[n_threads_ * nidx_in_set + tidx];
+      auto n_samples = entry->n_samples;
+
       auto best = &entry->split;
       auto nidx = entry->nid;
       auto histogram = hist[nidx];
@@ -242,8 +259,8 @@ class HistEvaluator {
         if (is_cat) {
           auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
           if (common::UseOneHot(n_bins, param_.max_cat_to_onehot)) {
-            EnumerateSplit<+1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
-            EnumerateSplit<-1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
+            EnumerateSplit<+1, kOneHot>(cut, {}, histogram, n_samples, fidx, nidx, evaluator, best);
+            EnumerateSplit<-1, kOneHot>(cut, {}, histogram, n_samples, fidx, nidx, evaluator, best);
           } else {
             std::vector<size_t> sorted_idx(n_bins);
             std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
@@ -254,14 +271,16 @@ class HistEvaluator {
                          evaluator.CalcWeightCat(param_, feat_hist[r]);
               return ret;
             });
-            EnumerateSplit<+1, kPart>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-            EnumerateSplit<-1, kPart>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            EnumerateSplit<+1, kPart>(cut, sorted_idx, histogram, n_samples, fidx, nidx, evaluator,
+                                      best);
+            EnumerateSplit<-1, kPart>(cut, sorted_idx, histogram, n_samples, fidx, nidx, evaluator,
+                                      best);
           }
         } else {
           auto grad_stats =
-              EnumerateSplit<+1, kNum>(cut, {}, histogram, fidx, nidx, evaluator, best);
+              EnumerateSplit<+1, kNum>(cut, {}, histogram, n_samples, fidx, nidx, evaluator, best);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1, kNum>(cut, {}, histogram, fidx, nidx, evaluator, best);
+            EnumerateSplit<-1, kNum>(cut, {}, histogram, n_samples, fidx, nidx, evaluator, best);
           }
         }
       }
