@@ -160,9 +160,7 @@ class HistEvaluator {
           break;
         }
         case kOneHot: {
-          // not-chosen categories go to left
-          right_sum = GradStats{hist[i]};
-          left_sum.SetSubstract(parent.stats, right_sum);
+          std::terminate();  // unreachable
           break;
         }
         case kPart: {
@@ -209,7 +207,7 @@ class HistEvaluator {
               break;
             }
             case kOneHot: {
-              split_pt = cut_val[i];
+              std::terminate();  // unreachable
               break;
             }
             case kPart: {
@@ -246,7 +244,6 @@ class HistEvaluator {
         // Normal, accumulated to left
         return left_sum;
       case kOneHot:
-        // Doesn't matter, not accumulating.
         return {};
       case kPart:
         // Accumulated to right due to chosen cats go to right.
