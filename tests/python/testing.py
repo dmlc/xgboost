@@ -329,7 +329,8 @@ def make_categorical(
         for i in range(n_features):
             index = rng.randint(low=0, high=n_samples-1, size=int(n_samples * sparsity))
             df.iloc[index, i] = np.NaN
-            print("i:", df.dtypes[i].categories)
+            assert df.iloc[:, i].isnull().values.any()
+            assert n_categories == np.unique(df.dtypes[i].categories).size
 
     if onehot:
         return pd.get_dummies(df), label
