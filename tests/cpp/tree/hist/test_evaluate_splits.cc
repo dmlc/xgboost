@@ -13,7 +13,7 @@
 namespace xgboost {
 namespace tree {
 void TestEvaluateSplits() {
-  int static constexpr kRows = 8, kCols = 16;
+  size_t static constexpr kRows = 8, kCols = 16;
   int32_t n_threads = common::OmpGetNumThreads(0);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
@@ -82,7 +82,7 @@ TEST(HistEvaluator, Evaluate) { TestEvaluateSplits(); }
 
 TEST(HistEvaluator, Apply) {
   RegTree tree;
-  int static constexpr kNRows = 8, kNCols = 16;
+  size_t static constexpr kNRows = 8, kNCols = 16;
   TrainParam param;
   param.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0.0"}});
   auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
