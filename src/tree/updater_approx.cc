@@ -222,7 +222,7 @@ class GloablApproxBuilder {
           bst_node_t left_child_nidx = tree[candidate.nid].LeftChild();
           bst_node_t right_child_nidx = tree[candidate.nid].RightChild();
 
-          auto acc_samples{CalcNodeSize(partitioner_, {left_child_nidx, right_child_nidx})};
+          auto acc_samples{CalcNodeSize(partitioner_, left_child_nidx, right_child_nidx)};
           CPUExpandEntry l_best{
               left_child_nidx, tree.GetDepth(left_child_nidx), acc_samples[0], {}};
           CPUExpandEntry r_best{

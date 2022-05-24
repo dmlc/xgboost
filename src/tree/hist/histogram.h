@@ -4,8 +4,9 @@
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
 
-#include <algorithm>
-#include <limits>
+#include <algorithm>  // std::sort
+#include <array>      // std::array
+#include <limits>     // std::numeric_limits
 #include <vector>
 
 #include "../../common/hist_util.h"
@@ -348,12 +349,12 @@ common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
  * \brief Calculate the node size with support for external memory.
  */
 template <typename Partitioner>
-auto CalcNodeSize(Partitioner const &partitioners, std::array<bst_node_t, 2> nidxs) {
+auto CalcNodeSize(Partitioner const &partitioners, bst_node_t left_nidx, bst_node_t right_nidx) {
   std::array<size_t, 2> acc_samples{0, 0};
   // iterate over external memory batches
   for (auto const &partition : partitioners) {
     size_t k = 0;
-    for (auto nidx : nidxs) {
+    for (auto nidx : {left_nidx, right_nidx}) {
       auto n_rows_in_node = partition.Partitions()[nidx].Size();
       acc_samples[k] = std::max(acc_samples[k], n_rows_in_node);
       k++;
