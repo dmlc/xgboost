@@ -302,7 +302,7 @@ def get_mq2008(dpath):
 
 @memory.cache
 def make_categorical(
-    n_samples: int, n_features: int, n_categories: int, onehot: bool
+    n_samples: int, n_features: int, n_categories: int, onehot: bool, sparsity=0.0,
 ):
     import pandas as pd
 
@@ -324,6 +324,13 @@ def make_categorical(
     categories = np.arange(0, n_categories)
     for col in df.columns:
         df[col] = df[col].cat.set_categories(categories)
+
+    if sparsity > 0.0:
+        for i in range(n_features):
+            index = rng.randint(low=0, high=n_samples-1, size=int(n_samples * sparsity))
+            df.iloc[index, i] = np.NaN
+            assert df.iloc[:, i].isnull().values.any()
+            assert n_categories == np.unique(df.dtypes[i].categories).size
 
     if onehot:
         return pd.get_dummies(df), label
@@ -536,6 +543,12 @@ def eval_error_metric_skl(y_true: np.ndarray, y_score: np.ndarray) -> float:
     le = y_score <= 0.5
     r[le] = y_true[le]
     return np.sum(r)
+
+
+def root_mean_square(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    err = y_score - y_true
+    rmse = np.sqrt(np.dot(err, err) / y_score.size)
+    return rmse
 
 
 def softmax(x):
