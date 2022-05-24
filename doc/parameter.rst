@@ -83,7 +83,7 @@ Parameters for Tree Booster
   - range: [0, ∞)
 
 * ``min_child_samples`` [default=1]
-  - Minimum number of samples needed in a child. Similar to ``min_child_weight`` which uses sum of Hessian while ``min_child_samples`` uses number of samples.
+  - Minimum number of samples needed in a child. Similar to ``min_child_weight`` which uses sum of Hessian while ``min_child_samples`` uses number of samples. Only available for ``hist`` and ``approx``.
   - range: [1, ∞)
 
 * ``max_delta_step`` [default=0]
