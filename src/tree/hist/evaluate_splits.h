@@ -57,9 +57,9 @@ class HistEvaluator {
   }
 
   /**
-   * \brief Use learned direction with one-hot split. Other implementations (LGB, sklearn)
-   *        create a pseudo-category for missing value but here we just do a complete scan
-   *        to avoid making specialized histogram bin.
+   * \brief Use learned direction with one-hot split. Other implementations (LGB) create a
+   *        pseudo-category for missing value but here we just do a complete scan to avoid
+   *        making specialized histogram bin.
    */
   void EnumerateOneHot(common::HistogramCuts const &cut, const common::GHistRow &hist,
                        bst_feature_t fidx, bst_node_t nidx,
@@ -76,6 +76,7 @@ class HistEvaluator {
     GradStats right_sum;
     // best split so far
     SplitEntry best;
+    best.is_cat = false;  // marker for whether it's updated or not.
 
     auto f_hist = hist.subspan(cut_ptr[fidx], n_bins);
     auto feature_sum = GradStats{
@@ -98,8 +99,8 @@ class HistEvaluator {
       }
 
       // missing on right (treat missing as chosen category)
-      left_sum.SetSubstract(left_sum, missing);
       right_sum.Add(missing);
+      left_sum.SetSubstract(parent.stats, right_sum);
       if (IsValid(left_sum, right_sum)) {
         auto missing_right_chg = static_cast<float>(
             evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
@@ -107,6 +108,15 @@ class HistEvaluator {
         best.Update(missing_right_chg, fidx, split_pt, false, true, left_sum, right_sum);
       }
     }
+
+    if (best.is_cat) {
+      auto n = common::CatBitField::ComputeStorageSize(n_bins + 1);
+      best.cat_bits.resize(n, 0);
+      common::CatBitField cat_bits{best.cat_bits};
+      cat_bits.Set(best.split_value);
+    }
+
+    p_best->Update(best);
 
     p_best->Update(best);
   }
@@ -345,25 +355,11 @@ class HistEvaluator {
         evaluator.CalcWeight(candidate.nid, param_, GradStats{candidate.split.right_sum});
 
     if (candidate.split.is_cat) {
-      std::vector<uint32_t> split_cats;
-      if (candidate.split.cat_bits.empty()) {
-        if (common::InvalidCat(candidate.split.split_value)) {
-          common::InvalidCategory();
-        }
-        auto cat = common::AsCat(candidate.split.split_value);
-        split_cats.resize(LBitField32::ComputeStorageSize(std::max(cat + 1, 1)), 0);
-        LBitField32 cat_bits;
-        cat_bits = LBitField32(split_cats);
-        cat_bits.Set(cat);
-      } else {
-        split_cats = candidate.split.cat_bits;
-        common::CatBitField cat_bits{split_cats};
-      }
       tree.ExpandCategorical(
-          candidate.nid, candidate.split.SplitIndex(), split_cats, candidate.split.DefaultLeft(),
-          base_weight, left_weight * param_.learning_rate, right_weight * param_.learning_rate,
-          candidate.split.loss_chg, parent_sum.GetHess(), candidate.split.left_sum.GetHess(),
-          candidate.split.right_sum.GetHess());
+          candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
+          candidate.split.DefaultLeft(), base_weight, left_weight * param_.learning_rate,
+          right_weight * param_.learning_rate, candidate.split.loss_chg, parent_sum.GetHess(),
+          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
                       candidate.split.DefaultLeft(), base_weight,
