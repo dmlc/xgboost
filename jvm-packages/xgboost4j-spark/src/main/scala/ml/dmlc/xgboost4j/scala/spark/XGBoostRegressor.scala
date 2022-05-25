@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.{Iterator, mutable}
 
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
+import ml.dmlc.xgboost4j.scala.spark.utils.XGBoostWriter
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.hadoop.fs.Path
@@ -379,7 +380,7 @@ object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
   override def load(path: String): XGBoostRegressionModel = super.load(path)
 
   private[XGBoostRegressionModel]
-  class XGBoostRegressionModelWriter(instance: XGBoostRegressionModel) extends MLWriter {
+  class XGBoostRegressionModelWriter(instance: XGBoostRegressionModel) extends XGBoostWriter {
 
     override protected def saveImpl(path: String): Unit = {
       // Save metadata and Params
@@ -390,7 +391,7 @@ object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostRegressionModel")
       val outputStream = internalPath.getFileSystem(sc.hadoopConfiguration).create(internalPath)
-      instance._booster.saveModel(outputStream)
+      instance._booster.saveModel(outputStream, getModelFormat())
       outputStream.close()
     }
   }

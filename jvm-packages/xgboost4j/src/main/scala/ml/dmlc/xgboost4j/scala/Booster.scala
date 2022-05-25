@@ -207,15 +207,29 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   def saveModel(modelPath: String): Unit = {
     booster.saveModel(modelPath)
   }
+
   /**
     * save model to Output stream
     *
     * @param out Output stream
     */
   @throws(classOf[XGBoostError])
+  @deprecated
   def saveModel(out: java.io.OutputStream): Unit = {
-    booster.saveModel(out)
+    saveModel(out, "deprecated")
   }
+
+  /**
+   * save model to Output stream
+   * @param out output stream
+   * @param format the supported model format, (json, ubj, deprecated)
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError
+   */
+  @throws(classOf[XGBoostError])
+  def saveModel(out: java.io.OutputStream, format: String): Unit = {
+    booster.saveModel(out, format)
+  }
+
   /**
    * Dump model as Array of string
    *
