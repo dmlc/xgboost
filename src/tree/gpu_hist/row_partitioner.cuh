@@ -95,31 +95,67 @@ __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bo
   }
 }
 
-
 template <int kBlockSize, typename RowIndexT, typename OpT, typename OpDataT>
-__global__ void GetLeftCountsKernel(const KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
-                   common::Span<IndexFlagTuple> scan_inputs,
-                   common::Span<unsigned long long int> d_left_counts, OpT op, std::size_t n){
+__global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
+    const KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
+    common::Span<IndexFlagTuple> scan_inputs, common::Span<unsigned long long int> d_left_counts,
+    OpT op, std::size_t n) {
+  // Load this large struct in shared memory
+  // if left to its own devices the compiler loads this very slowly
+  __shared__ KernelBatchArgs<OpDataT> s_args;
 
-    __shared__ KernelBatchArgs<OpDataT> s_args;
+  for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>) / 8; i += kBlockSize) {
+    reinterpret_cast<int64_t*>(&s_args)[i] = reinterpret_cast<const int64_t*>(&args)[i];
+  }
+  __syncthreads();
 
-    for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>)/8; i += kBlockSize) {
-      reinterpret_cast<int64_t*>(&s_args)[i] = reinterpret_cast<const int64_t*>(&args)[i];
+  // Global writes of IndexFlagTuple are inefficient due to its 16b size
+  // we can use cub to optimise this
+  static_assert(sizeof(IndexFlagTuple) == 16, "Expected IndexFlagTuple to be 16 bytes.");
+  constexpr int kTupleWords = sizeof(IndexFlagTuple)/sizeof(int);
+  typedef cub::BlockStore<int, kBlockSize, kTupleWords, cub::BLOCK_STORE_WARP_TRANSPOSE> BlockStoreT;
+  __shared__ typename BlockStoreT::TempStorage temp_storage;
+
+  // Use the raw pointer because the performance of global writes matters here
+  // We don't really need the bounds checking
+  IndexFlagTuple* out_ptr = scan_inputs.data();
+
+  auto get_tuple = [=]__device__ (auto idx){
+    int16_t batch_idx;
+    std::size_t item_idx;
+    s_args.AssignBatch(idx, batch_idx, item_idx);
+    auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
+    AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
+    return IndexFlagTuple{bst_uint(item_idx), op_res,
+                                  bst_uint(s_args.segments[batch_idx].begin), batch_idx, op_res};
+  };
+
+  // Process full tiles
+  std::size_t tile_offset = blockIdx.x * kBlockSize;
+  while (tile_offset + kBlockSize <= n) {
+    std::size_t idx = tile_offset + threadIdx.x;
+    auto tuple = get_tuple(idx);
+    auto block_write_ptr = reinterpret_cast<int*>(out_ptr + tile_offset);
+    BlockStoreT(temp_storage).Store(block_write_ptr, *static_cast<int(*)[kTupleWords]>(static_cast<void*>(&tuple)));
+    tile_offset += kBlockSize * gridDim.x;
+  }
+
+  // Process partial tile
+  if (tile_offset < n) {
+    // Make sure we don't compute a negative number with unsigned integers
+    int valid_items = int(int64_t(n) - int64_t(tile_offset));
+    std::size_t idx = tile_offset + threadIdx.x;
+    IndexFlagTuple tuple;
+    if (idx < n) {
+      tuple = get_tuple(idx);
     }
-    __syncthreads();
-    for (std::size_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += blockDim.x * gridDim.x) {
-      int16_t batch_idx;
-      std::size_t item_idx;
-      s_args.AssignBatch(idx, batch_idx, item_idx);
-      auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
-      scan_inputs[idx] =
-          IndexFlagTuple{bst_uint(item_idx), op_res, bst_uint(s_args.segments[batch_idx].begin),
-                         batch_idx, op_res};
 
-      AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
-    }
+    auto block_write_ptr = reinterpret_cast<int*>(out_ptr + tile_offset);
+    BlockStoreT(temp_storage)
+        .Store(block_write_ptr, *static_cast<int(*)[kTupleWords]>(static_cast<void*>(&tuple)),
+               valid_items * kTupleWords);
+  }
 }
-
 
 template <typename RowIndexT, typename OpT, typename OpDataT>
 void GetLeftCounts(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
