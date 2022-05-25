@@ -117,8 +117,6 @@ class HistEvaluator {
     }
 
     p_best->Update(best);
-
-    p_best->Update(best);
   }
 
   // Enumerate/Scan the split values of specific feature
