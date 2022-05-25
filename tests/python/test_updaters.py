@@ -10,10 +10,10 @@ exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(1, 4),
     'max_depth': strategies.integers(1, 11),
     'min_child_weight': strategies.floats(0.5, 2.0),
-    'alpha': strategies.floats(0.0, 2.0),
+    'alpha': strategies.floats(1e-5, 2.0),
     'lambda': strategies.floats(1e-5, 2.0),
     'eta': strategies.floats(0.01, 0.5),
-    'gamma': strategies.floats(0.0, 2.0),
+    'gamma': strategies.floats(1e-5, 2.0),
     'seed': strategies.integers(0, 10),
     # We cannot enable subsampling as the training loss can increase
     # 'subsample': strategies.floats(0.5, 1.0),
