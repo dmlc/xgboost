@@ -29,6 +29,7 @@ private[spark] trait GeneralParams extends Params {
    */
   final val numRound = new IntParam(this, "numRound", "The number of rounds for boosting",
     ParamValidators.gtEq(1))
+  setDefault(numRound, 1)
 
   final def getNumRound: Int = $(numRound)
 
@@ -37,6 +38,7 @@ private[spark] trait GeneralParams extends Params {
    */
   final val numWorkers = new IntParam(this, "numWorkers", "number of workers used to run xgboost",
     ParamValidators.gtEq(1))
+  setDefault(numWorkers, 1)
 
   final def getNumWorkers: Int = $(numWorkers)
 
@@ -45,6 +47,7 @@ private[spark] trait GeneralParams extends Params {
    */
   final val nthread = new IntParam(this, "nthread", "number of threads used by per worker",
     ParamValidators.gtEq(1))
+  setDefault(nthread, 1)
 
   final def getNthread: Int = $(nthread)
 
@@ -53,6 +56,7 @@ private[spark] trait GeneralParams extends Params {
    */
   final val useExternalMemory = new BooleanParam(this, "useExternalMemory",
     "whether to use external memory as cache")
+  setDefault(useExternalMemory, false)
 
   final def getUseExternalMemory: Boolean = $(useExternalMemory)
 
@@ -94,6 +98,7 @@ private[spark] trait GeneralParams extends Params {
    * the value treated as missing. default: Float.NaN
    */
   final val missing = new FloatParam(this, "missing", "the value treated as missing")
+  setDefault(missing, Float.NaN)
 
   final def getMissing: Float = $(missing)
 
@@ -109,6 +114,7 @@ private[spark] trait GeneralParams extends Params {
       "not use Spark's VectorAssembler class to construct the feature vector " +
       "but instead used a method that preserves zeros in your vector."
   )
+  setDefault(allowNonZeroForMissing, false)
 
   final def getAllowNonZeroForMissingValue: Boolean = $(allowNonZeroForMissing)
 
@@ -163,18 +169,14 @@ private[spark] trait GeneralParams extends Params {
     *        Ignored if the tracker implementation is "python".
     */
   final val trackerConf = new TrackerConfParam(this, "trackerConf", "Rabit tracker configurations")
+  setDefault(trackerConf, TrackerConf())
 
   /** Random seed for the C++ part of XGBoost and train/test splitting. */
   final val seed = new LongParam(this, "seed", "random seed")
+  setDefault(seed, 0L)
 
   final def getSeed: Long = $(seed)
 
-  setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
-    useExternalMemory -> false, silent -> 0, verbosity -> 1,
-    customObj -> null, customEval -> null, missing -> Float.NaN,
-    trackerConf -> TrackerConf(), seed -> 0,
-    checkpointPath -> "", checkpointInterval -> -1,
-    allowNonZeroForMissing -> false)
 }
 
 trait HasLeafPredictionCol extends Params {

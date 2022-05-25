@@ -29,7 +29,8 @@ private[scala] sealed trait XGBoostEstimatorCommon extends GeneralParams with Le
   with HasLabelCol with HasFeaturesCols with HasHandleInvalid {
 
   def needDeterministicRepartitioning: Boolean = {
-    getCheckpointPath != null && getCheckpointPath.nonEmpty && getCheckpointInterval > 0
+    isDefined(checkpointPath) && getCheckpointPath != null && getCheckpointPath.nonEmpty &&
+      isDefined(checkpointInterval) && getCheckpointInterval > 0
   }
 
   /**
