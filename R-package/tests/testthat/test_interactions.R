@@ -25,10 +25,10 @@ test_that("predict feature interactions works", {
   param <- list(eta = 0.1, max_depth = 4, base_score = mean(y), lambda = 0, nthread = 2)
   b <- xgb.train(param, dm, 100)
 
-  pred <- predict(b, dm, outputmargin = TRUE)
+  pred <- predict(b, dm, type = "margin")
 
   # SHAP contributions:
-  cont <- predict(b, dm, predcontrib = TRUE)
+  cont <- predict(b, dm, type = "contrib")
   expect_equal(dim(cont), c(N, P + 1))
   # make sure for each row they add up to marginal predictions
   expect_lt(max(abs(rowSums(cont) - pred)), 0.001)
@@ -44,7 +44,7 @@ test_that("predict feature interactions works", {
 
 
   # SHAP interaction contributions:
-  intr <- predict(b, dm, predinteraction = TRUE)
+  intr <- predict(b, dm, type = "interaction")
   expect_equal(dim(intr), c(N, P + 1, P + 1))
   # check assigned colnames
   cn <- c(letters[1:P], "BIAS")
@@ -109,7 +109,7 @@ test_that("SHAP contribution values are not NAN", {
 
   shaps <- as.data.frame(predict(fit,
     newdata = as.matrix(subset(d, fold == 1)[, ivs]),
-    predcontrib = TRUE))
+    type = "contrib"))
   result <- cbind(shaps, sum = rowSums(shaps), pred = predict(fit,
       newdata = as.matrix(subset(d, fold == 1)[, ivs])))
 
@@ -123,13 +123,13 @@ test_that("multiclass feature interactions work", {
   b <- xgb.train(param, dm, 40)
   pred <- t(
     array(
-      data = predict(b, dm, outputmargin = TRUE),
+      data = predict(b, dm, type = "margin"),
       dim = c(3, 150)
     )
   )
 
   # SHAP contributions:
-  cont <- predict(b, dm, predcontrib = TRUE)
+  cont <- predict(b, dm, type = "contrib")
   expect_length(cont, 3)
   # rewrap them as a 3d array
   cont <- array(
@@ -141,7 +141,7 @@ test_that("multiclass feature interactions work", {
   expect_lt(max(abs(apply(cont, c(1, 3), sum) - pred)), 0.001)
 
   # SHAP interaction contributions:
-  intr <- predict(b, dm, predinteraction = TRUE)
+  intr <- predict(b, dm, type = "interaction")
   expect_length(intr, 3)
   # rewrap them as a 4d array
   intr <- aperm(
@@ -172,13 +172,13 @@ test_that("SHAP single sample works", {
 
   predt <- predict(
     booster,
-    newdata = train$data[1, , drop = FALSE], predcontrib = TRUE
+    newdata = train$data[1, , drop = FALSE], type = "contrib"
   )
   expect_equal(dim(predt), c(1, dim(train$data)[2] + 1))
 
   predt <- predict(
     booster,
-    newdata = train$data[1, , drop = FALSE], predinteraction = TRUE
+    newdata = train$data[1, , drop = FALSE], type = "interaction"
   )
   expect_equal(dim(predt), c(1, dim(train$data)[2] + 1, dim(train$data)[2] + 1))
 })

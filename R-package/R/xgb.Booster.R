@@ -167,19 +167,35 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #'        For single-row predictions on sparse data, it's recommended to use CSR format. If passing
 #'        a sparse vector, it will take it as a row vector.
+#' @param type Type of prediction to make:\itemize{
+#'             \item "link" will return the predicted values according to the objective function being optimized for
+#'                   (after applying the corresponding link function) - for example, for
+#'                   \code{objective="binary:logistic"}, it will return predicted probabilities, while for
+#'                   \code{objective="reg:squarederror"}, it will return predicted values as no link function is
+#'                   applied to such predictions.
+#'
+#'                   \bold{Note:} \code{"link"} will not output the link-function values for
+#'                   \code{objective="multi:softmax"} (i.e. it will not output predicted probabilities),
+#'                   sticking instead to predicted class. Use \code{objective="multi:softprob"} for obtaining
+#'                   multi-class classification probabilities.
+#'             \item "response" will return the predicted class in classification objectives, and the predicted value
+#'                   in regression and other objectives.
+#'             \item "margin" will return the original untransformed sum of predictions from boosting
+#'                   iterations' results. E.g., setting \code{type="margin"} for logistic regression
+#'                   (\code{objective="binary:logistic"}) would result in predictions for log-odds instead of
+#'                   probabilities.
+#'             \item "leaf" will return leaf indices for each tree.
+#'             \item "contrib" will return feature contributions to individual predictions (see Details).
+#'             \item "interaction" will return contributions of feature interactions to individual
+#'                   predictions (see Details).
+#' }
 #' @param missing Missing is only used when input is dense matrix. Pick a float value that represents
 #'        missing values in data (e.g., sometimes 0 or some other extreme value is used).
-#' @param outputmargin whether the prediction should be returned in the for of original untransformed
-#'        sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
-#'        logistic regression would result in predictions for log-odds instead of probabilities.
 #' @param ntreelimit Deprecated, use \code{iterationrange} instead.
-#' @param predleaf whether predict leaf index.
-#' @param predcontrib whether to return feature contributions to individual predictions (see Details).
 #' @param approxcontrib whether to use a fast approximation for feature contributions (see Details).
-#' @param predinteraction whether to return contributions of feature interactions to individual predictions (see Details).
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several
-#'        prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
-#'        or predinteraction flags is TRUE.
+#'        prediction outputs per case. This option has no effect when supplying prediction types
+#'        \code{"leaf"}, \code{"contrib"}, or \code{"interaction"}.
 #' @param training whether is the prediction result used for training.  For dart booster,
 #'        training predicting will perform dropout.
 #' @param iterationrange Specifies which layer of trees are used in prediction.  For
@@ -197,11 +213,11 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Note that \code{iterationrange} would currently do nothing for predictions from gblinear,
 #' since gblinear doesn't keep its boosting history.
 #'
-#' One possible practical applications of the \code{predleaf} option is to use the model
+#' One possible practical applications of the \code{type="leaf"} option is to use the model
 #' as a generator of new features which capture non-linearity and interactions,
 #' e.g., as implemented in \code{\link{xgb.create.features}}.
 #'
-#' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
+#' Setting \code{type="contrib"} allows to calculate contributions of each feature to
 #' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
 #' (feature_beta * feature_value). For "gbtree" booster, feature contributions are SHAP
 #' values (Lundberg 2017) that sum to the difference between the expected output
@@ -209,7 +225,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
 #' in \url{http://blog.datadive.net/interpreting-random-forests/}.
 #'
-#' With \code{predinteraction = TRUE}, SHAP values of contributions of interaction of each pair of features
+#' With \code{type="interaction"}, SHAP values of contributions of interaction of each pair of features
 #' are computed. Note that this operation might be rather expensive in terms of compute and memory.
 #' Since it quadratically depends on the number of features, it is recommended to perform selection
 #' of the most important features first. See below about the format of the returned results.
@@ -221,29 +237,30 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on
 #' the \code{reshape} value.
 #'
-#' When \code{predleaf = TRUE}, the output is a matrix object with the
+#' When \code{type="leaf"}, the output is a matrix object with the
 #' number of columns corresponding to the number of trees.
 #'
-#' When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
+#' When \code{type="contrib"} and it is not a multiclass setting, the output is a matrix object with
 #' \code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
 #' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
 #' such a matrix. The contribution values are on the scale of untransformed margin
 #' (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
 #'
-#' When \code{predinteraction = TRUE} and it is not a multiclass setting, the output is a 3d array with
+#' When \code{type="interaction"} and it is not a multiclass setting, the output is a 3d array with
 #' dimensions \code{c(nrow, num_features + 1, num_features + 1)}. The off-diagonal (in the last two dimensions)
 #' elements represent different features interaction contributions. The array is symmetric WRT the last
 #' two dimensions. The "+ 1" columns corresponds to bias. Summing this array along the last dimension should
-#' produce practically the same result as predict with \code{predcontrib = TRUE}.
+#' produce practically the same result as predict with \code{type="contrib"}.
 #' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
 #' such an array.
 #'
-#' When \code{strict_shape} is set to \code{TRUE}, the output is always an array.  For
-#' normal prediction, the output is a 2-dimension array \code{(num_class, nrow(newdata))}.
+#' When \code{strict_shape} is set to \code{TRUE}, the output is always a matrix.  For
+#' normal prediction (\code{type="link"}), the output is a 2-dimension matrix with dimensions
+#' \code{(num_class, nrow(newdata))}, while for \code{type="response"} it reduces to \code{(1, nrow(newdata))}.
 #'
-#' For \code{predcontrib = TRUE}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
-#' For \code{predinteraction = TRUE}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
-#' For \code{predleaf = TRUE}, output is \code{(n_trees_in_forest, num_class, n_iterations, nrow(newdata))}
+#' For \code{type="contrib"}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
+#' For \code{type="interaction"}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
+#' For \code{type="leaf"}, output is \code{(n_trees_in_forest, num_class, n_iterations, nrow(newdata))}
 #'
 #' @seealso
 #' \code{\link{xgb.train}}.
@@ -271,12 +288,12 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' # Predicting tree leafs:
 #' # the result is an nsamples X ntrees matrix
-#' pred_leaf <- predict(bst, test$data, predleaf = TRUE)
+#' pred_leaf <- predict(bst, test$data, type = "leaf")
 #' str(pred_leaf)
 #'
 #' # Predicting feature contributions to predictions:
 #' # the result is an nsamples X (nfeatures + 1) matrix
-#' pred_contr <- predict(bst, test$data, predcontrib = TRUE)
+#' pred_contr <- predict(bst, test$data, type = "contrib")
 #' str(pred_contr)
 #' # verify that contributions' sums are equal to log-odds of predictions (up to float precision):
 #' summary(rowSums(pred_contr) - qlogis(pred))
@@ -324,9 +341,10 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' @rdname predict.xgb.Booster
 #' @export
-predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
-                                predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
+predict.xgb.Booster <- function(object, newdata,
+                                type = c("link", "response", "margin", "leaf", "contrib", "interaction"),
+                                missing = NA, ntreelimit = NULL, approxcontrib = FALSE, reshape = FALSE,
+                                training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
     newdata <- xgb.DMatrix(newdata, missing = missing)
@@ -381,17 +399,44 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     }
     return(box(as.integer(type)))
   }
-  if (outputmargin) {
-    args$type <- set_type(1)
-  }
-  if (predcontrib) {
-    args$type <- set_type(if (approxcontrib) 3 else 2)
-  }
-  if (predinteraction) {
-    args$type <- set_type(if (approxcontrib) 5 else 4)
-  }
-  if (predleaf) {
-    args$type <- set_type(6)
+  type <- head(type, 1L)
+  predleaf <- FALSE
+  predcontrib <- FALSE
+  predinteraction <- FALSE
+  predresponse <- FALSE
+  if (type != "link") {
+    if (type == "margin") {
+      args$type <- set_type(1)
+    }
+    else if (type == "contrib") {
+      args$type <- set_type(if (approxcontrib) 3 else 2)
+      predcontrib <- TRUE
+    }
+    else if (type == "interaction") {
+      args$type <- set_type(if (approxcontrib) 5 else 4)
+      predinteraction <- TRUE
+    }
+    else if (type == "leaf") {
+      args$type <- set_type(6)
+      predleaf <- TRUE
+    } else if (type == "response") {
+      objective <- object$params$objective
+      if (is.null(objective)) {
+        bst_params <- jsonlite::fromJSON(xgb.config(object))
+        objective <- bst_params$learner$objective$name
+      }
+      objectives_w_response <- c(
+        "binary:logistic",
+        "binary:logitraw",
+        "binary:hinge",
+        "multi:softprob"
+      )
+      if (objective %in% objectives_w_response) {
+        predresponse <- TRUE
+      }
+    } else {
+      stop("Invalid prediction type.")
+    }
   }
 
   predts <- .Call(
@@ -418,7 +463,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   } else if (predinteraction) {
     dimnames(arr) <- list(cnames, cnames, NULL, NULL)
   }
-  if (strict_shape) {
+  if (strict_shape && !(predresponse && n_groups != 1)) {
     return(arr) # strict shape is calculated by libxgboost uniformly.
   }
 
@@ -457,10 +502,21 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     }
   } else {
     ## Normal prediction
-    arr <- if (reshape && n_groups != 1) {
-      matrix(arr, ncol = n_groups, byrow = TRUE)
+    ## Note: this will need to be updated if something like multi-task regression is added
+    if ((reshape && n_groups != 1) || predresponse) {
+      arr <- matrix(arr, ncol = n_groups, byrow = TRUE)
+      if (predresponse) {
+        if (n_groups == 1) {
+          arr <- as.numeric(arr >= 0.5)
+        } else {
+          arr <- max.col(arr) - 1L
+        }
+        if (strict_shape) {
+          arr <- matrix(arr, nrow = 1L)
+        }
+      }
     } else {
-      as.vector(ret)
+      arr <- as.vector(ret)
     }
   }
   return(arr)

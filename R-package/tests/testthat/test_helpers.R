@@ -77,38 +77,38 @@ test_that("xgb.dump works for gblinear", {
 
 test_that("predict leafs works", {
   # no error for gbtree
-  expect_error(pred_leaf <- predict(bst.Tree, sparse_matrix, predleaf = TRUE), regexp = NA)
+  expect_error(pred_leaf <- predict(bst.Tree, sparse_matrix, type = "leaf"), regexp = NA)
   expect_equal(dim(pred_leaf), c(nrow(sparse_matrix), nrounds))
   # error for gblinear
-  expect_error(predict(bst.GLM, sparse_matrix, predleaf = TRUE))
+  expect_error(predict(bst.GLM, sparse_matrix, type = "leaf"))
 })
 
 test_that("predict feature contributions works", {
   # gbtree binary classifier
-  expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE), regexp = NA)
+  expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, type = "contrib"), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
-  pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
+  pred <- predict(bst.Tree, sparse_matrix, type = "margin")
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # must work with data that has no column names
   X <- sparse_matrix
   colnames(X) <- NULL
-  expect_error(pred_contr_ <- predict(bst.Tree, X, predcontrib = TRUE), regexp = NA)
+  expect_error(pred_contr_ <- predict(bst.Tree, X, type = "contrib"), regexp = NA)
   expect_equal(pred_contr, pred_contr_, check.attributes = FALSE,
                tolerance = float_tolerance)
 
   # gbtree binary classifier (approximate method)
-  expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE, approxcontrib = TRUE), regexp = NA)
+  expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, type = "contrib", approxcontrib = TRUE), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
-  pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
+  pred <- predict(bst.Tree, sparse_matrix, type = "margin")
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
 
   # gblinear binary classifier
-  expect_error(pred_contr <- predict(bst.GLM, sparse_matrix, predcontrib = TRUE), regexp = NA)
+  expect_error(pred_contr <- predict(bst.GLM, sparse_matrix, type = "contrib"), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
-  pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
+  pred <- predict(bst.GLM, sparse_matrix, type = "margin")
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # manual calculation of linear terms
   coefs <- as.numeric(xgb.dump(bst.GLM)[-c(1, 2, 4)])
@@ -118,8 +118,8 @@ test_that("predict feature contributions works", {
                tolerance = float_tolerance)
 
   # gbtree multiclass
-  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
-  pred_contr <- predict(mbst.Tree, as.matrix(iris[, -5]), predcontrib = TRUE)
+  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), type = "margin", reshape = TRUE)
+  pred_contr <- predict(mbst.Tree, as.matrix(iris[, -5]), type = "contrib")
   expect_is(pred_contr, "list")
   expect_length(pred_contr, 3)
   for (g in seq_along(pred_contr)) {
@@ -128,8 +128,8 @@ test_that("predict feature contributions works", {
   }
 
   # gblinear multiclass (set base_score = 0, which is base margin in multiclass)
-  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
-  pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), predcontrib = TRUE)
+  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), type = "margin", reshape = TRUE)
+  pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), type = "contrib")
   expect_length(pred_contr, 3)
   coefs_all <- matrix(
     data = as.numeric(xgb.dump(mbst.GLM)[-c(1, 2, 6)]),
@@ -173,8 +173,8 @@ test_that("SHAPs sum to predictions, with or without DART", {
     pr <- function(...)
       predict(fit, newdata = d, ...)
     pred <- pr()
-    shap <- pr(predcontrib = TRUE)
-    shapi <- pr(predinteraction = TRUE)
+    shap <- pr(type = "contrib")
+    shapi <- pr(type = "interaction")
     tol <- 1e-5
 
     expect_equal(rowSums(shap), pred, tol = tol)
