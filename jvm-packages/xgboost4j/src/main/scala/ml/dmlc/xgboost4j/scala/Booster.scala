@@ -329,7 +329,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     */
   @throws(classOf[XGBoostError])
   def toByteArray: Array[Byte] = {
-    booster.toByteArray
+    toByteArray("deprecated")
   }
 
   /**
