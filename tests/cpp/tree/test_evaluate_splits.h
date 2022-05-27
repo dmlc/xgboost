@@ -2,11 +2,14 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/data.h>
 
 #include <algorithm>  // next_permutation
 #include <numeric>    // iota
 
-#include "../../../src/tree/hist/evaluate_splits.h"
+#include "../../../src/common/hist_util.h"  // HistogramCuts,HistCollection
+#include "../../../src/tree/param.h"        // TrainParam
+#include "../../../src/tree/split_evaluator.h"
 #include "../helpers.h"
 
 namespace xgboost {

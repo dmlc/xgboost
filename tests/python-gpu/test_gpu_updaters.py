@@ -77,6 +77,16 @@ class TestGPUUpdaters:
     def test_categorical(self, rows, cols, rounds, cats):
         self.cputest.run_categorical_basic(rows, cols, rounds, cats, "gpu_hist")
 
+    @given(
+        strategies.integers(10, 400),
+        strategies.integers(3, 8),
+        strategies.integers(4, 7)
+    )
+    @settings(deadline=None, print_blob=True)
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical_missing(self, rows, cols, cats):
+        self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
+
     def test_max_cat(self) -> None:
         self.cputest.run_max_cat("gpu_hist")
 
