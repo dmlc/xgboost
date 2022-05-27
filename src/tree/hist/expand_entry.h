@@ -50,12 +50,11 @@ struct CPUExpandEntry {
   }
 
   friend std::ostream& operator<<(std::ostream& os, const CPUExpandEntry& e) {
-    os << "ExpandEntry: \n";
+    os << "ExpandEntry:\n";
     os << "nidx: " << e.nid << "\n";
     os << "depth: " << e.depth << "\n";
     os << "loss: " << e.split.loss_chg << "\n";
-    os << "left_sum: " << e.split.left_sum << "\n";
-    os << "right_sum: " << e.split.right_sum << "\n";
+    os << "split:\n" << e.split << std::endl;
     return os;
   }
 };
