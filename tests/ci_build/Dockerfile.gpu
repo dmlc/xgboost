@@ -8,6 +8,7 @@ SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
     apt-get update && \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
     # Python

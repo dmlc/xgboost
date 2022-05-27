@@ -35,6 +35,7 @@ dependencies:
 - py-ubjson
 - cffi
 - pyarrow
+- protobuf<=3.20
 - pip:
   - shap
   - ipython                     # required by shap at import time.
