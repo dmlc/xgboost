@@ -64,7 +64,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   std::copy(segments.begin(), segments.end(), args.segments);
   std::copy(op_data.begin(), op_data.end(), args.data);
   GetLeftCounts(args, dh::ToSpan(ridx), dh::ToSpan(scan_tmp),dh::ToSpan(left_counts), op);
-  SortPositionBatch(args, dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(scan_tmp), dh::ToSpan(left_counts), 
+  SortPositionBatch(args, dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(scan_tmp), dh::ToSpan(left_counts),
                     nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };

@@ -26,14 +26,15 @@ struct Segment {
   __host__ __device__ size_t Size() const { return end - begin; }
 };
 
-
 template <typename OpDataT>
 struct KernelBatchArgs {
   static const int kMaxBatch = 32;
   Segment segments[kMaxBatch];
   OpDataT data[kMaxBatch];
+
+  KernelBatchArgs() = default;
   // Given a global thread idx, assign it to an item from one of the segments
-  __device__ void AssignBatch(std::size_t idx, int16_t &batch_idx, std::size_t &item_idx) {
+  __device__ void AssignBatch(std::size_t idx, int16_t& batch_idx, std::size_t& item_idx) const {
     std::size_t sum = 0;
     for (int16_t i = 0; i < kMaxBatch; i++) {
       if (sum + segments[i].Size() > idx) {
@@ -95,6 +96,17 @@ __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bo
   }
 }
 
+template <typename RowIndexT,typename OpT, typename OpDataT>
+__device__ __forceinline__ IndexFlagTuple GetTuple(std::size_t idx, common::Span<RowIndexT> ridx, common::Span<unsigned long long int> d_left_counts,const KernelBatchArgs<OpDataT> &args, OpT op){
+    int16_t batch_idx;
+    std::size_t item_idx;
+    args.AssignBatch(idx, batch_idx, item_idx);
+    auto op_res = op(ridx[item_idx], args.data[batch_idx]);
+    AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
+    return IndexFlagTuple{bst_uint(item_idx), op_res,
+                                  bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
+}
+
 template <int kBlockSize, typename RowIndexT, typename OpT, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
     const KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
@@ -102,12 +114,16 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
     OpT op, std::size_t n) {
   // Load this large struct in shared memory
   // if left to its own devices the compiler loads this very slowly
-  __shared__ KernelBatchArgs<OpDataT> s_args;
-
-  for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>) / 8; i += kBlockSize) {
-    reinterpret_cast<int64_t*>(&s_args)[i] = reinterpret_cast<const int64_t*>(&args)[i];
+  //__shared__ KernelBatchArgs<OpDataT> s_args;
+  /*
+  __shared__ cub::Uninitialized<KernelBatchArgs<OpDataT>> s_temp;
+  KernelBatchArgs<OpDataT>& s_args = s_temp.Alias();
+  for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>) / 4; i += kBlockSize) {
+    reinterpret_cast<int*>(&s_args)[i] = reinterpret_cast<const int*>(&args)[i];
   }
+  
   __syncthreads();
+  */
 
   // Global writes of IndexFlagTuple are inefficient due to its 16b size
   // we can use cub to optimise this
@@ -120,7 +136,8 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
   // We don't really need the bounds checking
   IndexFlagTuple* out_ptr = scan_inputs.data();
 
-  auto get_tuple = [=]__device__ (auto idx){
+  /*
+  auto get_tuple = [&]__device__ (auto idx){
     int16_t batch_idx;
     std::size_t item_idx;
     s_args.AssignBatch(idx, batch_idx, item_idx);
@@ -129,12 +146,14 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
     return IndexFlagTuple{bst_uint(item_idx), op_res,
                                   bst_uint(s_args.segments[batch_idx].begin), batch_idx, op_res};
   };
+  */
 
   // Process full tiles
   std::size_t tile_offset = blockIdx.x * kBlockSize;
   while (tile_offset + kBlockSize <= n) {
     std::size_t idx = tile_offset + threadIdx.x;
-    auto tuple = get_tuple(idx);
+    //auto tuple = get_tuple(idx);
+    auto tuple = GetTuple(idx,ridx,d_left_counts,args,op);
     auto block_write_ptr = reinterpret_cast<int*>(out_ptr + tile_offset);
     BlockStoreT(temp_storage).Store(block_write_ptr, *static_cast<int(*)[kTupleWords]>(static_cast<void*>(&tuple)));
     tile_offset += kBlockSize * gridDim.x;
@@ -147,7 +166,8 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
     std::size_t idx = tile_offset + threadIdx.x;
     IndexFlagTuple tuple;
     if (idx < n) {
-      tuple = get_tuple(idx);
+      tuple = GetTuple(idx,ridx,d_left_counts,args,op);
+      //tuple = get_tuple(idx);
     }
 
     auto block_write_ptr = reinterpret_cast<int*>(out_ptr + tile_offset);
@@ -225,6 +245,7 @@ void SortPositionBatch(const KernelBatchArgs<OpDataT>& args, common::Span<RowInd
                        cudaStream_t stream) {
   static_assert(sizeof(IndexFlagTuple) == 16, "Struct should be 16 bytes aligned.");
   WriteResultsFunctor write_results{ridx.data(), ridx_tmp.data(), left_counts.data()};
+
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
