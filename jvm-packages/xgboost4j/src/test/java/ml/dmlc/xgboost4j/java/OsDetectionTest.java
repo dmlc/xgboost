@@ -16,10 +16,8 @@
 package ml.dmlc.xgboost4j.java;
 
 import ml.dmlc.xgboost4j.java.NativeLibLoader.OS;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -40,12 +38,12 @@ public class OsDetectionTest {
   private static final String OS_NAME_PROPERTY = "os.name";
 
   @RunWith(Parameterized.class)
-  public static class ParameterizedOSDetectionTest {
+  public static class SupportedOSDetectionTest {
 
     private final String osNameValue;
     private final OS expectedOS;
 
-    public ParameterizedOSDetectionTest(String osNameValue, OS expectedOS) {
+    public SupportedOSDetectionTest(String osNameValue, OS expectedOS) {
       this.osNameValue = osNameValue;
       this.expectedOS = expectedOS;
     }
@@ -70,32 +68,7 @@ public class OsDetectionTest {
     }
   }
 
-  public static class NonParameterizedOSDetectionTest {
-
-    @Rule
-    public TemporaryFolder folder = new TemporaryFolder();
-
-    @Test
-    public void testForRegularLinux() throws Exception {
-      setMappedFilesBaseDir(folder.getRoot().toPath());
-      folder.newFile("ld-2.23.so");
-
-      executeAndRestoreProperty(() -> {
-        System.setProperty(OS_NAME_PROPERTY, "linux");
-        assertSame(detectOS(), LINUX);
-      });
-    }
-
-    @Test
-    public void testForMuslBasedLinux() throws Exception {
-      setMappedFilesBaseDir(folder.getRoot().toPath());
-      folder.newFile("ld-musl-x86_64.so.1");
-
-      executeAndRestoreProperty(() -> {
-        System.setProperty(OS_NAME_PROPERTY, "linux");
-        assertSame(detectOS(), LINUX_MUSL);
-      });
-    }
+  public static class UnsupportedOSDetectionTest {
 
     @Test
     public void testUnsupportedOs() {
