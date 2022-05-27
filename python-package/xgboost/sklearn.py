@@ -939,7 +939,7 @@ class XGBModel(XGBModelBase):
                 :py:meth:`set_params` instead.
         verbose :
             If `verbose` is True and an evaluation set is used, the evaluation metric
-            measured on the validation set is printed to stderr at each boosting stage.
+            measured on the validation set is printed to stdout at each boosting stage.
             If `verbose` is an integer, the evaluation metric is printed at each `verbose`
             boosting stage. The last boosting stage / the boosting stage found by using
             `early_stopping_rounds` is also printed.
@@ -1818,7 +1818,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
         verbose :
             If `verbose` is True and an evaluation set is used, the evaluation metric
-            measured on the validation set is printed to stderr at each boosting stage.
+            measured on the validation set is printed to stdout at each boosting stage.
             If `verbose` is an integer, the evaluation metric is printed at each `verbose`
             boosting stage. The last boosting stage / the boosting stage found by using
             `early_stopping_rounds` is also printed.
