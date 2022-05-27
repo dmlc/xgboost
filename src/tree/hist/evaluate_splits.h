@@ -130,10 +130,10 @@ class HistEvaluator {
    *
    *   | Forward  | Backward |
    *   |----------+----------|
-   *   | A [BCDE] | [ABCD] E |
-   *   | AB [CDE] | [ABC] DE |
-   *   | ABC [DE] | [AB] CDE |
-   *   | ABCD [E] | [A] BCDE |
+   *   | [BCDE] A | E [ABCD] |
+   *   | [CDE] AB | DE [ABC] |
+   *   | [DE] ABC | CDE [AB] |
+   *   | [E] ABCD | BCDE [A] |
    */
   template <int d_step>
   void EnumeratePart(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
