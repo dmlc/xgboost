@@ -55,7 +55,7 @@ public class RabitTracker implements IRabitTracker {
       String line;
       try {
         while ((line = reader.readLine()) != null) {
-          trackerProcessLogger.info(line);
+          trackerProcessLogger.error(line);
         }
         trackerProcess.get().waitFor();
         trackerProcessLogger.info("Tracker Process ends with exit code " +
