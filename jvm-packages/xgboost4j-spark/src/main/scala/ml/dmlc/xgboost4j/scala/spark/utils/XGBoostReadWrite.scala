@@ -16,12 +16,16 @@
 
 package ml.dmlc.xgboost4j.scala.spark.utils
 
+import ml.dmlc.xgboost4j.java.{Booster => JBooster}
+
 import org.apache.spark.ml.util.MLWriter
 
 private[spark] abstract class XGBoostWriter extends MLWriter {
 
+  /** Currently it's using the "deprecated" format as
+   * default, which will be changed into `ubj` in future releases. */
   def getModelFormat(): String = {
-    optionMap.getOrElse("format", "ubj")
+    optionMap.getOrElse("format", JBooster.DEFAULT_FORMAT)
   }
 
 }

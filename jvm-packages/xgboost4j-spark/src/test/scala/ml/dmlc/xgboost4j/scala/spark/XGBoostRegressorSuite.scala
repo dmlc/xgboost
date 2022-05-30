@@ -333,10 +333,10 @@ class XGBoostRegressorSuite extends FunSuite with PerTest with TmpFolderPerSuite
     assert(compareTwoFiles(new File(modelPath, "data/XGBoostRegressionModel").getPath,
       nativeJsonModelPath))
 
-    // test default ubj
+    // test default "deprecated"
     val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
     model.write.save(modelUbjPath)
-    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel.ubj").getPath
+    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel").getPath
     model.nativeBooster.saveModel(nativeUbjModelPath)
     assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
       nativeUbjModelPath))

@@ -34,6 +34,7 @@ import org.apache.commons.logging.LogFactory;
  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
 public class Booster implements Serializable, KryoSerializable {
+  public static final String DEFAULT_FORMAT = "deprecated";
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
@@ -390,9 +391,8 @@ public class Booster implements Serializable, KryoSerializable {
    *
    * @param out The output stream
    */
-  @Deprecated
   public void saveModel(OutputStream out) throws XGBoostError, IOException {
-    saveModel(out, "deprecated");
+    saveModel(out, DEFAULT_FORMAT);
   }
 
   /**
@@ -659,7 +659,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public byte[] toByteArray() throws XGBoostError {
-    return this.toByteArray("deprecated");
+    return this.toByteArray(DEFAULT_FORMAT);
   }
 
   /**

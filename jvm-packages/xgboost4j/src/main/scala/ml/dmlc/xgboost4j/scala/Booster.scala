@@ -214,9 +214,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     * @param out Output stream
     */
   @throws(classOf[XGBoostError])
-  @deprecated
   def saveModel(out: java.io.OutputStream): Unit = {
-    saveModel(out, "deprecated")
+    booster.saveModel(out)
   }
 
   /**
@@ -329,7 +328,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     */
   @throws(classOf[XGBoostError])
   def toByteArray: Array[Byte] = {
-    toByteArray("deprecated")
+    booster.toByteArray()
   }
 
   /**
