@@ -920,7 +920,6 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
     auto str = common::LoadSequentialFile(fname);
     CHECK_GE(str.size(), 3);  // "{}\0"
     CHECK_EQ(str[0], '{');
-    CHECK_EQ(str[str.size() - 2], '}');
     return str;
   };
   if (common::FileExtension(fname) == "json") {
