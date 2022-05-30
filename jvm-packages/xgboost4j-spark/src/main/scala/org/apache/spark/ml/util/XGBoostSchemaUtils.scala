@@ -14,7 +14,7 @@
  limitations under the License.
  */
 
-package org.apache.spark.ml.linalg.xgboost
+package org.apache.spark.ml.util
 
 import org.apache.spark.sql.types.{BooleanType, DataType, NumericType, StructType}
 import org.apache.spark.ml.linalg.VectorUDT

@@ -18,8 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.{Iterator, mutable}
 
-import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
-import ml.dmlc.xgboost4j.scala.spark.utils.XGBoostWriter
+import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.hadoop.fs.Path
@@ -30,9 +29,9 @@ import org.apache.spark.ml._
 import org.apache.spark.ml.param._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.json4s.DefaultFormats
 
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.ml.util.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter, XGBoostWriter}
 import org.apache.spark.sql.types.StructType
 
 class XGBoostRegressor (
@@ -260,7 +259,7 @@ class XGBoostRegressionModel private[ml] (
    * Note: The performance is not ideal, use it carefully!
    */
   override def predict(features: Vector): Double = {
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val dm = new DMatrix(processMissingValues(
       Iterator(features.asXGB),
       $(missing),
@@ -384,8 +383,6 @@ object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
 
     override protected def saveImpl(path: String): Unit = {
       // Save metadata and Params
-      implicit val format = DefaultFormats
-      implicit val sc = super.sparkSession.sparkContext
       DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
       // Save model data
       val dataPath = new Path(path, "data").toString

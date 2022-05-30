@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
+import ml.dmlc.xgboost4j.scala.spark.util.Utils
+
 import org.apache.spark.ml.param.{Param, ParamPair, Params}
 import org.json4s.{DefaultFormats, Extraction, NoTypeHints}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
