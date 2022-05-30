@@ -54,6 +54,29 @@ struct KernelBatchArgs {
   }
 };
 
+template <typename OpDataT>
+struct KernelMemcpyArgs {
+  Segment segment;
+  OpDataT data;
+};
+
+template <typename OpDataT>
+__device__ void AssignBatch(const common::Span<KernelMemcpyArgs<OpDataT>> batch_info,
+                            std::size_t idx, int16_t& batch_idx, std::size_t& item_idx, OpDataT&data) {
+  const auto ptr = batch_info.data();
+  std::size_t sum = 0;
+
+  for (int16_t i = 0; i < batch_info.size(); i++) {
+    if (sum + ptr[i].segment.Size() > idx) {
+      batch_idx = i;
+      item_idx = (idx - sum) + ptr[i].segment.begin;
+      data = ptr[i].data;
+      break;
+    }
+    sum += ptr[i].segment.Size();
+  }
+}
+
 // We can scan over this tuple, where the scan gives us information on how to partition inputs
 // according to the flag
 struct IndexFlagTuple {
@@ -97,11 +120,13 @@ __forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bo
 }
 
 template <typename RowIndexT,typename OpT, typename OpDataT>
-__device__ __forceinline__ IndexFlagTuple GetTuple(std::size_t idx, common::Span<RowIndexT> ridx, common::Span<unsigned long long int> d_left_counts,const KernelBatchArgs<OpDataT> &args, OpT op){
+__device__ __forceinline__ IndexFlagTuple GetTuple(std::size_t idx, common::Span<RowIndexT> ridx, common::Span<unsigned long long int> d_left_counts,const KernelBatchArgs<OpDataT> &args, const common::Span<KernelMemcpyArgs<OpDataT>> batch_info, OpT op){
     int16_t batch_idx;
     std::size_t item_idx;
-    args.AssignBatch(idx, batch_idx, item_idx);
-    auto op_res = op(ridx[item_idx], args.data[batch_idx]);
+    OpDataT data;
+    AssignBatch(batch_info,idx, batch_idx, item_idx, data);
+    //args.AssignBatch(idx, batch_idx, item_idx);
+    auto op_res = op(ridx[item_idx], data);
     AtomicIncrement(d_left_counts.data(), op_res, batch_idx);
     return IndexFlagTuple{bst_uint(item_idx), op_res,
                                   bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
@@ -109,7 +134,8 @@ __device__ __forceinline__ IndexFlagTuple GetTuple(std::size_t idx, common::Span
 
 template <int kBlockSize, typename RowIndexT, typename OpT, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
-    const KernelBatchArgs<OpDataT> args, common::Span<RowIndexT> ridx,
+    const KernelBatchArgs<OpDataT> args, const common::Span<KernelMemcpyArgs<OpDataT>> batch_info,
+    common::Span<RowIndexT> ridx,
     common::Span<IndexFlagTuple> scan_inputs, common::Span<unsigned long long int> d_left_counts,
     OpT op, std::size_t n) {
   // Load this large struct in shared memory
@@ -121,7 +147,7 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
   for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>) / 4; i += kBlockSize) {
     reinterpret_cast<int*>(&s_args)[i] = reinterpret_cast<const int*>(&args)[i];
   }
-  
+
   __syncthreads();
   */
 
@@ -153,9 +179,9 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
   while (tile_offset + kBlockSize <= n) {
     std::size_t idx = tile_offset + threadIdx.x;
     //auto tuple = get_tuple(idx);
-    auto tuple = GetTuple(idx,ridx,d_left_counts,args,op);
+    auto tuple = GetTuple(idx,ridx,d_left_counts,args,batch_info,op);
     auto block_write_ptr = reinterpret_cast<int*>(out_ptr + tile_offset);
-    BlockStoreT(temp_storage).Store(block_write_ptr, *static_cast<int(*)[kTupleWords]>(static_cast<void*>(&tuple)));
+    //BlockStoreT(temp_storage).Store(block_write_ptr, *static_cast<int(*)[kTupleWords]>(static_cast<void*>(&tuple)));
     tile_offset += kBlockSize * gridDim.x;
   }
 
@@ -166,20 +192,23 @@ __global__ __launch_bounds__(kBlockSize) void GetLeftCountsKernel(
     std::size_t idx = tile_offset + threadIdx.x;
     IndexFlagTuple tuple;
     if (idx < n) {
-      tuple = GetTuple(idx,ridx,d_left_counts,args,op);
+      tuple = GetTuple(idx,ridx,d_left_counts,args,batch_info,op);
       //tuple = get_tuple(idx);
     }
 
+    /*
     auto block_write_ptr = reinterpret_cast<int*>(out_ptr + tile_offset);
     BlockStoreT(temp_storage)
         .Store(block_write_ptr, *static_cast<int(*)[kTupleWords]>(static_cast<void*>(&tuple)),
                valid_items * kTupleWords);
+               */
   }
 }
 
 template <typename RowIndexT, typename OpT, typename OpDataT>
-void GetLeftCounts(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
-                   common::Span<IndexFlagTuple> scan_inputs,
+void GetLeftCounts(const KernelBatchArgs<OpDataT>& args,
+                   const common::Span<KernelMemcpyArgs<OpDataT>> batch_info,
+                   common::Span<RowIndexT> ridx, common::Span<IndexFlagTuple> scan_inputs,
                    common::Span<unsigned long long int> d_left_counts, OpT op) {
   // Launch 1 thread for each row
   constexpr int kBlockSize = 256;
@@ -187,28 +216,7 @@ void GetLeftCounts(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT>
       std::max(256,static_cast<int>(xgboost::common::DivRoundUp(args.TotalRows(), kBlockSize)));
 
 
-  GetLeftCountsKernel<kBlockSize><<<grid_size,kBlockSize>>>(args, ridx, scan_inputs,d_left_counts,op, args.TotalRows());
-
-/*
-  dh::LaunchN<1, kBlockSize>(args.TotalRows(), [=] __device__(std::size_t idx) {
-    __shared__ KernelBatchArgs<OpDataT> s_args;
-
-    for (int i = threadIdx.x; i < sizeof(KernelBatchArgs<OpDataT>); i += kBlockSize) {
-      reinterpret_cast<char*>(&s_args)[i] = reinterpret_cast<const char*>(&args)[i];
-    }
-    __syncthreads();
-
-    // Assign this thread to a row
-    int16_t batch_idx;
-    std::size_t item_idx;
-    s_args.AssignBatch(idx, batch_idx, item_idx);
-    auto op_res = op(ridx[item_idx], s_args.data[batch_idx]);
-    scan_inputs[idx] = IndexFlagTuple{bst_uint(item_idx), op_res,
-                                      bst_uint(args.segments[batch_idx].begin), batch_idx, op_res};
-
-    AtomicIncrement(d_left_counts.data(), op(ridx[item_idx], s_args.data[batch_idx]), batch_idx);
-  });
-  */
+  GetLeftCountsKernel<kBlockSize><<<grid_size,kBlockSize>>>(args, batch_info,ridx, scan_inputs,d_left_counts,op, args.TotalRows());
 }
 
 // This is a transformer output iterator
@@ -238,28 +246,43 @@ struct WriteResultsFunctor {
   }
 };
 
-template <typename RowIndexT, typename OpDataT>
-void SortPositionBatch(const KernelBatchArgs<OpDataT>& args, common::Span<RowIndexT> ridx,
+template <typename RowIndexT, typename OpT, typename OpDataT>
+void SortPositionBatch(const KernelBatchArgs<OpDataT>& args,
+                       const common::Span<KernelMemcpyArgs<OpDataT>> batch_info,
+                       common::Span<RowIndexT> ridx,
                        common::Span<RowIndexT> ridx_tmp, common::Span<IndexFlagTuple> scan_inputs,
-                       common::Span<unsigned long long int> left_counts,
-                       cudaStream_t stream) {
+                       common::Span<unsigned long long int> left_counts, OpT op,cudaStream_t stream) {
   static_assert(sizeof(IndexFlagTuple) == 16, "Struct should be 16 bytes aligned.");
   WriteResultsFunctor write_results{ridx.data(), ridx_tmp.data(), left_counts.data()};
 
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
+  auto input_iterator =
+      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(size_t idx) {
+        int16_t batch_idx;
+        std::size_t item_idx;
+        OpDataT data;
+        AssignBatch(batch_info, idx, batch_idx, item_idx, data);
+        auto op_res = op(ridx[item_idx], data);
+        return IndexFlagTuple{bst_uint(item_idx), op_res,
+                              bst_uint(batch_info.data()[batch_idx].segment.begin), batch_idx,
+                              op_res};
+      });
   size_t temp_bytes = 0;
-  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, scan_inputs.data(),
+  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator,
                                  discard_write_iterator, IndexFlagOp(),
                                  args.TotalRows(), stream);
   dh::TemporaryArray<int8_t> temp(temp_bytes);
-  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes,  scan_inputs.data(),
+  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes, input_iterator,
                                  discard_write_iterator, IndexFlagOp(), args.TotalRows(), stream);
 
   // copy active segments back to original buffer
   dh::LaunchN(args.TotalRows(), stream, [=] __device__(std::size_t idx) {
-    auto item_idx = scan_inputs[idx].idx;
+    int16_t batch_idx;
+    std::size_t item_idx;
+    OpDataT data;
+    AssignBatch(batch_info, idx, batch_idx, item_idx, data);
     ridx[item_idx] = ridx_tmp[item_idx];
   });
 }
@@ -291,6 +314,7 @@ class RowPartitioner {
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
   dh::TemporaryArray<IndexFlagTuple> scan_inputs_;
   dh::PinnedMemory pinned_;
+  dh::PinnedMemory pinned2_;
   std::vector<cudaStream_t> streams_;
 
  public:
@@ -324,6 +348,18 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
 
+    auto h_batch_info = pinned2_.GetSpan<KernelMemcpyArgs<OpDataT>>(nidx.size());
+    dh::TemporaryArray<KernelMemcpyArgs<OpDataT>> d_batch_info(nidx.size());
+
+    std::size_t total_rows = 0;
+    for (int i = 0; i < nidx.size(); i++) {
+      h_batch_info[i] = {ridx_segments_.at(nidx.at(i)), op_data.at(i)};
+      total_rows += ridx_segments_.at(nidx.at(i)).Size();
+    }
+    dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
+                                  h_batch_info.size() * sizeof(KernelMemcpyArgs<OpDataT>),
+                                  cudaMemcpyDefault, streams_[0]));
+
     // Process nodes in batches to amortise the fixed latency costs of launching kernels and copying
     // memory from device to host
     for (std::size_t batch_start = 0; batch_start < nidx.size();
@@ -343,7 +379,8 @@ class RowPartitioner {
       // Evaluate the operator for each row, where true means 'go left'
       // Store the result of the operator for the next step
       // Count the number of rows going left, store in d_left_counts
-      GetLeftCounts(args, dh::ToSpan(ridx_), dh::ToSpan(scan_inputs_), dh::ToSpan(d_left_counts), op);
+      GetLeftCounts(args, dh::ToSpan(d_batch_info), dh::ToSpan(ridx_), dh::ToSpan(scan_inputs_),
+                    dh::ToSpan(d_left_counts), op);
 
       // Start copying the counts to the host
       // We overlap this transfer with the sort step using streams
@@ -354,8 +391,8 @@ class RowPartitioner {
                           cudaMemcpyDefault, streams_[0]));
 
       // Partition the rows according to the operator
-      SortPositionBatch(args, dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(scan_inputs_),
-                        dh::ToSpan(d_left_counts), streams_[1]);
+      SortPositionBatch(args, dh::ToSpan(d_batch_info), dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_),
+                        dh::ToSpan(scan_inputs_), dh::ToSpan(d_left_counts), op,streams_[1]);
 
       dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
 
