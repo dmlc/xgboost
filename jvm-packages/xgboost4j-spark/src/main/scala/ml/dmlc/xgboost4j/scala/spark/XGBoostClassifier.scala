@@ -30,6 +30,8 @@ import org.apache.spark.sql.functions._
 import org.json4s.DefaultFormats
 import scala.collection.{Iterator, mutable}
 
+import ml.dmlc.xgboost4j.scala.spark.utils.XGBoostWriter
+
 import org.apache.spark.sql.types.StructType
 
 class XGBoostClassifier (
@@ -462,7 +464,8 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
   override def load(path: String): XGBoostClassificationModel = super.load(path)
 
   private[XGBoostClassificationModel]
-  class XGBoostClassificationModelWriter(instance: XGBoostClassificationModel) extends MLWriter {
+  class XGBoostClassificationModelWriter(instance: XGBoostClassificationModel)
+    extends XGBoostWriter {
 
     override protected def saveImpl(path: String): Unit = {
       // Save metadata and Params
@@ -474,7 +477,7 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostClassificationModel")
       val outputStream = internalPath.getFileSystem(sc.hadoopConfiguration).create(internalPath)
-      instance._booster.saveModel(outputStream)
+      instance._booster.saveModel(outputStream, getModelFormat())
       outputStream.close()
     }
   }

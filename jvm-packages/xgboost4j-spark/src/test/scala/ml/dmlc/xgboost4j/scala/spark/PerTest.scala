@@ -16,15 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
+import java.io.{File, FileInputStream}
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.spark.SparkContext
 import org.apache.spark.sql._
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
-
 import scala.math.min
 import scala.util.Random
+
+import org.apache.commons.io.IOUtils
 
 trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
 
@@ -104,5 +106,23 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
       .toDF("id", "label", "features", "group")
+  }
+
+
+  protected def compareTwoFiles(lhs: String, rhs: String): Boolean = {
+    withResource(new FileInputStream(lhs)) { lfis =>
+      withResource(new FileInputStream(rhs)) { rfis =>
+        IOUtils.contentEquals(lfis, rfis)
+      }
+    }
+  }
+
+  /** Executes the provided code block and then closes the resource */
+  protected def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
+    try {
+      block(r)
+    } finally {
+      r.close()
+    }
   }
 }
