@@ -237,8 +237,8 @@ Parameters for Tree Booster
 
 .. _cat-param:
 
-Categorical feature related parameters
-======================================
+Parameters for Categorical Feature
+==================================
 
 These parameters are only used for training with categorical data. See
 :doc:`/tutorials/categorical` for more information.
