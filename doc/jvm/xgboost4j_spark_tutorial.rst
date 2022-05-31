@@ -345,6 +345,16 @@ and then loading the model in another session:
   val xgbClassificationModel2 = XGBoostClassificationModel.load(xgbClassificationModelPath)
   xgbClassificationModel2.transform(xgbInput)
 
+.. note::
+
+  Besides dumping the model to raw format, users are able to dump the model to be json or ubj format from ``version 2.0.0+``.
+
+  .. code-block:: scala
+
+    val xgbClassificationModelPath = "/tmp/xgbClassificationModel"
+    xgbClassificationModel.write.overwrite().option("format", "json").save(xgbClassificationModelPath)
+
+
 With regards to ML pipeline save and load, please refer the next section.
 
 Interact with Other Bindings of XGBoost
