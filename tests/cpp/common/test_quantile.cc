@@ -1,10 +1,13 @@
 /*!
  * Copyright 2020-2022 by XGBoost Contributors
  */
-#include <gtest/gtest.h>
 #include "test_quantile.h"
-#include "../../../src/common/quantile.h"
+
+#include <gtest/gtest.h>
+
 #include "../../../src/common/hist_util.h"
+#include "../../../src/common/quantile.h"
+#include "../../../src/data/adapter.h"
 
 namespace xgboost {
 namespace common {
@@ -13,8 +16,9 @@ TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   std::vector<bst_feature_t> cols_ptr;
-  for (auto const &page : m->GetBatches<SparsePage>()) {
-    cols_ptr = HostSketchContainer::LoadBalance(page, kCols, 13);
+  for (auto const& page : m->GetBatches<SparsePage>()) {
+    data::SparsePageAdapterBatch adapter{page.GetView()};
+    cols_ptr = LoadBalance(adapter, page.data.Size(), kCols, 13, [](auto) { return true; });
   }
   size_t n_cols = 0;
   for (size_t i = 1; i < cols_ptr.size(); ++i) {
@@ -22,6 +26,7 @@ TEST(Quantile, LoadBalance) {
   }
   CHECK_EQ(n_cols, kCols);
 }
+
 namespace {
 template <bool use_column>
 using ContainerType = std::conditional_t<use_column, SortedSketchContainer, HostSketchContainer>;
