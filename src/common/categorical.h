@@ -54,7 +54,7 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
  */
 template <bool validate = true>
 inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat, bool dft_left) {
-  CLBitField32 const s_cats(cats);
+  KCatBitField const s_cats(cats);
   // FIXME: Size() is not accurate since it represents the size of bit set instead of
   // actual number of categories.
   if (XGBOOST_EXPECT(validate && (InvalidCat(cat) || cat >= s_cats.Size()), false)) {

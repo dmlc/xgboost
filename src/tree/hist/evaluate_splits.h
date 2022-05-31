@@ -144,7 +144,8 @@ class HistEvaluator {
 
     auto const &cut_ptr = cut.Ptrs();
     auto const &parent = snode_[nidx];
-    bst_bin_t n_bins{static_cast<bst_bin_t>(cut_ptr[fidx + 1] - cut_ptr[fidx])};
+    bst_bin_t n_bins_feature{static_cast<bst_bin_t>(cut_ptr[fidx + 1] - cut_ptr[fidx])};
+    auto n_bins = std::min(param_.max_cat_threshold, n_bins_feature);
 
     // statistics on both sides of split
     GradStats left_sum;
@@ -152,15 +153,15 @@ class HistEvaluator {
     // best split so far
     SplitEntry best;
 
-    auto f_hist = hist.subspan(cut_ptr[fidx], n_bins);
+    auto f_hist = hist.subspan(cut_ptr[fidx], n_bins_feature);
     bst_bin_t ibegin, iend;
     bst_bin_t f_begin = cut_ptr[fidx];
     if (d_step > 0) {
       ibegin = f_begin;
-      iend = ibegin + n_bins - 1;
+      iend = ibegin + n_bins;
     } else {
       ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
-      iend = f_begin;
+      iend = ibegin - n_bins;
     }
 
     bst_bin_t best_thresh{-1};
@@ -177,7 +178,7 @@ class HistEvaluator {
         auto loss_chg =
             evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
             parent.root_gain;
-        // We don't have a numeric split point, nan hare is a dummy split.
+        // We don't have a numeric split point, nan here is a dummy split.
         if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
                         left_sum, right_sum)) {
           best_thresh = i;
@@ -186,10 +187,10 @@ class HistEvaluator {
     }
 
     if (best_thresh != -1) {
-      auto n = common::CatBitField::ComputeStorageSize(n_bins + 1);
+      auto n = common::CatBitField::ComputeStorageSize(n_bins_feature + 1);
       best.cat_bits = decltype(best.cat_bits)(n, 0);
       common::CatBitField cat_bits{best.cat_bits};
-      bst_bin_t partition = d_step == 1 ? (best_thresh - ibegin + 1) : best_thresh - iend;
+      bst_bin_t partition = d_step == 1 ? (best_thresh - ibegin + 1) : (best_thresh - f_begin);
       std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
                     [&](size_t c) { cat_bits.Set(c); });
     }
