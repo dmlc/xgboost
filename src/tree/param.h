@@ -117,7 +117,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .describe("Maximum number of categories to use one-hot encoding based split.");
     DMLC_DECLARE_FIELD(max_cat_threshold)
         .set_default(64)
-        .set_range(1, 2048)
+        .set_lower_bound(1)
         .describe(
             "Maximum number of categories considered for split. Used only by partition-based"
             "splits.");
