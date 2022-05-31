@@ -55,8 +55,7 @@ TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
   thrust::device_vector<uint32_t> ridx = ridx_in;
   thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());
-  thrust::device_vector<unsigned long long int> left_counts(segments.size());
-  thrust::device_vector<IndexFlagTuple> scan_tmp(ridx_in.size());
+  thrust::device_vector<PartitionCountsT> counts(segments.size());
 
   auto op = [=] __device__(auto ridx, int data) { return ridx % 2 == 0; };
   std::vector<int> op_data(segments.size());
@@ -71,23 +70,19 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                 h_batch_info.size() * sizeof(KernelMemcpyArgs<int>),
                                 cudaMemcpyDefault, nullptr));
-  KernelBatchArgs<int> args;
-  std::copy(segments.begin(), segments.end(), args.segments);
-  std::copy(op_data.begin(), op_data.end(), args.data);
-  GetLeftCounts(args, dh::ToSpan(d_batch_info), dh::ToSpan(ridx), dh::ToSpan(scan_tmp),
-                dh::ToSpan(left_counts), op);
-  SortPositionBatch(args, dh::ToSpan(d_batch_info), dh::ToSpan(ridx), dh::ToSpan(ridx_tmp),
-                    dh::ToSpan(scan_tmp), dh::ToSpan(left_counts),op, nullptr);
+  SortPositionBatchUnstable(dh::ToSpan(d_batch_info), dh::ToSpan(ridx), dh::ToSpan(ridx_tmp),
+                     dh::ToSpan(counts), total_rows, op, nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (int i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
+    PartitionCountsT count = counts[i];
     auto left_partition_count =
-        thrust::count_if(thrust::device, begin, begin + left_counts[i], op_without_data);
-    EXPECT_EQ(left_partition_count, left_counts[i]);
+        thrust::count_if(thrust::device, begin, begin + count.first, op_without_data);
+    EXPECT_EQ(left_partition_count, count.first);
     auto right_partition_count =
-        thrust::count_if(thrust::device, begin + left_counts[i], end, op_without_data);
+        thrust::count_if(thrust::device, begin + count.first, end, op_without_data);
     EXPECT_EQ(right_partition_count, 0);
   }
 }
