@@ -94,6 +94,7 @@ TEST(GpuHist, SortPositionBatch) {
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
 }
 
+/*
 void TestAtomicIncrement(const std::vector<int>& group_in, const std::vector<int>& increment_in) {
   thrust::device_vector<int> group(group_in);
   thrust::device_vector<int> increment(increment_in);
@@ -115,6 +116,6 @@ void TestAtomicIncrement(const std::vector<int>& group_in, const std::vector<int
 TEST(GpuHist, AtomicIncrement) {
   TestAtomicIncrement({0, 0, 0}, {1, 0, 1});
   TestAtomicIncrement({0, 0, 1}, {1, 0, 1});
-}
+}*/
 }  // namespace tree
 }  // namespace xgboost

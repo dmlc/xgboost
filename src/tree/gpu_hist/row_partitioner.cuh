@@ -75,25 +75,6 @@ struct IndexFlagOp {
 };
 
 
-/*! \brief Count how many rows are assigned to left node. */
-__forceinline__ __device__ void AtomicIncrement(unsigned long long* d_counts, bool increment,
-                                                int batch_idx) {
-  int mask = __activemask();
-  int leader = __ffs(mask) - 1;
-  bool group_is_contiguous = __all_sync(mask, batch_idx == __shfl_sync(mask, batch_idx, leader));
-  // If all threads here are working on the same node
-  // we can do a more efficient reduction with warp intrinsics
-  if (group_is_contiguous) {
-    unsigned ballot = __ballot_sync(mask, increment);
-    if (threadIdx.x % 32 == leader) {
-      atomicAdd(d_counts + batch_idx,  // NOLINT
-                __popc(ballot));   // NOLINT
-    }
-  } else {
-    atomicAdd(d_counts + batch_idx, increment);
-  }
-}
-
 // This is a transformer output iterator
 // It takes the result of the scan and performs the partition
 // To understand how a scan is used to partition elements see:
@@ -167,34 +148,76 @@ void SortPositionBatch(const common::Span<KernelMemcpyArgs<OpDataT>> batch_info,
   });
 }
 
+
+__forceinline__ __device__ uint32_t __lanemask_lt() { return ((uint32_t)1 << cub::LaneId()) - 1; }
+
+/*! \brief Count how many rows are assigned to left node. */
+__forceinline__ __device__ uint32_t AtomicIncrement(PartitionCountsT* d_counts, bool go_left,
+                                                int16_t batch_idx) {
+  int mask = __activemask();
+  int leader = __ffs(mask) - 1;
+  unsigned int prefix = __popc(mask & __lanemask_lt());
+  bool group_is_contiguous = __all_sync(mask, batch_idx == __shfl_sync(mask, batch_idx, leader));
+  // If all threads here are working on the same node
+  // we can do a more efficient reduction with warp intrinsics
+  if (group_is_contiguous) {
+    unsigned ballot = __ballot_sync(mask, go_left);
+    uint32_t global_left_count = 0;
+    uint32_t global_right_count = 0;
+    if (prefix == 0) {
+      global_left_count = atomicAdd(&d_counts->first, __popc(ballot));
+      global_right_count = atomicAdd(&d_counts->second, __popc(mask) - __popc(ballot));
+    }
+    global_left_count = __shfl_sync(mask, global_left_count, leader);
+    global_right_count = __shfl_sync(mask, global_right_count, leader);
+    uint32_t local_left_count = __popc(ballot & __lanemask_lt());
+    uint32_t local_right_count = __popc(mask & __lanemask_lt()) - local_left_count;
+
+    if (go_left) {
+      return global_left_count + local_left_count;
+    } else {
+      return global_right_count + local_right_count;
+    }
+
+  } else {
+    auto address = go_left ? &d_counts->first : &d_counts->second;
+    return atomicAdd(address, 1);
+  }
+}
+
 template <int kBlockSize, typename RowIndexT, typename OpT, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void SortPositionBatchUnstableKernel(
-    const common::Span<KernelMemcpyArgs<OpDataT>> batch_info, common::Span<RowIndexT> ridx,
+    const common::Span<KernelMemcpyArgs<OpDataT>> d_batch_info, common::Span<RowIndexT> d_ridx,
     common::Span<RowIndexT> ridx_tmp, common::Span<PartitionCountsT> counts, OpT op,
     std::size_t total_rows) {
+  __shared__ KernelMemcpyArgs<OpDataT> s_batch_info[32];
+  for (int i = threadIdx.x; i < d_batch_info.size(); i += kBlockSize) {
+    s_batch_info[i] = d_batch_info.data()[i];
+  }
+  const common::Span<KernelMemcpyArgs<OpDataT>> batch_info(s_batch_info, d_batch_info.size());
+  __syncthreads();
+
   for (int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < total_rows; idx += blockDim.x * gridDim.x) {
     int16_t batch_idx;
     std::size_t item_idx;
     OpDataT data;
     AssignBatch(batch_info, idx, batch_idx, item_idx, data);
     auto segment = batch_info[batch_idx].segment;
-    auto op_res = op(ridx[item_idx], data);
-    if (op_res) {
-      auto num_left_items = atomicAdd(&counts.data()[batch_idx].first, 1);
-      ridx_tmp[segment.begin + num_left_items] = ridx[item_idx];
-    } else {
-      auto num_right_items = atomicAdd(&counts.data()[batch_idx].second, 1);
-      ridx_tmp[segment.end - num_right_items - 1] = ridx[item_idx];
-    }
+    auto ridx = d_ridx[item_idx];
+    auto op_res = op(ridx, data);
+    auto current_num_items = AtomicIncrement(&counts.data()[batch_idx], op_res, batch_idx);
+    auto destination_address =
+        op_res ? segment.begin + current_num_items : segment.end - current_num_items - 1;
+    ridx_tmp[destination_address] = ridx;
   }
 }
 
 template <typename RowIndexT, typename OpT, typename OpDataT>
 void SortPositionBatchUnstable(const common::Span<KernelMemcpyArgs<OpDataT>> batch_info,
-                       common::Span<RowIndexT> ridx, common::Span<RowIndexT> ridx_tmp,
-                       common::Span<PartitionCountsT> d_counts, std::size_t total_rows,
-                       OpT op, cudaStream_t stream) {
-                    
+                               common::Span<RowIndexT> ridx, common::Span<RowIndexT> ridx_tmp,
+                               common::Span<PartitionCountsT> d_counts, std::size_t total_rows,
+                               OpT op, cudaStream_t stream) {
+  CHECK_LE(batch_info.size(), 32);
   constexpr int kBlockSize = 256;
   const int grid_size =
       std::max(256, static_cast<int>(xgboost::common::DivRoundUp(total_rows, kBlockSize)));
