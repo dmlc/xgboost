@@ -808,11 +808,9 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
 }
 
 void RegTree::ExpandCategorical(bst_node_t nid, unsigned split_index,
-                                common::Span<uint32_t> split_cat, bool default_left,
-                                bst_float base_weight,
-                                bst_float left_leaf_weight,
-                                bst_float right_leaf_weight,
-                                bst_float loss_change, float sum_hess,
+                                common::Span<const uint32_t> split_cat, bool default_left,
+                                bst_float base_weight, bst_float left_leaf_weight,
+                                bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
                                 float left_sum, float right_sum) {
   this->ExpandNode(nid, split_index, std::numeric_limits<float>::quiet_NaN(),
                    default_left, base_weight,

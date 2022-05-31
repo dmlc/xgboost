@@ -440,10 +440,10 @@ class RegTree : public Model {
    * \param right_sum         The sum hess of right leaf.
    */
   void ExpandCategorical(bst_node_t nid, unsigned split_index,
-                         common::Span<uint32_t> split_cat, bool default_left,
+                         common::Span<const uint32_t> split_cat, bool default_left,
                          bst_float base_weight, bst_float left_leaf_weight,
-                         bst_float right_leaf_weight, bst_float loss_change,
-                         float sum_hess, float left_sum, float right_sum);
+                         bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
+                         float left_sum, float right_sum);
 
   bool HasCategoricalSplit() const {
     return !split_categories_.empty();

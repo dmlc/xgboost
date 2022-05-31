@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 #include <limits>
+#include <algorithm>
 
 #include "xgboost/tree_model.h"
 #include "xgboost/host_device_vector.h"
@@ -49,8 +50,9 @@ class TreeEvaluator {
     } else {
       monotone_.HostVector() = p.monotone_constraints;
       monotone_.HostVector().resize(n_features, 0);
-      lower_bounds_.Resize(p.MaxNodes(), -std::numeric_limits<float>::max());
-      upper_bounds_.Resize(p.MaxNodes(), std::numeric_limits<float>::max());
+      // Initialised to some small size, can grow if needed
+      lower_bounds_.Resize(256, -std::numeric_limits<float>::max());
+      upper_bounds_.Resize(256, std::numeric_limits<float>::max());
       has_constraint_ = true;
     }
 
@@ -157,6 +159,15 @@ class TreeEvaluator {
     if (!has_constraint_) {
       return;
     }
+
+    size_t max_nidx = std::max(leftid, rightid);
+    if (lower_bounds_.Size() <= max_nidx) {
+      lower_bounds_.Resize(max_nidx * 2 + 1, -std::numeric_limits<float>::max());
+    }
+    if (upper_bounds_.Size() <= max_nidx) {
+      upper_bounds_.Resize(max_nidx * 2 + 1, std::numeric_limits<float>::max());
+    }
+
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t, common::Span<float> lower,
                            common::Span<float> upper,

@@ -4,7 +4,6 @@
  */
 #include "test_transform_range.cc"
 
-#if defined(XGBOOST_USE_NCCL)
 namespace xgboost {
 namespace common {
 
@@ -15,7 +14,7 @@ TEST(Transform, MGPU_SpecifiedGpuId) {  // NOLINT
   }
   // Use 1 GPU, Numbering of GPU starts from 1
   auto device = 1;
-  const size_t size {256};
+  auto const size {256};
   std::vector<bst_float> h_in(size);
   std::vector<bst_float> h_out(size);
   std::iota(h_in.begin(), h_in.end(), 0);
@@ -34,4 +33,3 @@ TEST(Transform, MGPU_SpecifiedGpuId) {  // NOLINT
 
 }  // namespace common
 }  // namespace xgboost
-#endif

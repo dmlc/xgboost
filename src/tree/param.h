@@ -367,12 +367,14 @@ struct SplitEntryContainer {
 
   SplitEntryContainer() = default;
 
-  friend std::ostream& operator<<(std::ostream& os, SplitEntryContainer const& s) {
-    os << "loss_chg: " << s.loss_chg << ", "
-       << "split index: " << s.SplitIndex() << ", "
-       << "split value: " << s.split_value << ", "
-       << "left_sum: " << s.left_sum << ", "
-       << "right_sum: " << s.right_sum;
+  friend std::ostream &operator<<(std::ostream &os, SplitEntryContainer const &s) {
+    os << "loss_chg: " << s.loss_chg << "\n"
+       << "dft_left: " << s.DefaultLeft() << "\n"
+       << "split_index: " << s.SplitIndex() << "\n"
+       << "split_value: " << s.split_value << "\n"
+       << "is_cat: " << s.is_cat << "\n"
+       << "left_sum: " << s.left_sum << "\n"
+       << "right_sum: " << s.right_sum << std::endl;
     return os;
   }
   /*!\return feature index to split on */
@@ -438,30 +440,6 @@ struct SplitEntryContainer {
       this->sindex = split_index;
       this->split_value = new_split_value;
       this->is_cat = is_cat;
-      this->left_sum = left_sum;
-      this->right_sum = right_sum;
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  /*!
-   * \brief Update with partition based categorical split.
-   *
-   * \return Whether the proposed split is better and can replace current split.
-   */
-  bool Update(float new_loss_chg, bst_feature_t split_index, common::KCatBitField cats,
-              bool default_left, GradientT const &left_sum, GradientT const &right_sum) {
-    if (this->NeedReplace(new_loss_chg, split_index)) {
-      this->loss_chg = new_loss_chg;
-      if (default_left) {
-        split_index |= (1U << 31);
-      }
-      this->sindex = split_index;
-      cat_bits.resize(cats.Bits().size());
-      std::copy(cats.Bits().begin(), cats.Bits().end(), cat_bits.begin());
-      this->is_cat = true;
       this->left_sum = left_sum;
       this->right_sum = right_sum;
       return true;

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,19 +14,18 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark.params
+package ml.dmlc.xgboost4j.scala.spark.utils
 
-import org.apache.spark.ml.param.{IntParam, Params}
+import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 
-private[spark] trait InferenceParams extends Params {
+import org.apache.spark.ml.util.MLWriter
 
-  /**
-   * batch size of inference iteration
-   */
-  final val inferBatchSize = new IntParam(this, "batchSize", "batch size of inference iteration")
+private[spark] abstract class XGBoostWriter extends MLWriter {
 
-  /** @group getParam */
-  final def getInferBatchSize: Int = $(inferBatchSize)
+  /** Currently it's using the "deprecated" format as
+   * default, which will be changed into `ubj` in future releases. */
+  def getModelFormat(): String = {
+    optionMap.getOrElse("format", JBooster.DEFAULT_FORMAT)
+  }
 
-  setDefault(inferBatchSize, 32 << 10)
 }

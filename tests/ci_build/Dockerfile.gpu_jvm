@@ -9,6 +9,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install all basic requirements
 RUN \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/3bf863cc.pub && \
     apt-get update && \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:openjdk-r/ppa && \
