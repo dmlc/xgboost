@@ -235,20 +235,35 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
-Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
-===========================================================================
+.. _cat-param:
+
+Categorical feature related parameters
+======================================
+
+These parameters are only used for training with categorical data. See
+:doc:`/tutorials/categorical` for more information.
 
 * ``max_cat_to_onehot``
 
   .. versionadded:: 1.6
 
-  .. note:: The support for this parameter is experimental.
+  .. note:: This parameter is experimental. ``exact`` tree method is not supported yet.
 
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
     encoding is chosen, otherwise the categories will be partitioned into children nodes.
     Only relevant for regression and binary classification. Also, ``exact`` tree method is
     not supported
+
+* ``max_cat_threshold``
+
+  .. versionadded:: 2.0
+
+  .. note:: This parameter is experimental. ``exact`` and ``gpu_hist`` tree methods are
+            not supported yet.
+
+  - Maximum number of categories considered for each split. Used only by partition-based
+    splits for preventing over-fitting.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

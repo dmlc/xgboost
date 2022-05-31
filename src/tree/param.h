@@ -119,7 +119,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_default(64)
         .set_range(1, 2048)
         .describe(
-            "Maximume number of categories considered for split. Used only for partition-based "
+            "Maximum number of categories considered for split. Used only by partition-based"
             "splits.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
