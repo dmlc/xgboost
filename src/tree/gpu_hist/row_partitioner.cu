@@ -16,17 +16,12 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   dh::safe_cuda(cudaSetDevice(device_idx_));
   ridx_segments_.emplace_back(Segment(0, num_rows));
   thrust::sequence(thrust::device, ridx_.data(), ridx_.data() + ridx_.size());
-  streams_.resize(2);
-  for (auto& stream : streams_) {
-    dh::safe_cuda(cudaStreamCreate(&stream));
-  }
+  dh::safe_cuda(cudaStreamCreate(&stream_));
 }
 
 RowPartitioner::~RowPartitioner() {
   dh::safe_cuda(cudaSetDevice(device_idx_));
-  for (auto& stream : streams_) {
-    dh::safe_cuda(cudaStreamDestroy(stream));
-  }
+  dh::safe_cuda(cudaStreamDestroy(stream_));
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
