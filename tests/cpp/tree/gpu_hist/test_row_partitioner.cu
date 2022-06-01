@@ -59,8 +59,8 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
 
   auto op = [=] __device__(auto ridx, int data) { return ridx % 2 == 0; };
   std::vector<int> op_data(segments.size());
-  std::vector<KernelMemcpyArgs<int>> h_batch_info(segments.size());
-  dh::TemporaryArray<KernelMemcpyArgs<int>> d_batch_info(segments.size());
+  std::vector<PerNodeData<int>> h_batch_info(segments.size());
+  dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
 
   std::size_t total_rows = 0;
   for (int i = 0; i < segments.size(); i++) {
@@ -68,10 +68,11 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
     total_rows += segments.at(i).Size();
   }
   dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                h_batch_info.size() * sizeof(KernelMemcpyArgs<int>),
+                                h_batch_info.size() * sizeof(PerNodeData<int>),
                                 cudaMemcpyDefault, nullptr));
-  SortPositionBatchUnstable(dh::ToSpan(d_batch_info), dh::ToSpan(ridx), dh::ToSpan(ridx_tmp),
-                     dh::ToSpan(counts), total_rows, op, nullptr);
+  SortPositionBatchUnstable(
+      common::Span<const PerNodeData<int>>(d_batch_info.data().get(), d_batch_info.size()),
+      dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows, op, nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (int i = 0; i < segments.size(); i++) {
