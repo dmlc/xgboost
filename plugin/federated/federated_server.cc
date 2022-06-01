@@ -221,6 +221,7 @@ void RunServer(int port, int world_size, char const* server_key_file, char const
   key.private_key = ReadFile(server_key_file);
   key.cert_chain = ReadFile(server_cert_file);
   options.pem_key_cert_pairs.push_back(key);
+  builder.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
   builder.AddListeningPort(server_address, grpc::SslServerCredentials(options));
   builder.RegisterService(&service);
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());

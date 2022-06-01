@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <string>
 
 namespace xgboost {
@@ -25,8 +26,10 @@ class FederatedClient {
           options.pem_root_certs = server_cert;
           options.pem_private_key = client_key;
           options.pem_cert_chain = client_cert;
+          grpc::ChannelArguments args;
+          args.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
           return Federated::NewStub(
-              grpc::CreateChannel(server_address, grpc::SslCredentials(options)));
+              grpc::CreateCustomChannel(server_address, grpc::SslCredentials(options), args));
         }()},
         rank_{rank} {}
 
