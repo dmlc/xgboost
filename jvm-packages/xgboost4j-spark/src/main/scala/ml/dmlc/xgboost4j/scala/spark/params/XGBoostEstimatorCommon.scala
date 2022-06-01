@@ -17,9 +17,9 @@
 package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.linalg.xgboost.XGBoostSchemaUtils
 import org.apache.spark.ml.param.{Param, ParamValidators}
 import org.apache.spark.ml.param.shared.{HasFeaturesCol, HasHandleInvalid, HasLabelCol, HasWeightCol}
+import org.apache.spark.ml.util.XGBoostSchemaUtils
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.StructType
 

@@ -310,7 +310,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
       "num_round" -> 5, "num_workers" -> 2, "missing" -> 0)
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
@@ -331,7 +331,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
       "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true, "missing" -> 0)
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(

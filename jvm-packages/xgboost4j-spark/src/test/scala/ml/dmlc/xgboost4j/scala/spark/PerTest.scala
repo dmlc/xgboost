@@ -73,7 +73,7 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
   protected def buildDataFrame(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val it = labeledPoints.iterator.zipWithIndex
       .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
         (id, labeledPoint.label, labeledPoint.features)
@@ -98,7 +98,7 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
   protected def buildDataFrameWithGroup(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val it = labeledPoints.iterator.zipWithIndex
       .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
         (id, labeledPoint.label, labeledPoint.features, labeledPoint.group)
