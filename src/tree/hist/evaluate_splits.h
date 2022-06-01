@@ -158,10 +158,10 @@ class HistEvaluator {
     bst_bin_t f_begin = cut_ptr[fidx];
     if (d_step > 0) {
       ibegin = f_begin;
-      iend = ibegin + n_bins;
+      iend = ibegin + n_bins - 1;
     } else {
       ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
-      iend = ibegin - n_bins;
+      iend = ibegin - n_bins + 1;
     }
 
     bst_bin_t best_thresh{-1};
@@ -191,6 +191,7 @@ class HistEvaluator {
       best.cat_bits = decltype(best.cat_bits)(n, 0);
       common::CatBitField cat_bits{best.cat_bits};
       bst_bin_t partition = d_step == 1 ? (best_thresh - ibegin + 1) : (best_thresh - f_begin);
+      CHECK_GT(partition, 0);
       std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
                     [&](size_t c) { cat_bits.Set(c); });
     }
