@@ -38,6 +38,7 @@
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/evaluate_splits.cuh"
 #include "gpu_hist/expand_entry.cuh"
+#include "gpu_hist/finalize_position.cuh"
 #include "xgboost/task.h"
 #include "xgboost/tree_model.h"
 
@@ -436,66 +437,13 @@ struct GPUHistMakerDevice {
       dh::CopyToD(categories_segments, &d_categories_segments);
     }
 
-    FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                           p_out_position);
-  }
-
-  void FinalisePositionInPage(EllpackPageImpl const *page,
-                              const common::Span<RegTree::Node> d_nodes,
-                              common::Span<FeatureType const> d_feature_types,
-                              common::Span<uint32_t const> categories,
-                              common::Span<RegTree::Segment> categories_segments,
-                              ObjInfo task,
-                              HostDeviceVector<bst_node_t>* p_out_position) {
-    auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-    auto d_gpair = this->gpair;
-    auto new_position_op = [=] __device__(size_t row_id) {
-      // What happens if user prune the tree?
-      if (!d_matrix.IsInRange(row_id)) {
-        return -1;
-      }
-      int position = RegTree::kRoot;
-      auto node = d_nodes[position];
-
-      while (!node.IsLeaf()) {
-        bst_float element = d_matrix.GetFvalue(row_id, node.SplitIndex());
-        // Missing value
-        if (isnan(element)) {
-          position = node.DefaultChild();
-        } else {
-          bool go_left = true;
-          if (common::IsCat(d_feature_types, position)) {
-            auto node_cats = categories.subspan(categories_segments[position].beg,
-                                                categories_segments[position].size);
-            go_left = common::Decision<false>(node_cats, element, node.DefaultLeft());
-          } else {
-            go_left = element <= node.SplitCond();
-          }
-          if (go_left) {
-            position = node.LeftChild();
-          } else {
-            position = node.RightChild();
-          }
-        }
-        node = d_nodes[position];
-      }
-
-      return position;
-    }; // NOLINT
     p_out_position->SetDevice(ctx_->gpu_id);
     p_out_position->Resize(page->n_rows);
     update_predictions.resize(page->n_rows);
-    auto d_update_predictions = dh::ToSpan(update_predictions);
-    auto sorted_position = p_out_position->DevicePointer();
-    dh::LaunchN(page->n_rows, [=] __device__(size_t idx) {
-      bst_node_t position = new_position_op(idx);
-      d_update_predictions[idx] = d_nodes[position].LeafValue();
-      // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
-      // the sampler compacts the gradient vector.
-      bool is_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
-      sorted_position[idx] = is_sampled ? ~position : position;
-    });
+    CallFinalizePosition(dh::ToSpan(d_nodes), dh::ToSpan(d_split_types), dh::ToSpan(d_categories),
+                         dh::ToSpan(d_categories_segments), this->gpair,
+                         page->GetDeviceAccessor(ctx_->gpu_id), dh::ToSpan(update_predictions),
+                         p_out_position->DeviceSpan());
   }
 
   bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
