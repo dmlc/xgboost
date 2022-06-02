@@ -110,7 +110,7 @@ __global__ __launch_bounds__(kBlockSize) void SortPositionBatchUnstableKernel(
        idx += blockDim.x * gridDim.x) {
     int batch_idx;
     std::size_t item_idx;
-    AssignBatch(batch_info, idx,&batch_idx, &item_idx);
+    AssignBatch(batch_info, idx, &batch_idx, &item_idx);
     auto ridx = d_ridx[item_idx];
     auto op_res = op(ridx, batch_info[batch_idx].data);
     auto current_num_items = AtomicIncrement(&counts.data()[batch_idx], op_res, batch_idx);
@@ -147,7 +147,7 @@ void SortPositionBatchUnstable(const common::Span<const PerNodeData<OpDataT>> ba
   CHECK_LE(batch_info.size(), kMaxUpdatePositionBatchSize);
   constexpr int kBlockSize = 256;
   const int grid_size =
-      std::max(256, static_cast<int>(xgboost::common::DivRoundUp(total_rows, kBlockSize)));
+      std::min(256, static_cast<int>(xgboost::common::DivRoundUp(total_rows, kBlockSize)));
 
   SortPositionBatchUnstableKernel<kBlockSize>
       <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, d_counts, op, total_rows);
