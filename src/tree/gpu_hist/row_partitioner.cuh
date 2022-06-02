@@ -147,7 +147,7 @@ void SortPositionBatchUnstable(const common::Span<const PerNodeData<OpDataT>> ba
   CHECK_LE(batch_info.size(), kMaxUpdatePositionBatchSize);
   constexpr int kBlockSize = 256;
   const int grid_size =
-      std::min(256, static_cast<int>(xgboost::common::DivRoundUp(total_rows, kBlockSize)));
+      std::min(128, static_cast<int>(xgboost::common::DivRoundUp(total_rows, kBlockSize)));
 
   SortPositionBatchUnstableKernel<kBlockSize>
       <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, d_counts, op, total_rows);
