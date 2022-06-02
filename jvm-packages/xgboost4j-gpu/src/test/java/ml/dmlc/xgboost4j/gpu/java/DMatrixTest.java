@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import ml.dmlc.xgboost4j.java.DeviceQuantileDMatrix;
 import ml.dmlc.xgboost4j.java.ColumnBatch;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
+import static org.junit.Assert.assertArrayEquals;
+
 /**
  * Test suite for DMatrix based on GPU
  */
@@ -59,6 +61,16 @@ public class DMatrixTest {
       dMatrix.setLabel(labelColumn);
       dMatrix.setWeight(weightColumn);
       dMatrix.setBaseMargin(baseMarginColumn);
+
+      String[] featureNames = new String[]{"f1"};
+      dMatrix.setFeatureNames(featureNames);
+      String[] retFeatureNames = dMatrix.getFeatureNames();
+      assertArrayEquals(featureNames, retFeatureNames);
+
+      String[] featureTypes = new String[]{"i"};
+      dMatrix.setFeatureTypes(featureTypes);
+      String[] retFeatureTypes = dMatrix.getFeatureTypes();
+      assertArrayEquals(featureTypes, retFeatureTypes);
 
       float[] anchor = convertFloatTofloat(labelFloats);
       float[] label = dMatrix.getLabel();
