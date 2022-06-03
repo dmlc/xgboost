@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors 
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -402,5 +402,30 @@ public class DMatrixTest {
 
     //check
     TestCase.assertTrue(Arrays.equals(new int[]{0, 5, 10}, dmat0.getGroup()));
+  }
+
+  @Test
+  public void testSetAndGetFeatureInfo() throws XGBoostError {
+    //create DMatrix from 10*5 dense matrix
+    int nrow = 10;
+    int ncol = 5;
+    float[] data = new float[nrow * ncol];
+    //put random nums
+    Random random = new Random();
+    for (int i = 0; i < nrow * ncol; i++) {
+      data[i] = random.nextInt();
+    }
+
+    DMatrix dmat = new DMatrix(data, nrow, ncol, Float.NaN);
+
+    String[] featureNames = new String[]{"f1", "f2", "f3", "f4", "f5"};
+    dmat.setFeatureNames(featureNames);
+    String[] retFeatureNames = dmat.getFeatureNames();
+    assertArrayEquals(featureNames, retFeatureNames);
+
+    String[] featureTypes = new String[]{"i", "q", "c", "i", "q"};
+    dmat.setFeatureTypes(featureTypes);
+    String[] retFeatureTypes = dmat.getFeatureTypes();
+    assertArrayEquals(featureTypes, retFeatureTypes);
   }
 }
