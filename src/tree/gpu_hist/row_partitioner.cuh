@@ -146,8 +146,10 @@ void SortPositionBatchUnstable(const common::Span<const PerNodeData<OpDataT>> ba
                                OpT op, cudaStream_t stream) {
   CHECK_LE(batch_info.size(), kMaxUpdatePositionBatchSize);
   constexpr int kBlockSize = 256;
-  const int grid_size =
-      std::min(128, static_cast<int>(xgboost::common::DivRoundUp(total_rows, kBlockSize)));
+
+  // Value found by experimentation
+  const int kItemsThread = 12;
+  const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
   SortPositionBatchUnstableKernel<kBlockSize>
       <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, d_counts, op, total_rows);
