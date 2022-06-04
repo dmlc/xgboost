@@ -40,6 +40,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
 
   uint32_t max_cat_to_onehot{4};
 
+  bst_bin_t max_cat_threshold{64};
+
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -113,6 +115,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_default(4)
         .set_lower_bound(1)
         .describe("Maximum number of categories to use one-hot encoding based split.");
+    DMLC_DECLARE_FIELD(max_cat_threshold)
+        .set_default(64)
+        .set_lower_bound(1)
+        .describe(
+            "Maximum number of categories considered for split. Used only by partition-based"
+            "splits.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
