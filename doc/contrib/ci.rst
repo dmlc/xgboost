@@ -58,6 +58,7 @@ the testing environment, so you can use Docker to reproduce it on your own machi
   CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g' tests/ci_build/ci_build.sh gpu nvidia-docker \
     --build-arg CUDA_VERSION_ARG=11.0 tests/ci_build/test_python.sh mgpu --use-rmm-pool
 
+
 (``CI_DOCKER_EXTRA_PARAMS_INIT`` is optional. All arguments after ``--build-arg`` are passed
  directly to the shell running inside the Docker container.)
 
