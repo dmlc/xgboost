@@ -169,10 +169,17 @@ function(xgboost_set_cuda_flags target)
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
   endif (MSVC)
 
-  set_target_properties(${target} PROPERTIES
-    CUDA_STANDARD 14
-    CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+  if (PLUGIN_RMM)
+    set_target_properties(${target} PROPERTIES
+      CUDA_STANDARD 17
+      CUDA_STANDARD_REQUIRED ON
+      CUDA_SEPARABLE_COMPILATION OFF)
+  else (PLUGIN_RMM)
+    set_target_properties(${target} PROPERTIES
+      CUDA_STANDARD 14
+      CUDA_STANDARD_REQUIRED ON
+      CUDA_SEPARABLE_COMPILATION OFF)
+  endif (PLUGIN_RMM)
 endfunction(xgboost_set_cuda_flags)
 
 macro(xgboost_link_nccl target)
@@ -189,10 +196,18 @@ endmacro(xgboost_link_nccl)
 
 # compile options
 macro(xgboost_target_properties target)
-  set_target_properties(${target} PROPERTIES
-    CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
+  if (PLUGIN_RMM)
+    set_target_properties(${target} PROPERTIES
+      CXX_STANDARD 17
+      CXX_STANDARD_REQUIRED ON
+      POSITION_INDEPENDENT_CODE ON)
+  else ()
+    set_target_properties(${target} PROPERTIES
+      CXX_STANDARD 14
+      CXX_STANDARD_REQUIRED ON
+      POSITION_INDEPENDENT_CODE ON)
+  endif (PLUGIN_RMM)
+
   if (HIDE_CXX_SYMBOLS)
     #-- Hide all C++ symbols
     set_target_properties(${target} PROPERTIES
@@ -247,6 +262,10 @@ macro(xgboost_target_defs target)
       PRIVATE
       -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
   endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+
+  if (PLUGIN_RMM)
+    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
+  endif (PLUGIN_RMM)
 endmacro(xgboost_target_defs)
 
 # handles dependencies
@@ -268,6 +287,10 @@ macro(xgboost_target_link_libraries target)
   if (USE_CUDA)
     xgboost_set_cuda_flags(${target})
   endif (USE_CUDA)
+
+  if (PLUGIN_RMM)
+    target_link_libraries(${target} PRIVATE rmm::rmm)
+  endif (PLUGIN_RMM)
 
   if (USE_NCCL)
     xgboost_link_nccl(${target})

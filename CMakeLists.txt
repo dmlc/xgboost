@@ -129,13 +129,14 @@ if (USE_CUDA)
   # `export CXX=' is ignored by CMake CUDA.
   set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+  # format it before enable_language, which is required by cmake 3.23
+  set(GEN_CODE "")
+  format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
 
   enable_language(CUDA)
   if (${CMAKE_CUDA_COMPILER_VERSION} VERSION_LESS 11.0)
     message(FATAL_ERROR "CUDA version must be at least 11.0!")
   endif()
-  set(GEN_CODE "")
-  format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   if ((${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 11.4) AND (NOT BUILD_WITH_CUDA_CUB))
@@ -200,6 +201,10 @@ endif (JVM_BINDINGS)
 
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
+
+if (PLUGIN_RMM)
+  find_package(rmm REQUIRED)
+endif (PLUGIN_RMM)
 
 #-- library
 if (BUILD_STATIC_LIB)
