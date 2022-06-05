@@ -51,7 +51,9 @@
             \item "contrib" will return feature contributions to individual predictions (see Details).
             \item "interaction" will return contributions of feature interactions to individual
                   predictions (see Details).
-}}
+            }
+
+            Note that, when using custom objective functions, "link" and "response" will default to "raw".}
 
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
