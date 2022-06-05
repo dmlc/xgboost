@@ -312,31 +312,34 @@ TEST(GPUSpan, FirstLast) {
   output = testing::internal::GetCapturedStdout();
 }
 
+namespace {
 void TestFrontBack() {
   Span<float> s;
-  auto lambda_test_front = [=]() {
-    // make sure the termination happens inside this test.
-    try {
-      dh::LaunchN(1, [=] __device__(size_t) { s.front(); });
-      dh::safe_cuda(cudaDeviceSynchronize());
-      dh::safe_cuda(cudaGetLastError());
-    } catch (dmlc::Error const& e) {
-      std::terminate();
-    }
-  };
-  EXPECT_DEATH(lambda_test_front(), "");
-
-  auto lambda_test_back = [=]() {
-    try {
-      dh::LaunchN(1, [=] __device__(size_t) { s.back(); });
-      dh::safe_cuda(cudaDeviceSynchronize());
-      dh::safe_cuda(cudaGetLastError());
-    } catch (dmlc::Error const& e) {
-      std::terminate();
-    }
-  };
-  EXPECT_DEATH(lambda_test_back(), "");
+  EXPECT_DEATH(
+      {
+        // make sure the termination happens inside this test.
+        try {
+          dh::LaunchN(1, [=] __device__(size_t) { s.front(); });
+          dh::safe_cuda(cudaDeviceSynchronize());
+          dh::safe_cuda(cudaGetLastError());
+        } catch (dmlc::Error const& e) {
+          std::terminate();
+        }
+      },
+      "");
+  EXPECT_DEATH(
+      {
+        try {
+          dh::LaunchN(1, [=] __device__(size_t) { s.back(); });
+          dh::safe_cuda(cudaDeviceSynchronize());
+          dh::safe_cuda(cudaGetLastError());
+        } catch (dmlc::Error const& e) {
+          std::terminate();
+        }
+      },
+      "");
 }
+}  // namespace
 
 TEST(GPUSpan, FrontBack) {
   TestFrontBack();
