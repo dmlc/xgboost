@@ -393,6 +393,34 @@ predict.xgb.Booster <- function(object, newdata,
     type = box(as.integer(0))
   )
 
+  if (length(list(...))) {
+    extra_args <- list(...)
+    extra_argnames <- names(extra_args)
+    is_default_type <- head(type, 1) == "link"
+
+    old_args_for_type <- list(
+      "outputmargin" = "margin",
+      "predleaf" = "leaf",
+      "predcontrib" = "contrib",
+      "predinteraction" = "interaction"
+    )
+
+    for (arg in names(old_args_for_type)) {
+      if (arg %in% extra_argnames) {
+        warning(
+          paste(
+            sprintf("Argument '%s' is deprecated and will be removed in a future version.", arg),
+            sprintf("Use type='%s' instead.", old_args_for_type[[arg]]),
+            sep = " "
+          )
+        )
+        if (is_default_type) {
+          type <- old_args_for_type[[arg]]
+        }
+      }
+    }
+  }
+
   set_type <- function(type) {
     if (args$type != 0) {
       stop("One type of prediction at a time.")
