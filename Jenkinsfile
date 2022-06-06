@@ -397,7 +397,7 @@ def TestCppGPU(args) {
   node(nodeReq) {
     unstash name: "xgboost_cpp_tests_cuda${artifact_cuda_version}"
     unstash name: 'srcs'
-    echo "Test C++, CUDA ${args.host_cuda_version}"
+    echo "Test C++, CUDA ${args.host_cuda_version}, rmm: ${args.test_rmm}"
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
@@ -410,7 +410,7 @@ def TestCppGPU(args) {
       docker_binary = "nvidia-docker"
       docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool --gtest_filter=-*DeathTest.*"
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool"
       """
     }
     deleteDir()

@@ -200,6 +200,10 @@ endif (JVM_BINDINGS)
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 
+if (PLUGIN_RMM)
+  find_package(rmm REQUIRED)
+endif (PLUGIN_RMM)
+
 #-- library
 if (BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
