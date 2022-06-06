@@ -174,7 +174,7 @@ function(xgboost_set_cuda_flags target)
       CUDA_STANDARD 17
       CUDA_STANDARD_REQUIRED ON
       CUDA_SEPARABLE_COMPILATION OFF)
-  else (PLUGIN_RMM)
+  else ()
     set_target_properties(${target} PROPERTIES
       CUDA_STANDARD 14
       CUDA_STANDARD_REQUIRED ON
