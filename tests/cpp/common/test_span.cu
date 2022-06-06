@@ -252,7 +252,7 @@ __global__ void TestLastStaticKernel(Span<float> _span) {
   _span.last(static_cast<Span<float>::index_type>(-1));
 }
 
-TEST(GPUSpan, FirstLast) {
+TEST(GPUSpanDeathTest, FirstLast) {
   // We construct vectors multiple times since thrust can not recover from
   // death test.
   auto lambda_first_dy = []() {
@@ -341,7 +341,7 @@ void TestFrontBack() {
 }
 }  // namespace
 
-TEST(GPUSpan, FrontBack) {
+TEST(GPUSpanDeathTest, FrontBack) {
   TestFrontBack();
 }
 
@@ -351,7 +351,7 @@ __global__ void TestSubspanDynamicKernel(Span<float> _span) {
 __global__ void TestSubspanStaticKernel(Span<float> _span) {
   _span.subspan<16>();
 }
-TEST(GPUSpan, Subspan) {
+TEST(GPUSpanDeathTest, Subspan) {
   auto lambda_subspan_dynamic = []() {
     thrust::host_vector<float> h_vec (4);
     InitializeRange(h_vec.begin(), h_vec.end());
