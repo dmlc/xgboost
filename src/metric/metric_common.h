@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2020 by Contributors
+ * Copyright 2018-2022 by Contributors
  * \file metric_common.h
  */
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
@@ -9,6 +9,7 @@
 #include <string>
 
 #include "../common/common.h"
+#include "xgboost/metric.h"
 
 namespace xgboost {
 
