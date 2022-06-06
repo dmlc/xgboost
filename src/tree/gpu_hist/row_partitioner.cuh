@@ -158,11 +158,53 @@ void SortPositionBatchUnstable(const common::Span<const PerNodeData<OpDataT>> ba
       <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, total_rows);
 }
 
+struct NodePositionInfo {
+  Segment segment;
+  int left_child = -1;
+  int right_child = -1;
+  __device__ bool IsLeaf() { return left_child == -1; }
+};
+
+__device__ __forceinline__ int GetPositionFromSegments(std::size_t idx, const NodePositionInfo* d_node_info) {
+  int position = 0;
+  NodePositionInfo node = d_node_info[position];
+  while (!node.IsLeaf()) {
+    NodePositionInfo left = d_node_info[node.left_child];
+    NodePositionInfo right = d_node_info[node.right_child];
+    if (idx >= left.segment.begin && idx < left.segment.end) {
+      position = node.left_child;
+      node = left;
+    } else if (idx >= right.segment.begin && idx < right.segment.end) {
+      position = node.right_child;
+      node = right;
+    } else {
+      KERNEL_CHECK(false);
+    }
+  }
+  return position;
+}
+
+template <int kBlockSize, typename RowIndexT, typename OpT, typename IsSampledOpT>
+__global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
+    const common::Span<const NodePositionInfo> d_node_info,
+    const common::Span<const RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position, OpT op,
+    IsSampledOpT is_sampled) {
+  bst_node_t* out_ptr = d_out_position.data();
+  for (std::size_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < d_ridx.size();
+       idx += blockDim.x * gridDim.x) {
+    auto position = GetPositionFromSegments(idx, d_node_info.data());
+    RowIndexT ridx = d_ridx.data()[idx];
+    bst_node_t new_position = op(ridx, position);
+    out_ptr[ridx] = is_sampled(ridx) ? ~new_position : new_position;
+  }
+}
+
 /** \brief Class responsible for tracking subsets of rows as we add splits and
  * partition training rows into different leaf nodes. */
 class RowPartitioner {
  public:
   using RowIndexT = bst_uint;
+
 
  private:
   int device_idx_;
@@ -174,7 +216,8 @@ class RowPartitioner {
    * node id -> segment -> indices of rows belonging to node
    */
   /*! \brief Range of row index for each node, pointers into ridx below. */
-  std::vector<Segment> ridx_segments_;
+
+  std::vector<NodePositionInfo> ridx_segments_;
   /*! \brief mapping for node id -> rows.
    * This looks like:
    * node id  |    1    |    2   |
@@ -223,8 +266,8 @@ class RowPartitioner {
 
     std::size_t total_rows = 0;
     for (int i = 0; i < nidx.size(); i++) {
-      h_batch_info[i] = {ridx_segments_.at(nidx.at(i)), op_data.at(i)};
-      total_rows += ridx_segments_.at(nidx.at(i)).Size();
+      h_batch_info[i] = {ridx_segments_.at(nidx.at(i)).segment, op_data.at(i)};
+      total_rows += ridx_segments_.at(nidx.at(i)).segment.Size();
     }
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                   h_batch_info.size() * sizeof(PerNodeData<OpDataT>),
@@ -248,16 +291,73 @@ class RowPartitioner {
 
     // Update segments
     for (int i = 0; i < nidx.size(); i++) {
-      auto segment = ridx_segments_.at(nidx[i]);
+      auto segment = ridx_segments_.at(nidx[i]).segment;
       auto left_count = h_counts[i].first;
       CHECK_LE(left_count, segment.Size());
       CHECK_GE(left_count, 0);
       ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                      std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[left_nidx[i]] = Segment(segment.begin, segment.begin + left_count);
-      ridx_segments_[right_nidx[i]] = Segment(segment.begin + left_count, segment.end);
+      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
+      ridx_segments_[left_nidx[i]] =
+          NodePositionInfo{Segment(segment.begin, segment.begin + left_count)};
+      ridx_segments_[right_nidx[i]] =
+          NodePositionInfo{Segment(segment.begin + left_count, segment.end)};
     }
   }
+
+   /**
+   * \brief Finalise the position of all training instances after tree construction is
+   * complete. Does not update any other meta information in this data structure, so
+   * should only be used at the end of training.
+   *
+   *   When the task requires update leaf, this function will copy the node index into
+   *   p_out_position. The index is negated if it's being sampled in current iteration.
+   *
+   * \param p_out_position Node index for each row.
+   * \param op Device lambda. Should provide the row index and current position as an
+   *           argument and return the new position for this training instance.
+   * \param sampled A device lambda to inform the partitioner whether a row is sampled.
+   */
+  template <typename FinalisePositionOpT, typename Sampledp>
+  void FinalisePosition(
+                        common::Span<bst_node_t> d_out_position, FinalisePositionOpT op,
+                        Sampledp sampledp) {
+    dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
+    dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
+                                  sizeof(NodePositionInfo) * ridx_segments_.size(),
+                                  cudaMemcpyDefault, stream_));
+
+    auto d_node_info = d_node_info_storage.data().get();
+
+    auto current_position = [=] __device__(std::size_t idx) {
+      int position = 0;
+      NodePositionInfo node = d_node_info[position];
+      while (!node.IsLeaf()) {
+        NodePositionInfo left = d_node_info[node.left_child];
+        NodePositionInfo right = d_node_info[node.right_child];
+        if (idx >= left.segment.begin && idx < left.segment.end) {
+          position = node.left_child;
+          node = left;
+        } else if (idx >= right.segment.begin && idx < right.segment.end) {
+          position = node.right_child;
+          node = right;
+        } else {
+          KERNEL_CHECK(false);
+        }
+      }
+      return position;
+    };
+
+  constexpr int kBlockSize = 256;
+
+  // Value found by experimentation
+  const int kItemsThread = 12;
+  const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
+  common::Span<const RowIndexT> d_ridx(ridx_.data().get(), ridx_.size());
+  FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0, stream_>>>(
+      dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op, sampledp);
+  }
 };
+
 };  // namespace tree
 };  // namespace xgboost

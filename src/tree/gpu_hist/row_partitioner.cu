@@ -14,7 +14,7 @@ namespace tree {
 RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
     : device_idx_(device_idx), ridx_(num_rows), ridx_tmp_(num_rows) {
   dh::safe_cuda(cudaSetDevice(device_idx_));
-  ridx_segments_.emplace_back(Segment(0, num_rows));
+  ridx_segments_.emplace_back(NodePositionInfo{Segment(0, num_rows)});
   thrust::sequence(thrust::device, ridx_.data(), ridx_.data() + ridx_.size());
   dh::safe_cuda(cudaStreamCreate(&stream_));
 }
@@ -26,7 +26,7 @@ RowPartitioner::~RowPartitioner() {
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
     bst_node_t nidx) {
-  auto segment = ridx_segments_.at(nidx);
+  auto segment = ridx_segments_.at(nidx).segment;
   // Return empty span here as a valid result
   // Will error if we try to construct a span from a pointer with size 0
   if (segment.Size() == 0) {

@@ -450,12 +450,16 @@ struct GPUHistMakerDevice {
                               HostDeviceVector<bst_node_t>* p_out_position) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
-    auto new_position_op = [=] __device__(size_t row_id) {
+    update_predictions.resize(row_partitioner->GetRows().size());
+    auto d_update_predictions = dh::ToSpan(update_predictions);
+    p_out_position->SetDevice(ctx_->gpu_id);
+    p_out_position->Resize(row_partitioner->GetRows().size());
+
+    auto new_position_op = [=] __device__(size_t row_id, int position) {
       // What happens if user prune the tree?
       if (!d_matrix.IsInRange(row_id)) {
         return -1;
       }
-      int position = RegTree::kRoot;
       auto node = d_nodes[position];
 
       while (!node.IsLeaf()) {
@@ -478,24 +482,21 @@ struct GPUHistMakerDevice {
             position = node.RightChild();
           }
         }
+        
         node = d_nodes[position];
       }
 
+      d_update_predictions[row_id] = node.LeafValue();
       return position;
-    }; // NOLINT
-    p_out_position->SetDevice(ctx_->gpu_id);
-    p_out_position->Resize(page->n_rows);
-    update_predictions.resize(page->n_rows);
-    auto d_update_predictions = dh::ToSpan(update_predictions);
-    auto sorted_position = p_out_position->DevicePointer();
-    dh::LaunchN(page->n_rows, [=] __device__(size_t idx) {
-      bst_node_t position = new_position_op(idx);
-      d_update_predictions[idx] = d_nodes[position].LeafValue();
-      // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
-      // the sampler compacts the gradient vector.
-      bool is_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
-      sorted_position[idx] = is_sampled ? ~position : position;
-    });
+    };  // NOLINT
+
+    auto is_sampled_op = [d_gpair] __device__(size_t ridx) {
+          // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
+          // the sampler compacts the gradient vector.
+          return d_gpair[ridx].GetHess() - .0f == 0.f;
+        };
+
+    row_partitioner->FinalisePosition(p_out_position->DeviceSpan(), new_position_op, is_sampled_op);
   }
 
   bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
