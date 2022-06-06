@@ -410,7 +410,7 @@ def TestCppGPU(args) {
       docker_binary = "nvidia-docker"
       docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool --gtest_filter=-*DeathTest.*"
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool
       """
     }
     deleteDir()
