@@ -595,13 +595,32 @@ void TestAdapterSketchFromWeights(bool with_group) {
   if (with_group) {
     HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
-      EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
+      ASSERT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
     }
     for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
       ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
     }
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
+    }
+  }
+
+  if (with_group) {
+    auto& h_weights = info.weights_.HostVector();
+    h_weights.resize(kGroups);
+    // Generate different weight.
+    for (size_t i = 0; i < h_weights.size(); ++i) {
+      h_weights[i] = static_cast<float>(i);
+    }
+    SketchContainer sketch_container(ft, kBins, kCols, kRows, 0);
+    AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+                        &sketch_container);
+    common::HistogramCuts cuts;
+    sketch_container.MakeCuts(&cuts);
+
+    HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
+    for (size_t i = 0; i < cuts.Values().size(); ++i) {
+      ASSERT_NE(cuts.Values()[i], non_weighted.Values()[i]);
     }
   }
 }
