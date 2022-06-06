@@ -29,9 +29,7 @@ int CudaArrayIterForTest::Next() {
 }
 
 
-std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_label,
-                                                                    bool float_label,
-                                                                    size_t classes) {
+std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix() {
   CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
   auto m = std::make_shared<data::IterativeDeviceDMatrix>(
       &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),

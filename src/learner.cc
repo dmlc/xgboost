@@ -1234,8 +1234,7 @@ class LearnerImpl : public LearnerIO {
 
       obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
-        os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(out, m->Info(), tparam_.dsplit == DataSplitMode::kRow);
+        os << '\t' << data_names[i] << '-' << ev->Name() << ':' << ev->Eval(out, m->Info());
       }
     }
 

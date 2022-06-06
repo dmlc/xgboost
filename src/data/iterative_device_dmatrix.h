@@ -45,8 +45,8 @@ class IterativeDeviceDMatrix : public DMatrix {
 
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
-  DMatrix *Slice(common::Span<int32_t const> ridxs) override {
-    LOG(FATAL) << "Slicing DMatrix is not supported for Device DMatrix.";
+  DMatrix *Slice(common::Span<int32_t const>) override {
+    LOG(FATAL) << "Slicing DMatrix is not supported for Quantile DMatrix.";
     return nullptr;
   }
   BatchSet<SparsePage> GetRowBatches() override {

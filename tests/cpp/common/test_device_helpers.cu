@@ -67,7 +67,7 @@ TEST(SegmentedUnique, Basic) {
   CHECK_EQ(n_uniques, 5);
 
   std::vector<float> values_sol{0.1f, 0.2f, 0.3f, 0.62448811531066895f, 0.4f};
-  for (auto i = 0 ; i < values_sol.size(); i ++) {
+  for (size_t i = 0 ; i < values_sol.size(); i ++) {
     ASSERT_EQ(d_vals_out[i], values_sol[i]);
   }
 
@@ -84,7 +84,7 @@ TEST(SegmentedUnique, Basic) {
       d_segs_out.data().get(), d_vals_out.data().get(),
       thrust::equal_to<float>{});
   ASSERT_EQ(n_uniques, values.size());
-  for (auto i = 0 ; i < values.size(); i ++) {
+  for (size_t i = 0 ; i < values.size(); i ++) {
     ASSERT_EQ(d_vals_out[i], values[i]);
   }
 }

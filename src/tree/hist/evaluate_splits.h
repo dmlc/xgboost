@@ -203,8 +203,8 @@ class HistEvaluator {
   // Returns the sum of gradients corresponding to the data points that contains
   // a non-missing value for the particular feature fid.
   template <int d_step>
-  GradStats EnumerateSplit(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
-                           const common::GHistRow &hist, bst_feature_t fidx, bst_node_t nidx,
+  GradStats EnumerateSplit(common::HistogramCuts const &cut, const common::GHistRow &hist,
+                           bst_feature_t fidx, bst_node_t nidx,
                            TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                            SplitEntry *p_best) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
@@ -333,9 +333,9 @@ class HistEvaluator {
             EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
           }
         } else {
-          auto grad_stats = EnumerateSplit<+1>(cut, {}, histogram, fidx, nidx, evaluator, best);
+          auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1>(cut, {}, histogram, fidx, nidx, evaluator, best);
+            EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
           }
         }
       }
@@ -440,7 +440,7 @@ template <typename Partitioner, typename ExpandEntry>
 void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
                                HistEvaluator<ExpandEntry> const &hist_evaluator,
-                               TrainParam const &param, linalg::VectorView<float> out_preds) {
+                               linalg::VectorView<float> out_preds) {
   CHECK_GT(out_preds.Size(), 0U);
 
   CHECK(p_last_tree);

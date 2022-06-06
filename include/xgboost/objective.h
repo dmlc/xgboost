@@ -103,8 +103,10 @@ class ObjFunction : public Configurable {
    * \param prediction Model prediction after transformation.
    * \param p_tree Tree that needs to be updated.
    */
-  virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
-                              HostDeviceVector<float> const& prediction, RegTree* p_tree) const {}
+  virtual void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& /*position*/,
+                              MetaInfo const& /*info*/,
+                              HostDeviceVector<float> const& /*prediction*/,
+                              RegTree* /*p_tree*/) const {}
 
   /*!
    * \brief Create an objective function according to name.

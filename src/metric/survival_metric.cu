@@ -206,20 +206,15 @@ template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
     CHECK(tparam_);
   }
 
-  double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info,
-              bool distributed) override {
+  double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
     CHECK(tparam_);
-    auto result =
-        reducer_.Reduce(*tparam_, info.weights_, info.labels_lower_bound_,
-                        info.labels_upper_bound_, preds);
+    auto result = reducer_.Reduce(*tparam_, info.weights_, info.labels_lower_bound_,
+                                  info.labels_upper_bound_, preds);
 
-    double dat[2] {result.Residue(), result.Weights()};
-
-    if (distributed) {
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-    }
+    double dat[2]{result.Residue(), result.Weights()};
+    rabit::Allreduce<rabit::op::Sum>(dat, 2);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
@@ -240,10 +235,9 @@ struct AFTNLogLikDispatcher : public Metric {
     return "aft-nloglik";
   }
 
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-              bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK(metric_) << "AFT metric must be configured first, with distribution type and scale";
-    return metric_->Eval(preds, info, distributed);
+    return metric_->Eval(preds, info);
   }
 
   void Configure(const Args& args) override {

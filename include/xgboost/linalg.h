@@ -317,7 +317,8 @@ class TensorView {
   }
 
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index>
-  LINALG_HD size_t MakeSliceDim(size_t new_shape[D], size_t new_stride[D], Index i) const {
+  LINALG_HD size_t MakeSliceDim(DMLC_ATTRIBUTE_UNUSED size_t new_shape[D],
+                                DMLC_ATTRIBUTE_UNUSED size_t new_stride[D], Index i) const {
     static_assert(old_dim < kDim, "");
     return stride_[old_dim] * i;
   }

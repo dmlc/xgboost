@@ -163,6 +163,9 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
 
 BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
   CHECK(page_);
+  if (batch_param_ != param) {
+    LOG(FATAL) << "max_bin doesn't match between Quantile DMatrix and training parameter.";
+  }
   auto begin_iter =
       BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
   return BatchSet<EllpackPage>(begin_iter);

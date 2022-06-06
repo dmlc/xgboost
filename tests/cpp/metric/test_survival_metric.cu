@@ -40,9 +40,9 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
     h_upper[i] = 10;
   }
 
-  auto result = metric->Eval(predts, info, false);
+  auto result = metric->Eval(predts, info);
   for (size_t i = 0; i < 8; ++i) {
-    ASSERT_EQ(metric->Eval(predts, info, false), result);
+    ASSERT_EQ(metric->Eval(predts, info), result);
   }
 }
 }  // anonymous namespace
@@ -72,7 +72,7 @@ TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) {
     std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
     metric->Configure({ {"aft_loss_distribution", test_case.dist_type},
                         {"aft_loss_distribution_scale", "1.0"} });
-    EXPECT_NEAR(metric->Eval(preds, info, false), test_case.reference_value, 1e-4);
+    EXPECT_NEAR(metric->Eval(preds, info), test_case.reference_value, 1e-4);
   }
 }
 
@@ -87,15 +87,15 @@ TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
   HostDeviceVector<bst_float> preds(4, std::log(60.0f));
 
   std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &lparam));
-  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.75f);
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info), 0.75f);
   info.labels_lower_bound_.HostVector()[2] = 70.0f;
-  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info), 0.50f);
   info.labels_upper_bound_.HostVector()[2] = std::numeric_limits<bst_float>::infinity();
-  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info), 0.50f);
   info.labels_upper_bound_.HostVector()[3] = std::numeric_limits<bst_float>::infinity();
-  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info), 0.50f);
   info.labels_lower_bound_.HostVector()[0] = 70.0f;
-  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.25f);
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info), 0.25f);
 
   CheckDeterministicMetricElementWise(StringView{"interval-regression-accuracy"}, GPUIDX);
 }

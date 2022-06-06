@@ -296,9 +296,7 @@ class RandomDataGenerator {
                                            bool float_label = true,
                                            size_t classes = 1) const;
 #if defined(XGBOOST_USE_CUDA)
-  std::shared_ptr<DMatrix> GenerateDeviceDMatrix(bool with_label = false,
-                                                 bool float_label = true,
-                                                 size_t classes = 1);
+  std::shared_ptr<DMatrix> GenerateDeviceDMatrix();
 #endif
 };
 

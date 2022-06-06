@@ -171,14 +171,14 @@ inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_thr
 
   if (!use_sorted) {
     HostSketchContainer container(max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info),
-                                  hessian, n_threads);
+                                  n_threads);
     for (auto const& page : m->GetBatches<SparsePage>()) {
       container.PushRowPage(page, info, hessian);
     }
     container.MakeCuts(&out);
   } else {
-    SortedSketchContainer container{
-        max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info), hessian, n_threads};
+    SortedSketchContainer container{max_bins, m->Info(), reduced,
+                                    HostSketchContainer::UseGroup(info), n_threads};
     for (auto const& page : m->GetBatches<SortedCSCPage>()) {
       container.PushColPage(page, info, hessian);
     }
