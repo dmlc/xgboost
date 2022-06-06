@@ -34,9 +34,8 @@ TEST(ParallelFor2d, Test) {
 
   // working space is matrix of size (kDim1 x kDim2)
   std::vector<int> matrix(kDim1 * kDim2, 0);
-  BlockedSpace2d space(kDim1, [&](size_t i) {
-      return kDim2;
-  }, kGrainSize);
+  BlockedSpace2d space(
+      kDim1, [&](size_t) { return kDim2; }, kGrainSize);
 
   auto old = omp_get_max_threads();
   omp_set_num_threads(4);

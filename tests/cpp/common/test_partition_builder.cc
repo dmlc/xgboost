@@ -50,8 +50,8 @@ TEST(PartitionBuilder, BasicTest) {
         right[i] = left_total + value_right++;
       }
 
-      builder.SetNLeftElems(nid, begin, end, n_left);
-      builder.SetNRightElems(nid, begin, end, n_right);
+      builder.SetNLeftElems(nid, begin, n_left);
+      builder.SetNRightElems(nid, begin, n_right);
     }
   }
   builder.CalculateRowOffsets();

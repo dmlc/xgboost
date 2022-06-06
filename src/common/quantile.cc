@@ -543,7 +543,7 @@ template class SketchContainerImpl<WXQuantileSketch<float, float>>;
 
 HostSketchContainer::HostSketchContainer(int32_t max_bins, MetaInfo const &info,
                                          std::vector<size_t> columns_size, bool use_group,
-                                         Span<float const> hessian, int32_t n_threads)
+                                         int32_t n_threads)
     : SketchContainerImpl{columns_size, max_bins, info.feature_types.ConstHostSpan(), use_group,
                           n_threads} {
   monitor_.Init(__func__);

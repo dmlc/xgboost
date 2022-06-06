@@ -312,10 +312,8 @@ void SegmentedReduceAUC(common::Span<size_t const> d_unique_idx,
  * up each class in all kernels.
  */
 template <bool scale, typename Fn>
-double GPUMultiClassAUCOVR(common::Span<float const> predts,
-                           MetaInfo const &info, int32_t device,
-                           common::Span<uint32_t> d_class_ptr, size_t n_classes,
-                           std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
+double GPUMultiClassAUCOVR(MetaInfo const &info, int32_t device, common::Span<uint32_t> d_class_ptr,
+                           size_t n_classes, std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
   dh::safe_cuda(cudaSetDevice(device));
   /**
    * Sorted idx
@@ -478,8 +476,7 @@ double GPUMultiClassROCAUC(common::Span<float const> predts,
                               double tp, size_t /*class_id*/) {
     return TrapezoidArea(fp_prev, fp, tp_prev, tp);
   };
-  return GPUMultiClassAUCOVR<true>(predts, info, device, dh::ToSpan(class_ptr),
-                                   n_classes, cache, fn);
+  return GPUMultiClassAUCOVR<true>(info, device, dh::ToSpan(class_ptr), n_classes, cache, fn);
 }
 
 namespace {
@@ -704,8 +701,7 @@ double GPUMultiClassPRAUC(common::Span<float const> predts,
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp,
                                   d_totals[class_id].first);
   };
-  return GPUMultiClassAUCOVR<false>(predts, info, device, d_class_ptr,
-                                    n_classes, cache, fn);
+  return GPUMultiClassAUCOVR<false>(info, device, d_class_ptr, n_classes, cache, fn);
 }
 
 template <typename Fn>

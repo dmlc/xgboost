@@ -66,10 +66,7 @@ TEST(GPUPredictor, EllpackBasic) {
   size_t constexpr kCols {8};
   for (size_t bins = 2; bins < 258; bins += 16) {
     size_t rows = bins * 16;
-    auto p_m = RandomDataGenerator{rows, kCols, 0.0}
-         .Bins(bins)
-         .Device(0)
-         .GenerateDeviceDMatrix(true);
+    auto p_m = RandomDataGenerator{rows, kCols, 0.0}.Bins(bins).Device(0).GenerateDeviceDMatrix();
     ASSERT_FALSE(p_m->PageExists<SparsePage>());
     TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, kCols, p_m);
     TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, kCols, p_m);
@@ -78,10 +75,8 @@ TEST(GPUPredictor, EllpackBasic) {
 
 TEST(GPUPredictor, EllpackTraining) {
   size_t constexpr kRows { 128 }, kCols { 16 }, kBins { 64 };
-  auto p_ellpack = RandomDataGenerator{kRows, kCols, 0.0}
-       .Bins(kBins)
-       .Device(0)
-       .GenerateDeviceDMatrix(true);
+  auto p_ellpack =
+      RandomDataGenerator{kRows, kCols, 0.0}.Bins(kBins).Device(0).GenerateDeviceDMatrix();
   HostDeviceVector<float> storage(kRows * kCols);
   auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
        .Device(0)

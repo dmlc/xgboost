@@ -116,7 +116,7 @@ class RowPartitioner {
     Segment segment = ridx_segments_.at(nidx);  // rows belongs to node nidx
     auto d_ridx = ridx_.CurrentSpan();
     auto d_position = position_.CurrentSpan();
-    if (left_counts_.size() <= nidx) {
+    if (left_counts_.size() <= static_cast<size_t>(nidx)) {
       left_counts_.resize((nidx * 2) + 1);
       thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
     }

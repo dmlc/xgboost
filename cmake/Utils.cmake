@@ -144,6 +144,15 @@ function(xgboost_set_cuda_flags target)
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
   endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
 
+  if (FORCE_COLORED_OUTPUT)
+    if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+        ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+          (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
+      target_compile_options(${target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fdiagnostics-color=always>)
+    endif()
+  endif (FORCE_COLORED_OUTPUT)
+
   if (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)

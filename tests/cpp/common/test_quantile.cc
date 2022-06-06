@@ -77,7 +77,7 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   std::vector<float> hessian(rows, 1.0);
   auto hess = Span<float const>{hessian};
 
-  ContainerType<use_column> sketch_distributed(n_bins, m->Info(), column_size, false, hess,
+  ContainerType<use_column> sketch_distributed(n_bins, m->Info(), column_size, false,
                                                OmpGetNumThreads(0));
 
   if (use_column) {
@@ -98,7 +98,7 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   CHECK_EQ(rabit::GetWorldSize(), 1);
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
   m->Info().num_row_ = world * rows;
-  ContainerType<use_column> sketch_on_single_node(n_bins, m->Info(), column_size, false, hess,
+  ContainerType<use_column> sketch_on_single_node(n_bins, m->Info(), column_size, false,
                                                   OmpGetNumThreads(0));
   m->Info().num_row_ = rows;
 
@@ -190,7 +190,7 @@ TEST(Quantile, SameOnAllWorkers) {
 
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(
-      kRows, [=](int32_t seed, size_t n_bins, MetaInfo const &info) {
+      kRows, [=](int32_t seed, size_t n_bins, MetaInfo const&) {
         auto rank = rabit::GetRank();
         HostDeviceVector<float> storage;
         std::vector<FeatureType> ft(kCols);
