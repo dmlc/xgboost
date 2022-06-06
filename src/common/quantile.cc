@@ -122,27 +122,6 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
   }
   return results;
 }
-
-std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
-  std::vector<float> const &group_weights = info.weights_.HostVector();
-  if (group_weights.empty()) {
-    return group_weights;
-  }
-
-  size_t n_samples = info.num_row_;
-  auto const &group_ptr = info.group_ptr_;
-  std::vector<float> results(n_samples);
-  CHECK_GE(group_ptr.size(), 2);
-  CHECK_EQ(group_ptr.back(), n_samples);
-  size_t cur_group = 0;
-  for (size_t i = 0; i < n_samples; ++i) {
-    results[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
-    }
-  }
-  return results;
-}
 }  // anonymous namespace
 
 template <typename WQSketch>
@@ -156,12 +135,10 @@ void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo
 
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =
-      hessian.empty()
-          ? (use_group_ind_ ? UnrollGroupWeights(info)     // use group weight
-                            : info.weights_.HostVector())  // use sample weight
-          : MergeWeights(
-                info, hessian, use_group_ind_,
-                n_threads_);  // use hessian merged with group/sample weights
+      hessian.empty() ? (use_group_ind_ ? detail::UnrollGroupWeights(info)  // use group weight
+                                        : info.weights_.HostVector())       // use sample weight
+                      : MergeWeights(info, hessian, use_group_ind_,
+                                     n_threads_);  // use hessian merged with group/sample weights
   if (!weights.empty()) {
     CHECK_EQ(weights.size(), info.num_row_);
   }
@@ -563,8 +540,8 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
   monitor_.Start(__func__);
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =
-      hessian.empty() ? (use_group_ind_ ? UnrollGroupWeights(info)     // use group weight
-                                        : info.weights_.HostVector())  // use sample weight
+      hessian.empty() ? (use_group_ind_ ? detail::UnrollGroupWeights(info)  // use group weight
+                                        : info.weights_.HostVector())       // use sample weight
                       : MergeWeights(info, hessian, use_group_ind_,
                                      n_threads_);  // use hessian merged with group/sample weights
   CHECK_EQ(weights.size(), info.num_row_);

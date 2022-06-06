@@ -274,7 +274,7 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
   size_t num_cols = batch.NumCols();
   size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
   int32_t device = sketch_container->DeviceIdx();
-  bool weighted = info.weights_.Size() != 0;
+  bool weighted = !info.weights_.Empty();
 
   if (weighted) {
     sketch_batch_num_elements = detail::SketchBatchNumElements(
