@@ -152,7 +152,7 @@ void SortPositionBatchUnstable(const common::Span<const PerNodeData<OpDataT>> ba
   const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
   SortPositionBatchUnstableKernel<kBlockSize>
-      <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, d_counts, op, total_rows);
+      <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp,d_counts, op, total_rows);
 
   SortPositionCopyKernel<kBlockSize>
       <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, total_rows);
@@ -184,18 +184,16 @@ __device__ __forceinline__ int GetPositionFromSegments(std::size_t idx, const No
   return position;
 }
 
-template <int kBlockSize, typename RowIndexT, typename OpT, typename IsSampledOpT>
+template <int kBlockSize, typename RowIndexT, typename OpT>
 __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
     const common::Span<const NodePositionInfo> d_node_info,
-    const common::Span<const RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position, OpT op,
-    IsSampledOpT is_sampled) {
-  bst_node_t* out_ptr = d_out_position.data();
+    const common::Span<const RowIndexT> d_ridx,common::Span<bst_node_t> d_out_position, OpT op) {
   for (std::size_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < d_ridx.size();
        idx += blockDim.x * gridDim.x) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
-    RowIndexT ridx = d_ridx.data()[idx];
+    RowIndexT ridx = d_ridx[idx];
     bst_node_t new_position = op(ridx, position);
-    out_ptr[ridx] = is_sampled(ridx) ? ~new_position : new_position;
+    d_out_position[ridx] = new_position;
   }
 }
 
@@ -266,7 +264,8 @@ class RowPartitioner {
 
     std::size_t total_rows = 0;
     for (int i = 0; i < nidx.size(); i++) {
-      h_batch_info[i] = {ridx_segments_.at(nidx.at(i)).segment, op_data.at(i)};
+      h_batch_info[i] = {ridx_segments_.at(nidx.at(i)).segment,
+                         op_data.at(i)};
       total_rows += ridx_segments_.at(nidx.at(i)).segment.Size();
     }
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
@@ -280,7 +279,7 @@ class RowPartitioner {
     // Partition the rows according to the operator
     SortPositionBatchUnstable(common::Span<const PerNodeData<OpDataT>>(
                                   d_batch_info.data().get(), d_batch_info.size()),
-                              dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
+                              dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_),dh::ToSpan(d_counts),
                               total_rows, op, stream_);
     dh::safe_cuda(
         cudaMemcpyAsync(h_counts.data(), d_counts.data().get(),
@@ -318,10 +317,9 @@ class RowPartitioner {
    *           argument and return the new position for this training instance.
    * \param sampled A device lambda to inform the partitioner whether a row is sampled.
    */
-  template <typename FinalisePositionOpT, typename Sampledp>
+  template <typename FinalisePositionOpT>
   void FinalisePosition(
-                        common::Span<bst_node_t> d_out_position, FinalisePositionOpT op,
-                        Sampledp sampledp) {
+                        common::Span<bst_node_t> d_out_position, FinalisePositionOpT op) {
     dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
     dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
@@ -351,11 +349,11 @@ class RowPartitioner {
   constexpr int kBlockSize = 256;
 
   // Value found by experimentation
-  const int kItemsThread = 12;
+  const int kItemsThread = 8;
   const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
   common::Span<const RowIndexT> d_ridx(ridx_.data().get(), ridx_.size());
   FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0, stream_>>>(
-      dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op, sampledp);
+      dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
   }
 };
 

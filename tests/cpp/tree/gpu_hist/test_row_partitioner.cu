@@ -72,7 +72,8 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
                                 cudaMemcpyDefault, nullptr));
   SortPositionBatchUnstable(
       common::Span<const PerNodeData<int>>(d_batch_info.data().get(), d_batch_info.size()),
-      dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows, op, nullptr);
+      dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows,
+      op, nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (int i = 0; i < segments.size(); i++) {

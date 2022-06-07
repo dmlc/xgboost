@@ -401,6 +401,7 @@ struct GPUHistMakerDevice {
           }
           return go_left;
         });
+    
   }
 
   // After tree update is finished, update the position of all training
@@ -490,13 +491,15 @@ struct GPUHistMakerDevice {
       return position;
     };  // NOLINT
 
-    auto is_sampled_op = [d_gpair] __device__(size_t ridx) {
-          // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
-          // the sampler compacts the gradient vector.
-          return d_gpair[ridx].GetHess() - .0f == 0.f;
-        };
+    auto d_out_position = p_out_position->DeviceSpan();
+    row_partitioner->FinalisePosition(d_out_position, new_position_op);
 
-    row_partitioner->FinalisePosition(p_out_position->DeviceSpan(), new_position_op, is_sampled_op);
+    dh::LaunchN(row_partitioner->GetRows().size(), [=] __device__(size_t idx) {
+      bst_node_t position = d_out_position[idx];
+      d_update_predictions[idx] = d_nodes[position].LeafValue();
+      bool is_row_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
+      d_out_position[idx] = is_row_sampled ? ~position : position;
+    });
   }
 
   bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
