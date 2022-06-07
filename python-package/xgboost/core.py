@@ -3,6 +3,7 @@
 """Core XGBoost Library."""
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+import copy
 from typing import List, Optional, Any, Union, Dict, TypeVar
 from typing import Callable, Tuple, cast, Sequence, Type, Iterable
 import ctypes
@@ -1577,7 +1578,7 @@ class Booster:
         booster: `Booster`
             a copied booster model
         """
-        return self.__copy__()
+        return copy.copy(self)
 
     def attr(self, key: str) -> Optional[str]:
         """Get attribute string from the Booster.
@@ -2309,15 +2310,15 @@ class Booster:
         ret = self.get_dump(fmap, with_stats, dump_format)
         if dump_format == 'json':
             fout_obj.write('[\n')
-            for i, _ in enumerate(ret):
-                fout_obj.write(ret[i])
+            for i, val in enumerate(ret):
+                fout_obj.write(val)
                 if i < len(ret) - 1:
                     fout_obj.write(",\n")
             fout_obj.write('\n]')
         else:
-            for i, _ in enumerate(ret):
+            for i, val in enumerate(ret):
                 fout_obj.write(f"booster[{i}]:\n")
-                fout_obj.write(ret[i])
+                fout_obj.write(val)
         if need_close:
             fout_obj.close()
 
@@ -2604,8 +2605,8 @@ class Booster:
         values = []
         # pylint: disable=consider-using-f-string
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
-        for i, _ in enumerate(xgdump):
-            m = re.findall(regexp, xgdump[i])
+        for i, val in enumerate(xgdump):
+            m = re.findall(regexp, val)
             values.extend([float(x) for x in m])
 
         n_unique = len(np.unique(values))

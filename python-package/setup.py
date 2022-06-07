@@ -97,7 +97,7 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
     logger = logging.getLogger('XGBoost build_ext')
 
-    # pylint: disable=too-many-arguments,no-self-use
+    # pylint: disable=too-many-arguments
     def build(
         self,
         src_dir: str,

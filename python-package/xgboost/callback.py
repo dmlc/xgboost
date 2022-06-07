@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=invalid-name, too-many-statements, no-self-use
+# pylint: disable=invalid-name, too-many-statements
 # pylint: disable=too-many-arguments
 """Callback library containing training routines.  See :doc:`Callback Functions
 </python/callbacks>` for a quick introduction.
