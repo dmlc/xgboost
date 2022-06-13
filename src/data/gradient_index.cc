@@ -20,7 +20,7 @@ GHistIndexMatrix::GHistIndexMatrix() : columns_{std::make_unique<common::ColumnM
 GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
                                    double sparse_thresh, bool sorted_sketch, int32_t n_threads,
                                    common::Span<float> hess) {
-  CHECK(p_fmat->SingleColBlock());
+  // CHECK(p_fmat->SingleColBlock());
   // We use sorted sketching for approx tree method since it's more efficient in
   // computation time (but higher memory usage).
   cut = common::SketchOnDMatrix(p_fmat, max_bins_per_feat, n_threads, sorted_sketch, hess);
