@@ -178,8 +178,7 @@ class PseudoErrorLoss : public Metric {
     out["pseudo_huber_param"] = ToJson(param_);
   }
 
-  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
-              bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK_EQ(info.labels.Shape(0), info.num_row_);
     auto labels = info.labels.View(tparam_->gpu_id);
     preds.SetDevice(tparam_->gpu_id);
@@ -197,7 +196,7 @@ class PseudoErrorLoss : public Metric {
           return std::make_tuple(v, wt);
         });
     double dat[2]{result.Residue(), result.Weights()};
-    if (distributed) {
+    if (rabit::IsDistributed()) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
     }
     return EvalRowMAPE::GetFinal(dat[0], dat[1]);
@@ -342,8 +341,7 @@ struct EvalEWiseBase : public Metric {
   EvalEWiseBase() = default;
   explicit EvalEWiseBase(char const* policy_param) : policy_{policy_param} {}
 
-  double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info,
-              bool distributed) override {
+  double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
@@ -367,10 +365,7 @@ struct EvalEWiseBase : public Metric {
         });
 
     double dat[2]{result.Residue(), result.Weights()};
-
-    if (distributed) {
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-    }
+    rabit::Allreduce<rabit::op::Sum>(dat, 2);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 

@@ -37,3 +37,26 @@ machine in GitHub Actions, cross-compilation is needed; ``cibuildwheel`` takes c
 task of cross-compiling a Python wheel. (Note that ``cibuildwheel`` will call
 ``setup.py bdist_wheel``. Since XGBoost has a native library component, ``setup.py`` contains
 a glue code to call CMake and a C++ compiler to build the native library on the fly.)
+
+*******************************
+Reproducing errors from Jenkins
+*******************************
+
+It is often useful to reproduce the particular testing environment from our Jenkins server for
+the purpose of troubleshooting a failing test. We use Docker containers heavily to package
+the testing environment, so you can use Docker to reproduce it on your own machine.
+
+1. Install Docker: https://docs.docker.com/engine/install/ubuntu/
+2. Install NVIDIA Docker runtime: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#installing-on-ubuntu-and-debian
+   The runtime lets you access NVIDIA GPUs inside a Docker container.
+3. In a build log, all tests are invoked via the wrapper script ``tests/ci_build/ci_build.sh``.
+   Identify the test you'd like to reproduce locally, and note how the wrapper script was invoked for that test.
+   The invocation should look like this:
+
+.. code-block:: bash
+
+  CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g' tests/ci_build/ci_build.sh gpu nvidia-docker \
+    --build-arg CUDA_VERSION_ARG=11.0 tests/ci_build/test_python.sh mgpu --use-rmm-pool
+
+4. You can now run the same command on your own machine. The wrapper script will automatically download and
+   set up the correct Docker container(s).

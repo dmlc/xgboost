@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -234,6 +234,66 @@ public class DMatrix {
       throw new XGBoostError("Empty " + type + " columns' array interface");
     }
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetInfoFromInterface(handle, type, json));
+  }
+
+  private void setXGBDMatrixFeatureInfo(String type, String[] values) throws XGBoostError {
+    if (type == null || type.isEmpty()) {
+      throw new XGBoostError("Found empty type");
+    }
+    if (values == null || values.length == 0) {
+      throw new XGBoostError("Found empty values");
+    }
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetStrFeatureInfo(handle, type, values));
+  }
+
+  private String[] getXGBDMatrixFeatureInfo(String type) throws XGBoostError {
+    if (type == null || type.isEmpty()) {
+      throw new XGBoostError("Found empty type");
+    }
+    long[] outLen = new long[1];
+    String[][] outValue = new String[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetStrFeatureInfo(handle, type, outLen, outValue));
+
+    if (outLen[0] != outValue[0].length) {
+      throw new RuntimeException("Failed to get " + type);
+    }
+    return outValue[0];
+  }
+
+  /**
+   * Set feature names
+   * @param values feature names to be set
+   * @throws XGBoostError
+   */
+  public void setFeatureNames(String[] values) throws XGBoostError {
+    setXGBDMatrixFeatureInfo("feature_name", values);
+  }
+
+  /**
+   * Get feature names
+   * @return an array of feature names to be returned
+   * @throws XGBoostError
+   */
+  public String[] getFeatureNames() throws XGBoostError {
+    return getXGBDMatrixFeatureInfo("feature_name");
+  }
+
+  /**
+   * Set feature types
+   * @param values feature types to be set
+   * @throws XGBoostError
+   */
+  public void setFeatureTypes(String[] values) throws XGBoostError {
+    setXGBDMatrixFeatureInfo("feature_type", values);
+  }
+
+  /**
+   * Get feature types
+   * @return an array of feature types to be returned
+   * @throws XGBoostError
+   */
+  public String[] getFeatureTypes() throws XGBoostError {
+    return getXGBDMatrixFeatureInfo("feature_type");
   }
 
   /**

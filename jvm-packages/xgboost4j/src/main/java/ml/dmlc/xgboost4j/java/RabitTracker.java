@@ -58,8 +58,12 @@ public class RabitTracker implements IRabitTracker {
           trackerProcessLogger.info(line);
         }
         trackerProcess.get().waitFor();
-        trackerProcessLogger.info("Tracker Process ends with exit code " +
-                trackerProcess.get().exitValue());
+        int exitValue = trackerProcess.get().exitValue();
+        if (exitValue != 0) {
+          trackerProcessLogger.error("Tracker Process ends with exit code " + exitValue);
+        } else {
+          trackerProcessLogger.info("Tracker Process ends with exit code " + exitValue);
+        }
       } catch (IOException ex) {
         trackerProcessLogger.error(ex.toString());
       } catch (InterruptedException ie) {

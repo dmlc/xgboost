@@ -170,7 +170,7 @@ TEST(Objective, NDCGLambdaWeightComputerTest) {
   EXPECT_EQ(hgroup_dcgs.size(), segment_label_sorter->GetNumGroups());
   std::vector<float> hsorted_labels(segment_label_sorter->GetNumItems());
   dh::CopyDeviceSpanToVector(&hsorted_labels, segment_label_sorter->GetItemsSpan());
-  for (auto i = 0; i < hgroup_dcgs.size(); ++i) {
+  for (size_t i = 0; i < hgroup_dcgs.size(); ++i) {
     // Compute group DCG value on CPU and compare
     auto gbegin = hgroups[i];
     auto gend = hgroups[i + 1];
@@ -244,7 +244,7 @@ TEST(Objective, ComputeAndCompareMAPStatsTest) {
   std::vector<uint32_t> hgroups(segment_label_sorter->GetNumGroups() + 1);
   dh::CopyDeviceSpanToVector(&hgroups, segment_label_sorter->GetGroupsSpan());
 
-  for (auto i = 0; i < hgroups.size() - 1; ++i) {
+  for (size_t i = 0; i < hgroups.size() - 1; ++i) {
     auto gbegin = hgroups[i];
     auto gend = hgroups[i + 1];
     std::vector<xgboost::obj::ListEntry> lst_entry;

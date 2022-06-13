@@ -82,6 +82,19 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixGetUIntInfo(long handle, String filed, int[][] info);
 
+  /**
+   * Set the feature information
+   * @param handle the DMatrix native address
+   * @param field "feature_names" or "feature_types"
+   * @param values an array of string
+   * @return 0 when success, -1 when failure happens
+   */
+  public final static native int XGDMatrixSetStrFeatureInfo(long handle, String field,
+                                                            String[] values);
+
+  public final static native int XGDMatrixGetStrFeatureInfo(long handle, String field,
+                                                            long[] outLength, String[][] outValues);
+
   public final static native int XGDMatrixNumRow(long handle, long[] row);
 
   public final static native int XGBoosterCreate(long[] handles, long[] out);
@@ -143,4 +156,5 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
     String featureJson, float missing, int nthread, long[] out);
+
 }

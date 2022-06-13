@@ -852,12 +852,23 @@ class LearnerIO : public LearnerConfiguration {
       }
     }
 
+    // FIXME(jiamingy): Move this out of learner after the old binary model is remove.
+    auto first_non_space = [&](std::string::const_iterator beg, std::string::const_iterator end) {
+      for (auto i = beg; i != end; ++i) {
+        if (!std::isspace(*i)) {
+          return i;
+        }
+      }
+      return end;
+    };
+
     if (header[0] == '{') {  // Dispatch to JSON
       auto buffer = common::ReadAll(fi, &fp);
       Json model;
-      if (header[1] == '"') {
+      auto it = first_non_space(buffer.cbegin() + 1, buffer.cend());
+      if (it != buffer.cend() && *it == '"') {
         model = Json::Load(StringView{buffer});
-      } else if (std::isalpha(header[1])) {
+      } else if (it != buffer.cend() && std::isalpha(*it)) {
         model = Json::Load(StringView{buffer}, std::ios::binary);
       } else {
         LOG(FATAL) << "Invalid model format";
@@ -1223,8 +1234,7 @@ class LearnerImpl : public LearnerIO {
 
       obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
-        os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(out, m->Info(), tparam_.dsplit == DataSplitMode::kRow);
+        os << '\t' << data_names[i] << '-' << ev->Name() << ':' << ev->Eval(out, m->Info());
       }
     }
 

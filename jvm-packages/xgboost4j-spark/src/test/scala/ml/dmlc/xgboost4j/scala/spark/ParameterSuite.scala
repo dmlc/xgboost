@@ -84,4 +84,11 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
 
     new XGBoostClassifier(paramMap).fit(trainingDF)
   }
+
+  test("Default parameters") {
+    val classifier = new XGBoostClassifier()
+    intercept[NoSuchElementException] {
+      classifier.getBaseScore
+    }
+  }
 }

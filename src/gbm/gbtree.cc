@@ -218,7 +218,7 @@ void CopyGradient(HostDeviceVector<GradientPair> const* in_gpair, int32_t n_thre
 }
 
 void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                            ObjFunction const* obj, size_t gidx,
+                            ObjFunction const* obj,
                             std::vector<std::unique_ptr<RegTree>>* p_trees) {
   CHECK(!updaters_.empty());
   if (!updaters_.back()->HasNodePosition()) {
@@ -257,7 +257,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
-    UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, &ret);
+    UpdateTreeLeaf(p_fmat, predt->predictions, obj, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     auto v_predt = out.Slice(linalg::All(), 0);
@@ -274,7 +274,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
       CopyGradient(in_gpair, ctx_->Threads(), ngroup, gid, &tmp);
       std::vector<std::unique_ptr<RegTree>> ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
-      UpdateTreeLeaf(p_fmat, predt->predictions, obj, gid, &ret);
+      UpdateTreeLeaf(p_fmat, predt->predictions, obj, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), gid);
@@ -289,7 +289,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   }
 
   monitor_.Stop("BoostNewTrees");
-  this->CommitModel(std::move(new_trees), p_fmat, predt);
+  this->CommitModel(std::move(new_trees));
 }
 
 void GBTree::InitUpdater(Args const& cfg) {
@@ -378,9 +378,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fma
   }
 }
 
-void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
-                         DMatrix* m,
-                         PredictionCacheEntry* predts) {
+void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees) {
   monitor_.Start("CommitModel");
   for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
     model_.CommitModel(std::move(new_trees[gid]), gid);
@@ -490,15 +488,14 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
            "want to update a portion of trees.";
   }
 
-  *out_of_bound = detail::SliceTrees(
-      layer_begin, layer_end, step, this->model_, tparam_, layer_trees,
-      [&](auto const &in_it, auto const &out_it) {
-        auto new_tree =
-            std::make_unique<RegTree>(*this->model_.trees.at(in_it));
-        bst_group_t group = this->model_.tree_info[in_it];
-        out_trees.at(out_it) = std::move(new_tree);
-        out_trees_info.at(out_it) = group;
-      });
+  *out_of_bound = detail::SliceTrees(layer_begin, layer_end, step, this->model_, layer_trees,
+                                     [&](auto const& in_it, auto const& out_it) {
+                                       auto new_tree =
+                                           std::make_unique<RegTree>(*this->model_.trees.at(in_it));
+                                       bst_group_t group = this->model_.tree_info[in_it];
+                                       out_trees.at(out_it) = std::move(new_tree);
+                                       out_trees_info.at(out_it) = group;
+                                     });
 }
 
 void GBTree::PredictBatch(DMatrix* p_fmat,
@@ -674,11 +671,10 @@ class Dart : public GBTree {
     auto p_dart = dynamic_cast<Dart*>(out);
     CHECK(p_dart);
     CHECK(p_dart->weight_drop_.empty());
-    detail::SliceTrees(
-        layer_begin, layer_end, step, model_, tparam_, this->LayerTrees(),
-        [&](auto const& in_it, auto const&) {
-          p_dart->weight_drop_.push_back(this->weight_drop_.at(in_it));
-        });
+    detail::SliceTrees(layer_begin, layer_end, step, model_, this->LayerTrees(),
+                       [&](auto const& in_it, auto const&) {
+                         p_dart->weight_drop_.push_back(this->weight_drop_.at(in_it));
+                       });
   }
 
   void SaveModel(Json *p_out) const override {
@@ -901,9 +897,7 @@ class Dart : public GBTree {
 
  protected:
   // commit new trees all at once
-  void
-  CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
-              DMatrix*, PredictionCacheEntry*) override {
+  void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees) override {
     int num_new_trees = 0;
     for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
       num_new_trees += new_trees[gid].size();

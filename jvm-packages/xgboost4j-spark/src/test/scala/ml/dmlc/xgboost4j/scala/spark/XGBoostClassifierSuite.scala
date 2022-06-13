@@ -310,7 +310,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
       "num_round" -> 5, "num_workers" -> 2, "missing" -> 0)
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
@@ -331,7 +331,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
       "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true, "missing" -> 0)
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
@@ -429,30 +429,29 @@ class XGBoostClassifierSuite extends FunSuite with PerTest with TmpFolderPerSuit
     val trainingDF = buildDataFrame(MultiClassification.train)
     val xgb = new XGBoostClassifier(paramMap)
     val model = xgb.fit(trainingDF)
+
     val modelPath = new File(tempDir.toFile, "xgbc").getPath
-    model.write.overwrite().save(modelPath)
-    val nativeModelPath = new File(tempDir.toFile, "nativeModel").getPath
-    model.nativeBooster.saveModel(nativeModelPath)
-
+    model.write.option("format", "json").save(modelPath)
+    val nativeJsonModelPath = new File(tempDir.toFile, "nativeModel.json").getPath
+    model.nativeBooster.saveModel(nativeJsonModelPath)
     assert(compareTwoFiles(new File(modelPath, "data/XGBoostClassificationModel").getPath,
-      nativeModelPath))
-  }
+      nativeJsonModelPath))
 
-  private def compareTwoFiles(lhs: String, rhs: String): Boolean = {
-    withResource(new FileInputStream(lhs)) { lfis =>
-      withResource(new FileInputStream(rhs)) { rfis =>
-        IOUtils.contentEquals(lfis, rfis)
-      }
-    }
-  }
+    // test default "deprecated"
+    val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
+    model.write.save(modelUbjPath)
+    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
+    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostClassificationModel").getPath,
+      nativeDeprecatedModelPath))
 
-  /** Executes the provided code block and then closes the resource */
-  private def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
-    try {
-      block(r)
-    } finally {
-      r.close()
-    }
+    // json file should be indifferent with ubj file
+    val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
+    model.write.option("format", "json").save(modelJsonPath)
+    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel1.ubj").getPath
+    model.nativeBooster.saveModel(nativeUbjModelPath)
+    assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostClassificationModel").getPath,
+      nativeUbjModelPath))
   }
 
 }

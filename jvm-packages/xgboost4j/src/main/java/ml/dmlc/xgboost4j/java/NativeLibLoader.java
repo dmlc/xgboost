@@ -21,15 +21,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Locale;
-import java.util.Optional;
-import java.util.stream.Stream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import static ml.dmlc.xgboost4j.java.NativeLibLoader.LibraryPathProvider.getLibraryPathFor;
+import static ml.dmlc.xgboost4j.java.NativeLibLoader.LibraryPathProvider.getPropertyNameForLibrary;
 
 /**
  * class to load native library
@@ -39,8 +37,6 @@ import org.apache.commons.logging.LogFactory;
 class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
-  private static Path mappedFilesBaseDir = Paths.get("/proc/self/map_files");
-
   /**
    * Supported OS enum.
    */
@@ -48,7 +44,6 @@ class NativeLibLoader {
     WINDOWS("windows"),
     MACOS("macos"),
     LINUX("linux"),
-    LINUX_MUSL("linux-musl"),
     SOLARIS("solaris");
 
     final String name;
@@ -57,13 +52,10 @@ class NativeLibLoader {
       this.name = name;
     }
 
-    static void setMappedFilesBaseDir(Path baseDir) {
-      mappedFilesBaseDir = baseDir;
-    }
-
     /**
      * Detects the OS using the system properties.
      * Throws IllegalStateException if the OS is not recognized.
+     *
      * @return The OS.
      */
     static OS detectOS() {
@@ -73,44 +65,11 @@ class NativeLibLoader {
       } else if (os.contains("win")) {
         return WINDOWS;
       } else if (os.contains("nux")) {
-        return isMuslBased() ? LINUX_MUSL : LINUX;
+        return LINUX;
       } else if (os.contains("sunos")) {
         return SOLARIS;
       } else {
         throw new IllegalStateException("Unsupported OS:" + os);
-      }
-    }
-
-    /**
-     * Checks if the Linux OS is musl based. For this, we check the memory-mapped
-     * filenames and see if one of those contains the string "musl".
-     *
-     * @return true if the Linux OS is musl based, false otherwise.
-     */
-    static boolean isMuslBased() {
-      try (Stream<Path> dirStream = Files.list(mappedFilesBaseDir)) {
-        Optional<String> muslRelatedMemoryMappedFilename = dirStream
-            .map(OS::toRealPath)
-            .filter(s -> s.toLowerCase().contains("musl"))
-            .findFirst();
-
-        muslRelatedMemoryMappedFilename.ifPresent(muslFilename -> {
-          logger.debug("Assuming that detected Linux OS is musl-based, "
-              + "because a memory-mapped file '" + muslFilename + "' was found.");
-        });
-
-        return muslRelatedMemoryMappedFilename.isPresent();
-      } catch (Exception ignored) {
-        // ignored
-      }
-      return false;
-    }
-
-    private static String toRealPath(Path path) {
-      try {
-        return path.toRealPath().toString();
-      } catch (IOException e) {
-        return "";
       }
     }
 
@@ -149,8 +108,43 @@ class NativeLibLoader {
     }
   }
 
+  /**
+   * Utility class to determine the path of a native library.
+   */
+  static class LibraryPathProvider {
+
+    private static final String nativeResourcePath = "/lib";
+    private static final String customNativeLibraryPathPropertyPrefix = "xgboostruntime.native.";
+
+    static String getPropertyNameForLibrary(String libName) {
+      return customNativeLibraryPathPropertyPrefix + libName;
+    }
+
+    /**
+     * If a library-specific system property is set, this value is
+     * being used without further processing.
+     * Otherwise, the library path depends on the OS and architecture.
+     *
+     * @return path of the native library
+     */
+    static String getLibraryPathFor(OS os, Arch arch, String libName) {
+
+      String libraryPath = System.getProperty(getPropertyNameForLibrary(libName));
+
+      if (libraryPath == null) {
+        libraryPath = nativeResourcePath + "/" +
+                getPlatformFor(os, arch) + "/" +
+                System.mapLibraryName(libName);
+      }
+
+      logger.debug("Using path " + libraryPath + " for library with name " + libName);
+
+      return libraryPath;
+    }
+
+  }
+
   private static boolean initialized = false;
-  private static final String nativeResourcePath = "/lib";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
   /**
@@ -168,16 +162,14 @@ class NativeLibLoader {
     if (!initialized) {
       OS os = OS.detectOS();
       Arch arch = Arch.detectArch();
-      String platform = os.name + "/" + arch.name;
       for (String libName : libNames) {
         try {
-          String libraryPathInJar = nativeResourcePath + "/" +
-              platform + "/" + System.mapLibraryName(libName);
+          String libraryPathInJar = getLibraryPathFor(os, arch, libName);
           loadLibraryFromJar(libraryPathInJar);
         } catch (UnsatisfiedLinkError ule) {
           String failureMessageIncludingOpenMPHint = "Failed to load " + libName + " " +
               "due to missing native dependencies for " +
-              "platform " + platform + ", " +
+              "platform " + getPlatformFor(os, arch) + ", " +
               "this is likely due to a missing OpenMP dependency";
 
           switch (os) {
@@ -194,15 +186,9 @@ class NativeLibLoader {
               logger.error(failureMessageIncludingOpenMPHint);
               logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
                   "manager.");
-              logger.error("Alternatively, your Linux OS is musl-based " +
-                  "but wasn't detected as such.");
-              break;
-            case LINUX_MUSL:
-              logger.error(failureMessageIncludingOpenMPHint);
-              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
-                  "manager.");
-              logger.error("Alternatively, your Linux OS was wrongly detected as musl-based, " +
-                  "although it is not.");
+              logger.error("Alternatively, if your Linux OS is musl-based, you should set " +
+                      "the path for the native library " + libName + " " +
+                      "via the system property " + getPropertyNameForLibrary(libName));
               break;
             case SOLARIS:
               logger.error(failureMessageIncludingOpenMPHint);
@@ -212,7 +198,8 @@ class NativeLibLoader {
           }
           throw ule;
         } catch (IOException ioe) {
-          logger.error("Failed to load " + libName + " library from jar for platform " + platform);
+          logger.error("Failed to load " + libName + " library from jar for platform " +
+                  getPlatformFor(os, arch));
           throw ioe;
         }
       }
@@ -305,6 +292,10 @@ class NativeLibLoader {
     }
 
     return temp.getAbsolutePath();
+  }
+
+  private static String getPlatformFor(OS os, Arch arch) {
+    return os.name + "/" + arch.name;
   }
 
 }

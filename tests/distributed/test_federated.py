@@ -17,7 +17,7 @@ def run_server(port: int, world_size: int) -> None:
                                            CLIENT_CERT)
 
 
-def run_worker(port: int, world_size: int, rank: int) -> None:
+def run_worker(port: int, world_size: int, rank: int, with_gpu: bool) -> None:
     # Always call this before using distributed module
     rabit_env = [
         f'federated_server_address=localhost:{port}',
@@ -34,6 +34,9 @@ def run_worker(port: int, world_size: int, rank: int) -> None:
 
         # Specify parameters via map, definition are same as c++ version
         param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
+        if with_gpu:
+            param['tree_method'] = 'gpu_hist'
+            param['gpu_id'] = rank
 
         # Specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
@@ -49,7 +52,7 @@ def run_worker(port: int, world_size: int, rank: int) -> None:
             xgb.rabit.tracker_print("Finished training\n")
 
 
-def run_test() -> None:
+def run_test(with_gpu: bool = False) -> None:
     port = 9091
     world_size = int(sys.argv[1])
 
@@ -61,7 +64,7 @@ def run_test() -> None:
 
     workers = []
     for rank in range(world_size):
-        worker = multiprocessing.Process(target=run_worker, args=(port, world_size, rank))
+        worker = multiprocessing.Process(target=run_worker, args=(port, world_size, rank, with_gpu))
         workers.append(worker)
         worker.start()
     for worker in workers:
@@ -71,3 +74,4 @@ def run_test() -> None:
 
 if __name__ == '__main__':
     run_test()
+    run_test(with_gpu=True)

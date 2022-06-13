@@ -697,6 +697,29 @@ class WXQuantileSketch :
       public QuantileSketchTemplate<DType, RType, WXQSummary<DType, RType> > {
 };
 
+namespace detail {
+inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
+  std::vector<float> const &group_weights = info.weights_.HostVector();
+  if (group_weights.empty()) {
+    return group_weights;
+  }
+
+  size_t n_samples = info.num_row_;
+  auto const &group_ptr = info.group_ptr_;
+  std::vector<float> results(n_samples);
+  CHECK_GE(group_ptr.size(), 2);
+  CHECK_EQ(group_ptr.back(), n_samples);
+  size_t cur_group = 0;
+  for (size_t i = 0; i < n_samples; ++i) {
+    results[i] = group_weights[cur_group];
+    if (i == group_ptr[cur_group + 1]) {
+      cur_group++;
+    }
+  }
+  return results;
+}
+}  // namespace detail
+
 class HistogramCuts;
 
 /*!
@@ -774,7 +797,7 @@ class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, fl
 
  public:
   HostSketchContainer(int32_t max_bins, MetaInfo const &info, std::vector<size_t> columns_size,
-                      bool use_group, Span<float const> hessian, int32_t n_threads);
+                      bool use_group, int32_t n_threads);
 };
 
 /**
@@ -868,7 +891,7 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
  public:
   explicit SortedSketchContainer(int32_t max_bins, MetaInfo const &info,
                                  std::vector<size_t> columns_size, bool use_group,
-                                 Span<float const> hessian, int32_t n_threads)
+                                 int32_t n_threads)
       : SketchContainerImpl{columns_size, max_bins, info.feature_types.ConstHostSpan(), use_group,
                             n_threads} {
     monitor_.Init(__func__);

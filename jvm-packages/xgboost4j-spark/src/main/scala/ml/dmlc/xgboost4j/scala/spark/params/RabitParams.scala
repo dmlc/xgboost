@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -29,12 +29,14 @@ private[spark] trait RabitParams extends Params {
   final val rabitRingReduceThreshold = new IntParam(this, "rabitRingReduceThreshold",
     "threshold count to enable allreduce/broadcast with ring based topology",
           ParamValidators.gtEq(1))
+  setDefault(rabitRingReduceThreshold, (32 << 10))
 
   final def rabitTimeout: IntParam = new IntParam(this, "rabitTimeout",
   "timeout threshold after rabit observed failures")
+  setDefault(rabitTimeout, -1)
 
   final def rabitConnectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
     "number of retry worker do before fail", ParamValidators.gtEq(1))
+  setDefault(rabitConnectRetry, 5)
 
-  setDefault(rabitRingReduceThreshold -> (32 << 10), rabitConnectRetry -> 5, rabitTimeout -> -1)
 }

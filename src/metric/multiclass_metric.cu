@@ -167,8 +167,7 @@ class MultiClassMetricsReduction {
  */
 template<typename Derived>
 struct EvalMClassBase : public Metric {
-  double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info,
-              bool distributed) override {
+  double Eval(const HostDeviceVector<float> &preds, const MetaInfo &info) override {
     if (info.labels.Size() == 0) {
       CHECK_EQ(preds.Size(), 0);
     } else {
@@ -186,9 +185,7 @@ struct EvalMClassBase : public Metric {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    if (distributed) {
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-    }
+    rabit::Allreduce<rabit::op::Sum>(dat, 2);
     return Derived::GetFinal(dat[0], dat[1]);
   }
   /*!

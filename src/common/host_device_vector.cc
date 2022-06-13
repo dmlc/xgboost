@@ -180,13 +180,16 @@ template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
 template class HostDeviceVector<RegTree::Segment>;
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 /*
  * On OSX:
  *
  * typedef unsigned int         uint32_t;
  * typedef unsigned long long   uint64_t;
  * typedef unsigned long       __darwin_size_t;
+ *
+ * On Emscripten:
+ * typedef unsigned long        size_t;
  */
 template class HostDeviceVector<std::size_t>;
 #endif  // defined(__APPLE__)

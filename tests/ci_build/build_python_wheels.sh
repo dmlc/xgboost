@@ -29,13 +29,15 @@ if [[ "$platform_id" == macosx_* ]]; then
         setup_env_var='CIBW_TARGET_OSX_ARM64=1'  # extra flag to be passed to setup.py
         export PYTHON_CROSSENV=1
         export MACOSX_DEPLOYMENT_TARGET=12.0
-        OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
+        #OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
+        OPENMP_URL="https://xgboost-ci-jenkins-artifacts.s3.us-west-2.amazonaws.com/llvm-openmp-11.1.0-hf3c4609_1-osx-arm64.tar.bz2"
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
         wheel_tag=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
         cpython_ver=37
         export MACOSX_DEPLOYMENT_TARGET=10.13
-        OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
+        #OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
+        OPENMP_URL="https://xgboost-ci-jenkins-artifacts.s3.us-west-2.amazonaws.com/llvm-openmp-11.1.0-hda6cdc1_1-osx-64.tar.bz2"
     else
         echo "Platform not supported: $platform_id"
         exit 3
