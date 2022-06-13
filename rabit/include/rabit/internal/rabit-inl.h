@@ -254,22 +254,6 @@ inline void ReducerAlignImpl(const void *src_, void *dst_,
     freduce(pdst[i], psrc[i]);
   }
 }
-template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)
-inline Reducer<DType, freduce>::Reducer() {
-  // it is safe to directly use handle for aligned data types
-  if (sizeof(DType) == 8 || sizeof(DType) == 4 || sizeof(DType) == 1) {
-    this->handle_.Init(ReducerAlignImpl<DType, freduce>, sizeof(DType));
-  } else {
-    this->handle_.Init(ReducerSafeImpl<DType, freduce>, sizeof(DType));
-  }
-}
-template<typename DType, void (*freduce)(DType &dst, const DType &src)> // NOLINT(*)
-inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
-                                               void (*prepare_fun)(void *arg),
-                                               void *prepare_arg) {
-  handle_.Allreduce(sendrecvbuf, sizeof(DType), count, prepare_fun,
-                    prepare_arg);
-}
 // function to perform reduction for SerializeReducer
 template<typename DType>
 inline void SerializeReducerFuncImpl(const void *src_, void *dst_,
@@ -331,11 +315,6 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
   }
 }
 
-template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)g
-inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
-                                               std::function<void()> prepare_fun) {
-  this->Allreduce(sendrecvbuf, count, InvokeLambda, &prepare_fun);
-}
 template<typename DType>
 inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
                                                size_t max_nbytes, size_t count,

@@ -280,45 +280,6 @@ namespace engine {
 class ReduceHandle;
 }  // namespace engine
 /*!
- * \brief template class to make customized reduce and all reduce easy
- *  Do not use reducer directly in the function you call Finalize,
- *   because the destructor can execute after Finalize
- * \tparam DType data type that to be reduced
- * \tparam freduce the customized reduction function
- *  DType must be a struct, with no pointer
- */
-template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)
-class Reducer {
- public:
-  Reducer();
-  /*!
-   * \brief customized in-place all reduce operation
-   * \param sendrecvbuf the in place send-recv buffer
-   * \param count number of elements to be reduced
-   * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
-   *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
-   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
-   * \param prepare_arg argument used to pass into the lazy preprocessing function
-   */
-  inline void Allreduce(DType *sendrecvbuf, size_t count,
-                        void (*prepare_fun)(void *) = nullptr,
-                        void *prepare_arg = nullptr);
-#if DMLC_USE_CXX11
-  /*!
-   * \brief customized in-place all reduce operation, with lambda function as preprocessor
-   * \param sendrecvbuf pointer to the array of objects to be reduced
-   * \param count number of elements to be reduced
-   * \param prepare_fun lambda function executed to prepare the data, if necessary
-   */
-  inline void Allreduce(DType *sendrecvbuf, size_t count,
-                        std::function<void()> prepare_fun);
-#endif  // DMLC_USE_CXX11
-
- private:
-  /*! \brief function handle to do reduce */
-  engine::ReduceHandle handle_;
-};
-/*!
  * \brief template class to make customized reduce,
  *  this class defines complex reducer handles all the data structure that can be
  *  serialized/deserialized into fixed size buffer

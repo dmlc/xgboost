@@ -101,8 +101,6 @@ class HistMaker: public BaseMaker {
   };
   // workspace of thread
   ThreadWSpace wspace_;
-  // reducer for histogram
-  rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   // set of working features
   std::vector<bst_feature_t> selected_features_;
   // update function implementation
@@ -359,8 +357,8 @@ class CQHistMaker : public HistMaker {
       }
     };
     // sync the histogram
-    this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
-                             this->wspace_.hset[0].data.size(), lazy_get_hist);
+    rabit::Allreduce<rabit::op::Sum>(&dmlc::BeginPtr(this->wspace_.hset[0].data)->sum_grad,
+                                     this->wspace_.hset[0].data.size() * 2, lazy_get_hist);
   }
 
   void ResetPositionAfterSplit(DMatrix *,
