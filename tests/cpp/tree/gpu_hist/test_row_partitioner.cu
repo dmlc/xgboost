@@ -67,13 +67,11 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
     h_batch_info[i] = {segments.at(i), 0};
     total_rows += segments.at(i).Size();
   }
-  dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                h_batch_info.size() * sizeof(PerNodeData<int>),
-                                cudaMemcpyDefault, nullptr));
-  SortPositionBatchUnstable(
-      common::Span<const PerNodeData<int>>(d_batch_info.data().get(), d_batch_info.size()),
-      dh::ToSpan(ridx), dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows,
-      op, nullptr);
+  dh::safe_cuda(cudaMemcpyToSymbolAsync(constant_memory, h_batch_info.data(),
+                                        h_batch_info.size() * sizeof(PerNodeData<int>), 0,
+                                        cudaMemcpyDefault, nullptr));
+  SortPositionBatch<uint32_t, decltype(op), int>(dh::ToSpan(ridx), dh::ToSpan(ridx_tmp),
+                                                 dh::ToSpan(counts), total_rows, op, nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (int i = 0; i < segments.size(); i++) {

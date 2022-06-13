@@ -17,8 +17,8 @@ namespace tree {
   /** \brief Used to demarcate a contiguous set of row indices associated with
  * some tree node. */
 struct Segment {
-  size_t begin{0};
-  size_t end{0};
+  uint32_t begin{0};
+  uint32_t end{0};
 
   Segment() = default;
 
@@ -36,11 +36,13 @@ struct PerNodeData {
   OpDataT data;
 };
 
-template <typename OpDataT>
-__device__ __forceinline__ void AssignBatch(const PerNodeData<OpDataT> *batch_info,
+__constant__ char constant_memory[kMaxUpdatePositionBatchSize * 256];
+
+template <typename BatchIterT>
+__device__ __forceinline__ void AssignBatch(BatchIterT batch_info,
                             std::size_t global_thread_idx, int* batch_idx, std::size_t* item_idx) {
-  std::size_t sum = 0;
-  for (int16_t i = 0; i < kMaxUpdatePositionBatchSize; i++) {
+  uint32_t sum = 0;
+  for (int i = 0; i < kMaxUpdatePositionBatchSize; i++) {
     if (sum + batch_info[i].segment.Size() > global_thread_idx) {
       *batch_idx = i;
       *item_idx = (global_thread_idx - sum) + batch_info[i].segment.begin;
@@ -50,36 +52,6 @@ __device__ __forceinline__ void AssignBatch(const PerNodeData<OpDataT> *batch_in
   }
 }
 
-__forceinline__ __device__ uint32_t __lanemask_lt() { return ((uint32_t)1 << cub::LaneId()) - 1; }
-
-__forceinline__ __device__ uint32_t AtomicIncrement(PartitionCountsT* d_counts, bool go_left,
-                                                int16_t batch_idx) {
-  int mask = __activemask();
-  int leader = __ffs(mask) - 1;
-  uint32_t prefix = __popc(mask & __lanemask_lt());
-  bool group_is_contiguous = __all_sync(mask, batch_idx == __shfl_sync(mask, batch_idx, leader));
-  // If all threads here are working on the same node
-  // we can do a more efficient reduction with warp intrinsics
-  if (group_is_contiguous) {
-    uint32_t ballot = __ballot_sync(mask, go_left);
-    uint32_t global_left_count = 0;
-    uint32_t global_right_count = 0;
-    if (prefix == 0) {
-      global_left_count = atomicAdd(&d_counts->first, __popc(ballot));
-      global_right_count = atomicAdd(&d_counts->second, __popc(mask) - __popc(ballot));
-    }
-    global_left_count = __shfl_sync(mask, global_left_count, leader);
-    global_right_count = __shfl_sync(mask, global_right_count, leader);
-    uint32_t local_left_count = __popc(ballot & __lanemask_lt());
-    uint32_t local_right_count = __popc(mask & __lanemask_lt()) - local_left_count;
-
-    return go_left ? global_left_count + local_left_count : global_right_count + local_right_count;
-
-  } else {
-    auto address = go_left ? &d_counts->first : &d_counts->second;
-    return atomicAdd(address, 1);
-  }
-}
 
 template <typename OpDataT>
 struct SharedStorage {
@@ -87,75 +59,122 @@ struct SharedStorage {
   // Collectively load from global memory into shared memory
   template <int kBlockSize>
   __device__ const PerNodeData<OpDataT>* BlockLoad(
-      const common::Span<const PerNodeData<OpDataT>> d_batch_info) {
-    for (int i = threadIdx.x; i < d_batch_info.size(); i += kBlockSize) {
-      data[i] = d_batch_info.data()[i];
+      const PerNodeData<OpDataT>* d_batch_info) {
+    for (int i = threadIdx.x; i < kMaxUpdatePositionBatchSize; i += kBlockSize) {
+      data[i] = d_batch_info[i];
     }
     __syncthreads();
     return data;
   }
 };
 
-template <int kBlockSize, typename RowIndexT, typename OpT,
-          typename OpDataT>
-__global__ __launch_bounds__(kBlockSize) void SortPositionBatchUnstableKernel(
-    const common::Span<const PerNodeData<OpDataT>> d_batch_info, common::Span<RowIndexT> d_ridx,
-    common::Span<RowIndexT> ridx_tmp, common::Span<PartitionCountsT> counts, OpT op,
-    std::size_t total_rows) {
-  // Initialise shared memory this way to avoid calling constructors
-  __shared__ cub::Uninitialized<SharedStorage<OpDataT>> shared;
-  auto batch_info = shared.Alias().BlockLoad<kBlockSize>(d_batch_info);
-
-  for (std::size_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < total_rows;
-       idx += blockDim.x * gridDim.x) {
-    int batch_idx;
-    std::size_t item_idx;
-    AssignBatch(batch_info, idx, &batch_idx, &item_idx);
-    auto ridx = d_ridx[item_idx];
-    auto op_res = op(ridx, batch_info[batch_idx].data);
-    auto current_num_items = AtomicIncrement(&counts.data()[batch_idx], op_res, batch_idx);
-    auto segment = batch_info[batch_idx].segment;
-    auto destination_address =
-        op_res ? segment.begin + current_num_items : segment.end - current_num_items - 1;
-    ridx_tmp[destination_address] = ridx;
-  }
-}
-
 template <int kBlockSize, typename RowIndexT, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
-    const common::Span<const PerNodeData<OpDataT>> d_batch_info, common::Span<RowIndexT> d_ridx,
-    common::Span<RowIndexT> ridx_tmp,
+    common::Span<RowIndexT> d_ridx, const common::Span<const RowIndexT> ridx_tmp,
     std::size_t total_rows) {
-      
+  // Load this into shared memory
+  // the compiler puts it into registers otherwise
+  // then we get spilling to local memory
+  const PerNodeData<OpDataT>* batch_info =
+      reinterpret_cast<const PerNodeData<OpDataT>*>(constant_memory);
   __shared__ cub::Uninitialized<SharedStorage<OpDataT>> shared;
-  auto batch_info = shared.Alias().BlockLoad<kBlockSize>(d_batch_info);
-  
+  auto s_batch_info = shared.Alias().BlockLoad<kBlockSize>(batch_info);
+
   for (std::size_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < total_rows;
        idx += blockDim.x * gridDim.x) {
     int batch_idx;
     std::size_t item_idx;
-    AssignBatch(batch_info, idx,&batch_idx, &item_idx);
+    AssignBatch(s_batch_info, idx, &batch_idx, &item_idx);
     d_ridx[item_idx] = ridx_tmp[item_idx];
   }
 }
 
+// We can scan over this tuple, where the scan gives us information on how to partition inputs
+// according to the flag
+struct IndexFlagTuple {
+  bst_uint idx;            // The location of the item we are working on in ridx_
+  bst_uint flag_scan;      // This gets populated after scanning
+  int batch_idx;       // Which node in the batch does this item belong to
+  bool flag;               // Result of op (is this item going left?)
+};
+
+struct IndexFlagOp {
+  __device__ IndexFlagTuple operator()(const IndexFlagTuple& a, const IndexFlagTuple& b) const {
+    // Segmented scan - resets if we cross batch boundaries
+    if (a.batch_idx == b.batch_idx) {
+      // Accumulate the flags, everything else stays the same
+      return {b.idx, a.flag_scan + b.flag_scan, b.batch_idx, b.flag};
+    } else {
+      return b;
+    }
+  }
+};
+
+template <typename OpDataT>
+struct WriteResultsFunctor {
+  const bst_uint* ridx_in;
+  bst_uint* ridx_out;
+  PartitionCountsT *counts;
+
+  __device__ IndexFlagTuple operator()(const IndexFlagTuple& x) {
+    std::size_t scatter_address;
+    const PerNodeData<OpDataT>* batch_info =
+        reinterpret_cast<const PerNodeData<OpDataT>*>(constant_memory);
+    const Segment& segment = batch_info[x.batch_idx].segment;
+    if (x.flag) {
+      bst_uint num_previous_flagged = x.flag_scan - 1; // -1 because inclusive scan
+      scatter_address = segment.begin + num_previous_flagged;
+    } else {
+      bst_uint num_previous_unflagged = (x.idx - segment.begin) - x.flag_scan;
+      scatter_address = segment.end - num_previous_unflagged - 1;
+    }
+    ridx_out[scatter_address] = ridx_in[x.idx];
+
+    if (x.idx == (segment.end - 1)) {
+      // Write out counts
+      counts[x.batch_idx] = {x.flag_scan,0};
+    }
+
+    // Discard
+    return {};
+  }
+};
+
 template <typename RowIndexT, typename OpT, typename OpDataT>
-void SortPositionBatchUnstable(const common::Span<const PerNodeData<OpDataT>> batch_info,
-                               common::Span<RowIndexT> ridx, common::Span<RowIndexT> ridx_tmp,
-                               common::Span<PartitionCountsT> d_counts, std::size_t total_rows,
-                               OpT op, cudaStream_t stream) {
-  CHECK_LE(batch_info.size(), kMaxUpdatePositionBatchSize);
+void SortPositionBatch(
+                       common::Span<RowIndexT> ridx, common::Span<RowIndexT> ridx_tmp,
+                       common::Span<PartitionCountsT> d_counts, std::size_t total_rows,
+                       OpT op, cudaStream_t stream) {
+  WriteResultsFunctor<OpDataT> write_results{ridx.data(), ridx_tmp.data(), d_counts.data()};
+
+  auto discard_write_iterator =
+      thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
+  auto counting = thrust::make_counting_iterator(0llu);
+  auto input_iterator =
+      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(size_t idx) {
+        const PerNodeData<OpDataT>* batch_info_itr =
+            reinterpret_cast<const PerNodeData<OpDataT>*>(constant_memory);
+        int batch_idx;
+        std::size_t item_idx;
+        AssignBatch(batch_info_itr, idx, &batch_idx, &item_idx);
+        auto op_res = op(ridx[item_idx], batch_info_itr[batch_idx].data);
+        return IndexFlagTuple{bst_uint(item_idx), op_res, batch_idx, op_res};
+      });
+  size_t temp_bytes = 0;
+  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
+                                 IndexFlagOp(), total_rows, stream);
+  dh::TemporaryArray<int8_t> temp(temp_bytes);
+  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes, input_iterator,
+                                 discard_write_iterator, IndexFlagOp(), total_rows, stream);
+
   constexpr int kBlockSize = 256;
 
   // Value found by experimentation
   const int kItemsThread = 12;
   const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
-  SortPositionBatchUnstableKernel<kBlockSize>
-      <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp,d_counts, op, total_rows);
-
-  SortPositionCopyKernel<kBlockSize>
-      <<<grid_size, kBlockSize, 0, stream>>>(batch_info, ridx, ridx_tmp, total_rows);
+  SortPositionCopyKernel<kBlockSize,RowIndexT,OpDataT>
+      <<<grid_size, kBlockSize, 0, stream>>>(ridx, ridx_tmp,total_rows);
 }
 
 struct NodePositionInfo {
@@ -260,7 +279,6 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), op_data.size());
 
     auto h_batch_info = pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
-    dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
     std::size_t total_rows = 0;
     for (int i = 0; i < nidx.size(); i++) {
@@ -268,17 +286,18 @@ class RowPartitioner {
                          op_data.at(i)};
       total_rows += ridx_segments_.at(nidx.at(i)).segment.Size();
     }
-    dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                  h_batch_info.size() * sizeof(PerNodeData<OpDataT>),
-                                  cudaMemcpyDefault, stream_));
+    static_assert(sizeof(PerNodeData<OpDataT>) * kMaxUpdatePositionBatchSize <=
+                  sizeof(constant_memory));
+    dh::safe_cuda(cudaMemcpyToSymbolAsync(constant_memory, h_batch_info.data(),
+                                          h_batch_info.size() * sizeof(PerNodeData<OpDataT>), 0,
+                                          cudaMemcpyDefault, stream_));
 
     // Temporary arrays
     auto h_counts = pinned_.GetSpan<PartitionCountsT>(nidx.size(), PartitionCountsT{});
     dh::TemporaryArray<PartitionCountsT> d_counts(nidx.size(), PartitionCountsT{});
 
     // Partition the rows according to the operator
-    SortPositionBatchUnstable(common::Span<const PerNodeData<OpDataT>>(
-                                  d_batch_info.data().get(), d_batch_info.size()),
+    SortPositionBatch<RowIndexT,UpdatePositionOpT,OpDataT>(
                               dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_),dh::ToSpan(d_counts),
                               total_rows, op, stream_);
     dh::safe_cuda(
@@ -346,9 +365,8 @@ class RowPartitioner {
       return position;
     };
 
-  constexpr int kBlockSize = 256;
+  constexpr int kBlockSize = 512;
 
-  // Value found by experimentation
   const int kItemsThread = 8;
   const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
   common::Span<const RowIndexT> d_ridx(ridx_.data().get(), ridx_.size());
