@@ -34,7 +34,7 @@ class GHistIndexMatrix {
    * \param prev_sum Total number of entries in previous pages.
    */
   void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft,
-                 bst_bin_t n_total_bins, int32_t n_threads);
+                 size_t rbegin, bst_bin_t n_total_bins, int32_t n_threads);
 
   template <typename Batch, typename BinIdxType, typename GetOffset, typename IsValid>
   void SetIndexData(common::Span<BinIdxType> index_data_span, common::Span<FeatureType const> ft,

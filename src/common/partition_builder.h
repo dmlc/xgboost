@@ -51,13 +51,12 @@ class PartitionBuilder {
   // on comparison of indexes values (idx_span) and split point (split_cond)
   // Handle dense columns
   // Analog of std::stable_partition, but in no-inplace manner
-  template <bool default_left, bool any_missing, typename ColumnType, typename Predicate>
-  inline std::pair<size_t, size_t> PartitionKernel(ColumnType* p_column,
+  template <bool default_left, bool any_missing, typename Predicate>
+  inline std::pair<size_t, size_t> PartitionKernel(std::shared_ptr<const ColumnView> column,
                                                    common::Span<const size_t> row_indices,
                                                    common::Span<size_t> left_part,
                                                    common::Span<size_t> right_part,
                                                    size_t base_rowid, Predicate&& pred) {
-    auto& column = *p_column;
     size_t* p_left_part = left_part.data();
     size_t* p_right_part = right_part.data();
     size_t nleft_elems = 0;
@@ -68,8 +67,8 @@ class PartitionBuilder {
 
     for (size_t i = 0; i < n_samples; ++i) {
       auto rid = p_row_indices[i];
-      const int32_t bin_id = column[rid - base_rowid];
-      if (any_missing && bin_id == ColumnType::kMissingId) {
+      const int32_t bin_id = column->IsMissing(rid) ? Column::kMissingId : column->GetGlobalBinIdx(rid - base_rowid);
+      if (any_missing && bin_id == Column::kMissingId) {
         if (default_left) {
           p_left_part[nleft_elems++] = rid;
         } else {
@@ -144,25 +143,13 @@ class PartitionBuilder {
     };
 
     std::pair<size_t, size_t> child_nodes_sizes;
-    if (column_matrix.GetColumnType(fid) == xgboost::common::kDenseColumn) {
-      auto column = column_matrix.DenseColumn<BinIdxType, any_missing>(fid);
-      if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
-                                                               gmat.base_rowid, pred);
-      } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
-                                                                gmat.base_rowid, pred);
-      }
+    auto column = column_matrix.GetColumnViewList()[fid];
+    if (default_left) {
+      child_nodes_sizes = PartitionKernel<true, any_missing>(column, rid_span, left, right,
+                                                              gmat.base_rowid, pred);
     } else {
-      CHECK_EQ(any_missing, true);
-      auto column = column_matrix.SparseColumn<BinIdxType>(fid, rid_span.front() - gmat.base_rowid);
-      if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
-                                                               gmat.base_rowid, pred);
-      } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
-                                                                gmat.base_rowid, pred);
-      }
+      child_nodes_sizes = PartitionKernel<false, any_missing>(column, rid_span, left, right,
+                                                              gmat.base_rowid, pred);
     }
 
     const size_t n_left  = child_nodes_sizes.first;

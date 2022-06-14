@@ -42,8 +42,11 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
   this->isDense_ = isDense;
   auto ft = p_fmat->Info().feature_types.ConstHostSpan();
 
+  int ibatch = 0;
+  size_t rbegin = 0;
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    this->PushBatch(batch, ft, nbins, n_threads);
+    this->PushBatch(batch, ft, rbegin, nbins, n_threads);
+    rbegin += batch.Size();
   }
   this->columns_ = std::make_unique<common::ColumnMatrix>();
 
@@ -60,16 +63,17 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
 GHistIndexMatrix::~GHistIndexMatrix() = default;
 
 void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureType const> ft,
-                                 bst_bin_t n_total_bins, int32_t n_threads) {
+                                 size_t rbegin, bst_bin_t n_total_bins, int32_t n_threads) {
   auto page = batch.GetView();
   auto it = common::MakeIndexTransformIter([&](size_t ridx) { return page[ridx].size(); });
-  common::PartialSum(n_threads, it, it + page.Size(), static_cast<size_t>(0), row_ptr.begin());
+  size_t prev_sum = *(row_ptr.begin() + rbegin);
+  common::PartialSum(n_threads, it, it + page.Size(), prev_sum, row_ptr.begin() + rbegin);
   // The number of threads is pegged to the batch size. If the OMP block is parallelized
   // on anything other than the batch/block size, it should be reassigned
   const size_t batch_threads =
       std::max(static_cast<size_t>(1), std::min(batch.Size(), static_cast<size_t>(n_threads)));
 
-  const size_t n_index = row_ptr[batch.Size()];  // number of entries in this page
+  const size_t n_index = row_ptr[batch.Size()+ rbegin];  // number of entries in this page
   ResizeIndex(n_index, isDense_);
 
   CHECK_GT(cut.Values().size(), 0U);
@@ -127,7 +131,8 @@ void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType co
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(n_threads * nbins, 0);
 
-  this->PushBatch(batch, ft, nbins, n_threads);
+  size_t rbegin = 0;
+  this->PushBatch(batch, ft, rbegin, nbins, n_threads);
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
     this->columns_->Init(batch, *this, sparse_thresh, n_threads);
