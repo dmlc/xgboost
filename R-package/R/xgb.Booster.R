@@ -168,17 +168,17 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        For single-row predictions on sparse data, it's recommended to use CSR format. If passing
 #'        a sparse vector, it will take it as a row vector.
 #' @param type Type of prediction to make:\itemize{
-#'             \item "link" will return the predicted values according to the objective function being optimized for
+#'             \item "response" will return the predicted values according to the objective function being optimized for
 #'                   (after applying the corresponding link function) - for example, for
 #'                   \code{objective="binary:logistic"}, it will return predicted probabilities, while for
 #'                   \code{objective="reg:squarederror"}, it will return predicted values as no link function is
 #'                   applied to such predictions.
 #'
-#'                   \bold{Note:} \code{"link"} will not output the link-function values for
+#'                   \bold{Note:} \code{"response"} will not output the link-function values for
 #'                   \code{objective="multi:softmax"} (i.e. it will not output predicted probabilities),
 #'                   sticking instead to predicted class. Use \code{objective="multi:softprob"} for obtaining
 #'                   multi-class classification probabilities.
-#'             \item "response" will return the predicted class in classification objectives, and the predicted value
+#'             \item "class" will return the predicted class in classification objectives, and the predicted value
 #'                   in regression and other objectives.
 #'             \item "margin" will return the original untransformed sum of predictions from boosting
 #'                   iterations' results. E.g., setting \code{type="margin"} for logistic regression
@@ -190,7 +190,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'                   predictions (see Details).
 #'             }
 #'
-#'             Note that, when using custom objective functions, "link" and "response" will default to "raw".
+#'             Note that, when using custom objective functions, "response" and "class" will default to "margin".
 #' @param missing Missing is only used when input is dense matrix. Pick a float value that represents
 #'        missing values in data (e.g., sometimes 0 or some other extreme value is used).
 #' @param ntreelimit Deprecated, use \code{iterationrange} instead.
@@ -257,8 +257,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' such an array.
 #'
 #' When \code{strict_shape} is set to \code{TRUE}, the output is always a matrix.  For
-#' normal prediction (\code{type="link"}), the output is a 2-dimension matrix with dimensions
-#' \code{(num_class, nrow(newdata))}, while for \code{type="response"} it reduces to \code{(1, nrow(newdata))}.
+#' normal prediction (\code{type="response"}), the output is a 2-dimension matrix with dimensions
+#' \code{(num_class, nrow(newdata))}, while for \code{type="class"} it reduces to \code{(1, nrow(newdata))}.
 #'
 #' For \code{type="contrib"}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
 #' For \code{type="interaction"}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
@@ -344,7 +344,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @rdname predict.xgb.Booster
 #' @export
 predict.xgb.Booster <- function(object, newdata,
-                                type = c("link", "response", "margin", "leaf", "contrib", "interaction"),
+                                type = c("response", "class", "margin", "leaf", "contrib", "interaction"),
                                 missing = NA, ntreelimit = NULL, approxcontrib = FALSE, reshape = FALSE,
                                 training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
@@ -398,7 +398,7 @@ predict.xgb.Booster <- function(object, newdata,
   if (length(list(...))) {
     extra_args <- list(...)
     extra_argnames <- names(extra_args)
-    is_default_type <- head(type, 1) == "link"
+    is_default_type <- head(type, 1) == "response"
 
     old_args_for_type <- list(
       "outputmargin" = "margin",
@@ -433,8 +433,8 @@ predict.xgb.Booster <- function(object, newdata,
   predleaf <- FALSE
   predcontrib <- FALSE
   predinteraction <- FALSE
-  predresponse <- FALSE
-  if (type != "link") {
+  predclass <- FALSE
+  if (type != "response") {
     if (type == "margin") {
       args$type <- set_type(1)
     }
@@ -449,7 +449,7 @@ predict.xgb.Booster <- function(object, newdata,
     else if (type == "leaf") {
       args$type <- set_type(6)
       predleaf <- TRUE
-    } else if (type == "response") {
+    } else if (type == "class") {
       objective <- object$params$objective
       if (is.null(objective)) {
         bst_params <- jsonlite::fromJSON(xgb.config(object))
@@ -462,7 +462,7 @@ predict.xgb.Booster <- function(object, newdata,
         "multi:softprob"
       )
       if (objective %in% objectives_w_response) {
-        predresponse <- TRUE
+        predclass <- TRUE
       }
     } else {
       stop("Invalid prediction type.")
@@ -493,7 +493,7 @@ predict.xgb.Booster <- function(object, newdata,
   } else if (predinteraction) {
     dimnames(arr) <- list(cnames, cnames, NULL, NULL)
   }
-  if (strict_shape && !(predresponse && n_groups != 1)) {
+  if (strict_shape && !(predclass && n_groups != 1)) {
     return(arr) # strict shape is calculated by libxgboost uniformly.
   }
 
@@ -533,9 +533,9 @@ predict.xgb.Booster <- function(object, newdata,
   } else {
     ## Normal prediction
     ## Note: this will need to be updated if something like multi-task regression is added
-    if ((reshape && n_groups != 1) || predresponse) {
+    if ((reshape && n_groups != 1) || predclass) {
       arr <- matrix(arr, ncol = n_groups, byrow = TRUE)
-      if (predresponse) {
+      if (predclass) {
         if (n_groups == 1) {
           arr <- as.numeric(arr >= 0.5)
         } else {

@@ -416,7 +416,7 @@ test_that("strict_shape works", {
     contri <- predict(bst, X, type = "contrib", strict_shape = TRUE)
     interact <- predict(bst, X, type = "interaction", strict_shape = TRUE)
     leaf <- predict(bst, X, type = "leaf", strict_shape = TRUE)
-    response <- predict(bst, X, type = "response", strict_shape = TRUE)
+    classpred <- predict(bst, X, type = "class", strict_shape = TRUE)
 
     n_rows <- nrow(X)
     n_cols <- ncol(X)
@@ -426,7 +426,7 @@ test_that("strict_shape works", {
     expect_equal(dim(contri), c(n_cols + 1, n_groups, n_rows))
     expect_equal(dim(interact), c(n_cols + 1, n_cols + 1, n_groups, n_rows))
     expect_equal(dim(leaf), c(1, n_groups, n_rounds, n_rows))
-    expect_equal(dim(response), c(1L, n_rows))
+    expect_equal(dim(classpred), c(1L, n_rows))
 
     if (n_groups != 1) {
       for (g in seq_len(n_groups)) {
@@ -478,19 +478,19 @@ test_that("'predict' accepts CSR data", {
   expect_equal(p_csc, p_spv)
 })
 
-test_that("'predict' with 'type=response' returns correct outputs", {
+test_that("'predict' with 'type=class' returns correct outputs", {
   X <- agaricus.train$data
   y <- agaricus.train$label
   bst_classif <- xgboost(data = X, label = y, objective = "binary:logistic",
                          nrounds = 5L, verbose = FALSE)
-  pred <- predict(bst_classif, X, type = "response")
+  pred <- predict(bst_classif, X, type = "class")
   expect_true(is.vector(pred))
   expect_equal(length(pred), nrow(X))
   expect_true(all(pred %in% c(0, 1)))
 
   bst_regr <- xgboost(data = X, label = y, objective = "reg:squarederror",
                       nrounds = 5L, verbose = FALSE)
-  pred <- predict(bst_regr, X, type = "response")
+  pred <- predict(bst_regr, X, type = "class")
   expect_true(is.vector(pred))
   expect_equal(length(pred), nrow(X))
   expect_true(all(!(pred %in% c(0, 1))))
@@ -499,7 +499,7 @@ test_that("'predict' with 'type=response' returns correct outputs", {
   y <- as.numeric(iris$Species) - 1
   bst_multi <- xgboost(data = X, label = y, objective = "multi:softprob",
                        nrounds = 5L, verbose = FALSE, num_class = 3L)
-  pred <- predict(bst_multi, X, type = "response")
+  pred <- predict(bst_multi, X, type = "class")
   expect_true(is.vector(pred))
   expect_equal(length(pred), nrow(X))
   expect_true(all(pred %in% c(0, 1, 2)))

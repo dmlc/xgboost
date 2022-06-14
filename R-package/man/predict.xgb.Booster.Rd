@@ -8,7 +8,7 @@
 \method{predict}{xgb.Booster}(
   object,
   newdata,
-  type = c("link", "response", "margin", "leaf", "contrib", "interaction"),
+  type = c("response", "class", "margin", "leaf", "contrib", "interaction"),
   missing = NA,
   ntreelimit = NULL,
   approxcontrib = FALSE,
@@ -31,17 +31,17 @@
        a sparse vector, it will take it as a row vector.}
 
 \item{type}{Type of prediction to make:\itemize{
-            \item "link" will return the predicted values according to the objective function being optimized for
+            \item "response" will return the predicted values according to the objective function being optimized for
                   (after applying the corresponding link function) - for example, for
                   \code{objective="binary:logistic"}, it will return predicted probabilities, while for
                   \code{objective="reg:squarederror"}, it will return predicted values as no link function is
                   applied to such predictions.
 
-                  \bold{Note:} \code{"link"} will not output the link-function values for
+                  \bold{Note:} \code{"response"} will not output the link-function values for
                   \code{objective="multi:softmax"} (i.e. it will not output predicted probabilities),
                   sticking instead to predicted class. Use \code{objective="multi:softprob"} for obtaining
                   multi-class classification probabilities.
-            \item "response" will return the predicted class in classification objectives, and the predicted value
+            \item "class" will return the predicted class in classification objectives, and the predicted value
                   in regression and other objectives.
             \item "margin" will return the original untransformed sum of predictions from boosting
                   iterations' results. E.g., setting \code{type="margin"} for logistic regression
@@ -53,7 +53,7 @@
                   predictions (see Details).
             }
 
-            Note that, when using custom objective functions, "link" and "response" will default to "raw".}
+            Note that, when using custom objective functions, "response" and "class" will default to "margin".}
 
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
@@ -105,8 +105,8 @@ For a multiclass case, a list of \code{num_class} elements is returned, where ea
 such an array.
 
 When \code{strict_shape} is set to \code{TRUE}, the output is always a matrix.  For
-normal prediction (\code{type="link"}), the output is a 2-dimension matrix with dimensions
-\code{(num_class, nrow(newdata))}, while for \code{type="response"} it reduces to \code{(1, nrow(newdata))}.
+normal prediction (\code{type="response"}), the output is a 2-dimension matrix with dimensions
+\code{(num_class, nrow(newdata))}, while for \code{type="class"} it reduces to \code{(1, nrow(newdata))}.
 
 For \code{type="contrib"}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
 For \code{type="interaction"}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
