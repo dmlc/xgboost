@@ -5,8 +5,8 @@
  * \author Philip Cho
  */
 
-#ifndef XGBOOST_COMMON_COLUMN_MATRIX
-#define XGBOOST_COMMON_COLUMN_MATRIX
+#ifndef XGBOOST_COMMON_COLUMN_MATRIX_H_
+#define XGBOOST_COMMON_COLUMN_MATRIX_H_
 
 #include <dmlc/endian.h>
 
@@ -583,4 +583,4 @@ class ColumnMatrix {
 };
 }  // namespace common
 }  // namespace xgboost
-#endif  // XGBOOST_COMMON_COLUMN_MATRIX
+#endif  // XGBOOST_COMMON_COLUMN_MATRIX_H_"
