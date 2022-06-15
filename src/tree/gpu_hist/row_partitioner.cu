@@ -1,10 +1,12 @@
 /*!
- * Copyright 2017-2021 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/sequence.h>
+
 #include <vector>
+
 #include "../../common/device_helpers.cuh"
 #include "row_partitioner.cuh"
 
@@ -24,14 +26,8 @@ RowPartitioner::~RowPartitioner() {
   dh::safe_cuda(cudaStreamDestroy(stream_));
 }
 
-common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
-    bst_node_t nidx) {
+common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t nidx) {
   auto segment = ridx_segments_.at(nidx).segment;
-  // Return empty span here as a valid result
-  // Will error if we try to construct a span from a pointer with size 0
-  if (segment.Size() == 0) {
-    return {};
-  }
   return dh::ToSpan(ridx_).subspan(segment.begin, segment.Size());
 }
 
@@ -39,8 +35,7 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
   return dh::ToSpan(ridx_);
 }
 
-std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(
-    bst_node_t nidx) {
+std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(bst_node_t nidx) {
   auto span = GetRows(nidx);
   std::vector<RowIndexT> rows(span.size());
   dh::CopyDeviceSpanToVector(&rows, span);

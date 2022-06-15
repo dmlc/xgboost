@@ -55,7 +55,7 @@ TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
   thrust::device_vector<uint32_t> ridx = ridx_in;
   thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());
-  thrust::device_vector<PartitionCountsT> counts(segments.size());
+  thrust::device_vector<bst_uint> counts(segments.size());
 
   auto op = [=] __device__(auto ridx, int data) { return ridx % 2 == 0; };
   std::vector<int> op_data(segments.size());
@@ -77,12 +77,12 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   for (int i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
-    PartitionCountsT count = counts[i];
+    bst_uint count = counts[i];
     auto left_partition_count =
-        thrust::count_if(thrust::device, begin, begin + count.first, op_without_data);
-    EXPECT_EQ(left_partition_count, count.first);
+        thrust::count_if(thrust::device, begin, begin + count, op_without_data);
+    EXPECT_EQ(left_partition_count, count);
     auto right_partition_count =
-        thrust::count_if(thrust::device, begin + count.first, end, op_without_data);
+        thrust::count_if(thrust::device, begin + count, end, op_without_data);
     EXPECT_EQ(right_partition_count, 0);
   }
 }

@@ -378,7 +378,7 @@ struct GPUHistMakerDevice {
       nidx.at(i) = e.nid;
       left_nidx.at(i) = split_node.LeftChild();
       right_nidx.at(i) = split_node.RightChild();
-      split_data.at(i) = NodeSplitData{ split_node, split_type, e.split.split_cats };
+      split_data.at(i) = NodeSplitData{split_node, split_type, e.split.split_cats};
     }
 
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
@@ -401,7 +401,6 @@ struct GPUHistMakerDevice {
           }
           return go_left;
         });
-    
   }
 
   // After tree update is finished, update the position of all training
@@ -459,7 +458,7 @@ struct GPUHistMakerDevice {
     auto new_position_op = [=] __device__(size_t row_id, int position) {
       // What happens if user prune the tree?
       if (!d_matrix.IsInRange(row_id)) {
-        return -1;
+        return RowPartitioner::kIgnoredTreePosition;
       }
       auto node = d_nodes[position];
 
@@ -483,7 +482,7 @@ struct GPUHistMakerDevice {
             position = node.RightChild();
           }
         }
-        
+
         node = d_nodes[position];
       }
 
@@ -502,17 +501,15 @@ struct GPUHistMakerDevice {
     });
   }
 
-  bool UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
+  void UpdatePredictionCache(linalg::VectorView<float> out_preds_d, RegTree const* p_tree) {
     CHECK(p_tree);
     dh::safe_cuda(cudaSetDevice(ctx_->gpu_id));
     CHECK_EQ(out_preds_d.DeviceIdx(), ctx_->gpu_id);
     auto d_update_predictions = dh::ToSpan(update_predictions);
-    if (d_update_predictions.empty()) return false;
     CHECK_EQ(out_preds_d.Size(), d_update_predictions.size());
     dh::LaunchN(out_preds_d.Size(), [=] XGBOOST_DEVICE(size_t idx) mutable {
       out_preds_d(idx) += d_update_predictions[idx];
     });
-    return true;
   }
 
   // num histograms is the number of contiguous histograms in memory to reduce over
@@ -844,9 +841,9 @@ class GPUHistMaker : public TreeUpdater {
       return false;
     }
     monitor_.Start("UpdatePredictionCache");
-    auto result = maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
+    maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
     monitor_.Stop("UpdatePredictionCache");
-    return result;
+    return true;
   }
 
   TrainParam param_;  // NOLINT
