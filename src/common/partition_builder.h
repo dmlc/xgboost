@@ -65,10 +65,11 @@ class PartitionBuilder {
     auto p_row_indices = row_indices.data();
     auto n_samples = row_indices.size();
 
+    const uint32_t first_row_id = n_samples > 0 ? p_row_indices[0] : 0;
+    size_t state = column->GetInitialState(first_row_id);
     for (size_t i = 0; i < n_samples; ++i) {
       auto rid = p_row_indices[i];
-      const int32_t bin_id = column->IsMissing(rid) ? Column::kMissingId : 
-                                                      column->GetGlobalBinIdx(rid - base_rowid);
+      const int32_t bin_id = column->template GetBinId<int32_t> (rid - base_rowid, &state);
       if (any_missing && bin_id == Column::kMissingId) {
         if (default_left) {
           p_left_part[nleft_elems++] = rid;

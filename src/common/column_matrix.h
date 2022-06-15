@@ -112,6 +112,27 @@ class SparseColumn: public Column {
     }
   }
 
+  /*
+   * Additional method for maintaining the backward compatibility 
+   * with the non-optimized partition builder
+   * TODO: Delete after the optimizied partition builder will be implemented
+   */
+  template <typename CastType = Column::BinCmpType>
+  CastType GetBinId(size_t rid, size_t* state) const {
+    const size_t column_size = this->Size();
+    if (!((*state) < column_size)) {
+      return static_cast<CastType>(this->kMissingId);
+    }
+    while ((*state) < column_size && GetRowIdx(*state) < rid) {
+      ++(*state);
+    }
+    if (((*state) < column_size) && GetRowIdx(*state) == rid) {
+      return static_cast<CastType>(this->GetGlobalBinIdx(*state));
+    } else {
+      return static_cast<CastType>(this->kMissingId);
+    }
+  }
+
   size_t GetInitialState(const size_t first_row_id) const {
     const size_t* row_data = GetRowData();
     const size_t column_size = this->Size();
@@ -150,6 +171,19 @@ class DenseColumn: public Column {
               (any_missing_ && IsMissing(idx))
               ? this->kMissingId
               : this->GetFeatureBinIdx<BinIdxType>(idx));
+  }
+
+  /*
+   * Additional method for maintaining the backward compatibility 
+   * with the non-optimized partition builder
+   * TODO: Delete after the optimizied partition builder will be implemented
+   */
+  template <typename CastType = Column::BinCmpType>
+  CastType GetBinId(size_t idx, size_t* state) const {
+    return static_cast<CastType>(
+              (any_missing_ && IsMissing(idx))
+              ? this->kMissingId
+              : this->GetGlobalBinIdx(idx));
   }
 
   size_t GetInitialState(const size_t first_row_id) const { return 0; }
@@ -214,6 +248,17 @@ class ColumnView final {
   CastType GetBinIdx(size_t rid, size_t* state) const {
     return sparse_clmn_ptr_ ? sparse_clmn_ptr_->GetBinIdx<BinIdxType, CastType>(rid, state)
                             : dense_clmn_ptr_->GetBinIdx<BinIdxType, CastType>(rid, state);
+  }
+
+  /*
+   * Additional method for maintaining the backward compatibility 
+   * with the non-optimized partition builder
+   * TODO: Delete after the optimizied partition builder will be implemented
+   */
+  template <typename CastType = Column::BinCmpType>
+  CastType GetBinId(size_t rid, size_t* state) const {
+    return sparse_clmn_ptr_ ? sparse_clmn_ptr_->GetBinId<CastType>(rid, state)
+                            : dense_clmn_ptr_->GetBinId<CastType>(rid, state);
   }
 
   size_t GetInitialState(const size_t first_row_id) const {
