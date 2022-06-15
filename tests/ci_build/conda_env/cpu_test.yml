@@ -41,4 +41,4 @@ dependencies:
   - ipython                     # required by shap at import time.
   - sphinx_rtd_theme
   - datatable
-  - modin[all]
+  - # modin[all] disabled due to error.
