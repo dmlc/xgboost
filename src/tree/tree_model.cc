@@ -354,10 +354,10 @@ class TextGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
-.describe("Dump text representation of tree")
-.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new TextGenerator(fmap, with_stats);
-          });
+    .describe("Dump text representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& /*attrs*/, bool with_stats) {
+      return new TextGenerator(fmap, with_stats);
+    });
 
 class JsonGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
@@ -510,10 +510,10 @@ class JsonGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
-.describe("Dump json representation of tree")
-.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new JsonGenerator(fmap, with_stats);
-          });
+    .describe("Dump json representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& /*attrs*/, bool with_stats) {
+      return new JsonGenerator(fmap, with_stats);
+    });
 
 struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
   std::string yes_color;
@@ -622,7 +622,8 @@ class GraphvizGenerator : public TreeGenerator {
     // Is this the default child for missing value?
     bool is_missing = tree[nid].DefaultChild() == child;
     std::string branch;
-    if (is_categorical) {
+    auto split = tree[nid].SplitIndex();
+    if (is_categorical || fmap_.TypeOf(split) == FeatureMap::kIndicator) {
       branch = std::string{left ? "no" : "yes"} + std::string{is_missing ? ", missing" : ""};
     } else {
       branch = std::string{left ? "yes" : "no"} + std::string{is_missing ? ", missing" : ""};
@@ -639,6 +640,7 @@ class GraphvizGenerator : public TreeGenerator {
   // Only indicator is different, so we combine all different node types into this
   // function.
   std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t) const override {
+    std::cout << "graphviz plain node" << std::endl;
     auto split = tree[nid].SplitIndex();
     auto cond = tree[nid].SplitCond();
     static std::string const kNodeTemplate =
@@ -722,10 +724,10 @@ class GraphvizGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
-.describe("Dump graphviz representation of tree")
-.set_body([](FeatureMap const& fmap, std::string attrs, bool with_stats) {
-            return new GraphvizGenerator(fmap, attrs, with_stats);
-          });
+    .describe("Dump graphviz representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
+      return new GraphvizGenerator(fmap, attrs, with_stats);
+    });
 
 constexpr bst_node_t RegTree::kRoot;
 
