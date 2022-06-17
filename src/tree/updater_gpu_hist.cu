@@ -413,11 +413,6 @@ struct GPUHistMakerDevice {
       LOG(FATAL) << "Current objective function can not be used with subsampled external memory.";
     }
 
-    // External memory will not use prediction cache
-    if (!p_fmat->SingleColBlock()) {
-      return;
-    }
-
     dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
     dh::safe_cuda(cudaMemcpyAsync(d_nodes.data().get(), p_tree->GetNodes().data(),
                                   d_nodes.size() * sizeof(RegTree::Node),
@@ -436,9 +431,25 @@ struct GPUHistMakerDevice {
       dh::CopyToD(categories_segments, &d_categories_segments);
     }
 
-    FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments), task,
-                           p_out_position);
+    if (row_partitioner->GetRows().size() != p_fmat->Info().num_row_) {
+      row_partitioner.reset();  // Release the device memory first before reallocating
+      row_partitioner.reset(new RowPartitioner(ctx_->gpu_id, p_fmat->Info().num_row_));
+    }
+    if (task.UpdateTreeLeaf() && !p_fmat->SingleColBlock() && param.subsample != 1.0) {
+      // see comment in the `FinalisePositionInPage`.
+      LOG(FATAL) << "Current objective function can not be used with subsampled external memory.";
+    }
+    if (page->n_rows == p_fmat->Info().num_row_) {
+      FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+                             dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments),
+                             p_out_position);
+    } else {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
+        FinalisePositionInPage(batch.Impl(), dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
+                               dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments),
+                               p_out_position);
+      }
+    }
   }
 
   void FinalisePositionInPage(EllpackPageImpl const *page,
@@ -446,7 +457,6 @@ struct GPUHistMakerDevice {
                               common::Span<FeatureType const> d_feature_types,
                               common::Span<uint32_t const> categories,
                               common::Span<RegTree::Segment> categories_segments,
-                              ObjInfo task,
                               HostDeviceVector<bst_node_t>* p_out_position) {
     auto d_matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     auto d_gpair = this->gpair;
