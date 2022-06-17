@@ -183,20 +183,6 @@ private[spark] trait BoosterParams extends Params {
   final def getSinglePrecisionHistogram: Boolean = $(singlePrecisionHistogram)
 
   /**
-   * This is only used for approximate greedy algorithm.
-   * This roughly translated into O(1 / sketch_eps) number of bins. Compared to directly select
-   * number of bins, this comes with theoretical guarantee with sketch accuracy.
-   * [default=0.03] range: (0, 1)
-   */
-  final val sketchEps = new DoubleParam(this, "sketchEps",
-    "This is only used for approximate greedy algorithm. This roughly translated into" +
-      " O(1 / sketch_eps) number of bins. Compared to directly select number of bins, this comes" +
-      " with theoretical guarantee with sketch accuracy.",
-    (value: Double) => value < 1 && value > 0)
-
-  final def getSketchEps: Double = $(sketchEps)
-
-  /**
    * Control the balance of positive and negative weights, useful for unbalanced classes. A typical
    * value to consider: sum(negative cases) / sum(positive cases).   [default=1]
    */
