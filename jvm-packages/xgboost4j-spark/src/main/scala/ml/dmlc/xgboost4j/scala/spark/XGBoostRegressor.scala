@@ -102,8 +102,6 @@ class XGBoostRegressor (
 
   def setMaxLeaves(value: Int): this.type = set(maxLeaves, value)
 
-  def setSketchEps(value: Double): this.type = set(sketchEps, value)
-
   def setScalePosWeight(value: Double): this.type = set(scalePosWeight, value)
 
   def setSampleType(value: String): this.type = set(sampleType, value)
