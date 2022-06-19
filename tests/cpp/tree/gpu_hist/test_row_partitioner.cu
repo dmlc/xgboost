@@ -70,8 +70,9 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::safe_cuda(cudaMemcpyToSymbolAsync(constant_memory, h_batch_info.data(),
                                         h_batch_info.size() * sizeof(PerNodeData<int>), 0,
                                         cudaMemcpyDefault, nullptr));
+  dh::device_vector<int8_t> tmp;
   SortPositionBatch<uint32_t, decltype(op), int>(dh::ToSpan(ridx), dh::ToSpan(ridx_tmp),
-                                                 dh::ToSpan(counts), total_rows, op, nullptr);
+                                                 dh::ToSpan(counts), total_rows, op, &tmp,nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (int i = 0; i < segments.size(); i++) {

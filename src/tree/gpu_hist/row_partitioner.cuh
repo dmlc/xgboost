@@ -140,7 +140,7 @@ struct WriteResultsFunctor {
 template <typename RowIndexT, typename OpT, typename OpDataT>
 void SortPositionBatch(common::Span<RowIndexT> ridx, common::Span<RowIndexT> ridx_tmp,
                        common::Span<bst_uint> d_counts, std::size_t total_rows, OpT op,
-                       cudaStream_t stream) {
+                       dh::device_vector<int8_t>* tmp, cudaStream_t stream) {
   WriteResultsFunctor<OpDataT> write_results{ridx.data(), ridx_tmp.data(), d_counts.data()};
 
   auto discard_write_iterator =
@@ -157,10 +157,13 @@ void SortPositionBatch(common::Span<RowIndexT> ridx, common::Span<RowIndexT> rid
         return IndexFlagTuple{bst_uint(item_idx), op_res, batch_idx, op_res};
       });
   size_t temp_bytes = 0;
-  cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
-                                 IndexFlagOp(), total_rows, stream);
-  dh::TemporaryArray<int8_t> temp(temp_bytes);
-  cub::DeviceScan::InclusiveScan(temp.data().get(), temp_bytes, input_iterator,
+  if (tmp->empty()) {
+    cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
+                                   IndexFlagOp(), total_rows, stream);
+    tmp->resize(temp_bytes);
+  }
+  temp_bytes = tmp->size();
+  cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
                                  discard_write_iterator, IndexFlagOp(), total_rows, stream);
 
   constexpr int kBlockSize = 256;
@@ -239,6 +242,8 @@ class RowPartitioner {
   dh::TemporaryArray<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
+  dh::TemporaryArray<bst_uint> d_counts;
+  dh::device_vector<int8_t> tmp;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
   cudaStream_t stream_;
@@ -303,13 +308,13 @@ class RowPartitioner {
 
     // Temporary arrays
     auto h_counts = pinned_.GetSpan<bst_uint>(nidx.size(), 0);
-    dh::TemporaryArray<bst_uint> d_counts(nidx.size(), 0);
 
     // Partition the rows according to the operator
     SortPositionBatch<RowIndexT, UpdatePositionOpT, OpDataT>(
-        dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts), total_rows, op, stream_);
+        dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts), total_rows, op, &tmp,
+        stream_);
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(),
-                                  sizeof(decltype(d_counts)::value_type) * d_counts.size(),
+                                  sizeof(decltype(d_counts)::value_type) * h_counts.size(),
                                   cudaMemcpyDefault, stream_));
     // TODO(Rory): this synchronisation hurts performance a lot
     // Future optimisation should find a way to skip this
