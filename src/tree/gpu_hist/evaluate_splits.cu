@@ -78,16 +78,16 @@ ReduceFeature(common::Span<const GradientSumT> feature_histogram,
 template <int BLOCK_THREADS, typename ReduceT, typename ScanT, typename MaxReduceT,
           typename TempStorageT, typename GradientSumT, SplitType type>
 __device__ void EvaluateFeature(
-    int fidx, EvaluateSplitInputs<GradientSumT> inputs,
+    int fidx, const EvaluateSplitInputs &inputs,const EvaluateSplitSharedInputs &shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<bst_feature_t> sorted_idx, size_t offset,
     DeviceSplitCandidate *best_split,  // shared memory storing best split
     TempStorageT *temp_storage         // temp memory for cub operations
 ) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
-  uint32_t gidx_begin = inputs.feature_segments[fidx];  // beginning bin
+  uint32_t gidx_begin = shared_inputs.feature_segments[fidx];  // beginning bin
   uint32_t gidx_end =
-      inputs.feature_segments[fidx + 1];  // end bin for i^th feature
+      shared_inputs.feature_segments[fidx + 1];  // end bin for i^th feature
   auto feature_hist = inputs.gradient_histogram.subspan(gidx_begin, gidx_end - gidx_begin);
 
   // Sum histogram bins for current feature
@@ -133,7 +133,7 @@ __device__ void EvaluateFeature(
     bool missing_left = true;
     float gain = null_gain;
     if (thread_active) {
-      gain = LossChangeMissing(GradientPairPrecise{bin}, missing, inputs.parent_sum, inputs.param,
+      gain = LossChangeMissing(GradientPairPrecise{bin}, missing, inputs.parent_sum, shared_inputs.param,
                                inputs.nidx, fidx, evaluator, missing_left);
     }
 
@@ -156,40 +156,40 @@ __device__ void EvaluateFeature(
       switch (type) {
         case kNum: {
           // Use pointer from cut to indicate begin and end of bins for each feature.
-          uint32_t gidx_begin = inputs.feature_segments[fidx];  // beginning bin
+          uint32_t gidx_begin = shared_inputs.feature_segments[fidx];  // beginning bin
           int split_gidx = (scan_begin + threadIdx.x) - 1;
           float fvalue;
           if (split_gidx < static_cast<int>(gidx_begin)) {
-            fvalue = inputs.min_fvalue[fidx];
+            fvalue = shared_inputs.min_fvalue[fidx];
           } else {
-            fvalue = inputs.feature_values[split_gidx];
+            fvalue = shared_inputs.feature_values[split_gidx];
           }
           GradientPairPrecise left =
               missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
           GradientPairPrecise right = inputs.parent_sum - left;
           best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
-                             false, inputs.param);
+                             false, shared_inputs.param);
           break;
         }
         case kOneHot: {
           int32_t split_gidx = (scan_begin + threadIdx.x);
-          float fvalue = inputs.feature_values[split_gidx];
+          float fvalue = shared_inputs.feature_values[split_gidx];
           GradientPairPrecise left =
               missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
           GradientPairPrecise right = inputs.parent_sum - left;
           best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
-                             true, inputs.param);
+                             true, shared_inputs.param);
           break;
         }
         case kPart: {
           int32_t split_gidx = (scan_begin + threadIdx.x);
-          float fvalue = inputs.feature_values[split_gidx];
+          float fvalue = shared_inputs.feature_values[split_gidx];
           GradientPairPrecise left =
               missing_left ? GradientPairPrecise{bin} + missing : GradientPairPrecise{bin};
           GradientPairPrecise right = inputs.parent_sum - left;
           auto best_thresh = block_max.key;  // index of best threshold inside a feature.
           best_split->Update(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left,
-                             right, true, inputs.param);
+                             right, true, shared_inputs.param);
           break;
         }
       }
@@ -199,8 +199,9 @@ __device__ void EvaluateFeature(
 }
 
 template <int BLOCK_THREADS, typename GradientSumT>
-__global__ void EvaluateSplitsKernel(EvaluateSplitInputs<GradientSumT> left,
-                                     EvaluateSplitInputs<GradientSumT> right,
+__global__ void EvaluateSplitsKernel(EvaluateSplitInputs left,
+                                     EvaluateSplitInputs right,
+                                     const EvaluateSplitSharedInputs shared_inputs,
                                      common::Span<bst_feature_t> sorted_idx,
                                      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                                      common::Span<DeviceSplitCandidate> out_candidates) {
@@ -231,28 +232,28 @@ __global__ void EvaluateSplitsKernel(EvaluateSplitInputs<GradientSumT> left,
 
   // If this block is working on the left or right node
   bool is_left = blockIdx.x < left.feature_set.size();
-  EvaluateSplitInputs<GradientSumT>& inputs = is_left ? left : right;
+  EvaluateSplitInputs& inputs = is_left ? left : right;
 
   // One block for each feature. Features are sampled, so fidx != blockIdx.x
   int fidx = inputs.feature_set[is_left ? blockIdx.x
                                         : blockIdx.x - left.feature_set.size()];
 
-  if (common::IsCat(inputs.feature_types, fidx)) {
-    auto n_bins_in_feat = inputs.feature_segments[fidx + 1] - inputs.feature_segments[fidx];
-    if (common::UseOneHot(n_bins_in_feat, inputs.param.max_cat_to_onehot)) {
+  if (common::IsCat(shared_inputs.feature_types, fidx)) {
+    auto n_bins_in_feat = shared_inputs.feature_segments[fidx + 1] - shared_inputs.feature_segments[fidx];
+    if (common::UseOneHot(n_bins_in_feat, shared_inputs.param.max_cat_to_onehot)) {
       EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT, TempStorage, GradientSumT,
-                      kOneHot>(fidx, inputs, evaluator, sorted_idx, 0, &best_split, &temp_storage);
+                      kOneHot>(fidx, inputs,shared_inputs, evaluator, sorted_idx, 0, &best_split, &temp_storage);
     } else {
-      auto node_sorted_idx = is_left ? sorted_idx.first(inputs.feature_values.size())
-                                     : sorted_idx.last(inputs.feature_values.size());
-      size_t offset = is_left ? 0 : inputs.feature_values.size();
+      auto node_sorted_idx = is_left ? sorted_idx.first(shared_inputs.feature_values.size())
+                                     : sorted_idx.last(shared_inputs.feature_values.size());
+      size_t offset = is_left ? 0 : shared_inputs.feature_values.size();
       EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT, TempStorage, GradientSumT,
-                      kPart>(fidx, inputs, evaluator, node_sorted_idx, offset, &best_split,
+                      kPart>(fidx, inputs,shared_inputs,  evaluator, node_sorted_idx, offset, &best_split,
                              &temp_storage);
     }
   } else {
     EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT, TempStorage, GradientSumT,
-                    kNum>(fidx, inputs, evaluator, sorted_idx, 0, &best_split, &temp_storage);
+                    kNum>(fidx, inputs,shared_inputs,  evaluator, sorted_idx, 0, &best_split, &temp_storage);
   }
 
   cub::CTA_SYNC();
@@ -270,8 +271,7 @@ __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
 /**
  * \brief Set the bits for categorical splits based on the split threshold.
  */
-template <typename GradientSumT>
-__device__ void SetCategoricalSplit(EvaluateSplitInputs<GradientSumT> const &input,
+__device__ void SetCategoricalSplit(EvaluateSplitInputs const &input,const EvaluateSplitSharedInputs &shared_inputs,
                                common::Span<bst_feature_t const> d_sorted_idx, bst_feature_t fidx,
                                bool is_left, common::Span<common::CatBitField::value_type> out,
                                DeviceSplitCandidate *p_out_split) {
@@ -279,18 +279,18 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs<GradientSumT> const &inp
   out_split.split_cats = common::CatBitField{out};
 
   // Simple case for one hot split
-  if (common::UseOneHot(input.FeatureBins(fidx), input.param.max_cat_to_onehot)) {
+  if (common::UseOneHot(shared_inputs.FeatureBins(fidx), shared_inputs.param.max_cat_to_onehot)) {
     out_split.split_cats.Set(common::AsCat(out_split.fvalue));
     return;
   }
 
   auto node_sorted_idx =
-      is_left ? d_sorted_idx.subspan(0, input.feature_values.size())
-              : d_sorted_idx.subspan(input.feature_values.size(), input.feature_values.size());
-  size_t node_offset = is_left ? 0 : input.feature_values.size();
+      is_left ? d_sorted_idx.subspan(0, shared_inputs.feature_values.size())
+              : d_sorted_idx.subspan(shared_inputs.feature_values.size(), shared_inputs.feature_values.size());
+  size_t node_offset = is_left ? 0 : shared_inputs.feature_values.size();
   auto best_thresh = out_split.PopBestThresh();
   auto f_sorted_idx =
-      node_sorted_idx.subspan(input.feature_segments[fidx], input.FeatureBins(fidx));
+      node_sorted_idx.subspan(shared_inputs.feature_segments[fidx], shared_inputs.FeatureBins(fidx));
   if (out_split.dir != kLeftDir) {
     // forward, missing on right
     auto beg = dh::tcbegin(f_sorted_idx);
@@ -299,7 +299,7 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs<GradientSumT> const &inp
     boundary = std::max(boundary, static_cast<size_t>(1ul));
     auto end = beg + boundary;
     thrust::for_each(thrust::seq, beg, end, [&](auto c) {
-      auto cat = input.feature_values[c - node_offset];
+      auto cat = shared_inputs.feature_values[c - node_offset];
       assert(!out_split.split_cats.Check(cat) && "already set");
       out_split.SetCat(cat);
     });
@@ -307,19 +307,19 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs<GradientSumT> const &inp
     assert((f_sorted_idx.size() - best_thresh + 1) != 0 && " == 0");
     thrust::for_each(thrust::seq, dh::tcrbegin(f_sorted_idx),
                      dh::tcrbegin(f_sorted_idx) + (f_sorted_idx.size() - best_thresh), [&](auto c) {
-                       auto cat = input.feature_values[c - node_offset];
+                       auto cat = shared_inputs.feature_values[c - node_offset];
                        out_split.SetCat(cat);
                      });
   }
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
-    EvaluateSplitInputs<GradientSumT> left, EvaluateSplitInputs<GradientSumT> right,
-    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(
+    EvaluateSplitInputs left, EvaluateSplitInputs right,
+    EvaluateSplitSharedInputs shared_inputs, TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
   if (need_sort_histogram_) {
-    this->SortHistogram(left, right, evaluator);
+    this->SortHistogram(left, right, shared_inputs,evaluator);
   }
 
   size_t combined_num_features = left.feature_set.size() + right.feature_set.size();
@@ -328,7 +328,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
   dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
-      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, this->SortedIdx(left),
+      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, shared_inputs, this->SortedIdx(left,shared_inputs),
       evaluator, dh::ToSpan(feature_best_splits));
 
   // Reduce to get best candidate for left and right child over all features
@@ -357,7 +357,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs<GradientSumT> const &input,
+void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs const &input,
                                                 common::Span<CatST> cats_out) {
   if (cats_out.empty()) return;
   dh::CUDAEvent event;
@@ -370,16 +370,17 @@ void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs<GradientSumT
 
 template <typename GradientSumT>
 void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate,
-                                                    EvaluateSplitInputs<GradientSumT> left,
-                                                    EvaluateSplitInputs<GradientSumT> right,
+                                                    EvaluateSplitInputs left,
+                                                    EvaluateSplitInputs right,
+                                                     EvaluateSplitSharedInputs shared_inputs,
                                                     common::Span<GPUExpandEntry> out_entries) {
   auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(2);
   auto out_splits = dh::ToSpan(splits_out_storage);
-  this->EvaluateSplits(left, right, evaluator, out_splits);
+  this->LaunchEvaluateSplits(left, right, shared_inputs,evaluator, out_splits);
 
-  auto d_sorted_idx = this->SortedIdx(left);
+  auto d_sorted_idx = this->SortedIdx(left,shared_inputs);
   auto d_entries = out_entries;
   auto cats_out = this->DeviceCatStorage(left.nidx);
   // turn candidate into entry, along with handling sort based split.
@@ -391,13 +392,13 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate,
     if (split.is_cat) {
       bool is_left = i == 0;
       auto out = is_left ? cats_out.first(cats_out.size() / 2) : cats_out.last(cats_out.size() / 2);
-      SetCategoricalSplit(input, d_sorted_idx, fidx, is_left, out, &out_splits[i]);
+      SetCategoricalSplit(input, shared_inputs,d_sorted_idx, fidx, is_left, out, &out_splits[i]);
     }
 
     float base_weight =
-        evaluator.CalcWeight(input.nidx, input.param, GradStats{split.left_sum + split.right_sum});
-    float left_weight = evaluator.CalcWeight(input.nidx, input.param, GradStats{split.left_sum});
-    float right_weight = evaluator.CalcWeight(input.nidx, input.param, GradStats{split.right_sum});
+        evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.left_sum + split.right_sum});
+    float left_weight = evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.left_sum});
+    float right_weight = evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.right_sum});
 
     d_entries[i] = GPUExpandEntry{input.nidx,  candidate.depth + 1, out_splits[i],
                                   base_weight, left_weight,         right_weight};
@@ -408,14 +409,14 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate,
 
 template <typename GradientSumT>
 GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
-    EvaluateSplitInputs<GradientSumT> input, float weight) {
+    EvaluateSplitInputs input, EvaluateSplitSharedInputs shared_inputs,float weight) {
   dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
   auto out_split = dh::ToSpan(splits_out);
   auto evaluator = tree_evaluator_.GetEvaluator<GPUTrainingParam>();
-  this->EvaluateSplits(input, {}, evaluator, out_split);
+  this->LaunchEvaluateSplits(input, {},shared_inputs, evaluator, out_split);
 
   auto cats_out = this->DeviceCatStorage(input.nidx);
-  auto d_sorted_idx = this->SortedIdx(input);
+  auto d_sorted_idx = this->SortedIdx(input,shared_inputs);
 
   dh::TemporaryArray<GPUExpandEntry> entries(1);
   auto d_entries = entries.data().get();
@@ -424,11 +425,11 @@ GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
     auto fidx = out_split[i].findex;
 
     if (split.is_cat) {
-      SetCategoricalSplit(input, d_sorted_idx, fidx, true, cats_out, &out_split[i]);
+      SetCategoricalSplit(input,shared_inputs,  d_sorted_idx, fidx, true, cats_out, &out_split[i]);
     }
 
-    float left_weight = evaluator.CalcWeight(0, input.param, GradStats{split.left_sum});
-    float right_weight = evaluator.CalcWeight(0, input.param, GradStats{split.right_sum});
+    float left_weight = evaluator.CalcWeight(0, shared_inputs.param, GradStats{split.left_sum});
+    float right_weight = evaluator.CalcWeight(0, shared_inputs.param, GradStats{split.right_sum});
     d_entries[0] = GPUExpandEntry(0, 0, split, weight, left_weight, right_weight);
   });
   this->CopyToHost(input, cats_out);
@@ -439,7 +440,6 @@ GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
   return root_entry;
 }
 
-template class GPUHistEvaluator<GradientPair>;
 template class GPUHistEvaluator<GradientPairPrecise>;
 }  // namespace tree
 }  // namespace xgboost

@@ -69,22 +69,22 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
 
 template <typename GradientSumT>
 common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
-    EvaluateSplitInputs<GradientSumT> const &left, EvaluateSplitInputs<GradientSumT> const &right,
+    EvaluateSplitInputs const &left, EvaluateSplitInputs const &right, EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
-  auto sorted_idx = this->SortedIdx(left);
+  auto sorted_idx = this->SortedIdx(left,shared_inputs);
   dh::Iota(sorted_idx);
-  auto data = this->SortInput(left);
+  auto data = this->SortInput(left,shared_inputs);
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   thrust::transform(thrust::cuda::par(alloc), it, it + data.size(), dh::tbegin(data),
                     [=] XGBOOST_DEVICE(uint32_t i) {
-                      auto is_left = i < left.feature_values.size();
+                      auto is_left = i < shared_inputs.feature_values.size();
                       auto const &input = is_left ? left : right;
-                      auto j = i - (is_left ? 0 : input.feature_values.size());
+                      auto j = i - (is_left ? 0 : shared_inputs.feature_values.size());
                       auto fidx = d_feature_idx[j];
-                      if (common::IsCat(input.feature_types, fidx)) {
-                        auto lw = evaluator.CalcWeightCat(input.param, input.gradient_histogram[j]);
+                      if (common::IsCat(shared_inputs.feature_types, fidx)) {
+                        auto lw = evaluator.CalcWeightCat(shared_inputs.param, input.gradient_histogram[j]);
                         return thrust::make_tuple(i, lw);
                       }
                       return thrust::make_tuple(i, 0.0);
@@ -95,16 +95,15 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
                                auto li = thrust::get<0>(l);
                                auto ri = thrust::get<0>(r);
 
-                               auto l_is_left = li < left.feature_values.size();
-                               auto r_is_left = ri < left.feature_values.size();
+                               auto l_is_left = li < shared_inputs.feature_values.size();
+                               auto r_is_left = ri < shared_inputs.feature_values.size();
 
                                if (l_is_left != r_is_left) {
                                  return l_is_left;  // not the same node
                                }
 
-                               auto const &input = l_is_left ? left : right;
-                               li -= (l_is_left ? 0 : input.feature_values.size());
-                               ri -= (r_is_left ? 0 : input.feature_values.size());
+                               li -= (l_is_left ? 0 : shared_inputs.feature_values.size());
+                               ri -= (r_is_left ? 0 : shared_inputs.feature_values.size());
 
                                auto lfidx = d_feature_idx[li];
                                auto rfidx = d_feature_idx[ri];
@@ -113,7 +112,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
                                  return lfidx < rfidx;  // not the same feature
                                }
 
-                               if (common::IsCat(input.feature_types, lfidx)) {
+                               if (common::IsCat(shared_inputs.feature_types, lfidx)) {
                                  auto lw = thrust::get<1>(l);
                                  auto rw = thrust::get<1>(r);
                                  return lw < rw;

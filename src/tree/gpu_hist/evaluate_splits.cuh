@@ -17,18 +17,22 @@ class HistogramCuts;
 }
 
 namespace tree {
-template <typename GradientSumT>
+
+// Inputs specific to each node
 struct EvaluateSplitInputs {
   int nidx;
   GradientPairPrecise parent_sum;
-  GPUTrainingParam param;
   common::Span<const bst_feature_t> feature_set;
+  common::Span<const GradientPairPrecise> gradient_histogram;
+};
+
+// Inputs necessary for all nodes
+struct EvaluateSplitSharedInputs {
+  GPUTrainingParam param;
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;
   common::Span<const float> min_fvalue;
-  common::Span<const GradientSumT> gradient_histogram;
-
   XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
   __device__ auto FeatureBins(bst_feature_t fidx) const {
     return feature_segments[fidx + 1] - feature_segments[fidx];
@@ -66,7 +70,7 @@ class GPUHistEvaluator {
   std::size_t node_categorical_storage_size_ = 0;
 
   // Copy the categories from device to host asynchronously.
-  void CopyToHost(EvaluateSplitInputs<GradientSumT> const &input, common::Span<CatST> cats_out);
+  void CopyToHost(EvaluateSplitInputs const &input, common::Span<CatST> cats_out);
 
   /**
    * \brief Get host category storage of nidx for internal calculation.
@@ -105,16 +109,16 @@ class GPUHistEvaluator {
   /**
    * \brief Get sorted index storage based on the left node of inputs.
    */
-  auto SortedIdx(EvaluateSplitInputs<GradientSumT> left) {
+  auto SortedIdx(EvaluateSplitInputs left, EvaluateSplitSharedInputs shared_inputs) {
     if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
-      return dh::ToSpan(cat_sorted_idx_).first(left.feature_values.size());
+      return dh::ToSpan(cat_sorted_idx_).first(shared_inputs.feature_values.size());
     }
     return dh::ToSpan(cat_sorted_idx_);
   }
 
-  auto SortInput(EvaluateSplitInputs<GradientSumT> left) {
+  auto SortInput(EvaluateSplitInputs left, EvaluateSplitSharedInputs shared_inputs) {
     if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
-      return dh::ToSpan(sort_input_).first(left.feature_values.size());
+      return dh::ToSpan(sort_input_).first(shared_inputs.feature_values.size());
     }
     return dh::ToSpan(sort_input_);
   }
@@ -155,25 +159,25 @@ class GPUHistEvaluator {
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
   common::Span<bst_feature_t const> SortHistogram(
-      EvaluateSplitInputs<GradientSumT> const &left, EvaluateSplitInputs<GradientSumT> const &right,
+      EvaluateSplitInputs const &left, EvaluateSplitInputs const &right,EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
-  void EvaluateSplits(EvaluateSplitInputs<GradientSumT> left,
-                      EvaluateSplitInputs<GradientSumT> right,
+  void LaunchEvaluateSplits(EvaluateSplitInputs left,
+                      EvaluateSplitInputs right,EvaluateSplitSharedInputs shared_inputs, 
                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                       common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
   void EvaluateSplits(GPUExpandEntry candidate,
-                      EvaluateSplitInputs<GradientSumT> left,
-                      EvaluateSplitInputs<GradientSumT> right,
+                      EvaluateSplitInputs left,
+                      EvaluateSplitInputs right,EvaluateSplitSharedInputs shared_inputs, 
                       common::Span<GPUExpandEntry> out_splits);
   /**
    * \brief Evaluate splits for root node.
    */
-  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs<GradientSumT> input, float weight);
+  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs input,EvaluateSplitSharedInputs shared_inputs, float weight);
 };
 }  // namespace tree
 }  // namespace xgboost

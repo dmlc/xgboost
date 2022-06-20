@@ -195,6 +195,7 @@ struct GPUHistMakerDevice {
   HistRounding<GradientSumT> histogram_rounding;
 
   dh::PinnedMemory pinned;
+  dh::PinnedMemory pinned2;
 
   common::Monitor monitor;
   common::ColumnSampler column_sampler;
@@ -278,57 +279,58 @@ struct GPUHistMakerDevice {
     common::Span<bst_feature_t> feature_set =
         interaction_constraints.Query(sampled_features->DeviceSpan(), nidx);
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-    EvaluateSplitInputs<GradientSumT> inputs{nidx,
-                                             root_sum,
-                                             gpu_param,
-                                             feature_set,
-                                             feature_types,
-                                             matrix.feature_segments,
-                                             matrix.gidx_fvalue_map,
-                                             matrix.min_fvalue,
-                                             hist.GetNodeHistogram(nidx)};
-    auto split = this->evaluator_.EvaluateSingleSplit(inputs, weight);
+    EvaluateSplitInputs inputs{nidx, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
+    EvaluateSplitSharedInputs shared_inputs{
+        gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
+        matrix.min_fvalue,
+    };
+    auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs, weight);
     return split;
   }
 
-  void EvaluateLeftRightSplits(GPUExpandEntry candidate, int left_nidx, int right_nidx,
+  void EvaluateLeftRightSplits(const std::vector<GPUExpandEntry> &candidates,
                                const RegTree& tree,
                                common::Span<GPUExpandEntry> pinned_candidates_out) {
-    dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
-    GPUTrainingParam gpu_param(param);
-    auto left_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(left_nidx));
-    left_sampled_features->SetDevice(ctx_->gpu_id);
-    common::Span<bst_feature_t> left_feature_set =
-        interaction_constraints.Query(left_sampled_features->DeviceSpan(), left_nidx);
-    auto right_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(right_nidx));
-    right_sampled_features->SetDevice(ctx_->gpu_id);
-    common::Span<bst_feature_t> right_feature_set =
-        interaction_constraints.Query(right_sampled_features->DeviceSpan(), left_nidx);
-    auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+    for (int i = 0; i < candidates.size(); i++) {
+      auto candidate = candidates.at(i);
+      int left_nidx = tree[candidate.nid].LeftChild();
+      int right_nidx = tree[candidate.nid].RightChild();
+      dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
+      GPUTrainingParam gpu_param(param);
+      auto left_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(left_nidx));
+      left_sampled_features->SetDevice(ctx_->gpu_id);
+      common::Span<bst_feature_t> left_feature_set =
+          interaction_constraints.Query(left_sampled_features->DeviceSpan(), left_nidx);
+      auto right_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(right_nidx));
+      right_sampled_features->SetDevice(ctx_->gpu_id);
+      common::Span<bst_feature_t> right_feature_set =
+          interaction_constraints.Query(right_sampled_features->DeviceSpan(), left_nidx);
+      auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+      auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2);
+      dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(2);
+      h_node_inputs[0] = {left_nidx, candidate.split.left_sum, left_feature_set,
+                          hist.GetNodeHistogram(left_nidx)};
+      h_node_inputs[1] = {right_nidx, candidate.split.right_sum, right_feature_set,
+                          hist.GetNodeHistogram(right_nidx)};
+      dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(),h_node_inputs.data(),h_node_inputs.size()*sizeof(EvaluateSplitInputs), cudaMemcpyDefault));
 
-    EvaluateSplitInputs<GradientSumT> left{left_nidx,
-                                           candidate.split.left_sum,
-                                           gpu_param,
-                                           left_feature_set,
-                                           feature_types,
-                                           matrix.feature_segments,
-                                           matrix.gidx_fvalue_map,
-                                           matrix.min_fvalue,
-                                           hist.GetNodeHistogram(left_nidx)};
-    EvaluateSplitInputs<GradientSumT> right{right_nidx,
-                                            candidate.split.right_sum,
-                                            gpu_param,
-                                            right_feature_set,
-                                            feature_types,
-                                            matrix.feature_segments,
-                                            matrix.gidx_fvalue_map,
-                                            matrix.min_fvalue,
-                                            hist.GetNodeHistogram(right_nidx)};
+      EvaluateSplitInputs left{left_nidx, candidate.split.left_sum, left_feature_set,
+                               hist.GetNodeHistogram(left_nidx)};
+      EvaluateSplitInputs right{right_nidx,
+                                              candidate.split.right_sum,
+                                              right_feature_set,
+                                              hist.GetNodeHistogram(right_nidx)};
+    EvaluateSplitSharedInputs shared_inputs{
+        gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
+        matrix.min_fvalue,
+    };
 
-    dh::TemporaryArray<GPUExpandEntry> entries(2);
-    this->evaluator_.EvaluateSplits(candidate, left, right, dh::ToSpan(entries));
-    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(), entries.data().get(),
-                                  sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
+      dh::TemporaryArray<GPUExpandEntry> entries(2);
+      this->evaluator_.EvaluateSplits(candidate, left, right, shared_inputs, dh::ToSpan(entries));
+      dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.subspan(i * 2, 2).data(),
+                                    entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
+                                    cudaMemcpyDeviceToHost));
+    }
   }
 
   void BuildHist(int nidx) {
@@ -697,16 +699,9 @@ struct GPUHistMakerDevice {
       this->BuildHistLeftRight(filtered_expand_set, reducer, tree);
       monitor.Stop("BuildHist");
 
-      for (auto i = 0ull; i < filtered_expand_set.size(); i++) {
-        auto candidate = filtered_expand_set.at(i);
-        int left_child_nidx = tree[candidate.nid].LeftChild();
-        int right_child_nidx = tree[candidate.nid].RightChild();
-
-        monitor.Start("EvaluateSplits");
-        this->EvaluateLeftRightSplits(candidate, left_child_nidx, right_child_nidx, *p_tree,
-                                      new_candidates.subspan(i * 2, 2));
-        monitor.Stop("EvaluateSplits");
-      }
+      monitor.Start("EvaluateSplits");
+      this->EvaluateLeftRightSplits(filtered_expand_set, *p_tree, new_candidates);
+      monitor.Stop("EvaluateSplits");
       dh::DefaultStream().Sync();
       driver.Push(new_candidates.begin(), new_candidates.end());
       expand_set = driver.Pop();
