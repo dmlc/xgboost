@@ -115,7 +115,7 @@ class AFTObj : public ObjFunction {
         .Eval(io_preds);
   }
 
-  void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
+  void EvalTransform(HostDeviceVector<bst_float>* /*io_preds*/) override {
     // do nothing here, since the AFT metric expects untransformed prediction score
   }
 

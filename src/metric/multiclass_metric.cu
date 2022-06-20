@@ -244,11 +244,11 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
 };
 
 XGBOOST_REGISTER_METRIC(MatchError, "merror")
-.describe("Multiclass classification error.")
-.set_body([](const char* param) { return new EvalMatchError(); });
+    .describe("Multiclass classification error.")
+    .set_body([](const char*) { return new EvalMatchError(); });
 
 XGBOOST_REGISTER_METRIC(MultiLogLoss, "mlogloss")
-.describe("Multiclass negative loglikelihood.")
-.set_body([](const char* param) { return new EvalMultiLogLoss(); });
+    .describe("Multiclass negative loglikelihood.")
+    .set_body([](const char*) { return new EvalMultiLogLoss(); });
 }  // namespace metric
 }  // namespace xgboost

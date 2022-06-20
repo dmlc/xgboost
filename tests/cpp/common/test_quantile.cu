@@ -478,7 +478,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
     dh::CopyDeviceSpanToVector(&h_base_line, base_line);
 
     size_t offset = 0;
-    for (size_t i = 0; i < world; ++i) {
+    for (decltype(world) i = 0; i < world; ++i) {
       auto comp = dh::ToSpan(all_workers).subspan(offset, size_as_float);
       std::vector<float> h_comp(comp.size());
       dh::CopyDeviceSpanToVector(&h_comp, comp);

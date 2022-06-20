@@ -153,7 +153,7 @@ class ElementWiseSurvivalMetricsReduction {
 };
 
 struct EvalIntervalRegressionAccuracy {
-  void Configure(const Args& args) {}
+  void Configure(const Args&) {}
 
   const char* Name() const {
     return "interval-regression-accuracy";
@@ -277,18 +277,15 @@ struct AFTNLogLikDispatcher : public Metric {
   std::unique_ptr<Metric> metric_;
 };
 
-
 XGBOOST_REGISTER_METRIC(AFTNLogLik, "aft-nloglik")
-.describe("Negative log likelihood of Accelerated Failure Time model.")
-.set_body([](const char* param) {
-  return new AFTNLogLikDispatcher();
-});
+    .describe("Negative log likelihood of Accelerated Failure Time model.")
+    .set_body([](const char*) { return new AFTNLogLikDispatcher(); });
 
 XGBOOST_REGISTER_METRIC(IntervalRegressionAccuracy, "interval-regression-accuracy")
-.describe("")
-.set_body([](const char* param) {
-  return new EvalEWiseSurvivalBase<EvalIntervalRegressionAccuracy>();
-});
+    .describe("")
+    .set_body([](const char*) {
+      return new EvalEWiseSurvivalBase<EvalIntervalRegressionAccuracy>();
+    });
 
 }  // namespace metric
 }  // namespace xgboost

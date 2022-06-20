@@ -252,8 +252,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     dmlc::TemporaryDirectory temp;
-    auto dmat =
-        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 100, temp);
+    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins);
       ValidateCuts(cuts, dmat.get(), num_bins);
@@ -269,7 +268,7 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
   dmlc::TemporaryDirectory temp;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
-    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 100, temp);
+    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
     dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins);
@@ -284,8 +283,7 @@ auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing,
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), adapter.NumRows(), 0);
   MetaInfo info;
-  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
+  AdapterDeviceSketch(adapter.Value(), num_bins, info, missing, &sketch_container);
   sketch_container.MakeCuts(&batched_cuts);
   return batched_cuts;
 }
@@ -293,8 +291,8 @@ auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing,
 template <typename Adapter>
 void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num_rows,
                          DMatrix* dmat, size_t batch_size = 0) {
-  common::HistogramCuts batched_cuts = MakeUnweightedCutsForTest(
-      adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
+  common::HistogramCuts batched_cuts =
+      MakeUnweightedCutsForTest(adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
   ValidateCuts(batched_cuts, dmat, num_bins);
 }
 
