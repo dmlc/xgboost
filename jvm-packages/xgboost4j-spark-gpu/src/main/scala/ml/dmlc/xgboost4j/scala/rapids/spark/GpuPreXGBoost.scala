@@ -187,7 +187,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
         // predict and turn to Row
         val predictFunc =
-          (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+          (broadcastBooster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
             val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
               m.producePredictionItrs(broadcastBooster, dm)
             m.produceResultIterator(originalRowItr, rawPredictionItr, probabilityItr,
@@ -218,7 +218,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
         // predict and turn to Row
         val predictFunc =
-          (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+          (broadcastBooster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
             val Array(rawPredictionItr, predLeafItr, predContribItr) =
               m.producePredictionItrs(broadcastBooster, dm)
             m.produceResultIterator(originalRowItr, rawPredictionItr, predLeafItr,
@@ -259,6 +259,11 @@ object GpuPreXGBoost extends PreXGBoostProvider {
         // UnsafeProjection is not serializable so do it on the executor side
         val toUnsafe = UnsafeProjection.create(bOrigSchema.value)
 
+        // booster is visible for all spark tasks in the same executor
+        val booster = bBooster.value
+        // for the same executor, we only need to set the parameter once.
+        setGpuParam(booster, isLocal)
+
         // Iterator on Row
         new Iterator[Row] {
           // Convert InternalRow to Row
@@ -270,14 +275,6 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
           // Iterator on Row
           var iter: Iterator[Row] = null
-
-          // set some params of gpu related to booster
-          // - gpu id
-          // - predictor: Force to gpu predictor since native doesn't save predictor.
-          val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
-          bBooster.value.setParam("gpu_id", gpuId.toString)
-          bBooster.value.setParam("predictor", "gpu_predictor")
-          logger.info("GPU transform on device: " + gpuId)
 
           TaskContext.get().addTaskCompletionListener[Unit](_ => {
             closeCurrentBatch() // close the last ColumnarBatch
@@ -314,7 +311,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
                       val rowIterator = currentBatch.rowIterator().asScala
                         .map(toUnsafe)
                         .map(converter(_))
-                      predictFunc(bBooster, dm, rowIterator)
+                      predictFunc(booster, dm, rowIterator)
 
                     } finally {
                       dm.delete()
@@ -355,6 +352,16 @@ object GpuPreXGBoost extends PreXGBoostProvider {
     bRowSchema.unpersist(blocking = false)
     bBooster.unpersist(blocking = false)
     dataset.sparkSession.createDataFrame(rowRDD, schema)
+  }
+
+  private def setGpuParam(booster: Booster, isLocal: Boolean): Unit = synchronized {
+    // set some params of gpu related to booster
+    // - gpu id
+    // - predictor: Force to gpu predictor since native doesn't save predictor.
+    val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
+    booster.setParam("gpu_id", gpuId.toString)
+    booster.setParam("predictor", "gpu_predictor")
+    logger.info("GPU transform on device: " + gpuId)
   }
 
   /**
