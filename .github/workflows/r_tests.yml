@@ -49,9 +49,9 @@ jobs:
     - name: Run lintr
       run: |
         cd R-package
-        R.exe CMD INSTALL .
+        R CMD INSTALL .
         # Disable lintr errors for now: https://github.com/dmlc/xgboost/issues/8012
-        Rscript.exe tests/helper_scripts/run_lint.R || true
+        Rscript tests/helper_scripts/run_lint.R || true
 
   test-with-R:
     runs-on: ${{ matrix.config.os }}
