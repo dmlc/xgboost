@@ -13,7 +13,7 @@ my_linters <- list(
   object_usage_linter = lintr::object_usage_linter,
   object_length_linter = lintr::object_length_linter,
   open_curly_linter = lintr::open_curly_linter,
-  semicolon = lintr::semicolon_terminator_linter,
+  semicolon = lintr::semicolon_terminator_linter(semicolon = c("compound", "trailing")),
   seq = lintr::seq_linter,
   spaces_inside_linter = lintr::spaces_inside_linter,
   spaces_left_parentheses_linter = lintr::spaces_left_parentheses_linter,
