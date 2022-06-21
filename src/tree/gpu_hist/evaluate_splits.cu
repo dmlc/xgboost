@@ -357,19 +357,21 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(common::Span<const Eva
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs const &input,
-                                                common::Span<CatST> cats_out) {
-  if (cats_out.empty()) return;
+void GPUHistEvaluator<GradientSumT>::CopyToHost( const std::vector<bst_node_t>& nidx) {
+  if (!has_categoricals_) return;
   dh::CUDAEvent event;
   event.Record(dh::DefaultStream());
-  auto h_cats = this->HostCatStorage(input.nidx);
-  copy_stream_.View().Wait(event);
-  dh::safe_cuda(cudaMemcpyAsync(h_cats.data(), cats_out.data(), cats_out.size_bytes(),
-                                cudaMemcpyDeviceToHost, copy_stream_.View()));
+  for (auto idx : nidx) {
+    auto h_cats = this->HostCatStorage(idx);
+    auto d_cats = this->DeviceCatStorage(nidx).GetNodeCatStorage(idx);
+    copy_stream_.View().Wait(event);
+    dh::safe_cuda(cudaMemcpyAsync(h_cats.data(), d_cats.data(), d_cats.size_bytes(),
+                                  cudaMemcpyDeviceToHost, copy_stream_.View()));
+  }
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::EvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
+void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t> &nidx, common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
                                                     EvaluateSplitInputs left,
                                                     EvaluateSplitInputs right,
                                                      EvaluateSplitSharedInputs shared_inputs,
@@ -382,17 +384,16 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(common::Span<const EvaluateS
 
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(),shared_inputs.feature_values.size());
   auto d_entries = out_entries;
-  auto cats_out = this->DeviceCatStorage(left.nidx);
+  auto device_cats_accessor = this->DeviceCatStorage(nidx);
   // turn candidate into entry, along with handling sort based split.
-  dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) {
+  dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) mutable{
     auto const input = d_inputs[i];
     auto &split = out_splits[i];
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat) {
       bool is_left = i == 0;
-      auto out = is_left ? cats_out.first(cats_out.size() / 2) : cats_out.last(cats_out.size() / 2);
-      SetCategoricalSplit(input, shared_inputs,d_sorted_idx, fidx, is_left, out, &out_splits[i]);
+      SetCategoricalSplit(input, shared_inputs,d_sorted_idx, fidx, is_left, device_cats_accessor.GetNodeCatStorage(input.nidx), &out_splits[i]);
     }
 
     float base_weight =
@@ -404,7 +405,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(common::Span<const EvaluateS
                                   base_weight, left_weight,         right_weight};
   });
 
-  this->CopyToHost(left, cats_out);
+  this->CopyToHost(nidx);
 }
 
 template <typename GradientSumT>
@@ -416,24 +417,24 @@ GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
   dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input};
   this->LaunchEvaluateSplits(dh::ToSpan(inputs),input, {},shared_inputs, evaluator, out_split);
 
-  auto cats_out = this->DeviceCatStorage(input.nidx);
+  auto device_cats_accessor = this->DeviceCatStorage({input.nidx});
   auto d_sorted_idx = this->SortedIdx(inputs.size(), shared_inputs.feature_values.size());
 
   dh::TemporaryArray<GPUExpandEntry> entries(1);
   auto d_entries = entries.data().get();
-  dh::LaunchN(1, [=] __device__(size_t i) {
+  dh::LaunchN(1, [=] __device__(size_t i) mutable{
     auto &split = out_split[i];
     auto fidx = out_split[i].findex;
 
     if (split.is_cat) {
-      SetCategoricalSplit(input,shared_inputs,  d_sorted_idx, fidx, true, cats_out, &out_split[i]);
+      SetCategoricalSplit(input,shared_inputs,  d_sorted_idx, fidx, true, device_cats_accessor.GetNodeCatStorage(input.nidx), &out_split[i]);
     }
 
     float left_weight = evaluator.CalcWeight(0, shared_inputs.param, GradStats{split.left_sum});
     float right_weight = evaluator.CalcWeight(0, shared_inputs.param, GradStats{split.right_sum});
     d_entries[0] = GPUExpandEntry(0, 0, split, weight, left_weight, right_weight);
   });
-  this->CopyToHost(input, cats_out);
+  this->CopyToHost({input.nidx});
 
   GPUExpandEntry root_entry;
   dh::safe_cuda(cudaMemcpyAsync(&root_entry, entries.data().get(),

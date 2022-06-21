@@ -39,6 +39,15 @@ struct EvaluateSplitSharedInputs {
   }
 };
 
+struct DeviceCatAccessor {
+  common::Span<common::CatBitField::value_type> cat_storage_;
+  std::size_t node_categorical_storage_size_;
+  XGBOOST_DEVICE common::Span<common::CatBitField::value_type> GetNodeCatStorage(bst_node_t nidx) {
+    return this->cat_storage_.subspan(nidx * this->node_categorical_storage_size_,
+                                      this->node_categorical_storage_size_);
+  }
+};
+
 template <typename GradientSumT>
 class GPUHistEvaluator {
   using CatST = common::CatBitField::value_type;  // categorical storage type
@@ -65,18 +74,18 @@ class GPUHistEvaluator {
   // Do we have any categorical features that require sorting histograms?
   // use this to skip the expensive sort step
   bool need_sort_histogram_ = false;
+  bool has_categoricals_ = false;
   // Number of elements of categorical storage type
   // needed to hold categoricals for a single mode
   std::size_t node_categorical_storage_size_ = 0;
 
   // Copy the categories from device to host asynchronously.
-  void CopyToHost(EvaluateSplitInputs const &input, common::Span<CatST> cats_out);
+  void CopyToHost( const std::vector<bst_node_t>& nidx);
 
   /**
    * \brief Get host category storage of nidx for internal calculation.
    */
   auto HostCatStorage(bst_node_t nidx) {
-
     std::size_t min_size=(nidx+2)*node_categorical_storage_size_;
     if(h_split_cats_.size()<min_size){
       h_split_cats_.resize(min_size);
@@ -93,17 +102,14 @@ class GPUHistEvaluator {
   /**
    * \brief Get device category storage of nidx for internal calculation.
    */
-  auto DeviceCatStorage(bst_node_t nidx) {
-    std::size_t min_size=(nidx+2)*node_categorical_storage_size_;
-    if(split_cats_.size()<min_size){
+  auto DeviceCatStorage(const std::vector<bst_node_t> &nidx) {
+    if (!has_categoricals_) return DeviceCatAccessor{};
+    auto max_nidx = *std::max_element(nidx.begin(), nidx.end());
+    std::size_t min_size = (max_nidx + 2) * node_categorical_storage_size_;
+    if (split_cats_.size() < min_size) {
       split_cats_.resize(min_size);
     }
-    if (nidx == RegTree::kRoot) {
-      auto cats_out = dh::ToSpan(split_cats_).subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_);
-      return cats_out;
-    }
-    auto cats_out = dh::ToSpan(split_cats_).subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_ * 2);
-    return cats_out;
+    return DeviceCatAccessor{dh::ToSpan(split_cats_), node_categorical_storage_size_};
   }
 
   /**
@@ -168,7 +174,7 @@ class GPUHistEvaluator {
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
+  void EvaluateSplits(const std::vector<bst_node_t> &nidx,common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
                       EvaluateSplitInputs left,
                       EvaluateSplitInputs right,EvaluateSplitSharedInputs shared_inputs, 
                       common::Span<GPUExpandEntry> out_splits);

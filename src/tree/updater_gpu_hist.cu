@@ -325,7 +325,8 @@ struct GPUHistMakerDevice {
       };
 
       dh::TemporaryArray<GPUExpandEntry> entries(2);
-      this->evaluator_.EvaluateSplits(dh::ToSpan(d_node_inputs), candidate, left, right, shared_inputs, dh::ToSpan(entries));
+      std::vector<bst_node_t> nidx = {left_nidx, right_nidx};
+      this->evaluator_.EvaluateSplits(nidx,dh::ToSpan(d_node_inputs), candidate, left, right, shared_inputs, dh::ToSpan(entries));
       dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.subspan(i * 2, 2).data(),
                                     entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
                                     cudaMemcpyDeviceToHost));
