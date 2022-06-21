@@ -234,13 +234,8 @@ class RabitContext(rabit.RabitContext):
         worker = distributed.get_worker()
         with distributed.worker_client() as client:
             info = client.scheduler_info()
-            # Just to be extra careful that the scheduler_info might be missing on some
-            # platforms like GKE.
-            if "workers" in info and worker.address in info["workers"]:
-                w = info["workers"][worker.address]
-                wid = w["id"]
-            else:
-                wid = 0
+            w = info["workers"][worker.address]
+            wid = w["id"]
         # We use task ID for rank assignment which makes the RABIT rank consistent (but
         # not the same as task ID is string and "10" is sorted before "2") with dask
         # worker ID. This outsources the rank assignment to dask and prevents
@@ -877,6 +872,8 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
+    # make sure all workers are online so that we can obtain reliable scheduler_info
+    client.wait_for_workers(n_workers)
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )
