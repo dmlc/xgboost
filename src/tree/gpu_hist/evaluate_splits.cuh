@@ -109,17 +109,15 @@ class GPUHistEvaluator {
   /**
    * \brief Get sorted index storage based on the left node of inputs.
    */
-  auto SortedIdx(EvaluateSplitInputs left, EvaluateSplitSharedInputs shared_inputs) {
-    if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
-      return dh::ToSpan(cat_sorted_idx_).first(shared_inputs.feature_values.size());
-    }
+  auto SortedIdx(int num_nodes, bst_feature_t total_bins) {
+    if(!need_sort_histogram_) return common::Span<bst_feature_t>();
+    cat_sorted_idx_.resize(num_nodes * total_bins);
     return dh::ToSpan(cat_sorted_idx_);
   }
 
-  auto SortInput(EvaluateSplitInputs left, EvaluateSplitSharedInputs shared_inputs) {
-    if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
-      return dh::ToSpan(sort_input_).first(shared_inputs.feature_values.size());
-    }
+  auto SortInput(int num_nodes, bst_feature_t total_bins) {
+    if(!need_sort_histogram_) return common::Span<SortPair>();
+    sort_input_.resize(num_nodes * total_bins);
     return dh::ToSpan(sort_input_);
   }
 
@@ -158,19 +156,19 @@ class GPUHistEvaluator {
   /**
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
-  common::Span<bst_feature_t const> SortHistogram(
+  common::Span<bst_feature_t const> SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
       EvaluateSplitInputs const &left, EvaluateSplitInputs const &right,EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
-  void LaunchEvaluateSplits(EvaluateSplitInputs left,
+  void LaunchEvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,EvaluateSplitInputs left,
                       EvaluateSplitInputs right,EvaluateSplitSharedInputs shared_inputs, 
                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                       common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(GPUExpandEntry candidate,
+  void EvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
                       EvaluateSplitInputs left,
                       EvaluateSplitInputs right,EvaluateSplitSharedInputs shared_inputs, 
                       common::Span<GPUExpandEntry> out_splits);

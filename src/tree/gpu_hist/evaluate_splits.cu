@@ -314,12 +314,12 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs const &input,const Evalu
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(
+void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,
     EvaluateSplitInputs left, EvaluateSplitInputs right,
     EvaluateSplitSharedInputs shared_inputs, TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
   if (need_sort_histogram_) {
-    this->SortHistogram(left, right, shared_inputs,evaluator);
+    this->SortHistogram(d_inputs,left, right, shared_inputs,evaluator);
   }
 
   size_t combined_num_features = left.feature_set.size() + right.feature_set.size();
@@ -328,7 +328,7 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
   dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
-      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, shared_inputs, this->SortedIdx(left,shared_inputs),
+      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, shared_inputs, this->SortedIdx(d_inputs.size(),shared_inputs.feature_values.size()),
       evaluator, dh::ToSpan(feature_best_splits));
 
   // Reduce to get best candidate for left and right child over all features
@@ -369,23 +369,23 @@ void GPUHistEvaluator<GradientSumT>::CopyToHost(EvaluateSplitInputs const &input
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::EvaluateSplits(GPUExpandEntry candidate,
+void GPUHistEvaluator<GradientSumT>::EvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
                                                     EvaluateSplitInputs left,
                                                     EvaluateSplitInputs right,
                                                      EvaluateSplitSharedInputs shared_inputs,
                                                     common::Span<GPUExpandEntry> out_entries) {
   auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
 
-  dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(2);
+  dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(d_inputs.size());
   auto out_splits = dh::ToSpan(splits_out_storage);
-  this->LaunchEvaluateSplits(left, right, shared_inputs,evaluator, out_splits);
+  this->LaunchEvaluateSplits(d_inputs,left, right, shared_inputs,evaluator, out_splits);
 
-  auto d_sorted_idx = this->SortedIdx(left,shared_inputs);
+  auto d_sorted_idx = this->SortedIdx(d_inputs.size(),shared_inputs.feature_values.size());
   auto d_entries = out_entries;
   auto cats_out = this->DeviceCatStorage(left.nidx);
   // turn candidate into entry, along with handling sort based split.
-  dh::LaunchN(right.feature_set.empty() ? 1 : 2, [=] __device__(size_t i) {
-    auto const &input = i == 0 ? left : right;
+  dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) {
+    auto const input = d_inputs[i];
     auto &split = out_splits[i];
     auto fidx = out_splits[i].findex;
 
@@ -413,10 +413,11 @@ GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
   dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
   auto out_split = dh::ToSpan(splits_out);
   auto evaluator = tree_evaluator_.GetEvaluator<GPUTrainingParam>();
-  this->LaunchEvaluateSplits(input, {},shared_inputs, evaluator, out_split);
+  dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input};
+  this->LaunchEvaluateSplits(dh::ToSpan(inputs),input, {},shared_inputs, evaluator, out_split);
 
   auto cats_out = this->DeviceCatStorage(input.nidx);
-  auto d_sorted_idx = this->SortedIdx(input,shared_inputs);
+  auto d_sorted_idx = this->SortedIdx(inputs.size(), shared_inputs.feature_values.size());
 
   dh::TemporaryArray<GPUExpandEntry> entries(1);
   auto d_entries = entries.data().get();

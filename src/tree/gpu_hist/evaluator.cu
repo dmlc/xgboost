@@ -68,13 +68,13 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
 }
 
 template <typename GradientSumT>
-common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
+common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
     EvaluateSplitInputs const &left, EvaluateSplitInputs const &right, EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
-  auto sorted_idx = this->SortedIdx(left,shared_inputs);
+  auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   dh::Iota(sorted_idx);
-  auto data = this->SortInput(left,shared_inputs);
+  auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
   thrust::transform(thrust::cuda::par(alloc), it, it + data.size(), dh::tbegin(data),
