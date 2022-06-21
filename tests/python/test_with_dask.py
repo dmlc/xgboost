@@ -1597,8 +1597,8 @@ class TestWithDask:
                 )
                 n_workers = len(workers)
 
-                def worker_fn(worker_addr: str, data_ref: Dict) -> None:
-                    with xgb.dask.RabitContext(rabit_args):
+                def worker_fn(worker_addr: str, worker_id: int, data_ref: Dict) -> None:
+                    with xgb.dask.RabitContext(rabit_args, worker_rank=worker_id):
                         local_dtrain = xgb.dask._dmatrix_from_list_of_parts(
                             **data_ref, nthread=7
                         )
@@ -1610,8 +1610,11 @@ class TestWithDask:
                 for i in range(len(workers)):
                     futures.append(
                         client.submit(
-                            worker_fn, workers[i],
-                            m._create_fn_args(workers[i]), pure=False,
+                            worker_fn,
+                            workers[i],
+                            i,
+                            m._create_fn_args(workers[i]),
+                            pure=False,
                             workers=[workers[i]])
                     )
                 client.gather(futures)

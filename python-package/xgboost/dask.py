@@ -31,6 +31,9 @@ Optional dask configuration
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
+import copy
+import platform
+import logging
 import collections
 import logging
 import platform
@@ -170,9 +173,11 @@ def _try_start_tracker(
                 use_logger=False,
             )
         else:
-            assert isinstance(addrs[0], str) or addrs[0] is None
+            addr = addrs[0]
+            assert isinstance(addr, str) or addr is None
+            host_ip = get_host_ip(addr)
             rabit_context = RabitTracker(
-                host_ip=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+                host_ip=host_ip, n_workers=n_workers, use_logger=False, sortby="task"
             )
         env.update(rabit_context.worker_envs())
         rabit_context.start(n_workers)
@@ -219,11 +224,16 @@ def _assert_dask_support() -> None:
 class RabitContext(rabit.RabitContext):
     """A context controlling rabit initialization and finalization."""
 
-    def __init__(self, args: List[bytes]) -> None:
+    def __init__(self, args: List[bytes], worker_rank: int) -> None:
         super().__init__(args)
         worker = distributed.get_worker()
+        # We use task ID for rank assignment which makes the RABIT rank consistent with
+        # dask task key. This outsources the rank assignment to dask and prevents
+        # non-deterministic issue.
         self.args.append(
-            ("DMLC_TASK_ID=[xgboost.dask]:" + str(worker.address)).encode()
+            (
+                f"DMLC_TASK_ID=[xgboost.dask-{worker_rank}]:" + str(worker.address)
+            ).encode()
         )
 
 
@@ -456,12 +466,11 @@ class DaskDMatrix:
             keys=[part.key for part in fut_parts]
         )
 
-        worker_map: Dict[str, List[distributed.Future]] = defaultdict(list)
-
+        self.worker_key: Dict[str, str] = defaultdict(str)
         for key, workers in who_has.items():
-            worker_map[next(iter(workers))].append(key_to_partition[key])
-
-        self.worker_map = worker_map
+            worker = next(iter(workers))
+            self.worker_map[worker].append(key_to_partition[key])
+            self.worker_key[worker] += key
 
         if feature_weights is None:
             self.feature_weights = None
@@ -496,7 +505,8 @@ async def map_worker_partitions(
     client: Optional["distributed.Client"],
     func: Callable[..., _MapRetT],
     *refs: Any,
-    workers: Sequence[str],
+    workers: List[str],
+    worker_ranks: Dict[str, int],
 ) -> List[_MapRetT]:
     """Map a function onto partitions of each worker."""
     # Note for function purity:
@@ -514,7 +524,12 @@ async def map_worker_partitions(
             else:
                 args.append(ref)
         fut = client.submit(
-            func, *args, pure=False, workers=[addr], allow_other_workers=False
+            func,
+            *args,
+            pure=False,
+            workers=[addr],
+            allow_other_workers=False,
+            worker_rank=worker_ranks[addr],
         )
         futures.append(fut)
     results = await client.gather(futures)
@@ -869,6 +884,32 @@ def _get_workers_from_data(
     return list(X_worker_map)
 
 
+def _get_workers_rank(
+    dtrain: DaskDMatrix, evals: Optional[Sequence[Tuple[DaskDMatrix, str]]]
+) -> Dict[str, int]:
+    """Assign rank for each worker based on the partition key."""
+    worker_key = copy.deepcopy(dtrain.worker_key)
+    if evals is not None:
+        for d, _ in evals:
+            if d is dtrain:
+                continue
+            for w, key in d.worker_key.items():
+                if w not in worker_key:
+                    worker_key[w] = key
+
+    addrs = [addr for addr, _ in worker_key.items()]
+    keys = [key for _, key in worker_key.items()]
+
+    def argsort(seq: Sequence[str]) -> List[int]:
+        return [i for (v, i) in sorted((v, i) for (i, v) in enumerate(seq))]
+
+    inds = argsort(keys)
+    worker_ranks: Dict[str, int] = {}
+    for i, addr in zip(inds, addrs):
+        worker_ranks[addr] = i
+    return worker_ranks
+
+
 async def _train_async(
     client: "distributed.Client",
     global_config: Dict[str, Any],
@@ -886,6 +927,7 @@ async def _train_async(
     custom_metric: Optional[Metric],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
+    worker_ranks = _get_workers_rank(dtrain, evals)
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
 
     if params.get("booster", None) == "gblinear":
@@ -901,6 +943,7 @@ async def _train_async(
         evals_id: List[int],
         train_ref: dict,
         *refs: dict,
+        worker_rank: int,
     ) -> Optional[TrainReturnT]:
         worker = distributed.get_worker()
         local_param = parameters.copy()
@@ -919,7 +962,9 @@ async def _train_async(
             n_threads = dwnt
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
         local_history: TrainingCallback.EvalsLog = {}
-        with RabitContext(rabit_args), config.config_context(**global_config):
+        with RabitContext(rabit_args, worker_rank), config.config_context(
+            **global_config
+        ):
             Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
             evals: List[Tuple[DMatrix, str]] = []
             for i, ref in enumerate(refs):
@@ -985,6 +1030,7 @@ async def _train_async(
             *([dtrain] + evals_data),
             # workers to be used for training
             workers=workers,
+            worker_ranks=worker_ranks,
         )
         return list(filter(lambda ret: ret is not None, results))[0]
 

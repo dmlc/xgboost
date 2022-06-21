@@ -406,8 +406,8 @@ class TestDistributedGPU:
             workers = _get_client_workers(client)
             rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
 
-            def worker_fn(worker_addr: str, data_ref: Dict) -> None:
-                with dxgb.RabitContext(rabit_args):
+            def worker_fn(worker_addr: str, rank: int, data_ref: Dict) -> None:
+                with dxgb.RabitContext(rabit_args, worker_rank=rank):
                     local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref, nthread=7)
                     fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
                     assert fw_rows == local_dtrain.num_col()
@@ -418,6 +418,7 @@ class TestDistributedGPU:
                     client.submit(
                         worker_fn,
                         workers[i],
+                        i,
                         m._create_fn_args(workers[i]),
                         pure=False,
                         workers=[workers[i]]
