@@ -314,7 +314,6 @@ class RabitTracker:
         if self._sortby == "host":
             pending.sort(key=lambda s: s.host)
         elif self._sortby == "task":
-            print("sort by task task")
             pending.sort(key=lambda s: s.task_id)
         return pending
 
@@ -335,19 +334,19 @@ class RabitTracker:
         while len(shutdown) != n_workers:
             fd, s_addr = self.sock.accept()
             s = WorkerEntry(fd, s_addr)
-            if s.cmd == "print":
+            if s.cmd == 'print':
                 s.print(self._use_logger)
                 continue
-            if s.cmd == "shutdown":
+            if s.cmd == 'shutdown':
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
-                logging.debug("Received %s signal from %d", s.cmd, s.rank)
+                logging.debug('Received %s signal from %d', s.cmd, s.rank)
                 continue
             assert s.cmd in ("start", "recover")
             # lazily initialize the workers
             if tree_map is None:
-                assert s.cmd == "start"
+                assert s.cmd == 'start'
                 if s.world_size > 0:
                     n_workers = s.world_size
                 tree_map, parent_map, ring_map = self.get_link_map(n_workers)
@@ -355,7 +354,7 @@ class RabitTracker:
                 todo_nodes = list(range(n_workers))
             else:
                 assert s.world_size in (-1, n_workers)
-            if s.cmd == "recover":
+            if s.cmd == 'recover':
                 assert s.rank >= 0
 
             rank = s.decide_rank(job_map)
