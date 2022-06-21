@@ -230,9 +230,7 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   const char* Name() const override {
     return "mlogloss";
   }
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
-                                          size_t nclass) {
+  XGBOOST_DEVICE static bst_float EvalRow(int label, const bst_float* pred, size_t /*nclass*/) {
     const bst_float eps = 1e-16f;
     auto k = static_cast<size_t>(label);
     if (pred[k] > eps) {

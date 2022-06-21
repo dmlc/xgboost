@@ -70,9 +70,7 @@ class AFTObj : public ObjFunction {
         &info.weights_);
   }
 
-  void GetGradient(const HostDeviceVector<bst_float>& preds,
-                   const MetaInfo& info,
-                   int iter,
+  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int /*iter*/,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     const size_t ndata = preds.Size();
     CHECK_EQ(info.labels_lower_bound_.Size(), ndata);
