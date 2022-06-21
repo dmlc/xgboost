@@ -92,10 +92,10 @@ struct BitOR {
     dst |= src;
   }
 };
-template<typename OP, typename DType>
-inline void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &dtype) {
-  const DType* src = static_cast<const DType*>(src_);
-  DType* dst = (DType*)dst_;  // NOLINT(*)
+template <typename OP, typename DType>
+inline void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &) {
+  const DType *src = static_cast<const DType *>(src_);
+  DType *dst = (DType *)dst_;  // NOLINT(*)
   for (int i = 0; i < len; i++) {
     OP::Reduce(dst[i], src[i]);
   }

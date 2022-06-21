@@ -143,7 +143,6 @@ void TestGPUHistogramCategorical(size_t num_categories) {
 
   std::vector<GradientPairPrecise> h_cat_hist(cat_hist.size());
   thrust::copy(cat_hist.begin(), cat_hist.end(), h_cat_hist.begin());
-  auto cat_sum = std::accumulate(h_cat_hist.begin(), h_cat_hist.end(), GradientPairPrecise{});
 
   std::vector<GradientPairPrecise> h_encode_hist(encode_hist.size());
   thrust::copy(encode_hist.begin(), encode_hist.end(), h_encode_hist.begin());

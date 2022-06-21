@@ -100,8 +100,7 @@ void Allreduce_(void *sendrecvbuf,  // NOLINT
                 mpi::OpType ,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
-  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun,
-    prepare_arg);
+  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun, prepare_arg);
 }
 }  // namespace engine
 }  // namespace rabit
