@@ -766,6 +766,7 @@ std::vector<bst_feature_t> LoadBalance(Batch const &batch, size_t nnz, bst_featu
   size_t const total_entries = nnz;
   size_t const entries_per_thread = DivRoundUp(total_entries, nthreads);
 
+  // Need to calculate the size for each batch.
   std::vector<bst_row_t> entries_per_columns = CalcColumnSize(batch, n_columns, nthreads, is_valid);
   std::vector<bst_feature_t> cols_ptr(nthreads + 1, 0);
   size_t count{0};
