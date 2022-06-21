@@ -10,7 +10,7 @@ from threading import Thread
 import argparse
 import sys
 
-from typing import Dict, List, Tuple, Union, Optional, Set, Literal
+from typing import Dict, List, Tuple, Union, Optional, Set
 
 _RingMap = Dict[int, Tuple[int, int]]
 _TreeMap = Dict[int, List[int]]
@@ -186,7 +186,7 @@ class RabitTracker:
         n_workers: int,
         port: int = 0,
         use_logger: bool = False,
-        sortby: Literal["host", "task"] = "host",
+        sortby: str = "host",
     ) -> None:
         """A Python implementation of RABIT tracker.
 
@@ -199,7 +199,9 @@ class RabitTracker:
         sortby:
             How to sort the workers for rank assignment. The default is host, but users
             can set the `DMLC_TASK_ID` via RABIT initialization arguments and obtain
-            deterministic rank assignment.
+            deterministic rank assignment. Available options are:
+              - host
+              - task
 
         """
         sock = socket.socket(get_family(host_ip), socket.SOCK_STREAM)
