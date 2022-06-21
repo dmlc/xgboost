@@ -24,7 +24,6 @@ class HistogramBuilder {
   common::HistCollection hist_local_worker_;
   common::GHistBuilder builder_;
   common::ParallelGHistBuilder buffer_;
-  rabit::Reducer<GradientPairPrecise, GradientPairPrecise::Reduce> reducer_;
   BatchParam param_;
   int32_t n_threads_{-1};
   size_t n_batches_{0};
@@ -199,8 +198,8 @@ class HistogramBuilder {
           }
         });
 
-    reducer_.Allreduce(this->hist_[starting_index].data(),
-                       builder_.GetNumBins() * sync_count);
+    rabit::Allreduce<rabit::op::Sum>(reinterpret_cast<double*>(this->hist_[starting_index].data()),
+                                     builder_.GetNumBins() * sync_count * 2);
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
                             nodes_for_subtraction_trick, p_tree);

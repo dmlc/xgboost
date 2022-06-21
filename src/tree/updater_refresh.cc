@@ -100,7 +100,8 @@ class TreeRefresher : public TreeUpdater {
         }
       });
     };
-    reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size(), lazy_get_stats);
+    rabit::Allreduce<rabit::op::Sum>(&dmlc::BeginPtr(stemp[0])->sum_grad, stemp[0].size() * 2,
+                                     lazy_get_stats);
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -154,8 +155,6 @@ class TreeRefresher : public TreeUpdater {
   }
   // training parameter
   TrainParam param_;
-  // reducer
-  rabit::Reducer<GradStats, GradStats::Reduce> reducer_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeRefresher, "refresh")

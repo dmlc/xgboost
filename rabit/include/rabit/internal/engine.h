@@ -245,51 +245,6 @@ void Allreduce_(void *sendrecvbuf,  // NOLINT
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun = nullptr,
                 void *prepare_arg = nullptr);
-/*!
- * \brief handle for customized reducer, used to handle customized reduce
- *  this class is mainly created for compatiblity issues with MPI's customized reduce
- */
-class ReduceHandle {
- public:
-  // constructor
-  ReduceHandle();
-  // destructor
-  ~ReduceHandle();
-  /*!
-   * \brief initialize the reduce function,
-   *   with the type the reduce function needs to deal with
-   *   the reduce function MUST be communicative
-   */
-  void Init(IEngine::ReduceFunction redfunc, size_t type_nbytes);
-  /*!
-   * \brief customized in-place all reduce operation
-   * \param sendrecvbuf the in place send-recv buffer
-   * \param type_n4bytes size of the type, in terms of 4bytes
-   * \param count number of elements to send
-   * \param prepare_func Lazy preprocessing function, lazy prepare_fun(prepare_arg)
-   *                     will be called by the function before performing Allreduce in order to initialize the data in sendrecvbuf_.
-   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
-   * \param prepare_arg argument used to pass into the lazy preprocessing function
-   */
-  void Allreduce(void *sendrecvbuf,
-                 size_t type_nbytes,
-                 size_t count,
-                 IEngine::PreprocFunction prepare_fun = nullptr,
-                 void *prepare_arg = nullptr);
-
-  /*! \return the number of bytes occupied by the type */
-  static int TypeSize(const MPI::Datatype &dtype);
-
- protected:
-  // handle function field
-  void *handle_ {nullptr};
-  // reduce function of the reducer
-  IEngine::ReduceFunction *redfunc_{nullptr};
-  // handle to the type field
-  void *htype_{nullptr};
-  // the created type in 4 bytes
-  size_t created_type_nbytes_;
-};
 }  // namespace engine
 }  // namespace rabit
 #endif  // RABIT_INTERNAL_ENGINE_H_

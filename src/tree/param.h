@@ -65,8 +65,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // whether to subsample columns during tree construction
   float colsample_bytree;
   // accuracy of sketch
-  float sketch_eps;
-  // accuracy of sketch
   float sketch_ratio;
   // option to open cacheline optimization
   bool cache_opt;
@@ -162,10 +160,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
-    DMLC_DECLARE_FIELD(sketch_eps)
-        .set_range(0.0f, 1.0f)
-        .set_default(0.03f)
-        .describe("EXP Param: Sketch accuracy of approximate algorithm.");
     DMLC_DECLARE_FIELD(sketch_ratio)
         .set_lower_bound(0.0f)
         .set_default(2.0f)
@@ -202,12 +196,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   bool NeedPrune(double loss_chg, int depth) const {
     return loss_chg < this->min_split_loss ||
            (this->max_depth != 0 && depth > this->max_depth);
-  }
-  /*! \brief maximum sketch size */
-  inline unsigned MaxSketchSize() const {
-    auto ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
-    CHECK_GT(ret, 0U);
-    return ret;
   }
 
   bst_node_t MaxNodes() const {
