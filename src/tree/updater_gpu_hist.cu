@@ -290,13 +290,23 @@ struct GPUHistMakerDevice {
 
   void EvaluateLeftRightSplits(const std::vector<GPUExpandEntry>& candidates, const RegTree& tree,
                                common::Span<GPUExpandEntry> pinned_candidates_out) {
-      dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(2);
+    if (candidates.empty()) return;
+    dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(2 * candidates.size());
+    dh::TemporaryArray<DeviceSplitCandidate> splits_out(2 * candidates.size());
+    std::vector<bst_node_t> nidx(2 * candidates.size());
+    auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
+    auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
+    EvaluateSplitSharedInputs shared_inputs{
+        GPUTrainingParam(param), feature_types,     matrix.feature_segments,
+        matrix.gidx_fvalue_map,  matrix.min_fvalue,
+    };
+    dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     for (int i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       int left_nidx = tree[candidate.nid].LeftChild();
       int right_nidx = tree[candidate.nid].RightChild();
-      dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
-      GPUTrainingParam gpu_param(param);
+      nidx[i * 2] = left_nidx;
+      nidx[i * 2 + 1] = right_nidx;
       auto left_sampled_features = column_sampler.GetFeatureSet(tree.GetDepth(left_nidx));
       left_sampled_features->SetDevice(ctx_->gpu_id);
       common::Span<bst_feature_t> left_feature_set =
@@ -305,32 +315,25 @@ struct GPUHistMakerDevice {
       right_sampled_features->SetDevice(ctx_->gpu_id);
       common::Span<bst_feature_t> right_feature_set =
           interaction_constraints.Query(right_sampled_features->DeviceSpan(), left_nidx);
-      auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-      auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2);
-      h_node_inputs[0] = {left_nidx, candidate.depth+1,candidate.split.left_sum, left_feature_set,
-                          hist.GetNodeHistogram(left_nidx)};
-      h_node_inputs[1] = {right_nidx, candidate.depth+1,candidate.split.right_sum, right_feature_set,
-                          hist.GetNodeHistogram(right_nidx)};
-      dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
-                                    h_node_inputs.size() * sizeof(EvaluateSplitInputs),
-                                    cudaMemcpyDefault));
-
-      EvaluateSplitSharedInputs shared_inputs{
-          gpu_param,         feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
-          matrix.min_fvalue,
-      };
-      bst_feature_t number_active_features = h_node_inputs[0].feature_set.size();
-      CHECK_EQ(h_node_inputs[1].feature_set.size(), number_active_features)
-          << "Current implementation assumes that the number of active features "
-             "(after sampling) in any node is the same";
-      dh::TemporaryArray<GPUExpandEntry> entries(2);
-      std::vector<bst_node_t> nidx = {left_nidx, right_nidx};
-      this->evaluator_.EvaluateSplits(nidx,number_active_features,dh::ToSpan(d_node_inputs), shared_inputs, dh::ToSpan(entries));
-      dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.subspan(i * 2, 2).data(),
-                                    entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
-                                    cudaMemcpyDeviceToHost));
-      dh::DefaultStream().Sync();
+      h_node_inputs[i * 2] = {left_nidx, candidate.depth + 1, candidate.split.left_sum,
+                              left_feature_set, hist.GetNodeHistogram(left_nidx)};
+      h_node_inputs[i * 2 + 1] = {right_nidx, candidate.depth + 1, candidate.split.right_sum,
+                                  right_feature_set, hist.GetNodeHistogram(right_nidx)};
     }
+    bst_feature_t number_active_features = h_node_inputs[0].feature_set.size();
+    CHECK_EQ(h_node_inputs[1].feature_set.size(), number_active_features)
+        << "Current implementation assumes that the number of active features "
+           "(after sampling) in any node is the same";
+    dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
+                                  h_node_inputs.size() * sizeof(EvaluateSplitInputs),
+                                  cudaMemcpyDefault));
+
+    this->evaluator_.EvaluateSplits(nidx, number_active_features, dh::ToSpan(d_node_inputs),
+                                    shared_inputs, dh::ToSpan(entries));
+    dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(),
+                                  entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
+                                  cudaMemcpyDeviceToHost));
+    dh::DefaultStream().Sync();
   }
 
   void BuildHist(int nidx) {
