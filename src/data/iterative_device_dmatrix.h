@@ -77,7 +77,7 @@ class IterativeDeviceDMatrix : public DMatrix {
 };
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing, int nthread) {
+inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing) {
   // silent the warning about unused variables.
   (void)(proxy_);
   (void)(reset_);
