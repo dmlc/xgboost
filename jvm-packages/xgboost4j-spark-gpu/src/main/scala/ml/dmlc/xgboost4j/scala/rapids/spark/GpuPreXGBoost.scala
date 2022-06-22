@@ -286,13 +286,8 @@ object GpuPreXGBoost extends PreXGBoostProvider {
             booster.setParam("gpu_id", gpuId.toString)
             booster.setParam("predictor", "gpu_predictor")
             logger.info("GPU transform on device: " + gpuId)
-            logger.info(s"set Gpu id on ${TaskContext.get().stageId()}" +
-              s":${TaskContext.get().attemptNumber()}:${TaskContext.get().partitionId()}")
-          } else {
-            logger.info(s"Gpu id is set on ${TaskContext.get().stageId()}" +
-              s":${TaskContext.get().attemptNumber()}:${TaskContext.get().partitionId()}")
+            boosterFlag.isGpuParamsSet = true;
           }
-          boosterFlag.isGpuParamsSet = true;
         }
 
         // Iterator on Row
