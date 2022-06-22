@@ -268,9 +268,9 @@ __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
 /**
  * \brief Set the bits for categorical splits based on the split threshold.
  */
-__device__ void SetCategoricalSplit(EvaluateSplitInputs const &input,const EvaluateSplitSharedInputs &shared_inputs,
+__device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inputs,
                                common::Span<bst_feature_t const> d_sorted_idx, bst_feature_t fidx,
-                               bool is_left, common::Span<common::CatBitField::value_type> out,
+                               std::size_t input_idx, common::Span<common::CatBitField::value_type> out,
                                DeviceSplitCandidate *p_out_split) {
   auto &out_split = *p_out_split;
   out_split.split_cats = common::CatBitField{out};
@@ -282,9 +282,8 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs const &input,const Evalu
   }
 
   auto node_sorted_idx =
-      is_left ? d_sorted_idx.subspan(0, shared_inputs.feature_values.size())
-              : d_sorted_idx.subspan(shared_inputs.feature_values.size(), shared_inputs.feature_values.size());
-  size_t node_offset = is_left ? 0 : shared_inputs.feature_values.size();
+               d_sorted_idx.subspan(shared_inputs.feature_values.size()*input_idx, shared_inputs.feature_values.size());
+  size_t node_offset = input_idx* shared_inputs.feature_values.size();
   auto best_thresh = out_split.PopBestThresh();
   auto f_sorted_idx =
       node_sorted_idx.subspan(shared_inputs.feature_segments[fidx], shared_inputs.FeatureBins(fidx));
@@ -359,7 +358,7 @@ void GPUHistEvaluator<GradientSumT>::CopyToHost( const std::vector<bst_node_t>& 
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t> &nidx, bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
+void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t> &nidx, bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,
                                                      EvaluateSplitSharedInputs shared_inputs,
                                                     common::Span<GPUExpandEntry> out_entries) {
   auto evaluator = this->tree_evaluator_.template GetEvaluator<GPUTrainingParam>();
@@ -378,8 +377,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat) {
-      bool is_left = i == 0;
-      SetCategoricalSplit(input, shared_inputs,d_sorted_idx, fidx, is_left, device_cats_accessor.GetNodeCatStorage(input.nidx), &out_splits[i]);
+      SetCategoricalSplit( shared_inputs,d_sorted_idx, fidx, i, device_cats_accessor.GetNodeCatStorage(input.nidx), &out_splits[i]);
     }
 
     float base_weight =
@@ -387,7 +385,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t
     float left_weight = evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.left_sum});
     float right_weight = evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.right_sum});
 
-    d_entries[i] = GPUExpandEntry{input.nidx,  candidate.depth + 1, out_splits[i],
+    d_entries[i] = GPUExpandEntry{input.nidx, input.depth, out_splits[i],
                                   base_weight, left_weight,         right_weight};
   });
 
@@ -397,35 +395,14 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t
 template <typename GradientSumT>
 GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
     EvaluateSplitInputs input, EvaluateSplitSharedInputs shared_inputs,float weight) {
-  dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
-  auto out_split = dh::ToSpan(splits_out);
-  auto evaluator = tree_evaluator_.GetEvaluator<GPUTrainingParam>();
   dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input};
-  this->LaunchEvaluateSplits(input.feature_set.size(),dh::ToSpan(inputs),shared_inputs, evaluator, out_split);
-
-  auto device_cats_accessor = this->DeviceCatStorage({input.nidx});
-  auto d_sorted_idx = this->SortedIdx(inputs.size(), shared_inputs.feature_values.size());
-
-  dh::TemporaryArray<GPUExpandEntry> entries(1);
-  auto d_entries = entries.data().get();
-  dh::LaunchN(1, [=] __device__(size_t i) mutable{
-    auto &split = out_split[i];
-    auto fidx = out_split[i].findex;
-
-    if (split.is_cat) {
-      SetCategoricalSplit(input,shared_inputs,  d_sorted_idx, fidx, true, device_cats_accessor.GetNodeCatStorage(input.nidx), &out_split[i]);
-    }
-
-    float left_weight = evaluator.CalcWeight(0, shared_inputs.param, GradStats{split.left_sum});
-    float right_weight = evaluator.CalcWeight(0, shared_inputs.param, GradStats{split.right_sum});
-    d_entries[0] = GPUExpandEntry(0, 0, split, weight, left_weight, right_weight);
-  });
-  this->CopyToHost({input.nidx});
-
+  dh::TemporaryArray<GPUExpandEntry> out_entries(1);
+  this->EvaluateSplits({input.nidx},input.feature_set.size(),dh::ToSpan(inputs),shared_inputs,dh::ToSpan(out_entries));
   GPUExpandEntry root_entry;
-  dh::safe_cuda(cudaMemcpyAsync(&root_entry, entries.data().get(),
-                                sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
+  dh::safe_cuda(cudaMemcpyAsync(&root_entry, out_entries.data().get(),
+                                sizeof(GPUExpandEntry), cudaMemcpyDeviceToHost));
   return root_entry;
+
 }
 
 template class GPUHistEvaluator<GradientPairPrecise>;

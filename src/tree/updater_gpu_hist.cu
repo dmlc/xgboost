@@ -279,7 +279,7 @@ struct GPUHistMakerDevice {
     common::Span<bst_feature_t> feature_set =
         interaction_constraints.Query(sampled_features->DeviceSpan(), nidx);
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-    EvaluateSplitInputs inputs{nidx, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
+    EvaluateSplitInputs inputs{nidx, 1, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
         gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
         matrix.min_fvalue,
@@ -307,18 +307,14 @@ struct GPUHistMakerDevice {
           interaction_constraints.Query(right_sampled_features->DeviceSpan(), left_nidx);
       auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
       auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2);
-      h_node_inputs[0] = {left_nidx, candidate.split.left_sum, left_feature_set,
+      h_node_inputs[0] = {left_nidx, candidate.depth+1,candidate.split.left_sum, left_feature_set,
                           hist.GetNodeHistogram(left_nidx)};
-      h_node_inputs[1] = {right_nidx, candidate.split.right_sum, right_feature_set,
+      h_node_inputs[1] = {right_nidx, candidate.depth+1,candidate.split.right_sum, right_feature_set,
                           hist.GetNodeHistogram(right_nidx)};
       dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
                                     h_node_inputs.size() * sizeof(EvaluateSplitInputs),
                                     cudaMemcpyDefault));
 
-      EvaluateSplitInputs left{left_nidx, candidate.split.left_sum, left_feature_set,
-                               hist.GetNodeHistogram(left_nidx)};
-      EvaluateSplitInputs right{right_nidx, candidate.split.right_sum, right_feature_set,
-                                hist.GetNodeHistogram(right_nidx)};
       EvaluateSplitSharedInputs shared_inputs{
           gpu_param,         feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
           matrix.min_fvalue,
@@ -329,7 +325,7 @@ struct GPUHistMakerDevice {
              "(after sampling) in any node is the same";
       dh::TemporaryArray<GPUExpandEntry> entries(2);
       std::vector<bst_node_t> nidx = {left_nidx, right_nidx};
-      this->evaluator_.EvaluateSplits(nidx,number_active_features,dh::ToSpan(d_node_inputs), candidate, shared_inputs, dh::ToSpan(entries));
+      this->evaluator_.EvaluateSplits(nidx,number_active_features,dh::ToSpan(d_node_inputs), shared_inputs, dh::ToSpan(entries));
       dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.subspan(i * 2, 2).data(),
                                     entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
                                     cudaMemcpyDeviceToHost));

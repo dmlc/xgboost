@@ -21,6 +21,7 @@ namespace tree {
 // Inputs specific to each node
 struct EvaluateSplitInputs {
   int nidx;
+  int depth;
   GradientPairPrecise parent_sum;
   common::Span<const bst_feature_t> feature_set;
   common::Span<const GradientPairPrecise> gradient_histogram;
@@ -173,7 +174,7 @@ class GPUHistEvaluator {
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(const std::vector<bst_node_t> &nidx,bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,GPUExpandEntry candidate,
+  void EvaluateSplits(const std::vector<bst_node_t> &nidx,bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,
                       EvaluateSplitSharedInputs shared_inputs, 
                       common::Span<GPUExpandEntry> out_splits);
   /**

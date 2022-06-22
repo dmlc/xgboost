@@ -50,7 +50,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
     d_feature_types = dh::ToSpan(feature_types);
   }
 
-  EvaluateSplitInputs input{1,
+  EvaluateSplitInputs input{1,0,
                                           parent_sum,
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_histogram)};
@@ -98,7 +98,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   thrust::device_vector<GradientPairPrecise> feature_histogram =
       std::vector<GradientPairPrecise>{{-0.5, 0.5}, {0.5, 0.5}};
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
-  EvaluateSplitInputs input{1,
+  EvaluateSplitInputs input{1,0,
                                           parent_sum,
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_histogram)};
@@ -148,7 +148,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
       std::vector<GradientPairPrecise>{
           {-10.0, 0.5}, {10.0, 0.5}, {-0.5, 0.5}, {0.5, 0.5}};
   thrust::device_vector<int> monotonic_constraints(2, 0);
-  EvaluateSplitInputs input{1,
+  EvaluateSplitInputs input{1,0,
                                           parent_sum,
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_histogram)};
@@ -188,7 +188,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
       std::vector<GradientPairPrecise>{
           {-0.5, 0.5}, {0.5, 0.5}, {-0.5, 0.5}, {0.5, 0.5}};
   thrust::device_vector<int> monotonic_constraints(2, 0);
-  EvaluateSplitInputs input{1,
+  EvaluateSplitInputs input{1,0,
                                           parent_sum,
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_histogram)};
@@ -230,12 +230,12 @@ TEST(GpuHist, EvaluateSplits) {
           {-1.0, 0.5}, {1.0, 0.5}, {-0.5, 0.5}, {0.5, 0.5}};
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
   EvaluateSplitInputs input_left{
-      1,
+      1,0,
       parent_sum,
       dh::ToSpan(feature_set),
       dh::ToSpan(feature_histogram_left)};
   EvaluateSplitInputs input_right{
-      2,
+      2,0,
       parent_sum,
       dh::ToSpan(feature_set),
       dh::ToSpan(feature_histogram_right)};
@@ -279,7 +279,7 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
                            cudaMemcpyHostToDevice));
   dh::device_vector<bst_feature_t> feature_set{std::vector<bst_feature_t>{0}};
 
-  EvaluateSplitInputs input{0,
+  EvaluateSplitInputs input{0,0,
                                                  total_gpair_,
                                                  dh::ToSpan(feature_set),
                                                  dh::ToSpan(d_hist)};
