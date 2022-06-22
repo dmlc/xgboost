@@ -228,7 +228,9 @@ macro(xgboost_target_properties target)
 
   if (ENABLE_ALL_WARNINGS)
     target_compile_options(${target} PUBLIC
-      $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>
+      $<IF:$<COMPILE_LANGUAGE:CUDA>,
+      -Xcompiler=-Wall -Xcompiler=-Wextra -Xcompiler=-Wno-expansion-to-defined,
+      -Wall -Wextra -Wno-expansion-to-defined>
     )
   endif(ENABLE_ALL_WARNINGS)
 

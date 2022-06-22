@@ -181,8 +181,7 @@ void TestSyncHist(bool is_distributed) {
                                        starting_index, sync_count);
   } else {
     histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
-                                 nodes_for_subtraction_trick_, starting_index,
-                                 sync_count);
+                                 nodes_for_subtraction_trick_);
   }
 
   using GHistRowT = common::GHistRow;

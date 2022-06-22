@@ -230,9 +230,7 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   const char* Name() const override {
     return "mlogloss";
   }
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
-                                          size_t nclass) {
+  XGBOOST_DEVICE static bst_float EvalRow(int label, const bst_float* pred, size_t /*nclass*/) {
     const bst_float eps = 1e-16f;
     auto k = static_cast<size_t>(label);
     if (pred[k] > eps) {
@@ -244,11 +242,11 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
 };
 
 XGBOOST_REGISTER_METRIC(MatchError, "merror")
-.describe("Multiclass classification error.")
-.set_body([](const char* param) { return new EvalMatchError(); });
+    .describe("Multiclass classification error.")
+    .set_body([](const char*) { return new EvalMatchError(); });
 
 XGBOOST_REGISTER_METRIC(MultiLogLoss, "mlogloss")
-.describe("Multiclass negative loglikelihood.")
-.set_body([](const char* param) { return new EvalMultiLogLoss(); });
+    .describe("Multiclass negative loglikelihood.")
+    .set_body([](const char*) { return new EvalMultiLogLoss(); });
 }  // namespace metric
 }  // namespace xgboost

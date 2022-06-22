@@ -242,10 +242,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual void GetFeatureTypes(std::vector<std::string>* ft) const = 0;
 
   /*!
-   * \return whether the model allow lazy checkpoint in rabit.
-   */
-  bool AllowLazyCheckPoint() const;
-  /*!
    * \brief Slice the model.
    *
    * See InplacePredict for layer parameters.

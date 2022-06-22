@@ -29,7 +29,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position.begin(),
                              sorted_position.begin() + n_samples, p_ridx->begin());
   dh::XGBCachingDeviceAllocator<char> caching;
-  auto beg_pos =
+  size_t beg_pos =
       thrust::find_if(thrust::cuda::par(caching), sorted_position.cbegin(), sorted_position.cend(),
                       [] XGBOOST_DEVICE(bst_node_t nidx) { return nidx >= 0; }) -
       sorted_position.cbegin();
@@ -53,15 +53,15 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   dh::caching_device_vector<bst_node_t> unique_out(max_n_unique, 0);
   auto d_unique_out = dh::ToSpan(unique_out);
 
-  size_t nbytes;
+  size_t nbytes{0};
   auto begin_it = sorted_position.begin() + beg_pos;
-  cub::DeviceRunLengthEncode::Encode(nullptr, nbytes, begin_it, unique_out.data().get(),
-                                     counts_out.data().get(), d_num_runs_out.data(),
-                                     n_samples - beg_pos);
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, nbytes, begin_it,
+                                                   unique_out.data().get(), counts_out.data().get(),
+                                                   d_num_runs_out.data(), n_samples - beg_pos));
   dh::TemporaryArray<char> temp(nbytes);
-  cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, begin_it, unique_out.data().get(),
-                                     counts_out.data().get(), d_num_runs_out.data(),
-                                     n_samples - beg_pos);
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, begin_it,
+                                                   unique_out.data().get(), counts_out.data().get(),
+                                                   d_num_runs_out.data(), n_samples - beg_pos));
 
   dh::PinnedMemory pinned_pool;
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));

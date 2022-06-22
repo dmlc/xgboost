@@ -965,8 +965,7 @@ template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
     XGDMatrixCallbackNext *next, float missing, int32_t n_threads, std::string);
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix) {
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&) {
   return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 

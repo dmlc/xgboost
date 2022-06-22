@@ -248,7 +248,7 @@ struct TestIterCompare {
   XGBOOST_DEVICE void operator()() {
     this->operator()(0);
   }
-  XGBOOST_DEVICE void operator()(int _idx) {
+  XGBOOST_DEVICE void operator()(size_t) {  // size_t for CUDA index
     float arr[16];
     InitializeRange(arr, arr + 16);
     Span<float> s (arr);

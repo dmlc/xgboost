@@ -15,11 +15,10 @@ namespace dh {
 constexpr std::size_t kUuidLength =
     sizeof(std::declval<cudaDeviceProp>().uuid) / sizeof(uint64_t);
 
-void GetCudaUUID(int world_size, int rank, int device_ord,
-                 xgboost::common::Span<uint64_t, kUuidLength> uuid) {
+void GetCudaUUID(int device_ord, xgboost::common::Span<uint64_t, kUuidLength> uuid) {
   cudaDeviceProp prob;
   safe_cuda(cudaGetDeviceProperties(&prob, device_ord));
-  std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), sizeof(prob.uuid));
+  std::memcpy(uuid.data(), static_cast<void *>(&(prob.uuid)), sizeof(prob.uuid));
 }
 
 std::string PrintUUID(xgboost::common::Span<uint64_t, kUuidLength> uuid) {
@@ -38,7 +37,7 @@ void NcclAllReducer::DoInit(int _device_ordinal) {
   std::vector<uint64_t> uuids(world * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};
   auto s_this_uuid = s_uuid.subspan(rank * kUuidLength, kUuidLength);
-  GetCudaUUID(world, rank, _device_ordinal, s_this_uuid);
+  GetCudaUUID(_device_ordinal, s_this_uuid);
 
   // No allgather yet.
   rabit::Allreduce<rabit::op::Sum, uint64_t>(uuids.data(), uuids.size());
@@ -67,7 +66,7 @@ void NcclAllReducer::DoInit(int _device_ordinal) {
 void NcclAllReducer::DoAllGather(void const *data, size_t length_bytes,
                                  std::vector<size_t> *segments,
                                  dh::caching_device_vector<char> *recvbuf) {
-  size_t world = rabit::GetWorldSize();
+  int32_t world = rabit::GetWorldSize();
   segments->clear();
   segments->resize(world, 0);
   segments->at(rabit::GetRank()) = length_bytes;
