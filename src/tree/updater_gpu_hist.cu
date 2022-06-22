@@ -323,10 +323,13 @@ struct GPUHistMakerDevice {
           gpu_param,         feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
           matrix.min_fvalue,
       };
-
+      bst_feature_t number_active_features = h_node_inputs[0].feature_set.size();
+      CHECK_EQ(h_node_inputs[1].feature_set.size(), number_active_features)
+          << "Current implementation assumes that the number of active features "
+             "(after sampling) in any node is the same";
       dh::TemporaryArray<GPUExpandEntry> entries(2);
       std::vector<bst_node_t> nidx = {left_nidx, right_nidx};
-      this->evaluator_.EvaluateSplits(nidx,dh::ToSpan(d_node_inputs), candidate, left, right, shared_inputs, dh::ToSpan(entries));
+      this->evaluator_.EvaluateSplits(nidx,number_active_features,dh::ToSpan(d_node_inputs), candidate, shared_inputs, dh::ToSpan(entries));
       dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.subspan(i * 2, 2).data(),
                                     entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
                                     cudaMemcpyDeviceToHost));

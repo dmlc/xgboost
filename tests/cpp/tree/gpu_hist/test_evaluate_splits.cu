@@ -250,7 +250,7 @@ TEST(GpuHist, EvaluateSplits) {
   GPUHistEvaluator<GradientPairPrecise> evaluator{
       tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
   dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input_left,input_right};
-  evaluator.LaunchEvaluateSplits(dh::ToSpan(inputs),input_left, input_right,shared_inputs, evaluator.GetEvaluator(),
+  evaluator.LaunchEvaluateSplits(input_left.feature_set.size(),dh::ToSpan(inputs),shared_inputs, evaluator.GetEvaluator(),
                            dh::ToSpan(out_splits));
 
   DeviceSplitCandidate result_left = out_splits[0];
