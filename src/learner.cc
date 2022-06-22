@@ -61,11 +61,6 @@ enum class DataSplitMode : int {
 DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace xgboost {
-// implementation of base learner.
-bool Learner::AllowLazyCheckPoint() const {
-  return gbm_->AllowLazyCheckPoint();
-}
-
 Learner::~Learner() = default;
 
 /*! \brief training parameter for regression

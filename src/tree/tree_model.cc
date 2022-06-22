@@ -354,10 +354,10 @@ class TextGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
-.describe("Dump text representation of tree")
-.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new TextGenerator(fmap, with_stats);
-          });
+    .describe("Dump text representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& /*attrs*/, bool with_stats) {
+      return new TextGenerator(fmap, with_stats);
+    });
 
 class JsonGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
@@ -510,10 +510,10 @@ class JsonGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
-.describe("Dump json representation of tree")
-.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new JsonGenerator(fmap, with_stats);
-          });
+    .describe("Dump json representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& /*attrs*/, bool with_stats) {
+      return new JsonGenerator(fmap, with_stats);
+    });
 
 struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
   std::string yes_color;

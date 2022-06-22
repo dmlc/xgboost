@@ -98,7 +98,7 @@ class ColMaker: public TreeUpdater {
   }
 
   void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
-              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
     if (rabit::IsDistributed()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "

@@ -45,7 +45,7 @@ void TestTrainingPrediction(size_t rows, size_t bins,
   size_t constexpr kIters = 3;
 
   std::unique_ptr<Learner> learner;
-  auto train = [&](std::string predictor, HostDeviceVector<float> *out) {
+  auto train = [&](std::string predictor) {
     p_hist->Info().labels.Reshape(rows, 1);
     auto &h_label = p_hist->Info().labels.Data()->HostVector();
 
@@ -78,11 +78,11 @@ void TestTrainingPrediction(size_t rows, size_t bins,
     }
   };
 
-  HostDeviceVector<float> predictions_0;
-  train("cpu_predictor", &predictions_0);
-
-  HostDeviceVector<float> predictions_1;
-  train("gpu_predictor", &predictions_1);
+  if (tree_method == "gpu_hist") {
+    train("gpu_predictor");
+  } else {
+    train("cpu_predictor");
+  }
 }
 
 void TestInplacePrediction(std::shared_ptr<DMatrix> x, std::string predictor, bst_row_t rows,

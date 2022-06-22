@@ -1076,7 +1076,7 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   auto* bst = static_cast<Learner*>(handle);
-  *version = rabit::LoadCheckPoint(bst);
+  *version = rabit::LoadCheckPoint();
   if (*version != 0) {
     bst->Configure();
   }
@@ -1086,13 +1086,9 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_BEGIN();
   CHECK_HANDLE();
-  auto* learner = static_cast<Learner*>(handle);
+  auto *learner = static_cast<Learner *>(handle);
   learner->Configure();
-  if (learner->AllowLazyCheckPoint()) {
-    rabit::LazyCheckPoint(learner);
-  } else {
-    rabit::CheckPoint(learner);
-  }
+  rabit::CheckPoint();
   API_END();
 }
 

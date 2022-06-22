@@ -207,20 +207,11 @@ inline void TrackerPrintf(const char *fmt, ...) {
 }
 
 #endif  // RABIT_STRICT_CXX98_
-// load latest check point
-inline int LoadCheckPoint(Serializable *global_model,
-                          Serializable *local_model) {
-  return engine::GetEngine()->LoadCheckPoint(global_model, local_model);
-}
-// checkpoint the model, meaning we finished a stage of execution
-inline void CheckPoint(const Serializable *global_model,
-                       const Serializable *local_model) {
-  engine::GetEngine()->CheckPoint(global_model, local_model);
-}
-// lazy checkpoint the model, only remember the pointer to global_model
-inline void LazyCheckPoint(const Serializable *global_model) {
-  engine::GetEngine()->LazyCheckPoint(global_model);
-}
+
+// deprecated, planned for removal after checkpoing from JVM package is removed.
+inline int LoadCheckPoint() { return engine::GetEngine()->LoadCheckPoint(); }
+// deprecated, increase internal version number
+inline void CheckPoint() { engine::GetEngine()->CheckPoint(); }
 // return the version number of currently stored model
 inline int VersionNumber() {
   return engine::GetEngine()->VersionNumber();
