@@ -328,26 +328,26 @@ class XGBoostClassificationModel private[ml](
     }
   }
 
-  private[scala] def producePredictionItrs(broadcastBooster: Booster, dm: DMatrix):
+  private[scala] def producePredictionItrs(booster: Booster, dm: DMatrix):
       Array[Iterator[Row]] = {
     val rawPredictionItr = {
-      broadcastBooster.predict(dm, outPutMargin = true, $(treeLimit)).
+      booster.predict(dm, outPutMargin = true, $(treeLimit)).
         map(Row(_)).iterator
     }
     val probabilityItr = {
-      broadcastBooster.predict(dm, outPutMargin = false, $(treeLimit)).
+      booster.predict(dm, outPutMargin = false, $(treeLimit)).
         map(Row(_)).iterator
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        broadcastBooster.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
+        booster.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        broadcastBooster.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
+        booster.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }

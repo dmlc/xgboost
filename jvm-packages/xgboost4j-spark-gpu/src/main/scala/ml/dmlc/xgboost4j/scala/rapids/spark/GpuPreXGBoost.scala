@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.rapids.spark
 import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
-import com.nvidia.spark.rapids.{GpuColumnVector}
+import com.nvidia.spark.rapids.GpuColumnVector
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.java.nvidia.spark.GpuColumnBatch
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, DeviceQuantileDMatrix}
@@ -88,6 +88,38 @@ class GpuPreXGBoost extends PreXGBoostProvider {
       schema: StructType): StructType = {
     GpuPreXGBoost.transformSchema(xgboostEstimator, schema)
   }
+}
+
+object BoosterSingleTon {
+  private val logger = LogFactory.getLog("XGBoostSpark")
+  private var optBooster: Option[Booster] = None
+
+  /** DO NOT set booster parameters for all tasks, which may cause the memory corrupted
+   * There are two scenarios which cause this issue.
+   * 1. calling setParam for all tasks at the same time
+   * 2. calling setParam in one task and transforming using the booster
+   */
+  private def getBoosterAndSetParams(bBooster: Broadcast[Booster], isLocal: Boolean): Booster =
+    synchronized {
+      if (optBooster.isEmpty) {
+        // set some params of gpu related to booster
+        // - gpu id
+        // - predictor: Force to gpu predictor since native doesn't save predictor.
+        val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
+        val booster = bBooster.value
+        booster.setParam("gpu_id", gpuId.toString)
+        booster.setParam("predictor", "gpu_predictor")
+        logger.info(s"GPU transform on device: ${gpuId} setting by partition " +
+          TaskContext.getPartitionId())
+        optBooster = Some(booster)
+      }
+      optBooster.get
+    }
+
+  def get(bBooster: Broadcast[Booster], isLocal: Boolean): Booster = {
+    optBooster.getOrElse(getBoosterAndSetParams(bBooster, isLocal))
+  }
+
 }
 
 object GpuPreXGBoost extends PreXGBoostProvider {
@@ -259,10 +291,8 @@ object GpuPreXGBoost extends PreXGBoostProvider {
         // UnsafeProjection is not serializable so do it on the executor side
         val toUnsafe = UnsafeProjection.create(bOrigSchema.value)
 
-        // booster is visible for all spark tasks in the same executor
-        val booster = bBooster.value
-        // for the same executor, we only need to set the parameter once.
-        setGpuParam(booster, isLocal)
+        // booster is the same for all spark tasks in the same executor
+        val booster = BoosterSingleTon.get(bBooster, isLocal)
 
         // Iterator on Row
         new Iterator[Row] {
@@ -352,16 +382,6 @@ object GpuPreXGBoost extends PreXGBoostProvider {
     bRowSchema.unpersist(blocking = false)
     bBooster.unpersist(blocking = false)
     dataset.sparkSession.createDataFrame(rowRDD, schema)
-  }
-
-  private def setGpuParam(booster: Booster, isLocal: Boolean): Unit = synchronized {
-    // set some params of gpu related to booster
-    // - gpu id
-    // - predictor: Force to gpu predictor since native doesn't save predictor.
-    val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
-    booster.setParam("gpu_id", gpuId.toString)
-    booster.setParam("predictor", "gpu_predictor")
-    logger.info("GPU transform on device: " + gpuId)
   }
 
   /**
