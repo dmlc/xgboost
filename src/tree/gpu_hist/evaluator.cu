@@ -70,7 +70,7 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
 
 template <typename GradientSumT>
 common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
-    EvaluateSplitInputs const &left, EvaluateSplitInputs const &right, EvaluateSplitSharedInputs shared_inputs,
+     EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
@@ -78,33 +78,38 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
+                    auto total_bins = shared_inputs.feature_values.size();
   thrust::transform(thrust::cuda::par(alloc), it, it + data.size(), dh::tbegin(data),
                     [=] XGBOOST_DEVICE(uint32_t i) {
-                      auto is_left = i < shared_inputs.feature_values.size();
-                      auto const &input = is_left ? left : right;
-                      auto j = i - (is_left ? 0 : shared_inputs.feature_values.size());
+                      auto const &input = d_inputs[i / total_bins];
+                      auto j = i % total_bins;
                       auto fidx = d_feature_idx[j];
                       if (common::IsCat(shared_inputs.feature_types, fidx)) {
-                        auto lw = evaluator.CalcWeightCat(shared_inputs.param, input.gradient_histogram[j]);
+                        auto lw = evaluator.CalcWeightCat(shared_inputs.param,
+                                                          input.gradient_histogram[j]);
                         return thrust::make_tuple(i, lw);
                       }
                       return thrust::make_tuple(i, 0.0);
                     });
+  // Sort an array segmented according to
+  // - nodes
+  // - features within each node
+  // - gradients within each feature
   thrust::stable_sort_by_key(thrust::cuda::par(alloc), dh::tbegin(data), dh::tend(data),
                              dh::tbegin(sorted_idx),
                              [=] XGBOOST_DEVICE(SortPair const &l, SortPair const &r) {
                                auto li = thrust::get<0>(l);
                                auto ri = thrust::get<0>(r);
 
-                               auto l_is_left = li < shared_inputs.feature_values.size();
-                               auto r_is_left = ri < shared_inputs.feature_values.size();
+                               auto l_node = li / total_bins;
+                               auto r_node = ri / total_bins;
 
-                               if (l_is_left != r_is_left) {
-                                 return l_is_left;  // not the same node
+                               if (l_node != r_node) {
+                                 return l_node < r_node;  // not the same node
                                }
 
-                               li -= (l_is_left ? 0 : shared_inputs.feature_values.size());
-                               ri -= (r_is_left ? 0 : shared_inputs.feature_values.size());
+                               li = li % total_bins;
+                               ri = ri % total_bins;
 
                                auto lfidx = d_feature_idx[li];
                                auto rfidx = d_feature_idx[ri];

@@ -314,12 +314,13 @@ __device__ void SetCategoricalSplit(EvaluateSplitInputs const &input,const Evalu
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(common::Span<const EvaluateSplitInputs> d_inputs,
-    EvaluateSplitInputs left, EvaluateSplitInputs right,
-    EvaluateSplitSharedInputs shared_inputs, TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(
+    common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitInputs left,
+    EvaluateSplitInputs right, EvaluateSplitSharedInputs shared_inputs,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_splits) {
   if (need_sort_histogram_) {
-    this->SortHistogram(d_inputs,left, right, shared_inputs,evaluator);
+    this->SortHistogram(d_inputs, shared_inputs, evaluator);
   }
 
   size_t combined_num_features = left.feature_set.size() + right.feature_set.size();

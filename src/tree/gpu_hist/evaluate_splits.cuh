@@ -163,7 +163,7 @@ class GPUHistEvaluator {
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
   common::Span<bst_feature_t const> SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
-      EvaluateSplitInputs const &left, EvaluateSplitInputs const &right,EvaluateSplitSharedInputs shared_inputs,
+      EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
