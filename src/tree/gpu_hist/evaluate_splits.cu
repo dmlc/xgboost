@@ -199,7 +199,7 @@ __device__ void EvaluateFeature(
 }
 
 template <int BLOCK_THREADS, typename GradientSumT>
-__global__ void EvaluateSplitsKernel(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs, 
+__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs, 
                                      const EvaluateSplitSharedInputs shared_inputs,
                                      common::Span<bst_feature_t> sorted_idx,
                                      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
@@ -233,6 +233,7 @@ __global__ void EvaluateSplitsKernel(bst_feature_t number_active_features,common
   const auto input_idx = blockIdx.x / number_active_features;
   const EvaluateSplitInputs &inputs = d_inputs[input_idx];
   // One block for each feature. Features are sampled, so fidx != blockIdx.x
+
   int fidx = inputs.feature_set[blockIdx.x % number_active_features];
 
   if (common::IsCat(shared_inputs.feature_types, fidx)) {
