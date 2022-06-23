@@ -201,9 +201,9 @@ object PreXGBoost extends PreXGBoostProvider {
           val (xgbInput, featuresName) = m.vectorize(dataset)
           // predict and turn to Row
           val predictFunc =
-            (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+            (booster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
               val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
-                m.producePredictionItrs(broadcastBooster, dm)
+                m.producePredictionItrs(booster, dm)
               m.produceResultIterator(originalRowItr, rawPredictionItr, probabilityItr,
                 predLeafItr, predContribItr)
             }
@@ -231,9 +231,9 @@ object PreXGBoost extends PreXGBoostProvider {
           // predict and turn to Row
           val (xgbInput, featuresName) = m.vectorize(dataset)
           val predictFunc =
-            (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+            (booster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
               val Array(rawPredictionItr, predLeafItr, predContribItr) =
-                m.producePredictionItrs(broadcastBooster, dm)
+                m.producePredictionItrs(booster, dm)
               m.produceResultIterator(originalRowItr, rawPredictionItr, predLeafItr, predContribItr)
             }
 
@@ -286,7 +286,7 @@ object PreXGBoost extends PreXGBoostProvider {
             cacheInfo)
 
           try {
-            predictFunc(bBooster, dm, batchRow.iterator)
+            predictFunc(bBooster.value, dm, batchRow.iterator)
           } finally {
             batchCnt += 1
             dm.delete()

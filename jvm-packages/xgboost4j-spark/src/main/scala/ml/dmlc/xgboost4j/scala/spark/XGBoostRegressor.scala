@@ -30,7 +30,6 @@ import org.apache.spark.ml.param._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.util.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter, XGBoostWriter}
 import org.apache.spark.sql.types.StructType
 
@@ -298,14 +297,14 @@ class XGBoostRegressionModel private[ml] (
     }
   }
 
-  private[scala] def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
+  private[scala] def producePredictionItrs(booster: Booster, dm: DMatrix):
       Array[Iterator[Row]] = {
     val originalPredictionItr = {
-      booster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
+      booster.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        booster.value.predictLeaf(dm, $(treeLimit)).
+        booster.predictLeaf(dm, $(treeLimit)).
           map(Row(_)).iterator
       } else {
         Iterator()
@@ -313,7 +312,7 @@ class XGBoostRegressionModel private[ml] (
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        booster.value.predictContrib(dm, $(treeLimit)).
+        booster.predictContrib(dm, $(treeLimit)).
           map(Row(_)).iterator
       } else {
         Iterator()
