@@ -27,7 +27,6 @@ import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
 import ml.dmlc.xgboost4j.scala.spark.{PreXGBoost, PreXGBoostProvider, Watches, XGBoost, XGBoostClassificationModel, XGBoostClassifier, XGBoostExecutionParams, XGBoostRegressionModel, XGBoostRegressor}
 import org.apache.commons.logging.LogFactory
 
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.ml.{Estimator, Model}
 import org.apache.spark.rdd.RDD
@@ -192,9 +191,9 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
         // predict and turn to Row
         val predictFunc =
-          (broadcastBooster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
+          (booster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
             val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
-              m.producePredictionItrs(broadcastBooster, dm)
+              m.producePredictionItrs(booster, dm)
             m.produceResultIterator(originalRowItr, rawPredictionItr, probabilityItr,
               predLeafItr, predContribItr)
           }
@@ -223,9 +222,9 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
         // predict and turn to Row
         val predictFunc =
-          (broadcastBooster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
+          (booster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
             val Array(rawPredictionItr, predLeafItr, predContribItr) =
-              m.producePredictionItrs(broadcastBooster, dm)
+              m.producePredictionItrs(booster, dm)
             m.produceResultIterator(originalRowItr, rawPredictionItr, predLeafItr,
               predContribItr)
           }
