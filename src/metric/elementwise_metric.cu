@@ -376,40 +376,40 @@ struct EvalEWiseBase : public Metric {
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
-.describe("Rooted mean square error.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalRowRMSE>(); });
+    .describe("Rooted mean square error.")
+    .set_body([](const char*) { return new EvalEWiseBase<EvalRowRMSE>(); });
 
 XGBOOST_REGISTER_METRIC(RMSLE, "rmsle")
-.describe("Rooted mean square log error.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalRowRMSLE>(); });
+    .describe("Rooted mean square log error.")
+    .set_body([](const char*) { return new EvalEWiseBase<EvalRowRMSLE>(); });
 
-XGBOOST_REGISTER_METRIC(MAE, "mae")
-.describe("Mean absolute error.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalRowMAE>(); });
+XGBOOST_REGISTER_METRIC(MAE, "mae").describe("Mean absolute error.").set_body([](const char*) {
+  return new EvalEWiseBase<EvalRowMAE>();
+});
 
 XGBOOST_REGISTER_METRIC(MAPE, "mape")
     .describe("Mean absolute percentage error.")
-    .set_body([](const char* param) { return new EvalEWiseBase<EvalRowMAPE>(); });
+    .set_body([](const char*) { return new EvalEWiseBase<EvalRowMAPE>(); });
 
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
-.describe("Negative loglikelihood for logistic regression.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalRowLogLoss>(); });
+    .describe("Negative loglikelihood for logistic regression.")
+    .set_body([](const char*) { return new EvalEWiseBase<EvalRowLogLoss>(); });
 
 XGBOOST_REGISTER_METRIC(PseudoErrorLoss, "mphe")
     .describe("Mean Pseudo-huber error.")
-    .set_body([](const char* param) { return new PseudoErrorLoss{}; });
+    .set_body([](const char*) { return new PseudoErrorLoss{}; });
 
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
-.describe("Negative loglikelihood for poisson regression.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalPoissonNegLogLik>(); });
+    .describe("Negative loglikelihood for poisson regression.")
+    .set_body([](const char*) { return new EvalEWiseBase<EvalPoissonNegLogLik>(); });
 
 XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
-.describe("Residual deviance for gamma regression.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalGammaDeviance>(); });
+    .describe("Residual deviance for gamma regression.")
+    .set_body([](const char*) { return new EvalEWiseBase<EvalGammaDeviance>(); });
 
 XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
-.describe("Negative log-likelihood for gamma regression.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalGammaNLogLik>(); });
+    .describe("Negative log-likelihood for gamma regression.")
+    .set_body([](const char*) { return new EvalEWiseBase<EvalGammaNLogLik>(); });
 
 XGBOOST_REGISTER_METRIC(Error, "error")
 .describe("Binary classification error.")

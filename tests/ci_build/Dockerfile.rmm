@@ -27,7 +27,7 @@ ENV PATH=/opt/python/bin:$PATH
 # Create new Conda environment with RMM
 RUN \
     conda create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.9 rmm=22.06* cudatoolkit=$CUDA_VERSION_ARG cmake
+        python=3.9 rmm=22.04* cudatoolkit=$CUDA_VERSION_ARG cmake
 
 ENV GOSU_VERSION 1.10
 

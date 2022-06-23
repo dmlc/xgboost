@@ -188,7 +188,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
   // opt into maximum shared memory for the kernel if necessary
-  int max_shared_memory = dh::MaxSharedMemoryOptin(device);
+  size_t max_shared_memory = dh::MaxSharedMemoryOptin(device);
 
   size_t smem_size = sizeof(typename HistRounding<GradientSumT>::SharedSumT) *
                      feature_groups.max_group_bins;

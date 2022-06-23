@@ -100,30 +100,7 @@ void Allreduce_(void *sendrecvbuf,  // NOLINT
                 mpi::OpType ,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
-  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun,
-    prepare_arg);
-}
-
-// code for reduce handle
-ReduceHandle::ReduceHandle() = default;
-ReduceHandle::~ReduceHandle() = default;
-
-int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
-  return static_cast<int>(dtype.type_size);
-}
-
-void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t ) {
-  utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
-  redfunc_ = redfunc;
-}
-
-void ReduceHandle::Allreduce(void *sendrecvbuf,
-                             size_t type_nbytes, size_t count,
-                             IEngine::PreprocFunction prepare_fun,
-                             void *prepare_arg) {
-  utils::Assert(redfunc_ != nullptr, "must initialize handle to call AllReduce");
-  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
-                         redfunc_, prepare_fun, prepare_arg);
+  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun, prepare_arg);
 }
 }  // namespace engine
 }  // namespace rabit

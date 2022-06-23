@@ -218,7 +218,7 @@ class PseudoHuberRegression : public ObjFunction {
     return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
-  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int /*iter*/,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
     auto slope = param_.huber_slope;
@@ -672,7 +672,7 @@ class MeanAbsoluteError : public ObjFunction {
   void Configure(Args const&) override {}
   ObjInfo Task() const override { return {ObjInfo::kRegression, true, true}; }
 
-  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int iter,
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int /*iter*/,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
     auto labels = info.labels.View(ctx_->gpu_id);
@@ -721,7 +721,9 @@ class MeanAbsoluteError : public ObjFunction {
     out["name"] = String("reg:absoluteerror");
   }
 
-  void LoadConfig(Json const& in) override {}
+  void LoadConfig(Json const& in) override {
+    CHECK_EQ(StringView{get<String const>(in["name"])}, StringView{"reg:absoluteerror"});
+  }
 };
 
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")

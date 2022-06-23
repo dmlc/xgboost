@@ -397,7 +397,7 @@ class TCPSocket : public Socket{
    */
   inline void Create(int af = PF_INET) {
 #if !IS_MINGW()
-    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    sockfd = socket(af, SOCK_STREAM, 0);
     if (sockfd == kInvalidSocket) {
       Socket::Error("Create");
     }

@@ -29,9 +29,6 @@ class GHistIndexMatrix {
   /**
    * \brief Push a page into index matrix, the function is only necessary because hist has
    *        partial support for external memory.
-   *
-   * \param rbegin The beginning row index of current page. (total rows in previous pages)
-   * \param prev_sum Total number of entries in previous pages.
    */
   void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft,
                  bst_bin_t n_total_bins, int32_t n_threads);

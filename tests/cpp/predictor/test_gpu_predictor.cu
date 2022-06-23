@@ -56,7 +56,7 @@ TEST(GPUPredictor, Basic) {
     std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.predictions.HostVector();
     std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.predictions.HostVector();
     float abs_tolerance = 0.001;
-    for (int j = 0; j < gpu_out_predictions.predictions.Size(); j++) {
+    for (size_t j = 0; j < gpu_out_predictions.predictions.Size(); j++) {
       ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
     }
   }
@@ -118,7 +118,7 @@ TEST(GPUPredictor, ExternalMemoryTest) {
     gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
     EXPECT_EQ(out_predictions.predictions.Size(), dmat->Info().num_row_ * n_classes);
     const std::vector<float> &host_vector = out_predictions.predictions.ConstHostVector();
-    for (int i = 0; i < host_vector.size() / n_classes; i++) {
+    for (size_t i = 0; i < host_vector.size() / n_classes; i++) {
       ASSERT_EQ(host_vector[i * n_classes], 2.0);
       ASSERT_EQ(host_vector[i * n_classes + 1], 0.5);
       ASSERT_EQ(host_vector[i * n_classes + 2], 0.5);

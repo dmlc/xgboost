@@ -35,10 +35,8 @@ class MyLogistic : public ObjFunction {
 
   ObjInfo Task() const override { return ObjInfo::kRegression; }
 
-  void GetGradient(const HostDeviceVector<bst_float> &preds,
-                   const MetaInfo &info,
-                   int iter,
-                   HostDeviceVector<GradientPair> *out_gpair) override {
+  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int32_t /*iter*/,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
     out_gpair->Resize(preds.Size());
     const std::vector<bst_float>& preds_h = preds.HostVector();
     std::vector<GradientPair>& out_gpair_h = out_gpair->HostVector();
