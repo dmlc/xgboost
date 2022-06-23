@@ -279,7 +279,7 @@ struct GPUHistMakerDevice {
     common::Span<bst_feature_t> feature_set =
         interaction_constraints.Query(sampled_features->DeviceSpan(), nidx);
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
-    EvaluateSplitInputs inputs{nidx, 1, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
+    EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
         gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
         matrix.min_fvalue,
@@ -288,7 +288,7 @@ struct GPUHistMakerDevice {
     return split;
   }
 
-  void EvaluateLeftRightSplits(const std::vector<GPUExpandEntry>& candidates, const RegTree& tree,
+  void EvaluateSplits(const std::vector<GPUExpandEntry>& candidates, const RegTree& tree,
                                common::Span<GPUExpandEntry> pinned_candidates_out) {
     if (candidates.empty()) return;
     dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(2 * candidates.size());
@@ -321,9 +321,11 @@ struct GPUHistMakerDevice {
                                   right_feature_set, hist.GetNodeHistogram(right_nidx)};
     }
     bst_feature_t number_active_features = h_node_inputs[0].feature_set.size();
-    CHECK_EQ(h_node_inputs[1].feature_set.size(), number_active_features)
-        << "Current implementation assumes that the number of active features "
-           "(after sampling) in any node is the same";
+    for (auto input : h_node_inputs) {
+      CHECK_EQ(input.feature_set.size(), number_active_features)
+          << "Current implementation assumes that the number of active features "
+             "(after sampling) in any node is the same";
+    }
     dh::safe_cuda(cudaMemcpyAsync(d_node_inputs.data().get(), h_node_inputs.data(),
                                   h_node_inputs.size() * sizeof(EvaluateSplitInputs),
                                   cudaMemcpyDefault));
@@ -334,7 +336,7 @@ struct GPUHistMakerDevice {
                                   entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
                                   cudaMemcpyDeviceToHost));
     dh::DefaultStream().Sync();
-  }
+    }
 
   void BuildHist(int nidx) {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
@@ -703,7 +705,7 @@ struct GPUHistMakerDevice {
       monitor.Stop("BuildHist");
 
       monitor.Start("EvaluateSplits");
-      this->EvaluateLeftRightSplits(filtered_expand_set, *p_tree, new_candidates);
+      this->EvaluateSplits(filtered_expand_set, *p_tree, new_candidates);
       monitor.Stop("EvaluateSplits");
       dh::DefaultStream().Sync();
       driver.Push(new_candidates.begin(), new_candidates.end());

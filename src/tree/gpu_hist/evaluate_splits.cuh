@@ -40,7 +40,9 @@ struct EvaluateSplitSharedInputs {
   }
 };
 
-struct DeviceCatAccessor {
+// Used to return internal storage regions for categoricals
+// Usable on device
+struct CatAccessor {
   common::Span<common::CatBitField::value_type> cat_storage_;
   std::size_t node_categorical_storage_size_;
   XGBOOST_DEVICE common::Span<common::CatBitField::value_type> GetNodeCatStorage(bst_node_t nidx) {
@@ -86,31 +88,28 @@ class GPUHistEvaluator {
   /**
    * \brief Get host category storage of nidx for internal calculation.
    */
-  auto HostCatStorage(bst_node_t nidx) {
-    std::size_t min_size=(nidx+2)*node_categorical_storage_size_;
-    if(h_split_cats_.size()<min_size){
+  auto HostCatStorage(const std::vector<bst_node_t> &nidx) {
+    if (!has_categoricals_) return CatAccessor{};
+    auto max_nidx = *std::max_element(nidx.begin(), nidx.end());
+    std::size_t min_size = (max_nidx + 2) * node_categorical_storage_size_;
+    if (h_split_cats_.size() < min_size) {
       h_split_cats_.resize(min_size);
     }
-
-    if (nidx == RegTree::kRoot) {
-      auto cats_out = common::Span<CatST>{h_split_cats_}.subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_);
-      return cats_out;
-    }
-    auto cats_out = common::Span<CatST>{h_split_cats_}.subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_ * 2);
-    return cats_out;
+    return CatAccessor{{h_split_cats_.data(), h_split_cats_.size()},
+                       node_categorical_storage_size_};
   }
 
   /**
    * \brief Get device category storage of nidx for internal calculation.
    */
   auto DeviceCatStorage(const std::vector<bst_node_t> &nidx) {
-    if (!has_categoricals_) return DeviceCatAccessor{};
+    if (!has_categoricals_) return CatAccessor{};
     auto max_nidx = *std::max_element(nidx.begin(), nidx.end());
     std::size_t min_size = (max_nidx + 2) * node_categorical_storage_size_;
     if (split_cats_.size() < min_size) {
       split_cats_.resize(min_size);
     }
-    return DeviceCatAccessor{dh::ToSpan(split_cats_), node_categorical_storage_size_};
+    return CatAccessor{dh::ToSpan(split_cats_), node_categorical_storage_size_};
   }
 
   /**

@@ -344,16 +344,17 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(bst_feature_t number_a
 }
 
 template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::CopyToHost( const std::vector<bst_node_t>& nidx) {
+void GPUHistEvaluator<GradientSumT>::CopyToHost(const std::vector<bst_node_t> &nidx) {
   if (!has_categoricals_) return;
+  auto d_cats = this->DeviceCatStorage(nidx);
+  auto h_cats = this->HostCatStorage(nidx);
   dh::CUDAEvent event;
   event.Record(dh::DefaultStream());
   for (auto idx : nidx) {
-    auto h_cats = this->HostCatStorage(idx);
-    auto d_cats = this->DeviceCatStorage(nidx).GetNodeCatStorage(idx);
     copy_stream_.View().Wait(event);
-    dh::safe_cuda(cudaMemcpyAsync(h_cats.data(), d_cats.data(), d_cats.size_bytes(),
-                                  cudaMemcpyDeviceToHost, copy_stream_.View()));
+    dh::safe_cuda(cudaMemcpyAsync(
+        h_cats.GetNodeCatStorage(idx).data(), d_cats.GetNodeCatStorage(idx).data(),
+        d_cats.GetNodeCatStorage(idx).size_bytes(), cudaMemcpyDeviceToHost, copy_stream_.View()));
   }
 }
 
