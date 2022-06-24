@@ -242,8 +242,8 @@ class RowPartitioner {
   dh::TemporaryArray<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
-  dh::TemporaryArray<bst_uint> d_counts;
-  dh::device_vector<int8_t> tmp;
+  dh::TemporaryArray<bst_uint> d_counts_;
+  dh::device_vector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
   cudaStream_t stream_;
@@ -301,7 +301,7 @@ class RowPartitioner {
       total_rows += ridx_segments_.at(nidx.at(i)).segment.Size();
     }
     static_assert(sizeof(PerNodeData<OpDataT>) * kMaxUpdatePositionBatchSize <=
-                  sizeof(constant_memory));
+                  sizeof(constant_memory),"Not enough constant memory allocated.") ;
     dh::safe_cuda(cudaMemcpyToSymbolAsync(constant_memory, h_batch_info.data(),
                                           h_batch_info.size() * sizeof(PerNodeData<OpDataT>), 0,
                                           cudaMemcpyDefault, stream_));
@@ -311,10 +311,10 @@ class RowPartitioner {
 
     // Partition the rows according to the operator
     SortPositionBatch<RowIndexT, UpdatePositionOpT, OpDataT>(
-        dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts), total_rows, op, &tmp,
+        dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts_), total_rows, op, &tmp_,
         stream_);
-    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(),
-                                  sizeof(decltype(d_counts)::value_type) * h_counts.size(),
+    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts_.data().get(),
+                                  sizeof(decltype(d_counts_)::value_type) * h_counts.size(),
                                   cudaMemcpyDefault, stream_));
     // TODO(Rory): this synchronisation hurts performance a lot
     // Future optimisation should find a way to skip this

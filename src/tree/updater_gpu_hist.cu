@@ -507,6 +507,8 @@ struct GPUHistMakerDevice {
       bst_node_t position = d_out_position[idx];
       d_update_predictions[idx] = d_nodes[position].LeafValue();
       bool is_row_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
+      // FIXME(jiamingy): Doesn't work when sampling is used with external memory as
+      // the sampler compacts the gradient vector.
       d_out_position[idx] = is_row_sampled ? ~position : position;
     });
   }
