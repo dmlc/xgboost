@@ -59,9 +59,7 @@ class Driver {
   // Can a child of this entry still be expanded?
   // can be used to avoid extra work
   bool IsChildValid(ExpandEntryT const& parent_entry) {
-    std::cout << "param_.max_depth:" << param_.max_depth << " parent_entry.depth:" << parent_entry.depth << std::endl;
     if (param_.max_depth > 0 && parent_entry.depth + 1 >= param_.max_depth) return false;
-    std::cout << "param_.max_leaves:" << param_.max_leaves << " parent_entry.num_leaves_:" << num_leaves_ << std::endl;
     if (param_.max_leaves > 0 && num_leaves_ >= param_.max_leaves) return false;
     return true;
   }
@@ -70,7 +68,6 @@ class Driver {
   // This set has no dependencies between entries so they may be expanded in
   // parallel or asynchronously
   std::vector<ExpandEntryT> Pop() {
-    std::cout << "queue_.size():" << queue_.size() << std::endl;
     if (queue_.empty()) return {};
     // Return a single entry for loss guided mode
     if (param_.grow_policy == TrainParam::kLossGuide) {

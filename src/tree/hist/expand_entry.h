@@ -24,20 +24,16 @@ struct CPUExpandEntry {
   }
 
   bool IsValid(const TrainParam& param, int num_leaves) const {
-    std::cout << "split.loss_chg:" << split.loss_chg << " eps:" << kRtEps << std::endl;
-    if (split.loss_chg <= kRtEps) { std::cout << "NOT VALID!" << std::endl; return false;}
-    std::cout << "split.left_sum.GetHess():" << split.left_sum.GetHess() << " split.right_sum.GetHess():" << split.right_sum.GetHess() << std::endl;
+    if (split.loss_chg <= kRtEps) { return false;}
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
       return false;
     }
-    std::cout << "split.loss_chg:" << split.loss_chg << " param.min_split_loss:" << param.min_split_loss << std::endl;
     if (split.loss_chg < param.min_split_loss) {
       return false;
     }
     if (param.max_depth > 0 && depth == param.max_depth) {
       return false;
     }
-    std::cout << "param.max_leaves:" << param.max_leaves << " num_leaves:" << num_leaves << std::endl;
     if (param.max_leaves > 0 && num_leaves == param.max_leaves) {
       return false;
     }

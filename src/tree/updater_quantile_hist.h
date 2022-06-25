@@ -174,7 +174,7 @@ class QuantileHistMaker: public TreeUpdater {
                        RegTree *p_tree);
 
     void AddSplitsToTree(const std::vector<CPUExpandEntry>& expand,
-                         Driver<CPUExpandEntry>* driver, 
+                         Driver<CPUExpandEntry>* driver,
                          RegTree *p_tree,
                          int *num_leaves,
                          std::vector<CPUExpandEntry>* nodes_for_apply_split,
