@@ -79,6 +79,7 @@ TEST(GPUQuantile, Unique) {
 // if with_error is true, the test tolerates floating point error
 void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
                           Span<bst_row_t const> d_columns_ptr, bool with_error = false) {
+  dh::safe_cuda(cudaSetDevice(device));
   std::vector<SketchEntry> h_in(in.size());
   dh::CopyDeviceSpanToVector(&h_in, in);
   std::vector<bst_row_t> h_columns_ptr(d_columns_ptr.size());
@@ -339,7 +340,6 @@ TEST(GPUQuantile, MultiMerge) {
 TEST(GPUQuantile, AllReduceBasic) {
   // This test is supposed to run by a python test that setups the environment.
   std::string msg {"Skipping AllReduce test"};
-#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
   auto n_gpus = AllVisibleGPUs();
   InitRabitContext(msg, n_gpus);
   auto world = rabit::GetWorldSize();
@@ -420,15 +420,10 @@ TEST(GPUQuantile, AllReduceBasic) {
     }
   });
   rabit::Finalize();
-#else
-  LOG(WARNING) << msg;
-  return;
-#endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
 }
 
 TEST(GPUQuantile, SameOnAllWorkers) {
   std::string msg {"Skipping SameOnAllWorkers test"};
-#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
   auto n_gpus = AllVisibleGPUs();
   InitRabitContext(msg, n_gpus);
   auto world = rabit::GetWorldSize();
@@ -484,7 +479,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
     dh::CopyDeviceSpanToVector(&h_base_line, base_line);
 
     size_t offset = 0;
-    for (size_t i = 0; i < world; ++i) {
+    for (decltype(world) i = 0; i < world; ++i) {
       auto comp = dh::ToSpan(all_workers).subspan(offset, size_as_float);
       std::vector<float> h_comp(comp.size());
       dh::CopyDeviceSpanToVector(&h_comp, comp);
@@ -495,10 +490,6 @@ TEST(GPUQuantile, SameOnAllWorkers) {
       offset += size_as_float;
     }
   });
-#else
-  LOG(WARNING) << msg;
-  return;
-#endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
 }
 
 TEST(GPUQuantile, Push) {

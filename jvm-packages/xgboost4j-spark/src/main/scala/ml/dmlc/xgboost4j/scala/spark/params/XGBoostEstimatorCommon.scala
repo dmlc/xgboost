@@ -17,9 +17,9 @@
 package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.linalg.xgboost.XGBoostSchemaUtils
 import org.apache.spark.ml.param.{Param, ParamValidators}
 import org.apache.spark.ml.param.shared.{HasFeaturesCol, HasHandleInvalid, HasLabelCol, HasWeightCol}
+import org.apache.spark.ml.util.XGBoostSchemaUtils
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.StructType
 
@@ -29,7 +29,8 @@ private[scala] sealed trait XGBoostEstimatorCommon extends GeneralParams with Le
   with HasLabelCol with HasFeaturesCols with HasHandleInvalid {
 
   def needDeterministicRepartitioning: Boolean = {
-    getCheckpointPath != null && getCheckpointPath.nonEmpty && getCheckpointInterval > 0
+    isDefined(checkpointPath) && getCheckpointPath != null && getCheckpointPath.nonEmpty &&
+      isDefined(checkpointInterval) && getCheckpointInterval > 0
   }
 
   /**

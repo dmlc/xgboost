@@ -26,7 +26,6 @@ class HistogramBuilder {
   common::HistCollection hist_local_worker_;
   common::GHistBuilder builder_;
   common::ParallelGHistBuilder buffer_;
-  rabit::Reducer<GradientPairPrecise, GradientPairPrecise::Reduce> reducer_;
   BatchParam param_;
   int32_t n_threads_{-1};
   size_t n_batches_{0};
@@ -196,8 +195,13 @@ class HistogramBuilder {
           }
         });
 
-    reducer_.Allreduce(this->hist_[starting_index].data(),
-                       hist_.GetNumBins() * sync_count);
+// <<<<<<< HEAD
+//     reducer_.Allreduce(this->hist_[starting_index].data(),
+//                        hist_.GetNumBins() * sync_count);
+// =======
+    rabit::Allreduce<rabit::op::Sum>(reinterpret_cast<double*>(this->hist_[starting_index].data()),
+                                     hist_.GetNumBins() * sync_count);
+// >>>>>>> 0725fd60819f9758fbed6ee54f34f3696a2fb2f8
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
                             nodes_for_subtraction_trick, p_tree);
@@ -209,6 +213,7 @@ class HistogramBuilder {
                             nodes_for_explicit_hist_build, p_tree);
   }
 
+// <<<<<<< HEAD
   template <typename PartitionType>
   void SyncHistogramLocal(
       RegTree *p_tree,
@@ -219,6 +224,12 @@ class HistogramBuilder {
       const std::vector<std::vector<uint16_t>>* merged_thread_ids = nullptr) {
     const PartitionType& opt_partition_builder = *p_opt_partition_builder;
     const size_t nbins = this->hist_.GetNumBins();
+// =======
+//   void SyncHistogramLocal(RegTree *p_tree,
+//                           std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+//                           std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
+//     const size_t nbins = this->builder_.GetNumBins();
+// >>>>>>> 0725fd60819f9758fbed6ee54f34f3696a2fb2f8
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },
         1024);

@@ -88,22 +88,5 @@ TEST(DenseColumnWithMissing, Test) {
     CheckColumWithMissingValue(*col.get(), gmat);
   }
 }
-
-void TestGHistIndexMatrixCreation(size_t nthreads) {
-  size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  /* This should create multiple sparse pages */
-  std::unique_ptr<DMatrix> dmat{CreateSparsePageDMatrix(kEntries)};
-  GHistIndexMatrix gmat(dmat.get(), 256, 0.5f, false, common::OmpGetNumThreads(nthreads));
-}
-
-TEST(HistIndexCreationWithExternalMemory, Test) {
-  // Vary the number of threads to make sure that the last batch
-  // is distributed properly to the available number of threads
-  // in the thread pool
-  TestGHistIndexMatrixCreation(20);
-  TestGHistIndexMatrixCreation(30);
-  TestGHistIndexMatrixCreation(40);
-}
 }  // namespace common
 }  // namespace xgboost

@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 
 import org.apache.spark.ml.linalg.{Vector, Vectors}
@@ -25,7 +27,7 @@ import org.scalatest.FunSuite
 
 import org.apache.spark.ml.feature.VectorAssembler
 
-class XGBoostRegressorSuite extends FunSuite with PerTest {
+class XGBoostRegressorSuite extends FunSuite with PerTest with TmpFolderPerSuite {
   protected val treeMethod: String = "auto"
 
   test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
@@ -310,4 +312,42 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val df1 = model.transform(vectorizedInput)
     df1.show()
   }
+
+  test("XGBoostRegressionModel should be compatible") {
+    val trainingDF = buildDataFrame(Regression.train)
+    val paramMap = Map(
+      "eta" -> "1",
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "reg:squarederror",
+      "num_round" -> 5,
+      "tree_method" -> treeMethod,
+      "num_workers" -> numWorkers)
+
+    val model = new XGBoostRegressor(paramMap).fit(trainingDF)
+
+    val modelPath = new File(tempDir.toFile, "xgbc").getPath
+    model.write.option("format", "json").save(modelPath)
+    val nativeJsonModelPath = new File(tempDir.toFile, "nativeModel.json").getPath
+    model.nativeBooster.saveModel(nativeJsonModelPath)
+    assert(compareTwoFiles(new File(modelPath, "data/XGBoostRegressionModel").getPath,
+      nativeJsonModelPath))
+
+    // test default "deprecated"
+    val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
+    model.write.save(modelUbjPath)
+    val nativeDeprecatedModelPath = new File(tempDir.toFile, "nativeModel").getPath
+    model.nativeBooster.saveModel(nativeDeprecatedModelPath)
+    assert(compareTwoFiles(new File(modelUbjPath, "data/XGBoostRegressionModel").getPath,
+      nativeDeprecatedModelPath))
+
+    // json file should be indifferent with ubj file
+    val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
+    model.write.option("format", "json").save(modelJsonPath)
+    val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel1.ubj").getPath
+    model.nativeBooster.saveModel(nativeUbjModelPath)
+    assert(!compareTwoFiles(new File(modelJsonPath, "data/XGBoostRegressionModel").getPath,
+      nativeUbjModelPath))
+  }
+
 }

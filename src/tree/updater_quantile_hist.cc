@@ -400,6 +400,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(DMatrix const *data,
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
     return false;
   }
+// <<<<<<< HEAD
   monitor_->Start("UpdatePredictionCache");
   CHECK_GT(out_preds.Size(), 0U);
   size_t page_id{0};
@@ -432,6 +433,12 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(DMatrix const *data,
     page_disp += partitioner.GetNodeAssignments().size();
   }
   monitor_->Stop("UpdatePredictionCache");
+// =======
+//   monitor_->Start(__func__);
+//   CHECK_EQ(out_preds.Size(), data->Info().num_row_);
+//   UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, *evaluator_, out_preds);
+//   monitor_->Stop(__func__);
+// >>>>>>> 0725fd60819f9758fbed6ee54f34f3696a2fb2f8
   return true;
 }
 

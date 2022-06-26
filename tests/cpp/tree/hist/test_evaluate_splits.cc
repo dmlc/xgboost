@@ -157,9 +157,9 @@ auto CompareOneHotAndPartition(bool onehot) {
   auto dmat =
       RandomDataGenerator(kRows, kCols, 0).Seed(3).Type(ft).MaxCategory(n_cats).GenerateDMatrix();
 
-  int32_t n_threads = 16;
   auto sampler = std::make_shared<common::ColumnSampler>();
-  auto evaluator = HistEvaluator<CPUExpandEntry>{param, dmat->Info(), n_threads, sampler};
+  auto evaluator =
+      HistEvaluator<CPUExpandEntry>{param, dmat->Info(), common::OmpGetNumThreads(0), sampler};
   std::vector<CPUExpandEntry> entries(1);
 
   for (auto const &gmat : dmat->GetBatches<GHistIndexMatrix>({32, param.sparse_threshold})) {

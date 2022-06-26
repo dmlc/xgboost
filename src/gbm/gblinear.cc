@@ -148,8 +148,8 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("DoBoost");
   }
 
-  void PredictBatch(DMatrix *p_fmat, PredictionCacheEntry *predts,
-                    bool training, unsigned layer_begin, unsigned layer_end) override {
+  void PredictBatch(DMatrix* p_fmat, PredictionCacheEntry* predts, bool /*training*/,
+                    uint32_t layer_begin, uint32_t) override {
     monitor_.Start("PredictBatch");
     LinearCheckLayer(layer_begin);
     auto* out_preds = &predts->predictions;
@@ -157,9 +157,8 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("PredictBatch");
   }
   // add base margin
-  void PredictInstance(const SparsePage::Inst &inst,
-                       std::vector<bst_float> *out_preds,
-                       unsigned layer_begin, unsigned layer_end) override {
+  void PredictInstance(const SparsePage::Inst& inst, std::vector<bst_float>* out_preds,
+                       uint32_t layer_begin, uint32_t) override {
     LinearCheckLayer(layer_begin);
     const int ngroup = model_.learner_model_param->num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
@@ -172,9 +171,9 @@ class GBLinear : public GradientBooster {
     LOG(FATAL) << "gblinear does not support prediction of leaf index";
   }
 
-  void PredictContribution(DMatrix* p_fmat,
-                           HostDeviceVector<bst_float>* out_contribs,
-                           unsigned layer_begin, unsigned layer_end, bool, int, unsigned) override {
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
+                           uint32_t layer_begin, uint32_t /*layer_end*/, bool, int,
+                           unsigned) override {
     model_.LazyInitModel();
     LinearCheckLayer(layer_begin);
     auto base_margin = p_fmat->Info().base_margin_.View(GenericParameter::kCpuId);
@@ -210,9 +209,9 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat,
-                                       HostDeviceVector<bst_float>* out_contribs,
-                                       unsigned layer_begin, unsigned layer_end, bool) override {
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
+                                       unsigned layer_begin, unsigned /*layer_end*/,
+                                       bool) override {
     LinearCheckLayer(layer_begin);
     std::vector<bst_float>& contribs = out_contribs->HostVector();
 

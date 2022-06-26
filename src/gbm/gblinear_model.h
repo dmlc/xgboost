@@ -34,7 +34,10 @@ struct DeprecatedGBLinearModelParam : public dmlc::Parameter<DeprecatedGBLinearM
     std::memset(this, 0, sizeof(DeprecatedGBLinearModelParam));
   }
 
-  DMLC_DECLARE_PARAMETER(DeprecatedGBLinearModelParam) {}
+  DMLC_DECLARE_PARAMETER(DeprecatedGBLinearModelParam) {
+    DMLC_DECLARE_FIELD(deprecated_num_feature);
+    DMLC_DECLARE_FIELD(deprecated_num_output_group);
+  }
 };
 
 // model for linear booster

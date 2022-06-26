@@ -563,7 +563,7 @@ struct GPUHistMakerDevice {
     // when processing a large batch
     this->AllReduceHist(hist_nidx.at(0), reducer, hist_nidx.size());
 
-    for (int i = 0; i < subtraction_nidx.size(); i++) {
+    for (size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = hist_nidx.at(i);
       auto subtraction_trick_nidx = subtraction_nidx.at(i);
       auto parent_nidx = candidates.at(i).nid;

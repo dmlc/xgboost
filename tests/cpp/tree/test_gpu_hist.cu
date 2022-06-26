@@ -242,7 +242,7 @@ void TestHistogramIndexImpl() {
   int constexpr kNRows = 1000, kNCols = 10;
 
   // Build 2 matrices and build a histogram maker with that
-  
+
   GenericParameter generic_param(CreateEmptyGenericParam(0));
   tree::GPUHistMaker hist_maker{&generic_param,ObjInfo{ObjInfo::kRegression}},
       hist_maker_ext{&generic_param,ObjInfo{ObjInfo::kRegression}};
@@ -346,7 +346,7 @@ TEST(GpuHist, UniformSampling) {
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
   auto preds_sampling_h = preds_sampling.ConstHostVector();
-  for (int i = 0; i < kRows; i++) {
+  for (size_t i = 0; i < kRows; i++) {
     EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-8);
   }
 }
@@ -376,7 +376,7 @@ TEST(GpuHist, GradientBasedSampling) {
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
   auto preds_sampling_h = preds_sampling.ConstHostVector();
-  for (int i = 0; i < kRows; i++) {
+  for (size_t i = 0; i < kRows; i++) {
     EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-3);
   }
 }
@@ -409,7 +409,7 @@ TEST(GpuHist, ExternalMemory) {
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
-  for (int i = 0; i < kRows; i++) {
+  for (size_t i = 0; i < kRows; i++) {
     EXPECT_NEAR(preds_h[i], preds_ext_h[i], 1e-6);
   }
 }
@@ -451,7 +451,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
-  for (int i = 0; i < kRows; i++) {
+  for (size_t i = 0; i < kRows; i++) {
     ASSERT_NEAR(preds_h[i], preds_ext_h[i], 1e-3);
   }
 }

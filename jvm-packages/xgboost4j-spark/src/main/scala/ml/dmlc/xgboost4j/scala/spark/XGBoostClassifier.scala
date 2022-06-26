@@ -20,16 +20,15 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait, ObjectiveTrait, XGBoost => SXGBoost}
 import org.apache.hadoop.fs.Path
 
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
-import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.json4s.DefaultFormats
 import scala.collection.{Iterator, mutable}
 
+import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.util.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter, XGBoostWriter}
 import org.apache.spark.sql.types.StructType
 
 class XGBoostClassifier (
@@ -99,8 +98,6 @@ class XGBoostClassifier (
   def setMaxBins(value: Int): this.type = set(maxBins, value)
 
   def setMaxLeaves(value: Int): this.type = set(maxLeaves, value)
-
-  def setSketchEps(value: Double): this.type = set(sketchEps, value)
 
   def setScalePosWeight(value: Double): this.type = set(scalePosWeight, value)
 
@@ -272,7 +269,7 @@ class XGBoostClassificationModel private[ml](
    * Note: The performance is not ideal, use it carefully!
    */
   override def predict(features: Vector): Double = {
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val dm = new DMatrix(processMissingValues(
       Iterator(features.asXGB),
       $(missing),
@@ -331,26 +328,26 @@ class XGBoostClassificationModel private[ml](
     }
   }
 
-  private[scala] def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+  private[scala] def producePredictionItrs(booster: Booster, dm: DMatrix):
       Array[Iterator[Row]] = {
     val rawPredictionItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = true, $(treeLimit)).
+      booster.predict(dm, outPutMargin = true, $(treeLimit)).
         map(Row(_)).iterator
     }
     val probabilityItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).
+      booster.predict(dm, outPutMargin = false, $(treeLimit)).
         map(Row(_)).iterator
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
+        booster.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        broadcastBooster.value.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
+        booster.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }
@@ -462,19 +459,18 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
   override def load(path: String): XGBoostClassificationModel = super.load(path)
 
   private[XGBoostClassificationModel]
-  class XGBoostClassificationModelWriter(instance: XGBoostClassificationModel) extends MLWriter {
+  class XGBoostClassificationModelWriter(instance: XGBoostClassificationModel)
+    extends XGBoostWriter {
 
     override protected def saveImpl(path: String): Unit = {
       // Save metadata and Params
-      implicit val format = DefaultFormats
-      implicit val sc = super.sparkSession.sparkContext
-
       DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
+
       // Save model data
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostClassificationModel")
       val outputStream = internalPath.getFileSystem(sc.hadoopConfiguration).create(internalPath)
-      instance._booster.saveModel(outputStream)
+      instance._booster.saveModel(outputStream, getModelFormat())
       outputStream.close()
     }
   }
@@ -492,18 +488,7 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostClassificationModel")
       val dataInStream = internalPath.getFileSystem(sc.hadoopConfiguration).open(internalPath)
-
-      // The xgboostVersion in the meta can specify if the model is the old xgboost in-compatible
-      // or the new xgboost compatible.
-      val numClasses = metadata.xgboostVersion.map { _ =>
-        implicit val format = DefaultFormats
-        // For binary:logistic, the numClass parameter can't be set to 2 or not be set.
-        // For multi:softprob or multi:softmax, the numClass parameter must be set correctly,
-        //   or else, XGBoost will throw exception.
-        // So it's safe to get numClass from meta data.
-        (metadata.params \ "numClass").extractOpt[Int].getOrElse(2)
-      }.getOrElse(dataInStream.readInt())
-
+      val numClasses = DefaultXGBoostParamsReader.getNumClass(metadata, dataInStream)
       val booster = SXGBoost.loadModel(dataInStream)
       val model = new XGBoostClassificationModel(metadata.uid, numClasses, booster)
       DefaultXGBoostParamsReader.getAndSetParams(model, metadata)

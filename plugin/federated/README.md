@@ -20,7 +20,12 @@ Build the Plugin
 # Under xgboost source tree.
 mkdir build
 cd build
-cmake .. -GNinja -DPLUGIN_FEDERATED=ON
+# For now NCCL needs to be turned off.
+cmake .. -GNinja\
+ -DPLUGIN_FEDERATED=ON\
+ -DUSE_CUDA=ON\
+ -DBUILD_WITH_CUDA_CUB=ON\
+ -DUSE_NCCL=OFF
 ninja
 cd ../python-package
 pip install -e .  # or equivalently python setup.py develop
@@ -31,5 +36,6 @@ Test Federated XGBoost
 ```shell
 # Under xgboost source tree.
 cd tests/distributed
+# This tests both CPU training (`hist`) and GPU training (`gpu_hist`).
 ./runtests-federated.sh
 ```

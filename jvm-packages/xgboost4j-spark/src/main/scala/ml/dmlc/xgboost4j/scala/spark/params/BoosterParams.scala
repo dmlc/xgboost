@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -183,20 +183,6 @@ private[spark] trait BoosterParams extends Params {
   final def getSinglePrecisionHistogram: Boolean = $(singlePrecisionHistogram)
 
   /**
-   * This is only used for approximate greedy algorithm.
-   * This roughly translated into O(1 / sketch_eps) number of bins. Compared to directly select
-   * number of bins, this comes with theoretical guarantee with sketch accuracy.
-   * [default=0.03] range: (0, 1)
-   */
-  final val sketchEps = new DoubleParam(this, "sketchEps",
-    "This is only used for approximate greedy algorithm. This roughly translated into" +
-      " O(1 / sketch_eps) number of bins. Compared to directly select number of bins, this comes" +
-      " with theoretical guarantee with sketch accuracy.",
-    (value: Double) => value < 1 && value > 0)
-
-  final def getSketchEps: Double = $(sketchEps)
-
-  /**
    * Control the balance of positive and negative weights, useful for unbalanced classes. A typical
    * value to consider: sum(negative cases) / sum(positive cases).   [default=1]
    */
@@ -261,6 +247,7 @@ private[spark] trait BoosterParams extends Params {
 
   final val treeLimit = new IntParam(this, name = "treeLimit",
     doc = "number of trees used in the prediction; defaults to 0 (use all trees).")
+  setDefault(treeLimit, 0)
 
   final def getTreeLimit: Int = $(treeLimit)
 
@@ -280,13 +267,6 @@ private[spark] trait BoosterParams extends Params {
 
   final def getInteractionConstraints: String = $(interactionConstraints)
 
-  setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
-    minChildWeight -> 1, maxDeltaStep -> 0,
-    growPolicy -> "depthwise", maxBins -> 256,
-    subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
-    lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
-    scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
-    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0)
 }
 
 private[scala] object BoosterParams {

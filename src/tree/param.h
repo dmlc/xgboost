@@ -40,6 +40,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
 
   uint32_t max_cat_to_onehot{4};
 
+  bst_bin_t max_cat_threshold{64};
+
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -62,8 +64,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
-  // accuracy of sketch
-  float sketch_eps;
   // accuracy of sketch
   float sketch_ratio;
   // option to open cacheline optimization
@@ -113,6 +113,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_default(4)
         .set_lower_bound(1)
         .describe("Maximum number of categories to use one-hot encoding based split.");
+    DMLC_DECLARE_FIELD(max_cat_threshold)
+        .set_default(64)
+        .set_lower_bound(1)
+        .describe(
+            "Maximum number of categories considered for split. Used only by partition-based"
+            "splits.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -154,10 +160,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
-    DMLC_DECLARE_FIELD(sketch_eps)
-        .set_range(0.0f, 1.0f)
-        .set_default(0.03f)
-        .describe("EXP Param: Sketch accuracy of approximate algorithm.");
     DMLC_DECLARE_FIELD(sketch_ratio)
         .set_lower_bound(0.0f)
         .set_default(2.0f)
@@ -194,12 +196,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   bool NeedPrune(double loss_chg, int depth) const {
     return loss_chg < this->min_split_loss ||
            (this->max_depth != 0 && depth > this->max_depth);
-  }
-  /*! \brief maximum sketch size */
-  inline unsigned MaxSketchSize() const {
-    auto ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
-    CHECK_GT(ret, 0U);
-    return ret;
   }
 
   bst_node_t MaxNodes() const {
@@ -367,12 +363,14 @@ struct SplitEntryContainer {
 
   SplitEntryContainer() = default;
 
-  friend std::ostream& operator<<(std::ostream& os, SplitEntryContainer const& s) {
-    os << "loss_chg: " << s.loss_chg << ", "
-       << "split index: " << s.SplitIndex() << ", "
-       << "split value: " << s.split_value << ", "
-       << "left_sum: " << s.left_sum << ", "
-       << "right_sum: " << s.right_sum;
+  friend std::ostream &operator<<(std::ostream &os, SplitEntryContainer const &s) {
+    os << "loss_chg: " << s.loss_chg << "\n"
+       << "dft_left: " << s.DefaultLeft() << "\n"
+       << "split_index: " << s.SplitIndex() << "\n"
+       << "split_value: " << s.split_value << "\n"
+       << "is_cat: " << s.is_cat << "\n"
+       << "left_sum: " << s.left_sum << "\n"
+       << "right_sum: " << s.right_sum << std::endl;
     return os;
   }
   /*!\return feature index to split on */
@@ -438,30 +436,6 @@ struct SplitEntryContainer {
       this->sindex = split_index;
       this->split_value = new_split_value;
       this->is_cat = is_cat;
-      this->left_sum = left_sum;
-      this->right_sum = right_sum;
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  /*!
-   * \brief Update with partition based categorical split.
-   *
-   * \return Whether the proposed split is better and can replace current split.
-   */
-  bool Update(float new_loss_chg, bst_feature_t split_index, common::KCatBitField cats,
-              bool default_left, GradientT const &left_sum, GradientT const &right_sum) {
-    if (this->NeedReplace(new_loss_chg, split_index)) {
-      this->loss_chg = new_loss_chg;
-      if (default_left) {
-        split_index |= (1U << 31);
-      }
-      this->sindex = split_index;
-      cat_bits.resize(cats.Bits().size());
-      std::copy(cats.Bits().begin(), cats.Bits().end(), cat_bits.begin());
-      this->is_cat = true;
       this->left_sum = left_sum;
       this->right_sum = right_sum;
       return true;

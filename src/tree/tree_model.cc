@@ -354,10 +354,10 @@ class TextGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
-.describe("Dump text representation of tree")
-.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new TextGenerator(fmap, with_stats);
-          });
+    .describe("Dump text representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& /*attrs*/, bool with_stats) {
+      return new TextGenerator(fmap, with_stats);
+    });
 
 class JsonGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
@@ -510,10 +510,10 @@ class JsonGenerator : public TreeGenerator {
 };
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
-.describe("Dump json representation of tree")
-.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new JsonGenerator(fmap, with_stats);
-          });
+    .describe("Dump json representation of tree")
+    .set_body([](FeatureMap const& fmap, std::string const& /*attrs*/, bool with_stats) {
+      return new JsonGenerator(fmap, with_stats);
+    });
 
 struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
   std::string yes_color;
@@ -808,11 +808,9 @@ void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_v
 }
 
 void RegTree::ExpandCategorical(bst_node_t nid, unsigned split_index,
-                                common::Span<uint32_t> split_cat, bool default_left,
-                                bst_float base_weight,
-                                bst_float left_leaf_weight,
-                                bst_float right_leaf_weight,
-                                bst_float loss_change, float sum_hess,
+                                common::Span<const uint32_t> split_cat, bool default_left,
+                                bst_float base_weight, bst_float left_leaf_weight,
+                                bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
                                 float left_sum, float right_sum) {
   this->ExpandNode(nid, split_index, std::numeric_limits<float>::quiet_NaN(),
                    default_left, base_weight,

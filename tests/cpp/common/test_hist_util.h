@@ -74,7 +74,7 @@ GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
 
 inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     const std::vector<float>& x, int num_rows, int num_columns,
-    size_t page_size, const dmlc::TemporaryDirectory& tempdir) {
+    const dmlc::TemporaryDirectory& tempdir) {
   // Create the svm file in a temp dir
   const std::string tmp_file = tempdir.path + "/temp.libsvm";
   std::ofstream fo(tmp_file.c_str());
@@ -92,13 +92,16 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
 }
 
 // Test that elements are approximately equally distributed among bins
-inline void TestBinDistribution(const HistogramCuts &cuts, int column_idx,
-                                const std::vector<float> &sorted_column,
-                                const std::vector<float> &sorted_weights,
-                                int num_bins) {
+inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
+                                const std::vector<float>& sorted_column,
+                                const std::vector<float>& sorted_weights) {
   std::map<int, int> bin_weights;
   for (auto i = 0ull; i < sorted_column.size(); i++) {
-    bin_weights[cuts.SearchBin(sorted_column[i], column_idx)] += sorted_weights[i];
+    auto bin_idx = cuts.SearchBin(sorted_column[i], column_idx);
+    if (bin_weights.find(bin_idx) == bin_weights.cend()) {
+      bin_weights[bin_idx] = 0;
+    }
+    bin_weights.at(bin_idx) += sorted_weights[i];
   }
   int local_num_bins = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
   auto total_weight = std::accumulate(sorted_weights.begin(), sorted_weights.end(),0);
@@ -171,13 +174,12 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
     std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
       cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
       column_cuts.begin());
-    TestBinDistribution(cuts, column_idx, sorted_column, sorted_weights, num_bins);
+    TestBinDistribution(cuts, column_idx, sorted_column, sorted_weights);
     TestRank(column_cuts, sorted_column, sorted_weights);
   }
 }
 
-inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
-                         int num_bins) {
+inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat, int num_bins) {
   // Collect data into columns
   std::vector<std::vector<float>> columns(dmat->Info().num_col_);
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
@@ -189,17 +191,22 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
       }
     }
   }
+
+  // construct weights.
+  std::vector<float> w = dmat->Info().group_ptr_.empty() ? dmat->Info().weights_.HostVector()
+                                                         : detail::UnrollGroupWeights(dmat->Info());
+
   // Sort
   for (auto i = 0ull; i < columns.size(); i++) {
     auto& col = columns.at(i);
-    const auto& w = dmat->Info().weights_.HostVector();
-    std::vector<size_t > index(col.size());
+    std::vector<size_t> index(col.size());
     std::iota(index.begin(), index.end(), 0);
-    std::sort(index.begin(), index.end(),
-              [=](size_t a, size_t b) { return col[a] < col[b]; });
+    std::sort(index.begin(), index.end(), [=](size_t a, size_t b) { return col[a] < col[b]; });
 
     std::vector<float> sorted_column(col.size());
     std::vector<float> sorted_weights(col.size(), 1.0);
+    const auto& w = dmat->Info().weights_.HostVector();
+
     for (auto j = 0ull; j < col.size(); j++) {
       sorted_column[j] = col[index[j]];
       if (w.size() == col.size()) {

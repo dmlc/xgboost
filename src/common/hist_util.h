@@ -125,26 +125,25 @@ class HistogramCuts {
   /**
    * \brief Search the bin index for numerical feature.
    */
-  bst_bin_t SearchBin(Entry const& e) const {
-    return SearchBin(e.fvalue, e.index);
-  }
+  bst_bin_t SearchBin(Entry const& e) const { return SearchBin(e.fvalue, e.index); }
 
   /**
    * \brief Search the bin index for categorical feature.
    */
-  bst_bin_t SearchCatBin(Entry const &e) const {
+  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
     auto const &ptrs = this->Ptrs();
     auto const &vals = this->Values();
-    auto end = ptrs.at(e.index + 1) + vals.cbegin();
-    auto beg = ptrs[e.index] + vals.cbegin();
+    auto end = ptrs.at(fidx + 1) + vals.cbegin();
+    auto beg = ptrs[fidx] + vals.cbegin();
     // Truncates the value in case it's not perfectly rounded.
-    auto v  = static_cast<float>(common::AsCat(e.fvalue));
+    auto v  = static_cast<float>(common::AsCat(value));
     auto bin_idx = std::lower_bound(beg, end, v) - vals.cbegin();
-    if (bin_idx == ptrs.at(e.index + 1)) {
+    if (bin_idx == ptrs.at(fidx + 1)) {
       bin_idx -= 1;
     }
     return bin_idx;
   }
+  bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
 };
 
 /**
@@ -153,41 +152,8 @@ class HistogramCuts {
  * \param use_sorted Whether should we use SortedCSC for sketching, it's more efficient
  *                   but consumes more memory.
  */
-inline HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_threads,
-                                     bool use_sorted = false, Span<float> const hessian = {}) {
-  HistogramCuts out;
-  auto const& info = m->Info();
-  std::vector<std::vector<bst_row_t>> column_sizes(n_threads);
-  for (auto& column : column_sizes) {
-    column.resize(info.num_col_, 0);
-  }
-  std::vector<bst_row_t> reduced(info.num_col_, 0);
-  for (auto const& page : m->GetBatches<SparsePage>()) {
-    auto const& entries_per_column =
-        HostSketchContainer::CalcColumnSize(page, info.num_col_, n_threads);
-    for (size_t i = 0; i < entries_per_column.size(); ++i) {
-      reduced[i] += entries_per_column[i];
-    }
-  }
-
-  if (!use_sorted) {
-    HostSketchContainer container(max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info),
-                                  hessian, n_threads);
-    for (auto const& page : m->GetBatches<SparsePage>()) {
-      container.PushRowPage(page, info, hessian);
-    }
-    container.MakeCuts(&out);
-  } else {
-    SortedSketchContainer container{
-        max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info), hessian, n_threads};
-    for (auto const& page : m->GetBatches<SortedCSCPage>()) {
-      container.PushColPage(page, info, hessian);
-    }
-    container.MakeCuts(&out);
-  }
-
-  return out;
-}
+HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_threads,
+                              bool use_sorted = false, Span<float> const hessian = {});
 
 enum BinTypeSize : unsigned int {
   kUint8BinsTypeSize  = 1,
@@ -214,6 +180,29 @@ using BinTypeSizeSequence = std::integer_sequence<uint32_t,
   BinTypeSize::kUint8BinsTypeSize, BinTypeSize::kUint16BinsTypeSize,
   BinTypeSize::kUint32BinsTypeSize>;
 using BoolSequence = std::integer_sequence<bool, true, false>;
+
+
+
+/**
+ * \brief Dispatch for bin type, fn is a function that accepts a scalar of the bin type.
+ */
+template <typename Fn>
+auto DispatchBinType(BinTypeSize type, Fn&& fn) {
+  switch (type) {
+    case kUint8BinsTypeSize: {
+      return fn(uint8_t{});
+    }
+    case kUint16BinsTypeSize: {
+      return fn(uint16_t{});
+    }
+    case kUint32BinsTypeSize: {
+      return fn(uint32_t{});
+    }
+  }
+  LOG(FATAL) << "Unreachable";
+  return fn(uint32_t{});
+}
+
 
 /**
  * \brief Optionally compressed gradient index. The compression works only with dense

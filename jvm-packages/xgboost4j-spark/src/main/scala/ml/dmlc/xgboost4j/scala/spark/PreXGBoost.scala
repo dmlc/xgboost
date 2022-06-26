@@ -24,8 +24,9 @@ import scala.collection.{AbstractIterator, Iterator, mutable}
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import ml.dmlc.xgboost4j.scala.spark.DataUtils.PackedParams
+import ml.dmlc.xgboost4j.scala.spark.util.DataUtils.PackedParams
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
+import ml.dmlc.xgboost4j.scala.spark.util.DataUtils
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
@@ -35,10 +36,8 @@ import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.{Estimator, Model, PipelineStage}
+import org.apache.spark.ml.{Estimator, Model}
 import org.apache.spark.ml.linalg.Vector
-import org.apache.spark.ml.linalg.xgboost.XGBoostSchemaUtils
 import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
 
@@ -202,9 +201,9 @@ object PreXGBoost extends PreXGBoostProvider {
           val (xgbInput, featuresName) = m.vectorize(dataset)
           // predict and turn to Row
           val predictFunc =
-            (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+            (booster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
               val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
-                m.producePredictionItrs(broadcastBooster, dm)
+                m.producePredictionItrs(booster, dm)
               m.produceResultIterator(originalRowItr, rawPredictionItr, probabilityItr,
                 predLeafItr, predContribItr)
             }
@@ -232,9 +231,9 @@ object PreXGBoost extends PreXGBoostProvider {
           // predict and turn to Row
           val (xgbInput, featuresName) = m.vectorize(dataset)
           val predictFunc =
-            (broadcastBooster: Broadcast[Booster], dm: DMatrix, originalRowItr: Iterator[Row]) => {
+            (booster: Booster, dm: DMatrix, originalRowItr: Iterator[Row]) => {
               val Array(rawPredictionItr, predLeafItr, predContribItr) =
-                m.producePredictionItrs(broadcastBooster, dm)
+                m.producePredictionItrs(booster, dm)
               m.produceResultIterator(originalRowItr, rawPredictionItr, predLeafItr, predContribItr)
             }
 
@@ -272,7 +271,7 @@ object PreXGBoost extends PreXGBoostProvider {
 
           val features = batchRow.iterator.map(row => row.getAs[Vector](featuresCol))
 
-          import DataUtils._
+          import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
           val cacheInfo = {
             if (useExternalMemory) {
               s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
@@ -287,7 +286,7 @@ object PreXGBoost extends PreXGBoostProvider {
             cacheInfo)
 
           try {
-            predictFunc(bBooster, dm, batchRow.iterator)
+            predictFunc(bBooster.value, dm, batchRow.iterator)
           } finally {
             batchCnt += 1
             dm.delete()

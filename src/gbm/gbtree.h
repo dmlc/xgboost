@@ -162,9 +162,8 @@ inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const &model,
 
 // Call fn for each pair of input output tree.  Return true if index is out of bound.
 template <typename Func>
-inline bool SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
-                       GBTreeModel const &model, GBTreeTrainParam const &tparam,
-                       uint32_t layer_trees, Func fn) {
+bool SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step, GBTreeModel const& model,
+                uint32_t layer_trees, Func fn) {
   uint32_t tree_begin, tree_end;
   std::tie(tree_begin, tree_end) = detail::LayerToTree(model, layer_begin, layer_end);
   if (tree_end > model.trees.size()) {
@@ -206,8 +205,7 @@ class GBTree : public GradientBooster {
    * \brief Optionally update the leaf value.
    */
   void UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const& predictions,
-                      ObjFunction const* obj, size_t gidx,
-                      std::vector<std::unique_ptr<RegTree>>* p_trees);
+                      ObjFunction const* obj, std::vector<std::unique_ptr<RegTree>>* p_trees);
 
   /*! \brief Carry out one iteration of boosting */
   void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
@@ -237,10 +235,6 @@ class GBTree : public GradientBooster {
 
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& in) override;
-
-  bool AllowLazyCheckPoint() const override {
-    return model_.learner_model_param->num_output_group == 1;
-  }
 
   // Number of trees per layer.
   auto LayerTrees() const {
@@ -325,7 +319,7 @@ class GBTree : public GradientBooster {
     };
 
     if (importance_type == "weight") {
-      add_score([&](auto const &p_tree, bst_node_t, bst_feature_t split) {
+      add_score([&](auto const&, bst_node_t, bst_feature_t split) {
         gain_map[split] = split_counts[split];
       });
     } else if (importance_type == "gain" || importance_type == "total_gain") {
@@ -423,9 +417,7 @@ class GBTree : public GradientBooster {
                                                  DMatrix* f_dmat = nullptr) const;
 
   // commit new trees all at once
-  virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
-                           DMatrix* m,
-                           PredictionCacheEntry* predts);
+  virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees);
 
   // --- data structure ---
   GBTreeModel model_;

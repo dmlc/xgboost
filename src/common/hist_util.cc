@@ -27,6 +27,40 @@ HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
 }
 
+HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins, int32_t n_threads, bool use_sorted,
+                              Span<float> const hessian) {
+  HistogramCuts out;
+  auto const& info = m->Info();
+  std::vector<bst_row_t> reduced(info.num_col_, 0);
+  for (auto const &page : m->GetBatches<SparsePage>()) {
+    auto const &entries_per_column =
+        CalcColumnSize(data::SparsePageAdapterBatch{page.GetView()}, info.num_col_, n_threads,
+                       [](auto) { return true; });
+    CHECK_EQ(entries_per_column.size(), info.num_col_);
+    for (size_t i = 0; i < entries_per_column.size(); ++i) {
+      reduced[i] += entries_per_column[i];
+    }
+  }
+
+  if (!use_sorted) {
+    HostSketchContainer container(max_bins, m->Info(), reduced, HostSketchContainer::UseGroup(info),
+                                  n_threads);
+    for (auto const& page : m->GetBatches<SparsePage>()) {
+      container.PushRowPage(page, info, hessian);
+    }
+    container.MakeCuts(&out);
+  } else {
+    SortedSketchContainer container{max_bins, m->Info(), reduced,
+                                    HostSketchContainer::UseGroup(info), n_threads};
+    for (auto const& page : m->GetBatches<SortedCSCPage>()) {
+      container.PushColPage(page, info, hessian);
+    }
+    container.MakeCuts(&out);
+  }
+
+  return out;
+}
+
 /*!
  * \brief fill a histogram by zeros in range [begin, end)
  */

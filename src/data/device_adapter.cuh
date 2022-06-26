@@ -190,6 +190,7 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
 template <typename AdapterBatchT>
 size_t GetRowCounts(const AdapterBatchT batch, common::Span<size_t> offset,
                     int device_idx, float missing) {
+  dh::safe_cuda(cudaSetDevice(device_idx));
   IsValidFunctor is_valid(missing);
   // Count elements per row
   dh::LaunchN(batch.Size(), [=] __device__(size_t idx) {

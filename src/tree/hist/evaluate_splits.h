@@ -45,21 +45,166 @@ class HistEvaluator {
   // then - there are no missing values
   // else - there are missing values
   bool static SplitContainsMissingValues(const GradStats e, const NodeEntry &snode) {
-    if (e.GetGrad() == snode.stats.GetGrad() &&
-        e.GetHess() == snode.stats.GetHess()) {
+    if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
       return false;
     } else {
       return true;
     }
   }
 
+  bool IsValid(GradStats const &left, GradStats const &right) const {
+    return left.GetHess() >= param_.min_child_weight && right.GetHess() >= param_.min_child_weight;
+  }
+
+  /**
+   * \brief Use learned direction with one-hot split. Other implementations (LGB) create a
+   *        pseudo-category for missing value but here we just do a complete scan to avoid
+   *        making specialized histogram bin.
+   */
+  void EnumerateOneHot(common::HistogramCuts const &cut, const common::GHistRow &hist,
+                       bst_feature_t fidx, bst_node_t nidx,
+                       TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
+                       SplitEntry *p_best) const {
+    const std::vector<uint32_t> &cut_ptr = cut.Ptrs();
+    const std::vector<bst_float> &cut_val = cut.Values();
+
+    bst_bin_t ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
+    bst_bin_t iend = static_cast<bst_bin_t>(cut_ptr[fidx + 1]);
+    bst_bin_t n_bins = iend - ibegin;
+
+    GradStats left_sum;
+    GradStats right_sum;
+    // best split so far
+    SplitEntry best;
+    best.is_cat = false;  // marker for whether it's updated or not.
+
+    auto f_hist = hist.subspan(cut_ptr[fidx], n_bins);
+    auto feature_sum = GradStats{
+        std::accumulate(f_hist.data(), f_hist.data() + f_hist.size(), GradientPairPrecise{})};
+    GradStats missing;
+    auto const &parent = snode_[nidx];
+    missing.SetSubstract(parent.stats, feature_sum);
+
+    for (bst_bin_t i = ibegin; i != iend; i += 1) {
+      auto split_pt = cut_val[i];
+
+      // missing on left (treat missing as other categories)
+      right_sum = GradStats{hist[i]};
+      left_sum.SetSubstract(parent.stats, right_sum);
+      if (IsValid(left_sum, right_sum)) {
+        auto missing_left_chg = static_cast<float>(
+            evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
+            parent.root_gain);
+        best.Update(missing_left_chg, fidx, split_pt, true, true, left_sum, right_sum);
+      }
+
+      // missing on right (treat missing as chosen category)
+      right_sum.Add(missing);
+      left_sum.SetSubstract(parent.stats, right_sum);
+      if (IsValid(left_sum, right_sum)) {
+        auto missing_right_chg = static_cast<float>(
+            evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
+            parent.root_gain);
+        best.Update(missing_right_chg, fidx, split_pt, false, true, left_sum, right_sum);
+      }
+    }
+
+    if (best.is_cat) {
+      auto n = common::CatBitField::ComputeStorageSize(n_bins + 1);
+      best.cat_bits.resize(n, 0);
+      common::CatBitField cat_bits{best.cat_bits};
+      cat_bits.Set(best.split_value);
+    }
+
+    p_best->Update(best);
+  }
+
+  /**
+   * \brief Enumerate with partition-based splits.
+   *
+   * The implementation is different from LightGBM. Firstly we don't have a
+   * pseudo-cateogry for missing value, instead of we make 2 complete scans over the
+   * histogram. Secondly, both scan directions generate splits in the same
+   * order. Following table depicts the scan process, square bracket means the gradient in
+   * missing values is resided on that partition:
+   *
+   *   | Forward  | Backward |
+   *   |----------+----------|
+   *   | [BCDE] A | E [ABCD] |
+   *   | [CDE] AB | DE [ABC] |
+   *   | [DE] ABC | CDE [AB] |
+   *   | [E] ABCD | BCDE [A] |
+   */
+  template <int d_step>
+  void EnumeratePart(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
+                     common::GHistRow const &hist, bst_feature_t fidx, bst_node_t nidx,
+                     TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
+                     SplitEntry *p_best) {
+    static_assert(d_step == +1 || d_step == -1, "Invalid step.");
+
+    auto const &cut_ptr = cut.Ptrs();
+    auto const &parent = snode_[nidx];
+    bst_bin_t n_bins_feature{static_cast<bst_bin_t>(cut_ptr[fidx + 1] - cut_ptr[fidx])};
+    auto n_bins = std::min(param_.max_cat_threshold, n_bins_feature);
+
+    // statistics on both sides of split
+    GradStats left_sum;
+    GradStats right_sum;
+    // best split so far
+    SplitEntry best;
+
+    auto f_hist = hist.subspan(cut_ptr[fidx], n_bins_feature);
+    bst_bin_t ibegin, iend;
+    bst_bin_t f_begin = cut_ptr[fidx];
+    if (d_step > 0) {
+      ibegin = f_begin;
+      iend = ibegin + n_bins - 1;
+    } else {
+      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
+      iend = ibegin - n_bins + 1;
+    }
+
+    bst_bin_t best_thresh{-1};
+    for (bst_bin_t i = ibegin; i != iend; i += d_step) {
+      auto j = i - f_begin;  // index local to current feature
+      if (d_step == 1) {
+        right_sum.Add(f_hist[sorted_idx[j]].GetGrad(), f_hist[sorted_idx[j]].GetHess());
+        left_sum.SetSubstract(parent.stats, right_sum);  // missing on left
+      } else {
+        left_sum.Add(f_hist[sorted_idx[j]].GetGrad(), f_hist[sorted_idx[j]].GetHess());
+        right_sum.SetSubstract(parent.stats, left_sum);  // missing on right
+      }
+      if (IsValid(left_sum, right_sum)) {
+        auto loss_chg =
+            evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{left_sum}, GradStats{right_sum}) -
+            parent.root_gain;
+        // We don't have a numeric split point, nan here is a dummy split.
+        if (best.Update(loss_chg, fidx, std::numeric_limits<float>::quiet_NaN(), d_step == 1, true,
+                        left_sum, right_sum)) {
+          best_thresh = i;
+        }
+      }
+    }
+
+    if (best_thresh != -1) {
+      auto n = common::CatBitField::ComputeStorageSize(n_bins_feature + 1);
+      best.cat_bits = decltype(best.cat_bits)(n, 0);
+      common::CatBitField cat_bits{best.cat_bits};
+      bst_bin_t partition = d_step == 1 ? (best_thresh - ibegin + 1) : (best_thresh - f_begin);
+      CHECK_GT(partition, 0);
+      std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
+                    [&](size_t c) { cat_bits.Set(c); });
+    }
+
+    p_best->Update(best);
+  }
+
   // Enumerate/Scan the split values of specific feature
   // Returns the sum of gradients corresponding to the data points that contains
   // a non-missing value for the particular feature fid.
-  template <int d_step, SplitType split_type>
-  GradStats EnumerateSplit(common::HistogramCuts const &cut, common::Span<size_t const> sorted_idx,
-                           const common::GHistRow &hist, bst_feature_t fidx,
-                           bst_node_t nidx,
+  template <int d_step>
+  GradStats EnumerateSplit(common::HistogramCuts const &cut, const common::GHistRow &hist,
+                           bst_feature_t fidx, bst_node_t nidx,
                            TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
                            SplitEntry *p_best) const {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
@@ -68,8 +213,6 @@ class HistEvaluator {
     const std::vector<uint32_t> &cut_ptr = cut.Ptrs();
     const std::vector<bst_float> &cut_val = cut.Values();
     auto const &parent = snode_[nidx];
-    int32_t n_bins{static_cast<int32_t>(cut_ptr.at(fidx + 1) - cut_ptr[fidx])};
-    auto f_hist = hist.subspan(cut_ptr[fidx], n_bins);
 
     // statistics on both sides of split
     GradStats left_sum;
@@ -78,52 +221,28 @@ class HistEvaluator {
     SplitEntry best;
 
     // bin boundaries
-    CHECK_LE(cut_ptr[fidx], static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    CHECK_LE(cut_ptr[fidx + 1], static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+    CHECK_LE(cut_ptr[fidx], static_cast<uint32_t>(std::numeric_limits<bst_bin_t>::max()));
+    CHECK_LE(cut_ptr[fidx + 1], static_cast<uint32_t>(std::numeric_limits<bst_bin_t>::max()));
     // imin: index (offset) of the minimum value for feature fid need this for backward
     //       enumeration
-    const auto imin = static_cast<int32_t>(cut_ptr[fidx]);
+    const auto imin = static_cast<bst_bin_t>(cut_ptr[fidx]);
     // ibegin, iend: smallest/largest cut points for feature fid use int to allow for
     // value -1
-    int32_t ibegin, iend;
+    bst_bin_t ibegin, iend;
     if (d_step > 0) {
-      ibegin = static_cast<int32_t>(cut_ptr[fidx]);
-      iend = static_cast<int32_t>(cut_ptr.at(fidx + 1));
+      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx]);
+      iend = static_cast<bst_bin_t>(cut_ptr.at(fidx + 1));
     } else {
-      ibegin = static_cast<int32_t>(cut_ptr[fidx + 1]) - 1;
-      iend = static_cast<int32_t>(cut_ptr[fidx]) - 1;
+      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
+      iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
     }
 
-    auto calc_bin_value = [&](auto i) {
-      switch (split_type) {
-        case kNum: {
-          left_sum.Add(hist[i].GetGrad(), hist[i].GetHess());
-          right_sum.SetSubstract(parent.stats, left_sum);
-          break;
-        }
-        case kOneHot: {
-          // not-chosen categories go to left
-          right_sum = GradStats{hist[i]};
-          left_sum.SetSubstract(parent.stats, right_sum);
-          break;
-        }
-        case kPart: {
-          auto j = d_step == 1 ? (i - ibegin) : (ibegin - i);
-          right_sum.Add(f_hist[sorted_idx[j]].GetGrad(), f_hist[sorted_idx[j]].GetHess());
-          left_sum.SetSubstract(parent.stats, right_sum);
-          break;
-        }
-      }
-    };
-
-    int32_t best_thresh{-1};
-    for (int32_t i = ibegin; i != iend; i += d_step) {
+    for (bst_bin_t i = ibegin; i != iend; i += d_step) {
       // start working
       // try to find a split
-      calc_bin_value(i);
-      bool improved{false};
-      if (left_sum.GetHess() >= param_.min_child_weight &&
-          right_sum.GetHess() >= param_.min_child_weight) {
+      left_sum.Add(hist[i].GetGrad(), hist[i].GetHess());
+      right_sum.SetSubstract(parent.stats, left_sum);
+      if (IsValid(left_sum, right_sum)) {
         bst_float loss_chg;
         bst_float split_pt;
         if (d_step > 0) {
@@ -133,67 +252,24 @@ class HistEvaluator {
                                                          GradStats{right_sum}) -
                                  parent.root_gain);
           split_pt = cut_val[i];  // not used for partition based
-          improved = best.Update(loss_chg, fidx, split_pt, d_step == -1, split_type != kNum,
-                                 left_sum, right_sum);
+          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, left_sum, right_sum);
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg =
               static_cast<float>(evaluator.CalcSplitGain(param_, nidx, fidx, GradStats{right_sum},
                                                          GradStats{left_sum}) -
                                  parent.root_gain);
-          switch (split_type) {
-            case kNum: {
-              if (i == imin) {
-                split_pt = cut.MinValues()[fidx];
-              } else {
-                split_pt = cut_val[i - 1];
-              }
-              break;
-            }
-            case kOneHot: {
-              split_pt = cut_val[i];
-              break;
-            }
-            case kPart: {
-              split_pt = cut_val[i];
-              break;
-            }
+          if (i == imin) {
+            split_pt = cut.MinValues()[fidx];
+          } else {
+            split_pt = cut_val[i - 1];
           }
-          improved = best.Update(loss_chg, fidx, split_pt, d_step == -1, split_type != kNum,
-                                 right_sum, left_sum);
-        }
-        if (improved) {
-          best_thresh = i;
+          best.Update(loss_chg, fidx, split_pt, d_step == -1, false, right_sum, left_sum);
         }
       }
     }
 
-    if (split_type == kPart && best_thresh != -1) {
-      auto n = common::CatBitField::ComputeStorageSize(n_bins);
-      best.cat_bits.resize(n, 0);
-      common::CatBitField cat_bits{best.cat_bits};
-
-      if (d_step == 1) {
-        std::for_each(sorted_idx.begin(), sorted_idx.begin() + (best_thresh - ibegin + 1),
-                      [&](size_t c) { cat_bits.Set(cut_val[c + ibegin]); });
-      } else {
-        std::for_each(sorted_idx.rbegin(), sorted_idx.rbegin() + (ibegin - best_thresh),
-                      [&](size_t c) { cat_bits.Set(cut_val[c + cut_ptr[fidx]]); });
-      }
-    }
     p_best->Update(best);
-
-    switch (split_type) {
-      case kNum:
-        // Normal, accumulated to left
-        return left_sum;
-      case kOneHot:
-        // Doesn't matter, not accumulating.
-        return {};
-      case kPart:
-        // Accumulated to right due to chosen cats go to right.
-        return right_sum;
-    }
     return left_sum;
   }
 
@@ -242,8 +318,7 @@ class HistEvaluator {
         if (is_cat) {
           auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
           if (common::UseOneHot(n_bins, param_.max_cat_to_onehot)) {
-            EnumerateSplit<+1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
-            EnumerateSplit<-1, kOneHot>(cut, {}, histogram, fidx, nidx, evaluator, best);
+            EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
           } else {
             std::vector<size_t> sorted_idx(n_bins);
             std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
@@ -254,14 +329,13 @@ class HistEvaluator {
                          evaluator.CalcWeightCat(param_, feat_hist[r]);
               return ret;
             });
-            EnumerateSplit<+1, kPart>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-            EnumerateSplit<-1, kPart>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
           }
         } else {
-          auto grad_stats =
-              EnumerateSplit<+1, kNum>(cut, {}, histogram, fidx, nidx, evaluator, best);
+          auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
           if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1, kNum>(cut, {}, histogram, fidx, nidx, evaluator, best);
+            EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
           }
         }
       }
@@ -291,24 +365,10 @@ class HistEvaluator {
         evaluator.CalcWeight(candidate.nid, param_, GradStats{candidate.split.right_sum});
 
     if (candidate.split.is_cat) {
-      std::vector<uint32_t> split_cats;
-      if (candidate.split.cat_bits.empty()) {
-        if (common::InvalidCat(candidate.split.split_value)) {
-          common::InvalidCategory();
-        }
-        auto cat = common::AsCat(candidate.split.split_value);
-        split_cats.resize(LBitField32::ComputeStorageSize(std::max(cat + 1, 1)), 0);
-        LBitField32 cat_bits;
-        cat_bits = LBitField32(split_cats);
-        cat_bits.Set(cat);
-      } else {
-        split_cats = candidate.split.cat_bits;
-        common::CatBitField cat_bits{split_cats};
-      }
       tree.ExpandCategorical(
-          candidate.nid, candidate.split.SplitIndex(), split_cats, candidate.split.DefaultLeft(),
-          base_weight, left_weight * param_.learning_rate, right_weight * param_.learning_rate,
-          candidate.split.loss_chg, parent_sum.GetHess(),
+          candidate.nid, candidate.split.SplitIndex(), candidate.split.cat_bits,
+          candidate.split.DefaultLeft(), base_weight, left_weight * param_.learning_rate,
+          right_weight * param_.learning_rate, candidate.split.loss_chg, parent_sum.GetHess(),
           candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
     } else {
       tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(), candidate.split.split_value,
@@ -380,7 +440,7 @@ template <typename Partitioner, typename ExpandEntry>
 void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
                                HistEvaluator<ExpandEntry> const &hist_evaluator,
-                               TrainParam const &param, linalg::VectorView<float> out_preds) {
+                               linalg::VectorView<float> out_preds) {
   CHECK_GT(out_preds.Size(), 0U);
 
   CHECK(p_last_tree);

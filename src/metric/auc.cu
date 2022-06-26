@@ -201,8 +201,7 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
   });
 }
 
-double ScaleClasses(common::Span<double> results,
-                    common::Span<double> local_area, common::Span<double> fp,
+double ScaleClasses(common::Span<double> results, common::Span<double> local_area,
                     common::Span<double> tp, common::Span<double> auc,
                     std::shared_ptr<DeviceAUCCache> cache, size_t n_classes) {
   dh::XGBDeviceAllocator<char> alloc;
@@ -312,10 +311,8 @@ void SegmentedReduceAUC(common::Span<size_t const> d_unique_idx,
  * up each class in all kernels.
  */
 template <bool scale, typename Fn>
-double GPUMultiClassAUCOVR(common::Span<float const> predts,
-                           MetaInfo const &info, int32_t device,
-                           common::Span<uint32_t> d_class_ptr, size_t n_classes,
-                           std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
+double GPUMultiClassAUCOVR(MetaInfo const &info, int32_t device, common::Span<uint32_t> d_class_ptr,
+                           size_t n_classes, std::shared_ptr<DeviceAUCCache> cache, Fn area_fn) {
   dh::safe_cuda(cudaSetDevice(device));
   /**
    * Sorted idx
@@ -335,10 +332,9 @@ double GPUMultiClassAUCOVR(common::Span<float const> predts,
     dh::LaunchN(n_classes * 4,
                 [=] XGBOOST_DEVICE(size_t i) { d_results[i] = 0.0f; });
     auto local_area = d_results.subspan(0, n_classes);
-    auto fp = d_results.subspan(n_classes, n_classes);
     auto tp = d_results.subspan(2 * n_classes, n_classes);
     auto auc = d_results.subspan(3 * n_classes, n_classes);
-    return ScaleClasses(d_results, local_area, fp, tp, auc, cache, n_classes);
+    return ScaleClasses(d_results, local_area, tp, auc, cache, n_classes);
   }
 
   /**
@@ -442,7 +438,7 @@ double GPUMultiClassAUCOVR(common::Span<float const> predts,
       tp[c] = 1.0f;
     }
   });
-  return ScaleClasses(d_results, local_area, fp, tp, auc, cache, n_classes);
+  return ScaleClasses(d_results, local_area, tp, auc, cache, n_classes);
 }
 
 void MultiClassSortedIdx(common::Span<float const> predts,
@@ -478,8 +474,7 @@ double GPUMultiClassROCAUC(common::Span<float const> predts,
                               double tp, size_t /*class_id*/) {
     return TrapezoidArea(fp_prev, fp, tp_prev, tp);
   };
-  return GPUMultiClassAUCOVR<true>(predts, info, device, dh::ToSpan(class_ptr),
-                                   n_classes, cache, fn);
+  return GPUMultiClassAUCOVR<true>(info, device, dh::ToSpan(class_ptr), n_classes, cache, fn);
 }
 
 namespace {
@@ -704,8 +699,7 @@ double GPUMultiClassPRAUC(common::Span<float const> predts,
     return detail::CalcDeltaPRAUC(fp_prev, fp, tp_prev, tp,
                                   d_totals[class_id].first);
   };
-  return GPUMultiClassAUCOVR<false>(predts, info, device, d_class_ptr,
-                                    n_classes, cache, fn);
+  return GPUMultiClassAUCOVR<false>(info, device, d_class_ptr, n_classes, cache, fn);
 }
 
 template <typename Fn>

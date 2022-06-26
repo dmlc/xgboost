@@ -53,12 +53,39 @@ class TestGPUUpdaters:
         note(result)
         assert tm.non_increasing(result["train"][dataset.metric])
 
+    @given(tm.sparse_datasets_strategy)
+    @settings(deadline=None, print_blob=True)
+    def test_sparse(self, dataset):
+        param = {"tree_method": "hist", "max_bin": 64}
+        hist_result = train_result(param, dataset.get_dmat(), 16)
+        note(hist_result)
+        assert tm.non_increasing(hist_result['train'][dataset.metric])
+
+        param = {"tree_method": "gpu_hist", "max_bin": 64}
+        gpu_hist_result = train_result(param, dataset.get_dmat(), 16)
+        note(gpu_hist_result)
+        assert tm.non_increasing(gpu_hist_result['train'][dataset.metric])
+
+        np.testing.assert_allclose(
+            hist_result["train"]["rmse"], gpu_hist_result["train"]["rmse"], rtol=1e-2
+        )
+
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical(self, rows, cols, rounds, cats):
-        self.cputest.run_categorical_basic(rows, cols, rounds, cats, "gpu_hist")
+    def test_categorical_ohe(self, rows, cols, rounds, cats):
+        self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
+
+    @given(
+        strategies.integers(10, 400),
+        strategies.integers(3, 8),
+        strategies.integers(4, 7)
+    )
+    @settings(deadline=None, print_blob=True)
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical_missing(self, rows, cols, cats):
+        self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
 
     def test_max_cat(self) -> None:
         self.cputest.run_max_cat("gpu_hist")
@@ -69,7 +96,7 @@ class TestGPUUpdaters:
         cols = 10
         cats = 32
         rounds = 4
-        self.cputest.run_categorical_basic(rows, cols, rounds, cats, "gpu_hist")
+        self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_invalid_category(self):

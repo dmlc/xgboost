@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.{Iterator, mutable}
 
-import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
+import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.hadoop.fs.Path
@@ -29,9 +29,8 @@ import org.apache.spark.ml._
 import org.apache.spark.ml.param._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.json4s.DefaultFormats
 
-import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.ml.util.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter, XGBoostWriter}
 import org.apache.spark.sql.types.StructType
 
 class XGBoostRegressor (
@@ -101,8 +100,6 @@ class XGBoostRegressor (
   def setMaxBins(value: Int): this.type = set(maxBins, value)
 
   def setMaxLeaves(value: Int): this.type = set(maxLeaves, value)
-
-  def setSketchEps(value: Double): this.type = set(sketchEps, value)
 
   def setScalePosWeight(value: Double): this.type = set(scalePosWeight, value)
 
@@ -259,7 +256,7 @@ class XGBoostRegressionModel private[ml] (
    * Note: The performance is not ideal, use it carefully!
    */
   override def predict(features: Vector): Double = {
-    import DataUtils._
+    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val dm = new DMatrix(processMissingValues(
       Iterator(features.asXGB),
       $(missing),
@@ -300,14 +297,14 @@ class XGBoostRegressionModel private[ml] (
     }
   }
 
-  private[scala] def producePredictionItrs(booster: Broadcast[Booster], dm: DMatrix):
+  private[scala] def producePredictionItrs(booster: Booster, dm: DMatrix):
       Array[Iterator[Row]] = {
     val originalPredictionItr = {
-      booster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
+      booster.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        booster.value.predictLeaf(dm, $(treeLimit)).
+        booster.predictLeaf(dm, $(treeLimit)).
           map(Row(_)).iterator
       } else {
         Iterator()
@@ -315,7 +312,7 @@ class XGBoostRegressionModel private[ml] (
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        booster.value.predictContrib(dm, $(treeLimit)).
+        booster.predictContrib(dm, $(treeLimit)).
           map(Row(_)).iterator
       } else {
         Iterator()
@@ -379,18 +376,16 @@ object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
   override def load(path: String): XGBoostRegressionModel = super.load(path)
 
   private[XGBoostRegressionModel]
-  class XGBoostRegressionModelWriter(instance: XGBoostRegressionModel) extends MLWriter {
+  class XGBoostRegressionModelWriter(instance: XGBoostRegressionModel) extends XGBoostWriter {
 
     override protected def saveImpl(path: String): Unit = {
       // Save metadata and Params
-      implicit val format = DefaultFormats
-      implicit val sc = super.sparkSession.sparkContext
       DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
       // Save model data
       val dataPath = new Path(path, "data").toString
       val internalPath = new Path(dataPath, "XGBoostRegressionModel")
       val outputStream = internalPath.getFileSystem(sc.hadoopConfiguration).create(internalPath)
-      instance._booster.saveModel(outputStream)
+      instance._booster.saveModel(outputStream, getModelFormat())
       outputStream.close()
     }
   }

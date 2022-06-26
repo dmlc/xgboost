@@ -166,7 +166,8 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
   def buildXGBRuntimeParams: XGBoostExecutionParams = {
     val nWorkers = overridedParams("num_workers").asInstanceOf[Int]
     val round = overridedParams("num_round").asInstanceOf[Int]
-    val useExternalMemory = overridedParams("use_external_memory").asInstanceOf[Boolean]
+    val useExternalMemory = overridedParams
+      .getOrElse("use_external_memory", false).asInstanceOf[Boolean]
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]

@@ -168,8 +168,8 @@ class PartitionBuilder {
     const size_t n_left  = child_nodes_sizes.first;
     const size_t n_right = child_nodes_sizes.second;
 
-    SetNLeftElems(node_in_set, range.begin(), range.end(), n_left);
-    SetNRightElems(node_in_set, range.begin(), range.end(), n_right);
+    SetNLeftElems(node_in_set, range.begin(), n_left);
+    SetNRightElems(node_in_set, range.begin(), n_right);
   }
 
   /**
@@ -188,8 +188,7 @@ class PartitionBuilder {
    */
   template <typename Pred>
   void PartitionRange(const size_t node_in_set, const size_t nid, common::Range1d range,
-                      bst_feature_t fidx, common::RowSetCollection* p_row_set_collection,
-                      Pred pred) {
+                      common::RowSetCollection* p_row_set_collection, Pred pred) {
     auto& row_set_collection = *p_row_set_collection;
     const size_t* p_ridx = row_set_collection[nid].begin;
     common::Span<const size_t> ridx(p_ridx + range.begin(), p_ridx + range.end());
@@ -200,8 +199,8 @@ class PartitionBuilder {
     const size_t n_left = child_nodes_sizes.first;
     const size_t n_right = child_nodes_sizes.second;
 
-    this->SetNLeftElems(node_in_set, range.begin(), range.end(), n_left);
-    this->SetNRightElems(node_in_set, range.begin(), range.end(), n_right);
+    this->SetNLeftElems(node_in_set, range.begin(), n_left);
+    this->SetNRightElems(node_in_set, range.begin(), n_right);
   }
 
   // allocate thread local memory, should be called for each specific task
@@ -223,12 +222,12 @@ class PartitionBuilder {
     return { mem_blocks_.at(task_idx)->Right(), end - begin };
   }
 
-  void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
+  void SetNLeftElems(int nid, size_t begin, size_t n_left) {
     size_t task_idx = GetTaskIdx(nid, begin);
     mem_blocks_.at(task_idx)->n_left = n_left;
   }
 
-  void SetNRightElems(int nid, size_t begin, size_t end, size_t n_right) {
+  void SetNRightElems(int nid, size_t begin, size_t n_right) {
     size_t task_idx = GetTaskIdx(nid, begin);
     mem_blocks_.at(task_idx)->n_right = n_right;
   }

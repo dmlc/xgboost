@@ -94,8 +94,8 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     tree::TrainParam param = GetParameter();
     param.interaction_constraints = R"([[0, 1, 3], [3, 5, 6]])";
     FConstraintWrapper constraints(param, kFeatures);
-    std::vector<int32_t> h_sets {0, 0, 0, 1, 1, 1};
-    std::vector<int32_t> h_sets_ptr {0, 1, 2, 2, 4, 4, 5, 6};
+    std::vector<bst_feature_t> h_sets {0, 0, 0, 1, 1, 1};
+    std::vector<size_t> h_sets_ptr {0, 1, 2, 2, 4, 4, 5, 6};
     auto d_sets = constraints.GetDSets();
     ASSERT_EQ(h_sets.size(), d_sets.size());
     auto d_sets_ptr = constraints.GetDSetsPtr();

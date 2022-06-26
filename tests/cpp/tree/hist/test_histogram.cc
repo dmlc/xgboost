@@ -165,8 +165,12 @@ void TestSyncHist(bool is_distributed) {
                                        starting_index, sync_count, &opt_partition_builder);
   } else {
     histogram.SyncHistogramLocal(&tree, nodes_for_explicit_hist_build_,
+// <<<<<<< HEAD
                                  nodes_for_subtraction_trick_, starting_index,
                                  sync_count, &opt_partition_builder);
+// =======
+//                                  nodes_for_subtraction_trick_);
+// >>>>>>> 0725fd60819f9758fbed6ee54f34f3696a2fb2f8
   }
 
   using GHistRowT = common::GHistRow;
@@ -412,13 +416,27 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
     /**
      * Single page
      */
+// <<<<<<< HEAD
     int32_t constexpr kBins = 256;
     single_build.Reset(total_bins, kBins,
                        omp_get_max_threads(), 1, 8, false);
-    GHistIndexMatrix gmat;
+    // single_build.Reset(total_bins, batch_param, common::OmpGetNumThreads(0), 1, false);
+    SparsePage concat;
     std::vector<float> hess(m->Info().num_row_, 1.0f);
-    gmat.Init(m.get(), batch_param.max_bin, std::numeric_limits<double>::quiet_NaN(), false,
-              common::OmpGetNumThreads(0), hess);
+    for (auto const& page : m->GetBatches<SparsePage>()) {
+      concat.Push(page);
+    }
+
+    auto cut = common::SketchOnDMatrix(m.get(), batch_param.max_bin, common::OmpGetNumThreads(0),
+                                       false, hess);
+    GHistIndexMatrix gmat;
+    gmat.Init(concat, {}, cut, batch_param.max_bin, false, std::numeric_limits<double>::quiet_NaN(),
+              common::OmpGetNumThreads(0));
+
+    // GHistIndexMatrix gmat;
+    // std::vector<float> hess(m->Info().num_row_, 1.0f);
+    // gmat.Init(m.get(), batch_param.max_bin, std::numeric_limits<double>::quiet_NaN(), false,
+    //           common::OmpGetNumThreads(0), hess);
     size_t n_batches{0};
       common::OptPartitionBuilder opt_partition_builder;
       opt_partition_builder.template Init<uint8_t>(gmat, gmat.Transpose(), &tree,
@@ -428,6 +446,24 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
                              h_gpair, &opt_partition_builder, &node_ids);
       n_batches ++;
     ASSERT_EQ(n_batches, 1);
+// =======
+//     common::RowSetCollection row_set_collection;
+//     InitRowPartitionForTest(&row_set_collection, n_samples);
+
+//     single_build.Reset(total_bins, batch_param, common::OmpGetNumThreads(0), 1, false);
+//     SparsePage concat;
+//     std::vector<float> hess(m->Info().num_row_, 1.0f);
+//     for (auto const& page : m->GetBatches<SparsePage>()) {
+//       concat.Push(page);
+//     }
+
+//     auto cut = common::SketchOnDMatrix(m.get(), batch_param.max_bin, common::OmpGetNumThreads(0),
+//                                        false, hess);
+//     GHistIndexMatrix gmat;
+//     gmat.Init(concat, {}, cut, batch_param.max_bin, false, std::numeric_limits<double>::quiet_NaN(),
+//               common::OmpGetNumThreads(0));
+//     single_build.BuildHist(0, gmat, &tree, row_set_collection, nodes, {}, h_gpair);
+// >>>>>>> 0725fd60819f9758fbed6ee54f34f3696a2fb2f8
     single_page = single_build.Histogram()[0];
   }
 

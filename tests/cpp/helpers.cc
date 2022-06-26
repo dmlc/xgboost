@@ -167,7 +167,7 @@ double GetMultiMetricEval(xgboost::Metric* metric,
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
-  return metric->Eval(preds, info, false);
+  return metric->Eval(preds, info);
 }
 
 namespace xgboost {
@@ -651,10 +651,8 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 class RMMAllocator {};
 
-void DeleteRMMResource(RMMAllocator* r) {}
+void DeleteRMMResource(RMMAllocator*) {}
 
-RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
-  return {nullptr, DeleteRMMResource};
-}
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, DeleteRMMResource}; }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 }  // namespace xgboost

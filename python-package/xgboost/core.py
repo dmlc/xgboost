@@ -3,6 +3,7 @@
 """Core XGBoost Library."""
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+import copy
 from typing import List, Optional, Any, Union, Dict, TypeVar
 from typing import Callable, Tuple, cast, Sequence, Type, Iterable
 import ctypes
@@ -139,6 +140,22 @@ def _get_log_callback_func() -> Callable:
     return c_callback(_log_callback)
 
 
+def _lib_version(lib: ctypes.CDLL) -> Tuple[int, int, int]:
+    """Get the XGBoost version from native shared object."""
+    major = ctypes.c_int()
+    minor = ctypes.c_int()
+    patch = ctypes.c_int()
+    lib.XGBoostVersion(ctypes.byref(major), ctypes.byref(minor), ctypes.byref(patch))
+    return major.value, minor.value, patch.value
+
+
+def _py_version() -> str:
+    """Get the XGBoost version from Python version file."""
+    VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION")
+    with open(VERSION_FILE, encoding="ascii") as f:
+        return f.read().strip()
+
+
 def _load_lib() -> ctypes.CDLL:
     """Load xgboost Library."""
     lib_paths = find_lib_path()
@@ -146,7 +163,7 @@ def _load_lib() -> ctypes.CDLL:
         # This happens only when building document.
         return None  # type: ignore
     try:
-        pathBackup = os.environ['PATH'].split(os.pathsep)
+        pathBackup = os.environ["PATH"].split(os.pathsep)
     except KeyError:
         pathBackup = []
     lib_success = False
@@ -155,8 +172,9 @@ def _load_lib() -> ctypes.CDLL:
         try:
             # needed when the lib is linked with non-system-available
             # dependencies
-            os.environ['PATH'] = os.pathsep.join(
-                pathBackup + [os.path.dirname(lib_path)])
+            os.environ["PATH"] = os.pathsep.join(
+                pathBackup + [os.path.dirname(lib_path)]
+            )
             lib = ctypes.cdll.LoadLibrary(lib_path)
             setattr(lib, "path", os.path.normpath(lib_path))
             lib_success = True
@@ -164,7 +182,7 @@ def _load_lib() -> ctypes.CDLL:
             os_error_list.append(str(e))
             continue
         finally:
-            os.environ['PATH'] = os.pathsep.join(pathBackup)
+            os.environ["PATH"] = os.pathsep.join(pathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
@@ -180,11 +198,36 @@ Likely causes:
   * You are running 32-bit Python on a 64-bit OS
 
 Error message(s): {os_error_list}
-""")
+"""
+        )
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()  # type: ignore
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
         raise XGBoostError(lib.XGBGetLastError())
+
+    def parse(ver: str) -> Tuple[int, int, int]:
+        """Avoid dependency on packaging (PEP 440)."""
+        # 2.0.0-dev or 2.0.0
+        major, minor, patch = ver.split("-")[0].split(".")
+        return int(major), int(minor), int(patch)
+
+    libver = _lib_version(lib)
+    pyver = parse(_py_version())
+
+    # verify that we are loading the correct binary.
+    if pyver != libver:
+        pyver_str = ".".join((str(v) for v in pyver))
+        libver_str = ".".join((str(v) for v in libver))
+        msg = (
+            "Mismatched version between the Python package and the native shared "
+            f"""object.  Python package version: {pyver_str}. Shared object """
+            f"""version: {libver_str}. Shared object is loaded from: {lib.path}.
+Likely cause:
+  * XGBoost is first installed with anaconda then upgraded with pip. To fix it """
+            "please remove one of the installations."
+        )
+        raise ValueError(msg)
+
     return lib
 
 
@@ -1596,7 +1639,7 @@ class Booster:
         booster: `Booster`
             a copied booster model
         """
-        return self.__copy__()
+        return copy.copy(self)
 
     def attr(self, key: str) -> Optional[str]:
         """Get attribute string from the Booster.
@@ -2328,15 +2371,15 @@ class Booster:
         ret = self.get_dump(fmap, with_stats, dump_format)
         if dump_format == 'json':
             fout_obj.write('[\n')
-            for i, _ in enumerate(ret):
-                fout_obj.write(ret[i])
+            for i, val in enumerate(ret):
+                fout_obj.write(val)
                 if i < len(ret) - 1:
                     fout_obj.write(",\n")
             fout_obj.write('\n]')
         else:
-            for i, _ in enumerate(ret):
+            for i, val in enumerate(ret):
                 fout_obj.write(f"booster[{i}]:\n")
-                fout_obj.write(ret[i])
+                fout_obj.write(val)
         if need_close:
             fout_obj.close()
 
@@ -2625,8 +2668,8 @@ class Booster:
         values = []
         # pylint: disable=consider-using-f-string
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
-        for i, _ in enumerate(xgdump):
-            m = re.findall(regexp, xgdump[i])
+        for i, val in enumerate(xgdump):
+            m = re.findall(regexp, val)
             values.extend([float(x) for x in m])
 
         n_unique = len(np.unique(values))

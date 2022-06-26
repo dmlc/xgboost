@@ -57,12 +57,8 @@ class Metric : public Configurable {
    * \brief evaluate a specific metric
    * \param preds prediction
    * \param info information, including label etc.
-   * \param distributed whether a call to Allreduce is needed to gather
-   *        the average statistics across all the node,
-   *        this is only supported by some metrics
    */
-  virtual double Eval(const HostDeviceVector<bst_float> &preds,
-                      const MetaInfo &info, bool distributed) = 0;
+  virtual double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) = 0;
   /*! \return name of metric */
   virtual const char* Name() const = 0;
   /*! \brief virtual destructor */

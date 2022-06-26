@@ -44,6 +44,7 @@ with normal model IO operation. Currently, memory snapshot is used in the follow
 * Python package: when the ``Booster`` object is pickled with the built-in ``pickle`` module.
 * R package: when the ``xgb.Booster`` object is persisted with the built-in functions ``saveRDS``
   or ``save``.
+* JVM packages: when the ``Booster`` object is serialized with the built-in functions ``saveModel``.
 
 Other language bindings are still working in progress.
 
@@ -67,6 +68,12 @@ a filename with ``.json`` or ``.ubj`` as file extension, the latter is the exten
   :caption: R
 
   xgb.save(bst, 'model_file_name.json')
+
+.. code-block:: Scala
+  :caption: Scala
+
+  val format = "json"  // or val format = "ubj"
+  model.write.option("format", format).save("model_directory_path")
 
 .. note::
 

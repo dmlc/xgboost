@@ -65,31 +65,21 @@ class AllreduceMock : public AllreduceBase {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "Broadcast");
     AllreduceBase::Broadcast(sendrecvbuf_, total_size, root);
   }
-  int LoadCheckPoint(Serializable *global_model,
-                     Serializable *local_model) override {
+  int LoadCheckPoint() override {
     tsum_allreduce_ = 0.0;
     tsum_allgather_ = 0.0;
     time_checkpoint_ = dmlc::GetTime();
     if (force_local_ == 0) {
-      return AllreduceBase::LoadCheckPoint(global_model, local_model);
+      return AllreduceBase::LoadCheckPoint();
     } else {
-      DummySerializer dum;
-      ComboSerializer com(global_model, local_model);
-      return AllreduceBase::LoadCheckPoint(&dum, &com);
+      return AllreduceBase::LoadCheckPoint();
     }
   }
-  void CheckPoint(const Serializable *global_model,
-                  const Serializable *local_model) override {
+  void CheckPoint() override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "CheckPoint");
     double tstart = dmlc::GetTime();
     double tbet_chkpt = tstart - time_checkpoint_;
-    if (force_local_ == 0) {
-      AllreduceBase::CheckPoint(global_model, local_model);
-    } else {
-      DummySerializer dum;
-      ComboSerializer com(global_model, local_model);
-      AllreduceBase::CheckPoint(&dum, &com);
-    }
+    AllreduceBase::CheckPoint();
     time_checkpoint_ = dmlc::GetTime();
     double tcost = dmlc::GetTime() - tstart;
     if (report_stats_ != 0 && rank == 0) {
@@ -105,11 +95,6 @@ class AllreduceMock : public AllreduceBase {
     tsum_allgather_ = 0.0;
   }
 
-  void LazyCheckPoint(const Serializable *global_model) override {
-    this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "LazyCheckPoint");
-    AllreduceBase::LazyCheckPoint(global_model);
-  }
-
  protected:
   // force checkpoint to local
   int force_local_;
@@ -122,30 +107,6 @@ class AllreduceMock : public AllreduceBase {
   double time_checkpoint_;
 
  private:
-  struct DummySerializer : public Serializable {
-    void Load(Stream *fi) override {}
-    void Save(Stream *fo) const override {}
-  };
-  struct ComboSerializer : public Serializable {
-    Serializable *lhs;
-    Serializable *rhs;
-    const Serializable *c_lhs;
-    const Serializable *c_rhs;
-    ComboSerializer(Serializable *lhs, Serializable *rhs)
-        : lhs(lhs), rhs(rhs), c_lhs(lhs), c_rhs(rhs) {
-    }
-    ComboSerializer(const Serializable *lhs, const Serializable *rhs)
-        : lhs(nullptr), rhs(nullptr), c_lhs(lhs), c_rhs(rhs) {
-    }
-    void Load(Stream *fi) override {
-      if (lhs != nullptr) lhs->Load(fi);
-      if (rhs != nullptr) rhs->Load(fi);
-    }
-    void Save(Stream *fo) const override {
-      if (c_lhs != nullptr) c_lhs->Save(fo);
-      if (c_rhs != nullptr) c_rhs->Save(fo);
-    }
-  };
   // key to identify the mock stage
   struct MockKey {
     int rank;

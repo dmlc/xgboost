@@ -7,8 +7,8 @@ namespace tree {
 
 TEST(GpuHist, DriverDepthWise) {
   TrainParam p;
-  p.InitAllowUnknown(Args{});
-  p.grow_policy = TrainParam::kDepthWise;
+  p.UpdateAllowUnknown(Args{{"grow_policy", "depthwise"}});
+
   Driver<GPUExpandEntry> driver(p, 2);
   EXPECT_TRUE(driver.Pop().empty());
   DeviceSplitCandidate split;
@@ -49,7 +49,8 @@ TEST(GpuHist, DriverLossGuided) {
   low_gain.loss_chg = 1.0f;
 
   TrainParam p;
-  p.grow_policy=TrainParam::kLossGuide;
+  p.UpdateAllowUnknown(Args{{"grow_policy", "lossguide"}});
+
   Driver<GPUExpandEntry> driver(p);
   EXPECT_TRUE(driver.Pop().empty());
   GPUExpandEntry root(0, 0, high_gain, 2.0f, 1.0f, 1.0f );

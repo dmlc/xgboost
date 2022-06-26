@@ -308,6 +308,15 @@ class TestModels:
 
         assert old_from_json == old_from_ubj
 
+        raw_json = bst.save_raw(raw_format="json")
+        pretty = json.dumps(json.loads(raw_json), indent=2) + "\n\n"
+        bst.load_model(bytearray(pretty, encoding="ascii"))
+
+        old_from_json = from_jraw.save_raw(raw_format="deprecated")
+        old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
+
+        assert old_from_json == old_from_ubj
+
     @pytest.mark.parametrize("ext", ["json", "ubj"])
     def test_model_json_io(self, ext: str) -> None:
         parameters = {"booster": "gbtree", "tree_method": "hist"}

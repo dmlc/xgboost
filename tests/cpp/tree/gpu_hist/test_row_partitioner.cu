@@ -119,7 +119,7 @@ void TestFinalise() {
     rp.FinalisePosition(
         &ctx, task, &position,
         [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
-        [] XGBOOST_DEVICE(size_t idx) { return false; });
+        [] XGBOOST_DEVICE(size_t) { return false; });
 
     auto position = rp.GetPositionHost();
     for (auto p : position) {

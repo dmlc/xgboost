@@ -4,6 +4,9 @@ ARG CUDA_VERSION_ARG
 
 # Install all basic requirements
 RUN \
+    rpm --erase gpg-pubkey-7fa2af80* && \
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/D42D0685.pub | sed '/^Version/d' \
+        > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
     yum install -y epel-release centos-release-scl && \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \

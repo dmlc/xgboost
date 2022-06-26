@@ -29,7 +29,7 @@ FeatureGroups::FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
   bin_segments_h.push_back(0);
 
   const std::vector<uint32_t>& cut_ptrs = cuts.Ptrs();
-  int max_shmem_bins = shm_size / bin_size;
+  size_t max_shmem_bins = shm_size / bin_size;
   max_group_bins = 0;
 
   for (size_t i = 2; i < cut_ptrs.size(); ++i) {
