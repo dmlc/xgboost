@@ -1,4 +1,5 @@
 import random
+import unittest
 
 import numpy as np
 from pyspark.ml.linalg import Vectors
@@ -207,13 +208,14 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             self.assertTrue(np.isclose(row.expected_label,
                                         row.prediction, atol=1e-3))
 
-    def check_use_gpu_param(self):
+    @unittest.skip
+    def test_check_use_gpu_param(self):
         # Classifier
         classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_gpu=True, use_external_storage=False)
         self.assertTrue(hasattr(classifier, 'use_gpu'))
         self.assertTrue(classifier.getOrDefault(classifier.use_gpu))
         clf_model = classifier.fit(self.cls_df_train_distributed)
-        pred_result = model.transform(self.cls_df_test_distributed).collect()
+        pred_result = clf_model.transform(self.cls_df_test_distributed).collect()
         for row in pred_result:
             self.assertTrue(np.isclose(row.expected_label,
                                         row.prediction, atol=1e-3))
@@ -225,8 +227,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         model = regressor.fit(self.reg_df_train_distributed)
         pred_result = model.transform(self.reg_df_test_distributed).collect()
         for row in pred_result:
-            self.assertTrue(np.isclose(row.expected_label,
-                                        row.prediction, atol=1e-3))
+            self.assertTrue(np.isclose(row.expected_label, row.prediction, atol=1e-3))
 
     def test_classifier_distributed_weight_eval(self):
         # with weight

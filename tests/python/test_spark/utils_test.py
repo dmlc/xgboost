@@ -80,10 +80,6 @@ class TestSparkContext(object):
         for k, v in spark_config.items():
             builder.config(k, v)
         spark = builder.getOrCreate()
-        if spark_config['spark.master'].startswith('local-cluster'):
-            # We run a dummy job so that we block until the workers have connected to the master
-            spark.sparkContext.parallelize(range(2), 2).barrier().mapPartitions(lambda _: []).collect()
-
         logging.getLogger('pyspark').setLevel(logging.INFO)
 
         cls.sc = spark.sparkContext
@@ -118,10 +114,18 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
     @classmethod
     def setUpClass(cls):
         cls.setup_env({
-            'spark.master': 'local-cluster[2, 1, 1024]',
+            'spark.master': 'local-cluster[2, 2, 1024]',
             'spark.python.worker.reuse': 'false',
+            'spark.cores.max': '4',
+            'spark.task.cpus': '1',
+            'spark.executor.cores': '2',
+            'spark.worker.resource.gpu.amount': '4',
+            'spark.task.resource.gpu.amount': '2',
+            'spark.executor.resource.gpu.amount': '4',
+            'spark.worker.resource.gpu.discoveryScript': 'test_spark/discover_gpu.sh'
         })
         cls.make_tempdir()
+        # We run a dummy job so that we block until the workers have connected to the master
         cls.sc.parallelize(range(4), 4).barrier().mapPartitions(lambda _: []).collect()
 
     @classmethod
