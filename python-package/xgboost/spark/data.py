@@ -164,6 +164,7 @@ def _row_tuple_list_to_feature_matrix_y_w(data_iterator, train, has_weight,
         expected_feature_dims = _check_feature_dims(num_feature_dims,
                                                     expected_feature_dims)
 
+        # TODO: Improve performance, avoid use python list
         values_list.append(pdf["values"].to_list())
         if train:
             label_list.append(pdf["label"].to_list())
@@ -226,29 +227,7 @@ def _process_data_iter(data_iterator: Iterator[pd.DataFrame],
 
 def convert_partition_data_to_dmatrix(partition_data_iter,
                                       has_weight,
-                                      has_validation,
-                                      use_external_storage=False,
-                                      file_prefix=None,
-                                      external_storage_precision=5):
-    # if we are using external storage, we use a different approach for making the dmatrix
-    if use_external_storage:
-        if has_validation:
-            train_file, validation_file = _stream_data_into_libsvm_file(
-                partition_data_iter, has_weight,
-                has_validation, file_prefix, external_storage_precision)
-            training_dmatrix = _create_dmatrix_from_file(
-                train_file, "{}/train.cache".format(file_prefix))
-            val_dmatrix = _create_dmatrix_from_file(
-                validation_file, "{}/val.cache".format(file_prefix))
-            return training_dmatrix, val_dmatrix
-        else:
-            train_file = _stream_data_into_libsvm_file(
-                partition_data_iter, has_weight,
-                has_validation, file_prefix, external_storage_precision)
-            training_dmatrix = _create_dmatrix_from_file(
-                train_file, "{}/train.cache".format(file_prefix))
-            return training_dmatrix
-
+                                      has_validation):
     # if we are not using external storage, we use the standard method of parsing data.
     train_val_data = prepare_train_val_data(partition_data_iter, has_weight, has_validation)
     if has_validation:

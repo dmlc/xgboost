@@ -43,10 +43,6 @@ class XgboostRegressor(_XgboostEstimator):
         Each XGBoost worker corresponds to one spark task.
     :param use_gpu: Boolean that specifies whether the executors are running on GPU
         instances.
-    :param use_external_storage: Boolean that specifices whether you want to use
-        external storage when training in a distributed manner. This allows using disk
-        as cache. Setting this to true is useful when you want better memory utilization
-        but is not needed for small test datasets.
     :param baseMarginCol: To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.XgboostRegressor.baseMarginCol` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
@@ -141,10 +137,6 @@ class XgboostClassifier(_XgboostEstimator, HasProbabilityCol,
         Each XGBoost worker corresponds to one spark task.
     :param use_gpu: Boolean that specifies whether the executors are running on GPU
         instances.
-    :param use_external_storage: Boolean that specifices whether you want to use
-        external storage when training in a distributed manner. This allows using disk
-        as cache. Setting this to true is useful when you want better memory utilization
-        but is not needed for small test datasets.
     :param baseMarginCol: To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.XgboostClassifier.baseMarginCol` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the

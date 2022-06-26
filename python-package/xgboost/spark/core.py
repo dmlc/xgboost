@@ -74,19 +74,6 @@ class _XgboostParams(HasFeaturesCol, HasLabelCol, HasWeightCol,
         "want to force the input dataset to be repartitioned before XGBoost training." +
         "Note: The auto repartitioning judgement is not fully accurate, so it is recommended" +
         "to have force_repartition be True.")
-    use_external_storage = Param(
-        Params._dummy(), "use_external_storage",
-        "A boolean variable (that is False by default). External storage is a parameter" +
-        "for distributed training that allows external storage (disk) to be used when." +
-        "you have an exceptionally large dataset. This should be set to false for" +
-        "small datasets. Note that base margin and weighting doesn't work if this is True." +
-        "Also note that you may use precision if you use external storage."
-    )
-    external_storage_precision = Param(
-        Params._dummy(), "external_storage_precision",
-        "The number of significant digits for data storage on disk when using external storage.",
-        TypeConverters.toInt
-    )
 
     @classmethod
     def _xgb_cls(cls):
@@ -137,8 +124,6 @@ class _XgboostParams(HasFeaturesCol, HasLabelCol, HasWeightCol,
         self.set(self.num_workers, 1)
         self.set(self.use_gpu, False)
         self.set(self.force_repartition, False)
-        self.set(self.use_external_storage, False)
-        self.set(self.external_storage_precision, 5)  # Check if this needs to be modified
 
     # Parameters for xgboost.XGBModel().fit()
     @classmethod
@@ -386,21 +371,16 @@ class _XgboostEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             from pyspark import BarrierTaskContext
             context = BarrierTaskContext.get()
 
-            use_external_storage = self.getOrDefault(self.use_external_storage)
-            external_storage_precision = self.getOrDefault(self.external_storage_precision)
-            external_storage_path_prefix = None
-            if use_external_storage:
-                external_storage_path_prefix = tempfile.mkdtemp()
             dtrain, dval = None, []
             if has_validation:
                 dtrain, dval = convert_partition_data_to_dmatrix(
-                    pandas_df_iter, has_weight, has_validation,
-                    use_external_storage, external_storage_path_prefix, external_storage_precision)
+                    pandas_df_iter, has_weight, has_validation
+                )
                 dval = [(dtrain, "training"), (dval, "validation")]
             else:
                 dtrain = convert_partition_data_to_dmatrix(
-                    pandas_df_iter, has_weight, has_validation,
-                    use_external_storage, external_storage_path_prefix, external_storage_precision)
+                    pandas_df_iter, has_weight, has_validation
+                )
 
             booster_params, kwargs_params = self._get_dist_booster_params(
                 train_params)
@@ -420,8 +400,6 @@ class _XgboostEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                                        **kwargs_params)
             context.barrier()
 
-            if use_external_storage:
-                shutil.rmtree(external_storage_path_prefix)
             if context.partitionId() == 0:
                 yield pd.DataFrame(
                     data={'booster_bytes': [cloudpickle.dumps(booster)]})

@@ -165,16 +165,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
     def test_classifier_distributed_basic(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=False)
-        model = classifier.fit(self.cls_df_train_distributed)
-        pred_result = model.transform(self.cls_df_test_distributed).collect()
-        for row in pred_result:
-            self.assertTrue(np.isclose(row.expected_label,
-                                        row.prediction, atol=1e-3))
-            self.assertTrue(np.allclose(row.expected_probability, row.probability, atol=1e-3))
-
-    def test_classifier_distributed_external_storage_basic(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=True)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100)
         model = classifier.fit(self.cls_df_train_distributed)
         pred_result = model.transform(self.cls_df_test_distributed).collect()
         for row in pred_result:
@@ -184,7 +175,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_classifier_distributed_multiclass(self):
         # There is no built-in multiclass option for external storage
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=False)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100)
         model = classifier.fit(self.cls_df_train_distributed_multiclass)
         pred_result = model.transform(self.cls_df_test_distributed_multiclass).collect()
         for row in pred_result:
@@ -193,25 +184,16 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             self.assertTrue(np.allclose(row.expected_margins, row.rawPrediction, atol=1e-3))
 
     def test_regressor_distributed_basic(self):
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=False)
+        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100)
         model = regressor.fit(self.reg_df_train_distributed)
         pred_result = model.transform(self.reg_df_test_distributed).collect()
         for row in pred_result:
-            self.assertTrue(np.isclose(row.expected_label,
-                                        row.prediction, atol=1e-3))
-
-    def test_regressor_distributed_external_storage_basic(self):
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=True)
-        model = regressor.fit(self.reg_df_train_distributed)
-        pred_result = model.transform(self.reg_df_test_distributed).collect()
-        for row in pred_result:
-            self.assertTrue(np.isclose(row.expected_label,
-                                        row.prediction, atol=1e-3))
+            self.assertTrue(np.isclose(row.expected_label, row.prediction, atol=1e-3))
 
     @unittest.skip
     def test_check_use_gpu_param(self):
         # Classifier
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_gpu=True, use_external_storage=False)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_gpu=True)
         self.assertTrue(hasattr(classifier, 'use_gpu'))
         self.assertTrue(classifier.getOrDefault(classifier.use_gpu))
         clf_model = classifier.fit(self.cls_df_train_distributed)
@@ -221,7 +203,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                                         row.prediction, atol=1e-3))
             self.assertTrue(np.allclose(row.expected_probability, row.probability, atol=1e-3))
         
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_gpu=True, use_external_storage=False)
+        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_gpu=True)
         self.assertTrue(hasattr(regressor, 'use_gpu'))
         self.assertTrue(regressor.getOrDefault(regressor.use_gpu))
         model = regressor.fit(self.reg_df_train_distributed)
@@ -231,7 +213,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_classifier_distributed_weight_eval(self):
         # with weight
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=False, **self.clf_params_with_weight_dist)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, **self.clf_params_with_weight_dist)
         model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
         pred_result = model.transform(self.cls_df_test_distributed_with_eval_weight).collect()
         for row in pred_result:
@@ -239,7 +221,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                                         row.expected_prob_with_weight, atol=1e-3))
 
         # with eval only
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=False, **self.clf_params_with_eval_dist)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, **self.clf_params_with_eval_dist)
         model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
         pred_result = model.transform(self.cls_df_test_distributed_with_eval_weight).collect()
         for row in pred_result:
@@ -248,34 +230,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         self.assertEqual(float(model.get_booster().attributes()["best_score"]), self.clf_best_score_eval)
 
         # with both weight and eval
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=False, **self.clf_params_with_eval_dist, **self.clf_params_with_weight_dist)
-        model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
-        pred_result = model.transform(self.cls_df_test_distributed_with_eval_weight).collect()
-        for row in pred_result:
-            self.assertTrue(np.allclose(row.probability,
-                                        row.expected_prob_with_weight_and_eval, atol=1e-3))
-        self.assertEqual(float(model.get_booster().attributes()["best_score"]), self.clf_best_score_weight_and_eval)
-
-    def test_classifier_distributed_weight_eval_external_storage(self):
-        # with weight
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=True, **self.clf_params_with_weight_dist)
-        model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
-        pred_result = model.transform(self.cls_df_test_distributed_with_eval_weight).collect()
-        for row in pred_result:
-            self.assertTrue(np.allclose(row.probability,
-                                        row.expected_prob_with_weight, atol=1e-3))
-
-        # with eval only
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=True, **self.clf_params_with_eval_dist)
-        model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
-        pred_result = model.transform(self.cls_df_test_distributed_with_eval_weight).collect()
-        for row in pred_result:
-            self.assertTrue(np.allclose(row.probability,
-                                        row.expected_prob_with_eval, atol=1e-3))
-        self.assertEqual(float(model.get_booster().attributes()["best_score"]), self.clf_best_score_eval)
-
-        # with both weight and eval
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, use_external_storage=True, **self.clf_params_with_eval_dist, **self.clf_params_with_weight_dist)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100, **self.clf_params_with_eval_dist, **self.clf_params_with_weight_dist)
         model = classifier.fit(self.cls_df_train_distributed_with_eval_weight)
         pred_result = model.transform(self.cls_df_test_distributed_with_eval_weight).collect()
         for row in pred_result:
@@ -285,7 +240,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_regressor_distributed_weight_eval(self):
         # with weight
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=False, **self.reg_params_with_weight_dist)
+        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, **self.reg_params_with_weight_dist)
         model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
         pred_result = model.transform(self.reg_df_test_distributed_with_eval_weight).collect()
         for row in pred_result:
@@ -293,7 +248,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                 np.isclose(row.prediction,
                            row.expected_prediction_with_weight, atol=1e-3))
         # with eval only
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=False, **self.reg_params_with_eval_dist)
+        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, **self.reg_params_with_eval_dist)
         model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
         pred_result = model.transform(self.reg_df_test_distributed_with_eval_weight).collect()
         for row in pred_result:
@@ -311,36 +266,8 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                            row.expected_prediction_with_weight_and_eval, atol=1e-3))
         self.assertEqual(float(model.get_booster().attributes()["best_score"]), self.reg_best_score_weight_and_eval)
 
-    def test_regressor_distributed_weight_eval_external_storage(self):
-        # with weight
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=True, **self.reg_params_with_weight_dist)
-        model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
-        pred_result = model.transform(self.reg_df_test_distributed_with_eval_weight).collect()
-        for row in pred_result:
-            self.assertTrue(
-                np.isclose(row.prediction,
-                           row.expected_prediction_with_weight, atol=1e-3))
-        # with eval only
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=True, **self.reg_params_with_eval_dist)
-        model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
-        pred_result = model.transform(self.reg_df_test_distributed_with_eval_weight).collect()
-        for row in pred_result:
-            self.assertTrue(
-                np.isclose(row.prediction,
-                           row.expected_prediction_with_eval, atol=1e-3))
-        self.assertEqual(float(model.get_booster().attributes()["best_score"]), self.reg_best_score_eval)
-        # with both weight and eval
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100, use_external_storage=True, **self.reg_params_with_eval_dist, **self.reg_params_with_weight_dist)
-        model = regressor.fit(self.reg_df_train_distributed_with_eval_weight)
-        pred_result = model.transform(self.reg_df_test_distributed_with_eval_weight).collect()
-        for row in pred_result:
-            self.assertTrue(
-                np.isclose(row.prediction,
-                           row.expected_prediction_with_weight_and_eval, atol=1e-3))
-        self.assertEqual(float(model.get_booster().attributes()["best_score"]), self.reg_best_score_weight_and_eval)
-
     def test_num_estimators(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=10, use_external_storage=False)
+        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=10)
         model = classifier.fit(self.cls_df_train_distributed)
         pred_result = model.transform(self.cls_df_test_distributed_lower_estimators).collect()
         print(pred_result)
@@ -348,11 +275,6 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             self.assertTrue(np.isclose(row.expected_label,
                                         row.prediction, atol=1e-3))
             self.assertTrue(np.allclose(row.expected_probability, row.probability, atol=1e-3))
-
-    def test_missing_value_zero_with_external_storage(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=10, use_external_storage=False,
-                                       missing=0.0)
-        classifier.fit(self.cls_df_train_distributed)
 
     def test_distributed_params(self):
         classifier = XgboostClassifier(num_workers=self.n_workers, max_depth=7)

@@ -92,9 +92,9 @@ class DataTest(SparkTestCase):
 
         # Creating the dmatrix based on storage
         temporary_path = tempfile.mkdtemp()
-        storage_dmatrix = convert_partition_data_to_dmatrix([pd.DataFrame(data)], has_weight=False,
-                                                            has_validation=False, use_external_storage=True,
-                                                            file_prefix=temporary_path)
+        storage_dmatrix = convert_partition_data_to_dmatrix(
+            [pd.DataFrame(data)], has_weight=False, has_validation=False
+        )
 
         # Testing without weights
         normal_booster = worker_train({}, normal_dmatrix)
@@ -110,9 +110,9 @@ class DataTest(SparkTestCase):
         data["weight"] = [0.2, 0.8] * 100
 
         temporary_path = tempfile.mkdtemp()
-        storage_dmatrix = convert_partition_data_to_dmatrix([pd.DataFrame(data)], has_weight=True,
-                                                            has_validation=False, use_external_storage=True,
-                                                            file_prefix=temporary_path)
+        storage_dmatrix = convert_partition_data_to_dmatrix(
+            [pd.DataFrame(data)], has_weight=True, has_validation=False
+        )
 
         normal_booster = worker_train({}, normal_dmatrix)
         storage_booster = worker_train({}, storage_dmatrix)
