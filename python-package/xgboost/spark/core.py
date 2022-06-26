@@ -37,7 +37,7 @@ _pyspark_specific_params = [
 ]
 
 _unsupported_xgb_params = [
-    'gpu_id',  # [ML-12862]
+    'gpu_id',  # we have "use_gpu" pyspark param instead.
 ]
 _unsupported_fit_params = {
     'sample_weight',  # Supported by spark param weightCol
@@ -47,10 +47,10 @@ _unsupported_fit_params = {
     'base_margin'  # Supported by spark param baseMarginCol
 }
 _unsupported_predict_params = {
-    # [ML-12913], for classification, we can use rawPrediction as margin
+    # for classification, we can use rawPrediction as margin
     'output_margin',
-    'validate_features',  # [ML-12923]
-    'base_margin'  # [ML-12689]
+    'validate_features',  # TODO
+    'base_margin'  # TODO
 }
 
 _created_params = {"num_workers", "use_gpu"}
