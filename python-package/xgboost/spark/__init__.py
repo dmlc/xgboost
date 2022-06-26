@@ -1,6 +1,4 @@
-"""XGBoost: eXtreme Gradient Boosting library.
-
-Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
+"""PySpark XGBoost integration interface
 """
 
 try:
