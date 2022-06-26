@@ -14,7 +14,8 @@ def _dump_libsvm(features, labels, weights=None, external_storage_precision=5):
     def gen_label_str(row_idx):
         if weights is not None:
             return "{label:.{esp}g}:{weight:.{esp}g}".format(
-                label=labels[row_idx], esp=esp, weight=weights[row_idx])
+                label=labels[row_idx], esp=esp, weight=weights[row_idx]
+            )
         else:
             return "{label:.{esp}g}".format(label=labels[row_idx], esp=esp)
 
@@ -42,15 +43,16 @@ def _dump_libsvm(features, labels, weights=None, external_storage_precision=5):
 
 
 # This is the updated version that handles weights
-def _stream_train_val_data(features, labels, weights, main_file,
-                           external_storage_precision):
+def _stream_train_val_data(
+    features, labels, weights, main_file, external_storage_precision
+):
     lines = _dump_libsvm(features, labels, weights, external_storage_precision)
     main_file.writelines(lines)
 
 
-def _stream_data_into_libsvm_file(data_iterator, has_weight,
-                                  has_validation, file_prefix,
-                                  external_storage_precision):
+def _stream_data_into_libsvm_file(
+    data_iterator, has_weight, has_validation, file_prefix, external_storage_precision
+):
     # getting the file names for storage
     train_file_name = file_prefix + "/data.txt.train"
     train_file = open(train_file_name, "w")
@@ -58,20 +60,22 @@ def _stream_data_into_libsvm_file(data_iterator, has_weight,
         validation_file_name = file_prefix + "/data.txt.val"
         validation_file = open(validation_file_name, "w")
 
-    train_val_data = _process_data_iter(data_iterator,
-                                        train=True,
-                                        has_weight=has_weight,
-                                        has_validation=has_validation)
+    train_val_data = _process_data_iter(
+        data_iterator, train=True, has_weight=has_weight, has_validation=has_validation
+    )
     if has_validation:
         train_X, train_y, train_w, _, val_X, val_y, val_w, _ = train_val_data
-        _stream_train_val_data(train_X, train_y, train_w, train_file,
-                               external_storage_precision)
-        _stream_train_val_data(val_X, val_y, val_w, validation_file,
-                               external_storage_precision)
+        _stream_train_val_data(
+            train_X, train_y, train_w, train_file, external_storage_precision
+        )
+        _stream_train_val_data(
+            val_X, val_y, val_w, validation_file, external_storage_precision
+        )
     else:
         train_X, train_y, train_w, _ = train_val_data
-        _stream_train_val_data(train_X, train_y, train_w, train_file,
-                               external_storage_precision)
+        _stream_train_val_data(
+            train_X, train_y, train_w, train_file, external_storage_precision
+        )
 
     if has_validation:
         train_file.close()
@@ -92,29 +96,32 @@ def _create_dmatrix_from_file(file_name, cache_name):
     return DMatrix(file_name + "#" + cache_name)
 
 
-def prepare_train_val_data(data_iterator,
-                           has_weight,
-                           has_validation,
-                           has_fit_base_margin=False):
+def prepare_train_val_data(
+    data_iterator, has_weight, has_validation, has_fit_base_margin=False
+):
     def gen_data_pdf():
         for pdf in data_iterator:
             yield pdf
 
-    return _process_data_iter(gen_data_pdf(),
-                              train=True,
-                              has_weight=has_weight,
-                              has_validation=has_validation,
-                              has_fit_base_margin=has_fit_base_margin,
-                              has_predict_base_margin=False)
+    return _process_data_iter(
+        gen_data_pdf(),
+        train=True,
+        has_weight=has_weight,
+        has_validation=has_validation,
+        has_fit_base_margin=has_fit_base_margin,
+        has_predict_base_margin=False,
+    )
 
 
 def prepare_predict_data(data_iterator, has_predict_base_margin):
-    return _process_data_iter(data_iterator,
-                              train=False,
-                              has_weight=False,
-                              has_validation=False,
-                              has_fit_base_margin=False,
-                              has_predict_base_margin=has_predict_base_margin)
+    return _process_data_iter(
+        data_iterator,
+        train=False,
+        has_weight=False,
+        has_validation=False,
+        has_fit_base_margin=False,
+        has_predict_base_margin=has_predict_base_margin,
+    )
 
 
 def _check_feature_dims(num_dims, expected_dims):
@@ -124,16 +131,21 @@ def _check_feature_dims(num_dims, expected_dims):
     if expected_dims is None:
         return num_dims
     if num_dims != expected_dims:
-        raise ValueError("Rows contain different feature dimensions: "
-                         "Expecting {}, got {}.".format(
-                             expected_dims, num_dims))
+        raise ValueError(
+            "Rows contain different feature dimensions: "
+            "Expecting {}, got {}.".format(expected_dims, num_dims)
+        )
     return expected_dims
 
 
-def _row_tuple_list_to_feature_matrix_y_w(data_iterator, train, has_weight,
-                                          has_fit_base_margin,
-                                          has_predict_base_margin,
-                                          has_validation: bool = False):
+def _row_tuple_list_to_feature_matrix_y_w(
+    data_iterator,
+    train,
+    has_weight,
+    has_fit_base_margin,
+    has_predict_base_margin,
+    has_validation: bool = False,
+):
     """
     Construct a feature matrix in ndarray format, label array y and weight array w
     from the row_tuple_list.
@@ -161,8 +173,9 @@ def _row_tuple_list_to_feature_matrix_y_w(data_iterator, train, has_weight,
 
         num_feature_dims = len(pdf["values"].values[0])
 
-        expected_feature_dims = _check_feature_dims(num_feature_dims,
-                                                    expected_feature_dims)
+        expected_feature_dims = _check_feature_dims(
+            num_feature_dims, expected_feature_dims
+        )
 
         # TODO: Improve performance, avoid use python list
         values_list.append(pdf["values"].to_list())
@@ -189,24 +202,32 @@ def _row_tuple_list_to_feature_matrix_y_w(data_iterator, train, has_weight,
     feature_matrix = np.concatenate(values_list)
     y = np.concatenate(label_list) if train else None
     w = np.concatenate(weight_list) if has_weight else None
-    b_m = np.concatenate(base_margin_list) if (
-            has_fit_base_margin or has_predict_base_margin) else None
+    b_m = (
+        np.concatenate(base_margin_list)
+        if (has_fit_base_margin or has_predict_base_margin)
+        else None
+    )
     if has_validation:
         feature_matrix_val = np.concatenate(values_val_list)
         y_val = np.concatenate(label_val_list) if train else None
         w_val = np.concatenate(weight_val_list) if has_weight else None
-        b_m_val = np.concatenate(base_margin_val_list) if (
-                has_fit_base_margin or has_predict_base_margin) else None
+        b_m_val = (
+            np.concatenate(base_margin_val_list)
+            if (has_fit_base_margin or has_predict_base_margin)
+            else None
+        )
         return feature_matrix, y, w, b_m, feature_matrix_val, y_val, w_val, b_m_val
     return feature_matrix, y, w, b_m
 
 
-def _process_data_iter(data_iterator: Iterator[pd.DataFrame],
-                       train: bool,
-                       has_weight: bool,
-                       has_validation: bool,
-                       has_fit_base_margin: bool = False,
-                       has_predict_base_margin: bool = False):
+def _process_data_iter(
+    data_iterator: Iterator[pd.DataFrame],
+    train: bool,
+    has_weight: bool,
+    has_validation: bool,
+    has_fit_base_margin: bool = False,
+    has_predict_base_margin: bool = False,
+):
     """
     If input is for train and has_validation=True, it will split the train data into train dataset
     and validation dataset, and return (train_X, train_y, train_w, train_b_m <-
@@ -214,22 +235,40 @@ def _process_data_iter(data_iterator: Iterator[pd.DataFrame],
     otherwise return (X, y, w, b_m <- base margin)
     """
     if train and has_validation:
-        train_X, train_y, train_w, train_b_m, val_X, val_y, val_w, val_b_m = \
-            _row_tuple_list_to_feature_matrix_y_w(
-                data_iterator, train, has_weight, has_fit_base_margin,
-                has_predict_base_margin, has_validation)
+        (
+            train_X,
+            train_y,
+            train_w,
+            train_b_m,
+            val_X,
+            val_y,
+            val_w,
+            val_b_m,
+        ) = _row_tuple_list_to_feature_matrix_y_w(
+            data_iterator,
+            train,
+            has_weight,
+            has_fit_base_margin,
+            has_predict_base_margin,
+            has_validation,
+        )
         return train_X, train_y, train_w, train_b_m, val_X, val_y, val_w, val_b_m
     else:
-        return _row_tuple_list_to_feature_matrix_y_w(data_iterator, train, has_weight,
-                                                     has_fit_base_margin, has_predict_base_margin,
-                                                     has_validation)
+        return _row_tuple_list_to_feature_matrix_y_w(
+            data_iterator,
+            train,
+            has_weight,
+            has_fit_base_margin,
+            has_predict_base_margin,
+            has_validation,
+        )
 
 
-def convert_partition_data_to_dmatrix(partition_data_iter,
-                                      has_weight,
-                                      has_validation):
+def convert_partition_data_to_dmatrix(partition_data_iter, has_weight, has_validation):
     # if we are not using external storage, we use the standard method of parsing data.
-    train_val_data = prepare_train_val_data(partition_data_iter, has_weight, has_validation)
+    train_val_data = prepare_train_val_data(
+        partition_data_iter, has_weight, has_validation
+    )
     if has_validation:
         train_X, train_y, train_w, _, val_X, val_y, val_w, _ = train_val_data
         training_dmatrix = DMatrix(data=train_X, label=train_y, weight=train_w)

@@ -18,9 +18,7 @@ from xgboost.spark.utils import _get_default_params_from_func
 
 
 class UtilsTest(unittest.TestCase):
-
     def test_get_default_params(self):
-
         class Foo:
             def func1(self, x, y, key1=None, key2="val2", key3=0, key4=None):
                 pass
@@ -30,10 +28,15 @@ class UtilsTest(unittest.TestCase):
             "key1": None,
             "key3": 0,
         }
-        actual_default_params = _get_default_params_from_func(Foo.func1, unsupported_params)
-        self.assertEqual(len(expected_default_params.keys()), len(actual_default_params.keys()))
+        actual_default_params = _get_default_params_from_func(
+            Foo.func1, unsupported_params
+        )
+        self.assertEqual(
+            len(expected_default_params.keys()), len(actual_default_params.keys())
+        )
         for k, v in actual_default_params.items():
             self.assertEqual(expected_default_params[k], v)
+
 
 @contextlib.contextmanager
 def patch_stdout():
@@ -76,11 +79,11 @@ class TestTempDir(object):
 class TestSparkContext(object):
     @classmethod
     def setup_env(cls, spark_config):
-        builder = SparkSession.builder.appName('xgboost spark python API Tests')
+        builder = SparkSession.builder.appName("xgboost spark python API Tests")
         for k, v in spark_config.items():
             builder.config(k, v)
         spark = builder.getOrCreate()
-        logging.getLogger('pyspark').setLevel(logging.INFO)
+        logging.getLogger("pyspark").setLevel(logging.INFO)
 
         cls.sc = spark.sparkContext
         cls.sql = SQLContext(cls.sc)
@@ -96,13 +99,14 @@ class TestSparkContext(object):
 
 
 class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
-        cls.setup_env({
-            'spark.master': 'local[2]',
-            'spark.python.worker.reuse': 'false',
-        })
+        cls.setup_env(
+            {
+                "spark.master": "local[2]",
+                "spark.python.worker.reuse": "false",
+            }
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -110,20 +114,21 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
 
 
 class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
-        cls.setup_env({
-            'spark.master': 'local-cluster[2, 2, 1024]',
-            'spark.python.worker.reuse': 'false',
-            'spark.cores.max': '4',
-            'spark.task.cpus': '1',
-            'spark.executor.cores': '2',
-            'spark.worker.resource.gpu.amount': '4',
-            'spark.task.resource.gpu.amount': '2',
-            'spark.executor.resource.gpu.amount': '4',
-            'spark.worker.resource.gpu.discoveryScript': 'test_spark/discover_gpu.sh'
-        })
+        cls.setup_env(
+            {
+                "spark.master": "local-cluster[2, 2, 1024]",
+                "spark.python.worker.reuse": "false",
+                "spark.cores.max": "4",
+                "spark.task.cpus": "1",
+                "spark.executor.cores": "2",
+                "spark.worker.resource.gpu.amount": "4",
+                "spark.task.resource.gpu.amount": "2",
+                "spark.executor.resource.gpu.amount": "4",
+                "spark.worker.resource.gpu.discoveryScript": "test_spark/discover_gpu.sh",
+            }
+        )
         cls.make_tempdir()
         # We run a dummy job so that we block until the workers have connected to the master
         cls.sc.parallelize(range(4), 4).barrier().mapPartitions(lambda _: []).collect()

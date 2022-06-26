@@ -1,7 +1,11 @@
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 from xgboost import XGBClassifier, XGBRegressor
-from .core import (_XgboostEstimator, XgboostClassifierModel,
-                   XgboostRegressorModel, _set_pyspark_xgb_cls_param_attrs)
+from .core import (
+    _XgboostEstimator,
+    XgboostClassifierModel,
+    XgboostRegressorModel,
+    _set_pyspark_xgb_cls_param_attrs,
+)
 
 
 class XgboostRegressor(_XgboostEstimator):
@@ -83,6 +87,7 @@ class XgboostRegressor(_XgboostEstimator):
     >>> xgb_reg_model.transform(df_test)
 
     """
+
     def __init__(self, **kwargs):
         super().__init__()
         self.setParams(**kwargs)
@@ -99,8 +104,7 @@ class XgboostRegressor(_XgboostEstimator):
 _set_pyspark_xgb_cls_param_attrs(XgboostRegressor, XgboostRegressorModel)
 
 
-class XgboostClassifier(_XgboostEstimator, HasProbabilityCol,
-                        HasRawPredictionCol):
+class XgboostClassifier(_XgboostEstimator, HasProbabilityCol, HasRawPredictionCol):
     """
     XgboostClassifier is a PySpark ML estimator. It implements the XGBoost classification
     algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
@@ -187,6 +191,7 @@ class XgboostClassifier(_XgboostEstimator, HasProbabilityCol,
     >>> xgb_clf_model.transform(df_test).show()
 
     """
+
     def __init__(self, **kwargs):
         super().__init__()
         self.setParams(**kwargs)
