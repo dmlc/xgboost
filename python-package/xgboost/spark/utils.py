@@ -144,7 +144,11 @@ def _getConfBoolean(sqlContext, key, defaultValue):
     or return the default value if the conf is not set.
     This expects the conf value to be a boolean or string; if the value is a string,
     this checks for all capitalization patterns of "true" and "false" to match Scala.
-    :param key: string for conf name
+
+    Parameters
+    ----------
+    key:
+        string for conf name
     """
     # Convert default value to str to avoid a Spark 2.3.1 + Python 3 bug: SPARK-25397
     val = sqlContext.getConf(key, str(defaultValue))

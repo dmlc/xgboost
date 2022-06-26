@@ -17,8 +17,13 @@ def get_xgb_model_creator(model_cls, xgb_params):
     Returns a function that can be used to create an xgboost.XGBModel instance.
     This function is used for creating the model instance on the worker, and is
     shared by _XgboostEstimator and XgboostModel.
-    :param model_cls: a subclass of xgboost.XGBModel
-    :param xgb_params: a dict of params to initialize the model_cls
+
+    Parameters
+    ----------
+    model_cls:
+        a subclass of xgboost.XGBModel
+    xgb_params:
+        a dict of params to initialize the model_cls
     """
     return lambda: model_cls(**xgb_params)  # pylint: disable=W0108
 
@@ -34,8 +39,12 @@ def _get_or_create_tmp_dir():
 def serialize_xgb_model(model):
     """
     Serialize the input model to a string.
-    :param model: an xgboost.XGBModel instance,
-      such as xgboost.XGBClassifier or xgboost.XGBRegressor instance
+
+    Parameters
+    ----------
+    model:
+        an xgboost.XGBModel instance, such as
+        xgboost.XGBClassifier or xgboost.XGBRegressor instance
     """
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f'{uuid.uuid4()}.json')
@@ -61,7 +70,11 @@ def deserialize_xgb_model(ser_model_string, xgb_model_creator):
 def serialize_booster(booster):
     """
     Serialize the input booster to a string.
-    :param booster: an xgboost.core.Booster instance
+
+    Parameters
+    ----------
+    booster:
+        an xgboost.core.Booster instance
     """
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f'{uuid.uuid4()}.json')

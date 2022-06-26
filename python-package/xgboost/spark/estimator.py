@@ -23,27 +23,35 @@ class XgboostRegressor(_XgboostEstimator):
 
     XgboostRegressor doesn't support `validate_features` and `output_margin` param.
 
-    :param callbacks: The export and import of the callback functions are at best effort.
+    callbacks:
+        The export and import of the callback functions are at best effort.
         For details, see :py:attr:`xgboost.spark.XgboostRegressor.callbacks` param doc.
-    :param missing: The parameter `missing` in XgboostRegressor has different semantics with
+    missing:
+        The parameter `missing` in XgboostRegressor has different semantics with
         that in `xgboost.XGBRegressor`. For details, see
         :py:attr:`xgboost.spark.XgboostRegressor.missing` param doc.
-    :param validationIndicatorCol: For params related to `xgboost.XGBRegressor` training
+    validationIndicatorCol
+        For params related to `xgboost.XGBRegressor` training
         with evaluation dataset's supervision, set
         :py:attr:`xgboost.spark.XgboostRegressor.validationIndicatorCol`
         parameter instead of setting the `eval_set` parameter in `xgboost.XGBRegressor`
         fit method.
-    :param weightCol: To specify the weight of the training and validation dataset, set
+    weightCol:
+        To specify the weight of the training and validation dataset, set
         :py:attr:`xgboost.spark.XgboostRegressor.weightCol` parameter instead of setting
         `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBRegressor`
         fit method.
-    :param xgb_model: Set the value to be the instance returned by
+    xgb_model:
+        Set the value to be the instance returned by
         :func:`xgboost.spark.XgboostRegressorModel.get_booster`.
-    :param num_workers: Integer that specifies the number of XGBoost workers to use.
+    num_workers:
+        Integer that specifies the number of XGBoost workers to use.
         Each XGBoost worker corresponds to one spark task.
-    :param use_gpu: Boolean that specifies whether the executors are running on GPU
+    use_gpu:
+        Boolean that specifies whether the executors are running on GPU
         instances.
-    :param baseMarginCol: To specify the base margins of the training and validation
+    baseMarginCol:
+        To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.XgboostRegressor.baseMarginCol` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
         `xgboost.XGBRegressor` fit method. Note: this isn't available for distributed
@@ -114,30 +122,41 @@ class XgboostClassifier(_XgboostEstimator, HasProbabilityCol,
 
     XgboostClassifier doesn't support `validate_features` and `output_margin` param.
 
-    :param callbacks: The export and import of the callback functions are at best effort. For
+    Parameters
+    ----------
+    callbacks:
+        The export and import of the callback functions are at best effort. For
         details, see :py:attr:`xgboost.spark.XgboostClassifier.callbacks` param doc.
-    :param missing: The parameter `missing` in XgboostClassifier has different semantics with
+    missing:
+        The parameter `missing` in XgboostClassifier has different semantics with
         that in `xgboost.XGBClassifier`. For details, see
         :py:attr:`xgboost.spark.XgboostClassifier.missing` param doc.
-    :param rawPredictionCol: The `output_margin=True` is implicitly supported by the
+    rawPredictionCol:
+        The `output_margin=True` is implicitly supported by the
         `rawPredictionCol` output column, which is always returned with the predicted margin
         values.
-    :param validationIndicatorCol: For params related to `xgboost.XGBClassifier` training with
+    validationIndicatorCol:
+        For params related to `xgboost.XGBClassifier` training with
         evaluation dataset's supervision,
         set :py:attr:`xgboost.spark.XgboostClassifier.validationIndicatorCol`
         parameter instead of setting the `eval_set` parameter in `xgboost.XGBClassifier`
         fit method.
-    :param weightCol: To specify the weight of the training and validation dataset, set
+    weightCol:
+        To specify the weight of the training and validation dataset, set
         :py:attr:`xgboost.spark.XgboostClassifier.weightCol` parameter instead of setting
         `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBClassifier`
         fit method.
-    :param xgb_model: Set the value to be the instance returned by
+    xgb_model:
+        Set the value to be the instance returned by
         :func:`xgboost.spark.XgboostClassifierModel.get_booster`.
-    :param num_workers: Integer that specifies the number of XGBoost workers to use.
+    num_workers:
+        Integer that specifies the number of XGBoost workers to use.
         Each XGBoost worker corresponds to one spark task.
-    :param use_gpu: Boolean that specifies whether the executors are running on GPU
+    use_gpu:
+        Boolean that specifies whether the executors are running on GPU
         instances.
-    :param baseMarginCol: To specify the base margins of the training and validation
+    baseMarginCol:
+        To specify the base margins of the training and validation
         dataset, set :py:attr:`xgboost.spark.XgboostClassifier.baseMarginCol` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
         `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
