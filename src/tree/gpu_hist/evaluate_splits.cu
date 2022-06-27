@@ -73,26 +73,6 @@ ReduceFeature(common::Span<const GradientSumT> feature_histogram,
   cub::CTA_SYNC();
   return shared_sum;
 }
-// Force nvcc to load data as constant
-template <typename T>
-class LDGIterator {
-  typedef typename cub::UnitWord<T>::DeviceWord DeviceWordT;
-  static constexpr std::size_t kNumWords = sizeof(T) / sizeof(DeviceWordT);
-
-  const T* ptr;
-
- public:
-  XGBOOST_DEVICE LDGIterator(const T* ptr) : ptr(ptr) {}
-  __device__ T operator[](std::size_t idx) const {
-    DeviceWordT tmp[kNumWords];
-#pragma unroll
-    for (int i = 0; i < kNumWords; i++) {
-      tmp[i] = __ldg(reinterpret_cast<const DeviceWordT*>(ptr + idx) + i);
-    }
-    return *reinterpret_cast<const T*>(tmp);
-  }
-};
-
 
 /*! \brief Find the thread with best gain. */
 template <int BLOCK_THREADS, typename ReduceT, typename ScanT, typename MaxReduceT,
@@ -105,10 +85,9 @@ __device__ void EvaluateFeature(
     TempStorageT *temp_storage         // temp memory for cub operations
 ) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
-  LDGIterator<const uint32_t> ldg_feature_segments(shared_inputs.feature_segments.data());
-  uint32_t gidx_begin = ldg_feature_segments[fidx];  // beginning bin
+  uint32_t gidx_begin = shared_inputs.feature_segments[fidx];  // beginning bin
   uint32_t gidx_end =
-      ldg_feature_segments[fidx + 1];  // end bin for i^th feature
+      shared_inputs.feature_segments[fidx + 1];  // end bin for i^th feature
   auto feature_hist = inputs.gradient_histogram.subspan(gidx_begin, gidx_end - gidx_begin);
 
   // Sum histogram bins for current feature
@@ -220,7 +199,7 @@ __device__ void EvaluateFeature(
 }
 
 template <int BLOCK_THREADS, typename GradientSumT>
-__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(bst_feature_t number_active_features,LDGIterator<const EvaluateSplitInputs> d_inputs, 
+__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs, 
                                      const EvaluateSplitSharedInputs shared_inputs,
                                      common::Span<bst_feature_t> sorted_idx,
                                      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
@@ -346,7 +325,7 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(bst_feature_t number_a
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
   dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
-      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, number_active_features,LDGIterator<const EvaluateSplitInputs>(d_inputs.data()),  shared_inputs, this->SortedIdx(d_inputs.size(),shared_inputs.feature_values.size()),
+      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, number_active_features,d_inputs,  shared_inputs, this->SortedIdx(d_inputs.size(),shared_inputs.feature_values.size()),
       evaluator, dh::ToSpan(feature_best_splits));
 
   // Reduce to get best candidate for left and right child over all features
