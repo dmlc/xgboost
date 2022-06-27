@@ -246,7 +246,7 @@ std::enable_if_t<std::is_floating_point<T>::value, bool> IsInfMSVCWar(T v) {
   return std::isinf(v);
 }
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, bool> IsInfMSVCWar(T v) {
+std::enable_if_t<std::is_integral<T>::value, bool> IsInfMSVCWar(T) {
   return false;
 }
 }  // namespace
@@ -850,9 +850,11 @@ Json UBJReader::Parse() {
       }
       case 'D': {
         LOG(FATAL) << "f64 is not supported.";
+        break;
       }
       case 'H': {
         LOG(FATAL) << "High precision number is not supported.";
+        break;
       }
       default:
         Error("Unknown construct");
@@ -968,7 +970,7 @@ void UBJWriter::Visit(JsonInteger const* num) {
   }
 }
 
-void UBJWriter::Visit(JsonNull const* null) { stream_->push_back('Z'); }
+void UBJWriter::Visit(JsonNull const*) { stream_->push_back('Z'); }
 
 void UBJWriter::Visit(JsonString const* str) {
   stream_->push_back('S');

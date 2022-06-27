@@ -184,7 +184,7 @@ class CLI {
 
   int ResetLearner(std::vector<std::shared_ptr<DMatrix>> const &matrices) {
     learner_.reset(Learner::Create(matrices));
-    int version = rabit::LoadCheckPoint(learner_.get());
+    int version = rabit::LoadCheckPoint();
     if (version == 0) {
       if (param_.model_in != CLIParam::kNull) {
         this->LoadModel(param_.model_in, learner_.get());
@@ -238,11 +238,7 @@ class CLI {
         LOG(INFO) << "boosting round " << i << ", " << elapsed
                   << " sec elapsed";
         learner_->UpdateOneIter(i, dtrain);
-        if (learner_->AllowLazyCheckPoint()) {
-          rabit::LazyCheckPoint(learner_.get());
-        } else {
-          rabit::CheckPoint(learner_.get());
-        }
+        rabit::CheckPoint();
         version += 1;
       }
       CHECK_EQ(version, rabit::VersionNumber());
@@ -262,11 +258,7 @@ class CLI {
         this->SaveModel(os.str(), learner_.get());
       }
 
-      if (learner_->AllowLazyCheckPoint()) {
-        rabit::LazyCheckPoint(learner_.get());
-      } else {
-        rabit::CheckPoint(learner_.get());
-      }
+      rabit::CheckPoint();
       version += 1;
       CHECK_EQ(version, rabit::VersionNumber());
     }

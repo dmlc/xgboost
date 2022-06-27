@@ -92,14 +92,14 @@ void ParseInteractionConstraint(
   for (size_t i = 0; i < all.size(); ++i) {
     auto const &set = get<Array const>(all[i]);
     for (auto const &v : set) {
-      if (XGBOOST_EXPECT(IsA<Integer>(v), true)) {
-        uint32_t u = static_cast<uint32_t const>(get<Integer const>(v));
+      if (XGBOOST_EXPECT(IsA<Integer const>(v), true)) {
+        auto u = static_cast<bst_feature_t>(get<Integer const>(v));
         out[i].emplace_back(u);
       } else if (IsA<Number>(v)) {
         double d = get<Number const>(v);
         CHECK_EQ(std::floor(d), d)
             << "Found floating point number in interaction constraints";
-        out[i].emplace_back(static_cast<uint32_t const>(d));
+        out[i].emplace_back(static_cast<uint32_t>(d));
       } else {
         LOG(FATAL) << "Unknown value type for interaction constraint:"
                    << v.GetValue().TypeStr();

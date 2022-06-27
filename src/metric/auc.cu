@@ -201,8 +201,7 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
   });
 }
 
-double ScaleClasses(common::Span<double> results,
-                    common::Span<double> local_area, common::Span<double> fp,
+double ScaleClasses(common::Span<double> results, common::Span<double> local_area,
                     common::Span<double> tp, common::Span<double> auc,
                     std::shared_ptr<DeviceAUCCache> cache, size_t n_classes) {
   dh::XGBDeviceAllocator<char> alloc;
@@ -333,10 +332,9 @@ double GPUMultiClassAUCOVR(MetaInfo const &info, int32_t device, common::Span<ui
     dh::LaunchN(n_classes * 4,
                 [=] XGBOOST_DEVICE(size_t i) { d_results[i] = 0.0f; });
     auto local_area = d_results.subspan(0, n_classes);
-    auto fp = d_results.subspan(n_classes, n_classes);
     auto tp = d_results.subspan(2 * n_classes, n_classes);
     auto auc = d_results.subspan(3 * n_classes, n_classes);
-    return ScaleClasses(d_results, local_area, fp, tp, auc, cache, n_classes);
+    return ScaleClasses(d_results, local_area, tp, auc, cache, n_classes);
   }
 
   /**
@@ -440,7 +438,7 @@ double GPUMultiClassAUCOVR(MetaInfo const &info, int32_t device, common::Span<ui
       tp[c] = 1.0f;
     }
   });
-  return ScaleClasses(d_results, local_area, fp, tp, auc, cache, n_classes);
+  return ScaleClasses(d_results, local_area, tp, auc, cache, n_classes);
 }
 
 void MultiClassSortedIdx(common::Span<float const> predts,

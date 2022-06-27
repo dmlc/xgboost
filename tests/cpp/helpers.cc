@@ -651,7 +651,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 class RMMAllocator {};
 
-void DeleteRMMResource(RMMAllocator* r) {}
+void DeleteRMMResource(RMMAllocator*) {}
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, DeleteRMMResource}; }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1

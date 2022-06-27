@@ -30,16 +30,16 @@ class IterativeDeviceDMatrix : public DMatrix {
   XGDMatrixCallbackNext *next_;
 
  public:
-  void Initialize(DataIterHandle iter, float missing, int nthread);
+  void Initialize(DataIterHandle iter, float missing);
 
  public:
   explicit IterativeDeviceDMatrix(DataIterHandle iter, DMatrixHandle proxy,
-                                  DataIterResetCallback *reset,
-                                  XGDMatrixCallbackNext *next, float missing,
-                                  int nthread, int max_bin)
+                                  DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
+                                  float missing, int nthread, int max_bin)
       : proxy_{proxy}, reset_{reset}, next_{next} {
     batch_param_ = BatchParam{0, max_bin};
-    this->Initialize(iter, missing, nthread);
+    ctx_.UpdateAllowUnknown(Args{{"nthread", std::to_string(nthread)}});
+    this->Initialize(iter, missing);
   }
   ~IterativeDeviceDMatrix() override = default;
 
@@ -77,7 +77,7 @@ class IterativeDeviceDMatrix : public DMatrix {
 };
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing, int nthread) {
+inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing) {
   // silent the warning about unused variables.
   (void)(proxy_);
   (void)(reset_);

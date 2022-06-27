@@ -264,12 +264,10 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
 }
 
 template <typename AdapterBatch>
-EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device,
-                                 bool is_dense, int nthread,
+EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense,
                                  common::Span<size_t> row_counts_span,
-                                 common::Span<FeatureType const> feature_types,
-                                 size_t row_stride, size_t n_rows, size_t n_cols,
-                                 common::HistogramCuts const& cuts) {
+                                 common::Span<FeatureType const> feature_types, size_t row_stride,
+                                 size_t n_rows, common::HistogramCuts const& cuts) {
   dh::safe_cuda(cudaSetDevice(device));
 
   *this = EllpackPageImpl(device, cuts, is_dense, row_stride, n_rows);
@@ -277,12 +275,11 @@ EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device,
   WriteNullValues(this, device, row_counts_span);
 }
 
-#define ELLPACK_BATCH_SPECIALIZE(__BATCH_T)                                    \
-  template EllpackPageImpl::EllpackPageImpl(                                   \
-      __BATCH_T batch, float missing, int device, bool is_dense, int nthread,  \
-      common::Span<size_t> row_counts_span,                                    \
-      common::Span<FeatureType const> feature_types, size_t row_stride,        \
-      size_t n_rows, size_t n_cols, common::HistogramCuts const &cuts);
+#define ELLPACK_BATCH_SPECIALIZE(__BATCH_T)                                                \
+  template EllpackPageImpl::EllpackPageImpl(                                               \
+      __BATCH_T batch, float missing, int device, bool is_dense,                           \
+      common::Span<size_t> row_counts_span, common::Span<FeatureType const> feature_types, \
+      size_t row_stride, size_t n_rows, common::HistogramCuts const& cuts);
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)

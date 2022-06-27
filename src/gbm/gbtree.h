@@ -236,10 +236,6 @@ class GBTree : public GradientBooster {
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& in) override;
 
-  bool AllowLazyCheckPoint() const override {
-    return model_.learner_model_param->num_output_group == 1;
-  }
-
   // Number of trees per layer.
   auto LayerTrees() const {
     auto n_trees = model_.learner_model_param->num_output_group * model_.param.num_parallel_tree;

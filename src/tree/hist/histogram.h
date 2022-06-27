@@ -140,9 +140,7 @@ class HistogramBuilder {
                                      nodes_for_subtraction_trick,
                                      starting_index, sync_count);
     } else {
-      this->SyncHistogramLocal(p_tree, nodes_for_explicit_hist_build,
-                               nodes_for_subtraction_trick, starting_index,
-                               sync_count);
+      this->SyncHistogramLocal(p_tree, nodes_for_explicit_hist_build, nodes_for_subtraction_trick);
     }
   }
   /** same as the other build hist but handles only single batch data (in-core) */
@@ -211,11 +209,9 @@ class HistogramBuilder {
                             nodes_for_explicit_hist_build, p_tree);
   }
 
-  void SyncHistogramLocal(
-      RegTree *p_tree,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      int starting_index, int sync_count) {
+  void SyncHistogramLocal(RegTree *p_tree,
+                          std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                          std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
     const size_t nbins = this->builder_.GetNumBins();
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },

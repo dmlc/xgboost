@@ -120,6 +120,7 @@ void Allreduce(void *sendrecvbuf,
     default: utils::Error("unknown enum_op");
   }
 }
+
 void Allgather(void *sendrecvbuf_,
                size_t total_size,
                size_t beginIndex,
@@ -296,46 +297,6 @@ RABIT_DLL int RabitAllreduce(void *sendrecvbuf, size_t count, int enum_dtype,
                           static_cast<rabit::engine::mpi::OpType>(enum_op),
                           prepare_fun, prepare_arg);
   API_END()
-}
-
-RABIT_DLL int RabitLoadCheckPoint(char **out_global_model,
-                                  rbt_ulong *out_global_len,
-                                  char **out_local_model,
-                                  rbt_ulong *out_local_len) {
-  // no-op as XGBoost 1.3
-  using rabit::BeginPtr;
-  using namespace rabit::c_api; // NOLINT(*)
-  static std::string global_buffer;
-  static std::string local_buffer;
-
-  ReadWrapper sg(&global_buffer);
-  ReadWrapper sl(&local_buffer);
-  int version;
-
-  if (out_local_model == nullptr) {
-    version = rabit::LoadCheckPoint(&sg, nullptr);
-    *out_global_model = BeginPtr(global_buffer);
-    *out_global_len = static_cast<rbt_ulong>(global_buffer.length());
-  } else {
-    version = rabit::LoadCheckPoint(&sg, &sl);
-    *out_global_model = BeginPtr(global_buffer);
-    *out_global_len = static_cast<rbt_ulong>(global_buffer.length());
-    *out_local_model = BeginPtr(local_buffer);
-    *out_local_len = static_cast<rbt_ulong>(local_buffer.length());
-  }
-  return version;
-}
-
-RABIT_DLL void RabitCheckPoint(const char *global_model, rbt_ulong global_len,
-                               const char *local_model, rbt_ulong local_len) {
-  using namespace rabit::c_api; // NOLINT(*)
-  WriteWrapper sg(global_model, global_len);
-  WriteWrapper sl(local_model, local_len);
-  if (local_model == nullptr) {
-    rabit::CheckPoint(&sg, nullptr);
-  } else {
-    rabit::CheckPoint(&sg, &sl);
-  }
 }
 
 RABIT_DLL int RabitVersionNumber() {

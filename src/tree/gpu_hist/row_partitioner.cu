@@ -79,6 +79,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
 
 void Reset(int device_idx, common::Span<RowPartitioner::RowIndexT> ridx,
            common::Span<bst_node_t> position) {
+  dh::safe_cuda(cudaSetDevice(device_idx));
   CHECK_EQ(ridx.size(), position.size());
   dh::LaunchN(ridx.size(), [=] __device__(size_t idx) {
     ridx[idx] = idx;
@@ -92,7 +93,7 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   dh::safe_cuda(cudaSetDevice(device_idx_));
   ridx_ = dh::DoubleBuffer<RowIndexT>{&ridx_a_, &ridx_b_};
   position_ = dh::DoubleBuffer<bst_node_t>{&position_a_, &position_b_};
-  ridx_segments_.emplace_back(Segment(0, num_rows));
+  ridx_segments_.emplace_back(static_cast<size_t>(0), num_rows);
 
   Reset(device_idx, ridx_.CurrentSpan(), position_.CurrentSpan());
   left_counts_.resize(256);
