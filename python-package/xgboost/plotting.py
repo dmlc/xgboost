@@ -150,8 +150,8 @@ def to_graphviz(
     **kwargs: Any
 ) -> GraphvizSource:
     """Convert specified tree to graphviz instance. IPython can automatically plot
-    the returned graphiz instance. Otherwise, you should call .render() method
-    of the returned graphiz instance.
+    the returned graphviz instance. Otherwise, you should call .render() method
+    of the returned graphviz instance.
 
     Parameters
     ----------
@@ -162,7 +162,7 @@ def to_graphviz(
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
-        Passed to graphiz via graph_attr
+        Passed to graphviz via graph_attr
     yes_color : str, default '#0000FF'
         Edge color when meets the node condition.
     no_color : str, default '#FF0000'
@@ -257,7 +257,7 @@ def plot_tree(
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "TB"
-        Passed to graphiz via graph_attr
+        Passed to graphviz via graph_attr
     ax : matplotlib Axes, default None
         Target axes instance. If None, new figure and axes will be created.
     kwargs :
