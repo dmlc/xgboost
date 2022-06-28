@@ -1949,7 +1949,7 @@ class LDGIterator {
   const T *ptr_;
 
  public:
-  LDGIterator(const T *ptr) : ptr_(ptr) {}
+  explicit LDGIterator(const T *ptr) : ptr_(ptr) {}
   __device__ T operator[](std::size_t idx) const {
     DeviceWordT tmp[kNumWords];
 #pragma unroll
