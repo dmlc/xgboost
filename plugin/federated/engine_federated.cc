@@ -84,16 +84,13 @@ class FederatedEngine : public IEngine {
     }
   }
 
-  int LoadCheckPoint(Serializable *global_model, Serializable *local_model = nullptr) override {
+  int LoadCheckPoint() override {
     return 0;
   }
 
-  void CheckPoint(const Serializable *global_model,
-                  const Serializable *local_model = nullptr) override {
+  void CheckPoint() override {
     version_number_ += 1;
   }
-
-  void LazyCheckPoint(const Serializable *global_model) override { version_number_ += 1; }
 
   int VersionNumber() const override { return version_number_; }
 
