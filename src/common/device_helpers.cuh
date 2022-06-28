@@ -1943,20 +1943,20 @@ class CUDAStream {
 // Force nvcc to load data as constant
 template <typename T>
 class LDGIterator {
-  typedef typename cub::UnitWord<T>::DeviceWord DeviceWordT;
+  using DeviceWordT = typename cub::UnitWord<T>::DeviceWord;
   static constexpr std::size_t kNumWords = sizeof(T) / sizeof(DeviceWordT);
 
-  const T* ptr;
+  const T *ptr_;
 
  public:
-  LDGIterator(const T* ptr) : ptr(ptr) {}
+  LDGIterator(const T *ptr) : ptr_(ptr) {}
   __device__ T operator[](std::size_t idx) const {
     DeviceWordT tmp[kNumWords];
 #pragma unroll
     for (int i = 0; i < kNumWords; i++) {
-      tmp[i] = __ldg(reinterpret_cast<const DeviceWordT*>(ptr + idx) + i);
+      tmp[i] = __ldg(reinterpret_cast<const DeviceWordT *>(ptr_ + idx) + i);
     }
-    return *reinterpret_cast<const T*>(tmp);
+    return *reinterpret_cast<const T *>(tmp);
   }
 };
 }  // namespace dh
