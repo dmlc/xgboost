@@ -25,6 +25,8 @@
 
 namespace xgboost {
 namespace metric {
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(auc);
 /**
  * Calculate AUC for binary classification problem.  This function does not normalize the
  * AUC by 1 / (num_positive * num_negative), instead it returns a tuple for caller to
