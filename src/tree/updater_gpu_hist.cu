@@ -410,6 +410,9 @@ struct GPUHistMakerDevice {
                         HostDeviceVector<bst_node_t>* p_out_position) {
     // Prediction cache will not be used with external memory
     if (!p_fmat->SingleColBlock()) {
+      if (task.UpdateTreeLeaf()) {
+        LOG(FATAL) << "Current objective function can not be used with external memory.";
+      }
       p_out_position->Resize(0);
       update_predictions.clear();
       return;

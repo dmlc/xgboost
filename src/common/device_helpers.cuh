@@ -1952,6 +1952,7 @@ class LDGIterator {
   explicit LDGIterator(const T *ptr) : ptr_(ptr) {}
   __device__ T operator[](std::size_t idx) const {
     DeviceWordT tmp[kNumWords];
+    static_assert(sizeof(tmp) == sizeof(T), "Expect sizes to be equal.");
 #pragma unroll
     for (int i = 0; i < kNumWords; i++) {
       tmp[i] = __ldg(reinterpret_cast<const DeviceWordT *>(ptr_ + idx) + i);
