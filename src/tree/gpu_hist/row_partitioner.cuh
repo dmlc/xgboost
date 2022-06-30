@@ -218,7 +218,6 @@ class RowPartitioner {
   dh::TemporaryArray<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::TemporaryArray<RowIndexT> ridx_tmp_;
-  dh::TemporaryArray<bst_uint> d_counts_;
   dh::device_vector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
@@ -283,13 +282,13 @@ class RowPartitioner {
 
     // Temporary arrays
     auto h_counts = pinned_.GetSpan<bst_uint>(nidx.size(), 0);
+    dh::TemporaryArray<bst_uint> d_counts(nidx.size(), 0);
 
     // Partition the rows according to the operator
     SortPositionBatch<RowIndexT, UpdatePositionOpT, OpDataT>(
-        dh::ToSpan(d_batch_info), dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts_),
+        dh::ToSpan(d_batch_info), dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
         total_rows, op, &tmp_, stream_);
-    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts_.data().get(),
-                                  sizeof(decltype(d_counts_)::value_type) * h_counts.size(),
+    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                   cudaMemcpyDefault, stream_));
     // TODO(Rory): this synchronisation hurts performance a lot
     // Future optimisation should find a way to skip this
@@ -300,7 +299,6 @@ class RowPartitioner {
       auto segment = ridx_segments_.at(nidx[i]).segment;
       auto left_count = h_counts[i];
       CHECK_LE(left_count, segment.Size());
-      CHECK_GE(left_count, 0);
       ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                      std::max(left_nidx[i], right_nidx[i]) + 1));
       ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
