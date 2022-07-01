@@ -199,7 +199,7 @@ __device__ void EvaluateFeature(
 }
 
 template <int BLOCK_THREADS, typename GradientSumT>
-__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs, 
+__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(bst_feature_t number_active_features, common::Span<const EvaluateSplitInputs> d_inputs, 
                                      const EvaluateSplitSharedInputs shared_inputs,
                                      common::Span<bst_feature_t> sorted_idx,
                                      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
@@ -323,7 +323,7 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(bst_feature_t number_a
   dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(combined_num_features);
 
   // One block for each feature
-  uint32_t constexpr kBlockThreads = 256;
+  uint32_t constexpr kBlockThreads = 32;
   dh::LaunchKernel {static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
       EvaluateSplitsKernel<kBlockThreads, GradientSumT>, number_active_features,d_inputs,  shared_inputs, this->SortedIdx(d_inputs.size(),shared_inputs.feature_values.size()),
       evaluator, dh::ToSpan(feature_best_splits));
