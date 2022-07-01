@@ -12,10 +12,10 @@ from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 from xgboost.spark import (
-    XgboostClassifier,
-    XgboostClassifierModel,
-    XgboostRegressor,
-    XgboostRegressorModel,
+    SparkXGBClassifier,
+    SparkXGBClassifierModel,
+    SparkXGBRegressor,
+    SparkXGBRegressorModel,
 )
 from .utils_test import SparkTestCase
 from xgboost import XGBClassifier, XGBRegressor
@@ -372,13 +372,13 @@ class XgboostLocalTest(SparkTestCase):
         return "/tmp/xgboost_local_test/" + str(uuid.uuid4())
 
     def test_regressor_params_basic(self):
-        py_reg = XgboostRegressor()
+        py_reg = SparkXGBRegressor()
         self.assertTrue(hasattr(py_reg, "n_estimators"))
         self.assertEqual(py_reg.n_estimators.parent, py_reg.uid)
         self.assertFalse(hasattr(py_reg, "gpu_id"))
         self.assertEqual(py_reg.getOrDefault(py_reg.n_estimators), 100)
         self.assertEqual(py_reg._get_xgb_model_creator()().n_estimators, 100)
-        py_reg2 = XgboostRegressor(n_estimators=200)
+        py_reg2 = SparkXGBRegressor(n_estimators=200)
         self.assertEqual(py_reg2.getOrDefault(py_reg2.n_estimators), 200)
         self.assertEqual(py_reg2._get_xgb_model_creator()().n_estimators, 200)
         py_reg3 = py_reg2.copy({py_reg2.max_depth: 10})
@@ -386,13 +386,13 @@ class XgboostLocalTest(SparkTestCase):
         self.assertEqual(py_reg3.getOrDefault(py_reg3.max_depth), 10)
 
     def test_classifier_params_basic(self):
-        py_cls = XgboostClassifier()
+        py_cls = SparkXGBClassifier()
         self.assertTrue(hasattr(py_cls, "n_estimators"))
         self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
         self.assertFalse(hasattr(py_cls, "gpu_id"))
         self.assertEqual(py_cls.getOrDefault(py_cls.n_estimators), 100)
         self.assertEqual(py_cls._get_xgb_model_creator()().n_estimators, 100)
-        py_cls2 = XgboostClassifier(n_estimators=200)
+        py_cls2 = SparkXGBClassifier(n_estimators=200)
         self.assertEqual(py_cls2.getOrDefault(py_cls2.n_estimators), 200)
         self.assertEqual(py_cls2._get_xgb_model_creator()().n_estimators, 200)
         py_cls3 = py_cls2.copy({py_cls2.max_depth: 10})
@@ -400,7 +400,7 @@ class XgboostLocalTest(SparkTestCase):
         self.assertEqual(py_cls3.getOrDefault(py_cls3.max_depth), 10)
 
     def test_classifier_kwargs_basic(self):
-        py_cls = XgboostClassifier(**self.cls_params_kwargs)
+        py_cls = SparkXGBClassifier(**self.cls_params_kwargs)
         self.assertTrue(hasattr(py_cls, "n_estimators"))
         self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
         self.assertFalse(hasattr(py_cls, "gpu_id"))
@@ -416,7 +416,7 @@ class XgboostLocalTest(SparkTestCase):
         )
 
         # Testing overwritten params
-        py_cls = XgboostClassifier()
+        py_cls = SparkXGBClassifier()
         py_cls.setParams(x=1, y=2)
         py_cls.setParams(y=1, z=2)
         self.assertTrue("x" in py_cls._get_xgb_model_creator()().get_params())
@@ -428,7 +428,7 @@ class XgboostLocalTest(SparkTestCase):
 
     @staticmethod
     def test_param_value_converter():
-        py_cls = XgboostClassifier(missing=np.float64(1.0), sketch_eps=np.float64(0.3))
+        py_cls = SparkXGBClassifier(missing=np.float64(1.0), sketch_eps=np.float64(0.3))
         # don't check by isintance(v, float) because for numpy scalar it will also return True
         assert py_cls.getOrDefault(py_cls.missing).__class__.__name__ == "float"
         assert (
@@ -439,7 +439,7 @@ class XgboostLocalTest(SparkTestCase):
         )
 
     def test_regressor_basic(self):
-        regressor = XgboostRegressor()
+        regressor = SparkXGBRegressor()
         model = regressor.fit(self.reg_df_train)
         pred_result = model.transform(self.reg_df_test).collect()
         for row in pred_result:
@@ -448,7 +448,7 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_classifier_basic(self):
-        classifier = XgboostClassifier()
+        classifier = SparkXGBClassifier()
         model = classifier.fit(self.cls_df_train)
         pred_result = model.transform(self.cls_df_test).collect()
         for row in pred_result:
@@ -458,7 +458,7 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_multi_classifier(self):
-        classifier = XgboostClassifier()
+        classifier = SparkXGBClassifier()
         model = classifier.fit(self.multi_cls_df_train)
         pred_result = model.transform(self.multi_cls_df_test).collect()
         for row in pred_result:
@@ -472,7 +472,7 @@ class XgboostLocalTest(SparkTestCase):
             self.assertEqual(sub_dist[k], whole_dict[k])
 
     def test_regressor_with_params(self):
-        regressor = XgboostRegressor(**self.reg_params)
+        regressor = SparkXGBRegressor(**self.reg_params)
         all_params = dict(
             **(regressor._gen_xgb_params_dict()),
             **(regressor._gen_fit_params_dict()),
@@ -496,7 +496,7 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_classifier_with_params(self):
-        classifier = XgboostClassifier(**self.cls_params)
+        classifier = SparkXGBClassifier(**self.cls_params)
         all_params = dict(
             **(classifier._gen_xgb_params_dict()),
             **(classifier._gen_fit_params_dict()),
@@ -522,10 +522,10 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_regressor_model_save_load(self):
         path = "file:" + self.get_local_tmp_dir()
-        regressor = XgboostRegressor(**self.reg_params)
+        regressor = SparkXGBRegressor(**self.reg_params)
         model = regressor.fit(self.reg_df_train)
         model.save(path)
-        loaded_model = XgboostRegressorModel.load(path)
+        loaded_model = SparkXGBRegressorModel.load(path)
         self.assertEqual(model.uid, loaded_model.uid)
         for k, v in self.reg_params.items():
             self.assertEqual(loaded_model.getOrDefault(k), v)
@@ -539,14 +539,14 @@ class XgboostLocalTest(SparkTestCase):
             )
 
         with self.assertRaisesRegex(AssertionError, "Expected class name"):
-            XgboostClassifierModel.load(path)
+            SparkXGBClassifierModel.load(path)
 
     def test_classifier_model_save_load(self):
         path = "file:" + self.get_local_tmp_dir()
-        regressor = XgboostClassifier(**self.cls_params)
+        regressor = SparkXGBClassifier(**self.cls_params)
         model = regressor.fit(self.cls_df_train)
         model.save(path)
-        loaded_model = XgboostClassifierModel.load(path)
+        loaded_model = SparkXGBClassifierModel.load(path)
         self.assertEqual(model.uid, loaded_model.uid)
         for k, v in self.cls_params.items():
             self.assertEqual(loaded_model.getOrDefault(k), v)
@@ -560,7 +560,7 @@ class XgboostLocalTest(SparkTestCase):
             )
 
         with self.assertRaisesRegex(AssertionError, "Expected class name"):
-            XgboostRegressorModel.load(path)
+            SparkXGBRegressorModel.load(path)
 
     @staticmethod
     def _get_params_map(params_kv, estimator):
@@ -568,7 +568,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_regressor_model_pipeline_save_load(self):
         path = "file:" + self.get_local_tmp_dir()
-        regressor = XgboostRegressor()
+        regressor = SparkXGBRegressor()
         pipeline = Pipeline(stages=[regressor])
         pipeline = pipeline.copy(extra=self._get_params_map(self.reg_params, regressor))
         model = pipeline.fit(self.reg_df_train)
@@ -588,7 +588,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_classifier_model_pipeline_save_load(self):
         path = "file:" + self.get_local_tmp_dir()
-        classifier = XgboostClassifier()
+        classifier = SparkXGBClassifier()
         pipeline = Pipeline(stages=[classifier])
         pipeline = pipeline.copy(
             extra=self._get_params_map(self.cls_params, classifier)
@@ -609,7 +609,7 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_classifier_with_cross_validator(self):
-        xgb_classifer = XgboostClassifier()
+        xgb_classifer = SparkXGBClassifier()
         paramMaps = ParamGridBuilder().addGrid(xgb_classifer.max_depth, [1, 2]).build()
         cvBin = CrossValidator(
             estimator=xgb_classifer,
@@ -637,12 +637,12 @@ class XgboostLocalTest(SparkTestCase):
             return 1.0 / (boosting_round + 1)
 
         cb = [LearningRateScheduler(custom_learning_rate)]
-        regressor = XgboostRegressor(callbacks=cb)
+        regressor = SparkXGBRegressor(callbacks=cb)
 
         # Test the save/load of the estimator instead of the model, since
         # the callbacks param only exists in the estimator but not in the model
         regressor.save(path)
-        regressor = XgboostRegressor.load(path)
+        regressor = SparkXGBRegressor.load(path)
 
         model = regressor.fit(self.reg_df_train)
         pred_result = model.transform(self.reg_df_test).collect()
@@ -655,14 +655,14 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_train_with_initial_model(self):
         path = self.get_local_tmp_dir()
-        reg1 = XgboostRegressor(**self.reg_params)
+        reg1 = SparkXGBRegressor(**self.reg_params)
         model = reg1.fit(self.reg_df_train)
         init_booster = model.get_booster()
-        reg2 = XgboostRegressor(max_depth=2, n_estimators=2, xgb_model=init_booster)
+        reg2 = SparkXGBRegressor(max_depth=2, n_estimators=2, xgb_model=init_booster)
         model21 = reg2.fit(self.reg_df_train)
         pred_res21 = model21.transform(self.reg_df_test).collect()
         reg2.save(path)
-        reg2 = XgboostRegressor.load(path)
+        reg2 = SparkXGBRegressor.load(path)
         self.assertTrue(reg2.getOrDefault(reg2.xgb_model) is not None)
         model22 = reg2.fit(self.reg_df_train)
         pred_res22 = model22.transform(self.reg_df_test).collect()
@@ -671,7 +671,7 @@ class XgboostLocalTest(SparkTestCase):
             self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
     def test_classifier_with_base_margin(self):
-        cls_without_base_margin = XgboostClassifier(weightCol="weight")
+        cls_without_base_margin = SparkXGBClassifier(weightCol="weight")
         model_without_base_margin = cls_without_base_margin.fit(
             self.cls_df_train_without_base_margin
         )
@@ -692,7 +692,7 @@ class XgboostLocalTest(SparkTestCase):
                 )
             )
 
-        cls_with_same_base_margin = XgboostClassifier(
+        cls_with_same_base_margin = SparkXGBClassifier(
             weightCol="weight", baseMarginCol="baseMarginCol"
         )
         model_with_same_base_margin = cls_with_same_base_margin.fit(
@@ -713,7 +713,7 @@ class XgboostLocalTest(SparkTestCase):
                 )
             )
 
-        cls_with_different_base_margin = XgboostClassifier(
+        cls_with_different_base_margin = SparkXGBClassifier(
             weightCol="weight", baseMarginCol="baseMarginCol"
         )
         model_with_different_base_margin = cls_with_different_base_margin.fit(
@@ -738,7 +738,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_regressor_with_weight_eval(self):
         # with weight
-        regressor_with_weight = XgboostRegressor(weightCol="weight")
+        regressor_with_weight = SparkXGBRegressor(weightCol="weight")
         model_with_weight = regressor_with_weight.fit(
             self.reg_df_train_with_eval_weight
         )
@@ -752,7 +752,7 @@ class XgboostLocalTest(SparkTestCase):
                 )
             )
         # with eval
-        regressor_with_eval = XgboostRegressor(**self.reg_params_with_eval)
+        regressor_with_eval = SparkXGBRegressor(**self.reg_params_with_eval)
         model_with_eval = regressor_with_eval.fit(self.reg_df_train_with_eval_weight)
         self.assertTrue(
             np.isclose(
@@ -775,7 +775,7 @@ class XgboostLocalTest(SparkTestCase):
                 f"but get {row.prediction}",
             )
         # with weight and eval
-        regressor_with_weight_eval = XgboostRegressor(
+        regressor_with_weight_eval = SparkXGBRegressor(
             weightCol="weight", **self.reg_params_with_eval
         )
         model_with_weight_eval = regressor_with_weight_eval.fit(
@@ -802,7 +802,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_classifier_with_weight_eval(self):
         # with weight
-        classifier_with_weight = XgboostClassifier(weightCol="weight")
+        classifier_with_weight = SparkXGBClassifier(weightCol="weight")
         model_with_weight = classifier_with_weight.fit(
             self.cls_df_train_with_eval_weight
         )
@@ -814,7 +814,7 @@ class XgboostLocalTest(SparkTestCase):
                 np.allclose(row.probability, row.expected_prob_with_weight, atol=1e-3)
             )
         # with eval
-        classifier_with_eval = XgboostClassifier(**self.cls_params_with_eval)
+        classifier_with_eval = SparkXGBClassifier(**self.cls_params_with_eval)
         model_with_eval = classifier_with_eval.fit(self.cls_df_train_with_eval_weight)
         self.assertTrue(
             np.isclose(
@@ -833,7 +833,7 @@ class XgboostLocalTest(SparkTestCase):
         # with weight and eval
         # Added scale_pos_weight because in 1.4.2, the original answer returns 0.5 which
         # doesn't really indicate this working correctly.
-        classifier_with_weight_eval = XgboostClassifier(
+        classifier_with_weight_eval = SparkXGBClassifier(
             weightCol="weight", scale_pos_weight=4, **self.cls_params_with_eval
         )
         model_with_weight_eval = classifier_with_weight_eval.fit(
@@ -857,26 +857,26 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_num_workers_param(self):
-        regressor = XgboostRegressor(num_workers=-1)
+        regressor = SparkXGBRegressor(num_workers=-1)
         self.assertRaises(ValueError, regressor._validate_params)
-        classifier = XgboostClassifier(num_workers=0)
+        classifier = SparkXGBClassifier(num_workers=0)
         self.assertRaises(ValueError, classifier._validate_params)
 
     def test_use_gpu_param(self):
-        classifier = XgboostClassifier(use_gpu=True, tree_method="exact")
+        classifier = SparkXGBClassifier(use_gpu=True, tree_method="exact")
         self.assertRaises(ValueError, classifier._validate_params)
-        regressor = XgboostRegressor(use_gpu=True, tree_method="exact")
+        regressor = SparkXGBRegressor(use_gpu=True, tree_method="exact")
         self.assertRaises(ValueError, regressor._validate_params)
-        regressor = XgboostRegressor(use_gpu=True, tree_method="gpu_hist")
-        regressor = XgboostRegressor(use_gpu=True)
-        classifier = XgboostClassifier(use_gpu=True, tree_method="gpu_hist")
-        classifier = XgboostClassifier(use_gpu=True)
+        regressor = SparkXGBRegressor(use_gpu=True, tree_method="gpu_hist")
+        regressor = SparkXGBRegressor(use_gpu=True)
+        classifier = SparkXGBClassifier(use_gpu=True, tree_method="gpu_hist")
+        classifier = SparkXGBClassifier(use_gpu=True)
 
     def test_convert_to_model(self):
-        classifier = XgboostClassifier()
+        classifier = SparkXGBClassifier()
         clf_model = classifier.fit(self.cls_df_train)
 
-        regressor = XgboostRegressor()
+        regressor = SparkXGBRegressor()
         reg_model = regressor.fit(self.reg_df_train)
 
         # Check that regardless of what booster, _convert_to_model converts to the correct class type
@@ -894,7 +894,7 @@ class XgboostLocalTest(SparkTestCase):
         )
 
     def test_feature_importances(self):
-        reg1 = XgboostRegressor(**self.reg_params)
+        reg1 = SparkXGBRegressor(**self.reg_params)
         model = reg1.fit(self.reg_df_train)
         booster = model.get_booster()
         self.assertEqual(model.get_feature_importances(), booster.get_score())

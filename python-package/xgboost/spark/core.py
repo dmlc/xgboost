@@ -41,12 +41,14 @@ from .model import (
 from .utils import (
     _get_default_params_from_func,
     get_class_name,
-    HasArbitraryParamsDict,
-    HasBaseMarginCol,
     RabitContext,
     _get_rabit_args,
     _get_args_from_message_list,
     _get_spark_session,
+)
+from .params import (
+    HasArbitraryParamsDict,
+    HasBaseMarginCol,
 )
 
 from pyspark.ml.functions import array_to_vector, vector_to_array
@@ -275,7 +277,7 @@ class _XgboostParams(
                 )
 
 
-class _XgboostEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
+class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
     def __init__(self):
         super().__init__()
         self._set_xgb_params_default()
@@ -472,8 +474,6 @@ class _XgboostEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
     def _fit(self, dataset):
         self._validate_params()
-        # Unwrap the VectorUDT type column "feature" to 4 primitive columns:
-        # ['features.type', 'features.size', 'features.indices', 'features.values']
         features_col = col(self.getOrDefault(self.featuresCol))
         label_col = col(self.getOrDefault(self.labelCol)).alias("label")
         features_array_col = vector_to_array(features_col, dtype="float32").alias(
@@ -583,7 +583,7 @@ class _XgboostEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return XgboostReader(cls)
 
 
-class _XgboostModel(Model, _XgboostParams, MLReadable, MLWritable):
+class _SparkXGBModel(Model, _XgboostParams, MLReadable, MLWritable):
     def __init__(self, xgb_sklearn_model=None):
         super().__init__()
         self._xgb_sklearn_model = xgb_sklearn_model
@@ -628,7 +628,7 @@ class _XgboostModel(Model, _XgboostParams, MLReadable, MLWritable):
         raise NotImplementedError()
 
 
-class XgboostRegressorModel(_XgboostModel):
+class SparkXGBRegressorModel(_SparkXGBModel):
     """
     The model returned by :func:`xgboost.spark.XgboostRegressor.fit`
 
@@ -687,7 +687,7 @@ class XgboostRegressorModel(_XgboostModel):
         return dataset.withColumn(predictionColName, pred_col)
 
 
-class XgboostClassifierModel(_XgboostModel, HasProbabilityCol, HasRawPredictionCol):
+class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictionCol):
     """
     The model returned by :func:`xgboost.spark.XgboostClassifier.fit`
 

@@ -7,7 +7,6 @@ from xgboost import rabit
 from xgboost.tracker import RabitTracker
 import pyspark
 from pyspark.sql.session import SparkSession
-from pyspark.ml.param.shared import Param, Params
 
 
 def get_class_name(cls):
@@ -29,47 +28,6 @@ def _get_default_params_from_func(func, unsupported_set):
         ):
             filtered_params_dict[parameter.name] = parameter.default
     return filtered_params_dict
-
-
-class HasArbitraryParamsDict(Params):
-    """
-    This is a Params based class that is extended by _XGBoostParams
-    and holds the variable to store the **kwargs parts of the XGBoost
-    input.
-    """
-
-    arbitraryParamsDict = Param(
-        Params._dummy(),
-        "arbitraryParamsDict",
-        "This parameter holds all of the user defined parameters that"
-        " the sklearn implementation of XGBoost can't recognize. "
-        "It is stored as a dictionary.",
-    )
-
-    def setArbitraryParamsDict(self, value):
-        return self._set(arbitraryParamsDict=value)
-
-    def getArbitraryParamsDict(self, value):
-        return self.getOrDefault(self.arbitraryParamsDict)
-
-
-class HasBaseMarginCol(Params):
-    """
-    This is a Params based class that is extended by _XGBoostParams
-    and holds the variable to store the base margin column part of XGboost.
-    """
-
-    baseMarginCol = Param(
-        Params._dummy(),
-        "baseMarginCol",
-        "This stores the name for the column of the base margin",
-    )
-
-    def setBaseMarginCol(self, value):
-        return self._set(baseMarginCol=value)
-
-    def getBaseMarginCol(self, value):
-        return self.getOrDefault(self.baseMarginCol)
 
 
 class RabitContext:
@@ -94,7 +52,7 @@ def _start_tracker(context, n_workers):
     Start Rabit tracker with n_workers
     """
     env = {"DMLC_NUM_WORKER": n_workers}
-    host = get_host_ip(context)
+    host = _get_host_ip(context)
     rabit_context = RabitTracker(host_ip=host, n_workers=n_workers)
     env.update(rabit_context.worker_envs())
     rabit_context.start(n_workers)
@@ -113,7 +71,7 @@ def _get_rabit_args(context, n_workers):
     return rabit_args
 
 
-def get_host_ip(context):
+def _get_host_ip(context):
     """
     Gets the hostIP for Spark. This essentially gets the IP of the first worker.
     """
@@ -141,33 +99,6 @@ def _get_spark_session():
             "_get_spark_session should not be invoked from executor side."
         )
     return SparkSession.builder.getOrCreate()
-
-
-def _getConfBoolean(sqlContext, key, defaultValue):
-    """
-    Get the conf "key" from the given sqlContext,
-    or return the default value if the conf is not set.
-    This expects the conf value to be a boolean or string; if the value is a string,
-    this checks for all capitalization patterns of "true" and "false" to match Scala.
-
-    Parameters
-    ----------
-    key:
-        string for conf name
-    """
-    # Convert default value to str to avoid a Spark 2.3.1 + Python 3 bug: SPARK-25397
-    val = sqlContext.getConf(key, str(defaultValue))
-    # Convert val to str to handle unicode issues across Python 2 and 3.
-    lowercase_val = str(val.lower())
-    if lowercase_val == "true":
-        return True
-    elif lowercase_val == "false":
-        return False
-    else:
-        raise Exception(
-            "_getConfBoolean expected a boolean conf value but found value of type {} "
-            "with value: {}".format(type(val), val)
-        )
 
 
 def get_logger(name, level="INFO"):

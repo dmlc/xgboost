@@ -7,15 +7,15 @@ except ImportError:
     raise RuntimeError("xgboost spark python API requires pyspark package installed.")
 
 from .estimator import (
-    XgboostClassifier,
-    XgboostClassifierModel,
-    XgboostRegressor,
-    XgboostRegressorModel,
+    SparkXGBClassifier,
+    SparkXGBClassifierModel,
+    SparkXGBRegressor,
+    SparkXGBRegressorModel,
 )
 
 __all__ = [
-    "XgboostClassifier",
-    "XgboostClassifierModel",
-    "XgboostRegressor",
-    "XgboostRegressorModel",
+    "SparkXGBClassifier",
+    "SparkXGBClassifierModel",
+    "SparkXGBRegressor",
+    "SparkXGBRegressorModel",
 ]

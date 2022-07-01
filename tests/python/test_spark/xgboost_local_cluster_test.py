@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 from pyspark.ml.linalg import Vectors
 
-from xgboost.spark import XgboostClassifier, XgboostRegressor
+from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from .utils_test import SparkLocalClusterTestCase
 from xgboost.spark.utils import _get_max_num_concurrent_tasks
 import json
@@ -213,7 +213,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         self.reg_best_score_weight_and_eval = 4.9e-05
 
     def test_regressor_basic_with_params(self):
-        regressor = XgboostRegressor(**self.reg_params)
+        regressor = SparkXGBRegressor(**self.reg_params)
         model = regressor.fit(self.reg_df_train)
         pred_result = model.transform(self.reg_df_test).collect()
         for row in pred_result:
@@ -232,12 +232,12 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             return 1.0 / (boosting_round + 1)
 
         cb = [LearningRateScheduler(custom_learning_rate)]
-        regressor = XgboostRegressor(callbacks=cb)
+        regressor = SparkXGBRegressor(callbacks=cb)
 
         # Test the save/load of the estimator instead of the model, since
         # the callbacks param only exists in the estimator but not in the model
         regressor.save(path)
-        regressor = XgboostRegressor.load(path)
+        regressor = SparkXGBRegressor.load(path)
 
         model = regressor.fit(self.reg_df_train)
         pred_result = model.transform(self.reg_df_test).collect()
@@ -249,7 +249,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
     def test_classifier_distributed_basic(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100)
+        classifier = SparkXGBClassifier(num_workers=self.n_workers, n_estimators=100)
         model = classifier.fit(self.cls_df_train_distributed)
         pred_result = model.transform(self.cls_df_test_distributed).collect()
         for row in pred_result:
@@ -260,7 +260,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_classifier_distributed_multiclass(self):
         # There is no built-in multiclass option for external storage
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=100)
+        classifier = SparkXGBClassifier(num_workers=self.n_workers, n_estimators=100)
         model = classifier.fit(self.cls_df_train_distributed_multiclass)
         pred_result = model.transform(self.cls_df_test_distributed_multiclass).collect()
         for row in pred_result:
@@ -270,7 +270,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
     def test_regressor_distributed_basic(self):
-        regressor = XgboostRegressor(num_workers=self.n_workers, n_estimators=100)
+        regressor = SparkXGBRegressor(num_workers=self.n_workers, n_estimators=100)
         model = regressor.fit(self.reg_df_train_distributed)
         pred_result = model.transform(self.reg_df_test_distributed).collect()
         for row in pred_result:
@@ -279,7 +279,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
     @unittest.skip
     def test_check_use_gpu_param(self):
         # Classifier
-        classifier = XgboostClassifier(
+        classifier = SparkXGBClassifier(
             num_workers=self.n_workers, n_estimators=100, use_gpu=True
         )
         self.assertTrue(hasattr(classifier, "use_gpu"))
@@ -292,7 +292,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                 np.allclose(row.expected_probability, row.probability, atol=1e-3)
             )
 
-        regressor = XgboostRegressor(
+        regressor = SparkXGBRegressor(
             num_workers=self.n_workers, n_estimators=100, use_gpu=True
         )
         self.assertTrue(hasattr(regressor, "use_gpu"))
@@ -304,7 +304,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_classifier_distributed_weight_eval(self):
         # with weight
-        classifier = XgboostClassifier(
+        classifier = SparkXGBClassifier(
             num_workers=self.n_workers,
             n_estimators=100,
             **self.clf_params_with_weight_dist
@@ -319,7 +319,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
         # with eval only
-        classifier = XgboostClassifier(
+        classifier = SparkXGBClassifier(
             num_workers=self.n_workers,
             n_estimators=100,
             **self.clf_params_with_eval_dist
@@ -338,7 +338,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         )
 
         # with both weight and eval
-        classifier = XgboostClassifier(
+        classifier = SparkXGBClassifier(
             num_workers=self.n_workers,
             n_estimators=100,
             **self.clf_params_with_eval_dist,
@@ -361,7 +361,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
     def test_regressor_distributed_weight_eval(self):
         # with weight
-        regressor = XgboostRegressor(
+        regressor = SparkXGBRegressor(
             num_workers=self.n_workers,
             n_estimators=100,
             **self.reg_params_with_weight_dist
@@ -377,7 +377,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                 )
             )
         # with eval only
-        regressor = XgboostRegressor(
+        regressor = SparkXGBRegressor(
             num_workers=self.n_workers,
             n_estimators=100,
             **self.reg_params_with_eval_dist
@@ -395,7 +395,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             self.reg_best_score_eval,
         )
         # with both weight and eval
-        regressor = XgboostRegressor(
+        regressor = SparkXGBRegressor(
             num_workers=self.n_workers,
             n_estimators=100,
             use_external_storage=False,
@@ -420,7 +420,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         )
 
     def test_num_estimators(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, n_estimators=10)
+        classifier = SparkXGBClassifier(num_workers=self.n_workers, n_estimators=10)
         model = classifier.fit(self.cls_df_train_distributed)
         pred_result = model.transform(
             self.cls_df_test_distributed_lower_estimators
@@ -433,7 +433,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             )
 
     def test_distributed_params(self):
-        classifier = XgboostClassifier(num_workers=self.n_workers, max_depth=7)
+        classifier = SparkXGBClassifier(num_workers=self.n_workers, max_depth=7)
         model = classifier.fit(self.cls_df_train_distributed)
         self.assertTrue(hasattr(classifier, "max_depth"))
         self.assertEqual(classifier.getOrDefault(classifier.max_depth), 7)
@@ -449,7 +449,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         # or poorly partitioned. We only want to repartition when the dataset
         # is poorly partitioned so _repartition_needed is true in those instances.
 
-        classifier = XgboostClassifier(num_workers=self.n_workers)
+        classifier = SparkXGBClassifier(num_workers=self.n_workers)
         basic = self.cls_df_train_distributed
         self.assertTrue(classifier._repartition_needed(basic))
         bad_repartitioned = basic.repartition(self.n_workers + 1)
@@ -458,7 +458,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         self.assertFalse(classifier._repartition_needed(good_repartitioned))
 
         # Now testing if force_repartition returns True regardless of whether the data is well partitioned
-        classifier = XgboostClassifier(
+        classifier = SparkXGBClassifier(
             num_workers=self.n_workers, force_repartition=True
         )
         good_repartitioned = basic.repartition(self.n_workers)
