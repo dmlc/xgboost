@@ -426,6 +426,11 @@ class XgboostLocalTest(SparkTestCase):
         self.assertTrue("z" in py_cls._get_xgb_model_creator()().get_params())
         self.assertEqual(py_cls._get_xgb_model_creator()().get_params()["z"], 2)
 
+    def test_param_alias(self):
+        py_cls = SparkXGBClassifier(featuresCol="f1", label_col="l1")
+        self.assertEqual(py_cls.getOrDefault(py_cls.featuresCol), "f1")
+        self.assertEqual(py_cls.getOrDefault(py_cls.labelCol), "l1")
+
     @staticmethod
     def test_param_value_converter():
         py_cls = SparkXGBClassifier(missing=np.float64(1.0), sketch_eps=np.float64(0.3))

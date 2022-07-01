@@ -1,5 +1,3 @@
-import shutil
-import tempfile
 from typing import Iterator, Tuple
 import numpy as np
 import pandas as pd
@@ -69,6 +67,17 @@ _pyspark_specific_params = [
     "num_workers",
     "use_gpu",
 ]
+
+_pyspark_param_alias_map = {
+    "features_col": "featuresCol",
+    "label_col": "labelCol",
+    "weight_col": "weightCol",
+    "raw_prediction_ol": "rawPredictionCol",
+    "prediction_col": "predictionCol",
+    "probability_col": "probabilityCol",
+    "validation_indicator_col": "validationIndicatorCol",
+    "baseMarginCol": "baseMarginCol",
+}
 
 _unsupported_xgb_params = [
     "gpu_id",  # we have "use_gpu" pyspark param instead.
@@ -294,6 +303,12 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             raise ValueError("Wrong param name: 'arbitraryParamsDict'.")
 
         for k, v in kwargs.items():
+            if k in _pyspark_param_alias_map:
+                real_k = _pyspark_param_alias_map[k]
+                if real_k in kwargs:
+                    raise ValueError(f"You should set only one of param '{k}' and '{real_k}'")
+                k = real_k
+
             if self.hasParam(k):
                 self._set(**{str(k): v})
             else:
@@ -365,7 +380,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             pass
         return True
 
-    def _get_distributed_config(self, dataset, fit_params):
+    def _get_distributed_train_params(self, dataset, fit_params):
         """
         This just gets the configuration params for distributed xgboost
         """
@@ -423,7 +438,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 "values", col("values").cast(ArrayType(FloatType()))
             )
             dataset = dataset.repartition(num_workers)
-        train_params = self._get_distributed_config(dataset, fit_params)
+        train_params = self._get_distributed_train_params(dataset, fit_params)
 
         def _train_booster(pandas_df_iter):
             """
