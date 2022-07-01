@@ -11,9 +11,9 @@ class HasArbitraryParamsDict(Params):
     arbitraryParamsDict = Param(
         Params._dummy(),
         "arbitraryParamsDict",
-        "This parameter holds all of the user defined parameters that"
-        " the sklearn implementation of XGBoost can't recognize. "
-        "It is stored as a dictionary.",
+        "arbitraryParamsDict This parameter holds all of the additional parameters which are "
+        "not exposed as the the XGBoost Spark estimator params but can be recognized by "
+        "underlying XGBoost library. It is stored as a dictionary.",
     )
 
     def setArbitraryParamsDict(self, value):

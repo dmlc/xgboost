@@ -62,7 +62,12 @@ _pyspark_specific_params = [
     "rawPredictionCol",
     "predictionCol",
     "probabilityCol",
-    "validationIndicatorCol" "baseMarginCol",
+    "validationIndicatorCol",
+    "baseMarginCol",
+    "arbitraryParamsDict",
+    "force_repartition",
+    "num_workers",
+    "use_gpu",
 ]
 
 _unsupported_xgb_params = [
@@ -81,8 +86,6 @@ _unsupported_predict_params = {
     "validate_features",  # TODO
     "base_margin",  # TODO
 }
-
-_created_params = {"num_workers", "use_gpu"}
 
 
 class _XgboostParams(
@@ -124,13 +127,8 @@ class _XgboostParams(
         raise NotImplementedError()
 
     def _get_xgb_model_creator(self):
-        arbitaryParamsDict = self.getOrDefault(self.getParam("arbitraryParamsDict"))
-        total_params = {**self._gen_xgb_params_dict(), **arbitaryParamsDict}
-        # Once we have already added all of the elements of kwargs, we can just remove it
-        del total_params["arbitraryParamsDict"]
-        for param in _created_params:
-            del total_params[param]
-        return get_xgb_model_creator(self._xgb_cls(), total_params)
+        xgb_params = self._gen_xgb_params_dict()
+        return get_xgb_model_creator(self._xgb_cls(), xgb_params)
 
     # Parameters for xgboost.XGBModel()
     @classmethod
@@ -145,7 +143,6 @@ class _XgboostParams(
     def _set_xgb_params_default(self):
         filtered_params_dict = self._get_xgb_params_default()
         self._setDefault(**filtered_params_dict)
-        self._setDefault(**{"arbitraryParamsDict": {}})
 
     def _gen_xgb_params_dict(self):
         xgb_params = {}
@@ -157,12 +154,10 @@ class _XgboostParams(
         for param in self.extractParamMap():
             if param.name not in non_xgb_params:
                 xgb_params[param.name] = self.getOrDefault(param)
-        return xgb_params
 
-    def _set_distributed_params(self):
-        self.set(self.num_workers, 1)
-        self.set(self.use_gpu, False)
-        self.set(self.force_repartition, False)
+        arbitraryParamsDict = self.getOrDefault(self.getParam("arbitraryParamsDict"))
+        xgb_params.update(arbitraryParamsDict)
+        return xgb_params
 
     # Parameters for xgboost.XGBModel().fit()
     @classmethod
@@ -283,18 +278,28 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         self._set_xgb_params_default()
         self._set_fit_params_default()
         self._set_predict_params_default()
-        self._set_distributed_params()
+        # Note: The default value for arbitraryParamsDict must always be empty dict.
+        #  For additional settings added into "arbitraryParamsDict" by default,
+        #  they are added in `setParams`.
+        self._setDefault(
+            num_workers=1,
+            use_gpu=False,
+            force_repartition=False,
+            arbitraryParamsDict={}
+        )
 
     def setParams(self, **kwargs):
-        _user_defined = {}
+        _extra_params = {}
+        if 'arbitraryParamsDict' in kwargs:
+            raise ValueError("Wrong param name: 'arbitraryParamsDict'.")
+
         for k, v in kwargs.items():
             if self.hasParam(k):
                 self._set(**{str(k): v})
             else:
-                _user_defined[k] = v
-        _defined_args = self.getOrDefault(self.getParam("arbitraryParamsDict"))
-        _defined_args.update(_user_defined)
-        self._set(**{"arbitraryParamsDict": _defined_args})
+                _extra_params[k] = v
+        _existing_extra_params = self.getOrDefault(self.arbitraryParamsDict)
+        self._set(arbitraryParamsDict={**_existing_extra_params, **_extra_params})
 
     @classmethod
     def _pyspark_model_cls(cls):
@@ -360,11 +365,11 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             pass
         return True
 
-    def _get_distributed_config(self, dataset, params):
+    def _get_distributed_config(self, dataset, fit_params):
         """
         This just gets the configuration params for distributed xgboost
         """
-
+        params = fit_params.copy()
         classification = self._xgb_cls() == XGBClassifier
         num_classes = int(dataset.select(countDistinct("label")).collect()[0][0])
         if classification and num_classes == 2:
@@ -381,9 +386,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             #  On open-source spark, we need get the gpu id from the task allocated gpu resources.
             params["gpu_id"] = 0
         params["num_boost_round"] = self.getOrDefault(self.n_estimators)
-        xgb_params = self._gen_xgb_params_dict()
-        xgb_params.update(params)
-        return xgb_params
+        params.update(self._gen_xgb_params_dict())
+        return params
 
     @classmethod
     def _get_dist_booster_params(cls, train_params):
