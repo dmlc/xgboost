@@ -418,7 +418,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return booster_params, kwargs_params
 
     def _fit_distributed(
-        self, xgb_model_creator, dataset, has_weight, has_validation, fit_params
+        self, dataset, has_weight, has_validation, fit_params
     ):
         """
         Takes in the dataset, the other parameters, and produces a valid booster
@@ -533,7 +533,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
         if self.getOrDefault(self.num_workers) > 1:
             return self._fit_distributed(
-                xgb_model_creator, dataset, has_weight, has_validation, fit_params
+                dataset, has_weight, has_validation, fit_params
             )
 
         # Note: fit_params will be pickled to remote, it may include `xgb_model` param
