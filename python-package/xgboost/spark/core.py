@@ -76,7 +76,7 @@ _pyspark_param_alias_map = {
     "prediction_col": "predictionCol",
     "probability_col": "probabilityCol",
     "validation_indicator_col": "validationIndicatorCol",
-    "baseMarginCol": "baseMarginCol",
+    "base_margin_col": "baseMarginCol",
 }
 
 _unsupported_xgb_params = [
@@ -351,7 +351,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         """
         Returns true if the latest element in the logical plan is a valid repartition
         """
-        # TODO: Improve the method
         start = query_plan.index("== Optimized Logical Plan ==")
         start += len("== Optimized Logical Plan ==") + 1
         if query_plan[start: start + len("Repartition")] == "Repartition":
@@ -416,12 +415,43 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 booster_params[key] = value
         return booster_params, kwargs_params
 
-    def _fit_distributed(
-        self, dataset, has_weight, has_validation, fit_params
-    ):
-        """
-        Takes in the dataset, the other parameters, and produces a valid booster
-        """
+    def _fit(self, dataset):
+        self._validate_params()
+        features_col = col(self.getOrDefault(self.featuresCol))
+        label_col = col(self.getOrDefault(self.labelCol)).alias("label")
+        features_array_col = vector_to_array(features_col, dtype="float32").alias(
+            "values"
+        )
+        select_cols = [features_array_col, label_col]
+
+        has_weight = False
+        has_validation = False
+        has_base_margin = False
+
+        if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol):
+            has_weight = True
+            select_cols.append(col(self.getOrDefault(self.weightCol)).alias("weight"))
+
+        if self.isDefined(self.validationIndicatorCol) and self.getOrDefault(
+            self.validationIndicatorCol
+        ):
+            has_validation = True
+            select_cols.append(
+                col(self.getOrDefault(self.validationIndicatorCol)).alias(
+                    "validationIndicator"
+                )
+            )
+
+        if self.isDefined(self.baseMarginCol) and self.getOrDefault(
+                self.baseMarginCol):
+            # TODO: fix baseMargin support
+            has_base_margin = True
+            select_cols.append(
+                col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin"))
+
+        dataset = dataset.select(*select_cols)
+        fit_params = self._gen_fit_params_dict()
+
         num_workers = self.getOrDefault(self.num_workers)
         sc = _get_spark_session().sparkContext
         max_concurrent_tasks = _get_max_num_concurrent_tasks(sc)
@@ -435,9 +465,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             )
 
         if self._repartition_needed(dataset):
-            dataset = dataset.withColumn(
-                "values", col("values").cast(ArrayType(FloatType()))
-            )
             dataset = dataset.repartition(num_workers)
         train_params = self._get_distributed_train_params(dataset, fit_params)
 
@@ -490,109 +517,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             .collect()[0][0]
         )
         result_xgb_model = self._convert_to_model(cloudpickle.loads(result_ser_booster))
-        return self._copyValues(self._create_pyspark_model(result_xgb_model))
-
-    def _fit(self, dataset):
-        self._validate_params()
-        features_col = col(self.getOrDefault(self.featuresCol))
-        label_col = col(self.getOrDefault(self.labelCol)).alias("label")
-        features_array_col = vector_to_array(features_col, dtype="float32").alias(
-            "values"
-        )
-        select_cols = [features_array_col, label_col]
-
-        has_weight = False
-        has_validation = False
-        has_base_margin = False
-
-        if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol):
-            has_weight = True
-            select_cols.append(col(self.getOrDefault(self.weightCol)).alias("weight"))
-
-        if self.isDefined(self.validationIndicatorCol) and self.getOrDefault(
-            self.validationIndicatorCol
-        ):
-            has_validation = True
-            select_cols.append(
-                col(self.getOrDefault(self.validationIndicatorCol)).alias(
-                    "validationIndicator"
-                )
-            )
-
-        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
-            has_base_margin = True
-            select_cols.append(
-                col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
-            )
-
-        dataset = dataset.select(*select_cols)
-        # create local var `xgb_model_creator` to avoid pickle `self` object to remote worker
-        xgb_model_creator = self._get_xgb_model_creator()  # pylint: disable=E1111
-        fit_params = self._gen_fit_params_dict()
-
-        if self.getOrDefault(self.num_workers) > 1:
-            return self._fit_distributed(
-                dataset, has_weight, has_validation, fit_params
-            )
-
-        # Note: fit_params will be pickled to remote, it may include `xgb_model` param
-        #  which is used as initial model in training. The initial model will be a
-        #  `Booster` instance which support pickling.
-        def train_func(pandas_df_iter):
-            xgb_model = xgb_model_creator()
-            train_val_data = prepare_train_val_data(
-                pandas_df_iter, has_weight, has_validation, has_base_margin
-            )
-            # We don't need to handle callbacks param in fit_params specially.
-            # User need to ensure callbacks is pickle-able.
-            if has_validation:
-                (
-                    train_X,
-                    train_y,
-                    train_w,
-                    train_base_margin,
-                    val_X,
-                    val_y,
-                    val_w,
-                    _,
-                ) = train_val_data
-                eval_set = [(val_X, val_y)]
-                sample_weight_eval_set = [val_w]
-                # base_margin_eval_set = [val_base_margin] <- the underline
-                # Note that on XGBoost 1.2.0, the above doesn't exist.
-                xgb_model.fit(
-                    train_X,
-                    train_y,
-                    sample_weight=train_w,
-                    base_margin=train_base_margin,
-                    eval_set=eval_set,
-                    sample_weight_eval_set=sample_weight_eval_set,
-                    **fit_params,
-                )
-            else:
-                train_X, train_y, train_w, train_base_margin = train_val_data
-                xgb_model.fit(
-                    train_X,
-                    train_y,
-                    sample_weight=train_w,
-                    base_margin=train_base_margin,
-                    **fit_params,
-                )
-
-            ser_model_string = serialize_xgb_model(xgb_model)
-            yield pd.DataFrame(data={"model_string": [ser_model_string]})
-
-        # Train on 1 remote worker, return the string of the serialized model
-        result_ser_model_string = (
-            dataset.repartition(1)
-            .mapInPandas(train_func, schema="model_string string")
-            .collect()[0][0]
-        )
-
-        # Load model
-        result_xgb_model = deserialize_xgb_model(
-            result_ser_model_string, xgb_model_creator
-        )
         return self._copyValues(self._create_pyspark_model(result_xgb_model))
 
     def write(self):

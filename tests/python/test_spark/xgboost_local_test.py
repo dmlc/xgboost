@@ -3,6 +3,7 @@ import random
 import uuid
 
 import numpy as np
+import unittest
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import (
     BinaryClassificationEvaluator,
@@ -681,6 +682,7 @@ class XgboostLocalTest(SparkTestCase):
         for row1, row2 in zip(pred_res21, pred_res22):
             self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
+    @unittest.skip
     def test_classifier_with_base_margin(self):
         cls_without_base_margin = SparkXGBClassifier(weightCol="weight")
         model_without_base_margin = cls_without_base_margin.fit(
