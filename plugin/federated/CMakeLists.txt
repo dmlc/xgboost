@@ -1,6 +1,6 @@
 # gRPC needs to be installed first. See README.md.
-find_package(Protobuf REQUIRED)
-find_package(gRPC REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
+find_package(gRPC CONFIG REQUIRED)
 find_package(Threads)
 
 # Generated code from the protobuf definition.
@@ -18,7 +18,8 @@ protobuf_generate(
     PLUGIN "protoc-gen-grpc=${grpc_cpp_plugin_location}")
 
 # Wrapper for the gRPC client.
-add_library(federated_client INTERFACE federated_client.h)
+add_library(federated_client INTERFACE)
+target_sources(federated_client INTERFACE federated_client.h)
 target_link_libraries(federated_client INTERFACE federated_proto)
 
 # Rabit engine for Federated Learning.

@@ -130,12 +130,12 @@ void MetaInfo::SetInfoFromCUDA(Context const&, StringView key, Json array) {
   }
   // uint info
   if (key == "group") {
-    auto array_interface{ArrayInterface<1>(array)};
+    ArrayInterface<1> array_interface{array};
     CopyGroupInfoImpl(array_interface, &group_ptr_);
     data::ValidateQueryGroup(group_ptr_);
     return;
   } else if (key == "qid") {
-    auto array_interface{ArrayInterface<1>(array)};
+    ArrayInterface<1> array_interface{array};
     CopyQidImpl(array_interface, &group_ptr_);
     data::ValidateQueryGroup(group_ptr_);
     return;

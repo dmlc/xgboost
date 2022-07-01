@@ -1719,7 +1719,7 @@ class DaskScikitLearnBase(XGBModel):
     """Implementation of the Scikit-Learn API for XGBoost.""", ["estimators", "model"]
 )
 class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
-    # pylint: disable=missing-class-docstring
+    """dummy doc string to workaround pylint, replaced by the decorator."""
     async def _fit_async(
         self,
         X: _DaskCollection,

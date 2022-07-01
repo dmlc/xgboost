@@ -151,15 +151,6 @@ Parameters for Tree Booster
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
     - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
-* ``sketch_eps`` [default=0.03]
-
-  - Only used for ``updater=grow_local_histmaker``.
-  - This roughly translates into ``O(1 / sketch_eps)`` number of bins.
-    Compared to directly select number of bins, this comes with theoretical guarantee with sketch accuracy.
-  - Usually user does not have to tune this.
-    But consider setting to a lower number for more accurate enumeration of split candidates.
-  - range: (0, 1)
-
 * ``scale_pos_weight`` [default=1]
 
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
@@ -170,7 +161,6 @@ Parameters for Tree Booster
 
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
-    - ``grow_local_histmaker``: based on local histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
     - ``grow_gpu_hist``: Grow tree with GPU.
     - ``sync``: synchronizes trees in all distributed nodes.
@@ -235,20 +225,35 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
-Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
-===========================================================================
+.. _cat-param:
+
+Parameters for Categorical Feature
+==================================
+
+These parameters are only used for training with categorical data. See
+:doc:`/tutorials/categorical` for more information.
 
 * ``max_cat_to_onehot``
 
   .. versionadded:: 1.6
 
-  .. note:: The support for this parameter is experimental.
+  .. note:: This parameter is experimental. ``exact`` tree method is not supported yet.
 
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
     encoding is chosen, otherwise the categories will be partitioned into children nodes.
     Only relevant for regression and binary classification. Also, ``exact`` tree method is
     not supported
+
+* ``max_cat_threshold``
+
+  .. versionadded:: 2.0
+
+  .. note:: This parameter is experimental. ``exact`` and ``gpu_hist`` tree methods are
+            not supported yet.
+
+  - Maximum number of categories considered for each split. Used only by partition-based
+    splits for preventing over-fitting.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

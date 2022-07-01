@@ -78,6 +78,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::MetricGPUReg);
 namespace xgboost {
 namespace metric {
 // List of files that will be force linked in static links.
+DMLC_REGISTRY_LINK_TAG(auc);
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(survival_metric);

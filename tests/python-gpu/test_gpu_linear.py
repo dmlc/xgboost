@@ -42,9 +42,13 @@ class TestGPULinear:
     # Loss is not guaranteed to always decrease because of regularisation parameters
     # We test a weaker condition that the loss has not increased between the first and last
     # iteration
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, strategies.floats(1e-5, 1.0),
-           strategies.floats(1e-5, 1.0))
+    @given(
+        parameter_strategy,
+        strategies.integers(10, 50),
+        tm.dataset_strategy,
+        strategies.floats(1e-5, 0.8),
+        strategies.floats(1e-5, 0.8)
+    )
     @settings(deadline=None, print_blob=True)
     def test_gpu_coordinate_regularised(self, param, num_rounds, dataset, alpha, lambd):
         assume(len(dataset.y) > 0)

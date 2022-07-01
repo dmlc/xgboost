@@ -68,17 +68,9 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param out         Output gradient booster
    */
-  virtual void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
-                     GradientBooster *out, bool* out_of_bound) const {
+  virtual void Slice(int32_t /*layer_begin*/, int32_t /*layer_end*/, int32_t /*step*/,
+                     GradientBooster* /*out*/, bool* /*out_of_bound*/) const {
     LOG(FATAL) << "Slice is not supported by current booster.";
-  }
-  /*!
-   * \brief whether the model allow lazy checkpoint
-   * return true if model is only updated in DoBoost
-   * after all Allreduce calls
-   */
-  virtual bool AllowLazyCheckPoint() const {
-    return false;
   }
   /*! \brief Return number of boosted rounds.
    */

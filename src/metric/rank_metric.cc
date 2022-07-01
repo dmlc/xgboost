@@ -102,9 +102,8 @@ struct EvalAMS : public Metric {
     name_ = os.str();
   }
 
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-              bool distributed) override {
-    CHECK(!distributed) << "metric AMS do not support distributed evaluation";
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
+    CHECK(!rabit::IsDistributed()) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
@@ -161,8 +160,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
   std::unique_ptr<xgboost::Metric> rank_gpu_;
 
  public:
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-              bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK_EQ(preds.Size(), info.labels.Size())
         << "label size predict size not match";
 
@@ -185,7 +183,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
         rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
       }
       if (rank_gpu_) {
-        sum_metric = rank_gpu_->Eval(preds, info, distributed);
+        sum_metric = rank_gpu_->Eval(preds, info);
       }
     }
 
@@ -218,7 +216,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
       exc.Rethrow();
     }
 
-    if (distributed) {
+    if (rabit::IsDistributed()) {
       double dat[2]{sum_metric, static_cast<double>(ngroups)};
       // approximately estimate the metric using mean
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
@@ -342,9 +340,8 @@ struct EvalMAP : public EvalRank {
 struct EvalCox : public Metric {
  public:
   EvalCox() = default;
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-              bool distributed) override {
-    CHECK(!distributed) << "Cox metric does not support distributed evaluation";
+  double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
+    CHECK(!rabit::IsDistributed()) << "Cox metric does not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());

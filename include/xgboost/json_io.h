@@ -17,6 +17,22 @@
 #include <vector>
 
 namespace xgboost {
+namespace detail {
+// Whether char is signed is undefined, as a result we might or might not need
+// static_cast and std::to_string.
+template <typename Char, std::enable_if_t<std::is_signed<Char>::value>* = nullptr>
+std::string CharToStr(Char c) {
+  static_assert(std::is_same<Char, char>::value, "");
+  return std::string{c};
+}
+
+template <typename Char, std::enable_if_t<!std::is_signed<Char>::value>* = nullptr>
+std::string CharToStr(Char c) {
+  static_assert(std::is_same<Char, char>::value, "");
+  return (c <= static_cast<char>(127) ? std::string{c} : std::to_string(c));
+}
+}  // namespace detail
+
 /*
  * \brief A json reader, currently error checking and utf-8 is not fully supported.
  */
@@ -89,7 +105,7 @@ class JsonReader {
     } else if (got == 0) {
       msg += "\\0\"";
     } else {
-      msg += (got <= 127 ? std::string{got} : std::to_string(got)) + " \"";  // NOLINT
+      msg += detail::CharToStr(got) + " \"";
     }
     Error(msg);
   }

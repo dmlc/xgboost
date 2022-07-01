@@ -214,7 +214,9 @@ class TestDataset:
         return params_in
 
     def get_dmat(self):
-        return xgb.DMatrix(self.X, self.y, self.w, base_margin=self.margin)
+        return xgb.DMatrix(
+            self.X, self.y, self.w, base_margin=self.margin, enable_categorical=True
+        )
 
     def get_device_dmat(self):
         w = None if self.w is None else cp.array(self.w)
@@ -278,6 +280,48 @@ def get_sparse():
 
 
 @memory.cache
+def get_ames_housing():
+    """
+    Number of samples: 1460
+    Number of features: 20
+    Number of categorical features: 10
+    Number of numerical features: 10
+    """
+    from sklearn.datasets import fetch_openml
+    X, y = fetch_openml(data_id=42165, as_frame=True, return_X_y=True)
+
+    categorical_columns_subset: list[str] = [
+        "BldgType",             # 5 cats, no nan
+        "GarageFinish",         # 3 cats, nan
+        "LotConfig",            # 5 cats, no nan
+        "Functional",           # 7 cats, no nan
+        "MasVnrType",           # 4 cats, nan
+        "HouseStyle",           # 8 cats, no nan
+        "FireplaceQu",          # 5 cats, nan
+        "ExterCond",            # 5 cats, no nan
+        "ExterQual",            # 4 cats, no nan
+        "PoolQC",               # 3 cats, nan
+    ]
+
+    numerical_columns_subset: list[str] = [
+        "3SsnPorch",
+        "Fireplaces",
+        "BsmtHalfBath",
+        "HalfBath",
+        "GarageCars",
+        "TotRmsAbvGrd",
+        "BsmtFinSF1",
+        "BsmtFinSF2",
+        "GrLivArea",
+        "ScreenPorch",
+    ]
+
+    X = X[categorical_columns_subset + numerical_columns_subset]
+    X[categorical_columns_subset] = X[categorical_columns_subset].astype("category")
+    return X, y
+
+
+@memory.cache
 def get_mq2008(dpath):
     from sklearn.datasets import load_svmlight_files
 
@@ -329,12 +373,46 @@ def make_categorical(
         for i in range(n_features):
             index = rng.randint(low=0, high=n_samples-1, size=int(n_samples * sparsity))
             df.iloc[index, i] = np.NaN
-            assert df.iloc[:, i].isnull().values.any()
             assert n_categories == np.unique(df.dtypes[i].categories).size
 
     if onehot:
         return pd.get_dummies(df), label
     return df, label
+
+
+def _cat_sampled_from():
+    @strategies.composite
+    def _make_cat(draw):
+        n_samples = draw(strategies.integers(2, 512))
+        n_features = draw(strategies.integers(1, 4))
+        n_cats = draw(strategies.integers(1, 128))
+        sparsity = draw(
+            strategies.floats(
+                min_value=0,
+                max_value=1,
+                allow_nan=False,
+                allow_infinity=False,
+                allow_subnormal=False,
+            )
+        )
+        return n_samples, n_features, n_cats, sparsity
+
+    def _build(args):
+        n_samples = args[0]
+        n_features = args[1]
+        n_cats = args[2]
+        sparsity = args[3]
+        return TestDataset(
+            f"{n_samples}x{n_features}-{n_cats}-{sparsity}",
+            lambda: make_categorical(n_samples, n_features, n_cats, False, sparsity),
+            "reg:squarederror",
+            "rmse",
+        )
+
+    return _make_cat().map(_build)
+
+
+categorical_dataset_strategy = _cat_sampled_from()
 
 
 @memory.cache

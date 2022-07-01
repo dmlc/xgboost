@@ -144,6 +144,15 @@ function(xgboost_set_cuda_flags target)
     set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
   endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
 
+  if (FORCE_COLORED_OUTPUT)
+    if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+        ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+          (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
+      target_compile_options(${target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fdiagnostics-color=always>)
+    endif()
+  endif (FORCE_COLORED_OUTPUT)
+
   if (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
@@ -169,10 +178,17 @@ function(xgboost_set_cuda_flags target)
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
   endif (MSVC)
 
-  set_target_properties(${target} PROPERTIES
-    CUDA_STANDARD 14
-    CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+  if (PLUGIN_RMM)
+    set_target_properties(${target} PROPERTIES
+      CUDA_STANDARD 17
+      CUDA_STANDARD_REQUIRED ON
+      CUDA_SEPARABLE_COMPILATION OFF)
+  else ()
+    set_target_properties(${target} PROPERTIES
+      CUDA_STANDARD 14
+      CUDA_STANDARD_REQUIRED ON
+      CUDA_SEPARABLE_COMPILATION OFF)
+  endif (PLUGIN_RMM)
 endfunction(xgboost_set_cuda_flags)
 
 macro(xgboost_link_nccl target)
@@ -189,10 +205,18 @@ endmacro(xgboost_link_nccl)
 
 # compile options
 macro(xgboost_target_properties target)
-  set_target_properties(${target} PROPERTIES
-    CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
+  if (PLUGIN_RMM)
+    set_target_properties(${target} PROPERTIES
+      CXX_STANDARD 17
+      CXX_STANDARD_REQUIRED ON
+      POSITION_INDEPENDENT_CODE ON)
+  else ()
+    set_target_properties(${target} PROPERTIES
+      CXX_STANDARD 14
+      CXX_STANDARD_REQUIRED ON
+      POSITION_INDEPENDENT_CODE ON)
+  endif (PLUGIN_RMM)
+
   if (HIDE_CXX_SYMBOLS)
     #-- Hide all C++ symbols
     set_target_properties(${target} PROPERTIES
@@ -204,7 +228,9 @@ macro(xgboost_target_properties target)
 
   if (ENABLE_ALL_WARNINGS)
     target_compile_options(${target} PUBLIC
-      $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>
+      $<IF:$<COMPILE_LANGUAGE:CUDA>,
+      -Xcompiler=-Wall -Xcompiler=-Wextra -Xcompiler=-Wno-expansion-to-defined,
+      -Wall -Wextra -Wno-expansion-to-defined>
     )
   endif(ENABLE_ALL_WARNINGS)
 
@@ -247,6 +273,10 @@ macro(xgboost_target_defs target)
       PRIVATE
       -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
   endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+
+  if (PLUGIN_RMM)
+    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
+  endif (PLUGIN_RMM)
 endmacro(xgboost_target_defs)
 
 # handles dependencies
@@ -268,6 +298,10 @@ macro(xgboost_target_link_libraries target)
   if (USE_CUDA)
     xgboost_set_cuda_flags(${target})
   endif (USE_CUDA)
+
+  if (PLUGIN_RMM)
+    target_link_libraries(${target} PRIVATE rmm::rmm)
+  endif (PLUGIN_RMM)
 
   if (USE_NCCL)
     xgboost_link_nccl(${target})

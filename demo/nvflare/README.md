@@ -3,12 +3,15 @@
 This directory contains a demo of Federated Learning using
 [NVFlare](https://nvidia.github.io/NVFlare/).
 
+## Training with CPU only
+
 To run the demo, first build XGBoost with the federated learning plugin enabled (see the
 [README](../../plugin/federated/README.md)).
 
-Install NVFlare (note that currently NVFlare only supports Python 3.8):
+Install NVFlare (note that currently NVFlare only supports Python 3.8; for NVFlare 2.1.2 we also
+need to pin the protobuf package to 3.20.x to avoid protoc errors):
 ```shell
-pip install nvflare
+pip install nvflare protobuf==3.20.1
 ```
 
 Prepare the data:
@@ -36,12 +39,9 @@ Then start the admin CLI, using `admin/admin` as username/password:
 ./poc/admin/startup/fl_admin.sh
 ```
 
-In the admin CLI, run the following commands:
+In the admin CLI, run the following command:
 ```shell
-upload_app hello-xgboost
-set_run_number 1
-deploy_app hello-xgboost all
-start_app all
+submit_job hello-xgboost
 ```
 
 Once the training finishes, the model file should be written into
@@ -53,3 +53,12 @@ Finally, shutdown everything from the admin CLI:
 shutdown client
 shutdown server
 ```
+
+## Training with GPUs
+
+To demo with Federated Learning using GPUs, make sure your machine has at least 2 GPUs.
+Build XGBoost with the federated learning plugin enabled along with CUDA, but with NCCL
+turned off (see the [README](../../plugin/federated/README.md)).
+
+Modify `config/config_fed_client.json` and set `use_gpus` to `true`, then repeat the steps
+above.

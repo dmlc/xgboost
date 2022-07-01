@@ -20,7 +20,6 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait, ObjectiveTrait, XGBoost => SXGBoost}
 import org.apache.hadoop.fs.Path
 
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.util._
@@ -99,8 +98,6 @@ class XGBoostClassifier (
   def setMaxBins(value: Int): this.type = set(maxBins, value)
 
   def setMaxLeaves(value: Int): this.type = set(maxLeaves, value)
-
-  def setSketchEps(value: Double): this.type = set(sketchEps, value)
 
   def setScalePosWeight(value: Double): this.type = set(scalePosWeight, value)
 
@@ -331,26 +328,26 @@ class XGBoostClassificationModel private[ml](
     }
   }
 
-  private[scala] def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+  private[scala] def producePredictionItrs(booster: Booster, dm: DMatrix):
       Array[Iterator[Row]] = {
     val rawPredictionItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = true, $(treeLimit)).
+      booster.predict(dm, outPutMargin = true, $(treeLimit)).
         map(Row(_)).iterator
     }
     val probabilityItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).
+      booster.predict(dm, outPutMargin = false, $(treeLimit)).
         map(Row(_)).iterator
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
+        booster.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        broadcastBooster.value.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
+        booster.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }

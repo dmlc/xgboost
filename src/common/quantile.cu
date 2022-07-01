@@ -55,12 +55,10 @@ __device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float ran
 }
 
 template <typename InEntry, typename ToSketchEntry>
-void PruneImpl(int device,
-               common::Span<SketchContainer::OffsetT const> cuts_ptr,
+void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
                Span<InEntry const> sorted_data,
                Span<size_t const> columns_ptr_in,  // could be ptr for data or cuts
-               Span<FeatureType const> feature_types,
-               Span<SketchEntry> out_cuts,
+               Span<FeatureType const> feature_types, Span<SketchEntry> out_cuts,
                ToSketchEntry to_sketch_entry) {
   dh::LaunchN(out_cuts.size(), [=] __device__(size_t idx) {
     size_t column_id = dh::SegmentId(cuts_ptr, idx);
@@ -207,12 +205,8 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
 // run it in 2 passes to obtain the merge path and then customize the standard merge
 // algorithm.
 void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
-               Span<bst_row_t const> const &x_ptr,
-               Span<SketchEntry const> const &d_y,
-               Span<bst_row_t const> const &y_ptr,
-               Span<FeatureType const> feature_types,
-               Span<SketchEntry> out,
-               Span<bst_row_t> out_ptr) {
+               Span<bst_row_t const> const &x_ptr, Span<SketchEntry const> const &d_y,
+               Span<bst_row_t const> const &y_ptr, Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
   dh::safe_cuda(cudaSetDevice(device));
   CHECK_EQ(d_x.size() + d_y.size(), out.size());
   CHECK_EQ(x_ptr.size(), out_ptr.size());
@@ -311,6 +305,7 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
 void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr,
                            size_t total_cuts, Span<float> weights) {
+  dh::safe_cuda(cudaSetDevice(device_));
   Span<SketchEntry> out;
   dh::device_vector<SketchEntry> cuts;
   bool first_window = this->Current().empty();
@@ -330,8 +325,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
       float rmax = sample_idx + 1;
       return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
     }; // NOLINT
-    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, ft, out,
-                     to_sketch_entry);
+    PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   } else {
     auto to_sketch_entry = [weights, columns_ptr] __device__(
                                size_t sample_idx,
@@ -345,8 +339,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
       wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
       return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
     }; // NOLINT
-    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, ft, out,
-                     to_sketch_entry);
+    PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   }
   auto n_uniques = this->ScanInput(out, cuts_ptr);
 
@@ -436,8 +429,7 @@ void SketchContainer::Prune(size_t to) {
                              Span<SketchEntry const> const &entries,
                              size_t) { return entries[sample_idx]; }; // NOLINT
   auto ft = this->feature_types_.ConstDeviceSpan();
-  PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in, d_columns_ptr_in, ft,
-                         out, no_op);
+  PruneImpl<SketchEntry>(d_columns_ptr_out, in, d_columns_ptr_in, ft, out, no_op);
   this->columns_ptr_.Copy(columns_ptr_b_);
   this->Alternate();
 
@@ -466,10 +458,8 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
   this->Other().resize(this->Current().size() + that.size());
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
-  auto feature_types = this->FeatureTypes().ConstDeviceSpan();
   MergeImpl(device_, this->Data(), this->ColumnsPtr(), that, d_that_columns_ptr,
-            feature_types, dh::ToSpan(this->Other()),
-            columns_ptr_b_.DeviceSpan());
+            dh::ToSpan(this->Other()), columns_ptr_b_.DeviceSpan());
   this->columns_ptr_.Copy(columns_ptr_b_);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
   this->Alternate();

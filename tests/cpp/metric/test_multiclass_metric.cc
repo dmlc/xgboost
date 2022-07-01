@@ -35,9 +35,9 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
     }
   }
 
-  auto result = metric->Eval(predts, info, false);
+  auto result = metric->Eval(predts, info);
   for (size_t i = 0; i < 8; ++i) {
-    ASSERT_EQ(metric->Eval(predts, info, false), result);
+    ASSERT_EQ(metric->Eval(predts, info), result);
   }
 }
 }  // namespace xgboost

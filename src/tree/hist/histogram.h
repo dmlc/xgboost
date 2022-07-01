@@ -24,7 +24,6 @@ class HistogramBuilder {
   common::HistCollection hist_local_worker_;
   common::GHistBuilder builder_;
   common::ParallelGHistBuilder buffer_;
-  rabit::Reducer<GradientPairPrecise, GradientPairPrecise::Reduce> reducer_;
   BatchParam param_;
   int32_t n_threads_{-1};
   size_t n_batches_{0};
@@ -141,9 +140,7 @@ class HistogramBuilder {
                                      nodes_for_subtraction_trick,
                                      starting_index, sync_count);
     } else {
-      this->SyncHistogramLocal(p_tree, nodes_for_explicit_hist_build,
-                               nodes_for_subtraction_trick, starting_index,
-                               sync_count);
+      this->SyncHistogramLocal(p_tree, nodes_for_explicit_hist_build, nodes_for_subtraction_trick);
     }
   }
   /** same as the other build hist but handles only single batch data (in-core) */
@@ -199,8 +196,8 @@ class HistogramBuilder {
           }
         });
 
-    reducer_.Allreduce(this->hist_[starting_index].data(),
-                       builder_.GetNumBins() * sync_count);
+    rabit::Allreduce<rabit::op::Sum>(reinterpret_cast<double*>(this->hist_[starting_index].data()),
+                                     builder_.GetNumBins() * sync_count * 2);
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
                             nodes_for_subtraction_trick, p_tree);
@@ -212,11 +209,9 @@ class HistogramBuilder {
                             nodes_for_explicit_hist_build, p_tree);
   }
 
-  void SyncHistogramLocal(
-      RegTree *p_tree,
-      std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
-      std::vector<ExpandEntry> const &nodes_for_subtraction_trick,
-      int starting_index, int sync_count) {
+  void SyncHistogramLocal(RegTree *p_tree,
+                          std::vector<ExpandEntry> const &nodes_for_explicit_hist_build,
+                          std::vector<ExpandEntry> const &nodes_for_subtraction_trick) {
     const size_t nbins = this->builder_.GetNumBins();
     common::BlockedSpace2d space(
         nodes_for_explicit_hist_build.size(), [&](size_t) { return nbins; },

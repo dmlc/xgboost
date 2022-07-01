@@ -77,8 +77,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
       auto column_end =
           std::lower_bound(col.cbegin(), col.cend(),
                            xgboost::Entry(num_row_, 0.0f), cmp);
-      column_segments.emplace_back(
-          std::make_pair(column_begin - col.cbegin(), column_end - col.cbegin()));
+      column_segments.emplace_back(static_cast<bst_uint>(column_begin - col.cbegin()),
+                                   static_cast<bst_uint>(column_end - col.cbegin()));
       row_ptr_.push_back(row_ptr_.back() + (column_end - column_begin));
     }
     data_.resize(row_ptr_.back());
@@ -109,28 +109,28 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     monitor_.Stop("UpdateGpair");
 
     monitor_.Start("UpdateBias");
-    this->UpdateBias(p_fmat, model);
+    this->UpdateBias(model);
     monitor_.Stop("UpdateBias");
     // prepare for updating the weights
     selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
                      tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm,
                      coord_param_.top_k);
     monitor_.Start("UpdateFeature");
-    for (auto group_idx = 0; group_idx < model->learner_model_param->num_output_group;
+    for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
          ++group_idx) {
       for (auto i = 0U; i < model->learner_model_param->num_feature; i++) {
         auto fidx = selector_->NextFeature(
             i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
             tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
-        this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), model);
+        this->UpdateFeature(fidx, group_idx, model);
       }
     }
     monitor_.Stop("UpdateFeature");
   }
 
-  void UpdateBias(DMatrix *p_fmat, gbm::GBLinearModel *model) {
-    for (int group_idx = 0; group_idx < model->learner_model_param->num_output_group;
+  void UpdateBias(gbm::GBLinearModel *model) {
+    for (uint32_t group_idx = 0; group_idx < model->learner_model_param->num_output_group;
          ++group_idx) {
       // Get gradient
       auto grad = GradientPair(0, 0);
@@ -150,7 +150,6 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   }
 
   void UpdateFeature(int fidx, int group_idx,
-                     std::vector<GradientPair> *in_gpair,
                      gbm::GBLinearModel *model) {
     bst_float &w = (*model)[fidx][group_idx];
     // Get gradient

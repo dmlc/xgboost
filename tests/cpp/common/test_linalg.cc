@@ -315,10 +315,10 @@ TEST(Linalg, Popc) {
 TEST(Linalg, Stack) {
   Tensor<float, 3> l{{2, 3, 4}, kCpuId};
   ElementWiseTransformHost(l.View(kCpuId), omp_get_max_threads(),
-                           [=](size_t i, float v) { return i; });
+                           [=](size_t i, float) { return i; });
   Tensor<float, 3> r_0{{2, 3, 4}, kCpuId};
   ElementWiseTransformHost(r_0.View(kCpuId), omp_get_max_threads(),
-                           [=](size_t i, float v) { return i; });
+                           [=](size_t i, float) { return i; });
 
   Stack(&l, r_0);
 

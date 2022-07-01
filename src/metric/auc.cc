@@ -25,6 +25,8 @@
 
 namespace xgboost {
 namespace metric {
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(auc);
 /**
  * Calculate AUC for binary classification problem.  This function does not normalize the
  * AUC by 1 / (num_positive * num_negative), instead it returns a tuple for caller to
@@ -254,8 +256,7 @@ std::pair<double, uint32_t> RankingAUC(std::vector<float> const &predts,
 
 template <typename Curve>
 class EvalAUC : public Metric {
-  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-              bool distributed) override {
+  double Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info) override {
     double auc {0};
     if (tparam_->gpu_id != GenericParameter::kCpuId) {
       preds.SetDevice(tparam_->gpu_id);

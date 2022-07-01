@@ -44,6 +44,8 @@ def lib_name() -> str:
         name = 'libxgboost.dylib'
     elif system() == 'Windows':
         name = 'xgboost.dll'
+    elif system() == 'OS400':
+        name = 'libxgboost.so'
     return name
 
 
@@ -60,6 +62,7 @@ def copy_tree(src_dir: str, target_dir: str) -> None:
     src = os.path.join(src_dir, 'src')
     inc = os.path.join(src_dir, 'include')
     dmlc_core = os.path.join(src_dir, 'dmlc-core')
+    gputreeshap = os.path.join(src_dir, "gputreeshap")
     rabit = os.path.join(src_dir, 'rabit')
     cmake = os.path.join(src_dir, 'cmake')
     plugin = os.path.join(src_dir, 'plugin')
@@ -67,6 +70,7 @@ def copy_tree(src_dir: str, target_dir: str) -> None:
     clean_copy_tree(src, os.path.join(target_dir, 'src'))
     clean_copy_tree(inc, os.path.join(target_dir, 'include'))
     clean_copy_tree(dmlc_core, os.path.join(target_dir, 'dmlc-core'))
+    clean_copy_tree(gputreeshap, os.path.join(target_dir, "gputreeshap"))
     clean_copy_tree(rabit, os.path.join(target_dir, 'rabit'))
     clean_copy_tree(cmake, os.path.join(target_dir, 'cmake'))
     clean_copy_tree(plugin, os.path.join(target_dir, 'plugin'))
@@ -96,7 +100,7 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
     logger = logging.getLogger('XGBoost build_ext')
 
-    # pylint: disable=too-many-arguments,no-self-use
+    # pylint: disable=too-many-arguments
     def build(
         self,
         src_dir: str,

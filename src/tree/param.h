@@ -40,6 +40,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
 
   uint32_t max_cat_to_onehot{4};
 
+  bst_bin_t max_cat_threshold{64};
+
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -62,8 +64,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
-  // accuracy of sketch
-  float sketch_eps;
   // accuracy of sketch
   float sketch_ratio;
   // option to open cacheline optimization
@@ -113,6 +113,12 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_default(4)
         .set_lower_bound(1)
         .describe("Maximum number of categories to use one-hot encoding based split.");
+    DMLC_DECLARE_FIELD(max_cat_threshold)
+        .set_default(64)
+        .set_lower_bound(1)
+        .describe(
+            "Maximum number of categories considered for split. Used only by partition-based"
+            "splits.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -154,10 +160,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Subsample ratio of columns, resample on each tree construction.");
-    DMLC_DECLARE_FIELD(sketch_eps)
-        .set_range(0.0f, 1.0f)
-        .set_default(0.03f)
-        .describe("EXP Param: Sketch accuracy of approximate algorithm.");
     DMLC_DECLARE_FIELD(sketch_ratio)
         .set_lower_bound(0.0f)
         .set_default(2.0f)
@@ -194,12 +196,6 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   bool NeedPrune(double loss_chg, int depth) const {
     return loss_chg < this->min_split_loss ||
            (this->max_depth != 0 && depth > this->max_depth);
-  }
-  /*! \brief maximum sketch size */
-  inline unsigned MaxSketchSize() const {
-    auto ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
-    CHECK_GT(ret, 0U);
-    return ret;
   }
 
   bst_node_t MaxNodes() const {

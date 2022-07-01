@@ -359,6 +359,22 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDeviceQuantileDM
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromArrayInterfaceColumns
   (JNIEnv *, jclass, jstring, jfloat, jint, jlongArray);
 
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixSetStrFeatureInfo
+ * Signature: (JLjava/lang/String;[Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetStrFeatureInfo
+    (JNIEnv *, jclass, jlong, jstring, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetStrFeatureInfo
+ * Signature: (JLjava/lang/String;[J[[Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetStrFeatureInfo
+    (JNIEnv *, jclass, jlong, jstring, jlongArray, jobjectArray);
+
 #ifdef __cplusplus
 }
 #endif

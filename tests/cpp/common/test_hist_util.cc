@@ -38,15 +38,16 @@ void ParallelGHistBuilderReset() {
     target_hist[i] = collection[i];
   }
 
-  common::BlockedSpace2d space(kNodes, [&](size_t node) { return kTasksPerNode; }, 1);
+  common::BlockedSpace2d space(
+      kNodes, [&](size_t /* node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
-  common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d r) {
+  common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d) {
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
     // fill hist by some non-null values
-    for(size_t j = 0; j < kBins; ++j) {
+    for (size_t j = 0; j < kBins; ++j) {
       hist[j].Add(kValue, kValue);
     }
   });
@@ -56,15 +57,16 @@ void ParallelGHistBuilderReset() {
   for(size_t i = 0; i < target_hist.size(); ++i) {
     target_hist[i] = collection[i];
   }
-  common::BlockedSpace2d space2(kNodesExtended, [&](size_t node) { return kTasksPerNode; }, 1);
+  common::BlockedSpace2d space2(
+      kNodesExtended, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodesExtended, space2, target_hist);
 
-  common::ParallelFor2d(space2, nthreads, [&](size_t inode, common::Range1d r) {
+  common::ParallelFor2d(space2, nthreads, [&](size_t inode, common::Range1d) {
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
     // fill hist by some non-null values
-    for(size_t j = 0; j < kBins; ++j) {
+    for (size_t j = 0; j < kBins; ++j) {
       ASSERT_EQ(0.0, hist[j].GetGrad());
       ASSERT_EQ(0.0, hist[j].GetHess());
     }
@@ -92,11 +94,12 @@ void ParallelGHistBuilderReduceHist(){
     target_hist[i] = collection[i];
   }
 
-  common::BlockedSpace2d space(kNodes, [&](size_t node) { return kTasksPerNode; }, 1);
+  common::BlockedSpace2d space(
+      kNodes, [&](size_t /*node*/) { return kTasksPerNode; }, 1);
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
   // Simple analog of BuildHist function, works in parallel for both tree-nodes and data in node
-  common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d r) {
+  common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d) {
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
@@ -260,8 +263,7 @@ TEST(HistUtil, DenseCutsExternalMemory) {
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     dmlc::TemporaryDirectory tmpdir;
-    auto dmat =
-        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 50, tmpdir);
+    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir);
     for (auto num_bins : bin_sizes) {
       HistogramCuts cuts = SketchOnDMatrix(dmat.get(), num_bins, common::OmpGetNumThreads(0));
       ValidateCuts(cuts, dmat.get(), num_bins);
@@ -366,6 +368,7 @@ void TestSketchFromWeights(bool with_group) {
   ValidateCuts(cuts, m.get(), kBins);
 
   if (with_group) {
+    m->Info().weights_ = decltype(m->Info().weights_)();  // remove weight
     HistogramCuts non_weighted = SketchOnDMatrix(m.get(), kBins, common::OmpGetNumThreads(0));
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
@@ -376,6 +379,17 @@ void TestSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
     }
+  }
+
+  if (with_group) {
+    auto& h_weights = info.weights_.HostVector();
+    h_weights.resize(kGroups);
+    // Generate different weight.
+    for (size_t i = 0; i < h_weights.size(); ++i) {
+      h_weights[i] = static_cast<float>(i + 1) / static_cast<float>(kGroups);
+    }
+    HistogramCuts weighted = SketchOnDMatrix(m.get(), kBins, common::OmpGetNumThreads(0));
+    ValidateCuts(weighted, m.get(), kBins);
   }
 }
 
