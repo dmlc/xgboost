@@ -384,7 +384,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         """
         This just gets the configuration params for distributed xgboost
         """
-        params = fit_params.copy()
+        params = self._gen_xgb_params_dict()
+        params.update(fit_params)
         classification = self._xgb_cls() == XGBClassifier
         num_classes = int(dataset.select(countDistinct("label")).collect()[0][0])
         if classification and num_classes == 2:
@@ -395,13 +396,14 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         else:
             params["objective"] = "reg:squarederror"
 
+        params["num_boost_round"] = self.getOrDefault(self.n_estimators)
+
         if self.getOrDefault(self.use_gpu):
             params["tree_method"] = "gpu_hist"
             # TODO: fix this. This only works on databricks runtime.
             #  On open-source spark, we need get the gpu id from the task allocated gpu resources.
             params["gpu_id"] = 0
-        params["num_boost_round"] = self.getOrDefault(self.n_estimators)
-        params.update(self._gen_xgb_params_dict())
+
         return params
 
     @classmethod
