@@ -24,7 +24,6 @@ from xgboost.training import train as worker_train
 from .utils import get_logger, _get_max_num_concurrent_tasks
 from .data import (
     prepare_predict_data,
-    prepare_train_val_data,
     convert_partition_data_to_dmatrix,
 )
 from .model import (
@@ -66,6 +65,13 @@ _pyspark_specific_params = [
     "force_repartition",
     "num_workers",
     "use_gpu",
+]
+
+_sklearn_estimator_specific_params = [
+    "enable_categorical",
+    "missing",
+    "n_estimators",
+    "use_label_encoder",
 ]
 
 _pyspark_param_alias_map = {
@@ -157,6 +163,7 @@ class _XgboostParams(
         xgb_params = {}
         non_xgb_params = (
             set(_pyspark_specific_params)
+            | set(_sklearn_estimator_specific_params)
             | self._get_fit_params_default().keys()
             | self._get_predict_params_default().keys()
         )
@@ -444,7 +451,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
         if self.isDefined(self.baseMarginCol) and self.getOrDefault(
                 self.baseMarginCol):
-            # TODO: fix baseMargin support
             has_base_margin = True
             select_cols.append(
                 col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin"))
@@ -477,17 +483,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
             context = BarrierTaskContext.get()
 
-            dtrain, dval = None, []
-            if has_validation:
-                dtrain, dval = convert_partition_data_to_dmatrix(
-                    pandas_df_iter, has_weight, has_validation
-                )
-                dval = [(dtrain, "training"), (dval, "validation")]
-            else:
-                dtrain = convert_partition_data_to_dmatrix(
-                    pandas_df_iter, has_weight, has_validation
-                )
-
             booster_params, kwargs_params = self._get_dist_booster_params(train_params)
             context.barrier()
             _rabit_args = ""
@@ -498,6 +493,18 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             _rabit_args = _get_args_from_message_list(messages)
             evals_result = {}
             with RabitContext(_rabit_args, context):
+                dtrain, dval = None, []
+                if has_validation:
+                    dtrain, dval = convert_partition_data_to_dmatrix(
+                        pandas_df_iter, has_weight, has_validation, has_base_margin
+                    )
+                    # TODO: Question: do we need to add dtrain to dval list ?
+                    dval = [(dtrain, "training"), (dval, "validation")]
+                else:
+                    dtrain = convert_partition_data_to_dmatrix(
+                        pandas_df_iter, has_weight, has_validation, has_base_margin
+                    )
+
                 booster = worker_train(
                     params=booster_params,
                     dtrain=dtrain,
@@ -590,7 +597,7 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         predict_params = self._gen_predict_params_dict()
 
         @pandas_udf("double")
-        def predict_udf(iterator: Iterator[Tuple[pd.Series]]) -> Iterator[pd.Series]:
+        def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             # deserialize model from ser_model_string, avoid pickling model to remote worker
             X, _, _, _ = prepare_predict_data(iterator, False)
             # Note: In every spark job task, pandas UDF will run in separate python process
@@ -601,7 +608,7 @@ class SparkXGBRegressorModel(_SparkXGBModel):
 
         @pandas_udf("double")
         def predict_udf_base_margin(
-            iterator: Iterator[Tuple[pd.Series, pd.Series]]
+            iterator: Iterator[pd.DataFrame]
         ) -> Iterator[pd.Series]:
             # deserialize model from ser_model_string, avoid pickling model to remote worker
             X, _, _, b_m = prepare_predict_data(iterator, True)
@@ -611,20 +618,21 @@ class SparkXGBRegressorModel(_SparkXGBModel):
                 preds = xgb_sklearn_model.predict(X, base_margin=b_m, **predict_params)
                 yield pd.Series(preds)
 
-        features_col = col(self.getOrDefault(self.featuresCol))
-        features_col = struct(
-            vector_to_array(features_col, dtype="float32").alias("values")
-        )
+        features_col = vector_to_array(
+            col(self.getOrDefault(self.featuresCol)), dtype="float32"
+        ).alias("values")
 
         has_base_margin = False
         if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
             has_base_margin = True
 
         if has_base_margin:
-            base_margin_col = col(self.getOrDefault(self.baseMarginCol))
-            pred_col = predict_udf_base_margin(features_col, base_margin_col)
+            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
+            pred_col = predict_udf_base_margin(
+                struct(features_col, base_margin_col)
+            )
         else:
-            pred_col = predict_udf(features_col)
+            pred_col = predict_udf(struct(features_col))
 
         predictionColName = self.getOrDefault(self.predictionCol)
 
@@ -651,7 +659,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"
         )
-        def predict_udf(iterator: Iterator[Tuple[pd.Series]]) -> Iterator[pd.DataFrame]:
+        def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
             # deserialize model from ser_model_string, avoid pickling model to remote worker
             X, _, _, _ = prepare_predict_data(iterator, False)
             # Note: In every spark job task, pandas UDF will run in separate python process
@@ -688,7 +696,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
             "rawPrediction array<double>, prediction double, probability array<double>"
         )
         def predict_udf_base_margin(
-            iterator: Iterator[Tuple[pd.Series, pd.Series]]
+            iterator: Iterator[pd.DataFrame]
         ) -> Iterator[pd.DataFrame]:
             # deserialize model from ser_model_string, avoid pickling model to remote worker
             X, _, _, b_m = prepare_predict_data(iterator, True)
@@ -722,20 +730,19 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                     }
                 )
 
-        features_col = col(self.getOrDefault(self.featuresCol))
-        features_col = struct(
-            vector_to_array(features_col, dtype="float32").alias("values")
-        )
+        features_col = vector_to_array(
+            col(self.getOrDefault(self.featuresCol)), dtype="float32"
+        ).alias("values")
 
         has_base_margin = False
         if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
             has_base_margin = True
 
         if has_base_margin:
-            base_margin_col = col(self.getOrDefault(self.baseMarginCol))
-            pred_struct = predict_udf_base_margin(features_col, base_margin_col)
+            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
+            pred_struct = predict_udf_base_margin(struct(features_col, base_margin_col))
         else:
-            pred_struct = predict_udf(features_col)
+            pred_struct = predict_udf(struct(features_col))
 
         pred_struct_col = "_prediction_struct"
 

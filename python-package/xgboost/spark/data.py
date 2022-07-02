@@ -97,7 +97,7 @@ def _create_dmatrix_from_file(file_name, cache_name):
 
 
 def prepare_train_val_data(
-    data_iterator, has_weight, has_validation, has_fit_base_margin=False
+    data_iterator, has_weight, has_validation, has_fit_base_margin
 ):
     def gen_data_pdf():
         for pdf in data_iterator:
@@ -162,9 +162,6 @@ def _row_tuple_list_to_feature_matrix_y_w(
 
     # Process rows
     for pdf in data_iterator:
-        if type(pdf) == tuple:
-            pdf = pd.concat(list(pdf), axis=1, names=["values", "baseMargin"])
-
         if len(pdf) == 0:
             continue
         if train and has_validation:
@@ -184,7 +181,7 @@ def _row_tuple_list_to_feature_matrix_y_w(
         if has_weight:
             weight_list.append(pdf["weight"].to_list())
         if has_fit_base_margin or has_predict_base_margin:
-            base_margin_list.append(pdf.iloc[:, -1].to_list())
+            base_margin_list.append(pdf["baseMargin"].to_list())
         if has_validation:
             values_val_list.append(pdf_val["values"].to_list())
             if train:
@@ -192,7 +189,7 @@ def _row_tuple_list_to_feature_matrix_y_w(
             if has_weight:
                 weight_val_list.append(pdf_val["weight"].to_list())
             if has_fit_base_margin or has_predict_base_margin:
-                base_margin_val_list.append(pdf_val.iloc[:, -1].to_list())
+                base_margin_val_list.append(pdf_val["baseMargin"].to_list())
 
     # Construct feature_matrix
     if expected_feature_dims is None:
@@ -264,17 +261,23 @@ def _process_data_iter(
         )
 
 
-def convert_partition_data_to_dmatrix(partition_data_iter, has_weight, has_validation):
+def convert_partition_data_to_dmatrix(
+        partition_data_iter, has_weight, has_validation, has_base_margin
+):
     # if we are not using external storage, we use the standard method of parsing data.
     train_val_data = prepare_train_val_data(
-        partition_data_iter, has_weight, has_validation
+        partition_data_iter, has_weight, has_validation, has_base_margin
     )
     if has_validation:
-        train_X, train_y, train_w, _, val_X, val_y, val_w, _ = train_val_data
-        training_dmatrix = DMatrix(data=train_X, label=train_y, weight=train_w)
-        val_dmatrix = DMatrix(data=val_X, label=val_y, weight=val_w)
+        train_X, train_y, train_w, train_b_m, val_X, val_y, val_w, val_b_m = train_val_data
+        training_dmatrix = DMatrix(
+            data=train_X, label=train_y, weight=train_w, base_margin=train_b_m
+        )
+        val_dmatrix = DMatrix(data=val_X, label=val_y, weight=val_w, base_margin=val_b_m)
         return training_dmatrix, val_dmatrix
     else:
-        train_X, train_y, train_w, _ = train_val_data
-        training_dmatrix = DMatrix(data=train_X, label=train_y, weight=train_w)
+        train_X, train_y, train_w, train_b_m = train_val_data
+        training_dmatrix = DMatrix(
+            data=train_X, label=train_y, weight=train_w, base_margin=train_b_m
+        )
         return training_dmatrix

@@ -334,7 +334,7 @@ class XgboostLocalTest(SparkTestCase):
                 (Vectors.dense(4.0, 5.0, 6.0), 0, 1.0, 0),
                 (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 2.0, 1),
             ],
-            ["features", "label", "weight", "baseMarginCol"],
+            ["features", "label", "weight", "base_margin"],
         )
         self.cls_df_test_with_same_base_margin = self.session.createDataFrame(
             [
@@ -342,7 +342,7 @@ class XgboostLocalTest(SparkTestCase):
             ],
             [
                 "features",
-                "baseMarginCol",
+                "base_margin",
                 "expected_prob_with_base_margin",
                 "expected_prediction_with_base_margin",
             ],
@@ -355,7 +355,7 @@ class XgboostLocalTest(SparkTestCase):
                 (Vectors.dense(4.0, 5.0, 6.0), 0, 1.0, 0),
                 (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 2.0, 1),
             ],
-            ["features", "label", "weight", "baseMarginCol"],
+            ["features", "label", "weight", "base_margin"],
         )
         self.cls_df_test_with_different_base_margin = self.session.createDataFrame(
             [
@@ -363,7 +363,7 @@ class XgboostLocalTest(SparkTestCase):
             ],
             [
                 "features",
-                "baseMarginCol",
+                "base_margin",
                 "expected_prob_with_base_margin",
                 "expected_prediction_with_base_margin",
             ],
@@ -682,7 +682,6 @@ class XgboostLocalTest(SparkTestCase):
         for row1, row2 in zip(pred_res21, pred_res22):
             self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
-    @unittest.skip
     def test_classifier_with_base_margin(self):
         cls_without_base_margin = SparkXGBClassifier(weightCol="weight")
         model_without_base_margin = cls_without_base_margin.fit(
@@ -699,14 +698,12 @@ class XgboostLocalTest(SparkTestCase):
                     atol=1e-3,
                 )
             )
-            self.assertTrue(
-                np.allclose(
-                    row.probability, row.expected_prob_without_base_margin, atol=1e-3
-                )
+            np.testing.assert_allclose(
+                row.probability, row.expected_prob_without_base_margin, atol=1e-3
             )
 
         cls_with_same_base_margin = SparkXGBClassifier(
-            weightCol="weight", baseMarginCol="baseMarginCol"
+            weightCol="weight", baseMarginCol="base_margin"
         )
         model_with_same_base_margin = cls_with_same_base_margin.fit(
             self.cls_df_train_with_same_base_margin
@@ -720,14 +717,10 @@ class XgboostLocalTest(SparkTestCase):
                     row.prediction, row.expected_prediction_with_base_margin, atol=1e-3
                 )
             )
-            self.assertTrue(
-                np.allclose(
-                    row.probability, row.expected_prob_with_base_margin, atol=1e-3
-                )
-            )
+            np.testing.assert_allclose(row.probability, row.expected_prob_with_base_margin, atol=1e-3)
 
         cls_with_different_base_margin = SparkXGBClassifier(
-            weightCol="weight", baseMarginCol="baseMarginCol"
+            weightCol="weight", baseMarginCol="base_margin"
         )
         model_with_different_base_margin = cls_with_different_base_margin.fit(
             self.cls_df_train_with_different_base_margin
@@ -743,11 +736,7 @@ class XgboostLocalTest(SparkTestCase):
                     row.prediction, row.expected_prediction_with_base_margin, atol=1e-3
                 )
             )
-            self.assertTrue(
-                np.allclose(
-                    row.probability, row.expected_prob_with_base_margin, atol=1e-3
-                )
-            )
+            np.testing.assert_allclose(row.probability, row.expected_prob_with_base_margin, atol=1e-3)
 
     def test_regressor_with_weight_eval(self):
         # with weight
