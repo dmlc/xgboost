@@ -2,12 +2,10 @@ import tempfile
 import shutil
 import numpy as np
 import pandas as pd
-from scipy.sparse import csr_matrix
 
 from xgboost.spark.data import (
     _row_tuple_list_to_feature_matrix_y_w,
     convert_partition_data_to_dmatrix,
-    _dump_libsvm,
 )
 
 from xgboost import DMatrix, XGBClassifier
@@ -83,7 +81,7 @@ class DataTest(SparkTestCase):
             "label": [1, 0] * 100,
         }
         output_dmatrix = convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=False, has_validation=False
+            [pd.DataFrame(data)], has_weight=False, has_validation=False, has_base_margin=False
         )
         # You can't compare DMatrix outputs, so the only way is to predict on the two seperate DMatrices using
         # the same classifier and making sure the outputs are equal
@@ -101,7 +99,7 @@ class DataTest(SparkTestCase):
 
         data["weight"] = [0.2, 0.8] * 100
         output_dmatrix = convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=True, has_validation=False
+            [pd.DataFrame(data)], has_weight=True, has_validation=False, has_base_margin=False
         )
 
         model.fit(expected_features, expected_labels, sample_weight=expected_weight)
@@ -124,7 +122,7 @@ class DataTest(SparkTestCase):
         # Creating the dmatrix based on storage
         temporary_path = tempfile.mkdtemp()
         storage_dmatrix = convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=False, has_validation=False
+            [pd.DataFrame(data)], has_weight=False, has_validation=False, has_base_margin=False
         )
 
         # Testing without weights
@@ -142,7 +140,7 @@ class DataTest(SparkTestCase):
 
         temporary_path = tempfile.mkdtemp()
         storage_dmatrix = convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=True, has_validation=False
+            [pd.DataFrame(data)], has_weight=True, has_validation=False, has_base_margin=False
         )
 
         normal_booster = worker_train({}, normal_dmatrix)
@@ -151,64 +149,3 @@ class DataTest(SparkTestCase):
         storage_preds = storage_booster.predict(test_dmatrix)
         self.assertTrue(np.allclose(normal_preds, storage_preds, atol=1e-3))
         shutil.rmtree(temporary_path)
-
-    def test_dump_libsvm(self):
-        num_features = 3
-        features_test_list = [
-            [[1, 2, 3], [0, 1, 5.5]],
-            csr_matrix(([1, 2, 3], [0, 2, 2], [0, 2, 3]), shape=(2, 3)),
-        ]
-        labels = [0, 1]
-
-        for features in features_test_list:
-            if isinstance(features, csr_matrix):
-                features_array = features.toarray()
-            else:
-                features_array = features
-            # testing without weights
-            # The format should be label index:feature_value index:feature_value...
-            # Note: from initial testing, it seems all of the indices must be listed regardless of whether
-            # they exist or not
-            output = _dump_libsvm(features, labels)
-            for i, line in enumerate(output):
-                split_line = line.split(" ")
-                self.assertEqual(float(split_line[0]), labels[i])
-                split_line = [elem.split(":") for elem in split_line[1:]]
-                loaded_feature = [0.0] * num_features
-                for split in split_line:
-                    loaded_feature[int(split[0])] = float(split[1])
-                self.assertListEqual(loaded_feature, list(features_array[i]))
-
-            weights = [0.2, 0.8]
-            # testing with weights
-            # The format should be label:weight index:feature_value index:feature_value...
-            output = _dump_libsvm(features, labels, weights)
-            for i, line in enumerate(output):
-                split_line = line.split(" ")
-                split_line = [elem.split(":") for elem in split_line]
-                self.assertEqual(float(split_line[0][0]), labels[i])
-                self.assertEqual(float(split_line[0][1]), weights[i])
-
-                split_line = split_line[1:]
-                loaded_feature = [0.0] * num_features
-                for split in split_line:
-                    loaded_feature[int(split[0])] = float(split[1])
-                self.assertListEqual(loaded_feature, list(features_array[i]))
-
-        features = [
-            [1.34234, 2.342321, 3.34322],
-            [0.344234, 1.123123, 5.534322],
-            [3.553423e10, 3.5632e10, 0.00000000000012345],
-        ]
-        features_prec = [
-            [1.34, 2.34, 3.34],
-            [0.344, 1.12, 5.53],
-            [3.55e10, 3.56e10, 1.23e-13],
-        ]
-        labels = [0, 1]
-        output = _dump_libsvm(features, labels, external_storage_precision=3)
-        for i, line in enumerate(output):
-            split_line = line.split(" ")
-            self.assertEqual(float(split_line[0]), labels[i])
-            split_line = [elem.split(":") for elem in split_line[1:]]
-            self.assertListEqual([float(v[1]) for v in split_line], features_prec[i])
