@@ -65,10 +65,8 @@ _pyspark_specific_params = [
 ]
 
 _sklearn_estimator_specific_params = [
-    "enable_categorical",  # TODO: support this
     "missing",
     "n_estimators",
-    "use_label_encoder",
 ]
 
 _pyspark_param_alias_map = {
@@ -84,7 +82,10 @@ _pyspark_param_alias_map = {
 
 _unsupported_xgb_params = [
     "gpu_id",  # we have "use_gpu" pyspark param instead.
+    "enable_categorical",  # TODO: support this
+    "use_label_encoder",
 ]
+
 _unsupported_fit_params = {
     "sample_weight",  # Supported by spark param weightCol
     # Supported by spark param weightCol # and validationIndicatorCol
