@@ -195,13 +195,8 @@ class HistogramBuilder {
           }
         });
 
-// <<<<<<< HEAD
-//     reducer_.Allreduce(this->hist_[starting_index].data(),
-//                        hist_.GetNumBins() * sync_count);
-// =======
     rabit::Allreduce<rabit::op::Sum>(reinterpret_cast<double*>(this->hist_[starting_index].data()),
-                                     hist_.GetNumBins() * sync_count);
-// >>>>>>> 0725fd60819f9758fbed6ee54f34f3696a2fb2f8
+                                     hist_.GetNumBins() * sync_count * 2);
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
                             nodes_for_subtraction_trick, p_tree);
