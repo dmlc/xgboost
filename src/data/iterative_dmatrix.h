@@ -1,9 +1,9 @@
 /*!
- * Copyright 2020 by Contributors
- * \file iterative_device_dmatrix.h
+ * Copyright 2020-2022 by Contributors
+ * \file iterative_dmatrix.h
  */
-#ifndef XGBOOST_DATA_ITERATIVE_DEVICE_DMATRIX_H_
-#define XGBOOST_DATA_ITERATIVE_DEVICE_DMATRIX_H_
+#ifndef XGBOOST_DATA_ITERATIVE_DMATRIX_H_
+#define XGBOOST_DATA_ITERATIVE_DMATRIX_H_
 
 #include <vector>
 #include <string>
@@ -19,7 +19,7 @@
 namespace xgboost {
 namespace data {
 
-class IterativeDeviceDMatrix : public DMatrix {
+class IterativeDMatrix : public DMatrix {
   MetaInfo info_;
   Context ctx_;
   BatchParam batch_param_;
@@ -30,18 +30,17 @@ class IterativeDeviceDMatrix : public DMatrix {
   XGDMatrixCallbackNext *next_;
 
  public:
-  void Initialize(DataIterHandle iter, float missing);
+  void InitFromCUDA(DataIterHandle iter, float missing);
 
  public:
-  explicit IterativeDeviceDMatrix(DataIterHandle iter, DMatrixHandle proxy,
-                                  DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
-                                  float missing, int nthread, int max_bin)
+  explicit IterativeDMatrix(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
+                            XGDMatrixCallbackNext *next, float missing, int nthread, int max_bin)
       : proxy_{proxy}, reset_{reset}, next_{next} {
-    batch_param_ = BatchParam{0, max_bin};
+    batch_param_ = BatchParam{MakeProxy(proxy_)->DeviceIdx(), max_bin};
     ctx_.UpdateAllowUnknown(Args{{"nthread", std::to_string(nthread)}});
-    this->Initialize(iter, missing);
+    this->InitFromCUDA(iter, missing);
   }
-  ~IterativeDeviceDMatrix() override = default;
+  ~IterativeDMatrix() override = default;
 
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
@@ -77,14 +76,14 @@ class IterativeDeviceDMatrix : public DMatrix {
 };
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDeviceDMatrix::Initialize(DataIterHandle iter, float missing) {
+inline void IterativeDMatrix::InitFromCUDA(DataIterHandle iter, float missing) {
   // silent the warning about unused variables.
   (void)(proxy_);
   (void)(reset_);
   (void)(next_);
   common::AssertGPUSupport();
 }
-inline BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
+inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam& param) {
   common::AssertGPUSupport();
   auto begin_iter =
       BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
@@ -94,4 +93,4 @@ inline BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const Bat
 }  // namespace data
 }  // namespace xgboost
 
-#endif  // XGBOOST_DATA_ITERATIVE_DEVICE_DMATRIX_H_
+#endif  // XGBOOST_DATA_ITERATIVE_DMATRIX_H_

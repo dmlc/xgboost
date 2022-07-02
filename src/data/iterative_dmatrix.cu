@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 XGBoost contributors
+ * Copyright 2020-2022 XGBoost contributors
  */
 #include <memory>
 #include <type_traits>
@@ -7,7 +7,7 @@
 
 #include "../common/hist_util.cuh"
 #include "simple_batch_iterator.h"
-#include "iterative_device_dmatrix.h"
+#include "iterative_dmatrix.h"
 #include "sparse_page_source.h"
 #include "ellpack_page.cuh"
 #include "proxy_dmatrix.h"
@@ -16,7 +16,7 @@
 
 namespace xgboost {
 namespace data {
-void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missing) {
+void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
   // A handle passed to external iterator.
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
@@ -160,7 +160,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 
-BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
+BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam& param) {
   CHECK(page_);
   // FIXME(Jiamingy): https://github.com/dmlc/xgboost/issues/7976
   if (param.max_bin != batch_param_.max_bin) {

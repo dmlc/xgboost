@@ -26,7 +26,7 @@
 #include "../common/group_data.h"
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
-#include "../data/iterative_device_dmatrix.h"
+#include "../data/iterative_dmatrix.h"
 #include "file_iterator.h"
 
 #include "validation.h"
@@ -938,7 +938,7 @@ DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
                          XGDMatrixCallbackNext *next, float missing,
                          int nthread,
                          int max_bin) {
-  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing,
+  return new data::IterativeDMatrix(iter, proxy, reset, next, missing,
                                           nthread, max_bin);
 }
 
