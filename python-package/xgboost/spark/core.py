@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple
+from typing import Iterator
 import numpy as np
 import pandas as pd
 from scipy.special import expit, softmax
@@ -15,7 +15,6 @@ from pyspark.ml.param.shared import (
 from pyspark.ml.param import Param, Params, TypeConverters
 from pyspark.ml.util import MLReadable, MLWritable
 from pyspark.sql.functions import col, pandas_udf, countDistinct, struct
-from pyspark.sql.types import ArrayType, FloatType
 from xgboost import XGBClassifier, XGBRegressor
 from xgboost.core import Booster
 import cloudpickle
@@ -31,9 +30,7 @@ from .model import (
     XgboostWriter,
     XgboostModelReader,
     XgboostModelWriter,
-    deserialize_xgb_model,
     get_xgb_model_creator,
-    serialize_xgb_model,
 )
 from .utils import (
     _get_default_params_from_func,
@@ -68,7 +65,7 @@ _pyspark_specific_params = [
 ]
 
 _sklearn_estimator_specific_params = [
-    "enable_categorical",
+    "enable_categorical",  # TODO: support this
     "missing",
     "n_estimators",
     "use_label_encoder",
@@ -385,12 +382,16 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             pass
         return True
 
-    def _get_distributed_train_params(self, dataset, fit_params):
+    def _get_distributed_train_params(self, dataset):
         """
         This just gets the configuration params for distributed xgboost
         """
         params = self._gen_xgb_params_dict()
+        fit_params = self._gen_fit_params_dict()
+        verbose_eval = fit_params.pop("verbose", None)
+
         params.update(fit_params)
+        params["verbose_eval"] = verbose_eval
         classification = self._xgb_cls() == XGBClassifier
         num_classes = int(dataset.select(countDistinct("label")).collect()[0][0])
         if classification and num_classes == 2:
@@ -401,6 +402,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         else:
             params["objective"] = "reg:squarederror"
 
+        # TODO: support "num_parallel_tree" for random forest
         params["num_boost_round"] = self.getOrDefault(self.n_estimators)
 
         if self.getOrDefault(self.use_gpu):
@@ -412,7 +414,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return params
 
     @classmethod
-    def _get_dist_booster_params(cls, train_params):
+    def _get_xgb_train_call_args(cls, train_params):
         non_booster_params = _get_default_params_from_func(xgboost.train, {})
         booster_params, kwargs_params = {}, {}
         for key, value in train_params.items():
@@ -456,7 +458,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin"))
 
         dataset = dataset.select(*select_cols)
-        fit_params = self._gen_fit_params_dict()
 
         num_workers = self.getOrDefault(self.num_workers)
         sc = _get_spark_session().sparkContext
@@ -472,7 +473,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
         if self._repartition_needed(dataset):
             dataset = dataset.repartition(num_workers)
-        train_params = self._get_distributed_train_params(dataset, fit_params)
+        train_params = self._get_distributed_train_params(dataset)
 
         def _train_booster(pandas_df_iter):
             """
@@ -483,7 +484,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
             context = BarrierTaskContext.get()
 
-            booster_params, kwargs_params = self._get_dist_booster_params(train_params)
+            booster_params, train_call_kwargs_params = \
+                self._get_xgb_train_call_args(train_params)
             context.barrier()
             _rabit_args = ""
             if context.partitionId() == 0:
@@ -510,7 +512,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                     dtrain=dtrain,
                     evals=dval,
                     evals_result=evals_result,
-                    **kwargs_params,
+                    **train_call_kwargs_params,
                 )
             context.barrier()
 
