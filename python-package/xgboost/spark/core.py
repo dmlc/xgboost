@@ -657,8 +657,6 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             # deserialize model from ser_model_string, avoid pickling model to remote worker
             X, _, _, _ = prepare_predict_data(iterator, False)
-            # Note: In every spark job task, pandas UDF will run in separate python process
-            # so it is safe here to call the thread-unsafe model.predict method
             if len(X) > 0:
                 preds = xgb_sklearn_model.predict(X, **predict_params)
                 yield pd.Series(preds)
