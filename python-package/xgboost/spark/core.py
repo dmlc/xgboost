@@ -84,6 +84,8 @@ _unsupported_xgb_params = [
     "gpu_id",  # we have "use_gpu" pyspark param instead.
     "enable_categorical",  # TODO: support this
     "use_label_encoder",
+    "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
+    "nthread",  # Ditto
 ]
 
 _unsupported_fit_params = {
@@ -93,6 +95,7 @@ _unsupported_fit_params = {
     "sample_weight_eval_set",
     "base_margin",  # Supported by spark param baseMarginCol
 }
+
 _unsupported_predict_params = {
     # for classification, we can use rawPrediction as margin
     "output_margin",
@@ -234,18 +237,6 @@ class _XgboostParams(
                 f"It cannot be less than 1 [Default is 1]"
             )
 
-        if self.getOrDefault(self.num_workers) > 1 and not self.getOrDefault(
-            self.use_gpu
-        ):
-            cpu_per_task = (
-                _get_spark_session().sparkContext.getConf().get("spark.task.cpus")
-            )
-            if cpu_per_task and int(cpu_per_task) > 1:
-                get_logger(self.__class__.__name__).warning(
-                    f"You configured {cpu_per_task} CPU cores for each spark task, but in "
-                    f"XGBoost training, every Spark task will only use one CPU core."
-                )
-
         if (
             self.getOrDefault(self.force_repartition)
             and self.getOrDefault(self.num_workers) == 1
@@ -317,6 +308,10 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             if self.hasParam(k):
                 self._set(**{str(k): v})
             else:
+                if k in _unsupported_xgb_params or \
+                        k in _unsupported_fit_params or \
+                        k in _unsupported_predict_params:
+                    raise ValueError(f"Unsupported param '{k}'.")
                 _extra_params[k] = v
         _existing_extra_params = self.getOrDefault(self.arbitraryParamsDict)
         self._set(arbitraryParamsDict={**_existing_extra_params, **_extra_params})
@@ -416,10 +411,10 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
     @classmethod
     def _get_xgb_train_call_args(cls, train_params):
-        non_booster_params = _get_default_params_from_func(xgboost.train, {})
+        xgb_train_default_args = _get_default_params_from_func(xgboost.train, {})
         booster_params, kwargs_params = {}, {}
         for key, value in train_params.items():
-            if key in non_booster_params:
+            if key in xgb_train_default_args:
                 kwargs_params[key] = value
             else:
                 booster_params[key] = value
@@ -475,6 +470,13 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         if self._repartition_needed(dataset):
             dataset = dataset.repartition(num_workers)
         train_params = self._get_distributed_train_params(dataset)
+        booster_params, train_call_kwargs_params = \
+            self._get_xgb_train_call_args(train_params)
+
+        cpu_per_task = int(
+            _get_spark_session().sparkContext.getConf().get("spark.task.cpus", "1")
+        )
+        booster_params['nthread'] = cpu_per_task
 
         def _train_booster(pandas_df_iter):
             """
@@ -484,9 +486,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             from pyspark import BarrierTaskContext
 
             context = BarrierTaskContext.get()
-
-            booster_params, train_call_kwargs_params = \
-                self._get_xgb_train_call_args(train_params)
             context.barrier()
             _rabit_args = ""
             if context.partitionId() == 0:
@@ -499,13 +498,15 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 dtrain, dval = None, []
                 if has_validation:
                     dtrain, dval = convert_partition_data_to_dmatrix(
-                        pandas_df_iter, has_weight, has_validation, has_base_margin
+                        pandas_df_iter, has_weight, has_validation, has_base_margin,
+                        cpu_per_task=cpu_per_task,
                     )
                     # TODO: Question: do we need to add dtrain to dval list ?
                     dval = [(dtrain, "training"), (dval, "validation")]
                 else:
                     dtrain = convert_partition_data_to_dmatrix(
-                        pandas_df_iter, has_weight, has_validation, has_base_margin
+                        pandas_df_iter, has_weight, has_validation, has_base_margin,
+                        cpu_per_task=cpu_per_task,
                     )
 
                 booster = worker_train(
