@@ -64,9 +64,11 @@ _pyspark_specific_params = [
     "use_gpu",
 ]
 
-_sklearn_estimator_specific_params = [
+_non_booster_params = [
     "missing",
     "n_estimators",
+    "feature_types",
+    "feature_names",
 ]
 
 _pyspark_param_alias_map = {
@@ -133,6 +135,16 @@ class _XgboostParams(
         + "Note: The auto repartitioning judgement is not fully accurate, so it is recommended"
         + "to have force_repartition be True.",
     )
+    feature_names = Param(
+        Params._dummy(),
+        "feature_names",
+        "A list of str to specify feature names."
+    )
+    feature_types = Param(
+        Params._dummy(),
+        "feature_names",
+        "A list of str to specify feature types."
+    )
 
     @classmethod
     def _xgb_cls(cls):
@@ -164,7 +176,7 @@ class _XgboostParams(
         xgb_params = {}
         non_xgb_params = (
             set(_pyspark_specific_params)
-            | set(_sklearn_estimator_specific_params)
+            | set(_non_booster_params)
             | self._get_fit_params_default().keys()
             | self._get_predict_params_default().keys()
         )
@@ -290,6 +302,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             num_workers=1,
             use_gpu=False,
             force_repartition=False,
+            feature_names=None,
+            feature_types=None,
             arbitraryParamsDict={}
         )
 
@@ -424,6 +438,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         self._validate_params()
         features_col = col(self.getOrDefault(self.featuresCol))
         label_col = col(self.getOrDefault(self.labelCol)).alias("label")
+
         features_array_col = vector_to_array(features_col, dtype="float32").alias(
             "values"
         )
@@ -476,6 +491,11 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         cpu_per_task = int(
             _get_spark_session().sparkContext.getConf().get("spark.task.cpus", "1")
         )
+        dmatrix_kwargs = {
+            "nthread": cpu_per_task,
+            "feature_types":  self.getOrDefault(self.feature_types),
+            "feature_names":  self.getOrDefault(self.feature_names),
+        }
         booster_params['nthread'] = cpu_per_task
 
         def _train_booster(pandas_df_iter):
@@ -499,14 +519,14 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 if has_validation:
                     dtrain, dval = convert_partition_data_to_dmatrix(
                         pandas_df_iter, has_weight, has_validation, has_base_margin,
-                        cpu_per_task=cpu_per_task,
+                        dmatrix_kwargs=dmatrix_kwargs,
                     )
                     # TODO: Question: do we need to add dtrain to dval list ?
                     dval = [(dtrain, "training"), (dval, "validation")]
                 else:
                     dtrain = convert_partition_data_to_dmatrix(
                         pandas_df_iter, has_weight, has_validation, has_base_margin,
-                        cpu_per_task=cpu_per_task,
+                        dmatrix_kwargs=dmatrix_kwargs,
                     )
 
                 booster = worker_train(

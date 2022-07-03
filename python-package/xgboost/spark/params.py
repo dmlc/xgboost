@@ -19,7 +19,7 @@ class HasArbitraryParamsDict(Params):
     def setArbitraryParamsDict(self, value):
         return self._set(arbitraryParamsDict=value)
 
-    def getArbitraryParamsDict(self, value):
+    def getArbitraryParamsDict(self):
         return self.getOrDefault(self.arbitraryParamsDict)
 
 
@@ -38,5 +38,5 @@ class HasBaseMarginCol(Params):
     def setBaseMarginCol(self, value):
         return self._set(baseMarginCol=value)
 
-    def getBaseMarginCol(self, value):
+    def getBaseMarginCol(self):
         return self.getOrDefault(self.baseMarginCol)
