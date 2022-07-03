@@ -22,7 +22,6 @@ import xgboost
 from xgboost.training import train as worker_train
 from .utils import get_logger, _get_max_num_concurrent_tasks
 from .data import (
-    prepare_predict_data,
     convert_partition_data_to_dmatrix,
 )
 from .model import (
@@ -105,7 +104,7 @@ _unsupported_predict_params = {
     # for classification, we can use rawPrediction as margin
     "output_margin",
     "validate_features",  # TODO
-    "base_margin",  # TODO
+    "base_margin",  # Use pyspark baseMarginCol param instead.
 }
 
 
@@ -653,39 +652,28 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         xgb_sklearn_model = self._xgb_sklearn_model
         predict_params = self._gen_predict_params_dict()
 
-        @pandas_udf("double")
-        def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
-            # deserialize model from ser_model_string, avoid pickling model to remote worker
-            X, _, _, _ = prepare_predict_data(iterator, False)
-            if len(X) > 0:
-                preds = xgb_sklearn_model.predict(X, **predict_params)
-                yield pd.Series(preds)
+        has_base_margin = False
+        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
+            has_base_margin = True
+            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
 
         @pandas_udf("double")
-        def predict_udf_base_margin(
-            iterator: Iterator[pd.DataFrame]
-        ) -> Iterator[pd.Series]:
-            # deserialize model from ser_model_string, avoid pickling model to remote worker
-            X, _, _, b_m = prepare_predict_data(iterator, True)
-            # Note: In every spark job task, pandas UDF will run in separate python process
-            # so it is safe here to call the thread-unsafe model.predict method
-            if len(X) > 0:
-                preds = xgb_sklearn_model.predict(X, base_margin=b_m, **predict_params)
-                yield pd.Series(preds)
+        def predict_udf(input_data: pd.DataFrame) -> pd.Series:
+            X = np.array(input_data["values"].tolist())
+            if has_base_margin:
+                base_margin = input_data["baseMargin"].to_numpy()
+            else:
+                base_margin = None
+
+            preds = xgb_sklearn_model.predict(X, base_margin=base_margin, **predict_params)
+            return pd.Series(preds)
 
         features_col = _validate_and_convert_feature_col_as_array_col(
             dataset, self.getOrDefault(self.featuresCol)
         )
 
-        has_base_margin = False
-        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
-            has_base_margin = True
-
         if has_base_margin:
-            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
-            pred_col = predict_udf_base_margin(
-                struct(features_col, base_margin_col)
-            )
+            pred_col = predict_udf(struct(features_col, base_margin_col))
         else:
             pred_col = predict_udf(struct(features_col))
 
@@ -711,91 +699,54 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         xgb_sklearn_model = self._xgb_sklearn_model
         predict_params = self._gen_predict_params_dict()
 
-        @pandas_udf(
-            "rawPrediction array<double>, prediction double, probability array<double>"
-        )
-        def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
-            # deserialize model from ser_model_string, avoid pickling model to remote worker
-            X, _, _, _ = prepare_predict_data(iterator, False)
-            # Note: In every spark job task, pandas UDF will run in separate python process
-            # so it is safe here to call the thread-unsafe model.predict method
-            if len(X) > 0:
-                margins = xgb_sklearn_model.predict(
-                    X, output_margin=True, **predict_params
-                )
-                if margins.ndim == 1:
-                    # binomial case
-                    classone_probs = expit(margins)
-                    classzero_probs = 1.0 - classone_probs
-                    raw_preds = np.vstack((-margins, margins)).transpose()
-                    class_probs = np.vstack(
-                        (classzero_probs, classone_probs)
-                    ).transpose()
-                else:
-                    # multinomial case
-                    raw_preds = margins
-                    class_probs = softmax(raw_preds, axis=1)
-
-                # It seems that they use argmax of class probs,
-                # not of margin to get the prediction (Note: scala implementation)
-                preds = np.argmax(class_probs, axis=1)
-                yield pd.DataFrame(
-                    data={
-                        "rawPrediction": pd.Series(raw_preds.tolist()),
-                        "prediction": pd.Series(preds),
-                        "probability": pd.Series(class_probs.tolist()),
-                    }
-                )
+        has_base_margin = False
+        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
+            has_base_margin = True
+            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
 
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"
         )
-        def predict_udf_base_margin(
-            iterator: Iterator[pd.DataFrame]
-        ) -> Iterator[pd.DataFrame]:
-            # deserialize model from ser_model_string, avoid pickling model to remote worker
-            X, _, _, b_m = prepare_predict_data(iterator, True)
-            # Note: In every spark job task, pandas UDF will run in separate python process
-            # so it is safe here to call the thread-unsafe model.predict method
-            if len(X) > 0:
-                margins = xgb_sklearn_model.predict(
-                    X, base_margin=b_m, output_margin=True, **predict_params
-                )
-                if margins.ndim == 1:
-                    # binomial case
-                    classone_probs = expit(margins)
-                    classzero_probs = 1.0 - classone_probs
-                    raw_preds = np.vstack((-margins, margins)).transpose()
-                    class_probs = np.vstack(
-                        (classzero_probs, classone_probs)
-                    ).transpose()
-                else:
-                    # multinomial case
-                    raw_preds = margins
-                    class_probs = softmax(raw_preds, axis=1)
+        def predict_udf(input_data: pd.DataFrame) -> pd.DataFrame:
+            X = np.array(input_data["values"].tolist())
+            if has_base_margin:
+                base_margin = input_data["baseMargin"].to_numpy()
+            else:
+                base_margin = None
 
-                # It seems that they use argmax of class probs,
-                # not of margin to get the prediction (Note: scala implementation)
-                preds = np.argmax(class_probs, axis=1)
-                yield pd.DataFrame(
-                    data={
-                        "rawPrediction": pd.Series(raw_preds.tolist()),
-                        "prediction": pd.Series(preds),
-                        "probability": pd.Series(class_probs.tolist()),
-                    }
-                )
+            margins = xgb_sklearn_model.predict(
+                X, base_margin=base_margin, output_margin=True, **predict_params
+            )
+            if margins.ndim == 1:
+                # binomial case
+                classone_probs = expit(margins)
+                classzero_probs = 1.0 - classone_probs
+                raw_preds = np.vstack((-margins, margins)).transpose()
+                class_probs = np.vstack(
+                    (classzero_probs, classone_probs)
+                ).transpose()
+            else:
+                # multinomial case
+                raw_preds = margins
+                class_probs = softmax(raw_preds, axis=1)
+
+            # It seems that they use argmax of class probs,
+            # not of margin to get the prediction (Note: scala implementation)
+            preds = np.argmax(class_probs, axis=1)
+            return pd.DataFrame(
+                data={
+                    "rawPrediction": pd.Series(raw_preds.tolist()),
+                    "prediction": pd.Series(preds),
+                    "probability": pd.Series(class_probs.tolist()),
+                }
+            )
 
         features_col = _validate_and_convert_feature_col_as_array_col(
             dataset, self.getOrDefault(self.featuresCol)
         )
 
-        has_base_margin = False
-        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
-            has_base_margin = True
-
         if has_base_margin:
-            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
-            pred_struct = predict_udf_base_margin(struct(features_col, base_margin_col))
+            pred_struct = predict_udf(struct(features_col, base_margin_col))
         else:
             pred_struct = predict_udf(struct(features_col))
 

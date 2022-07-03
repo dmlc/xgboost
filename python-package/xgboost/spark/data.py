@@ -22,17 +22,6 @@ def prepare_train_val_data(
     )
 
 
-def prepare_predict_data(data_iterator, has_predict_base_margin):
-    return _process_data_iter(
-        data_iterator,
-        train=False,
-        has_weight=False,
-        has_validation=False,
-        has_fit_base_margin=False,
-        has_predict_base_margin=has_predict_base_margin,
-    )
-
-
 def _check_feature_dims(num_dims, expected_dims):
     """
     Check all feature vectors has the same dimension
