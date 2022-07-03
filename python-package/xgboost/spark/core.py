@@ -448,9 +448,6 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
         if self.getOrDefault(self.use_gpu):
             params["tree_method"] = "gpu_hist"
-            # TODO: fix this. This only works on databricks runtime.
-            #  On open-source spark, we need get the gpu id from the task allocated gpu resources.
-            params["gpu_id"] = 0
 
         return params
 
@@ -527,6 +524,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             "feature_names":  self.getOrDefault(self.feature_names),
         }
         booster_params['nthread'] = cpu_per_task
+        use_gpu = self.getOrDefault(self.use_gpu)
 
         def _train_booster(pandas_df_iter):
             """
@@ -537,6 +535,11 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
             context = BarrierTaskContext.get()
             context.barrier()
+
+            if use_gpu:
+                # Set booster worker to use the first GPU allocated to the spark task.
+                booster_params["gpu_id"] = int(context._resources["gpu"].addresses[0].strip())
+
             _rabit_args = ""
             if context.partitionId() == 0:
                 _rabit_args = str(_get_rabit_args(context, num_workers))
