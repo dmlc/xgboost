@@ -83,22 +83,22 @@ def _row_tuple_list_to_feature_matrix_y_w(
             num_feature_dims, expected_feature_dims
         )
 
-        # TODO: Improve performance, avoid use python list
+        # Note: each element in `pdf["values"]` is an numpy array.
         values_list.append(pdf["values"].to_list())
         if train:
-            label_list.append(pdf["label"].to_list())
+            label_list.append(pdf["label"].to_numpy())
         if has_weight:
-            weight_list.append(pdf["weight"].to_list())
+            weight_list.append(pdf["weight"].to_numpy())
         if has_fit_base_margin or has_predict_base_margin:
-            base_margin_list.append(pdf["baseMargin"].to_list())
+            base_margin_list.append(pdf["baseMargin"].to_numpy())
         if has_validation:
             values_val_list.append(pdf_val["values"].to_list())
             if train:
-                label_val_list.append(pdf_val["label"].to_list())
+                label_val_list.append(pdf_val["label"].to_numpy())
             if has_weight:
-                weight_val_list.append(pdf_val["weight"].to_list())
+                weight_val_list.append(pdf_val["weight"].to_numpy())
             if has_fit_base_margin or has_predict_base_margin:
-                base_margin_val_list.append(pdf_val["baseMargin"].to_list())
+                base_margin_val_list.append(pdf_val["baseMargin"].to_numpy())
 
     # Construct feature_matrix
     if expected_feature_dims is None:
