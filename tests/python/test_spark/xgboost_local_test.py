@@ -3,7 +3,8 @@ import random
 import uuid
 
 import numpy as np
-import unittest
+from pyspark.ml.functions import vector_to_array
+from pyspark.sql import functions as spark_sql_func
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import (
     BinaryClassificationEvaluator,
@@ -904,3 +905,35 @@ class XgboostLocalTest(SparkTestCase):
             model.get_feature_importances(importance_type="gain"),
             booster.get_score(importance_type="gain"),
         )
+
+    def test_regressor_array_col_as_feature(self):
+        train_dataset = self.reg_df_train.withColumn(
+            "features", vector_to_array(spark_sql_func.col("features"))
+        )
+        test_dataset = self.reg_df_test.withColumn(
+            "features", vector_to_array(spark_sql_func.col("features"))
+        )
+        regressor = SparkXGBRegressor()
+        model = regressor.fit(train_dataset)
+        pred_result = model.transform(test_dataset).collect()
+        for row in pred_result:
+            self.assertTrue(
+                np.isclose(row.prediction, row.expected_prediction, atol=1e-3)
+            )
+
+    def test_classifier_array_col_as_feature(self):
+        train_dataset = self.cls_df_train.withColumn(
+            "features", vector_to_array(spark_sql_func.col("features"))
+        )
+        test_dataset = self.cls_df_test.withColumn(
+            "features", vector_to_array(spark_sql_func.col("features"))
+        )
+        classifier = SparkXGBClassifier()
+        model = classifier.fit(train_dataset)
+
+        pred_result = model.transform(test_dataset).collect()
+        for row in pred_result:
+            self.assertEqual(row.prediction, row.expected_prediction)
+            self.assertTrue(
+                np.allclose(row.probability, row.expected_probability, rtol=1e-3)
+            )

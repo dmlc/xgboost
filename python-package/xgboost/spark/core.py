@@ -46,6 +46,9 @@ from .params import (
 )
 
 from pyspark.ml.functions import array_to_vector, vector_to_array
+from pyspark.sql.types import \
+    ArrayType, DoubleType, FloatType, IntegerType, LongType, ShortType
+from pyspark.ml.linalg import VectorUDT
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
 # like `validationIndicatorCol`, `baseMarginCol`
@@ -62,13 +65,13 @@ _pyspark_specific_params = [
     "force_repartition",
     "num_workers",
     "use_gpu",
+    "feature_types",
+    "feature_names",
 ]
 
 _non_booster_params = [
     "missing",
     "n_estimators",
-    "feature_types",
-    "feature_names",
 ]
 
 _pyspark_param_alias_map = {
@@ -289,6 +292,32 @@ class _XgboostParams(
                 )
 
 
+def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
+    features_col_datatype = dataset.schema[features_col_name].dataType
+    features_col = col(features_col_name)
+    if isinstance(features_col_datatype, ArrayType):
+        if not isinstance(
+            features_col_datatype.elementType,
+            (DoubleType, FloatType, LongType, IntegerType, ShortType)
+        ):
+            raise ValueError(
+                "If feature column is array type, its elements must be number type."
+            )
+        features_array_col = features_col.cast(ArrayType(FloatType())).alias("values")
+    elif isinstance(features_col_datatype, VectorUDT):
+        features_array_col = vector_to_array(features_col, dtype="float32").alias(
+            "values"
+        )
+    else:
+        raise ValueError(
+            "feature column must be array type or `pyspark.ml.linalg.Vector` type, "
+            "if you want to use multiple numetric columns as features, please use "
+            "`pyspark.ml.transform.VectorAssembler` to assemble them into a vector "
+            "type column first."
+        )
+    return features_array_col
+
+
 class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
     def __init__(self):
         super().__init__()
@@ -438,11 +467,10 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
     def _fit(self, dataset):
         self._validate_params()
-        features_col = col(self.getOrDefault(self.featuresCol))
         label_col = col(self.getOrDefault(self.labelCol)).alias("label")
 
-        features_array_col = vector_to_array(features_col, dtype="float32").alias(
-            "values"
+        features_array_col = _validate_and_convert_feature_col_as_array_col(
+            dataset, self.getOrDefault(self.featuresCol)
         )
         select_cols = [features_array_col, label_col]
 
@@ -644,9 +672,9 @@ class SparkXGBRegressorModel(_SparkXGBModel):
                 preds = xgb_sklearn_model.predict(X, base_margin=b_m, **predict_params)
                 yield pd.Series(preds)
 
-        features_col = vector_to_array(
-            col(self.getOrDefault(self.featuresCol)), dtype="float32"
-        ).alias("values")
+        features_col = _validate_and_convert_feature_col_as_array_col(
+            dataset, self.getOrDefault(self.featuresCol)
+        )
 
         has_base_margin = False
         if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
@@ -756,9 +784,9 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                     }
                 )
 
-        features_col = vector_to_array(
-            col(self.getOrDefault(self.featuresCol)), dtype="float32"
-        ).alias("values")
+        features_col = _validate_and_convert_feature_col_as_array_col(
+            dataset, self.getOrDefault(self.featuresCol)
+        )
 
         has_base_margin = False
         if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
