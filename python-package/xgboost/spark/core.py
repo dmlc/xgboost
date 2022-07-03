@@ -361,13 +361,21 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         else:
             return None  # check if this else statement is needed.
 
-    def _query_plan_contains_valid_repartition(self, query_plan):
+    def _query_plan_contains_valid_repartition(self, dataset):
         """
         Returns true if the latest element in the logical plan is a valid repartition
         """
+        num_partitions = dataset.rdd.getNumPartitions()
+        query_plan = dataset._sc._jvm.PythonSQLUtils.explainString(
+            dataset._jdf.queryExecution(), "extended"
+        )
         start = query_plan.index("== Optimized Logical Plan ==")
         start += len("== Optimized Logical Plan ==") + 1
-        if query_plan[start: start + len("Repartition")] == "Repartition":
+        num_workers = self.getOrDefault(self.num_workers)
+        if (
+            query_plan[start : start + len("Repartition")] == "Repartition"
+            and num_workers == num_partitions
+        ):
             return True
         return False
 
@@ -379,14 +387,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         """
         if self.getOrDefault(self.force_repartition):
             return True
-        num_partitions = dataset.rdd.getNumPartitions()
-        if self.getOrDefault(self.num_workers) != num_partitions:
-            return True
         try:
-            query_plan = dataset._sc._jvm.PythonSQLUtils.explainString(
-                dataset._jdf.queryExecution(), "extended"
-            )
-            if self._query_plan_contains_valid_repartition(query_plan, num_partitions):
+            if self._query_plan_contains_valid_repartition(dataset):
                 return False
         except:  # noqa: E722
             pass
