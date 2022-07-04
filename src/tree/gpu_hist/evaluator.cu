@@ -69,8 +69,8 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
 }
 
 template <typename GradientSumT>
-common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
-     EvaluateSplitSharedInputs shared_inputs,
+common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
+    common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
@@ -78,7 +78,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
-                    auto total_bins = shared_inputs.feature_values.size();
+  auto total_bins = shared_inputs.feature_values.size();
   thrust::transform(thrust::cuda::par(alloc), it, it + data.size(), dh::tbegin(data),
                     [=] XGBOOST_DEVICE(uint32_t i) {
                       auto const &input = d_inputs[i / total_bins];
