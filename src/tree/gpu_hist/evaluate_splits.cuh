@@ -43,11 +43,11 @@ struct EvaluateSplitSharedInputs {
 // Used to return internal storage regions for categoricals
 // Usable on device
 struct CatAccessor {
-  common::Span<common::CatBitField::value_type> cat_storage_;
-  std::size_t node_categorical_storage_size_;
+  common::Span<common::CatBitField::value_type> cat_storage;
+  std::size_t node_categorical_storage_size;
   XGBOOST_DEVICE common::Span<common::CatBitField::value_type> GetNodeCatStorage(bst_node_t nidx) {
-    return this->cat_storage_.subspan(nidx * this->node_categorical_storage_size_,
-                                      this->node_categorical_storage_size_);
+    return this->cat_storage.subspan(nidx * this->node_categorical_storage_size,
+                                     this->node_categorical_storage_size);
   }
 };
 
