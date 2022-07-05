@@ -235,7 +235,7 @@ class XgboostModelReader(MLReader):
         """
         Load metadata and model for a :py:class:`_XgboostModel`
 
-        :return: XgboostRegressorModel or XgboostClassifierModel instance
+        :return: SparkXGBRegressorModel or SparkXGBClassifierModel instance
         """
         _, py_model = XgboostSharedReadWrite.loadMetadataAndInstance(
             self.cls, path, self.sc, self.logger

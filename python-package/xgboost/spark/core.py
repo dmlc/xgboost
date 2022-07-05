@@ -656,7 +656,7 @@ class _SparkXGBModel(Model, _XgboostParams, MLReadable, MLWritable):
 
 class SparkXGBRegressorModel(_SparkXGBModel):
     """
-    The model returned by :func:`xgboost.spark.XgboostRegressor.fit`
+    The model returned by :func:`xgboost.spark.SparkXGBRegressor.fit`
 
     .. Note:: This API is experimental.
     """
@@ -706,7 +706,7 @@ class SparkXGBRegressorModel(_SparkXGBModel):
 
 class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictionCol):
     """
-    The model returned by :func:`xgboost.spark.XgboostClassifier.fit`
+    The model returned by :func:`xgboost.spark.SparkXGBClassifier.fit`
 
     .. Note:: This API is experimental.
     """
