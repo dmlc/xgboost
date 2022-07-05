@@ -50,7 +50,7 @@ from pyspark.sql.types import \
 from pyspark.ml.linalg import VectorUDT
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
-# like `validationIndicatorCol`, `baseMarginCol`
+# like `validationIndicatorCol`, `base_margin_col`
 _pyspark_specific_params = [
     "featuresCol",
     "labelCol",
@@ -59,8 +59,8 @@ _pyspark_specific_params = [
     "predictionCol",
     "probabilityCol",
     "validationIndicatorCol",
-    "baseMarginCol",
-    "arbitraryParamsDict",
+    "base_margin_col",
+    "arbitrary_params_dict",
     "force_repartition",
     "num_workers",
     "use_gpu",
@@ -81,7 +81,6 @@ _pyspark_param_alias_map = {
     "prediction_col": "predictionCol",
     "probability_col": "probabilityCol",
     "validation_indicator_col": "validationIndicatorCol",
-    "base_margin_col": "baseMarginCol",
 }
 
 _inverse_pyspark_param_alias_map = {
@@ -101,14 +100,14 @@ _unsupported_fit_params = {
     # Supported by spark param weightCol # and validationIndicatorCol
     "eval_set",
     "sample_weight_eval_set",
-    "base_margin",  # Supported by spark param baseMarginCol
+    "base_margin",  # Supported by spark param base_margin_col
 }
 
 _unsupported_predict_params = {
     # for classification, we can use rawPrediction as margin
     "output_margin",
     "validate_features",  # TODO
-    "base_margin",  # Use pyspark baseMarginCol param instead.
+    "base_margin",  # Use pyspark base_margin_col param instead.
 }
 
 
@@ -191,8 +190,8 @@ class _XgboostParams(
             if param.name not in non_xgb_params:
                 xgb_params[param.name] = self.getOrDefault(param)
 
-        arbitraryParamsDict = self.getOrDefault(self.getParam("arbitraryParamsDict"))
-        xgb_params.update(arbitraryParamsDict)
+        arbitrary_params_dict = self.getOrDefault(self.getParam("arbitrary_params_dict"))
+        xgb_params.update(arbitrary_params_dict)
         return xgb_params
 
     # Parameters for xgboost.XGBModel().fit()
@@ -328,8 +327,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         self._set_xgb_params_default()
         self._set_fit_params_default()
         self._set_predict_params_default()
-        # Note: The default value for arbitraryParamsDict must always be empty dict.
-        #  For additional settings added into "arbitraryParamsDict" by default,
+        # Note: The default value for arbitrary_params_dict must always be empty dict.
+        #  For additional settings added into "arbitrary_params_dict" by default,
         #  they are added in `setParams`.
         self._setDefault(
             num_workers=1,
@@ -337,13 +336,13 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             force_repartition=False,
             feature_names=None,
             feature_types=None,
-            arbitraryParamsDict={}
+            arbitrary_params_dict={}
         )
 
     def setParams(self, **kwargs):
         _extra_params = {}
-        if 'arbitraryParamsDict' in kwargs or 'arbitrary_params_dict' in kwargs:
-            raise ValueError("Wrong param name: 'arbitraryParamsDict'.")
+        if 'arbitrary_params_dict' in kwargs:
+            raise ValueError("Invalid param name: 'arbitrary_params_dict'.")
 
         for k, v in kwargs.items():
             if k in _inverse_pyspark_param_alias_map:
@@ -364,8 +363,8 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                         k in _unsupported_predict_params:
                     raise ValueError(f"Unsupported param '{k}'.")
                 _extra_params[k] = v
-        _existing_extra_params = self.getOrDefault(self.arbitraryParamsDict)
-        self._set(arbitraryParamsDict={**_existing_extra_params, **_extra_params})
+        _existing_extra_params = self.getOrDefault(self.arbitrary_params_dict)
+        self._set(arbitrary_params_dict={**_existing_extra_params, **_extra_params})
 
     @classmethod
     def _pyspark_model_cls(cls):
@@ -497,11 +496,11 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 )
             )
 
-        if self.isDefined(self.baseMarginCol) and self.getOrDefault(
-                self.baseMarginCol):
+        if self.isDefined(self.base_margin_col) and self.getOrDefault(
+                self.base_margin_col):
             has_base_margin = True
             select_cols.append(
-                col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin"))
+                col(self.getOrDefault(self.base_margin_col)).alias("baseMargin"))
 
         dataset = dataset.select(*select_cols)
 
@@ -662,9 +661,9 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         predict_params = self._gen_predict_params_dict()
 
         has_base_margin = False
-        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
+        if self.isDefined(self.base_margin_col) and self.getOrDefault(self.base_margin_col):
             has_base_margin = True
-            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
+            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias("baseMargin")
 
         @pandas_udf("double")
         def predict_udf(input_data: pd.DataFrame) -> pd.Series:
@@ -712,9 +711,9 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         predict_params = self._gen_predict_params_dict()
 
         has_base_margin = False
-        if self.isDefined(self.baseMarginCol) and self.getOrDefault(self.baseMarginCol):
+        if self.isDefined(self.base_margin_col) and self.getOrDefault(self.base_margin_col):
             has_base_margin = True
-            base_margin_col = col(self.getOrDefault(self.baseMarginCol)).alias("baseMargin")
+            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias("baseMargin")
 
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"

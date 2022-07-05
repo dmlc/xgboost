@@ -196,7 +196,7 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "isVal", "weight"],
         )
         self.reg_params_with_eval = {
-            "validationIndicatorCol": "isVal",
+            "validation_indicator_col": "isVal",
             "early_stopping_rounds": 1,
             "eval_metric": "rmse",
         }
@@ -256,7 +256,7 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "isVal", "weight"],
         )
         self.cls_params_with_eval = {
-            "validationIndicatorCol": "isVal",
+            "validation_indicator_col": "isVal",
             "early_stopping_rounds": 1,
             "eval_metric": "logloss",
         }
@@ -408,15 +408,15 @@ class XgboostLocalTest(SparkTestCase):
         self.assertTrue(hasattr(py_cls, "n_estimators"))
         self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
         self.assertFalse(hasattr(py_cls, "gpu_id"))
-        self.assertTrue(hasattr(py_cls, "arbitraryParamsDict"))
+        self.assertTrue(hasattr(py_cls, "arbitrary_params_dict"))
         expected_kwargs = {"sketch_eps": 0.03}
         self.assertEqual(
-            py_cls.getOrDefault(py_cls.arbitraryParamsDict), expected_kwargs
+            py_cls.getOrDefault(py_cls.arbitrary_params_dict), expected_kwargs
         )
         self.assertTrue("sketch_eps" in py_cls._get_xgb_model_creator()().get_params())
         # We want all of the new params to be in the .get_params() call and be an attribute of py_cls, but not of the actual model
         self.assertTrue(
-            "arbitraryParamsDict" not in py_cls._get_xgb_model_creator()().get_params()
+            "arbitrary_params_dict" not in py_cls._get_xgb_model_creator()().get_params()
         )
 
         # Testing overwritten params
@@ -440,7 +440,6 @@ class XgboostLocalTest(SparkTestCase):
     def test_gpu_param_setting(self):
         py_cls = SparkXGBClassifier(use_gpu=True)
         train_params = py_cls._get_distributed_train_params(self.cls_df_train)
-        assert train_params["gpu_id"] == 0
         assert train_params["tree_method"] == "gpu_hist"
 
     @staticmethod
@@ -449,7 +448,7 @@ class XgboostLocalTest(SparkTestCase):
         # don't check by isintance(v, float) because for numpy scalar it will also return True
         assert py_cls.getOrDefault(py_cls.missing).__class__.__name__ == "float"
         assert (
-            py_cls.getOrDefault(py_cls.arbitraryParamsDict)[
+            py_cls.getOrDefault(py_cls.arbitrary_params_dict)[
                 "sketch_eps"
             ].__class__.__name__
             == "float64"
@@ -697,7 +696,7 @@ class XgboostLocalTest(SparkTestCase):
             self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
     def test_classifier_with_base_margin(self):
-        cls_without_base_margin = SparkXGBClassifier(weightCol="weight")
+        cls_without_base_margin = SparkXGBClassifier(weight_col="weight")
         model_without_base_margin = cls_without_base_margin.fit(
             self.cls_df_train_without_base_margin
         )
@@ -717,7 +716,7 @@ class XgboostLocalTest(SparkTestCase):
             )
 
         cls_with_same_base_margin = SparkXGBClassifier(
-            weightCol="weight", baseMarginCol="base_margin"
+            weight_col="weight", base_margin_col="base_margin"
         )
         model_with_same_base_margin = cls_with_same_base_margin.fit(
             self.cls_df_train_with_same_base_margin
@@ -734,7 +733,7 @@ class XgboostLocalTest(SparkTestCase):
             np.testing.assert_allclose(row.probability, row.expected_prob_with_base_margin, atol=1e-3)
 
         cls_with_different_base_margin = SparkXGBClassifier(
-            weightCol="weight", baseMarginCol="base_margin"
+            weight_col="weight", base_margin_col="base_margin"
         )
         model_with_different_base_margin = cls_with_different_base_margin.fit(
             self.cls_df_train_with_different_base_margin
@@ -754,7 +753,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_regressor_with_weight_eval(self):
         # with weight
-        regressor_with_weight = SparkXGBRegressor(weightCol="weight")
+        regressor_with_weight = SparkXGBRegressor(weight_col="weight")
         model_with_weight = regressor_with_weight.fit(
             self.reg_df_train_with_eval_weight
         )
@@ -792,7 +791,7 @@ class XgboostLocalTest(SparkTestCase):
             )
         # with weight and eval
         regressor_with_weight_eval = SparkXGBRegressor(
-            weightCol="weight", **self.reg_params_with_eval
+            weight_col="weight", **self.reg_params_with_eval
         )
         model_with_weight_eval = regressor_with_weight_eval.fit(
             self.reg_df_train_with_eval_weight
@@ -818,7 +817,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_classifier_with_weight_eval(self):
         # with weight
-        classifier_with_weight = SparkXGBClassifier(weightCol="weight")
+        classifier_with_weight = SparkXGBClassifier(weight_col="weight")
         model_with_weight = classifier_with_weight.fit(
             self.cls_df_train_with_eval_weight
         )
@@ -850,7 +849,7 @@ class XgboostLocalTest(SparkTestCase):
         # Added scale_pos_weight because in 1.4.2, the original answer returns 0.5 which
         # doesn't really indicate this working correctly.
         classifier_with_weight_eval = SparkXGBClassifier(
-            weightCol="weight", scale_pos_weight=4, **self.cls_params_with_eval
+            weight_col="weight", scale_pos_weight=4, **self.cls_params_with_eval
         )
         model_with_weight_eval = classifier_with_weight_eval.fit(
             self.cls_df_train_with_eval_weight

@@ -23,7 +23,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     see doc below for more details.
 
     XgboostRegressor doesn't support setting `base_margin` explicitly as well, but support
-    another param called `baseMarginCol`. see doc below for more details.
+    another param called `base_margin_col`. see doc below for more details.
 
     XgboostRegressor doesn't support `validate_features` and `output_margin` param.
 
@@ -54,9 +54,9 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     use_gpu:
         Boolean that specifies whether the executors are running on GPU
         instances.
-    baseMarginCol:
+    base_margin_col:
         To specify the base margins of the training and validation
-        dataset, set :py:attr:`xgboost.spark.XgboostRegressor.baseMarginCol` parameter
+        dataset, set :py:attr:`xgboost.spark.XgboostRegressor.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
         `xgboost.XGBRegressor` fit method. Note: this isn't available for distributed
         training.
@@ -119,7 +119,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     see doc below for more details.
 
     XgboostClassifier doesn't support setting `base_margin` explicitly as well, but support
-    another param called `baseMarginCol`. see doc below for more details.
+    another param called `base_margin_col`. see doc below for more details.
 
     XgboostClassifier doesn't support setting `output_margin`, but we can get output margin
     from the raw prediction column. See `rawPredictionCol` param doc below for more details.
@@ -159,9 +159,9 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     use_gpu:
         Boolean that specifies whether the executors are running on GPU
         instances.
-    baseMarginCol:
+    base_margin_col:
         To specify the base margins of the training and validation
-        dataset, set :py:attr:`xgboost.spark.XgboostClassifier.baseMarginCol` parameter
+        dataset, set :py:attr:`xgboost.spark.XgboostClassifier.base_margin_col` parameter
         instead of setting `base_margin` and `base_margin_eval_set` in the
         `xgboost.XGBClassifier` fit method. Note: this isn't available for distributed
         training.
