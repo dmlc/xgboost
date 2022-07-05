@@ -25,9 +25,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     SparkXGBRegressor doesn't support setting `base_margin` explicitly as well, but support
     another param called `base_margin_col`. see doc below for more details.
 
-    SparkXGBRegressor doesn't support following params:
-      `gpu_id`, `enable_categorical`, `use_label_encoder`, `n_jobs`, `nthread`,
-      `validate_features`, `output_margin`, `base_margin` param.
+    SparkXGBRegressor doesn't support `validate_features` and `output_margin` param.
 
     callbacks:
         The export and import of the callback functions are at best effort.
