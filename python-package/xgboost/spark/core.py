@@ -84,6 +84,10 @@ _pyspark_param_alias_map = {
     "base_margin_col": "baseMarginCol",
 }
 
+_inverse_pyspark_param_alias_map = {
+    v: k for k, v in _pyspark_param_alias_map.items()
+}
+
 _unsupported_xgb_params = [
     "gpu_id",  # we have "use_gpu" pyspark param instead.
     "enable_categorical",  # Use feature_types param to specify categorical feature instead
@@ -338,10 +342,14 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
     def setParams(self, **kwargs):
         _extra_params = {}
-        if 'arbitraryParamsDict' in kwargs:
+        if 'arbitraryParamsDict' in kwargs or 'arbitrary_params_dict' in kwargs:
             raise ValueError("Wrong param name: 'arbitraryParamsDict'.")
 
         for k, v in kwargs.items():
+            if k in _inverse_pyspark_param_alias_map:
+                raise ValueError(
+                    f"Please use param name {_inverse_pyspark_param_alias_map[k]} instead."
+                )
             if k in _pyspark_param_alias_map:
                 real_k = _pyspark_param_alias_map[k]
                 if real_k in kwargs:

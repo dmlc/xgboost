@@ -3,6 +3,7 @@ import random
 import uuid
 
 import numpy as np
+import pytest
 from pyspark.ml.functions import vector_to_array
 from pyspark.sql import functions as spark_sql_func
 from pyspark.ml import Pipeline, PipelineModel
@@ -430,9 +431,11 @@ class XgboostLocalTest(SparkTestCase):
         self.assertEqual(py_cls._get_xgb_model_creator()().get_params()["z"], 2)
 
     def test_param_alias(self):
-        py_cls = SparkXGBClassifier(featuresCol="f1", label_col="l1")
+        py_cls = SparkXGBClassifier(features_col="f1", label_col="l1")
         self.assertEqual(py_cls.getOrDefault(py_cls.featuresCol), "f1")
         self.assertEqual(py_cls.getOrDefault(py_cls.labelCol), "l1")
+        with pytest.raises(ValueError, match="Please use param name features_col instead"):
+            SparkXGBClassifier(featuresCol="f1")
 
     def test_gpu_param_setting(self):
         py_cls = SparkXGBClassifier(use_gpu=True)
