@@ -285,13 +285,15 @@ class TestDistributedGPU:
                                      'booster']
             assert hasattr(booster, 'best_score')
             dump = booster.get_dump(dump_format='json')
+            print(booster.best_iteration)
             assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
             valid_X = X
             valid_y = y
             cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
-                                         tree_method='gpu_hist',
-                                         n_estimators=100)
+                                         tree_method='gpu_hist', 
+                                         eval_metric='error',
+                                                                                  n_estimators=100)
             cls.client = client
             cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
                     eval_set=[(valid_X, valid_y)])
