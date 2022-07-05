@@ -64,7 +64,6 @@ _pyspark_specific_params = [
     "force_repartition",
     "num_workers",
     "use_gpu",
-    "feature_types",
     "feature_names",
 ]
 
@@ -144,11 +143,6 @@ class _XgboostParams(
         Params._dummy(),
         "feature_names",
         "A list of str to specify feature names."
-    )
-    feature_types = Param(
-        Params._dummy(),
-        "feature_types",
-        "A list of str to specify feature types."
     )
 
     @classmethod
