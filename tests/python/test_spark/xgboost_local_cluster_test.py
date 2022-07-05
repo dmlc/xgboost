@@ -174,7 +174,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             ],
         )
         self.clf_best_score_eval = 0.009677
-        self.clf_best_score_weight_and_eval = 0.006628
+        self.clf_best_score_weight_and_eval = 0.006626
 
         self.reg_params_with_eval_dist = {
             "validationIndicatorCol": "isVal",
@@ -209,8 +209,8 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                 "expected_prediction_with_weight_and_eval",
             ],
         )
-        self.reg_best_score_eval = 5.2e-05
-        self.reg_best_score_weight_and_eval = 4.9e-05
+        self.reg_best_score_eval = 5.239e-05
+        self.reg_best_score_weight_and_eval = 4.810e-05
 
     def test_regressor_basic_with_params(self):
         regressor = SparkXGBRegressor(**self.reg_params)
@@ -332,9 +332,10 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             self.assertTrue(
                 np.allclose(row.probability, row.expected_prob_with_eval, atol=1e-3)
             )
-        self.assertEqual(
+        assert np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.clf_best_score_eval,
+            rtol=1e-3
         )
 
         # with both weight and eval
@@ -354,9 +355,10 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                     row.probability, row.expected_prob_with_weight_and_eval, atol=1e-3
                 )
             )
-        self.assertEqual(
+        np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.clf_best_score_weight_and_eval,
+            rtol=1e-3
         )
 
     def test_regressor_distributed_weight_eval(self):
@@ -390,9 +392,10 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             self.assertTrue(
                 np.isclose(row.prediction, row.expected_prediction_with_eval, atol=1e-3)
             )
-        self.assertEqual(
+        assert np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.reg_best_score_eval,
+            rtol=1e-3
         )
         # with both weight and eval
         regressor = SparkXGBRegressor(
@@ -414,9 +417,10 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
                     atol=1e-3,
                 )
             )
-        self.assertEqual(
+        assert np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.reg_best_score_weight_and_eval,
+            rtol=1e-3
         )
 
     def test_num_estimators(self):

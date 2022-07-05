@@ -157,7 +157,7 @@ class _XgboostParams(
         raise NotImplementedError()
 
     def _get_xgb_model_creator(self):
-        xgb_params = self._gen_xgb_params_dict()
+        xgb_params = self._gen_xgb_params_dict(gen_xgb_sklearn_estimator_param=True)
         return get_xgb_model_creator(self._xgb_cls(), xgb_params)
 
     # Parameters for xgboost.XGBModel()
@@ -174,14 +174,15 @@ class _XgboostParams(
         filtered_params_dict = self._get_xgb_params_default()
         self._setDefault(**filtered_params_dict)
 
-    def _gen_xgb_params_dict(self):
+    def _gen_xgb_params_dict(self, gen_xgb_sklearn_estimator_param=False):
         xgb_params = {}
         non_xgb_params = (
             set(_pyspark_specific_params)
-            | set(_non_booster_params)
             | self._get_fit_params_default().keys()
             | self._get_predict_params_default().keys()
         )
+        if not gen_xgb_sklearn_estimator_param:
+            non_xgb_params |= set(_non_booster_params)
         for param in self.extractParamMap():
             if param.name not in non_xgb_params:
                 xgb_params[param.name] = self.getOrDefault(param)
@@ -666,7 +667,7 @@ class SparkXGBRegressorModel(_SparkXGBModel):
                 base_margin = None
 
             preds = xgb_sklearn_model.predict(
-                X, base_margin=base_margin, validate_features=False
+                X, base_margin=base_margin, validate_features=False,
                 **predict_params
             )
             return pd.Series(preds)
@@ -718,7 +719,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                 base_margin = None
 
             margins = xgb_sklearn_model.predict(
-                X, base_margin=base_margin, output_margin=True, validate_features=False
+                X, base_margin=base_margin, output_margin=True, validate_features=False,
                 **predict_params
             )
             if margins.ndim == 1:

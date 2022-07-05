@@ -21,6 +21,7 @@ from xgboost.spark import (
 )
 from .utils_test import SparkTestCase
 from xgboost import XGBClassifier, XGBRegressor
+from xgboost.spark.core import _non_booster_params
 
 logging.getLogger("py4j").setLevel(logging.INFO)
 
@@ -479,10 +480,11 @@ class XgboostLocalTest(SparkTestCase):
                 np.allclose(row.probability, row.expected_probability, rtol=1e-3)
             )
 
-    def _check_sub_dict_match(self, sub_dist, whole_dict):
+    def _check_sub_dict_match(self, sub_dist, whole_dict, excluding_keys):
         for k in sub_dist:
-            self.assertTrue(k in whole_dict)
-            self.assertEqual(sub_dist[k], whole_dict[k])
+            if k not in excluding_keys:
+                self.assertTrue(k in whole_dict, f"check on {k} failed")
+                self.assertEqual(sub_dist[k], whole_dict[k], f"check on {k} failed")
 
     def test_regressor_with_params(self):
         regressor = SparkXGBRegressor(**self.reg_params)
@@ -491,7 +493,9 @@ class XgboostLocalTest(SparkTestCase):
             **(regressor._gen_fit_params_dict()),
             **(regressor._gen_predict_params_dict()),
         )
-        self._check_sub_dict_match(self.reg_params, all_params)
+        self._check_sub_dict_match(
+            self.reg_params, all_params, excluding_keys=_non_booster_params
+        )
 
         model = regressor.fit(self.reg_df_train)
         all_params = dict(
@@ -499,7 +503,9 @@ class XgboostLocalTest(SparkTestCase):
             **(model._gen_fit_params_dict()),
             **(model._gen_predict_params_dict()),
         )
-        self._check_sub_dict_match(self.reg_params, all_params)
+        self._check_sub_dict_match(
+            self.reg_params, all_params, excluding_keys=_non_booster_params
+        )
         pred_result = model.transform(self.reg_df_test).collect()
         for row in pred_result:
             self.assertTrue(
@@ -515,7 +521,9 @@ class XgboostLocalTest(SparkTestCase):
             **(classifier._gen_fit_params_dict()),
             **(classifier._gen_predict_params_dict()),
         )
-        self._check_sub_dict_match(self.cls_params, all_params)
+        self._check_sub_dict_match(
+            self.cls_params, all_params, excluding_keys=_non_booster_params
+        )
 
         model = classifier.fit(self.cls_df_train)
         all_params = dict(
@@ -523,7 +531,9 @@ class XgboostLocalTest(SparkTestCase):
             **(model._gen_fit_params_dict()),
             **(model._gen_predict_params_dict()),
         )
-        self._check_sub_dict_match(self.cls_params, all_params)
+        self._check_sub_dict_match(
+            self.cls_params, all_params, excluding_keys=_non_booster_params
+        )
         pred_result = model.transform(self.cls_df_test).collect()
         for row in pred_result:
             self.assertEqual(row.prediction, row.expected_prediction_with_params)
