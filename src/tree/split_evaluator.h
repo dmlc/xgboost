@@ -66,21 +66,21 @@ class TreeEvaluator {
 
   template <typename ParamT>
   struct SplitEvaluator {
-    common::Span<int const> constraints;
-    common::Span<float const> lower;
-    common::Span<float const> upper;
+    const int* constraints;
+    const float* lower;
+    const float* upper;
     bool has_constraint;
 
-    XGBOOST_DEVICE double CalcSplitGain(const ParamT &param, bst_node_t nidx,
+    XGBOOST_DEVICE float CalcSplitGain(const ParamT &param, bst_node_t nidx,
                                         bst_feature_t fidx,
                                         tree::GradStats const& left,
                                         tree::GradStats const& right) const {
       int constraint = constraints[fidx];
-      const double negative_infinity = -std::numeric_limits<double>::infinity();
-      double wleft = this->CalcWeight(nidx, param, left);
-      double wright = this->CalcWeight(nidx, param, right);
+      const float negative_infinity = -std::numeric_limits<float>::infinity();
+      float wleft = this->CalcWeight(nidx, param, left);
+      float wright = this->CalcWeight(nidx, param, right);
 
-      double gain = this->CalcGainGivenWeight(param, left, wleft) +
+      float gain = this->CalcGainGivenWeight(param, left, wleft) +
                     this->CalcGainGivenWeight(param, right, wright);
 
       if (constraint == 0) {
@@ -101,9 +101,9 @@ class TreeEvaluator {
 
       if (nodeid == kRootParentId) {
         return w;
-      } else if (w < lower(nodeid)) {
+      } else if (w < lower[nodeid]) {
         return lower[nodeid];
-      } else if (w > upper(nodeid)) {
+      } else if (w > upper[nodeid]) {
         return upper[nodeid];
       } else {
         return w;
@@ -111,7 +111,7 @@ class TreeEvaluator {
     }
 
     template <typename GradientSumT>
-    XGBOOST_DEVICE double CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
+    XGBOOST_DEVICE float CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
       // FIXME(jiamingy): This is a temporary solution until we have categorical feature
       // specific regularization parameters.  During sorting we should try to avoid any
       // regularization.
@@ -141,15 +141,13 @@ class TreeEvaluator {
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam> auto GetEvaluator() const {
     if (device_ != GenericParameter::kCpuId) {
-      auto constraints = monotone_.ConstDeviceSpan();
-      return SplitEvaluator<ParamT>{
-          constraints, lower_bounds_.ConstDeviceSpan(),
-          upper_bounds_.ConstDeviceSpan(), has_constraint_};
+      auto constraints = monotone_.ConstDevicePointer();
+      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
+                                    upper_bounds_.ConstDevicePointer(), has_constraint_};
     } else {
-      auto constraints = monotone_.ConstHostSpan();
-      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostSpan(),
-                                    upper_bounds_.ConstHostSpan(),
-                                    has_constraint_};
+      auto constraints = monotone_.ConstHostPointer();
+      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostPointer(),
+                                    upper_bounds_.ConstHostPointer(), has_constraint_};
     }
   }
 

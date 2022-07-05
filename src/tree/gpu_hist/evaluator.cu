@@ -89,7 +89,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
                                                           input.gradient_histogram[j]);
                         return thrust::make_tuple(i, lw);
                       }
-                      return thrust::make_tuple(i, 0.0);
+                      return thrust::make_tuple(i, 0.0f);
                     });
   // Sort an array segmented according to
   // - nodes

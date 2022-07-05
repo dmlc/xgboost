@@ -68,7 +68,7 @@ class GPUHistEvaluator {
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
   // cached input for sorting the histogram, used for sort based splits.
-  using SortPair = thrust::tuple<uint32_t, double>;
+  using SortPair = thrust::tuple<uint32_t, float>;
   dh::device_vector<SortPair> sort_input_;
   // cache for feature index
   dh::device_vector<bst_feature_t> feature_idx_;
