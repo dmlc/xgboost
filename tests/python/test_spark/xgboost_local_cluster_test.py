@@ -146,7 +146,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             "early_stopping_rounds": 1,
             "eval_metric": "logloss",
         }
-        self.clf_params_with_weight_dist = {"weightCol": "weight"}
+        self.clf_params_with_weight_dist = {"weight_col": "weight"}
         self.cls_df_train_distributed_with_eval_weight = self.session.createDataFrame(
             [
                 (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
@@ -181,7 +181,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             "early_stopping_rounds": 1,
             "eval_metric": "rmse",
         }
-        self.reg_params_with_weight_dist = {"weightCol": "weight"}
+        self.reg_params_with_weight_dist = {"weight_col": "weight"}
         self.reg_df_train_distributed_with_eval_weight = self.session.createDataFrame(
             [
                 (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
