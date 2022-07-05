@@ -435,7 +435,7 @@ class XgboostLocalTest(SparkTestCase):
 
     def test_gpu_param_setting(self):
         py_cls = SparkXGBClassifier(use_gpu=True)
-        train_params = py_cls._get_distributed_train_params(self.cls_df_train, {})
+        train_params = py_cls._get_distributed_train_params(self.cls_df_train)
         assert train_params["gpu_id"] == 0
         assert train_params["tree_method"] == "gpu_hist"
 

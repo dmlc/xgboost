@@ -665,7 +665,10 @@ class SparkXGBRegressorModel(_SparkXGBModel):
             else:
                 base_margin = None
 
-            preds = xgb_sklearn_model.predict(X, base_margin=base_margin, **predict_params)
+            preds = xgb_sklearn_model.predict(
+                X, base_margin=base_margin, validate_features=False
+                **predict_params
+            )
             return pd.Series(preds)
 
         features_col = _validate_and_convert_feature_col_as_array_col(
@@ -715,7 +718,8 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                 base_margin = None
 
             margins = xgb_sklearn_model.predict(
-                X, base_margin=base_margin, output_margin=True, **predict_params
+                X, base_margin=base_margin, output_margin=True, validate_features=False
+                **predict_params
             )
             if margins.ndim == 1:
                 # binomial case
