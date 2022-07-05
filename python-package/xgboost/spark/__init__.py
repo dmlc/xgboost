@@ -3,8 +3,8 @@
 
 try:
     import pyspark
-except ImportError:
-    raise RuntimeError("xgboost spark python API requires pyspark package installed.")
+except ImportError as e:
+    raise ImportError("pyspark package needs to be installed to use this module") from e
 
 from .estimator import (
     SparkXGBClassifier,

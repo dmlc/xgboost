@@ -1,4 +1,3 @@
-from typing import Iterator
 import numpy as np
 import pandas as pd
 from scipy.special import expit, softmax
@@ -45,8 +44,9 @@ from .params import (
 )
 
 from pyspark.ml.functions import array_to_vector, vector_to_array
-from pyspark.sql.types import \
+from pyspark.sql.types import (
     ArrayType, DoubleType, FloatType, IntegerType, LongType, ShortType
+)
 from pyspark.ml.linalg import VectorUDT
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
@@ -147,7 +147,7 @@ class _XgboostParams(
     )
     feature_types = Param(
         Params._dummy(),
-        "feature_names",
+        "feature_types",
         "A list of str to specify feature types."
     )
 
@@ -400,6 +400,17 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
     def _query_plan_contains_valid_repartition(self, dataset):
         """
         Returns true if the latest element in the logical plan is a valid repartition
+        The logic plan string format is like:
+
+        == Optimized Logical Plan ==
+        Repartition 4, true
+        +- LogicalRDD [features#12, label#13L], false
+
+        i.e., the top line in the logical plan is the last operation to execute.
+        so, in this method, we check the first line, if it is a "Repartition" operation,
+        and the result dataframe has the same partition number with num_workers param,
+        then it means the dataframe is well repartitioned and we don't need to
+        repartition the dataframe again.
         """
         num_partitions = dataset.rdd.getNumPartitions()
         query_plan = dataset._sc._jvm.PythonSQLUtils.explainString(
