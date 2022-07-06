@@ -118,15 +118,24 @@ class TreeEvaluator {
       return ::xgboost::tree::CalcWeight(param, stats);
     }
 
-    XGBOOST_DEVICE float
-    CalcGainGivenWeight(ParamT const &p, tree::GradStats const& stats, float w) const {
+    // Fast floating point division instruction on device
+    XGBOOST_DEVICE float Divide(float a, float b) const {
+#ifdef __CUDA_ARCH__
+      return __fdividef(a, b);
+#else
+      return a / b;
+#endif
+    }
+
+    XGBOOST_DEVICE float CalcGainGivenWeight(ParamT const& p, tree::GradStats const& stats,
+                                             float w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
       // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
       if (p.max_delta_step == 0.0f && has_constraint == false) {
-        return common::Sqr(ThresholdL1(stats.sum_grad, p.reg_alpha)) /
-               (stats.sum_hess + p.reg_lambda);
+        return Divide(common::Sqr(ThresholdL1(stats.sum_grad, p.reg_alpha)),
+                      (stats.sum_hess + p.reg_lambda));
       }
       return tree::CalcGainGivenWeight<ParamT, float>(p, stats.sum_grad,
                                                       stats.sum_hess, w);

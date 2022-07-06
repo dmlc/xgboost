@@ -293,5 +293,49 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   auto split = evaluator.EvaluateSingleSplit(input, shared_inputs, 0).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-16);
 }
+
+TEST(GpuHist, EvaluateSplitsBenchmark) {
+  int n_nodes = 5000;
+  int n_features = 200;
+  int n_bins = 256;
+  thrust::device_vector<DeviceSplitCandidate> out_splits(n_nodes);
+  GradientPairPrecise parent_sum(0.0, 1.0);
+  TrainParam tparam = ZeroParam();
+  tparam.UpdateAllowUnknown(Args{});
+  GPUTrainingParam param{tparam};
+
+  thrust::device_vector<bst_feature_t> feature_set(n_features);
+  thrust::sequence(feature_set.begin(), feature_set.end());
+
+  thrust::device_vector<uint32_t> feature_segments(n_features + 1);
+  thrust::sequence(feature_segments.begin(), feature_segments.end(), 0, n_bins);
+
+  thrust::device_vector<float> feature_values(n_bins * n_features);
+  thrust::device_vector<float> feature_min_values(n_features);
+  thrust::device_vector<GradientPairPrecise> histogram(n_features*n_bins*n_nodes);
+  std::vector<EvaluateSplitInputs> h_inputs(n_nodes);
+  for(int i = 0; i < n_nodes; i++){
+      h_inputs[i]=EvaluateSplitInputs {
+      i,0,
+      parent_sum,
+      dh::ToSpan(feature_set),
+      dh::ToSpan(histogram).subspan(i*n_bins*n_features,n_bins*n_features)};
+
+  }
+  EvaluateSplitSharedInputs shared_inputs{
+      param,
+                                          {},
+                                          dh::ToSpan(feature_segments),
+                                          dh::ToSpan(feature_values),
+                                          dh::ToSpan(feature_min_values),
+  };
+
+  GPUHistEvaluator<GradientPairPrecise> evaluator{
+      tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
+  dh::device_vector<EvaluateSplitInputs> inputs = h_inputs;
+  evaluator.LaunchEvaluateSplits(feature_set.size(), dh::ToSpan(inputs), shared_inputs,
+                                 evaluator.GetEvaluator(), dh::ToSpan(out_splits));
+  thrust::reduce(histogram.begin(), histogram.end());
+}
 }  // namespace tree
 }  // namespace xgboost
