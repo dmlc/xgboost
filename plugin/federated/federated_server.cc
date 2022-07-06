@@ -10,6 +10,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "../../src/common/io.h"
+
 namespace xgboost {
 namespace federated {
 
@@ -201,13 +203,6 @@ grpc::Status FederatedService::Handle(Request const* request, Reply* reply,
   return grpc::Status::OK;
 }
 
-std::string ReadFile(char const* path) {
-  auto stream = std::ifstream(path);
-  std::ostringstream out;
-  out << stream.rdbuf();
-  return out.str();
-}
-
 void RunServer(int port, int world_size, char const* server_key_file, char const* server_cert_file,
                char const* client_cert_file) {
   std::string const server_address = "0.0.0.0:" + std::to_string(port);
@@ -216,10 +211,10 @@ void RunServer(int port, int world_size, char const* server_key_file, char const
   grpc::ServerBuilder builder;
   auto options =
       grpc::SslServerCredentialsOptions(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
-  options.pem_root_certs = ReadFile(client_cert_file);
+  options.pem_root_certs = xgboost::common::ReadAll(client_cert_file);
   auto key = grpc::SslServerCredentialsOptions::PemKeyCertPair();
-  key.private_key = ReadFile(server_key_file);
-  key.cert_chain = ReadFile(server_cert_file);
+  key.private_key = xgboost::common::ReadAll(server_key_file);
+  key.cert_chain = xgboost::common::ReadAll(server_cert_file);
   options.pem_key_cert_pairs.push_back(key);
   builder.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
   builder.AddListeningPort(server_address, grpc::SslServerCredentials(options));

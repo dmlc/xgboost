@@ -12,6 +12,7 @@
 #include <rabit/rabit.h>
 #include <string>
 #include <cstring>
+#include <fstream>
 
 #include "common.h"
 
@@ -111,6 +112,22 @@ inline std::string ReadAll(dmlc::Stream* fi, PeekableInStream* fp) {
   }
   return buffer;
 }
+
+/**
+ * \brief Read the whole file content into a string.
+ */
+inline std::string ReadAll(std::string const &path) {
+  std::ifstream stream(path);
+  if (!stream.is_open()) {
+    LOG(FATAL) << "Could not open file " << path;
+  }
+  std::string content{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+  if (content.empty()) {
+    LOG(FATAL) << "Empty file " << path;
+  }
+  return content;
+}
+
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_
