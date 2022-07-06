@@ -35,6 +35,7 @@ dependencies:
 - py-ubjson
 - cffi
 - pyarrow
+- pyspark
 - pip:
   - sphinx_rtd_theme
   - datatable

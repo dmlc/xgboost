@@ -142,7 +142,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
 
         # Adding weight and validation
         self.clf_params_with_eval_dist = {
-            "validationIndicatorCol": "isVal",
+            "validation_indicator_col": "isVal",
             "early_stopping_rounds": 1,
             "eval_metric": "logloss",
         }
@@ -177,7 +177,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         self.clf_best_score_weight_and_eval = 0.006626
 
         self.reg_params_with_eval_dist = {
-            "validationIndicatorCol": "isVal",
+            "validation_indicator_col": "isVal",
             "early_stopping_rounds": 1,
             "eval_metric": "rmse",
         }
