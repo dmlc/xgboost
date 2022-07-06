@@ -1,3 +1,4 @@
+# type: ignore
 """PySpark XGBoost integration interface
 """
 
