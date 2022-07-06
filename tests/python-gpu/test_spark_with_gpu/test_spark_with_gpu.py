@@ -87,5 +87,3 @@ def test_sparkxgb_regressor_with_gpu(spark_diabetes_dataset):
     rmse = evaluator.evaluate(pred_result_df)
     assert rmse <= 65.0
 
-
-

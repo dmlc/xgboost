@@ -276,32 +276,6 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         for row in pred_result:
             self.assertTrue(np.isclose(row.expected_label, row.prediction, atol=1e-3))
 
-    @unittest.skip
-    def test_check_use_gpu_param(self):
-        # Classifier
-        classifier = SparkXGBClassifier(
-            num_workers=self.n_workers, n_estimators=100, use_gpu=True
-        )
-        self.assertTrue(hasattr(classifier, "use_gpu"))
-        self.assertTrue(classifier.getOrDefault(classifier.use_gpu))
-        clf_model = classifier.fit(self.cls_df_train_distributed)
-        pred_result = clf_model.transform(self.cls_df_test_distributed).collect()
-        for row in pred_result:
-            self.assertTrue(np.isclose(row.expected_label, row.prediction, atol=1e-3))
-            self.assertTrue(
-                np.allclose(row.expected_probability, row.probability, atol=1e-3)
-            )
-
-        regressor = SparkXGBRegressor(
-            num_workers=self.n_workers, n_estimators=100, use_gpu=True
-        )
-        self.assertTrue(hasattr(regressor, "use_gpu"))
-        self.assertTrue(regressor.getOrDefault(regressor.use_gpu))
-        model = regressor.fit(self.reg_df_train_distributed)
-        pred_result = model.transform(self.reg_df_test_distributed).collect()
-        for row in pred_result:
-            self.assertTrue(np.isclose(row.expected_label, row.prediction, atol=1e-3))
-
     def test_classifier_distributed_weight_eval(self):
         # with weight
         classifier = SparkXGBClassifier(
