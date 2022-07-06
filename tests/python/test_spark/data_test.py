@@ -98,7 +98,7 @@ class DataTest(SparkTestCase):
         )
 
         data["weight"] = [0.2, 0.8] * 100
-        output_dmatrix = convert_partition_data_to_dmatrix(
+        output_dmatrix = _convert_partition_data_to_dmatrix(
             [pd.DataFrame(data)], has_weight=True, has_validation=False, has_base_margin=False
         )
 
@@ -121,7 +121,7 @@ class DataTest(SparkTestCase):
 
         # Creating the dmatrix based on storage
         temporary_path = tempfile.mkdtemp()
-        storage_dmatrix = convert_partition_data_to_dmatrix(
+        storage_dmatrix = _convert_partition_data_to_dmatrix(
             [pd.DataFrame(data)], has_weight=False, has_validation=False, has_base_margin=False
         )
 
@@ -139,7 +139,7 @@ class DataTest(SparkTestCase):
         data["weight"] = [0.2, 0.8] * 100
 
         temporary_path = tempfile.mkdtemp()
-        storage_dmatrix = convert_partition_data_to_dmatrix(
+        storage_dmatrix = _convert_partition_data_to_dmatrix(
             [pd.DataFrame(data)], has_weight=True, has_validation=False, has_base_margin=False
         )
 
