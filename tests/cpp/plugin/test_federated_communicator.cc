@@ -16,6 +16,11 @@ std::string const kServerAddress{"localhost:56789"};  // NOLINT(cert-err58-cpp)
 
 class FederatedCommunicatorTest : public ::testing::Test {
  public:
+  static void VerifyAllreduce(int rank) {
+    FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
+    CheckAllreduce(comm);
+  }
+
   static void VerifyBroadcast(int rank) {
     FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
     CheckBroadcast(comm, rank);
@@ -36,6 +41,15 @@ class FederatedCommunicatorTest : public ::testing::Test {
   void TearDown() override {
     server_->Shutdown();
     server_thread_->join();
+  }
+
+  static void CheckAllreduce(FederatedCommunicator& comm) {
+    int buffer[] = {1, 2, 3, 4, 5};
+    comm.AllReduce(buffer, sizeof(buffer)/sizeof(buffer[0]), DataType::kInt, Operation::kSum);
+    int expected[] = {3, 6, 9, 12, 15};
+    for (auto i = 0; i < 5; i++) {
+      EXPECT_EQ(buffer[i], expected[i]);
+    }
   }
 
   static void CheckBroadcast(FederatedCommunicator& comm, int rank) {
@@ -84,6 +98,16 @@ TEST(FederatedCommunicatorSimpleTest, IsNotDistributed) {
 TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
   FederatedCommunicator comm{2, 1, kServerAddress};
   EXPECT_TRUE(comm.IsDistributed());
+}
+
+TEST_F(FederatedCommunicatorTest, Allreduce) {
+  std::vector<std::thread> threads;
+  for (auto rank = 0; rank < kWorldSize; rank++) {
+    threads.emplace_back(std::thread(&FederatedCommunicatorTest::VerifyAllreduce, rank));
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
 }
 
 TEST_F(FederatedCommunicatorTest, Broadcast) {

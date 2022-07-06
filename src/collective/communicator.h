@@ -10,6 +10,22 @@ namespace collective {
 /** @brief Defines the integral and floating data types. */
 enum class DataType { kInt, kFloat, kDouble };
 
+inline std::size_t GetTypeSize(DataType data_type) {
+  std::size_t size{0};
+  switch (data_type) {
+    case DataType::kInt:
+      size = sizeof(int);
+      break;
+    case DataType::kFloat:
+      size = sizeof(float);
+      break;
+    case DataType::kDouble:
+      size = sizeof(double);
+      break;
+  }
+  return size;
+}
+
 /** @brief Defines the reduction operation. */
 enum class Operation { kMax, kSum };
 

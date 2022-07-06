@@ -10,7 +10,7 @@ namespace xgboost {
 namespace collective {
 
 /**
- * @brief A federated learning communicator class that handles collective communication .
+ * @brief A federated learning communicator class that handles collective communication.
  */
 class FederatedCommunicator : public Communicator {
  public:
@@ -38,12 +38,18 @@ class FederatedCommunicator : public Communicator {
   ~FederatedCommunicator() override { client_.reset(); }
 
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
-                 Operation op) override {}
+                 Operation op) override {
+    std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer),
+                                  count * GetTypeSize(data_type));
+    auto const received =
+        client_->Allreduce(send_buffer, ConvertDataType(data_type), ConvertOperation(op));
+    received.copy(reinterpret_cast<char *>(send_receive_buffer), count * GetTypeSize(data_type));
+  }
 
   void Broadcast(void *send_receive_buffer, std::size_t size, int root) override {
     if (GetWorldSize() == 1) return;
     if (GetRank() == root) {
-      std::string const send_buffer(reinterpret_cast<char *>(send_receive_buffer), size);
+      std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer), size);
       client_->Broadcast(send_buffer, root);
     } else {
       auto const received = client_->Broadcast("", root);
@@ -52,6 +58,35 @@ class FederatedCommunicator : public Communicator {
   }
 
  private:
+  static xgboost::federated::DataType ConvertDataType(DataType data_type) {
+    xgboost::federated::DataType result{};
+    switch (data_type) {
+      case DataType::kInt:
+        result = xgboost::federated::DataType::INT;
+        break;
+      case DataType::kFloat:
+        result = xgboost::federated::DataType::FLOAT;
+        break;
+      case DataType::kDouble:
+        result = xgboost::federated::DataType::DOUBLE;
+        break;
+    }
+    return result;
+  }
+
+  static xgboost::federated::ReduceOperation ConvertOperation(Operation operation) {
+    xgboost::federated::ReduceOperation result{};
+    switch (operation) {
+      case Operation::kMax:
+        result = xgboost::federated::ReduceOperation::MAX;
+        break;
+      case Operation::kSum:
+        result = xgboost::federated::ReduceOperation::SUM;
+        break;
+    }
+    return result;
+  }
+
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
 };
 
