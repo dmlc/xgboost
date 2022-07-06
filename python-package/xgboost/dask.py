@@ -915,7 +915,7 @@ async def _train_async(
                 n_threads = local_param[p]
                 break
         if n_threads == 0 or n_threads is None:
-            n_threads = worker.state.nthreads
+            n_threads = dwnt
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
         local_history: TrainingCallback.EvalsLog = {}
         with RabitContext(rabit_args), config.config_context(**global_config):
