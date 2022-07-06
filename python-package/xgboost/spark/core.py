@@ -547,6 +547,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             "feature_types":  self.getOrDefault(self.feature_types),
             "feature_names":  self.getOrDefault(self.feature_names),
             "feature_weights": self.getOrDefault(self.feature_weights),
+            "missing": self.getOrDefault(self.missing),
         }
         booster_params['nthread'] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)
@@ -835,18 +836,10 @@ def _set_pyspark_xgb_cls_param_attrs(pyspark_estimator_class, pyspark_model_clas
         setattr(pyspark_model_class, attr_name, param_obj_)
 
     for name in params_dict.keys():
-        if name == "missing":
-            doc = (
-                "Specify the missing value in the features, default np.nan. "
-                "We recommend using 0.0 as the missing value for better performance. "
-                "Note: In a spark DataFrame, the inactive values in a sparse vector "
-                "mean 0 instead of missing values, unless missing=0 is specified."
-            )
-        else:
-            doc = (
-                f"Refer to XGBoost doc of "
-                f"{get_class_name(pyspark_estimator_class._xgb_cls())} for this param {name}"
-            )
+        doc = (
+            f"Refer to XGBoost doc of "
+            f"{get_class_name(pyspark_estimator_class._xgb_cls())} for this param {name}"
+        )
 
         param_obj = Param(Params._dummy(), name=name, doc=doc)
         set_param_attrs(name, param_obj)
