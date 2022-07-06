@@ -1,3 +1,4 @@
+# type: ignore
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=import-error, consider-using-f-string, too-many-arguments, too-many-locals
 # pylint: disable=invalid-name, fixme, too-many-lines, unbalanced-tuple-unpacking, no-else-return

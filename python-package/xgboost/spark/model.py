@@ -1,3 +1,4 @@
+# type: ignore
 """Xgboost pyspark integration submodule for model API."""
 # pylint: disable=import-error, consider-using-f-string, unspecified-encoding,
 # pylint: disable=invalid-name, fixme, unnecessary-lambda

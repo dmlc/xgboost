@@ -1,3 +1,4 @@
+# type: ignore
 """Xgboost pyspark integration submodule for helper functions."""
 # pylint: disable=import-error, consider-using-f-string, protected-access, wrong-import-order
 # pylint: disable=invalid-name
