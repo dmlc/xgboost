@@ -33,10 +33,6 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     callbacks:
         The export and import of the callback functions are at best effort.
         For details, see :py:attr:`xgboost.spark.SparkXGBRegressor.callbacks` param doc.
-    missing:
-        The parameter `missing` in SparkXGBRegressor has different semantics with
-        that in `xgboost.XGBRegressor`. For details, see
-        :py:attr:`xgboost.spark.SparkXGBRegressor.missing` param doc.
     validationIndicatorCol
         For params related to `xgboost.XGBRegressor` training
         with evaluation dataset's supervision, set
@@ -134,10 +130,6 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     callbacks:
         The export and import of the callback functions are at best effort. For
         details, see :py:attr:`xgboost.spark.SparkXGBClassifier.callbacks` param doc.
-    missing:
-        The parameter `missing` in SparkXGBClassifier has different semantics with
-        that in `xgboost.XGBClassifier`. For details, see
-        :py:attr:`xgboost.spark.SparkXGBClassifier.missing` param doc.
     rawPredictionCol:
         The `output_margin=True` is implicitly supported by the
         `rawPredictionCol` output column, which is always returned with the predicted margin
