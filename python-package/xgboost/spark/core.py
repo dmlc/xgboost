@@ -75,6 +75,8 @@ _pyspark_specific_params = [
 _non_booster_params = [
     "missing",
     "n_estimators",
+    "feature_types",
+    "feature_weights",
 ]
 
 _pyspark_param_alias_map = {
@@ -542,6 +544,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             "nthread": cpu_per_task,
             "feature_types":  self.getOrDefault(self.feature_types),
             "feature_names":  self.getOrDefault(self.feature_names),
+            "feature_weights": self.getOrDefault(self.feature_weights),
         }
         booster_params['nthread'] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)

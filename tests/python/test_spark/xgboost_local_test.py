@@ -949,3 +949,12 @@ class XgboostLocalTest(SparkTestCase):
             self.assertTrue(
                 np.allclose(row.probability, row.expected_probability, rtol=1e-3)
             )
+
+    def test_classifier_with_feature_names_types_weights(self):
+        classifier = SparkXGBClassifier(
+            feature_names=["a1", "a2", "a3"],
+            feature_types=["i", "int", "float"],
+            feature_weights=[2.0, 5.0, 3.0]
+        )
+        model = classifier.fit(self.cls_df_train)
+        model.transform(self.cls_df_test).collect()
