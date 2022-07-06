@@ -1,6 +1,6 @@
 """Xgboost pyspark integration submodule for model API."""
 # pylint: disable=import-error, consider-using-f-string, unspecified-encoding,
-# pylint: disable=invalid-name, fixme,
+# pylint: disable=invalid-name, fixme, unnecessary-lambda
 # pylint: disable=protected-access, too-few-public-methods
 import base64
 import os
@@ -107,7 +107,7 @@ def _get_spark_session():
     return SparkSession.builder.getOrCreate()
 
 
-class SparkXGBSharedReadWrite:
+class _SparkXGBSharedReadWrite:
     @staticmethod
     def saveMetadata(instance, path, sc, logger, extraMetadata=None):
         """
@@ -195,7 +195,10 @@ class SparkXGBWriter(MLWriter):
         self.logger = get_logger(self.__class__.__name__, level="WARN")
 
     def saveImpl(self, path):
-        SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
+        """
+        save model.
+        """
+        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
 
 
 class SparkXGBReader(MLReader):
@@ -208,7 +211,10 @@ class SparkXGBReader(MLReader):
         self.logger = get_logger(self.__class__.__name__, level="WARN")
 
     def load(self, path):
-        _, pyspark_xgb = SparkXGBSharedReadWrite.loadMetadataAndInstance(
+        """
+        load model.
+        """
+        _, pyspark_xgb = _SparkXGBSharedReadWrite.loadMetadataAndInstance(
             self.cls, path, self.sc, self.logger
         )
         return pyspark_xgb
@@ -230,7 +236,7 @@ class SparkXGBModelWriter(MLWriter):
         - save model to path/model.json
         """
         xgb_model = self.instance._xgb_sklearn_model
-        SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
+        _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
         model_save_path = os.path.join(path, "model.json")
         ser_xgb_model = serialize_xgb_model(xgb_model)
         _get_spark_session().createDataFrame(
@@ -253,7 +259,7 @@ class SparkXGBModelReader(MLReader):
 
         :return: SparkXGBRegressorModel or SparkXGBClassifierModel instance
         """
-        _, py_model = SparkXGBSharedReadWrite.loadMetadataAndInstance(
+        _, py_model = _SparkXGBSharedReadWrite.loadMetadataAndInstance(
             self.cls, path, self.sc, self.logger
         )
 

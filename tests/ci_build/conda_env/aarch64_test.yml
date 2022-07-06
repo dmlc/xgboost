@@ -28,6 +28,7 @@ dependencies:
 - llvmlite
 - cffi
 - pyarrow
+- pyspark
 - pip:
   - shap
   - awscli

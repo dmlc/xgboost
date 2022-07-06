@@ -18,3 +18,4 @@ dependencies:
 - py-ubjson
 - cffi
 - pyarrow
+- pyspark

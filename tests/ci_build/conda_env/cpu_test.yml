@@ -36,6 +36,7 @@ dependencies:
 - cffi
 - pyarrow
 - protobuf<=3.20
+- pyspark
 - pip:
   - shap
   - ipython                     # required by shap at import time.

@@ -1,4 +1,5 @@
 """Xgboost pyspark integration submodule for params."""
+# pylint: disable=import-error, too-few-public-methods
 from pyspark.ml.param.shared import Param, Params
 
 
