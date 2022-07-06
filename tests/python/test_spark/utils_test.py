@@ -1,8 +1,6 @@
-import unittest
 import contextlib
 import logging
 import shutil
-import subprocess
 import sys
 import tempfile
 
@@ -12,7 +10,6 @@ from six import StringIO
 
 from pyspark.sql import SQLContext
 from pyspark.sql import SparkSession
-from pyspark.taskcontext import TaskContext
 
 from xgboost.spark.utils import _get_default_params_from_func
 

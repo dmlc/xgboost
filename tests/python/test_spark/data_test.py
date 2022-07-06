@@ -5,7 +5,7 @@ import pandas as pd
 
 from xgboost.spark.data import (
     _row_tuple_list_to_feature_matrix_y_w,
-    convert_partition_data_to_dmatrix,
+    _convert_partition_data_to_dmatrix,
 )
 
 from xgboost import DMatrix, XGBClassifier
@@ -80,7 +80,7 @@ class DataTest(SparkTestCase):
             "values": [[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]] * 100,
             "label": [1, 0] * 100,
         }
-        output_dmatrix = convert_partition_data_to_dmatrix(
+        output_dmatrix = _convert_partition_data_to_dmatrix(
             [pd.DataFrame(data)], has_weight=False, has_validation=False, has_base_margin=False
         )
         # You can't compare DMatrix outputs, so the only way is to predict on the two seperate DMatrices using
