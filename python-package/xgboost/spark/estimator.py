@@ -84,7 +84,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     ...     (Vectors.sparse(3, {1: 1.0, 2: 5.5}), )
     ... ], ["features"])
     >>> xgb_regressor = SparkXGBRegressor(max_depth=5, missing=0.0,
-    ... validationIndicatorCol='isVal', weightCol='weight',
+    ... validation_indicator_col='isVal', weight_col='weight',
     ... early_stopping_rounds=1, eval_metric='rmse')
     >>> xgb_reg_model = xgb_regressor.fit(df_train)
     >>> xgb_reg_model.transform(df_test)
@@ -188,7 +188,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     ...     (Vectors.dense(1.0, 2.0, 3.0), ),
     ... ], ["features"])
     >>> xgb_classifier = SparkXGBClassifier(max_depth=5, missing=0.0,
-    ...     validationIndicatorCol='isVal', weightCol='weight',
+    ...     validation_indicator_col='isVal', weight_col='weight',
     ...     early_stopping_rounds=1, eval_metric='logloss')
     >>> xgb_clf_model = xgb_classifier.fit(df_train)
     >>> xgb_clf_model.transform(df_test).show()
