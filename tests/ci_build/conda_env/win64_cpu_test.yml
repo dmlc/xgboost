@@ -21,3 +21,4 @@ dependencies:
 - cffi
 - pyarrow
 - pyspark
+- cloudpickle

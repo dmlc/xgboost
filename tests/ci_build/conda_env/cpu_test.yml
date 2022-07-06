@@ -37,6 +37,7 @@ dependencies:
 - pyarrow
 - protobuf<=3.20
 - pyspark
+- cloudpickle
 - pip:
   - shap
   - ipython                     # required by shap at import time.
