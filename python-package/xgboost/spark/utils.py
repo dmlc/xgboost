@@ -1,3 +1,6 @@
+"""Xgboost pyspark integration submodule for helper functions."""
+# pylint: disable=import-error, consider-using-f-string, protected-access, wrong-import-order
+# pylint: disable=invalid-name
 import inspect
 from threading import Thread
 import sys
@@ -10,6 +13,9 @@ from pyspark.sql.session import SparkSession
 
 
 def get_class_name(cls):
+    """
+    Return the class name.
+    """
     return f"{cls.__module__}.{cls.__name__}"
 
 
@@ -19,7 +25,7 @@ def _get_default_params_from_func(func, unsupported_set):
     Only the parameters with a default value will be included.
     """
     sig = inspect.signature(func)
-    filtered_params_dict = dict()
+    filtered_params_dict = {}
     for parameter in sig.parameters.values():
         # Remove parameters without a default value and those in the unsupported_set
         if (

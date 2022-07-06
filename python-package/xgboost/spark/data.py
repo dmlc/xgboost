@@ -1,11 +1,13 @@
-import os
+"""Xgboost pyspark integration submodule for data related functions."""
+# pylint: disable=import-error, consider-using-f-string, too-many-arguments, too-many-locals,
+# pylint: disable=invalid-name, fixme, too-many-lines, unbalanced-tuple-unpacking, no-else-return
 from typing import Iterator
 import numpy as np
 import pandas as pd
 from xgboost import DMatrix
 
 
-def prepare_train_val_data(
+def _prepare_train_val_data(
     data_iterator, has_weight, has_validation, has_fit_base_margin
 ):
     def gen_data_pdf():
@@ -148,23 +150,23 @@ def _process_data_iter(
             has_validation,
         )
         return train_X, train_y, train_w, train_b_m, val_X, val_y, val_w, val_b_m
-    else:
-        return _row_tuple_list_to_feature_matrix_y_w(
-            data_iterator,
-            train,
-            has_weight,
-            has_fit_base_margin,
-            has_predict_base_margin,
-            has_validation,
-        )
+
+    return _row_tuple_list_to_feature_matrix_y_w(
+        data_iterator,
+        train,
+        has_weight,
+        has_fit_base_margin,
+        has_predict_base_margin,
+        has_validation,
+    )
 
 
-def convert_partition_data_to_dmatrix(
+def _convert_partition_data_to_dmatrix(
         partition_data_iter, has_weight, has_validation, has_base_margin, dmatrix_kwargs=None
 ):
     dmatrix_kwargs = dmatrix_kwargs or {}
     # if we are not using external storage, we use the standard method of parsing data.
-    train_val_data = prepare_train_val_data(
+    train_val_data = _prepare_train_val_data(
         partition_data_iter, has_weight, has_validation, has_base_margin
     )
     if has_validation:

@@ -1,3 +1,7 @@
+"""Xgboost pyspark integration submodule for model API."""
+# pylint: disable=import-error, consider-using-f-string, unspecified-encoding,
+# pylint: disable=invalid-name, fixme,
+# pylint: disable=protected-access, too-few-public-methods
 import base64
 import os
 import uuid
@@ -48,7 +52,7 @@ def serialize_xgb_model(model):
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
     model.save_model(tmp_file_name)
-    with open(tmp_file_name) as f:
+    with open(tmp_file_name, 'r') as f:
         ser_model_string = f.read()
     return ser_model_string
 
@@ -103,7 +107,7 @@ def _get_spark_session():
     return SparkSession.builder.getOrCreate()
 
 
-class XgboostSharedReadWrite:
+class SparkXGBSharedReadWrite:
     @staticmethod
     def saveMetadata(instance, path, sc, logger, extraMetadata=None):
         """
@@ -181,30 +185,39 @@ class XgboostSharedReadWrite:
         return metadata, pyspark_xgb
 
 
-class XgboostWriter(MLWriter):
+class SparkXGBWriter(MLWriter):
+    """
+    Spark Xgboost estimator writer.
+    """
     def __init__(self, instance):
         super().__init__()
         self.instance = instance
         self.logger = get_logger(self.__class__.__name__, level="WARN")
 
     def saveImpl(self, path):
-        XgboostSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
+        SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
 
 
-class XgboostReader(MLReader):
+class SparkXGBReader(MLReader):
+    """
+    Spark Xgboost estimator reader.
+    """
     def __init__(self, cls):
         super().__init__()
         self.cls = cls
         self.logger = get_logger(self.__class__.__name__, level="WARN")
 
     def load(self, path):
-        _, pyspark_xgb = XgboostSharedReadWrite.loadMetadataAndInstance(
+        _, pyspark_xgb = SparkXGBSharedReadWrite.loadMetadataAndInstance(
             self.cls, path, self.sc, self.logger
         )
         return pyspark_xgb
 
 
-class XgboostModelWriter(MLWriter):
+class SparkXGBModelWriter(MLWriter):
+    """
+    Spark Xgboost model writer.
+    """
     def __init__(self, instance):
         super().__init__()
         self.instance = instance
@@ -217,7 +230,7 @@ class XgboostModelWriter(MLWriter):
         - save model to path/model.json
         """
         xgb_model = self.instance._xgb_sklearn_model
-        XgboostSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
+        SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
         model_save_path = os.path.join(path, "model.json")
         ser_xgb_model = serialize_xgb_model(xgb_model)
         _get_spark_session().createDataFrame(
@@ -225,7 +238,10 @@ class XgboostModelWriter(MLWriter):
         ).write.parquet(model_save_path)
 
 
-class XgboostModelReader(MLReader):
+class SparkXGBModelReader(MLReader):
+    """
+    Spark Xgboost model reader.
+    """
     def __init__(self, cls):
         super().__init__()
         self.cls = cls
@@ -237,7 +253,7 @@ class XgboostModelReader(MLReader):
 
         :return: SparkXGBRegressorModel or SparkXGBClassifierModel instance
         """
-        _, py_model = XgboostSharedReadWrite.loadMetadataAndInstance(
+        _, py_model = SparkXGBSharedReadWrite.loadMetadataAndInstance(
             self.cls, path, self.sc, self.logger
         )
 

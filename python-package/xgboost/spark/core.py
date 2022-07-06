@@ -1,3 +1,8 @@
+"""Xgboost pyspark integration submodule for core code."""
+# pylint: disable=import-error, consider-using-f-string, too-many-arguments, too-many-locals
+# pylint: disable=invalid-name, fixme, too-many-lines, unbalanced-tuple-unpacking, no-else-return
+# pylint: disable=protected-access, logging-fstring-interpolation, no-name-in-module
+# pylint: disable=wrong-import-order, ungrouped-imports
 import numpy as np
 import pandas as pd
 from scipy.special import expit, softmax
@@ -21,13 +26,13 @@ import xgboost
 from xgboost.training import train as worker_train
 from .utils import get_logger, _get_max_num_concurrent_tasks
 from .data import (
-    convert_partition_data_to_dmatrix,
+    _convert_partition_data_to_dmatrix,
 )
 from .model import (
-    XgboostReader,
-    XgboostWriter,
-    XgboostModelReader,
-    XgboostModelWriter,
+    SparkXGBReader,
+    SparkXGBWriter,
+    SparkXGBModelReader,
+    SparkXGBModelWriter,
     get_xgb_model_creator,
 )
 from .utils import (
@@ -334,6 +339,9 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         )
 
     def setParams(self, **kwargs):
+        """
+        Set params for the estimator.
+        """
         _extra_params = {}
         if 'arbitrary_params_dict' in kwargs:
             raise ValueError("Invalid param name: 'arbitrary_params_dict'.")
@@ -431,7 +439,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         try:
             if self._query_plan_contains_valid_repartition(dataset):
                 return False
-        except:  # noqa: E722
+        except Exception:  # noqa: E722
             pass
         return True
 
@@ -562,14 +570,14 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             with RabitContext(_rabit_args, context):
                 dtrain, dval = None, []
                 if has_validation:
-                    dtrain, dval = convert_partition_data_to_dmatrix(
+                    dtrain, dval = _convert_partition_data_to_dmatrix(
                         pandas_df_iter, has_weight, has_validation, has_base_margin,
                         dmatrix_kwargs=dmatrix_kwargs,
                     )
                     # TODO: Question: do we need to add dtrain to dval list ?
                     dval = [(dtrain, "training"), (dval, "validation")]
                 else:
-                    dtrain = convert_partition_data_to_dmatrix(
+                    dtrain = _convert_partition_data_to_dmatrix(
                         pandas_df_iter, has_weight, has_validation, has_base_margin,
                         dmatrix_kwargs=dmatrix_kwargs,
                     )
@@ -596,11 +604,17 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return self._copyValues(self._create_pyspark_model(result_xgb_model))
 
     def write(self):
-        return XgboostWriter(self)
+        """
+        Return the writer for saving the estimator.
+        """
+        return SparkXGBWriter(self)
 
     @classmethod
     def read(cls):
-        return XgboostReader(cls)
+        """
+        Return the reader for loading the estimator.
+        """
+        return SparkXGBReader(cls)
 
 
 class _SparkXGBModel(Model, _XgboostParams, MLReadable, MLWritable):
@@ -638,11 +652,17 @@ class _SparkXGBModel(Model, _XgboostParams, MLReadable, MLWritable):
         return self.get_booster().get_score(importance_type=importance_type)
 
     def write(self):
-        return XgboostModelWriter(self)
+        """
+        Return the writer for saving the model.
+        """
+        return SparkXGBModelWriter(self)
 
     @classmethod
     def read(cls):
-        return XgboostModelReader(cls)
+        """
+        Return the reader for loading the model.
+        """
+        return SparkXGBModelReader(cls)
 
     def _transform(self, dataset):
         raise NotImplementedError()

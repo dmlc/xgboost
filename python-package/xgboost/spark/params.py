@@ -1,3 +1,4 @@
+"""Xgboost pyspark integration submodule for params."""
 from pyspark.ml.param.shared import Param, Params
 
 
@@ -16,12 +17,6 @@ class HasArbitraryParamsDict(Params):
         "underlying XGBoost library. It is stored as a dictionary.",
     )
 
-    def setArbitraryParamsDict(self, value):
-        return self._set(arbitrary_params_dict=value)
-
-    def getArbitraryParamsDict(self):
-        return self.getOrDefault(self.arbitrary_params_dict)
-
 
 class HasBaseMarginCol(Params):
     """
@@ -34,9 +29,3 @@ class HasBaseMarginCol(Params):
         "base_margin_col",
         "This stores the name for the column of the base margin",
     )
-
-    def setBaseMarginCol(self, value):
-        return self._set(base_margin_col=value)
-
-    def getBaseMarginCol(self):
-        return self.getOrDefault(self.base_margin_col)
