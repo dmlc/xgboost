@@ -120,10 +120,6 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
                 "spark.cores.max": "4",
                 "spark.task.cpus": "1",
                 "spark.executor.cores": "2",
-                "spark.worker.resource.gpu.amount": "4",
-                "spark.task.resource.gpu.amount": "2",
-                "spark.executor.resource.gpu.amount": "4",
-                "spark.worker.resource.gpu.discoveryScript": "test_spark/discover_gpu.sh",
             }
         )
         cls.make_tempdir()

@@ -58,5 +58,6 @@ def pytest_collection_modifyitems(config, items):
     # mark dask tests as `mgpu`.
     mgpu_mark = pytest.mark.mgpu
     for item in items:
-        if item.nodeid.startswith("python-gpu/test_gpu_with_dask.py"):
+        if item.nodeid.startswith("python-gpu/test_gpu_with_dask.py") or \
+                item.nodeid.startswith("python-gpu/test_spark_with_gpu/test_spark_with_gpu.py"):
             item.add_marker(mgpu_mark)
