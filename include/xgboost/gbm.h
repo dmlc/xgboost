@@ -72,14 +72,6 @@ class GradientBooster : public Model, public Configurable {
                      GradientBooster* /*out*/, bool* /*out_of_bound*/) const {
     LOG(FATAL) << "Slice is not supported by current booster.";
   }
-  /*!
-   * \brief whether the model allow lazy checkpoint
-   * return true if model is only updated in DoBoost
-   * after all Allreduce calls
-   */
-  virtual bool AllowLazyCheckPoint() const {
-    return false;
-  }
   /*! \brief Return number of boosted rounds.
    */
   virtual int32_t BoostedRounds() const = 0;

@@ -92,10 +92,10 @@ struct BitOR {
     dst |= src;
   }
 };
-template<typename OP, typename DType>
-inline void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &dtype) {
-  const DType* src = static_cast<const DType*>(src_);
-  DType* dst = (DType*)dst_;  // NOLINT(*)
+template <typename OP, typename DType>
+inline void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &) {
+  const DType *src = static_cast<const DType *>(src_);
+  DType *dst = (DType *)dst_;  // NOLINT(*)
   for (int i = 0; i < len; i++) {
     OP::Reduce(dst[i], src[i]);
   }
@@ -207,140 +207,14 @@ inline void TrackerPrintf(const char *fmt, ...) {
 }
 
 #endif  // RABIT_STRICT_CXX98_
-// load latest check point
-inline int LoadCheckPoint(Serializable *global_model,
-                          Serializable *local_model) {
-  return engine::GetEngine()->LoadCheckPoint(global_model, local_model);
-}
-// checkpoint the model, meaning we finished a stage of execution
-inline void CheckPoint(const Serializable *global_model,
-                       const Serializable *local_model) {
-  engine::GetEngine()->CheckPoint(global_model, local_model);
-}
-// lazy checkpoint the model, only remember the pointer to global_model
-inline void LazyCheckPoint(const Serializable *global_model) {
-  engine::GetEngine()->LazyCheckPoint(global_model);
-}
+
+// deprecated, planned for removal after checkpoing from JVM package is removed.
+inline int LoadCheckPoint() { return engine::GetEngine()->LoadCheckPoint(); }
+// deprecated, increase internal version number
+inline void CheckPoint() { engine::GetEngine()->CheckPoint(); }
 // return the version number of currently stored model
 inline int VersionNumber() {
   return engine::GetEngine()->VersionNumber();
-}
-// ---------------------------------
-// Code to handle customized Reduce
-// ---------------------------------
-// function to perform reduction for Reducer
-template<typename DType, void (*freduce)(DType &dst, const DType &src)>
-inline void ReducerSafeImpl(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
-  const size_t kUnit = sizeof(DType);
-  const char *psrc = reinterpret_cast<const char*>(src_);
-  char *pdst = reinterpret_cast<char*>(dst_);
-
-  for (int i = 0; i < len_; ++i) {
-    DType tdst, tsrc;
-    // use memcpy to avoid alignment issue
-    std::memcpy(&tdst, pdst + (i * kUnit), sizeof(tdst));
-    std::memcpy(&tsrc, psrc + (i * kUnit), sizeof(tsrc));
-    freduce(tdst, tsrc);
-    std::memcpy(pdst + i * kUnit, &tdst, sizeof(tdst));
-  }
-}
-// function to perform reduction for Reducer
-template<typename DType, void (*freduce)(DType &dst, const DType &src)> // NOLINT(*)
-inline void ReducerAlignImpl(const void *src_, void *dst_,
-                          int len_, const MPI::Datatype &dtype) {
-  const DType *psrc = reinterpret_cast<const DType*>(src_);
-  DType *pdst = reinterpret_cast<DType*>(dst_);
-  for (int i = 0; i < len_; ++i) {
-    freduce(pdst[i], psrc[i]);
-  }
-}
-template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)
-inline Reducer<DType, freduce>::Reducer() {
-  // it is safe to directly use handle for aligned data types
-  if (sizeof(DType) == 8 || sizeof(DType) == 4 || sizeof(DType) == 1) {
-    this->handle_.Init(ReducerAlignImpl<DType, freduce>, sizeof(DType));
-  } else {
-    this->handle_.Init(ReducerSafeImpl<DType, freduce>, sizeof(DType));
-  }
-}
-template<typename DType, void (*freduce)(DType &dst, const DType &src)> // NOLINT(*)
-inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
-                                               void (*prepare_fun)(void *arg),
-                                               void *prepare_arg) {
-  handle_.Allreduce(sendrecvbuf, sizeof(DType), count, prepare_fun,
-                    prepare_arg);
-}
-// function to perform reduction for SerializeReducer
-template<typename DType>
-inline void SerializeReducerFuncImpl(const void *src_, void *dst_,
-                                     int len_, const MPI::Datatype &dtype) {
-  int nbytes = engine::ReduceHandle::TypeSize(dtype);
-  // temp space
-  for (int i = 0; i < len_; ++i) {
-    DType tsrc, tdst;
-    utils::MemoryFixSizeBuffer fsrc((char*)(src_) + i * nbytes, nbytes); // NOLINT(*)
-    utils::MemoryFixSizeBuffer fdst((char*)(dst_) + i * nbytes, nbytes); // NOLINT(*)
-    tsrc.Load(fsrc);
-    tdst.Load(fdst);
-    // govern const check
-    tdst.Reduce(static_cast<const DType &>(tsrc), nbytes);
-    fdst.Seek(0);
-    tdst.Save(fdst);
-  }
-}
-template<typename DType>
-inline SerializeReducer<DType>::SerializeReducer() {
-  handle_.Init(SerializeReducerFuncImpl<DType>, sizeof(DType));
-}
-// closure to call Allreduce
-template<typename DType>
-struct SerializeReduceClosure {
-  DType *sendrecvobj;
-  size_t max_nbyte, count;
-  void (*prepare_fun)(void *arg);
-  void *prepare_arg;
-  std::string *p_buffer;
-  // invoke the closure
-  inline void Run() {
-    if (prepare_fun != nullptr) prepare_fun(prepare_arg);
-    for (size_t i = 0; i < count; ++i) {
-      utils::MemoryFixSizeBuffer fs(BeginPtr(*p_buffer) + i * max_nbyte, max_nbyte);
-      sendrecvobj[i].Save(fs);
-    }
-  }
-  inline static void Invoke(void *c) {
-    static_cast<SerializeReduceClosure<DType>*>(c)->Run();
-  }
-};
-template<typename DType>
-inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
-                                               size_t max_nbyte, size_t count,
-                                               void (*prepare_fun)(void *arg),
-                                               void *prepare_arg) {
-  buffer_.resize(max_nbyte * count);
-  // setup closure
-  SerializeReduceClosure<DType> c;
-  c.sendrecvobj = sendrecvobj; c.max_nbyte = max_nbyte; c.count = count;
-  c.prepare_fun = prepare_fun; c.prepare_arg = prepare_arg; c.p_buffer = &buffer_;
-  // invoke here
-  handle_.Allreduce(BeginPtr(buffer_), max_nbyte, count,
-                    SerializeReduceClosure<DType>::Invoke, &c);
-  for (size_t i = 0; i < count; ++i) {
-    utils::MemoryFixSizeBuffer fs(BeginPtr(buffer_) + i * max_nbyte, max_nbyte);
-    sendrecvobj[i].Load(fs);
-  }
-}
-
-template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)g
-inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
-                                               std::function<void()> prepare_fun) {
-  this->Allreduce(sendrecvbuf, count, InvokeLambda, &prepare_fun);
-}
-template<typename DType>
-inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
-                                               size_t max_nbytes, size_t count,
-                                               std::function<void()> prepare_fun) {
-  this->Allreduce(sendrecvobj, max_nbytes, count, InvokeLambda, &prepare_fun);
 }
 }  // namespace rabit
 #endif  // RABIT_INTERNAL_RABIT_INL_H_

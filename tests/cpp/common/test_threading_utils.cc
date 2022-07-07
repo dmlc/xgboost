@@ -12,9 +12,8 @@ TEST(CreateBlockedSpace2d, Test) {
   constexpr size_t kDim2 = 3;
   constexpr size_t kGrainSize = 1;
 
-  BlockedSpace2d space(kDim1, [&](size_t i) {
-      return kDim2;
-  }, kGrainSize);
+  BlockedSpace2d space(
+      kDim1, [&](size_t) { return kDim2; }, kGrainSize);
 
   ASSERT_EQ(kDim1 * kDim2, space.Size());
 

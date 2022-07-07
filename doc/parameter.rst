@@ -151,15 +151,6 @@ Parameters for Tree Booster
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
     - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
-* ``sketch_eps`` [default=0.03]
-
-  - Only used for ``updater=grow_local_histmaker``.
-  - This roughly translates into ``O(1 / sketch_eps)`` number of bins.
-    Compared to directly select number of bins, this comes with theoretical guarantee with sketch accuracy.
-  - Usually user does not have to tune this.
-    But consider setting to a lower number for more accurate enumeration of split candidates.
-  - range: (0, 1)
-
 * ``scale_pos_weight`` [default=1]
 
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
@@ -170,7 +161,6 @@ Parameters for Tree Booster
 
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
-    - ``grow_local_histmaker``: based on local histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
     - ``grow_gpu_hist``: Grow tree with GPU.
     - ``sync``: synchronizes trees in all distributed nodes.

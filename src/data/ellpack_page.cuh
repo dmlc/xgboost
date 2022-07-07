@@ -150,12 +150,10 @@ class EllpackPageImpl {
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
   template <typename AdapterBatch>
-  explicit EllpackPageImpl(AdapterBatch batch, float missing, int device,
-                           bool is_dense, int nthread,
+  explicit EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense,
                            common::Span<size_t> row_counts_span,
-                           common::Span<FeatureType const> feature_types,
-                           size_t row_stride, size_t n_rows, size_t n_cols,
-                           common::HistogramCuts const &cuts);
+                           common::Span<FeatureType const> feature_types, size_t row_stride,
+                           size_t n_rows, common::HistogramCuts const& cuts);
 
   /*! \brief Copy the elements of the given ELLPACK page into this page.
    *

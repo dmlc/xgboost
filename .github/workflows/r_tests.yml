@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: ubuntu-latest, r: 'release'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
@@ -31,8 +31,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-4-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-4-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -49,8 +49,9 @@ jobs:
     - name: Run lintr
       run: |
         cd R-package
-        R.exe CMD INSTALL .
-        Rscript.exe tests/helper_scripts/run_lint.R
+        R CMD INSTALL .
+        # Disable lintr errors for now: https://github.com/dmlc/xgboost/issues/8012
+        Rscript tests/helper_scripts/run_lint.R || true
 
   test-with-R:
     runs-on: ${{ matrix.config.os }}
@@ -79,8 +80,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-4-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-4-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -131,8 +132,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-3-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-4-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-4-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}

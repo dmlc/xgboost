@@ -26,7 +26,7 @@
 #include "../common/group_data.h"
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
-#include "../data/iterative_device_dmatrix.h"
+#include "../data/iterative_dmatrix.h"
 #include "file_iterator.h"
 
 #include "validation.h"
@@ -938,7 +938,7 @@ DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
                          XGDMatrixCallbackNext *next, float missing,
                          int nthread,
                          int max_bin) {
-  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing,
+  return new data::IterativeDMatrix(iter, proxy, reset, next, missing,
                                           nthread, max_bin);
 }
 
@@ -965,8 +965,7 @@ template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
     XGDMatrixCallbackNext *next, float missing, int32_t n_threads, std::string);
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix) {
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&) {
   return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 

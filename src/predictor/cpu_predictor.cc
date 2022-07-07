@@ -244,7 +244,7 @@ void FillNodeMeanValues(RegTree const* tree, std::vector<float>* mean_values) {
 class CPUPredictor : public Predictor {
  protected:
   // init thread buffers
-  static void InitThreadTemp(int nthread, int num_feature, std::vector<RegTree::FVec>* out) {
+  static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
     int prev_thread_temp_size = out->size();
     if (prev_thread_temp_size < nthread) {
       out->resize(nthread, RegTree::FVec());
@@ -263,8 +263,7 @@ class CPUPredictor : public Predictor {
     bool blocked = density > kDensityThresh;
 
     std::vector<RegTree::FVec> feat_vecs;
-    InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1),
-                   model.learner_model_param->num_feature, &feat_vecs);
+    InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
                p_fmat->Info().num_row_ *
@@ -320,8 +319,7 @@ class CPUPredictor : public Predictor {
     std::vector<Entry> workspace(m->NumColumns() * 8 * n_threads);
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(n_threads * kBlockSize, model.learner_model_param->num_feature,
-                   &thread_temp);
+    InitThreadTemp(n_threads * kBlockSize, &thread_temp);
     PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>, kBlockSize>(
         AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}, n_threads),
         &predictions, model, tree_begin, tree_end, &thread_temp, n_threads);
@@ -376,7 +374,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
     std::vector<RegTree::FVec> feat_vecs;
     const int num_feature = model.learner_model_param->num_feature;
-    InitThreadTemp(n_threads, num_feature, &feat_vecs);
+    InitThreadTemp(n_threads, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
@@ -417,7 +415,7 @@ class CPUPredictor : public Predictor {
     auto const n_threads = this->ctx_->Threads();
     const int num_feature = model.learner_model_param->num_feature;
     std::vector<RegTree::FVec> feat_vecs;
-    InitThreadTemp(n_threads,  num_feature, &feat_vecs);
+    InitThreadTemp(n_threads, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {

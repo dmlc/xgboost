@@ -144,74 +144,13 @@ class AllreduceBase : public IEngine {
                   "Broadcast failed");
   }
   /*!
-   * \brief load latest check point
-   * \param global_model pointer to the globally shared model/state
-   *   when calling this function, the caller need to guarantees that global_model
-   *   is the same in all nodes
-   * \param local_model pointer to local model, that is specific to current node/rank
-   *   this can be NULL when no local model is needed
-   *
-   * \return the version number of check point loaded
-   *     if returned version == 0, this means no model has been CheckPointed
-   *     the p_model is not touched, user should do necessary initialization by themselves
-   *
-   *   Common usage example:
-   *      int iter = rabit::LoadCheckPoint(&model);
-   *      if (iter == 0) model.InitParameters();
-   *      for (i = iter; i < max_iter; ++i) {
-   *        do many things, include allreduce
-   *        rabit::CheckPoint(model);
-   *      }
-   *
+   * \brief deprecated
    * \sa CheckPoint, VersionNumber
    */
-  int LoadCheckPoint(Serializable *global_model,
-                     Serializable *local_model = nullptr) override {
-    return 0;
-  }
-  /*!
-   * \brief checkpoint the model, meaning we finished a stage of execution
-   *  every time we call check point, there is a version number which will increase by one
-   *
-   * \param global_model pointer to the globally shared model/state
-   *   when calling this function, the caller need to guarantees that global_model
-   *   is the same in all nodes
-   * \param local_model pointer to local model, that is specific to current node/rank
-   *   this can be NULL when no local state is needed
-   *
-   * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
-   *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
-   *       So only CheckPoint with global_model if possible
-   *
-   * \sa LoadCheckPoint, VersionNumber
-   */
-  void CheckPoint(const Serializable *global_model,
-                  const Serializable *local_model = nullptr) override {
-    version_number += 1;
-  }
-  /*!
-   * \brief This function can be used to replace CheckPoint for global_model only,
-   *   when certain condition is met(see detailed explanation).
-   *
-   *   This is a "lazy" checkpoint such that only the pointer to global_model is
-   *   remembered and no memory copy is taken. To use this function, the user MUST ensure that:
-   *   The global_model must remain unchanged until the last call of Allreduce/Broadcast in current version finishes.
-   *   In another words, global_model model can be changed only between last call of
-   *   Allreduce/Broadcast and LazyCheckPoint in current version
-   *
-   *   For example, suppose the calling sequence is:
-   *   LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
-   *
-   *   If user can only changes global_model in code3, then LazyCheckPoint can be used to
-   *   improve efficiency of the program.
-   * \param global_model pointer to the globally shared model/state
-   *   when calling this function, the caller need to guarantees that global_model
-   *   is the same in all nodes
-   * \sa LoadCheckPoint, CheckPoint, VersionNumber
-   */
-  void LazyCheckPoint(const Serializable *global_model) override {
-    version_number += 1;
-  }
+  int LoadCheckPoint() override { return 0; }
+
+  // deprecated, increase internal version number
+  void CheckPoint() override { version_number += 1; }
   /*!
    * \return version number of current stored model,
    *         which means how many calls to CheckPoint we made so far

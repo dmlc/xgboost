@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 XGBoost contributors
+ * Copyright 2020-2022 XGBoost contributors
  */
 #include <memory>
 #include <type_traits>
@@ -7,7 +7,7 @@
 
 #include "../common/hist_util.cuh"
 #include "simple_batch_iterator.h"
-#include "iterative_device_dmatrix.h"
+#include "iterative_dmatrix.h"
 #include "sparse_page_source.h"
 #include "ellpack_page.cuh"
 #include "proxy_dmatrix.h"
@@ -16,7 +16,7 @@
 
 namespace xgboost {
 namespace data {
-void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missing, int nthread) {
+void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
   // A handle passed to external iterator.
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
@@ -132,10 +132,9 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
 
     proxy->Info().feature_types.SetDevice(get_device());
     auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan();
-    auto new_impl = Dispatch(proxy, [&](auto const &value) {
-      return EllpackPageImpl(value, missing, get_device(), is_dense, nthread,
-                             row_counts_span, d_feature_types, row_stride, rows,
-                             cols, cuts);
+    auto new_impl = Dispatch(proxy, [&](auto const& value) {
+      return EllpackPageImpl(value, missing, get_device(), is_dense, row_counts_span,
+                             d_feature_types, row_stride, rows, cuts);
     });
     size_t num_elements = page_->Impl()->Copy(get_device(), &new_impl, offset);
     offset += num_elements;
@@ -161,8 +160,13 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 
-BatchSet<EllpackPage> IterativeDeviceDMatrix::GetEllpackBatches(const BatchParam& param) {
+BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam& param) {
   CHECK(page_);
+  // FIXME(Jiamingy): https://github.com/dmlc/xgboost/issues/7976
+  if (param.max_bin != batch_param_.max_bin) {
+    LOG(WARNING) << "Inconsistent max_bin between Quantile DMatrix and Booster:" << param.max_bin
+                 << " vs. " << batch_param_.max_bin;
+  }
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
   return BatchSet<EllpackPage>(begin_iter);
 }

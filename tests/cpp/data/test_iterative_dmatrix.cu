@@ -1,10 +1,10 @@
 /*!
- * Copyright 2020 XGBoost contributors
+ * Copyright 2020-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 
 #include "../helpers.h"
-#include "../../../src/data/iterative_device_dmatrix.h"
+#include "../../../src/data/iterative_dmatrix.h"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/device_adapter.cuh"
 
@@ -13,7 +13,7 @@ namespace data {
 
 void TestEquivalent(float sparsity) {
   CudaArrayIterForTest iter{sparsity};
-  IterativeDeviceDMatrix m(
+  IterativeDMatrix m(
       &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
       0, 256);
   size_t offset = 0;
@@ -88,7 +88,7 @@ TEST(IterativeDeviceDMatrix, Basic) {
 
 TEST(IterativeDeviceDMatrix, RowMajor) {
   CudaArrayIterForTest iter(0.0f);
-  IterativeDeviceDMatrix m(
+  IterativeDMatrix m(
       &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
       0, 256);
   size_t n_batches = 0;
@@ -139,7 +139,7 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
       reinterpret_cast<float *>(get<Integer>(j_interface["data"][0])));
   thrust::copy(h_data.cbegin(), h_data.cend(), ptr);
 
-  IterativeDeviceDMatrix m(
+  IterativeDMatrix m(
       &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
       0, 256);
   auto &ellpack = *m.GetBatches<EllpackPage>({0, 256}).begin();
@@ -159,7 +159,7 @@ TEST(IterativeDeviceDMatrix, IsDense) {
   int num_bins = 16;
   auto test = [num_bins] (float sparsity) {
     CudaArrayIterForTest iter(sparsity);
-    IterativeDeviceDMatrix m(
+    IterativeDMatrix m(
         &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
         0, 256);
     if (sparsity == 0.0) {

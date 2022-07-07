@@ -136,38 +136,6 @@ RABIT_DLL int RabitAllreduce(void *sendrecvbuf, size_t count, int enum_dtype,
                              void *prepare_arg);
 
 /*!
- * \brief load latest check point
- * \param out_global_model hold output of serialized global_model
- * \param out_global_len the output length of serialized global model
- * \param out_local_model hold output of serialized local_model, can be NULL
- * \param out_local_len the output length of serialized local model, can be NULL
- *
- * \return the version number of check point loaded
- *     if returned version == 0, this means no model has been CheckPointed
- *     nothing will be touched
- */
-RABIT_DLL int RabitLoadCheckPoint(char **out_global_model,
-                                  rbt_ulong *out_global_len,
-                                  char **out_local_model,
-                                  rbt_ulong *out_local_len);
-/*!
- * \brief checkpoint the model, meaning we finished a stage of execution
- *  every time we call check point, there is a version number which will increase by one
- *
- * \param global_model hold content of serialized global_model
- * \param global_len the content length of serialized global model
- * \param local_model hold content of serialized local_model, can be NULL
- * \param local_len the content length of serialized local model, can be NULL
- *
- * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
- *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
- *       So only CheckPoint with global_model if possible
- */
-RABIT_DLL void RabitCheckPoint(const char *global_model,
-                               rbt_ulong global_len,
-                               const char *local_model,
-                               rbt_ulong local_len);
-/*!
  * \return version number of current stored model,
  * which means how many calls to CheckPoint we made so far
  * \return rabit version number

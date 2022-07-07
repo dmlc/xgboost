@@ -84,16 +84,13 @@ class FederatedEngine : public IEngine {
     }
   }
 
-  int LoadCheckPoint(Serializable *global_model, Serializable *local_model = nullptr) override {
+  int LoadCheckPoint() override {
     return 0;
   }
 
-  void CheckPoint(const Serializable *global_model,
-                  const Serializable *local_model = nullptr) override {
+  void CheckPoint() override {
     version_number_ += 1;
   }
-
-  void LazyCheckPoint(const Serializable *global_model) override { version_number_ += 1; }
 
   int VersionNumber() const override { return version_number_; }
 
@@ -238,35 +235,5 @@ void Allreduce_(void *sendrecvbuf, size_t type_nbytes, size_t count, IEngine::Re
   if (engine.GetWorldSize() == 1) return;
   engine.Allreduce(sendrecvbuf, type_nbytes * count, dtype, op);
 }
-
-ReduceHandle::ReduceHandle() = default;
-ReduceHandle::~ReduceHandle() = default;
-
-int ReduceHandle::TypeSize(const MPI::Datatype &dtype) { return static_cast<int>(dtype.type_size); }
-
-void ReduceHandle::Init(IEngine::ReduceFunction redfunc,
-                        __attribute__((unused)) size_t type_nbytes) {
-  utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
-  redfunc_ = redfunc;
-}
-
-void ReduceHandle::Allreduce(void *sendrecvbuf, size_t type_nbytes, size_t count,
-                             IEngine::PreprocFunction prepare_fun, void *prepare_arg) {
-  utils::Assert(redfunc_ != nullptr, "must initialize handle to call AllReduce");
-  if (prepare_fun != nullptr) prepare_fun(prepare_arg);
-  if (engine.GetWorldSize() == 1) return;
-
-  // Gather all the buffers and call the reduce function locally.
-  auto const buffer_size = type_nbytes * count;
-  auto const gathered = engine.Allgather(sendrecvbuf, buffer_size);
-  auto const *data = gathered.data();
-  for (int i = 0; i < engine.GetWorldSize(); i++) {
-    if (i != engine.GetRank()) {
-      redfunc_(data + buffer_size * i, sendrecvbuf, static_cast<int>(count),
-               MPI::Datatype(type_nbytes));
-    }
-  }
-}
-
 }  // namespace engine
 }  // namespace rabit
