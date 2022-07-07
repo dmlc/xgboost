@@ -21,7 +21,7 @@ def spark_session_with_gpu():
         "spark.worker.resource.gpu.amount": "4",
         "spark.task.resource.gpu.amount": "1",
         "spark.executor.resource.gpu.amount": "4",
-        "spark.worker.resource.gpu.discoveryScript": "test_spark_with_gpu/discover_gpu.sh",
+        "spark.worker.resource.gpu.discoveryScript": "tests/python-gpu/test_spark_with_gpu/discover_gpu.sh",
     }
     builder = SparkSession.builder.appName("xgboost spark python API Tests with GPU")
     for k, v in spark_config.items():
