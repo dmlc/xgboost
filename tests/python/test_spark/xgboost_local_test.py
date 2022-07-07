@@ -423,7 +423,9 @@ class XgboostLocalTest(SparkTestCase):
         py_cls = SparkXGBClassifier(features_col="f1", label_col="l1")
         self.assertEqual(py_cls.getOrDefault(py_cls.featuresCol), "f1")
         self.assertEqual(py_cls.getOrDefault(py_cls.labelCol), "l1")
-        with pytest.raises(ValueError, match="Please use param name features_col instead"):
+        with pytest.raises(
+            ValueError, match="Please use param name features_col instead"
+        ):
             SparkXGBClassifier(featuresCol="f1")
 
     def test_gpu_param_setting(self):
@@ -719,7 +721,9 @@ class XgboostLocalTest(SparkTestCase):
                     row.prediction, row.expected_prediction_with_base_margin, atol=1e-3
                 )
             )
-            np.testing.assert_allclose(row.probability, row.expected_prob_with_base_margin, atol=1e-3)
+            np.testing.assert_allclose(
+                row.probability, row.expected_prob_with_base_margin, atol=1e-3
+            )
 
         cls_with_different_base_margin = SparkXGBClassifier(
             weight_col="weight", base_margin_col="base_margin"
@@ -738,7 +742,9 @@ class XgboostLocalTest(SparkTestCase):
                     row.prediction, row.expected_prediction_with_base_margin, atol=1e-3
                 )
             )
-            np.testing.assert_allclose(row.probability, row.expected_prob_with_base_margin, atol=1e-3)
+            np.testing.assert_allclose(
+                row.probability, row.expected_prob_with_base_margin, atol=1e-3
+            )
 
     def test_regressor_with_weight_eval(self):
         # with weight
@@ -877,14 +883,20 @@ class XgboostLocalTest(SparkTestCase):
         classifier = SparkXGBClassifier(use_gpu=True)
 
     def test_convert_to_sklearn_model(self):
-        classifier = SparkXGBClassifier(n_estimators=200, missing=2.0, max_depth=3, sketch_eps=0.5)
+        classifier = SparkXGBClassifier(
+            n_estimators=200, missing=2.0, max_depth=3, sketch_eps=0.5
+        )
         clf_model = classifier.fit(self.cls_df_train)
 
-        regressor = SparkXGBRegressor(n_estimators=200, missing=2.0, max_depth=3, sketch_eps=0.5)
+        regressor = SparkXGBRegressor(
+            n_estimators=200, missing=2.0, max_depth=3, sketch_eps=0.5
+        )
         reg_model = regressor.fit(self.reg_df_train)
 
         # Check that regardless of what booster, _convert_to_model converts to the correct class type
-        sklearn_classifier = classifier._convert_to_sklearn_model(clf_model.get_booster())
+        sklearn_classifier = classifier._convert_to_sklearn_model(
+            clf_model.get_booster()
+        )
         assert isinstance(sklearn_classifier, XGBClassifier)
         assert sklearn_classifier.n_estimators == 200
         assert sklearn_classifier.missing == 2.0
@@ -944,7 +956,7 @@ class XgboostLocalTest(SparkTestCase):
         classifier = SparkXGBClassifier(
             feature_names=["a1", "a2", "a3"],
             feature_types=["i", "int", "float"],
-            feature_weights=[2.0, 5.0, 3.0]
+            feature_weights=[2.0, 5.0, 3.0],
         )
         model = classifier.fit(self.cls_df_train)
         model.transform(self.cls_df_test).collect()

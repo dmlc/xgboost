@@ -29,7 +29,9 @@ def spark_session_with_gpu():
     spark = builder.getOrCreate()
     logging.getLogger("pyspark").setLevel(logging.INFO)
     # We run a dummy job so that we block until the workers have connected to the master
-    spark.sparkContext.parallelize(range(4), 4).barrier().mapPartitions(lambda _: []).collect()
+    spark.sparkContext.parallelize(range(4), 4).barrier().mapPartitions(
+        lambda _: []
+    ).collect()
     yield spark
     spark.stop()
 
@@ -39,13 +41,19 @@ def spark_iris_dataset(spark_session_with_gpu):
     spark = spark_session_with_gpu
     data = sklearn.datasets.load_iris()
     train_rows = [
-        (Vectors.dense(features), float(label)) for features, label in zip(data.data[0::2], data.target[0::2])
+        (Vectors.dense(features), float(label))
+        for features, label in zip(data.data[0::2], data.target[0::2])
     ]
-    train_df = spark.createDataFrame(spark.sparkContext.parallelize(train_rows, 4), ["features", "label"])
+    train_df = spark.createDataFrame(
+        spark.sparkContext.parallelize(train_rows, 4), ["features", "label"]
+    )
     test_rows = [
-        (Vectors.dense(features), float(label)) for features, label in zip(data.data[1::2], data.target[1::2])
+        (Vectors.dense(features), float(label))
+        for features, label in zip(data.data[1::2], data.target[1::2])
     ]
-    test_df = spark.createDataFrame(spark.sparkContext.parallelize(test_rows, 4), ["features", "label"])
+    test_df = spark.createDataFrame(
+        spark.sparkContext.parallelize(test_rows, 4), ["features", "label"]
+    )
     return train_df, test_df
 
 
@@ -54,18 +62,25 @@ def spark_diabetes_dataset(spark_session_with_gpu):
     spark = spark_session_with_gpu
     data = sklearn.datasets.load_diabetes()
     train_rows = [
-        (Vectors.dense(features), float(label)) for features, label in zip(data.data[0::2], data.target[0::2])
+        (Vectors.dense(features), float(label))
+        for features, label in zip(data.data[0::2], data.target[0::2])
     ]
-    train_df = spark.createDataFrame(spark.sparkContext.parallelize(train_rows, 4), ["features", "label"])
+    train_df = spark.createDataFrame(
+        spark.sparkContext.parallelize(train_rows, 4), ["features", "label"]
+    )
     test_rows = [
-        (Vectors.dense(features), float(label)) for features, label in zip(data.data[1::2], data.target[1::2])
+        (Vectors.dense(features), float(label))
+        for features, label in zip(data.data[1::2], data.target[1::2])
     ]
-    test_df = spark.createDataFrame(spark.sparkContext.parallelize(test_rows, 4), ["features", "label"])
+    test_df = spark.createDataFrame(
+        spark.sparkContext.parallelize(test_rows, 4), ["features", "label"]
+    )
     return train_df, test_df
 
 
 def test_sparkxgb_classifier_with_gpu(spark_iris_dataset):
     from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
     classifier = SparkXGBClassifier(
         use_gpu=True,
         num_workers=4,
@@ -80,6 +95,7 @@ def test_sparkxgb_classifier_with_gpu(spark_iris_dataset):
 
 def test_sparkxgb_regressor_with_gpu(spark_diabetes_dataset):
     from pyspark.ml.evaluation import RegressionEvaluator
+
     regressor = SparkXGBRegressor(
         use_gpu=True,
         num_workers=4,
@@ -90,4 +106,3 @@ def test_sparkxgb_regressor_with_gpu(spark_diabetes_dataset):
     evaluator = RegressionEvaluator(metricName="rmse")
     rmse = evaluator.evaluate(pred_result_df)
     assert rmse <= 65.0
-

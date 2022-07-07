@@ -1,15 +1,22 @@
+import sys
 import random
-import unittest
-
-import numpy as np
-from pyspark.ml.linalg import Vectors
-
-from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
-from .utils_test import SparkLocalClusterTestCase
-from xgboost.spark.utils import _get_max_num_concurrent_tasks
 import json
 import uuid
 import os
+
+import pytest
+import numpy as np
+import testing as tm
+
+if tm.no_dask()["condition"]:
+    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+
+from .utils_test import SparkLocalClusterTestCase
+from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
+from xgboost.spark.utils import _get_max_num_concurrent_tasks
+from pyspark.ml.linalg import Vectors
 
 
 class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
@@ -309,7 +316,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         assert np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.clf_best_score_eval,
-            rtol=1e-3
+            rtol=1e-3,
         )
 
         # with both weight and eval
@@ -332,7 +339,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.clf_best_score_weight_and_eval,
-            rtol=1e-3
+            rtol=1e-3,
         )
 
     def test_regressor_distributed_weight_eval(self):
@@ -369,7 +376,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         assert np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.reg_best_score_eval,
-            rtol=1e-3
+            rtol=1e-3,
         )
         # with both weight and eval
         regressor = SparkXGBRegressor(
@@ -394,7 +401,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
         assert np.isclose(
             float(model.get_booster().attributes()["best_score"]),
             self.reg_best_score_weight_and_eval,
-            rtol=1e-3
+            rtol=1e-3,
         )
 
     def test_num_estimators(self):

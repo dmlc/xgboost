@@ -81,7 +81,10 @@ class DataTest(SparkTestCase):
             "label": [1, 0] * 100,
         }
         output_dmatrix = _convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=False, has_validation=False, has_base_margin=False
+            [pd.DataFrame(data)],
+            has_weight=False,
+            has_validation=False,
+            has_base_margin=False,
         )
         # You can't compare DMatrix outputs, so the only way is to predict on the two seperate DMatrices using
         # the same classifier and making sure the outputs are equal
@@ -99,7 +102,10 @@ class DataTest(SparkTestCase):
 
         data["weight"] = [0.2, 0.8] * 100
         output_dmatrix = _convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=True, has_validation=False, has_base_margin=False
+            [pd.DataFrame(data)],
+            has_weight=True,
+            has_validation=False,
+            has_base_margin=False,
         )
 
         model.fit(expected_features, expected_labels, sample_weight=expected_weight)
@@ -122,7 +128,10 @@ class DataTest(SparkTestCase):
         # Creating the dmatrix based on storage
         temporary_path = tempfile.mkdtemp()
         storage_dmatrix = _convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=False, has_validation=False, has_base_margin=False
+            [pd.DataFrame(data)],
+            has_weight=False,
+            has_validation=False,
+            has_base_margin=False,
         )
 
         # Testing without weights
@@ -140,7 +149,10 @@ class DataTest(SparkTestCase):
 
         temporary_path = tempfile.mkdtemp()
         storage_dmatrix = _convert_partition_data_to_dmatrix(
-            [pd.DataFrame(data)], has_weight=True, has_validation=False, has_base_margin=False
+            [pd.DataFrame(data)],
+            has_weight=True,
+            has_validation=False,
+            has_base_margin=False,
         )
 
         normal_booster = worker_train({}, normal_dmatrix)
