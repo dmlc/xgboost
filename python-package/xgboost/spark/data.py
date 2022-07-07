@@ -163,7 +163,11 @@ def _process_data_iter(
 
 
 def _convert_partition_data_to_dmatrix(
-        partition_data_iter, has_weight, has_validation, has_base_margin, dmatrix_kwargs=None
+    partition_data_iter,
+    has_weight,
+    has_validation,
+    has_base_margin,
+    dmatrix_kwargs=None,
 ):
     dmatrix_kwargs = dmatrix_kwargs or {}
     # if we are not using external storage, we use the standard method of parsing data.
@@ -171,20 +175,38 @@ def _convert_partition_data_to_dmatrix(
         partition_data_iter, has_weight, has_validation, has_base_margin
     )
     if has_validation:
-        train_X, train_y, train_w, train_b_m, val_X, val_y, val_w, val_b_m = train_val_data
+        (
+            train_X,
+            train_y,
+            train_w,
+            train_b_m,
+            val_X,
+            val_y,
+            val_w,
+            val_b_m,
+        ) = train_val_data
         training_dmatrix = DMatrix(
-            data=train_X, label=train_y, weight=train_w, base_margin=train_b_m,
+            data=train_X,
+            label=train_y,
+            weight=train_w,
+            base_margin=train_b_m,
             **dmatrix_kwargs,
         )
         val_dmatrix = DMatrix(
-            data=val_X, label=val_y, weight=val_w, base_margin=val_b_m,
+            data=val_X,
+            label=val_y,
+            weight=val_w,
+            base_margin=val_b_m,
             **dmatrix_kwargs,
         )
         return training_dmatrix, val_dmatrix
     else:
         train_X, train_y, train_w, train_b_m = train_val_data
         training_dmatrix = DMatrix(
-            data=train_X, label=train_y, weight=train_w, base_margin=train_b_m,
+            data=train_X,
+            label=train_y,
+            weight=train_w,
+            base_margin=train_b_m,
             **dmatrix_kwargs,
         )
         return training_dmatrix

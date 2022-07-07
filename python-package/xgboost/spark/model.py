@@ -37,7 +37,7 @@ def serialize_xgb_model(model):
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
     model.save_model(tmp_file_name)
-    with open(tmp_file_name, 'r') as f:
+    with open(tmp_file_name, "r") as f:
         ser_model_string = f.read()
     return ser_model_string
 
@@ -174,6 +174,7 @@ class SparkXGBWriter(MLWriter):
     """
     Spark Xgboost estimator writer.
     """
+
     def __init__(self, instance):
         super().__init__()
         self.instance = instance
@@ -190,6 +191,7 @@ class SparkXGBReader(MLReader):
     """
     Spark Xgboost estimator reader.
     """
+
     def __init__(self, cls):
         super().__init__()
         self.cls = cls
@@ -209,6 +211,7 @@ class SparkXGBModelWriter(MLWriter):
     """
     Spark Xgboost model writer.
     """
+
     def __init__(self, instance):
         super().__init__()
         self.instance = instance
@@ -233,6 +236,7 @@ class SparkXGBModelReader(MLReader):
     """
     Spark Xgboost model reader.
     """
+
     def __init__(self, cls):
         super().__init__()
         self.cls = cls

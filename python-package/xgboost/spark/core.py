@@ -51,7 +51,12 @@ from .params import (
 
 from pyspark.ml.functions import array_to_vector, vector_to_array
 from pyspark.sql.types import (
-    ArrayType, DoubleType, FloatType, IntegerType, LongType, ShortType
+    ArrayType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    ShortType,
 )
 from pyspark.ml.linalg import VectorUDT
 
@@ -90,9 +95,7 @@ _pyspark_param_alias_map = {
     "validation_indicator_col": "validationIndicatorCol",
 }
 
-_inverse_pyspark_param_alias_map = {
-    v: k for k, v in _pyspark_param_alias_map.items()
-}
+_inverse_pyspark_param_alias_map = {v: k for k, v in _pyspark_param_alias_map.items()}
 
 _unsupported_xgb_params = [
     "gpu_id",  # we have "use_gpu" pyspark param instead.
@@ -148,9 +151,7 @@ class _XgboostParams(
         + "to have force_repartition be True.",
     )
     feature_names = Param(
-        Params._dummy(),
-        "feature_names",
-        "A list of str to specify feature names."
+        Params._dummy(), "feature_names", "A list of str to specify feature names."
     )
 
     @classmethod
@@ -188,7 +189,9 @@ class _XgboostParams(
             if param.name not in non_xgb_params:
                 xgb_params[param.name] = self.getOrDefault(param)
 
-        arbitrary_params_dict = self.getOrDefault(self.getParam("arbitrary_params_dict"))
+        arbitrary_params_dict = self.getOrDefault(
+            self.getParam("arbitrary_params_dict")
+        )
         xgb_params.update(arbitrary_params_dict)
         return xgb_params
 
@@ -299,7 +302,7 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
     if isinstance(features_col_datatype, ArrayType):
         if not isinstance(
             features_col_datatype.elementType,
-            (DoubleType, FloatType, LongType, IntegerType, ShortType)
+            (DoubleType, FloatType, LongType, IntegerType, ShortType),
         ):
             raise ValueError(
                 "If feature column is array type, its elements must be number type."
@@ -334,7 +337,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             force_repartition=False,
             feature_names=None,
             feature_types=None,
-            arbitrary_params_dict={}
+            arbitrary_params_dict={},
         )
 
     def setParams(self, **kwargs):
@@ -342,7 +345,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         Set params for the estimator.
         """
         _extra_params = {}
-        if 'arbitrary_params_dict' in kwargs:
+        if "arbitrary_params_dict" in kwargs:
             raise ValueError("Invalid param name: 'arbitrary_params_dict'.")
 
         for k, v in kwargs.items():
@@ -353,15 +356,19 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             if k in _pyspark_param_alias_map:
                 real_k = _pyspark_param_alias_map[k]
                 if real_k in kwargs:
-                    raise ValueError(f"You should set only one of param '{k}' and '{real_k}'")
+                    raise ValueError(
+                        f"You should set only one of param '{k}' and '{real_k}'"
+                    )
                 k = real_k
 
             if self.hasParam(k):
                 self._set(**{str(k): v})
             else:
-                if k in _unsupported_xgb_params or \
-                        k in _unsupported_fit_params or \
-                        k in _unsupported_predict_params:
+                if (
+                    k in _unsupported_xgb_params
+                    or k in _unsupported_fit_params
+                    or k in _unsupported_predict_params
+                ):
                     raise ValueError(f"Unsupported param '{k}'.")
                 _extra_params[k] = v
         _existing_extra_params = self.getOrDefault(self.arbitrary_params_dict)
@@ -379,7 +386,9 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return self._pyspark_model_cls()(xgb_model)
 
     def _convert_to_sklearn_model(self, booster):
-        xgb_sklearn_params = self._gen_xgb_params_dict(gen_xgb_sklearn_estimator_param=True)
+        xgb_sklearn_params = self._gen_xgb_params_dict(
+            gen_xgb_sklearn_estimator_param=True
+        )
         sklearn_model = self._xgb_cls()(**xgb_sklearn_params)
         sklearn_model._Booster = booster
         return sklearn_model
@@ -495,10 +504,12 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             )
 
         if self.isDefined(self.base_margin_col) and self.getOrDefault(
-                self.base_margin_col):
+            self.base_margin_col
+        ):
             has_base_margin = True
             select_cols.append(
-                col(self.getOrDefault(self.base_margin_col)).alias("baseMargin"))
+                col(self.getOrDefault(self.base_margin_col)).alias("baseMargin")
+            )
 
         dataset = dataset.select(*select_cols)
 
@@ -517,20 +528,21 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         if self._repartition_needed(dataset):
             dataset = dataset.repartition(num_workers)
         train_params = self._get_distributed_train_params(dataset)
-        booster_params, train_call_kwargs_params = \
-            self._get_xgb_train_call_args(train_params)
+        booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
+            train_params
+        )
 
         cpu_per_task = int(
             _get_spark_session().sparkContext.getConf().get("spark.task.cpus", "1")
         )
         dmatrix_kwargs = {
             "nthread": cpu_per_task,
-            "feature_types":  self.getOrDefault(self.feature_types),
-            "feature_names":  self.getOrDefault(self.feature_names),
+            "feature_types": self.getOrDefault(self.feature_types),
+            "feature_names": self.getOrDefault(self.feature_names),
             "feature_weights": self.getOrDefault(self.feature_weights),
             "missing": self.getOrDefault(self.missing),
         }
-        booster_params['nthread'] = cpu_per_task
+        booster_params["nthread"] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)
 
         def _train_booster(pandas_df_iter):
@@ -545,7 +557,9 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
 
             if use_gpu:
                 # Set booster worker to use the first GPU allocated to the spark task.
-                booster_params["gpu_id"] = int(context._resources["gpu"].addresses[0].strip())
+                booster_params["gpu_id"] = int(
+                    context._resources["gpu"].addresses[0].strip()
+                )
 
             _rabit_args = ""
             if context.partitionId() == 0:
@@ -558,14 +572,20 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
                 dtrain, dval = None, []
                 if has_validation:
                     dtrain, dval = _convert_partition_data_to_dmatrix(
-                        pandas_df_iter, has_weight, has_validation, has_base_margin,
+                        pandas_df_iter,
+                        has_weight,
+                        has_validation,
+                        has_base_margin,
                         dmatrix_kwargs=dmatrix_kwargs,
                     )
                     # TODO: Question: do we need to add dtrain to dval list ?
                     dval = [(dtrain, "training"), (dval, "validation")]
                 else:
                     dtrain = _convert_partition_data_to_dmatrix(
-                        pandas_df_iter, has_weight, has_validation, has_base_margin,
+                        pandas_df_iter,
+                        has_weight,
+                        has_validation,
+                        has_base_margin,
                         dmatrix_kwargs=dmatrix_kwargs,
                     )
 
@@ -587,7 +607,9 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             .mapPartitions(lambda x: x)
             .collect()[0][0]
         )
-        result_xgb_model = self._convert_to_sklearn_model(cloudpickle.loads(result_ser_booster))
+        result_xgb_model = self._convert_to_sklearn_model(
+            cloudpickle.loads(result_ser_booster)
+        )
         return self._copyValues(self._create_pyspark_model(result_xgb_model))
 
     def write(self):
@@ -673,9 +695,13 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         predict_params = self._gen_predict_params_dict()
 
         has_base_margin = False
-        if self.isDefined(self.base_margin_col) and self.getOrDefault(self.base_margin_col):
+        if self.isDefined(self.base_margin_col) and self.getOrDefault(
+            self.base_margin_col
+        ):
             has_base_margin = True
-            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias("baseMargin")
+            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
+                "baseMargin"
+            )
 
         @pandas_udf("double")
         def predict_udf(input_data: pd.DataFrame) -> pd.Series:
@@ -686,8 +712,7 @@ class SparkXGBRegressorModel(_SparkXGBModel):
                 base_margin = None
 
             preds = xgb_sklearn_model.predict(
-                X, base_margin=base_margin, validate_features=False,
-                **predict_params
+                X, base_margin=base_margin, validate_features=False, **predict_params
             )
             return pd.Series(preds)
 
@@ -723,9 +748,13 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         predict_params = self._gen_predict_params_dict()
 
         has_base_margin = False
-        if self.isDefined(self.base_margin_col) and self.getOrDefault(self.base_margin_col):
+        if self.isDefined(self.base_margin_col) and self.getOrDefault(
+            self.base_margin_col
+        ):
             has_base_margin = True
-            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias("baseMargin")
+            base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
+                "baseMargin"
+            )
 
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"
@@ -738,17 +767,18 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                 base_margin = None
 
             margins = xgb_sklearn_model.predict(
-                X, base_margin=base_margin, output_margin=True, validate_features=False,
-                **predict_params
+                X,
+                base_margin=base_margin,
+                output_margin=True,
+                validate_features=False,
+                **predict_params,
             )
             if margins.ndim == 1:
                 # binomial case
                 classone_probs = expit(margins)
                 classzero_probs = 1.0 - classone_probs
                 raw_preds = np.vstack((-margins, margins)).transpose()
-                class_probs = np.vstack(
-                    (classzero_probs, classone_probs)
-                ).transpose()
+                class_probs = np.vstack((classzero_probs, classone_probs)).transpose()
             else:
                 # multinomial case
                 raw_preds = margins
