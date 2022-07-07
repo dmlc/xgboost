@@ -162,10 +162,6 @@ class _XgboostParams(
         """
         raise NotImplementedError()
 
-    def _get_xgb_model_creator(self):
-        xgb_params = self._gen_xgb_params_dict(gen_xgb_sklearn_estimator_param=True)
-        return get_xgb_model_creator(self._xgb_cls(), xgb_params)
-
     # Parameters for xgboost.XGBModel()
     @classmethod
     def _get_xgb_params_default(cls):
@@ -383,25 +379,11 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
     def _create_pyspark_model(self, xgb_model):
         return self._pyspark_model_cls()(xgb_model)
 
-    @classmethod
-    def _convert_to_classifier(cls, booster):
-        clf = XGBClassifier()
-        clf._Booster = booster
-        return clf
-
-    @classmethod
-    def _convert_to_regressor(cls, booster):
-        reg = XGBRegressor()
-        reg._Booster = booster
-        return reg
-
-    def _convert_to_model(self, booster):
-        if self._xgb_cls() == XGBRegressor:
-            return self._convert_to_regressor(booster)
-        elif self._xgb_cls() == XGBClassifier:
-            return self._convert_to_classifier(booster)
-        else:
-            return None  # check if this else statement is needed.
+    def _convert_to_sklearn_model(self, booster):
+        xgb_sklearn_params = self._gen_xgb_params_dict(gen_xgb_sklearn_estimator_param=True)
+        sklearn_model = self._xgb_cls()(**xgb_sklearn_params)
+        sklearn_model._Booster = booster
+        return sklearn_model
 
     def _query_plan_contains_valid_repartition(self, dataset):
         """
@@ -606,7 +588,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             .mapPartitions(lambda x: x)
             .collect()[0][0]
         )
-        result_xgb_model = self._convert_to_model(cloudpickle.loads(result_ser_booster))
+        result_xgb_model = self._convert_to_sklearn_model(cloudpickle.loads(result_ser_booster))
         return self._copyValues(self._create_pyspark_model(result_xgb_model))
 
     def write(self):

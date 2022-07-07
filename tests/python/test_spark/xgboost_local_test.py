@@ -381,10 +381,8 @@ class XgboostLocalTest(SparkTestCase):
         self.assertEqual(py_reg.n_estimators.parent, py_reg.uid)
         self.assertFalse(hasattr(py_reg, "gpu_id"))
         self.assertEqual(py_reg.getOrDefault(py_reg.n_estimators), 100)
-        self.assertEqual(py_reg._get_xgb_model_creator()().n_estimators, 100)
         py_reg2 = SparkXGBRegressor(n_estimators=200)
         self.assertEqual(py_reg2.getOrDefault(py_reg2.n_estimators), 200)
-        self.assertEqual(py_reg2._get_xgb_model_creator()().n_estimators, 200)
         py_reg3 = py_reg2.copy({py_reg2.max_depth: 10})
         self.assertEqual(py_reg3.getOrDefault(py_reg3.n_estimators), 200)
         self.assertEqual(py_reg3.getOrDefault(py_reg3.max_depth), 10)
@@ -395,10 +393,8 @@ class XgboostLocalTest(SparkTestCase):
         self.assertEqual(py_cls.n_estimators.parent, py_cls.uid)
         self.assertFalse(hasattr(py_cls, "gpu_id"))
         self.assertEqual(py_cls.getOrDefault(py_cls.n_estimators), 100)
-        self.assertEqual(py_cls._get_xgb_model_creator()().n_estimators, 100)
         py_cls2 = SparkXGBClassifier(n_estimators=200)
         self.assertEqual(py_cls2.getOrDefault(py_cls2.n_estimators), 200)
-        self.assertEqual(py_cls2._get_xgb_model_creator()().n_estimators, 200)
         py_cls3 = py_cls2.copy({py_cls2.max_depth: 10})
         self.assertEqual(py_cls3.getOrDefault(py_cls3.n_estimators), 200)
         self.assertEqual(py_cls3.getOrDefault(py_cls3.max_depth), 10)
@@ -413,22 +409,15 @@ class XgboostLocalTest(SparkTestCase):
         self.assertEqual(
             py_cls.getOrDefault(py_cls.arbitrary_params_dict), expected_kwargs
         )
-        self.assertTrue("sketch_eps" in py_cls._get_xgb_model_creator()().get_params())
-        # We want all of the new params to be in the .get_params() call and be an attribute of py_cls, but not of the actual model
-        self.assertTrue(
-            "arbitrary_params_dict" not in py_cls._get_xgb_model_creator()().get_params()
-        )
 
         # Testing overwritten params
         py_cls = SparkXGBClassifier()
         py_cls.setParams(x=1, y=2)
-        py_cls.setParams(y=1, z=2)
-        self.assertTrue("x" in py_cls._get_xgb_model_creator()().get_params())
-        self.assertEqual(py_cls._get_xgb_model_creator()().get_params()["x"], 1)
-        self.assertTrue("y" in py_cls._get_xgb_model_creator()().get_params())
-        self.assertEqual(py_cls._get_xgb_model_creator()().get_params()["y"], 1)
-        self.assertTrue("z" in py_cls._get_xgb_model_creator()().get_params())
-        self.assertEqual(py_cls._get_xgb_model_creator()().get_params()["z"], 2)
+        py_cls.setParams(y=3, z=4)
+        xgb_params = py_cls._gen_xgb_params_dict()
+        assert xgb_params["x"] == 1
+        assert xgb_params["y"] == 3
+        assert xgb_params["z"] == 4
 
     def test_param_alias(self):
         py_cls = SparkXGBClassifier(features_col="f1", label_col="l1")
@@ -887,26 +876,27 @@ class XgboostLocalTest(SparkTestCase):
         classifier = SparkXGBClassifier(use_gpu=True, tree_method="gpu_hist")
         classifier = SparkXGBClassifier(use_gpu=True)
 
-    def test_convert_to_model(self):
-        classifier = SparkXGBClassifier()
+    def test_convert_to_sklearn_model(self):
+        classifier = SparkXGBClassifier(n_estimators=200, missing=2.0, max_depth=3, sketch_eps=0.5)
         clf_model = classifier.fit(self.cls_df_train)
 
-        regressor = SparkXGBRegressor()
+        regressor = SparkXGBRegressor(n_estimators=200, missing=2.0, max_depth=3, sketch_eps=0.5)
         reg_model = regressor.fit(self.reg_df_train)
 
         # Check that regardless of what booster, _convert_to_model converts to the correct class type
-        self.assertEqual(
-            type(classifier._convert_to_model(clf_model.get_booster())), XGBClassifier
-        )
-        self.assertEqual(
-            type(classifier._convert_to_model(reg_model.get_booster())), XGBClassifier
-        )
-        self.assertEqual(
-            type(regressor._convert_to_model(clf_model.get_booster())), XGBRegressor
-        )
-        self.assertEqual(
-            type(regressor._convert_to_model(reg_model.get_booster())), XGBRegressor
-        )
+        sklearn_classifier = classifier._convert_to_sklearn_model(clf_model.get_booster())
+        assert isinstance(sklearn_classifier, XGBClassifier)
+        assert sklearn_classifier.n_estimators == 200
+        assert sklearn_classifier.missing == 2.0
+        assert sklearn_classifier.max_depth == 3
+        assert sklearn_classifier.get_params()["sketch_eps"] == 0.5
+
+        sklearn_regressor = regressor._convert_to_sklearn_model(reg_model.get_booster())
+        assert isinstance(sklearn_regressor, XGBRegressor)
+        assert sklearn_regressor.n_estimators == 200
+        assert sklearn_regressor.missing == 2.0
+        assert sklearn_regressor.max_depth == 3
+        assert sklearn_classifier.get_params()["sketch_eps"] == 0.5
 
     def test_feature_importances(self):
         reg1 = SparkXGBRegressor(**self.reg_params)

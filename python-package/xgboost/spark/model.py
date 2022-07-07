@@ -16,22 +16,6 @@ from xgboost.core import Booster
 from .utils import get_logger, get_class_name
 
 
-def get_xgb_model_creator(model_cls, xgb_params):
-    """
-    Returns a function that can be used to create an xgboost.XGBModel instance.
-    This function is used for creating the model instance on the worker, and is
-    shared by _XgboostEstimator and XgboostModel.
-
-    Parameters
-    ----------
-    model_cls:
-        a subclass of xgboost.XGBModel
-    xgb_params:
-        a dict of params to initialize the model_cls
-    """
-    return lambda: model_cls(**xgb_params)  # pylint: disable=W0108
-
-
 def _get_or_create_tmp_dir():
     root_dir = SparkFiles.getRootDirectory()
     xgb_tmp_dir = os.path.join(root_dir, "xgboost-tmp")
