@@ -35,7 +35,6 @@ from .model import (
     SparkXGBWriter,
     SparkXGBModelReader,
     SparkXGBModelWriter,
-    get_xgb_model_creator,
 )
 from .utils import (
     _get_default_params_from_func,
