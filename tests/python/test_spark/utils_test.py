@@ -102,6 +102,10 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
             {
                 "spark.master": "local[2]",
                 "spark.python.worker.reuse": "false",
+                "spark.driver.host": "127.0.0.1",
+                "spark.task.maxFailures": "1",
+                "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
+                "spark.sql.pyspark.jvmStacktrace.enabled": "true",
             }
         )
 
@@ -117,6 +121,10 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
             {
                 "spark.master": "local-cluster[2, 2, 1024]",
                 "spark.python.worker.reuse": "false",
+                "spark.driver.host": "127.0.0.1",
+                "spark.task.maxFailures": "1",
+                "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
+                "spark.sql.pyspark.jvmStacktrace.enabled": "true",
                 "spark.cores.max": "4",
                 "spark.task.cpus": "1",
                 "spark.executor.cores": "2",

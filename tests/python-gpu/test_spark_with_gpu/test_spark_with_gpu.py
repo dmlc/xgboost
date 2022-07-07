@@ -11,6 +11,10 @@ def spark_session_with_gpu():
     spark_config = {
         "spark.master": "local-cluster[1, 4, 1024]",
         "spark.python.worker.reuse": "false",
+        "spark.driver.host": "127.0.0.1",
+        "spark.task.maxFailures": "1",
+        "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
+        "spark.sql.pyspark.jvmStacktrace.enabled": "true",
         "spark.cores.max": "4",
         "spark.task.cpus": "1",
         "spark.executor.cores": "4",
