@@ -1,7 +1,17 @@
+import sys
 import tempfile
 import shutil
+
+import pytest
 import numpy as np
 import pandas as pd
+
+import testing as tm
+
+if tm.no_dask()["condition"]:
+    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 from xgboost.spark.data import (
     _row_tuple_list_to_feature_matrix_y_w,

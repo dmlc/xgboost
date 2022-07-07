@@ -5,8 +5,16 @@ import sys
 import tempfile
 
 import unittest
+import pytest
 
 from six import StringIO
+
+import testing as tm
+
+if tm.no_dask()["condition"]:
+    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 from pyspark.sql import SQLContext
 from pyspark.sql import SparkSession

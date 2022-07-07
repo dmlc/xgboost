@@ -1,9 +1,21 @@
-from pyspark.sql import SparkSession
+import sys
+
 import logging
 import pytest
-from xgboost.spark import SparkXGBRegressor, SparkXGBClassifier
 import sklearn
+
+sys.path.append("tests/python")
+import testing as tm
+
+if tm.no_dask()["condition"]:
+    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+
+
+from pyspark.sql import SparkSession
 from pyspark.ml.linalg import Vectors
+from xgboost.spark import SparkXGBRegressor, SparkXGBClassifier
 
 
 @pytest.fixture(scope="module", autouse=True)
