@@ -11,7 +11,7 @@ import testing as tm
 if tm.no_dask()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
-    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from .utils_test import SparkLocalClusterTestCase
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor

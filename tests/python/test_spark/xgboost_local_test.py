@@ -11,7 +11,7 @@ import testing as tm
 if tm.no_dask()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
-    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from pyspark.ml.functions import vector_to_array
 from pyspark.sql import functions as spark_sql_func
