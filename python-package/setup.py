@@ -350,7 +350,7 @@ if __name__ == '__main__':
               'dask': ['dask', 'pandas', 'distributed'],
               'datatable': ['datatable'],
               'plotting': ['graphviz', 'matplotlib'],
-              'pyspark': ['pyspark'],
+              "pyspark": ["pyspark", "scikit-learn"],
           },
           maintainer='Hyunsu Cho',
           maintainer_email='chohyu01@cs.washington.edu',
