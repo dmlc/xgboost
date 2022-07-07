@@ -373,7 +373,7 @@ class XgboostLocalTest(SparkTestCase):
         )
 
     def get_local_tmp_dir(self):
-        return "/tmp/xgboost_local_test/" + str(uuid.uuid4())
+        return self.tempdir + str(uuid.uuid4())
 
     def test_regressor_params_basic(self):
         py_reg = SparkXGBRegressor()

@@ -108,9 +108,11 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
                 "spark.sql.pyspark.jvmStacktrace.enabled": "true",
             }
         )
+        cls.make_tempdir()
 
     @classmethod
     def tearDownClass(cls):
+        cls.remove_tempdir()
         cls.tear_down_env()
 
 
