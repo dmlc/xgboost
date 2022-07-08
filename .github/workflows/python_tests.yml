@@ -102,6 +102,10 @@ jobs:
       with:
         submodules: 'true'
 
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+
     - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
