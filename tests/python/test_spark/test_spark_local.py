@@ -10,7 +10,7 @@ import testing as tm
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win"):
+if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from pyspark.ml.functions import vector_to_array
@@ -34,10 +34,6 @@ from xgboost import XGBClassifier, XGBRegressor
 from xgboost.spark.core import _non_booster_params
 
 logging.getLogger("py4j").setLevel(logging.INFO)
-
-
-def custom_learning_rate_callback(boosting_round):
-    return 1.0 / (boosting_round + 1)
 
 
 class XgboostLocalTest(SparkTestCase):
@@ -662,7 +658,10 @@ class XgboostLocalTest(SparkTestCase):
 
         path = self.get_local_tmp_dir()
 
-        cb = [LearningRateScheduler(custom_learning_rate_callback)]
+        def custom_learning_rate(boosting_round):
+            return 1.0 / (boosting_round + 1)
+
+        cb = [LearningRateScheduler(custom_learning_rate)]
         regressor = SparkXGBRegressor(callbacks=cb)
 
         # Test the save/load of the estimator instead of the model, since

@@ -103,10 +103,6 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: actions/setup-java@v1
-      with:
-        java-version: 1.11
-
     - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
@@ -136,7 +132,6 @@ jobs:
     - name: Install Python package
       shell: bash -l {0}
       run: |
-        echo JAVA_HOME=$JAVA_HOME
         cd python-package
         python --version
         python setup.py bdist_wheel --universal
@@ -145,4 +140,4 @@ jobs:
     - name: Test Python package
       shell: bash -l {0}
       run: |
-        PYSPARK_DRIVER_PYTHON=`which python` PYSPARK_PYTHON=`which python` SPARK_TESTING=1 pytest -s -v ./tests/python
+        pytest -s -v ./tests/python
