@@ -91,7 +91,6 @@ class TestSparkContext(object):
         logging.getLogger("pyspark").setLevel(logging.INFO)
 
         cls.sc = spark.sparkContext
-        cls.sql = SQLContext(cls.sc)
         cls.session = spark
 
     @classmethod
@@ -100,7 +99,6 @@ class TestSparkContext(object):
         cls.session = None
         cls.sc.stop()
         cls.sc = None
-        cls.sql = None
 
 
 class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
