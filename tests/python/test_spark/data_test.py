@@ -32,8 +32,6 @@ class DataTest(SparkTestCase):
             pdf = pd.DataFrame(data)
             yield pdf
 
-        # row1 = Vectors.dense(1.0, 2.0, 3.0),),
-        # row2 = Vectors.sparse(3, {1: 1.0, 2: 5.5})
         expected_ndarray = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
         data = {"values": [[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]]}
         feature_matrix, y, w, _ = _row_tuple_list_to_feature_matrix_y_w(
@@ -45,7 +43,6 @@ class DataTest(SparkTestCase):
         )
         self.assertIsNone(y)
         self.assertIsNone(w)
-        # self.assertTrue(isinstance(feature_matrix, csr_matrix))
         self.assertTrue(np.allclose(feature_matrix, expected_ndarray))
 
         data["label"] = [1, 0]
@@ -57,7 +54,6 @@ class DataTest(SparkTestCase):
             has_predict_base_margin=False,
         )
         self.assertIsNone(w)
-        # self.assertTrue(isinstance(feature_matrix, csr_matrix))
         self.assertTrue(np.allclose(feature_matrix, expected_ndarray))
         self.assertTrue(np.array_equal(y, np.array(data["label"])))
 
@@ -69,7 +65,6 @@ class DataTest(SparkTestCase):
             has_fit_base_margin=False,
             has_predict_base_margin=False,
         )
-        # self.assertTrue(isinstance(feature_matrix, csr_matrix))
         self.assertTrue(np.allclose(feature_matrix, expected_ndarray))
         self.assertTrue(np.array_equal(y, np.array(data["label"])))
         self.assertTrue(np.array_equal(w, np.array(data["weight"])))

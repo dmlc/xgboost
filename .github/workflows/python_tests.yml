@@ -131,6 +131,7 @@ jobs:
     - name: Install Python package
       shell: bash -l {0}
       run: |
+        echo JAVA_HOME=$JAVA_HOME
         cd python-package
         python --version
         python setup.py bdist_wheel --universal
@@ -139,4 +140,4 @@ jobs:
     - name: Test Python package
       shell: bash -l {0}
       run: |
-        pytest -s -v ./tests/python
+        PYSPARK_DRIVER_PYTHON=`which python` PYSPARK_PYTHON=`which python` SPARK_TESTING=1 pytest -s -v ./tests/python

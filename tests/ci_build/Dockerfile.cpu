@@ -10,7 +10,7 @@ RUN \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 openjdk-8-jdk-headless && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
@@ -24,6 +24,7 @@ ENV CXX=g++-8
 ENV CPP=cpp-8
 
 ENV GOSU_VERSION 1.10
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 
 # Create new Conda environment
 COPY conda_env/cpu_test.yml /scripts/
