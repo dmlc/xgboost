@@ -104,7 +104,7 @@ jobs:
 
     - uses: actions/setup-java@v1
       with:
-        java-version: 1.8
+        java-version: 1.11
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
