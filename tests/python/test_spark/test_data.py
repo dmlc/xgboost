@@ -8,7 +8,7 @@ import pandas as pd
 
 import testing as tm
 
-if tm.no_dask()["condition"]:
+if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
@@ -20,7 +20,7 @@ from xgboost.spark.data import (
 
 from xgboost import DMatrix, XGBClassifier
 from xgboost.training import train as worker_train
-from .utils_test import SparkTestCase
+from .utils import SparkTestCase
 import logging
 
 logging.getLogger("py4j").setLevel(logging.INFO)

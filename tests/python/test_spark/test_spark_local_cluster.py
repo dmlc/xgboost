@@ -8,12 +8,12 @@ import pytest
 import numpy as np
 import testing as tm
 
-if tm.no_dask()["condition"]:
+if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
-from .utils_test import SparkLocalClusterTestCase
+from .utils import SparkLocalClusterTestCase
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from xgboost.spark.utils import _get_max_num_concurrent_tasks
 from pyspark.ml.linalg import Vectors

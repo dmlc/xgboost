@@ -11,7 +11,7 @@ from six import StringIO
 
 import testing as tm
 
-if tm.no_dask()["condition"]:
+if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
@@ -129,7 +129,7 @@ class SparkLocalClusterTestCase(TestSparkContext, TestTempDir, unittest.TestCase
     def setUpClass(cls):
         cls.setup_env(
             {
-                "spark.master": "local-cluster[2, 2, 512]",
+                "spark.master": "local-cluster[2, 2, 1024]",
                 "spark.python.worker.reuse": "false",
                 "spark.driver.host": "127.0.0.1",
                 "spark.task.maxFailures": "1",

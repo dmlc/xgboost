@@ -8,7 +8,7 @@ import pytest
 
 import testing as tm
 
-if tm.no_dask()["condition"]:
+if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
@@ -29,11 +29,15 @@ from xgboost.spark import (
     SparkXGBRegressor,
     SparkXGBRegressorModel,
 )
-from .utils_test import SparkTestCase
+from .utils import SparkTestCase
 from xgboost import XGBClassifier, XGBRegressor
 from xgboost.spark.core import _non_booster_params
 
 logging.getLogger("py4j").setLevel(logging.INFO)
+
+
+def custom_learning_rate_callback(boosting_round):
+    return 1.0 / (boosting_round + 1)
 
 
 class XgboostLocalTest(SparkTestCase):
@@ -658,10 +662,7 @@ class XgboostLocalTest(SparkTestCase):
 
         path = self.get_local_tmp_dir()
 
-        def custom_learning_rate(boosting_round):
-            return 1.0 / (boosting_round + 1)
-
-        cb = [LearningRateScheduler(custom_learning_rate)]
+        cb = [LearningRateScheduler(custom_learning_rate_callback)]
         regressor = SparkXGBRegressor(callbacks=cb)
 
         # Test the save/load of the estimator instead of the model, since

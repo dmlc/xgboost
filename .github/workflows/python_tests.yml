@@ -92,6 +92,7 @@ jobs:
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 90
     strategy:
       matrix:
         config:
