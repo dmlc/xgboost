@@ -22,18 +22,13 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
                                        bst_feature_t fidx,
                                        TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                                        bool &missing_left_out) {  // NOLINT
-  float missing_left_gain = evaluator.CalcSplitGain(param, nidx, fidx, GradStats(scan + missing),
-                                                    GradStats(parent_sum - (scan + missing)));
-  float missing_right_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, GradStats(scan), GradStats(parent_sum - scan));
+  const auto left_sum = scan + missing;
+  float missing_left_gain =
+      evaluator.CalcSplitGain(param, nidx, fidx, left_sum, parent_sum - left_sum);
+  float missing_right_gain = evaluator.CalcSplitGain(param, nidx, fidx, scan, parent_sum - scan);
 
-  if (missing_left_gain > missing_right_gain) {
-    missing_left_out = true;
-    return missing_left_gain;
-  } else {
-    missing_left_out = false;
-    return missing_right_gain;
-  }
+  missing_left_out = missing_left_gain > missing_right_gain;
+  return missing_left_out?missing_left_gain:missing_right_gain;
 }
 
 /*!
