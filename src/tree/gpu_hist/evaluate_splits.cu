@@ -31,40 +31,6 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
   return missing_left_out?missing_left_gain:missing_right_gain;
 }
 
-/*!
- * \brief
- *
- * \tparam ReduceT     BlockReduce Type.
- * \tparam TempStorage Cub Shared memory
- *
- * \param begin
- * \param end
- * \param temp_storage Shared memory for intermediate result.
- */
-template <int BLOCK_THREADS, typename ReduceT, typename TempStorageT, typename GradientSumT>
-__device__ GradientSumT ReduceFeature(common::Span<const GradientSumT> feature_histogram,
-                                      TempStorageT *temp_storage) {
-  __shared__ cub::Uninitialized<GradientSumT> uninitialized_sum;
-  GradientSumT &shared_sum = uninitialized_sum.Alias();
-
-  GradientSumT local_sum = GradientSumT();
-  // For loop sums features into one block size
-  auto begin = feature_histogram.data();
-  auto end = begin + feature_histogram.size();
-  for (auto itr = begin; itr < end; itr += BLOCK_THREADS) {
-    bool thread_active = itr + threadIdx.x < end;
-    // Scan histogram
-    GradientSumT bin = thread_active ? *(itr + threadIdx.x) : GradientSumT();
-    local_sum += bin;
-  }
-  local_sum = ReduceT(temp_storage->sum_reduce).Reduce(local_sum, cub::Sum());
-  // Reduction result is stored in thread 0.
-  if (threadIdx.x == 0) {
-    shared_sum = local_sum;
-  }
-  cub::CTA_SYNC();
-  return shared_sum;
-}
 
 template <int BLOCK_THREADS, typename GradientSumT>
 class EvaluateSplitAgent {
@@ -110,15 +76,22 @@ class EvaluateSplitAgent {
         parent_sum(dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0]),
         param(shared_inputs.param),
         evaluator(evaluator) {
-    auto feature_hist =
-        common::Span<const GradientSumT>(node_histogram + gidx_begin, gidx_end - gidx_begin);
-
     // Sum histogram bins for current feature
     GradientSumT const feature_sum =
-        ReduceFeature<BLOCK_THREADS, SumReduceT, TempStorage, GradientSumT>(feature_hist,
-                                                                            temp_storage);
+        ReduceFeature();
     missing = parent_sum - feature_sum;
   }
+  __device__ GradientSumT ReduceFeature() {
+    GradientSumT local_sum;
+    for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += BLOCK_THREADS) {
+      local_sum += LoadGpair(node_histogram + idx);
+    }
+    local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);
+    // Broadcast result from thread 0 
+    return {__shfl_sync(0xffffffff, local_sum.GetGrad(), 0),
+            __shfl_sync(0xffffffff, local_sum.GetHess(), 0)};
+  }
+
   // Load using efficient 128 vector load instruction
   __device__ __forceinline__ GradientSumT LoadGpair(const GradientSumT *ptr) {
     static_assert(sizeof(GradientSumT) == sizeof(float4),
