@@ -5,7 +5,7 @@ from pyspark.ml.param.shared import Param, Params
 
 class HasArbitraryParamsDict(Params):
     """
-    This is a Params based class that is extended by _XGBoostParams
+    This is a Params based class that is extended by _SparkXGBParams
     and holds the variable to store the **kwargs parts of the XGBoost
     input.
     """
@@ -21,7 +21,7 @@ class HasArbitraryParamsDict(Params):
 
 class HasBaseMarginCol(Params):
     """
-    This is a Params based class that is extended by _XGBoostParams
+    This is a Params based class that is extended by _SparkXGBParams
     and holds the variable to store the base margin column part of XGboost.
     """
 

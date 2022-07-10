@@ -31,12 +31,12 @@ def _check_feature_dims(num_dims, expected_dims):
         return num_dims
     if num_dims != expected_dims:
         raise ValueError(
-            "Rows contain different feature dimensions: "
-            "Expecting {}, got {}.".format(expected_dims, num_dims)
+            f"Rows contain different feature dimensions: Expecting {expected_dims}, got {num_dims}."
         )
     return expected_dims
 
 
+# pylint: disable=too-many-arguments
 def _row_tuple_list_to_feature_matrix_y_w(
     data_iterator,
     train,
@@ -54,6 +54,7 @@ def _row_tuple_list_to_feature_matrix_y_w(
     Note: the row_tuple_list will be cleared during
     executing for reducing peak memory consumption
     """
+    # pylint: disable=too-many-locals
     expected_feature_dims = None
     label_list, weight_list, base_margin_list = [], [], []
     label_val_list, weight_val_list, base_margin_val_list = [], [], []
@@ -114,6 +115,7 @@ def _row_tuple_list_to_feature_matrix_y_w(
         )
         return feature_matrix, y, w, b_m, feature_matrix_val, y_val, w_val, b_m_val
     return feature_matrix, y, w, b_m
+# pylint: enable=too-many-arguments
 
 
 def _process_data_iter(
@@ -130,26 +132,6 @@ def _process_data_iter(
     train base margin, val_X, val_y, val_w, val_b_m <- validation base margin)
     otherwise return (X, y, w, b_m <- base margin)
     """
-    if train and has_validation:
-        (
-            train_X,
-            train_y,
-            train_w,
-            train_b_m,
-            val_X,
-            val_y,
-            val_w,
-            val_b_m,
-        ) = _row_tuple_list_to_feature_matrix_y_w(
-            data_iterator,
-            train,
-            has_weight,
-            has_fit_base_margin,
-            has_predict_base_margin,
-            has_validation,
-        )
-        return train_X, train_y, train_w, train_b_m, val_X, val_y, val_w, val_b_m
-
     return _row_tuple_list_to_feature_matrix_y_w(
         data_iterator,
         train,
@@ -167,6 +149,7 @@ def _convert_partition_data_to_dmatrix(
     has_base_margin,
     dmatrix_kwargs=None,
 ):
+    # pylint: disable=too-many-locals
     dmatrix_kwargs = dmatrix_kwargs or {}
     # if we are not using external storage, we use the standard method of parsing data.
     train_val_data = _prepare_train_val_data(
@@ -174,7 +157,7 @@ def _convert_partition_data_to_dmatrix(
     )
     if has_validation:
         (
-            train_X,
+            train_x,
             train_y,
             train_w,
             train_b_m,
@@ -184,7 +167,7 @@ def _convert_partition_data_to_dmatrix(
             val_b_m,
         ) = train_val_data
         training_dmatrix = DMatrix(
-            data=train_X,
+            data=train_x,
             label=train_y,
             weight=train_w,
             base_margin=train_b_m,
@@ -198,13 +181,13 @@ def _convert_partition_data_to_dmatrix(
             **dmatrix_kwargs,
         )
         return training_dmatrix, val_dmatrix
-    else:
-        train_X, train_y, train_w, train_b_m = train_val_data
-        training_dmatrix = DMatrix(
-            data=train_X,
-            label=train_y,
-            weight=train_w,
-            base_margin=train_b_m,
-            **dmatrix_kwargs,
-        )
-        return training_dmatrix
+
+    train_x, train_y, train_w, train_b_m = train_val_data
+    training_dmatrix = DMatrix(
+        data=train_x,
+        label=train_y,
+        weight=train_w,
+        base_margin=train_b_m,
+        **dmatrix_kwargs,
+    )
+    return training_dmatrix

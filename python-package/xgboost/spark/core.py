@@ -1,9 +1,14 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
+# pylint: disable=fixme, too-many-ancestors, protected-access, no-member
+import cloudpickle
 import numpy as np
 import pandas as pd
-from scipy.special import expit, softmax
+from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
+
+from pyspark.ml.functions import array_to_vector, vector_to_array
 from pyspark.ml import Estimator, Model
+from pyspark.ml.linalg import VectorUDT
 from pyspark.ml.param.shared import (
     HasFeaturesCol,
     HasLabelCol,
@@ -16,12 +21,20 @@ from pyspark.ml.param.shared import (
 from pyspark.ml.param import Param, Params, TypeConverters
 from pyspark.ml.util import MLReadable, MLWritable
 from pyspark.sql.functions import col, pandas_udf, countDistinct, struct
+from pyspark.sql.types import (
+    ArrayType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    ShortType,
+)
+
+import xgboost
 from xgboost import XGBClassifier, XGBRegressor
 from xgboost.core import Booster
-import cloudpickle
-import xgboost
 from xgboost.training import train as worker_train
-from .utils import get_logger, _get_max_num_concurrent_tasks
+
 from .data import (
     _convert_partition_data_to_dmatrix,
 )
@@ -32,6 +45,7 @@ from .model import (
     SparkXGBModelWriter,
 )
 from .utils import (
+    get_logger, _get_max_num_concurrent_tasks,
     _get_default_params_from_func,
     get_class_name,
     RabitContext,
@@ -43,17 +57,6 @@ from .params import (
     HasArbitraryParamsDict,
     HasBaseMarginCol,
 )
-
-from pyspark.ml.functions import array_to_vector, vector_to_array
-from pyspark.sql.types import (
-    ArrayType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    LongType,
-    ShortType,
-)
-from pyspark.ml.linalg import VectorUDT
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
 # like `validationIndicatorCol`, `base_margin_col`
@@ -116,7 +119,7 @@ _unsupported_predict_params = {
 }
 
 
-class _XgboostParams(
+class _SparkXGBParams(
     HasFeaturesCol,
     HasLabelCol,
     HasWeightCol,
@@ -286,8 +289,9 @@ class _XgboostParams(
 
             if int(gpu_per_task) > 1:
                 get_logger(self.__class__.__name__).warning(
-                    f"You configured {gpu_per_task} GPU cores for each spark task, but in "
-                    f"XGBoost training, every Spark task will only use one GPU core."
+                    "You configured %s GPU cores for each spark task, but in "
+                    "XGBoost training, every Spark task will only use one GPU core.",
+                    gpu_per_task
                 )
 
 
@@ -317,7 +321,7 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
     return features_array_col
 
 
-class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
+class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     def __init__(self):
         super().__init__()
         self._set_xgb_params_default()
@@ -335,7 +339,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
             arbitrary_params_dict={},
         )
 
-    def setParams(self, **kwargs):
+    def setParams(self, **kwargs):  # pylint: disable=invalid-name
         """
         Set params for the estimator.
         """
@@ -373,7 +377,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
     def _pyspark_model_cls(cls):
         """
         Subclasses should override this method and
-        returns a _XgboostModel subclass
+        returns a _SparkXGBModel subclass
         """
         raise NotImplementedError()
 
@@ -472,6 +476,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return booster_params, kwargs_params
 
     def _fit(self, dataset):
+        # pylint: disable=too-many-statements
         self._validate_params()
         label_col = col(self.getOrDefault(self.labelCol)).alias("label")
 
@@ -621,7 +626,7 @@ class _SparkXGBEstimator(Estimator, _XgboostParams, MLReadable, MLWritable):
         return SparkXGBReader(cls)
 
 
-class _SparkXGBModel(Model, _XgboostParams, MLReadable, MLWritable):
+class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
     def __init__(self, xgb_sklearn_model=None):
         super().__init__()
         self._xgb_sklearn_model = xgb_sklearn_model
@@ -829,12 +834,11 @@ def _set_pyspark_xgb_cls_param_attrs(pyspark_estimator_class, pyspark_model_clas
         if isinstance(v, np.generic):
             # convert numpy scalar values to corresponding python scalar values
             return np.array(v).item()
-        elif isinstance(v, dict):
+        if isinstance(v, dict):
             return {k: param_value_converter(nv) for k, nv in v.items()}
-        elif isinstance(v, list):
+        if isinstance(v, list):
             return [param_value_converter(nv) for nv in v]
-        else:
-            return v
+        return v
 
     def set_param_attrs(attr_name, param_obj_):
         param_obj_.typeConverter = param_value_converter

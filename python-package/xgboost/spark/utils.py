@@ -5,10 +5,11 @@ from threading import Thread
 import sys
 import logging
 
-from xgboost import rabit
-from xgboost.tracker import RabitTracker
 import pyspark
 from pyspark.sql.session import SparkSession
+
+from xgboost import rabit
+from xgboost.tracker import RabitTracker
 
 
 def get_class_name(cls):
@@ -71,6 +72,7 @@ def _get_rabit_args(context, n_workers):
     """
     Get rabit context arguments to send to each worker.
     """
+    # pylint: disable=consider-using-f-string
     env = _start_tracker(context, n_workers)
     rabit_args = [("%s=%s" % item).encode() for item in env.items()]
     return rabit_args
@@ -117,11 +119,12 @@ def get_logger(name, level="INFO"):
     return logger
 
 
-def _get_max_num_concurrent_tasks(sc):
+def _get_max_num_concurrent_tasks(spark_context):
     """Gets the current max number of concurrent tasks."""
+    # pylint: disable=protected-access
     # spark 3.1 and above has a different API for fetching max concurrent tasks
-    if sc._jsc.sc().version() >= "3.1":
-        return sc._jsc.sc().maxNumConcurrentTasks(
-            sc._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
+    if spark_context._jsc.sc().version() >= "3.1":
+        return spark_context._jsc.sc().maxNumConcurrentTasks(
+            spark_context._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
         )
-    return sc._jsc.sc().maxNumConcurrentTasks()
+    return spark_context._jsc.sc().maxNumConcurrentTasks()

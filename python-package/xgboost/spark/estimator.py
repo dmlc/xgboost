@@ -1,5 +1,6 @@
 # type: ignore
 """Xgboost pyspark integration submodule for estimator API."""
+# pylint: disable=too-many-ancestors
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 from xgboost import XGBClassifier, XGBRegressor
 from .core import (

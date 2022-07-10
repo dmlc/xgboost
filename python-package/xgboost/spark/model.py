@@ -1,5 +1,6 @@
 # type: ignore
 """Xgboost pyspark integration submodule for model API."""
+# pylint: disable=fixme, invalid-name, protected-access
 import base64
 import os
 import uuid
@@ -34,7 +35,7 @@ def serialize_xgb_model(model):
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
     model.save_model(tmp_file_name)
-    with open(tmp_file_name, "r") as f:
+    with open(tmp_file_name, "r", encoding="utf-8") as f:
         ser_model_string = f.read()
     return ser_model_string
 
@@ -46,7 +47,7 @@ def deserialize_xgb_model(ser_model_string, xgb_model_creator):
     xgb_model = xgb_model_creator()
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    with open(tmp_file_name, "w") as f:
+    with open(tmp_file_name, "w", encoding="utf-8") as f:
         f.write(ser_model_string)
     xgb_model.load_model(tmp_file_name)
     return xgb_model
@@ -64,7 +65,7 @@ def serialize_booster(booster):
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
     booster.save_model(tmp_file_name)
-    with open(tmp_file_name) as f:
+    with open(tmp_file_name, encoding="utf-8") as f:
         ser_model_string = f.read()
     return ser_model_string
 
@@ -76,7 +77,7 @@ def deserialize_booster(ser_model_string):
     booster = Booster()
     # TODO: change to use string io
     tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    with open(tmp_file_name, "w") as f:
+    with open(tmp_file_name, "w", encoding="utf-8") as f:
         f.write(ser_model_string)
     booster.load_model(tmp_file_name)
     return booster
@@ -93,13 +94,13 @@ class _SparkXGBSharedReadWrite:
     @staticmethod
     def saveMetadata(instance, path, sc, logger, extraMetadata=None):
         """
-        Save the metadata of an xgboost.spark._XgboostEstimator or
-        xgboost.spark._XgboostModel.
+        Save the metadata of an xgboost.spark._SparkXGBEstimator or
+        xgboost.spark._SparkXGBModel.
         """
         instance._validate_params()
         skipParams = ["callbacks", "xgb_model"]
         jsonParams = {}
-        for p, v in instance._paramMap.items():
+        for p, v in instance._paramMap.items():  # pylint: disable=protected-access
             if p.name not in skipParams:
                 jsonParams[p.name] = v
 
@@ -131,8 +132,8 @@ class _SparkXGBSharedReadWrite:
     @staticmethod
     def loadMetadataAndInstance(pyspark_xgb_cls, path, sc, logger):
         """
-        Load the metadata and the instance of an xgboost.spark._XgboostEstimator or
-        xgboost.spark._XgboostModel.
+        Load the metadata and the instance of an xgboost.spark._SparkXGBEstimator or
+        xgboost.spark._SparkXGBModel.
 
         :return: a tuple of (metadata, instance)
         """
@@ -151,8 +152,8 @@ class _SparkXGBSharedReadWrite:
                 pyspark_xgb.set(pyspark_xgb.callbacks, callbacks)
             except Exception as e:  # pylint: disable=W0703
                 logger.warning(
-                    "Fails to load the callbacks param due to {}. Please set the "
-                    "callbacks param manually for the loaded estimator.".format(e)
+                    f"Fails to load the callbacks param due to {e}. Please set the "
+                    "callbacks param manually for the loaded estimator."
                 )
 
         if "init_booster" in metadata:
@@ -163,7 +164,7 @@ class _SparkXGBSharedReadWrite:
             init_booster = deserialize_booster(ser_init_booster)
             pyspark_xgb.set(pyspark_xgb.xgb_model, init_booster)
 
-        pyspark_xgb._resetUid(metadata["uid"])
+        pyspark_xgb._resetUid(metadata["uid"])  # pylint: disable=protected-access
         return metadata, pyspark_xgb
 
 
@@ -216,7 +217,7 @@ class SparkXGBModelWriter(MLWriter):
 
     def saveImpl(self, path):
         """
-        Save metadata and model for a :py:class:`_XgboostModel`
+        Save metadata and model for a :py:class:`_SparkXGBModel`
         - save metadata to path/metadata
         - save model to path/model.json
         """
@@ -241,7 +242,7 @@ class SparkXGBModelReader(MLReader):
 
     def load(self, path):
         """
-        Load metadata and model for a :py:class:`_XgboostModel`
+        Load metadata and model for a :py:class:`_SparkXGBModel`
 
         :return: SparkXGBRegressorModel or SparkXGBClassifierModel instance
         """
@@ -249,7 +250,7 @@ class SparkXGBModelReader(MLReader):
             self.cls, path, self.sc, self.logger
         )
 
-        xgb_params = py_model._gen_xgb_params_dict()
+        xgb_sklearn_params = py_model._gen_xgb_params_dict(gen_xgb_sklearn_estimator_param=True)
         model_load_path = os.path.join(path, "model.json")
 
         ser_xgb_model = (
@@ -258,8 +259,12 @@ class SparkXGBModelReader(MLReader):
             .collect()[0]
             .xgb_sklearn_model
         )
+
+        def create_xgb_model():
+            return lambda: self.cls._xgb_cls()(**xgb_sklearn_params)
+
         xgb_model = deserialize_xgb_model(
-            ser_xgb_model, lambda: self.cls._xgb_cls()(**xgb_params)
+            ser_xgb_model, create_xgb_model
         )
         py_model._xgb_sklearn_model = xgb_model
         return py_model
