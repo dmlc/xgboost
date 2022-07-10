@@ -161,6 +161,22 @@ enum BinTypeSize : uint8_t {
   kUint32BinsTypeSize = 4
 };
 
+template <unsigned int size>
+struct BinTypeMap {
+    using Type = uint32_t;
+};
+
+template <>
+struct BinTypeMap<kUint8BinsTypeSize> {
+    using Type = uint8_t;
+};
+
+template <>
+struct BinTypeMap<kUint16BinsTypeSize> {
+    using Type = uint16_t;
+};
+
+
 /**
  * \brief Dispatch for bin type, fn is a function that accepts a scalar of the bin type.
  */
