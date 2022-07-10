@@ -261,7 +261,7 @@ class SparkXGBModelReader(MLReader):
         )
 
         def create_xgb_model():
-            return lambda: self.cls._xgb_cls()(**xgb_sklearn_params)
+            return self.cls._xgb_cls()(**xgb_sklearn_params)
 
         xgb_model = deserialize_xgb_model(
             ser_xgb_model, create_xgb_model

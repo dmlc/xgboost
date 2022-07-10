@@ -1,5 +1,6 @@
 # type: ignore
 """Xgboost pyspark integration submodule for data related functions."""
+# pylint: disable=too-many-arguments
 from typing import Iterator
 import numpy as np
 import pandas as pd
@@ -36,7 +37,6 @@ def _check_feature_dims(num_dims, expected_dims):
     return expected_dims
 
 
-# pylint: disable=too-many-arguments
 def _row_tuple_list_to_feature_matrix_y_w(
     data_iterator,
     train,
@@ -115,7 +115,6 @@ def _row_tuple_list_to_feature_matrix_y_w(
         )
         return feature_matrix, y, w, b_m, feature_matrix_val, y_val, w_val, b_m_val
     return feature_matrix, y, w, b_m
-# pylint: enable=too-many-arguments
 
 
 def _process_data_iter(
@@ -149,7 +148,7 @@ def _convert_partition_data_to_dmatrix(
     has_base_margin,
     dmatrix_kwargs=None,
 ):
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals, unbalanced-tuple-unpacking
     dmatrix_kwargs = dmatrix_kwargs or {}
     # if we are not using external storage, we use the standard method of parsing data.
     train_val_data = _prepare_train_val_data(
@@ -161,7 +160,7 @@ def _convert_partition_data_to_dmatrix(
             train_y,
             train_w,
             train_b_m,
-            val_X,
+            val_x,
             val_y,
             val_w,
             val_b_m,
@@ -174,7 +173,7 @@ def _convert_partition_data_to_dmatrix(
             **dmatrix_kwargs,
         )
         val_dmatrix = DMatrix(
-            data=val_X,
+            data=val_x,
             label=val_y,
             weight=val_w,
             base_margin=val_b_m,

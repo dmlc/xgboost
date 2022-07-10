@@ -1,6 +1,6 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
-# pylint: disable=fixme, too-many-ancestors, protected-access, no-member
+# pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 import cloudpickle
 import numpy as np
 import pandas as pd
@@ -432,7 +432,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         try:
             if self._query_plan_contains_valid_repartition(dataset):
                 return False
-        except Exception:  # noqa: E722
+        except Exception:  # pylint: disable=broad-except
             pass
         return True
 
@@ -476,7 +476,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         return booster_params, kwargs_params
 
     def _fit(self, dataset):
-        # pylint: disable=too-many-statements
+        # pylint: disable=too-many-statements, too-many-locals
         self._validate_params()
         label_col = col(self.getOrDefault(self.labelCol)).alias("label")
 
@@ -519,10 +519,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         if num_workers > max_concurrent_tasks:
             get_logger(self.__class__.__name__).warning(
-                f"The num_workers {num_workers} set for xgboost distributed "
-                f"training is greater than current max number of concurrent "
-                f"spark task slots, you need wait until more task slots available "
-                f"or you need increase spark cluster workers."
+                "The num_workers %s set for xgboost distributed "
+                "training is greater than current max number of concurrent "
+                "spark task slots, you need wait until more task slots available "
+                "or you need increase spark cluster workers.",
+                num_workers
             )
 
         if self._repartition_needed(dataset):
