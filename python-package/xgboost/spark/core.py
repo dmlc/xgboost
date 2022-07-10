@@ -1,6 +1,7 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
+# pylint: disable=too-few-public-methods
 import cloudpickle
 import numpy as np
 import pandas as pd

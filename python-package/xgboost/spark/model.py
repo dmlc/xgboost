@@ -1,6 +1,6 @@
 # type: ignore
 """Xgboost pyspark integration submodule for model API."""
-# pylint: disable=fixme, invalid-name, protected-access
+# pylint: disable=fixme, invalid-name, protected-access, too-few-public-methods
 import base64
 import os
 import uuid
