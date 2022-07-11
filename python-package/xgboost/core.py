@@ -2668,7 +2668,7 @@ class Booster:
         values = []
         # pylint: disable=consider-using-f-string
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
-        for i, val in enumerate(xgdump):
+        for val in xgdump:
             m = re.findall(regexp, val)
             values.extend([float(x) for x in m])
 

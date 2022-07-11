@@ -42,6 +42,20 @@ test_that("xgb.DMatrix: saving, loading", {
   dtest4 <- xgb.DMatrix(tmp_file, silent = TRUE)
   expect_equal(dim(dtest4), c(3, 4))
   expect_equal(getinfo(dtest4, 'label'), c(0, 1, 0))
+
+  # check that feature info is saved
+  data(agaricus.train, package = 'xgboost')
+  dtrain <- xgb.DMatrix(data = agaricus.train$data, label = agaricus.train$label)
+  cnames <- colnames(dtrain)
+  expect_equal(length(cnames), 126)
+  tmp_file <- tempfile('xgb.DMatrix_')
+  xgb.DMatrix.save(dtrain, tmp_file)
+  dtrain <- xgb.DMatrix(tmp_file)
+  expect_equal(colnames(dtrain), cnames)
+
+  ft <- rep(c("c", "q"), each=length(cnames)/2)
+  setinfo(dtrain, "feature_type", ft)
+  expect_equal(ft, getinfo(dtrain, "feature_type"))
 })
 
 test_that("xgb.DMatrix: getinfo & setinfo", {

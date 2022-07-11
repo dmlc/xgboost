@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 #include "../../src/data/device_adapter.cuh"
-#include "../../src/data/iterative_device_dmatrix.h"
+#include "../../src/data/iterative_dmatrix.h"
 
 namespace xgboost {
 
@@ -28,12 +28,10 @@ int CudaArrayIterForTest::Next() {
   return 1;
 }
 
-
 std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix() {
   CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-  auto m = std::make_shared<data::IterativeDeviceDMatrix>(
-      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
-      0, bins_);
+  auto m = std::make_shared<data::IterativeDMatrix>(
+      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
   return m;
 }
 }  // namespace xgboost
