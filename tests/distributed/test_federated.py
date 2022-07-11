@@ -20,6 +20,7 @@ def run_server(port: int, world_size: int) -> None:
 def run_worker(port: int, world_size: int, rank: int, with_gpu: bool) -> None:
     # Always call this before using distributed module
     rabit_env = [
+        'xgboost_communicator=federated',
         f'federated_server_address=localhost:{port}',
         f'federated_world_size={world_size}',
         f'federated_rank={rank}',

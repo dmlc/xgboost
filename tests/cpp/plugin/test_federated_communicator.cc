@@ -45,7 +45,7 @@ class FederatedCommunicatorTest : public ::testing::Test {
 
   static void CheckAllreduce(FederatedCommunicator& comm) {
     int buffer[] = {1, 2, 3, 4, 5};
-    comm.AllReduce(buffer, sizeof(buffer)/sizeof(buffer[0]), DataType::kInt, Operation::kSum);
+    comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt, Operation::kSum);
     int expected[] = {3, 6, 9, 12, 15};
     for (auto i = 0; i < 5; i++) {
       EXPECT_EQ(buffer[i], expected[i]);
@@ -118,6 +118,90 @@ TEST_F(FederatedCommunicatorTest, Broadcast) {
   for (auto& thread : threads) {
     thread.join();
   }
+}
+
+TEST(FederatedCommunicatorFactoryTest, ServerAddress) {
+    FederatedCommunicatorFactory factory0{0, nullptr};
+    EXPECT_EQ(factory0.GetServerAddress(), "");
+
+    setenv("FEDERATED_SERVER_ADDRESS", "localhost:9091", 1);
+    FederatedCommunicatorFactory factory1{0, nullptr};
+    EXPECT_EQ(factory1.GetServerAddress(), "localhost:9091");
+
+    char *args[1];
+    args[0] = strdup("federated_server_address=foo:9091");
+    FederatedCommunicatorFactory factory2{1, args};
+    EXPECT_EQ(factory2.GetServerAddress(), "foo:9091");
+}
+
+TEST(FederatedCommunicatorFactoryTest, WorldSize) {
+    FederatedCommunicatorFactory factory0{0, nullptr};
+    EXPECT_EQ(factory0.GetWorldSize(), 0);
+
+    setenv("FEDERATED_WORLD_SIZE", "2", 1);
+    FederatedCommunicatorFactory factory1{0, nullptr};
+    EXPECT_EQ(factory1.GetWorldSize(), 2);
+
+    char *args[1];
+    args[0] = strdup("federated_world_size=3");
+    FederatedCommunicatorFactory factory2{1, args};
+    EXPECT_EQ(factory2.GetWorldSize(), 3);
+}
+
+TEST(FederatedCommunicatorFactoryTest, Rank) {
+    FederatedCommunicatorFactory factory0{0, nullptr};
+    EXPECT_EQ(factory0.GetRank(), -1);
+
+    setenv("FEDERATED_RANK", "1", 1);
+    FederatedCommunicatorFactory factory1{0, nullptr};
+    EXPECT_EQ(factory1.GetRank(), 1);
+
+    char *args[1];
+    args[0] = strdup("federated_rank=2");
+    FederatedCommunicatorFactory factory2{1, args};
+    EXPECT_EQ(factory2.GetRank(), 2);
+}
+
+TEST(FederatedCommunicatorFactoryTest, ServerCert) {
+    FederatedCommunicatorFactory factory0{0, nullptr};
+    EXPECT_EQ(factory0.GetServerCert(), "");
+
+    setenv("FEDERATED_SERVER_CERT", "foo/server-cert.pem", 1);
+    FederatedCommunicatorFactory factory1{0, nullptr};
+    EXPECT_EQ(factory1.GetServerCert(), "foo/server-cert.pem");
+
+    char *args[1];
+    args[0] = strdup("federated_server_cert=bar/server-cert.pem");
+    FederatedCommunicatorFactory factory2{1, args};
+    EXPECT_EQ(factory2.GetServerCert(), "bar/server-cert.pem");
+}
+
+TEST(FederatedCommunicatorFactoryTest, ClientKey) {
+    FederatedCommunicatorFactory factory0{0, nullptr};
+    EXPECT_EQ(factory0.GetClientKey(), "");
+
+    setenv("FEDERATED_CLIENT_KEY", "foo/client-key.pem", 1);
+    FederatedCommunicatorFactory factory1{0, nullptr};
+    EXPECT_EQ(factory1.GetClientKey(), "foo/client-key.pem");
+
+    char *args[1];
+    args[0] = strdup("federated_client_key=bar/client-key.pem");
+    FederatedCommunicatorFactory factory2{1, args};
+    EXPECT_EQ(factory2.GetClientKey(), "bar/client-key.pem");
+}
+
+TEST(FederatedCommunicatorFactoryTest, ClientCert) {
+    FederatedCommunicatorFactory factory0{0, nullptr};
+    EXPECT_EQ(factory0.GetClientCert(), "");
+
+    setenv("FEDERATED_CLIENT_CERT", "foo/client-cert.pem", 1);
+    FederatedCommunicatorFactory factory1{0, nullptr};
+    EXPECT_EQ(factory1.GetClientCert(), "foo/client-cert.pem");
+
+    char *args[1];
+    args[0] = strdup("federated_client_cert=bar/client-cert.pem");
+    FederatedCommunicatorFactory factory2{1, args};
+    EXPECT_EQ(factory2.GetClientCert(), "bar/client-cert.pem");
 }
 
 }  // namespace collective

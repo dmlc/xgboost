@@ -90,5 +90,91 @@ class FederatedCommunicator : public Communicator {
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
 };
 
+class FederatedCommunicatorFactory {
+ public:
+  FederatedCommunicatorFactory(int argc, char *argv[]) {
+    // Parse environment variables first.
+    for (auto const &env_var : env_vars_) {
+      char const *value = getenv(env_var.c_str());
+      if (value != nullptr) {
+        SetParam(env_var, value);
+      }
+    }
+
+    // Command line argument overrides.
+    for (int i = 0; i < argc; ++i) {
+      std::string const key_value = argv[i];
+      auto const delimiter = key_value.find('=');
+      if (delimiter != std::string::npos) {
+        SetParam(key_value.substr(0, delimiter), key_value.substr(delimiter + 1));
+      }
+    }
+  }
+
+  Communicator *Create() {
+    if (server_address_.empty()) {
+      LOG(FATAL) << "Federated server address must be set.";
+    }
+    if (world_size_ == 0) {
+      LOG(FATAL) << "Federated world size must be set.";
+    }
+    if (rank_ == -1) {
+      LOG(FATAL) << "Federated rank must be set.";
+    }
+    if (server_cert_.empty()) {
+      LOG(FATAL) << "Federated server cert must be set.";
+    }
+    if (client_key_.empty()) {
+      LOG(FATAL) << "Federated client key must be set.";
+    }
+    if (client_cert_.empty()) {
+      LOG(FATAL) << "Federated client cert must be set.";
+    }
+    return new FederatedCommunicator(world_size_, rank_, server_address_, server_cert_, client_key_,
+                                     client_cert_);
+  }
+
+  std::string const &GetServerAddress() const { return server_address_; }
+  int GetWorldSize() const { return world_size_; }
+  int GetRank() const { return rank_; }
+  std::string const &GetServerCert() const { return server_cert_; }
+  std::string const &GetClientKey() const { return client_key_; }
+  std::string const &GetClientCert() const { return client_cert_; }
+
+ private:
+  void SetParam(std::string const &name, std::string const &val) {
+    if (!strcasecmp(name.c_str(), "FEDERATED_SERVER_ADDRESS")) {
+      server_address_ = val;
+    } else if (!strcasecmp(name.c_str(), "FEDERATED_WORLD_SIZE")) {
+      world_size_ = std::stoi(val);
+    } else if (!strcasecmp(name.c_str(), "FEDERATED_RANK")) {
+      rank_ = std::stoi(val);
+    } else if (!strcasecmp(name.c_str(), "FEDERATED_SERVER_CERT")) {
+      server_cert_ = val;
+    } else if (!strcasecmp(name.c_str(), "FEDERATED_CLIENT_KEY")) {
+      client_key_ = val;
+    } else if (!strcasecmp(name.c_str(), "FEDERATED_CLIENT_CERT")) {
+      client_cert_ = val;
+    }
+  }
+
+  // clang-format off
+  std::vector<std::string> const env_vars_{
+      "FEDERATED_SERVER_ADDRESS",
+      "FEDERATED_WORLD_SIZE",
+      "FEDERATED_RANK",
+      "FEDERATED_SERVER_CERT",
+      "FEDERATED_CLIENT_KEY",
+      "FEDERATED_CLIENT_CERT" };
+  // clang-format on
+
+  std::string server_address_{};
+  int world_size_{0};
+  int rank_{-1};
+  std::string server_cert_{};
+  std::string client_key_{};
+  std::string client_cert_{};
+};
+
 }  // namespace collective
 }  // namespace xgboost
