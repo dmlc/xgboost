@@ -63,7 +63,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
 
   std::size_t total_rows = 0;
-  for (int i = 0; i < segments.size(); i++) {
+  for (size_t i = 0; i < segments.size(); i++) {
     h_batch_info[i] = {segments.at(i), 0};
     total_rows += segments.at(i).Size();
   }
@@ -76,7 +76,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
                                                  total_rows, op, &tmp, nullptr);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
-  for (int i = 0; i < segments.size(); i++) {
+  for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
     bst_uint count = counts[i];

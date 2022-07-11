@@ -272,7 +272,7 @@ struct GPUHistMakerDevice {
     hist.Reset();
   }
 
-  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum, float weight) {
+  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum) {
     int nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
@@ -285,7 +285,7 @@ struct GPUHistMakerDevice {
         gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
         matrix.min_fvalue,
     };
-    auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs, weight);
+    auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
     return split;
   }
 
@@ -298,11 +298,11 @@ struct GPUHistMakerDevice {
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam(param), feature_types,     matrix.feature_segments,
+        GPUTrainingParam{param}, feature_types,     matrix.feature_segments,
         matrix.gidx_fvalue_map,  matrix.min_fvalue,
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
-    for (int i = 0; i < candidates.size(); i++) {
+    for (size_t i = 0; i < candidates.size(); i++) {
       auto candidate = candidates.at(i);
       int left_nidx = tree[candidate.nid].LeftChild();
       int right_nidx = tree[candidate.nid].RightChild();
@@ -378,7 +378,7 @@ struct GPUHistMakerDevice {
     std::vector<int> left_nidx(candidates.size());
     std::vector<int> right_nidx(candidates.size());
     std::vector<NodeSplitData> split_data(candidates.size());
-    for (int i = 0; i < candidates.size(); i++) {
+    for (size_t i = 0; i < candidates.size(); i++) {
       auto& e = candidates[i];
       RegTree::Node split_node = (*p_tree)[e.nid];
       auto split_type = p_tree->NodeSplitType(e.nid);
@@ -658,7 +658,7 @@ struct GPUHistMakerDevice {
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
     // Generate first split
-    auto root_entry = this->EvaluateRootSplit(root_sum, weight);
+    auto root_entry = this->EvaluateRootSplit(root_sum);
     return root_entry;
   }
 
