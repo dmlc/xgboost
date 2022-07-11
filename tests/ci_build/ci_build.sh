@@ -144,8 +144,15 @@ then
     DOCKER_CACHE_REPO="${DOCKER_CACHE_ECR_ID}.dkr.ecr.${DOCKER_CACHE_ECR_REGION}.amazonaws.com"
     echo "Using AWS ECR; repo URL = ${DOCKER_CACHE_REPO}"
     # Login for Docker registry
-    echo "\$(python3 -m awscli ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})"
-    $(python3 -m awscli ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})
+    PYENV=$(cat /proc/sys/kernel/random/uuid)
+    echo "python3 -m venv ${PYENV}"
+    python3 -m venv ${PYENV}
+    echo "source ${PYENV}/bin/activate"
+    source ${PYENV}/bin/activate
+    echo "python -m pip install awscli"
+    python -m pip install awscli
+    echo "\$(python -m awscli ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})"
+    $(python -m awscli ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})
     # Pull pre-build container from Docker build cache,
     # if one exists for the particular branch or pull request
     echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
@@ -188,8 +195,11 @@ then
     echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
 
-    echo "python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true"
-    python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true
+    echo "python -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true"
+    python -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true
+
+    echo "deactivate"
+    deactivate
 
     echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
