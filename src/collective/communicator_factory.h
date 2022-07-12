@@ -15,7 +15,7 @@ enum class CommunicatorType { kUnknown, kRabit, kMPI, kFederated };
 
 class CommunicatorFactory {
  public:
-  static constexpr const char* kCommunicatorKey = "XGBOOST_COMMUNICATOR";
+  static constexpr char const* kCommunicatorKey = "XGBOOST_COMMUNICATOR";
 
   static void Init(int argc, char* argv[]) {
     if (communicator_) {
