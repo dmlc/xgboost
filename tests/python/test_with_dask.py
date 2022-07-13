@@ -1,6 +1,7 @@
 """Copyright 2019-2022 XGBoost contributors"""
 from pathlib import Path
 import pickle
+import socket
 import testing as tm
 import pytest
 import xgboost as xgb
@@ -1243,11 +1244,11 @@ class TestWithDask:
         os.remove(after_fname)
 
         with dask.config.set({'xgboost.foo': "bar"}):
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match=r"Unknown configuration.*"):
                 xgb.dask.train(client, {}, dtrain, num_boost_round=4)
 
-        with dask.config.set({'xgboost.scheduler_address': "127.0.0.1:22"}):
-            with pytest.raises(PermissionError):
+        with dask.config.set({'xgboost.scheduler_address': "127.0.0.1:foo"}):
+            with pytest.raises(socket.gaierror, match=r".*not known.*"):
                 xgb.dask.train(client, {}, dtrain, num_boost_round=1)
 
     def run_updater_test(
