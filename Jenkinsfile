@@ -180,7 +180,7 @@ def BuildCPUARM64() {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate aarch64_test && python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress"
+      python3 -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
       """
     }
     stash name: 'xgboost_cli_arm64', includes: 'xgboost'
@@ -234,7 +234,7 @@ def BuildCUDA(args) {
     if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
       echo 'Uploading Python wheel...'
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      python3 -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
       """
     }
     echo 'Stashing C++ test executable (testxgboost)...'
@@ -271,7 +271,7 @@ def BuildRPackageWithCUDA(args) {
       """
       echo 'Uploading R tarball...'
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp xgboost_r_gpu_linux_*.tar.gz s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      python3 -m awscli s3 cp xgboost_r_gpu_linux_*.tar.gz s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
       """
     }
     deleteDir()
@@ -329,7 +329,7 @@ def BuildJVMDoc() {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading doc...'
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} python -m awscli s3 cp jvm-packages/${BRANCH_NAME}.tar.bz2 s3://xgboost-docs/${BRANCH_NAME}.tar.bz2 --acl public-read --no-progress
+      python3 -m awscli s3 cp jvm-packages/${BRANCH_NAME}.tar.bz2 s3://xgboost-docs/${BRANCH_NAME}.tar.bz2 --acl public-read --no-progress
       """
     }
     deleteDir()
