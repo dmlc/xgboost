@@ -177,12 +177,12 @@ def BuildCPUARM64() {
     """
     echo 'Stashing Python wheel...'
     stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
-    //if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
       sh """
       python3 -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
       """
-    //}
+    }
     stash name: 'xgboost_cli_arm64', includes: 'xgboost'
     deleteDir()
   }
