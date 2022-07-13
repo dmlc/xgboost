@@ -72,6 +72,7 @@ class GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
+  DMatrix* p_fmat = {nullptr};
   /*! \brief max_bin for each feature. */
   size_t max_num_bins;
   /*! \brief base row index for current page (used by external memory) */
@@ -81,7 +82,6 @@ class GHistIndexMatrix {
   GHistIndexMatrix(DMatrix* x, bst_bin_t max_bins_per_feat, double sparse_thresh,
                    bool sorted_sketch, int32_t n_threads, common::Span<float> hess = {});
   ~GHistIndexMatrix();
-
   // Create a global histogram matrix, given cut. Used by external memory
   void Init(SparsePage const& page, common::Span<FeatureType const> ft,
             common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,

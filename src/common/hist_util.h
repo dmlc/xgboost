@@ -113,7 +113,7 @@ class HistogramCuts {
     auto end = ptrs[column_id + 1];
     auto beg = ptrs[column_id];
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    auto idx = it - values.cbegin();
+    bst_bin_t idx = it - values.cbegin();
     idx -= !!(idx == end);
     return idx;
   }
@@ -155,11 +155,33 @@ class HistogramCuts {
 HistogramCuts SketchOnDMatrix(DMatrix* m, int32_t max_bins, int32_t n_threads,
                               bool use_sorted = false, Span<float> const hessian = {});
 
-enum BinTypeSize : uint8_t {
-  kUint8BinsTypeSize = 1,
+enum BinTypeSize : unsigned int {
+  kUint8BinsTypeSize  = 1,
   kUint16BinsTypeSize = 2,
   kUint32BinsTypeSize = 4
 };
+
+template <unsigned int size>
+struct BinTypeMap {
+    using Type = uint32_t;
+};
+
+template <>
+struct BinTypeMap<kUint8BinsTypeSize> {
+    using Type = uint8_t;
+};
+
+template <>
+struct BinTypeMap<kUint16BinsTypeSize> {
+    using Type = uint16_t;
+};
+
+using BinTypeSizeSequence = std::integer_sequence<uint32_t,
+  BinTypeSize::kUint8BinsTypeSize, BinTypeSize::kUint16BinsTypeSize,
+  BinTypeSize::kUint32BinsTypeSize>;
+using BoolSequence = std::integer_sequence<bool, true, false>;
+
+
 
 /**
  * \brief Dispatch for bin type, fn is a function that accepts a scalar of the bin type.
@@ -180,6 +202,7 @@ auto DispatchBinType(BinTypeSize type, Fn&& fn) {
   LOG(FATAL) << "Unreachable";
   return fn(uint32_t{});
 }
+
 
 /**
  * \brief Optionally compressed gradient index. The compression works only with dense
@@ -367,6 +390,11 @@ class HistCollection {
     n_nodes_added_ = 0;
   }
 
+  // get number of bins
+  uint32_t GetNumBins() const {
+      return nbins_;
+  }
+
   // create an empty histogram for i-th node
   void AddHistRow(bst_uint nid) {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
@@ -411,6 +439,15 @@ class HistCollection {
   std::vector<size_t> row_ptr_;
 };
 
+void ReduceHist(double* dest_hist,
+                const std::vector<std::vector<uint16_t>>& local_threads_mapping,
+                std::vector<std::vector<std::vector<double>>>* histograms,
+                const size_t node_id,
+                const std::vector<uint16_t>& threads_id_for_node,
+                size_t begin, size_t end);
+
+void ClearHist(double* dest_hist,
+                size_t begin, size_t end);
 /*!
  * \brief Stores temporary histograms to compute them in parallel
  * Supports processing multiple tree-nodes for nested parallelism
@@ -418,10 +455,74 @@ class HistCollection {
  */
 class ParallelGHistBuilder {
  public:
+  std::vector<std::vector<std::vector<double>>> histograms_buffer;
+  std::vector<std::vector<uint16_t>> local_threads_mapping;
+
+  std::vector<std::vector<std::vector<double>>>* GetHistBuffer() {
+    return &histograms_buffer;
+  }
+
+  std::vector<std::vector<uint16_t>>* GetLocalThreadsMapping() {
+    return &local_threads_mapping;
+  }
+
   void Init(size_t nbins) {
     if (nbins != nbins_) {
       hist_buffer_.Init(nbins);
       nbins_ = nbins;
+    }
+  }
+
+  void AllocateHistBufer(const int32_t max_depth,
+                         const size_t n_threads) {
+    max_depth_ = std::max(max_depth, 1);
+    if (histograms_buffer.size() == 0) {
+      histograms_buffer.resize(n_threads);
+      local_threads_mapping.resize(n_threads);
+      #pragma omp parallel num_threads(n_threads)
+      {
+        const size_t tid = omp_get_thread_num();
+        local_threads_mapping[tid].resize((1 << (max_depth_ + 2)));
+        histograms_buffer[tid].resize((1 << (max_depth_ - 1)));
+      }
+    }
+  }
+
+  void AllocateHistForLocalThread(const std::vector<uint16_t>& node_id_for_local_thread,
+                                  const size_t tid) {
+    size_t max_nid = 0;
+    const size_t local_thread_size = node_id_for_local_thread.size();
+    for (size_t nid = 0; nid < local_thread_size; ++nid) {
+      max_nid = std::max(max_nid, static_cast<size_t>(node_id_for_local_thread[nid]));
+    }
+    if (local_threads_mapping[tid].size() <= max_nid) {
+      local_threads_mapping[tid].resize(max_nid + 1);
+    }
+    if (histograms_buffer[tid].size() <= local_thread_size) {
+      histograms_buffer[tid].resize(local_thread_size + 1);
+    }
+    for (size_t nid = 0; nid < local_thread_size; ++nid) {
+      const size_t node_id = node_id_for_local_thread[nid];
+      CHECK_LT(node_id, local_threads_mapping[tid].size());
+      CHECK_LT(nid, histograms_buffer[tid].size());
+      local_threads_mapping[tid][node_id] = nid;
+      if (histograms_buffer[tid][nid].size() == 0) {
+        histograms_buffer[tid][nid].resize(nbins_*2, 0);
+      }
+    }
+  }
+
+  void ReduceHist(double* dest_hist, const std::vector<uint16_t>& threads_id_for_nodes,
+                  size_t nid, size_t begin, size_t end) {
+    if (threads_id_for_nodes.size() != 0) {
+      common::ReduceHist(dest_hist,
+                         local_threads_mapping,
+                         &histograms_buffer,
+                         nid,
+                         threads_id_for_nodes,
+                         2 * begin, 2 * end);
+    } else {
+      common::ClearHist(dest_hist, 2 * begin, 2 * end);
     }
   }
 
@@ -565,6 +666,9 @@ class ParallelGHistBuilder {
   size_t nthreads_ = 0;
   /*! \brief number of nodes which will be processed in parallel  */
   size_t nodes_ = 0;
+  /*! \brief max depth which will be processed */
+  int32_t max_depth_ = 1;
+
   /*! \brief Buffer for additional histograms for Parallel processing  */
   HistCollection hist_buffer_;
   /*!
@@ -583,27 +687,6 @@ class ParallelGHistBuilder {
    * -1 is reserved for targeted_hists_
    */
   std::map<std::pair<size_t, size_t>, int> tid_nid_to_hist_;
-};
-
-/*!
- * \brief builder for histograms of gradient statistics
- */
-class GHistBuilder {
- public:
-  GHistBuilder() = default;
-  explicit GHistBuilder(uint32_t nbins): nbins_{nbins} {}
-
-  // construct a histogram via histogram aggregation
-  template <bool any_missing>
-  void BuildHist(const std::vector<GradientPair>& gpair, const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix& gmat, GHistRow hist) const;
-  uint32_t GetNumBins() const {
-      return nbins_;
-  }
-
- private:
-  /*! \brief number of all bins over all features */
-  uint32_t nbins_ { 0 };
 };
 }  // namespace common
 }  // namespace xgboost

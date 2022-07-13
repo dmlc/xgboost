@@ -30,6 +30,11 @@ inline int32_t omp_get_thread_limit() { return std::numeric_limits<int32_t>::max
 namespace xgboost {
 namespace common {
 
+template <typename T>
+T GetBlockSize(const T num_row, const size_t nthread) {
+  return num_row / nthread + !!(num_row % nthread);
+}
+
 // Represent simple range of indexes [begin, end)
 // Inspired by tbb::blocked_range
 class Range1d {

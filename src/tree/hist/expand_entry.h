@@ -24,7 +24,7 @@ struct CPUExpandEntry {
   }
 
   bool IsValid(const TrainParam& param, int num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
+    if (split.loss_chg <= kRtEps) { return false;}
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
       return false;
     }

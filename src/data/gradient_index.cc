@@ -48,13 +48,13 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
   this->columns_ = std::make_unique<common::ColumnMatrix>();
 
   // hessian is empty when hist tree method is used or when dataset is empty
-  if (hess.empty() && !std::isnan(sparse_thresh)) {
-    // hist
-    CHECK(!sorted_sketch);
+  // if (hess.empty() && !std::isnan(sparse_thresh)) {
+  //   // hist
+  //   CHECK(!sorted_sketch);
     for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
       this->columns_->Init(page, *this, sparse_thresh, n_threads);
     }
-  }
+  // }
 }
 
 GHistIndexMatrix::~GHistIndexMatrix() = default;
@@ -131,6 +131,8 @@ void GHistIndexMatrix::Init(SparsePage const &batch, common::Span<FeatureType co
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
     this->columns_->Init(batch, *this, sparse_thresh, n_threads);
+  } else {
+    this->columns_->Init(batch, *this, 1, n_threads);
   }
 }
 

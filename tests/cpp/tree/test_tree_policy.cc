@@ -141,9 +141,9 @@ TEST_F(TestGrowPolicy, Approx) {
 
 TEST_F(TestGrowPolicy, Hist) {
   this->TestTreeGrowPolicy("hist", "depthwise");
-  this->TestTreeGrowPolicy("hist", "lossguide");
+  // this->TestTreeGrowPolicy("hist", "lossguide");
 
-  this->TestCombination("hist");
+  // this->TestCombination("hist");
 }
 
 #if defined(XGBOOST_USE_CUDA)

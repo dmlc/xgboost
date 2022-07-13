@@ -23,11 +23,6 @@ TEST(QuantileHist, Partitioner) {
   GenericParameter ctx;
   ctx.InitAllowUnknown(Args{});
 
-  HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
-  ASSERT_EQ(partitioner.base_rowid, base_rowid);
-  ASSERT_EQ(partitioner.Size(), 1);
-  ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
-
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
 
@@ -37,39 +32,82 @@ TEST(QuantileHist, Partitioner) {
     GHistIndexMatrix gmat;
     gmat.Init(page, {}, cuts, 64, true, 0.5, ctx.Threads());
     bst_feature_t const split_ind = 0;
-    common::ColumnMatrix column_indices;
-    column_indices.Init(page, gmat, 0.5, ctx.Threads());
     {
       auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree;
-      HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+      CommonRowPartitioner partitioner{&ctx, gmat, &tree, 8, false};
       GetSplit(&tree, min_value, &candidates);
-      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
-      ASSERT_EQ(partitioner.Size(), 3);
-      ASSERT_EQ(partitioner[1].Size(), 0);
-      ASSERT_EQ(partitioner[2].Size(), n_samples);
+
+      std::unordered_map<uint32_t, bool> smalest_nodes_mask;
+      smalest_nodes_mask[2] = true;
+      const bool loss_guide = false;
+      std::unordered_map<uint32_t, int32_t> split_conditions_;
+      std::unordered_map<uint32_t, uint64_t> split_ind_;
+      split_ind_[0] = split_ind;
+      const size_t max_depth = 8;
+      std::vector<uint16_t> complete_trees_depth_wise_(3, 0);
+      complete_trees_depth_wise_[0] = 1;
+      complete_trees_depth_wise_[1] = 2;
+      std::unordered_map<uint32_t, uint16_t> curr_level_nodes;
+      curr_level_nodes[0] = 1;
+      curr_level_nodes[1] = 2;
+      partitioner.UpdatePosition<false, uint8_t, false, true>(&ctx, gmat, candidates, &tree,
+                                                              0, &smalest_nodes_mask, false,
+                                                              &split_conditions_, &split_ind_,
+                                                              8, &complete_trees_depth_wise_);
+
+      auto const & assignments = partitioner.GetNodeAssignments();
+      std::vector<size_t> result(3, 0);
+      size_t count = 0;
+      for (auto node_id : assignments) {
+        CHECK_NE(node_id, 0);
+        CHECK_LT(node_id, 3);
+        ++result[node_id];
+        ++count;
+      }
+      ASSERT_EQ(count, assignments.size());
+      ASSERT_EQ(result[0], 0);
+      ASSERT_EQ(result[2], assignments.size());
     }
     {
-      HistRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree;
+      CommonRowPartitioner partitioner{&ctx, gmat, &tree, 8, false};
       GetSplit(&tree, split_value, &candidates);
-      auto left_nidx = tree[RegTree::kRoot].LeftChild();
-      partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
 
-      auto elem = partitioner[left_nidx];
-      ASSERT_LT(elem.Size(), n_samples);
-      ASSERT_GT(elem.Size(), 1);
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = gmat.cut.Values().at(gmat.index[*it]);
-        ASSERT_LE(value, split_value);
-      }
-      auto right_nidx = tree[RegTree::kRoot].RightChild();
-      elem = partitioner[right_nidx];
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = gmat.cut.Values().at(gmat.index[*it]);
-        ASSERT_GT(value, split_value) << *it;
+      std::unordered_map<uint32_t, bool> smalest_nodes_mask;
+      smalest_nodes_mask[2] = true;
+      const bool loss_guide = false;
+      std::unordered_map<uint32_t, int32_t> split_conditions_;
+      std::unordered_map<uint32_t, uint64_t> split_ind_;
+      split_ind_[0] = split_ind;
+      const size_t max_depth = 8;
+      std::vector<uint16_t> complete_trees_depth_wise_(3, 0);
+      complete_trees_depth_wise_[0] = 1;
+      complete_trees_depth_wise_[1] = 2;
+      std::unordered_map<uint32_t, uint16_t> curr_level_nodes;
+      curr_level_nodes[0] = 1;
+      curr_level_nodes[1] = 2;
+      partitioner.UpdatePosition<false, uint8_t, false, true>(&ctx, gmat, candidates, &tree,
+                                                              0, &smalest_nodes_mask, false,
+                                                              &split_conditions_, &split_ind_,
+                                                              8, &complete_trees_depth_wise_);
+      auto const & assignments = partitioner.GetNodeAssignments();
+      size_t it = 0;
+      for (auto node_id : assignments) {
+        CHECK_NE(node_id, 0);
+        CHECK_LT(node_id, 3);
+        if (node_id == 1) {
+          auto value = gmat.cut.Values().at(gmat.index[it]);
+          ASSERT_LE(value, split_value);
+        } else if (node_id == 2) {
+          auto value = gmat.cut.Values().at(gmat.index[it]);
+          ASSERT_GT(value, split_value);
+        } else {
+          ASSERT_EQ(1,0);
+        }
+        ++it;
       }
     }
   }
