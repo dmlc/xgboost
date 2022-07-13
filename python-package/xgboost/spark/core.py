@@ -53,6 +53,8 @@ from .utils import (
     _get_rabit_args,
     _get_args_from_message_list,
     _get_spark_session,
+    _is_local,
+    _get_gpu_id,
 )
 from .params import (
     HasArbitraryParamsDict,
@@ -281,19 +283,40 @@ class _SparkXGBParams(
                 .get("spark.task.resource.gpu.amount")
             )
 
-            if not gpu_per_task or int(gpu_per_task) < 1:
-                raise RuntimeError(
-                    "The spark cluster does not have the necessary GPU"
-                    + "configuration for the spark task. Therefore, we cannot"
-                    + "run xgboost training using GPU."
-                )
+            is_local = _is_local(
+                _get_spark_session()
+                .sparkContext
+            )
 
-            if int(gpu_per_task) > 1:
-                get_logger(self.__class__.__name__).warning(
-                    "You configured %s GPU cores for each spark task, but in "
-                    "XGBoost training, every Spark task will only use one GPU core.",
-                    gpu_per_task
-                )
+            if is_local:
+                # checking spark local mode.
+                if gpu_per_task:
+                    raise RuntimeError(
+                        "The spark cluster does not support gpu configuration for local mode. "
+                        + "Please delete spark.executor.resource.gpu.amount and "
+                        + "spark.task.resource.gpu.amount"
+                    )
+
+                if self.getOrDefault(self.num_workers) > 1:
+                    raise ValueError(
+                        "Training XGBoost on the spark local mode only supports num_workers = 1, "
+                        + "and only primary GPU device will be used."
+                    )
+            else:
+                # checking spark non-local mode.
+                if not gpu_per_task or int(gpu_per_task) < 1:
+                    raise RuntimeError(
+                        "The spark cluster does not have the necessary GPU"
+                        + "configuration for the spark task. Therefore, we cannot"
+                        + "run xgboost training using GPU."
+                    )
+
+                if int(gpu_per_task) > 1:
+                    get_logger(self.__class__.__name__).warning(
+                        "You configured %s GPU cores for each spark task, but in "
+                        "XGBoost training, every Spark task will only use one GPU core.",
+                        gpu_per_task
+                    )
 
 
 def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
@@ -547,6 +570,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params["nthread"] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)
 
+        is_local = _is_local(
+            _get_spark_session()
+            .sparkContext
+        )
+
         def _train_booster(pandas_df_iter):
             """
             Takes in an RDD partition and outputs a booster for that partition after going through
@@ -558,10 +586,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if use_gpu:
-                # Set booster worker to use the first GPU allocated to the spark task.
-                booster_params["gpu_id"] = int(
-                    context._resources["gpu"].addresses[0].strip()
-                )
+                booster_params["gpu_id"] = 0 if is_local else _get_gpu_id(context)
 
             _rabit_args = ""
             if context.partitionId() == 0:
