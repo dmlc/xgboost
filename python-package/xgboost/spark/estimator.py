@@ -33,15 +33,15 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     callbacks:
         The export and import of the callback functions are at best effort.
         For details, see :py:attr:`xgboost.spark.SparkXGBRegressor.callbacks` param doc.
-    validationIndicatorCol
+    validation_indicator_col
         For params related to `xgboost.XGBRegressor` training
         with evaluation dataset's supervision, set
-        :py:attr:`xgboost.spark.SparkXGBRegressor.validationIndicatorCol`
+        :py:attr:`xgboost.spark.SparkXGBRegressor.validation_indicator_col`
         parameter instead of setting the `eval_set` parameter in `xgboost.XGBRegressor`
         fit method.
-    weightCol:
+    weight_col:
         To specify the weight of the training and validation dataset, set
-        :py:attr:`xgboost.spark.SparkXGBRegressor.weightCol` parameter instead of setting
+        :py:attr:`xgboost.spark.SparkXGBRegressor.weight_col` parameter instead of setting
         `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBRegressor`
         fit method.
     xgb_model:
@@ -121,7 +121,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     another param called `base_margin_col`. see doc below for more details.
 
     SparkXGBClassifier doesn't support setting `output_margin`, but we can get output margin
-    from the raw prediction column. See `rawPredictionCol` param doc below for more details.
+    from the raw prediction column. See `raw_prediction_col` param doc below for more details.
 
     SparkXGBClassifier doesn't support `validate_features` and `output_margin` param.
 
@@ -130,19 +130,19 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     callbacks:
         The export and import of the callback functions are at best effort. For
         details, see :py:attr:`xgboost.spark.SparkXGBClassifier.callbacks` param doc.
-    rawPredictionCol:
+    raw_prediction_col:
         The `output_margin=True` is implicitly supported by the
         `rawPredictionCol` output column, which is always returned with the predicted margin
         values.
-    validationIndicatorCol:
+    validation_indicator_col:
         For params related to `xgboost.XGBClassifier` training with
         evaluation dataset's supervision,
-        set :py:attr:`xgboost.spark.SparkXGBClassifier.validationIndicatorCol`
+        set :py:attr:`xgboost.spark.SparkXGBClassifier.validation_indicator_col`
         parameter instead of setting the `eval_set` parameter in `xgboost.XGBClassifier`
         fit method.
-    weightCol:
+    weight_col:
         To specify the weight of the training and validation dataset, set
-        :py:attr:`xgboost.spark.SparkXGBClassifier.weightCol` parameter instead of setting
+        :py:attr:`xgboost.spark.SparkXGBClassifier.weight_col` parameter instead of setting
         `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBClassifier`
         fit method.
     xgb_model:

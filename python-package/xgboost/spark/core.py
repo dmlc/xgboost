@@ -88,7 +88,7 @@ _pyspark_param_alias_map = {
     "features_col": "featuresCol",
     "label_col": "labelCol",
     "weight_col": "weightCol",
-    "raw_prediction_ol": "rawPredictionCol",
+    "raw_prediction_col": "rawPredictionCol",
     "prediction_col": "predictionCol",
     "probability_col": "probabilityCol",
     "validation_indicator_col": "validationIndicatorCol",
