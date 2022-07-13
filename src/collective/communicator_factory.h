@@ -13,46 +13,23 @@ namespace collective {
 
 enum class CommunicatorType { kUnknown, kRabit, kMPI, kFederated };
 
+class DeviceCommunicator;
+
 class CommunicatorFactory {
  public:
   static constexpr char const* kCommunicatorKey = "XGBOOST_COMMUNICATOR";
 
-  static void Init(int argc, char* argv[]) {
-    if (communicator_) {
-      LOG(FATAL) << "Communicator can only be initialized once.";
-    }
+  static void Init(int argc, char* argv[]);
 
-    auto type = GetTypeFromEnv();
-    auto const arg = GetTypeFromArgs(argc, argv);
-    if (arg != CommunicatorType::kUnknown) {
-      type = arg;
-    }
-    switch (type) {
-      case CommunicatorType::kRabit:
-        LOG(FATAL) << "Not implemented yet.";
-        break;
-      case CommunicatorType::kMPI:
-        LOG(FATAL) << "Not implemented yet.";
-        break;
-      case CommunicatorType::kFederated: {
-#if defined(XGBOOST_USE_FEDERATED)
-        FederatedCommunicatorFactory factory{argc, argv};
-        communicator_.reset(factory.Create());
-#else
-        LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
-#endif
-        break;
-      }
-      case CommunicatorType::kUnknown:
-        LOG(FATAL) << "Unknown communicator type.";
-        break;
-    }
-  }
+  static void Finalize();
 
-  static void Finalize() { communicator_.reset(); }
+  static CommunicatorFactory* GetInstance() { return instance_.get(); }
 
-  static Communicator* GetCommunicator() { return communicator_.get(); }
+  Communicator* GetCommunicator() { return communicator_.get(); }
 
+  DeviceCommunicator* GetDeviceCommunicator(int device_ordinal);
+
+  /** @brief Get the communicator type from environment variables. Visible for testing. */
   static CommunicatorType GetTypeFromEnv() {
     auto* env = std::getenv(kCommunicatorKey);
     if (env != nullptr) {
@@ -62,6 +39,7 @@ class CommunicatorFactory {
     }
   }
 
+  /** @brief Get the communicator type from arguments. Visible for testing. */
   static CommunicatorType GetTypeFromArgs(int argc, char* argv[]) {
     for (int i = 0; i < argc; ++i) {
       std::string const key_value = argv[i];
@@ -74,9 +52,11 @@ class CommunicatorFactory {
         }
       }
     }
-
     return CommunicatorType::kUnknown;
   }
+
+ private:
+  CommunicatorFactory(CommunicatorType type, Communicator* communicator);
 
  private:
   static CommunicatorType StringToType(char const* str) {
@@ -93,7 +73,10 @@ class CommunicatorFactory {
     return result;
   }
 
-  static thread_local std::unique_ptr<Communicator> communicator_;
+  static thread_local std::unique_ptr<CommunicatorFactory> instance_;
+  CommunicatorType type_;
+  std::unique_ptr<Communicator> communicator_;
+  std::unique_ptr<DeviceCommunicator> device_communicator_;
 };
 
 }  // namespace collective

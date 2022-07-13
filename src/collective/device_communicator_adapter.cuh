@@ -51,8 +51,8 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     for (int32_t i = 0; i < world_size; ++i) {
       size_t as_bytes = segments->at(i);
       if (i == rank) {
-        dh::safe_cuda(cudaMemcpy(host_buffer_.data() + offset, send_buffer,
-                                 segments->at(rank), cudaMemcpyDefault));
+        dh::safe_cuda(cudaMemcpy(host_buffer_.data() + offset, send_buffer, segments->at(rank),
+                                 cudaMemcpyDefault));
       }
       communicator_->Broadcast(host_buffer_.data() + offset, as_bytes, i);
       offset += as_bytes;
