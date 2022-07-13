@@ -15,12 +15,13 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     """
     SparkXGBRegressor is a PySpark ML estimator. It implements the XGBoost regression
     algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
-    and PySpark ML meta algorithms like CrossValidator/TrainValidationSplit/OneVsRest.
+    and PySpark ML meta algorithms like :py:class:`~pyspark.ml.tuning.CrossValidator`/
+    :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
+    :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBRegressor automatically supports most of the parameters in
     `xgboost.XGBRegressor` constructor and most of the parameters used in
-    `xgboost.XGBRegressor` fit and predict method (see `API docs <https://xgboost.readthedocs\
-    .io/en/latest/python/python_api.html#xgboost.XGBRegressor>`_ for details).
+    :py:class:`xgboost.XGBRegressor` fit and predict method.
 
     SparkXGBRegressor doesn't support setting `gpu_id` but support another param `use_gpu`,
     see doc below for more details.
@@ -65,7 +66,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
 
     .. Note:: This API is experimental.
 
-    **Examples**
+    Examples
+    --------
 
     >>> from xgboost.spark import SparkXGBRegressor
     >>> from pyspark.ml.linalg import Vectors
@@ -104,15 +106,16 @@ _set_pyspark_xgb_cls_param_attrs(SparkXGBRegressor, SparkXGBRegressorModel)
 
 
 class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPredictionCol):
-    """
-    SparkXGBClassifier is a PySpark ML estimator. It implements the XGBoost classification
-    algorithm based on XGBoost python library, and it can be used in PySpark Pipeline
-    and PySpark ML meta algorithms like CrossValidator/TrainValidationSplit/OneVsRest.
+    """SparkXGBClassifier is a PySpark ML estimator. It implements the XGBoost
+    classification algorithm based on XGBoost python library, and it can be used in
+    PySpark Pipeline and PySpark ML meta algorithms like
+    :py:class:`~pyspark.ml.tuning.CrossValidator`/
+    :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
+    :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBClassifier automatically supports most of the parameters in
     `xgboost.XGBClassifier` constructor and most of the parameters used in
-    `xgboost.XGBClassifier` fit and predict method (see `API docs <https://xgboost.readthedocs\
-    .io/en/latest/python/python_api.html#xgboost.XGBClassifier>`_ for details).
+    :py:class:`xgboost.XGBClassifier` fit and predict method.
 
     SparkXGBClassifier doesn't support setting `gpu_id` but support another param `use_gpu`,
     see doc below for more details.
@@ -127,6 +130,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     Parameters
     ----------
+
     callbacks:
         The export and import of the callback functions are at best effort. For
         details, see :py:attr:`xgboost.spark.SparkXGBClassifier.callbacks` param doc.
@@ -166,7 +170,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     .. Note:: This API is experimental.
 
-    **Examples**
+    Examples
+    --------
 
     >>> from xgboost.spark import SparkXGBClassifier
     >>> from pyspark.ml.linalg import Vectors
