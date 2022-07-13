@@ -152,10 +152,9 @@ class ColumnMatrix {
     if (!any_missing_) {
       missing_flags_.resize(feature_offsets_[n_features], false);
       // row index is compressed, we need to dispatch it.
-      DispatchBinType(gmat.index.GetBinTypeSize(), [&](auto t) {
+      DispatchBinType(gmat.index.GetBinTypeSize(), [&, size = batch.Size()](auto t) {
         using RowBinIdxT = decltype(t);
-        SetIndexNoMissing(base_rowid, gmat.index.data<RowBinIdxT>(), batch.Size(), n_features,
-                          n_threads);
+        SetIndexNoMissing(base_rowid, gmat.index.data<RowBinIdxT>(), size, n_features, n_threads);
       });
     } else {
       missing_flags_.resize(feature_offsets_[n_features], true);
