@@ -351,7 +351,8 @@ if __name__ == '__main__':
               'scikit-learn': ['scikit-learn'],
               'dask': ['dask', 'pandas', 'distributed'],
               'datatable': ['datatable'],
-              'plotting': ['graphviz', 'matplotlib']
+              'plotting': ['graphviz', 'matplotlib'],
+              "pyspark": ["pyspark", "scikit-learn", "cloudpickle"],
           },
           maintainer='Hyunsu Cho',
           maintainer_email='chohyu01@cs.washington.edu',

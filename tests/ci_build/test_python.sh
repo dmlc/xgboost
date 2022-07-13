@@ -34,6 +34,18 @@ function install_xgboost {
   fi
 }
 
+function setup_pyspark_envs {
+  export PYSPARK_DRIVER_PYTHON=`which python`
+  export PYSPARK_PYTHON=`which python`
+  export SPARK_TESTING=1
+}
+
+function unset_pyspark_envs {
+  unset PYSPARK_DRIVER_PYTHON
+  unset PYSPARK_PYTHON
+  unset SPARK_TESTING
+}
+
 function uninstall_xgboost {
   pip uninstall -y xgboost
 }
@@ -43,14 +55,18 @@ case "$suite" in
   gpu)
     source activate gpu_test
     install_xgboost
+    setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 -m "not mgpu" ${args} tests/python-gpu
+    unset_pyspark_envs
     uninstall_xgboost
     ;;
 
   mgpu)
     source activate gpu_test
     install_xgboost
+    setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
+    unset_pyspark_envs
 
     cd tests/distributed
     ./runtests-gpu.sh
@@ -61,7 +77,9 @@ case "$suite" in
     source activate cpu_test
     install_xgboost
     export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1
+    setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python
+    unset_pyspark_envs
     cd tests/distributed
     ./runtests.sh
     uninstall_xgboost
@@ -70,7 +88,9 @@ case "$suite" in
   cpu-arm64)
     source activate aarch64_test
     install_xgboost
+    setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python/test_basic.py tests/python/test_basic_models.py tests/python/test_model_compatibility.py
+    unset_pyspark_envs
     uninstall_xgboost
     ;;
 
