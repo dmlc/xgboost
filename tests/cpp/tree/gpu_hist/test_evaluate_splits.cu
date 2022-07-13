@@ -65,8 +65,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   GPUHistEvaluator<GradientPairPrecise> evaluator{
       tparam, static_cast<bst_feature_t>(feature_set.size()), 0};
   evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, 0);
-  DeviceSplitCandidate result =
-      evaluator.EvaluateSingleSplit(input, shared_inputs,0).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
@@ -111,7 +110,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   };
 
   GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, feature_set.size(), 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs,0).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
@@ -124,7 +123,7 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
   TrainParam tparam = ZeroParam();
   GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, 1, 0);
   DeviceSplitCandidate result =
-      evaluator.EvaluateSingleSplit(EvaluateSplitInputs{}, EvaluateSplitSharedInputs{}, 0).split;
+      evaluator.EvaluateSingleSplit(EvaluateSplitInputs{}, EvaluateSplitSharedInputs{}).split;
   EXPECT_EQ(result.findex, -1);
   EXPECT_LT(result.loss_chg, 0.0f);
 }
@@ -161,7 +160,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   };
 
   GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, feature_min_values.size(), 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input,shared_inputs, 0).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
   EXPECT_EQ(result.fvalue, 11.0);
@@ -201,7 +200,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   };
 
   GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, feature_min_values.size(), 0);
-  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input,shared_inputs, 0).split;
+  DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input,shared_inputs).split;
 
   EXPECT_EQ(result.findex, 0);
   EXPECT_EQ(result.fvalue, 1.0);
@@ -279,18 +278,13 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
                            cudaMemcpyHostToDevice));
   dh::device_vector<bst_feature_t> feature_set{std::vector<bst_feature_t>{0}};
 
-  EvaluateSplitInputs input{0,0,
-                                                 total_gpair_,
-                                                 dh::ToSpan(feature_set),
-                                                 dh::ToSpan(d_hist)};
+  EvaluateSplitInputs input{0, 0, total_gpair_, dh::ToSpan(feature_set), dh::ToSpan(d_hist)};
   EvaluateSplitSharedInputs shared_inputs{
-     GPUTrainingParam{ param_},
-                                                 dh::ToSpan(ft),
-                                                 cuts_.cut_ptrs_.ConstDeviceSpan(),
-                                                 cuts_.cut_values_.ConstDeviceSpan(),
-                                                 cuts_.min_vals_.ConstDeviceSpan(),
+      GPUTrainingParam{param_},          dh::ToSpan(ft),
+      cuts_.cut_ptrs_.ConstDeviceSpan(), cuts_.cut_values_.ConstDeviceSpan(),
+      cuts_.min_vals_.ConstDeviceSpan(),
   };
-  auto split = evaluator.EvaluateSingleSplit(input, shared_inputs, 0).split;
+  auto split = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-16);
 }
 }  // namespace tree

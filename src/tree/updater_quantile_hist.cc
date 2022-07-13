@@ -257,7 +257,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(DMatrix const *data,
   }
   monitor_->Start(__func__);
   CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-  UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, *evaluator_, out_preds);
+  UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
   monitor_->Stop(__func__);
   return true;
 }

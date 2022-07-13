@@ -436,16 +436,14 @@ class HistEvaluator {
  *
  * \param p_last_tree The last tree being updated by tree updater
  */
-template <typename Partitioner, typename ExpandEntry>
+template <typename Partitioner>
 void UpdatePredictionCacheImpl(GenericParameter const *ctx, RegTree const *p_last_tree,
                                std::vector<Partitioner> const &partitioner,
-                               HistEvaluator<ExpandEntry> const &hist_evaluator,
                                linalg::VectorView<float> out_preds) {
   CHECK_GT(out_preds.Size(), 0U);
 
   CHECK(p_last_tree);
   auto const &tree = *p_last_tree;
-  auto evaluator = hist_evaluator.Evaluator();
   CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
   size_t n_nodes = p_last_tree->GetNodes().size();
   for (auto &part : partitioner) {

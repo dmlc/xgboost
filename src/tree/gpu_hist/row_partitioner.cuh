@@ -272,7 +272,7 @@ class RowPartitioner {
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
     std::size_t total_rows = 0;
-    for (int i = 0; i < nidx.size(); i++) {
+    for (size_t i = 0; i < nidx.size(); i++) {
       h_batch_info[i] = {ridx_segments_.at(nidx.at(i)).segment, op_data.at(i)};
       total_rows += ridx_segments_.at(nidx.at(i)).segment.Size();
     }
@@ -295,7 +295,7 @@ class RowPartitioner {
     dh::safe_cuda(cudaStreamSynchronize(stream_));
 
     // Update segments
-    for (int i = 0; i < nidx.size(); i++) {
+    for (size_t i = 0; i < nidx.size(); i++) {
       auto segment = ridx_segments_.at(nidx[i]).segment;
       auto left_count = h_counts[i];
       CHECK_LE(left_count, segment.Size());
