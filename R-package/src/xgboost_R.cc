@@ -263,7 +263,7 @@ XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
   }
   std::vector<char const*> vec(len);
   std::transform(str_info.cbegin(), str_info.cend(), vec.begin(),
-                 [](auto const &str) { return str.c_str(); });
+                 [](std::string const &str) { return str.c_str(); });
   CHECK_CALL(XGDMatrixSetStrFeatureInfo(R_ExternalPtrAddr(handle), name, vec.data(), len));
   R_API_END();
   return R_NilValue;
