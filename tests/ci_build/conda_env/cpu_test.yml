@@ -38,9 +38,9 @@ dependencies:
 - protobuf<=3.20
 - pyspark
 - cloudpickle
+- modin>=0.15.2
 - pip:
   - shap
   - ipython                     # required by shap at import time.
   - sphinx_rtd_theme
   - datatable
-  - modin[all]
