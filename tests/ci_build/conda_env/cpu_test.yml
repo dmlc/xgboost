@@ -1,4 +1,4 @@
-name: xgboost_cpu_dev
+name: cpu_test
 channels:
 - defaults
 - conda-forge
@@ -14,8 +14,8 @@ dependencies:
 - scikit-learn
 - pandas
 - matplotlib
-- dask>=2022.1
-- distributed>=2022.1
+- dask>=2022.6
+- distributed>=2022.6
 - python-graphviz
 - hypothesis>=6.46
 - astroid
@@ -35,6 +35,6 @@ dependencies:
 - pyspark>=3.3.0
 - cloudpickle
 - shap
-- modin>=0.15.2
+- modin
 - pip:
   - datatable
