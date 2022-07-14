@@ -1,4 +1,4 @@
-name: cpu_test
+name: xgboost_cpu_dev
 channels:
 - defaults
 - conda-forge
@@ -17,7 +17,7 @@ dependencies:
 - dask
 - distributed
 - python-graphviz
-- hypothesis>=6.50
+- hypothesis>=6.46
 - astroid
 - sh
 - mock
