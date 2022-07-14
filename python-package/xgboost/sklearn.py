@@ -547,7 +547,7 @@ class XGBModel(XGBModelBase):
         **kwargs: Any
     ) -> None:
         if not SKLEARN_INSTALLED:
-            raise XGBoostError(
+            raise ImportError(
                 "sklearn needs to be installed in order to use this module"
             )
         self.n_estimators = n_estimators

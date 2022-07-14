@@ -1,8 +1,9 @@
 name: cpu_test
 channels:
+- defaults
 - conda-forge
 dependencies:
-- python=3.7
+- python=3.8
 - pip
 - wheel
 - pyyaml
@@ -13,16 +14,13 @@ dependencies:
 - scikit-learn
 - pandas
 - matplotlib
-- dask
-- distributed
+- dask>=2022.6
+- distributed>=2022.6
 - python-graphviz
-- hypothesis
+- hypothesis>=6.46
 - astroid
-- sphinx
 - sh
-- recommonmark
 - mock
-- breathe
 - pytest
 - pytest-cov
 - python-kubernetes
@@ -30,15 +28,13 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- numba
-- llvmlite
 - py-ubjson
 - cffi
 - pyarrow
-- protobuf<=3.20
+- protobuf
+- pyspark>=3.3.0
+- cloudpickle
+- shap
+- modin
 - pip:
-  - shap
-  - ipython                     # required by shap at import time.
-  - sphinx_rtd_theme
   - datatable
-  - modin[all]

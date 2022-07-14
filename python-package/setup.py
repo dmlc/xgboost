@@ -351,7 +351,8 @@ if __name__ == '__main__':
               'scikit-learn': ['scikit-learn'],
               'dask': ['dask', 'pandas', 'distributed'],
               'datatable': ['datatable'],
-              'plotting': ['graphviz', 'matplotlib']
+              'plotting': ['graphviz', 'matplotlib'],
+              "pyspark": ["pyspark", "scikit-learn", "cloudpickle"],
           },
           maintainer='Hyunsu Cho',
           maintainer_email='chohyu01@cs.washington.edu',
@@ -364,11 +365,10 @@ if __name__ == '__main__':
                        'Operating System :: OS Independent',
                        'Programming Language :: Python',
                        'Programming Language :: Python :: 3',
-                       'Programming Language :: Python :: 3.7',
                        'Programming Language :: Python :: 3.8',
                        'Programming Language :: Python :: 3.9',
                        'Programming Language :: Python :: 3.10'],
-          python_requires=">=3.7",
+          python_requires=">=3.8",
           url='https://github.com/dmlc/xgboost')
 
     clean_up()

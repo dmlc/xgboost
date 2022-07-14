@@ -249,15 +249,53 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   return R_NilValue;
 }
 
+XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
+  R_API_BEGIN();
+  size_t len{0};
+  if (!isNull(array)) {
+    len = length(array);
+  }
+
+  const char *name = CHAR(asChar(field));
+  std::vector<std::string> str_info;
+  for (size_t i = 0; i < len; ++i) {
+    str_info.emplace_back(CHAR(asChar(VECTOR_ELT(array, i))));
+  }
+  std::vector<char const*> vec(len);
+  std::transform(str_info.cbegin(), str_info.cend(), vec.begin(),
+                 [](std::string const &str) { return str.c_str(); });
+  CHECK_CALL(XGDMatrixSetStrFeatureInfo(R_ExternalPtrAddr(handle), name, vec.data(), len));
+  R_API_END();
+  return R_NilValue;
+}
+
+XGB_DLL SEXP XGDMatrixGetStrFeatureInfo_R(SEXP handle, SEXP field) {
+  SEXP ret;
+  R_API_BEGIN();
+  char const **out_features{nullptr};
+  bst_ulong len{0};
+  const char *name = CHAR(asChar(field));
+  XGDMatrixGetStrFeatureInfo(R_ExternalPtrAddr(handle), name, &len, &out_features);
+
+  if (len > 0) {
+    ret = PROTECT(allocVector(STRSXP, len));
+    for (size_t i = 0; i < len; ++i) {
+      SET_STRING_ELT(ret, i, mkChar(out_features[i]));
+    }
+  } else {
+    ret = PROTECT(R_NilValue);
+  }
+  R_API_END();
+  UNPROTECT(1);
+  return ret;
+}
+
 XGB_DLL SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field) {
   SEXP ret;
   R_API_BEGIN();
   bst_ulong olen;
   const float *res;
-  CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle),
-                                   CHAR(asChar(field)),
-                                 &olen,
-                                 &res));
+  CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), &olen, &res));
   ret = PROTECT(allocVector(REALSXP, olen));
   for (size_t i = 0; i < olen; ++i) {
     REAL(ret)[i] = res[i];
