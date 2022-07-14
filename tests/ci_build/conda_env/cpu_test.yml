@@ -14,8 +14,8 @@ dependencies:
 - scikit-learn
 - pandas
 - matplotlib
-- dask
-- distributed
+- dask>=2022.1
+- distributed>=2022.1
 - python-graphviz
 - hypothesis>=6.46
 - astroid
