@@ -660,9 +660,9 @@ class XGBModel(XGBModelBase):
         # if kwargs is a dict, update params accordingly
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
             params.update(self.kwargs)
-        if isinstance(params['random_state'], np.random.RandomState):
-            params['random_state'] = params['random_state'].randint(
-                np.iinfo(np.int32).max)
+
+        from sklearn.utils import check_random_state
+        params["random_state"] = check_random_state(params["random_state"])
 
         def parse_parameter(value: Any) -> Optional[Union[int, float, str]]:
             for t in (int, float, str):
