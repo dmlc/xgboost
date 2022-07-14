@@ -109,9 +109,8 @@ class GHistIndexMatrix {
    */
   size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
 
-  bst_row_t Size() const {
-    return row_ptr.empty() ? 0 : row_ptr.size() - 1;
-  }
+  bst_row_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
+  bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
 
   bool ReadColumnPage(dmlc::SeekStream* fi);
   size_t WriteColumnPage(dmlc::Stream* fo) const;
