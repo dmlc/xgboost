@@ -32,7 +32,7 @@ dependencies:
 - cffi
 - pyarrow
 - protobuf
-- pyspark>=3.2.0
+- pyspark>=3.3.0
 - cloudpickle
 - shap
 - modin>=0.15.2
