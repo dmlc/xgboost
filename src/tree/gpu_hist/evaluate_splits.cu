@@ -83,7 +83,7 @@ class EvaluateSplitAgent {
       local_sum += LoadGpair(node_histogram + idx);
     }
     local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);
-    // Broadcast result from thread 0 
+    // Broadcast result from thread 0
     return {__shfl_sync(0xffffffff, local_sum.GetGrad(), 0),
             __shfl_sync(0xffffffff, local_sum.GetHess(), 0)};
   }
@@ -186,10 +186,10 @@ class EvaluateSplitAgent {
       auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
-        GradientPairPrecise left =
-            missing_left ? bin + missing : bin;
+        GradientPairPrecise left = missing_left ? bin + missing : bin;
         GradientPairPrecise right = parent_sum - left;
-        auto best_thresh = threadIdx.x + (scan_begin - gidx_begin);  // index of best threshold inside a feature.
+        auto best_thresh =
+            threadIdx.x + (scan_begin - gidx_begin);  // index of best threshold inside a feature.
         best_split->Update(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left,
                            right, true, param);
       }
@@ -228,12 +228,12 @@ __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(
     auto n_bins_in_feat =
         shared_inputs.feature_segments[fidx + 1] - shared_inputs.feature_segments[fidx];
     if (common::UseOneHot(n_bins_in_feat, shared_inputs.param.max_cat_to_onehot)) {
-    agent.OneHot(&best_split);
+      agent.OneHot(&best_split);
     } else {
       auto total_bins = shared_inputs.feature_values.size();
       size_t offset = total_bins * input_idx;
       auto node_sorted_idx = sorted_idx.subspan(offset, total_bins);
-    agent.Partition(&best_split,node_sorted_idx.data(),offset);
+      agent.Partition(&best_split, node_sorted_idx.data(), offset);
     }
   } else {
     agent.Numerical(&best_split);
@@ -365,6 +365,8 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
   dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) mutable {
     auto const input = d_inputs[i];
     auto &split = out_splits[i];
+    // Subtract parent gain here
+    // As it is constant, this is more efficient than doing it during every split evaluation
     float parent_gain = CalcGain(shared_inputs.param, input.parent_sum);
     split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
