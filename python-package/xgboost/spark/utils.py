@@ -132,6 +132,7 @@ def _get_max_num_concurrent_tasks(spark_context):
 
 def _is_local(spark_context) -> bool:
     """Whether it is Spark local mode"""
+    # pylint: disable=protected-access
     return spark_context._jsc.sc().isLocal()
 
 
