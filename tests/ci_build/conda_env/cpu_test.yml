@@ -17,7 +17,7 @@ dependencies:
 - dask
 - distributed
 - python-graphviz
-- hypothesis
+- hypothesis>=6.50
 - astroid
 - sh
 - mock
