@@ -2,7 +2,6 @@
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=too-few-public-methods
-import cloudpickle
 import numpy as np
 import pandas as pd
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
@@ -415,7 +414,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             gen_xgb_sklearn_estimator_param=True
         )
         sklearn_model = self._xgb_cls()(**xgb_sklearn_params)
-        sklearn_model._Booster = booster
+        sklearn_model.load_model(booster)
         return sklearn_model
 
     def _query_plan_contains_valid_repartition(self, dataset):
@@ -629,16 +628,18 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if context.partitionId() == 0:
-                yield pd.DataFrame(data={"booster_bytes": [cloudpickle.dumps(booster)]})
+                yield pd.DataFrame(
+                    data={"booster_string": [booster.save_raw("json").decode("utf-8")]}
+                )
 
         result_ser_booster = (
-            dataset.mapInPandas(_train_booster, schema="booster_bytes binary")
+            dataset.mapInPandas(_train_booster, schema="booster_string string")
             .rdd.barrier()
             .mapPartitions(lambda x: x)
             .collect()[0][0]
         )
         result_xgb_model = self._convert_to_sklearn_model(
-            cloudpickle.loads(result_ser_booster)
+            bytearray(result_ser_booster, "utf-8")
         )
         return self._copyValues(self._create_pyspark_model(result_xgb_model))
 
