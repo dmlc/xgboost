@@ -297,11 +297,13 @@ class _SparkXGBParams(
                         + "spark.task.resource.gpu.amount"
                     )
 
-                if self.getOrDefault(self.num_workers) > 1:
-                    raise ValueError(
-                        "Training XGBoost on the spark local mode only supports num_workers = 1, "
-                        + "and only primary GPU device will be used."
-                    )
+                # Supporting GPU training in Spark local mode is just for debugging purpose,
+                # so it's just okay for printing the below warning instead of checking the real
+                # gpu numbers and raising exceptions.
+                get_logger(self.__class__.__name__).warning(
+                    "You enabled use_gpu in spark local mode. Please make sure your local node "
+                    + "has %d GPUs" % self.getOrDefault(self.num_workers)
+                )
             else:
                 # checking spark non-local mode.
                 if not gpu_per_task or int(gpu_per_task) < 1:
@@ -586,7 +588,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if use_gpu:
-                booster_params["gpu_id"] = 0 if is_local else _get_gpu_id(context)
+                booster_params["gpu_id"] = context.partitionId() if is_local else _get_gpu_id(context)
 
             _rabit_args = ""
             if context.partitionId() == 0:
