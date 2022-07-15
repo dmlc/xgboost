@@ -402,7 +402,7 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(
 
 template <typename GradientSumT>
 GPUExpandEntry GPUHistEvaluator<GradientSumT>::EvaluateSingleSplit(
-    EvaluateSplitInputs input, EvaluateSplitSharedInputs shared_inputs, float weight) {
+    EvaluateSplitInputs input, EvaluateSplitSharedInputs shared_inputs) {
   dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input};
   dh::TemporaryArray<GPUExpandEntry> out_entries(1);
   this->EvaluateSplits({input.nidx}, input.feature_set.size(), dh::ToSpan(inputs), shared_inputs,
