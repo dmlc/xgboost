@@ -13,7 +13,7 @@ from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import hypothesis
 import numpy as np
@@ -26,9 +26,9 @@ from sklearn.datasets import make_classification, make_regression
 from test_predict import verify_leaf_output
 from test_updaters import exact_parameter_strategy, hist_parameter_strategy
 from test_with_sklearn import run_data_initialization, run_feature_weights
+from xgboost.data import _is_cudf_df
 
 import xgboost as xgb
-from xgboost.data import _is_cudf_df
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -131,7 +131,7 @@ def generate_array(
     return X, y, None
 
 
-def reproducible_persist_per_worker(df, client):
+def deterministic_persist_per_worker(df, client):
     # Got this script from https://github.com/dmlc/xgboost/issues/7927
     # Query workers
     n_workers = len(client.cluster.workers)
@@ -155,6 +155,37 @@ def reproducible_persist_per_worker(df, client):
     )
 
     return df2
+
+
+def deterministic_repartition(
+    client: Client,
+    X: dd.DataFrame,
+    y: dd.Series,
+    m: Optional[Union[dd.DataFrame, dd.Series]],
+) -> Tuple[dd.DataFrame, dd.Series, Optional[Union[dd.DataFrame, dd.Series]]]:
+    # force repartition the data to avoid non-deterministic result
+    if any(X.map_partitions(lambda x: _is_cudf_df(x)).compute()):
+        # dask_cudf seems to be doing fine for now
+        return X, y, m
+
+    X["_y"] = y
+    if m is not None:
+        if isinstance(m, dd.DataFrame):
+            m_columns = m.columns
+            X = dd.concat([X, m], join="outer", axis=1)
+        else:
+            m_columns = ["_m"]
+            X["_m"] = m
+
+    X = deterministic_persist_per_worker(X, client)
+
+    y = X["_y"]
+    X = X[X.columns.difference(["_y"])]
+    if m is not None:
+        m = X[m_columns]
+        X = X[X.columns.difference(m_columns)]
+
+    return X, y, m
 
 
 def test_from_dask_dataframe() -> None:
@@ -384,42 +415,20 @@ def run_boost_from_prediction_multi_class(
     tree_method: str,
     client: "Client",
 ) -> None:
-
-    def repartition(X, y, m):
-        # force repartition the data to avoid non-deterministic result
-        if any(X.map_partitions(lambda x: _is_cudf_df(x)).compute()):
-            # dask_cudf seems to be doing fine for now
-            return X, y, m
-
-        X["_y"] = y
-        if m is not None:
-            m_columns = list(m.columns)
-            X = dd.concat([X, m], join="outer", axis=1)
-
-        X = reproducible_persist_per_worker(X, client)
-
-        y = X["_y"]
-        X = X[X.columns.difference(["_y"])]
-        if m is not None:
-            m = X[m_columns]
-            X = X[X.columns.difference(m_columns)]
-
-        return X, y, m
-
-    X, y, _ = repartition(X, y, None)
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=768
     )
+    X, y, _ = deterministic_repartition(client, X, y, None)
     model_0.fit(X=X, y=y)
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
     )
     margin.columns = [f"m_{i}" for i in range(margin.shape[1])]
 
-    X, y, margin = repartition(X, y, margin)
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=768
     )
+    X, y, margin = deterministic_repartition(client, X, y, margin)
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = xgb.dask.predict(
         client,
@@ -428,10 +437,10 @@ def run_boost_from_prediction_multi_class(
         output_margin=True,
     )
 
-    X, y, _ = repartition(X, y, None)
     model_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=768
     )
+    X, y, _ = deterministic_repartition(client, X, y, None)
     model_2.fit(X=X, y=y)
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
@@ -449,40 +458,45 @@ def run_boost_from_prediction_multi_class(
 
 
 def run_boost_from_prediction(
-    X: xgb.dask._DaskCollection,
-    y: xgb.dask._DaskCollection,
+    X: dd.DataFrame,
+    y: dd.Series,
     tree_method: str,
     client: "Client",
 ) -> None:
-    X = client.persist(X)
-    y = client.persist(y)
+    X, y = client.persist([X, y])
 
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=512
     )
+    X, y, _ = deterministic_repartition(client, X, y, None)
     model_0.fit(X=X, y=y)
-    margin = model_0.predict(X, output_margin=True)
+    margin: dd.Series = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=4, tree_method=tree_method, max_bin=512
     )
+    X, y, margin = deterministic_repartition(client, X, y, margin)
     model_1.fit(X=X, y=y, base_margin=margin)
-    predictions_1 = model_1.predict(X, base_margin=margin)
+    X, y, margin = deterministic_repartition(client, X, y, margin)
+    predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     cls_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=512
     )
+    X, y, _ = deterministic_repartition(client, X, y, None)
     cls_2.fit(X=X, y=y)
-    predictions_2 = cls_2.predict(X)
+    predictions_2: dd.Series = cls_2.predict(X)
 
     assert np.all(predictions_1.compute() == predictions_2.compute())
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
+    X, y, margin = deterministic_repartition(client, X, y, margin)
     margined.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
 
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
+    X, y, margin = deterministic_repartition(client, X, y, margin)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
     margined_res = margined.evals_result()["validation_0"]["logloss"]
