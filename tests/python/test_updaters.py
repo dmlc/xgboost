@@ -205,10 +205,13 @@ class TestTreeMethod:
     def run_max_cat(self, tree_method: str) -> None:
         """Test data with size smaller than number of categories."""
         import pandas as pd
+
+        rng = np.random.default_rng(0)
         n_cat = 100
         n = 5
+
         X = pd.Series(
-            ["".join(choice(ascii_lowercase) for i in range(3)) for i in range(n_cat)],
+            ["".join(rng.choice(list(ascii_lowercase), size=3)) for i in range(n_cat)],
             dtype="category",
         )[:n].to_frame()
 
@@ -222,6 +225,7 @@ class TestTreeMethod:
         assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    @pytest.mark.skipif(**tm.no_pandas())
     def test_max_cat(self, tree_method) -> None:
         self.run_max_cat(tree_method)
 
