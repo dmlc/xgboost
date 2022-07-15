@@ -87,6 +87,7 @@ class TestGPUUpdaters:
     def test_categorical_missing(self, rows, cols, cats):
         self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
 
+    @pytest.mark.skipif(**tm.no_pandas())
     def test_max_cat(self) -> None:
         self.cputest.run_max_cat("gpu_hist")
 
