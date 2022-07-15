@@ -293,16 +293,16 @@ class _SparkXGBParams(
                 if gpu_per_task:
                     raise RuntimeError(
                         "The spark cluster does not support gpu configuration for local mode. "
-                        + "Please delete spark.executor.resource.gpu.amount and "
-                        + "spark.task.resource.gpu.amount"
+                        "Please delete spark.executor.resource.gpu.amount and "
+                        "spark.task.resource.gpu.amount"
                     )
 
-                # Supporting GPU training in Spark local mode is just for debugging purpose,
-                # so it's just okay for printing the below warning instead of checking the real
-                # gpu numbers and raising exceptions.
+                # Support GPU training in Spark local mode is just for debugging purposes,
+                # so it's okay for printing the below warning instead of checking the real
+                # gpu numbers and raising the exception.
                 get_logger(self.__class__.__name__).warning(
                     "You enabled use_gpu in spark local mode. Please make sure your local node "
-                    + "has %d GPUs" % self.getOrDefault(self.num_workers)
+                    "has at least %d GPUs", self.getOrDefault(self.num_workers)
                 )
             else:
                 # checking spark non-local mode.
@@ -588,7 +588,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if use_gpu:
-                booster_params["gpu_id"] = context.partitionId() if is_local else _get_gpu_id(context)
+                booster_params["gpu_id"] = context.partitionId() if is_local \
+                    else _get_gpu_id(context)
 
             _rabit_args = ""
             if context.partitionId() == 0:
