@@ -69,7 +69,10 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/global_config.cc"
+
+// common
 #include "../src/common/common.cc"
+#include "../src/common/column_matrix.cc"
 #include "../src/common/random.cc"
 #include "../src/common/charconv.cc"
 #include "../src/common/timer.cc"
