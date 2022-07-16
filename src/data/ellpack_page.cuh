@@ -24,7 +24,7 @@ struct EllpackDeviceAccessor {
   size_t row_stride;
   size_t base_rowid{};
   size_t n_rows{};
-  common::CompressedIterator<uint32_t> gidx_iter;
+  common::CompressedIterator gidx_iter;
   /*! \brief Minimum value for each feature. Size equals to number of features. */
   common::Span<const bst_float> min_fvalue;
   /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
@@ -36,7 +36,7 @@ struct EllpackDeviceAccessor {
 
   EllpackDeviceAccessor(int device, const common::HistogramCuts& cuts,
                         bool is_dense, size_t row_stride, size_t base_rowid,
-                        size_t n_rows,common::CompressedIterator<uint32_t> gidx_iter,
+                        size_t n_rows,common::CompressedIterator gidx_iter,
                         common::Span<FeatureType const> feature_types)
       : is_dense(is_dense),
         row_stride(row_stride),
@@ -194,7 +194,10 @@ class EllpackPageImpl {
 
   EllpackDeviceAccessor
   GetDeviceAccessor(int device,
-                    common::Span<FeatureType const> feature_types = {}) const;
+                    common::Span<FeatureType const> feature_types = {}) ;
+  const EllpackDeviceAccessor
+  GetDeviceAccessor(int device,
+                    common::Span<FeatureType const> feature_types = {}) const ;
 
  private:
   /*!

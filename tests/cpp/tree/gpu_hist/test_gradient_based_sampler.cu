@@ -99,14 +99,14 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   EXPECT_EQ(sampled_page->n_rows, kRows);
 
   std::vector<common::CompressedByteT> buffer(sampled_page->gidx_buffer.HostVector());
-  common::CompressedIterator<common::CompressedByteT>
+  common::CompressedIterator
       ci(buffer.data(), sampled_page->NumSymbols());
 
   size_t offset = 0;
   for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
     auto page = batch.Impl();
     std::vector<common::CompressedByteT> page_buffer(page->gidx_buffer.HostVector());
-    common::CompressedIterator<common::CompressedByteT>
+    common::CompressedIterator
         page_ci(page_buffer.data(), page->NumSymbols());
     size_t num_elements = page->n_rows * page->row_stride;
     for (size_t i = 0; i < num_elements; i++) {

@@ -31,7 +31,7 @@ TEST(EllpackPage, BuildGidxDense) {
   auto page = BuildEllpackPage(kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), page->NumSymbols());
+  common::CompressedIterator gidx(h_gidx_buffer.data(), page->NumSymbols());
 
   ASSERT_EQ(page->row_stride, kNCols);
 
@@ -63,7 +63,7 @@ TEST(EllpackPage, BuildGidxSparse) {
   auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
+  common::CompressedIterator gidx(h_gidx_buffer.data(), 25);
 
   ASSERT_LE(page->row_stride, 3);
 
@@ -107,7 +107,7 @@ TEST(EllpackPage, FromCategoricalBasic) {
 
   std::vector<common::CompressedByteT> const &h_gidx_buffer =
       ellpack.Impl()->gidx_buffer.HostVector();
-  auto h_gidx_iter = common::CompressedIterator<uint32_t>(
+  auto h_gidx_iter = common::CompressedIterator(
       h_gidx_buffer.data(), accessor.NumSymbols());
 
   for (size_t i = 0; i < x.size(); ++i) {

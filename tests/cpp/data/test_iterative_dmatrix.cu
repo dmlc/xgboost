@@ -69,9 +69,9 @@ void TestEquivalent(float sparsity) {
     auto const& buffer_from_data = ellpack.Impl()->gidx_buffer;
     ASSERT_NE(buffer_from_data.Size(), 0);
 
-    common::CompressedIterator<uint32_t> data_buf{
+    common::CompressedIterator data_buf{
         buffer_from_data.ConstHostPointer(), from_data.NumSymbols()};
-    common::CompressedIterator<uint32_t> data_iter{
+    common::CompressedIterator data_iter{
         buffer_from_iter.ConstHostPointer(), from_iter.NumSymbols()};
     CHECK_EQ(from_data.NumSymbols(), from_iter.NumSymbols());
     CHECK_EQ(from_data.n_rows * from_data.row_stride, from_data.n_rows * from_iter.row_stride);
@@ -96,7 +96,7 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
   for (auto& ellpack : m.GetBatches<EllpackPage>({})) {
     n_batches ++;
     auto impl = ellpack.Impl();
-    common::CompressedIterator<uint32_t> iterator(
+    common::CompressedIterator iterator(
         impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
     auto cols = CudaArrayIterForTest::Cols();
     auto rows = CudaArrayIterForTest::Rows();
@@ -144,7 +144,7 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
       0, 256);
   auto &ellpack = *m.GetBatches<EllpackPage>({0, 256}).begin();
   auto impl = ellpack.Impl();
-  common::CompressedIterator<uint32_t> iterator(
+  common::CompressedIterator iterator(
       impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
   EXPECT_EQ(iterator[1], impl->GetDeviceAccessor(0).NullValue());
   EXPECT_EQ(iterator[5], impl->GetDeviceAccessor(0).NullValue());
