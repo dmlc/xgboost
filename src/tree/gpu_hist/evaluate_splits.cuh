@@ -68,7 +68,7 @@ class GPUHistEvaluator {
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
   // cached input for sorting the histogram, used for sort based splits.
-  using SortPair = thrust::tuple<uint32_t, double>;
+  using SortPair = thrust::tuple<uint32_t, float>;
   dh::device_vector<SortPair> sort_input_;
   // cache for feature index
   dh::device_vector<bst_feature_t> feature_idx_;
@@ -167,19 +167,20 @@ class GPUHistEvaluator {
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
-  void LaunchEvaluateSplits(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,EvaluateSplitSharedInputs shared_inputs, 
+  void LaunchEvaluateSplits(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,EvaluateSplitSharedInputs shared_inputs,
                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                       common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
   void EvaluateSplits(const std::vector<bst_node_t> &nidx,bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,
-                      EvaluateSplitSharedInputs shared_inputs, 
+                      EvaluateSplitSharedInputs shared_inputs,
                       common::Span<GPUExpandEntry> out_splits);
   /**
    * \brief Evaluate splits for root node.
    */
-  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs input,EvaluateSplitSharedInputs shared_inputs, float weight);
+  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs input,
+                                     EvaluateSplitSharedInputs shared_inputs);
 };
 }  // namespace tree
 }  // namespace xgboost

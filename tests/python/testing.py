@@ -56,6 +56,15 @@ def no_dask():
     return {"condition": not DASK_INSTALLED, "reason": "Dask is not installed"}
 
 
+def no_spark():
+    try:
+        import pyspark          # noqa
+        SPARK_INSTALLED = True
+    except ImportError:
+        SPARK_INSTALLED = False
+    return {"condition": not SPARK_INSTALLED, "reason": "Spark is not installed"}
+
+
 def no_pandas():
     return {'condition': not PANDAS_INSTALLED,
             'reason': 'Pandas is not installed.'}

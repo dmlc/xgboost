@@ -116,7 +116,7 @@ class GloablApproxBuilder {
     // Caching prediction seems redundant for approx tree method, as sketching takes up
     // majority of training time.
     CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, evaluator_, out_preds);
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
     monitor_->Stop(__func__);
   }
 
