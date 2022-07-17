@@ -21,7 +21,7 @@ def run_formatter(rel_path: str) -> bool:
     if isort_ret != 0 or black_ret != 0:
         msg = (
             "Please run the following command on your machine to address the format"
-            f" errors:\n isort --check --profile=black {rel_path}\n black {rel_path}\n"
+            f" errors:\n isort --profile=black {rel_path}\n black {rel_path}\n"
         )
         print(msg, file=sys.stdout)
         return False
@@ -115,6 +115,8 @@ if __name__ == "__main__":
             for path in [
                 "python-package/xgboost/dask.py",
                 "python-package/xgboost/spark",
+                "tests/python/test_spark/test_data.py",
+                "tests/python-gpu/test_spark_with_gpu/test_data.py",
                 "tests/ci_build/lint_python.py",
             ]
         ):
@@ -128,8 +130,10 @@ if __name__ == "__main__":
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "tests/python/test_data_iterator.py",
+                "tests/python/test_spark/test_data.py",
                 "tests/python-gpu/test_gpu_with_dask.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
+                "tests/python-gpu/test_spark_with_gpu/test_data.py",
                 "tests/ci_build/lint_python.py",
             ]
         ):

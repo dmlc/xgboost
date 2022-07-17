@@ -2,6 +2,8 @@
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=too-few-public-methods
+from typing import Iterator, Tuple
+
 import numpy as np
 import pandas as pd
 from pyspark.ml import Estimator, Model
@@ -34,7 +36,7 @@ from xgboost.training import train as worker_train
 import xgboost
 from xgboost import XGBClassifier, XGBRegressor
 
-from .data import _convert_partition_data_to_dmatrix
+from .data import alias, create_dmatrix_from_partitions, stack_series
 from .model import (
     SparkXGBModelReader,
     SparkXGBModelWriter,
@@ -324,10 +326,10 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
             raise ValueError(
                 "If feature column is array type, its elements must be number type."
             )
-        features_array_col = features_col.cast(ArrayType(FloatType())).alias("values")
+        features_array_col = features_col.cast(ArrayType(FloatType())).alias(alias.data)
     elif isinstance(features_col_datatype, VectorUDT):
         features_array_col = vector_to_array(features_col, dtype="float32").alias(
-            "values"
+            alias.data
         )
     else:
         raise ValueError(
@@ -462,7 +464,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         params.update(fit_params)
         params["verbose_eval"] = verbose_eval
         classification = self._xgb_cls() == XGBClassifier
-        num_classes = int(dataset.select(countDistinct("label")).collect()[0][0])
+        num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
         if classification and num_classes == 2:
             params["objective"] = "binary:logistic"
         elif classification and num_classes > 2:
@@ -493,37 +495,30 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     def _fit(self, dataset):
         # pylint: disable=too-many-statements, too-many-locals
         self._validate_params()
-        label_col = col(self.getOrDefault(self.labelCol)).alias("label")
+        label_col = col(self.getOrDefault(self.labelCol)).alias(alias.label)
 
         features_array_col = _validate_and_convert_feature_col_as_array_col(
             dataset, self.getOrDefault(self.featuresCol)
         )
         select_cols = [features_array_col, label_col]
 
-        has_weight = False
-        has_validation = False
-        has_base_margin = False
-
         if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol):
-            has_weight = True
-            select_cols.append(col(self.getOrDefault(self.weightCol)).alias("weight"))
+            select_cols.append(
+                col(self.getOrDefault(self.weightCol)).alias(alias.weight)
+            )
 
         if self.isDefined(self.validationIndicatorCol) and self.getOrDefault(
             self.validationIndicatorCol
         ):
-            has_validation = True
             select_cols.append(
-                col(self.getOrDefault(self.validationIndicatorCol)).alias(
-                    "validationIndicator"
-                )
+                col(self.getOrDefault(self.validationIndicatorCol)).alias(alias.valid)
             )
 
         if self.isDefined(self.base_margin_col) and self.getOrDefault(
             self.base_margin_col
         ):
-            has_base_margin = True
             select_cols.append(
-                col(self.getOrDefault(self.base_margin_col)).alias("baseMargin")
+                col(self.getOrDefault(self.base_margin_col)).alias(alias.margin)
             )
 
         dataset = dataset.select(*select_cols)
@@ -551,6 +546,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         cpu_per_task = int(
             _get_spark_session().sparkContext.getConf().get("spark.task.cpus", "1")
         )
+
         dmatrix_kwargs = {
             "nthread": cpu_per_task,
             "feature_types": self.getOrDefault(self.feature_types),
@@ -564,9 +560,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         is_local = _is_local(_get_spark_session().sparkContext)
 
         def _train_booster(pandas_df_iter):
-            """
-            Takes in an RDD partition and outputs a booster for that partition after going through
-            the Rabit Ring protocol
+            """Takes in an RDD partition and outputs a booster for that partition after
+            going through the Rabit Ring protocol
+
             """
             from pyspark import BarrierTaskContext
 
@@ -586,25 +582,15 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             _rabit_args = _get_args_from_message_list(messages)
             evals_result = {}
             with RabitContext(_rabit_args, context):
-                dtrain, dval = None, []
-                if has_validation:
-                    dtrain, dval = _convert_partition_data_to_dmatrix(
-                        pandas_df_iter,
-                        has_weight,
-                        has_validation,
-                        has_base_margin,
-                        dmatrix_kwargs=dmatrix_kwargs,
-                    )
-                    # TODO: Question: do we need to add dtrain to dval list ?
-                    dval = [(dtrain, "training"), (dval, "validation")]
+                dtrain, dvalid = create_dmatrix_from_partitions(
+                    pandas_df_iter,
+                    None,
+                    dmatrix_kwargs,
+                )
+                if dvalid is not None:
+                    dval = [(dtrain, "training"), (dvalid, "validation")]
                 else:
-                    dtrain = _convert_partition_data_to_dmatrix(
-                        pandas_df_iter,
-                        has_weight,
-                        has_validation,
-                        has_base_margin,
-                        dmatrix_kwargs=dmatrix_kwargs,
-                    )
+                    dval = None
 
                 booster = worker_train(
                     params=booster_params,
@@ -619,13 +605,15 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 yield pd.DataFrame(
                     data={
                         "config": [booster.save_config()],
-                        "booster": [booster.save_raw("json").decode("utf-8")]
+                        "booster": [booster.save_raw("json").decode("utf-8")],
                     }
                 )
 
         def _run_job():
             ret = (
-                dataset.mapInPandas(_train_booster, schema="config string, booster string")
+                dataset.mapInPandas(
+                    _train_booster, schema="config string, booster string"
+                )
                 .rdd.barrier()
                 .mapPartitions(lambda x: x)
                 .collect()[0]
@@ -635,8 +623,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         (config, booster) = _run_job()
 
         result_xgb_model = self._convert_to_sklearn_model(
-            bytearray(booster, "utf-8"),
-            config
+            bytearray(booster, "utf-8"), config
         )
         return self._copyValues(self._create_pyspark_model(result_xgb_model))
 
@@ -674,12 +661,6 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         * 'cover': the average coverage across all splits the feature is used in.
         * 'total_gain': the total gain across all splits the feature is used in.
         * 'total_cover': the total coverage across all splits the feature is used in.
-
-        .. note:: Feature importance is defined only for tree boosters
-
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
 
         Parameters
         ----------
@@ -728,21 +709,26 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         ):
             has_base_margin = True
             base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
-                "baseMargin"
+                alias.margin
             )
 
         @pandas_udf("double")
-        def predict_udf(input_data: pd.DataFrame) -> pd.Series:
-            X = np.array(input_data["values"].tolist())
-            if has_base_margin:
-                base_margin = input_data["baseMargin"].to_numpy()
-            else:
-                base_margin = None
+        def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
+            model = xgb_sklearn_model
+            for data in iterator:
+                X = stack_series(data[alias.data])
+                if has_base_margin:
+                    base_margin = data[alias.margin].to_numpy()
+                else:
+                    base_margin = None
 
-            preds = xgb_sklearn_model.predict(
-                X, base_margin=base_margin, validate_features=False, **predict_params
-            )
-            return pd.Series(preds)
+                preds = model.predict(
+                    X,
+                    base_margin=base_margin,
+                    validate_features=False,
+                    **predict_params,
+                )
+                yield pd.Series(preds)
 
         features_col = _validate_and_convert_feature_col_as_array_col(
             dataset, self.getOrDefault(self.featuresCol)
@@ -781,26 +767,10 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         ):
             has_base_margin = True
             base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
-                "baseMargin"
+                alias.margin
             )
 
-        @pandas_udf(
-            "rawPrediction array<double>, prediction double, probability array<double>"
-        )
-        def predict_udf(input_data: pd.DataFrame) -> pd.DataFrame:
-            X = np.array(input_data["values"].tolist())
-            if has_base_margin:
-                base_margin = input_data["baseMargin"].to_numpy()
-            else:
-                base_margin = None
-
-            margins = xgb_sklearn_model.predict(
-                X,
-                base_margin=base_margin,
-                output_margin=True,
-                validate_features=False,
-                **predict_params,
-            )
+        def transform_margin(margins: np.ndarray):
             if margins.ndim == 1:
                 # binomial case
                 classone_probs = expit(margins)
@@ -811,17 +781,41 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                 # multinomial case
                 raw_preds = margins
                 class_probs = softmax(raw_preds, axis=1)
+            return raw_preds, class_probs
 
-            # It seems that they use argmax of class probs,
-            # not of margin to get the prediction (Note: scala implementation)
-            preds = np.argmax(class_probs, axis=1)
-            return pd.DataFrame(
-                data={
-                    "rawPrediction": pd.Series(raw_preds.tolist()),
-                    "prediction": pd.Series(preds),
-                    "probability": pd.Series(class_probs.tolist()),
-                }
-            )
+        @pandas_udf(
+            "rawPrediction array<double>, prediction double, probability array<double>"
+        )
+        def predict_udf(
+            iterator: Iterator[Tuple[pd.Series, ...]]
+        ) -> Iterator[pd.DataFrame]:
+            model = xgb_sklearn_model
+            for data in iterator:
+                X = stack_series(data[alias.data])
+                if has_base_margin:
+                    base_margin = stack_series(data[alias.margin])
+                else:
+                    base_margin = None
+
+                margins = model.predict(
+                    X,
+                    base_margin=base_margin,
+                    output_margin=True,
+                    validate_features=False,
+                    **predict_params,
+                )
+                raw_preds, class_probs = transform_margin(margins)
+
+                # It seems that they use argmax of class probs,
+                # not of margin to get the prediction (Note: scala implementation)
+                preds = np.argmax(class_probs, axis=1)
+                yield pd.DataFrame(
+                    data={
+                        "rawPrediction": pd.Series(list(raw_preds)),
+                        "prediction": pd.Series(preds),
+                        "probability": pd.Series(list(class_probs)),
+                    }
+                )
 
         features_col = _validate_and_convert_feature_col_as_array_col(
             dataset, self.getOrDefault(self.featuresCol)

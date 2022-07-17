@@ -58,17 +58,9 @@ from typing import (
 import numpy
 
 from . import config, rabit
-from ._typing import FeatureNames, FeatureTypes
+from ._typing import _T, FeatureNames, FeatureTypes
 from .callback import TrainingCallback
-from .compat import (
-    PANDAS_INSTALLED,
-    DataFrame,
-    LazyLoader,
-    Series,
-    lazy_isinstance,
-    pandas_concat,
-    scipy_sparse,
-)
+from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
 from .core import (
     Booster,
     DataIter,
@@ -234,35 +226,12 @@ class RabitContext(rabit.RabitContext):
         )
 
 
-def concat(value: Any) -> Any:  # pylint: disable=too-many-return-statements
-    """To be replaced with dask builtin."""
-    if isinstance(value[0], numpy.ndarray):
-        return numpy.concatenate(value, axis=0)
-    if scipy_sparse and isinstance(value[0], scipy_sparse.csr_matrix):
-        return scipy_sparse.vstack(value, format="csr")
-    if scipy_sparse and isinstance(value[0], scipy_sparse.csc_matrix):
-        return scipy_sparse.vstack(value, format="csc")
-    if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
-        # other sparse format will be converted to CSR.
-        return scipy_sparse.vstack(value, format="csr")
-    if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
-        return pandas_concat(value, axis=0)
-    if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
-        value[0], "cudf.core.series", "Series"
-    ):
-        from cudf import concat as CUDF_concat  # pylint: disable=import-error
-
-        return CUDF_concat(value, axis=0)
-    if lazy_isinstance(value[0], "cupy._core.core", "ndarray"):
-        import cupy
-
-        # pylint: disable=c-extension-no-member,no-member
-        d = cupy.cuda.runtime.getDevice()
-        for v in value:
-            d_v = v.device.id
-            assert d_v == d, "Concatenating arrays on different devices."
-        return cupy.concatenate(value, axis=0)
-    return dd.multi.concat(list(value), axis=0)
+def dconcat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statements
+    """Concatenate sequence of partitions."""
+    try:
+        return concat(value)
+    except TypeError:
+        return dd.multi.concat(list(value), axis=0)
 
 
 def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
@@ -797,7 +766,7 @@ def _create_dmatrix(
     def concat_or_none(data: Sequence[Optional[T]]) -> Optional[T]:
         if any(part is None for part in data):
             return None
-        return concat(data)
+        return dconcat(data)
 
     unzipped_dict = _get_worker_parts(list_of_parts)
     concated_dict: Dict[str, Any] = {}

@@ -765,23 +765,22 @@ class XgboostLocalTest(SparkTestCase):
             self.reg_df_test_with_eval_weight
         ).collect()
         for row in pred_result_with_weight:
-            self.assertTrue(
-                np.isclose(
-                    row.prediction, row.expected_prediction_with_weight, atol=1e-3
-                )
+            assert np.isclose(
+                row.prediction, row.expected_prediction_with_weight, atol=1e-3
             )
+
         # with eval
         regressor_with_eval = SparkXGBRegressor(**self.reg_params_with_eval)
         model_with_eval = regressor_with_eval.fit(self.reg_df_train_with_eval_weight)
-        self.assertTrue(
-            np.isclose(
-                model_with_eval._xgb_sklearn_model.best_score,
-                self.reg_with_eval_best_score,
-                atol=1e-3,
-            ),
-            f"Expected best score: {self.reg_with_eval_best_score}, "
-            f"but get {model_with_eval._xgb_sklearn_model.best_score}",
+        assert np.isclose(
+            model_with_eval._xgb_sklearn_model.best_score,
+            self.reg_with_eval_best_score,
+            atol=1e-3,
+        ), (
+            f"Expected best score: {self.reg_with_eval_best_score}, but ",
+            f"get {model_with_eval._xgb_sklearn_model.best_score}",
         )
+
         pred_result_with_eval = model_with_eval.transform(
             self.reg_df_test_with_eval_weight
         ).collect()
@@ -905,7 +904,7 @@ class XgboostLocalTest(SparkTestCase):
         # Check that regardless of what booster, _convert_to_model converts to the correct class type
         sklearn_classifier = classifier._convert_to_sklearn_model(
             clf_model.get_booster().save_raw("json"),
-            clf_model.get_booster().save_config()
+            clf_model.get_booster().save_config(),
         )
         assert isinstance(sklearn_classifier, XGBClassifier)
         assert sklearn_classifier.n_estimators == 200
@@ -915,7 +914,7 @@ class XgboostLocalTest(SparkTestCase):
 
         sklearn_regressor = regressor._convert_to_sklearn_model(
             reg_model.get_booster().save_raw("json"),
-            reg_model.get_booster().save_config()
+            reg_model.get_booster().save_config(),
         )
         assert isinstance(sklearn_regressor, XGBRegressor)
         assert sklearn_regressor.n_estimators == 200
