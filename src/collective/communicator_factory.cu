@@ -1,8 +1,11 @@
 /*!
  * Copyright 2022 XGBoost contributors
  */
+#include <rabit/rabit.h>
+
 #include "communicator_factory.h"
 #include "device_communicator_adapter.cuh"
+#include "rabit_communicator.h"
 
 namespace xgboost {
 namespace collective {
@@ -20,9 +23,12 @@ void CommunicatorFactory::Init(int argc, char* argv[]) {
     type = arg;
   }
   switch (type) {
-    case CommunicatorType::kRabit:
-      LOG(FATAL) << "Not implemented yet.";
+    case CommunicatorType::kRabit: {
+      RabitCommunicatorFactory factory{argc, argv};
+      auto* comm = factory.Create();
+      instance_.reset(new CommunicatorFactory(type, comm));
       break;
+    }
     case CommunicatorType::kMPI:
       LOG(FATAL) << "Not implemented yet.";
       break;
