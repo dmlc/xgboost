@@ -114,7 +114,7 @@ class TestGPUUpdaters:
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_device_dmat(), num_rounds)
         note(result)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
 
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
