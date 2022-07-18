@@ -43,6 +43,8 @@ class TestPartitionBasedSplit : public ::testing::Test {
     auto &h_vals = cuts_.cut_values_.HostVector();
     h_vals.resize(n_bins_);
     std::iota(h_vals.begin(), h_vals.end(), 0.0);
+    
+    cuts_.min_vals_.Resize(1);
 
     hist_.Init(cuts_.TotalBins());
     hist_.AddHistRow(0);

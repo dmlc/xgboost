@@ -68,15 +68,15 @@ class EvaluateSplitAgent {
       : temp_storage(temp_storage),
         nidx(inputs.nidx),
         fidx(fidx),
-        min_fvalue(__ldg(shared_inputs.min_fvalue.data())),
+        min_fvalue(__ldg(shared_inputs.min_fvalue.data() + fidx)),
         gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
         gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
         feature_values(shared_inputs.feature_values.data()),
         node_histogram(inputs.gradient_histogram.data()),
         parent_sum(dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0]),
         param(shared_inputs.param),
-        evaluator(evaluator), missing(parent_sum - ReduceFeature()) {
-  }
+        evaluator(evaluator),
+        missing(parent_sum - ReduceFeature()) {}
   __device__ GradientSumT ReduceFeature() {
     GradientSumT local_sum;
     for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += BLOCK_THREADS) {
