@@ -59,7 +59,7 @@ class EvaluateSplitAgent {
   const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator;
   TempStorage *temp_storage;
   SumCallbackOp<GradientSumT> prefix_op;
-  static float constexpr null_gain = -std::numeric_limits<bst_float>::infinity();
+  static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
   __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
                                 const EvaluateSplitInputs &inputs,
@@ -106,7 +106,7 @@ class EvaluateSplitAgent {
       bool missing_left = true;
       float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
                                                      evaluator, missing_left)
-                                 : null_gain;
+                                 : kNullGain;
 
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -139,7 +139,7 @@ class EvaluateSplitAgent {
       bool missing_left = true;
       float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
                                                      evaluator, missing_left)
-                                 : null_gain;
+                                 : kNullGain;
 
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -175,7 +175,7 @@ class EvaluateSplitAgent {
       bool missing_left = true;
       float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
                                                      evaluator, missing_left)
-                                 : null_gain;
+                                 : kNullGain;
 
 
       // Find thread with best gain
