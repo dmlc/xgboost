@@ -3,8 +3,6 @@
  */
 #include <gtest/gtest.h>
 
-#include <thread>
-
 #include "../../../src/collective/rabit_communicator.h"
 
 namespace xgboost {

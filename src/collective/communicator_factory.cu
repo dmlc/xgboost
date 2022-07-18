@@ -6,6 +6,7 @@
 #include "communicator_factory.h"
 #include "device_communicator_adapter.cuh"
 #include "rabit_communicator.h"
+#include "nccl_device_communicator.cuh"
 
 namespace xgboost {
 namespace collective {
@@ -57,8 +58,7 @@ DeviceCommunicator* CommunicatorFactory::GetDeviceCommunicator(int device_ordina
   if (!device_communicator_) {
 #ifdef XGBOOST_USE_NCCL
     if (type_ != CommunicatorType::kFederated) {
-      // Use NCCL communicator.
-      LOG(FATAL) << "Not implemented yet.";
+      device_communicator_.reset(new NcclDeviceCommunicator(device_ordinal, communicator_.get()));
     } else {
       device_communicator_.reset(
           new DeviceCommunicatorAdapter(device_ordinal, communicator_.get()));

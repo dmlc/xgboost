@@ -8,7 +8,7 @@ namespace xgboost {
 namespace collective {
 
 /** @brief Defines the integral and floating data types. */
-enum class DataType { kInt, kFloat, kDouble, kSizeT };
+enum class DataType { kInt, kFloat, kDouble, kSizeT, kUInt64 };
 
 inline std::size_t GetTypeSize(DataType data_type) {
   std::size_t size{0};
@@ -25,6 +25,11 @@ inline std::size_t GetTypeSize(DataType data_type) {
     case DataType::kSizeT:
       size = sizeof(std::size_t);
       break;
+    case DataType::kUInt64:
+      size = sizeof(uint64_t);
+      break;
+    default:
+      LOG(FATAL) << "Unknown data type.";
   }
   return size;
 }
