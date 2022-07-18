@@ -216,7 +216,7 @@ struct BatchParam {
   /*! \brief The GPU device to use. */
   int gpu_id {-1};
   /*! \brief Maximum number of bins per feature for histograms. */
-  int max_bin{0};
+  bst_bin_t max_bin{0};
   /*! \brief Hessian, used for sketching with future approx implementation. */
   common::Span<float> hess;
   /*! \brief Whether should DMatrix regenerate the batch.  Only used for GHistIndex. */
@@ -226,17 +226,17 @@ struct BatchParam {
 
   BatchParam() = default;
   // GPU Hist
-  BatchParam(int32_t device, int32_t max_bin)
+  BatchParam(int32_t device, bst_bin_t max_bin)
       : gpu_id{device}, max_bin{max_bin} {}
   // Hist
-  BatchParam(int32_t max_bin, double sparse_thresh)
+  BatchParam(bst_bin_t max_bin, double sparse_thresh)
       : max_bin{max_bin}, sparse_thresh{sparse_thresh} {}
   // Approx
   /**
    * \brief Get batch with sketch weighted by hessian.  The batch will be regenerated if
    *        the span is changed, so caller should keep the span for each iteration.
    */
-  BatchParam(int32_t max_bin, common::Span<float> hessian, bool regenerate)
+  BatchParam(bst_bin_t max_bin, common::Span<float> hessian, bool regenerate)
       : max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
   bool operator!=(BatchParam const& other) const {
