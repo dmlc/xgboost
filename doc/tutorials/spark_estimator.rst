@@ -1,7 +1,7 @@
 ###############################
 Using XGBoost PySpark Estimator
 ###############################
-Starting from version 1.5, xgboost supports pyspark estimator APIs.
+Starting from version 2.0, xgboost supports pyspark estimator APIs.
 The feature is still experimental and not yet ready for production use.
 
 *****************
