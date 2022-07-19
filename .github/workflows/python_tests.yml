@@ -20,10 +20,17 @@ jobs:
         python-version: ${{ matrix.python-version }}
         activate-environment: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
     - name: Run mypy
+      shell: bash -l {0}
       run: |
         python tests/ci_build/lint_python.py --format=0 --type-check=1
     - name: Run formatter
+      shell: bash -l {0}
       run: |
         python tests/ci_build/lint_python.py --format=1 --type-check=0
 
