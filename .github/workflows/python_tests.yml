@@ -3,6 +3,30 @@ name: XGBoost-Python-Tests
 on: [push, pull_request]
 
 jobs:
+  python-mypy-lint:
+    runs-on: ubuntu-latest
+    name: Type and format checks for the Python package
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: python_lint
+        environment-file: tests/ci_build/conda_env/python_lint.yml
+    - name: Run mypy
+      run: |
+        python tests/ci_build/lint_python.py --format=0 --type-check=1
+    - name: Run formatter
+      run: |
+        python tests/ci_build/lint_python.py --format=1 --type-check=0
+
   python-sdist-test:
     runs-on: ${{ matrix.os }}
     name: Test installing XGBoost Python source package on ${{ matrix.os }}
