@@ -379,10 +379,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
             if k in _pyspark_param_alias_map:
                 real_k = _pyspark_param_alias_map[k]
-                if real_k in kwargs:
-                    raise ValueError(
-                        f"You should set only one of param '{k}' and '{real_k}'"
-                    )
                 k = real_k
 
             if self.hasParam(k):

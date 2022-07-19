@@ -31,6 +31,9 @@ class SparkXGBRegressor(_SparkXGBEstimator):
 
     SparkXGBRegressor doesn't support `validate_features` and `output_margin` param.
 
+    SparkXGBRegressor doesn't support setting `nthread` xgboost param, instead, the `nthread`
+    param for each xgboost worker will be set equal to `spark.task.cpus` config value.
+
     callbacks:
         The export and import of the callback functions are at best effort.
         For details, see :py:attr:`xgboost.spark.SparkXGBRegressor.callbacks` param doc.
@@ -127,6 +130,10 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     from the raw prediction column. See `raw_prediction_col` param doc below for more details.
 
     SparkXGBClassifier doesn't support `validate_features` and `output_margin` param.
+
+    SparkXGBRegressor doesn't support setting `nthread` xgboost param, instead, the `nthread`
+    param for each xgboost worker will be set equal to `spark.task.cpus` config value.
+
 
     Parameters
     ----------
