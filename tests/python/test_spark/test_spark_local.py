@@ -904,7 +904,8 @@ class XgboostLocalTest(SparkTestCase):
 
         # Check that regardless of what booster, _convert_to_model converts to the correct class type
         sklearn_classifier = classifier._convert_to_sklearn_model(
-            clf_model.get_booster()
+            clf_model.get_booster().save_raw("json"),
+            clf_model.get_booster().save_config()
         )
         assert isinstance(sklearn_classifier, XGBClassifier)
         assert sklearn_classifier.n_estimators == 200
@@ -912,7 +913,10 @@ class XgboostLocalTest(SparkTestCase):
         assert sklearn_classifier.max_depth == 3
         assert sklearn_classifier.get_params()["sketch_eps"] == 0.5
 
-        sklearn_regressor = regressor._convert_to_sklearn_model(reg_model.get_booster())
+        sklearn_regressor = regressor._convert_to_sklearn_model(
+            reg_model.get_booster().save_raw("json"),
+            reg_model.get_booster().save_config()
+        )
         assert isinstance(sklearn_regressor, XGBRegressor)
         assert sklearn_regressor.n_estimators == 200
         assert sklearn_regressor.missing == 2.0
