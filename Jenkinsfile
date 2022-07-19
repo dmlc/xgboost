@@ -47,6 +47,7 @@ pipeline {
         }
         sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
+        deleteDir()
       }
     }
     stage('Jenkins Linux: Build') {
