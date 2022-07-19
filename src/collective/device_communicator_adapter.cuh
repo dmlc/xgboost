@@ -23,7 +23,7 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
 
   ~DeviceCommunicatorAdapter() override = default;
 
-  void DeviceAllReduceSum(double *send_receive_buffer, int count) override {
+  void AllReduceSum(double *send_receive_buffer, int count) override {
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     auto size = count * sizeof(double);
     host_buffer_.reserve(size);
@@ -32,9 +32,8 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     dh::safe_cuda(cudaMemcpy(send_receive_buffer, host_buffer_.data(), size, cudaMemcpyDefault));
   }
 
-  void DeviceAllGatherV(void const *send_buffer, size_t length_bytes,
-                        std::vector<std::size_t> *segments,
-                        dh::caching_device_vector<char> *receive_buffer) override {
+  void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
+                  dh::caching_device_vector<char> *receive_buffer) override {
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     int const world_size = communicator_->GetWorldSize();
     int const rank = communicator_->GetRank();
@@ -59,6 +58,10 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     }
     dh::safe_cuda(cudaMemcpy(receive_buffer->data().get(), host_buffer_.data(), total_bytes,
                              cudaMemcpyDefault));
+  }
+
+  void Synchronize() override {
+    // Noop.
   }
 
  private:

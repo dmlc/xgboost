@@ -1,12 +1,10 @@
 /*!
  * Copyright 2022 XGBoost contributors
  */
-#include <rabit/rabit.h>
-
 #include "communicator_factory.h"
 #include "device_communicator_adapter.cuh"
-#include "rabit_communicator.h"
 #include "nccl_device_communicator.cuh"
+#include "rabit_communicator.h"
 
 namespace xgboost {
 namespace collective {

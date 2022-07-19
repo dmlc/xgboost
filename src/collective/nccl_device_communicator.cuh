@@ -61,7 +61,7 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     }
   }
 
-  void DeviceAllReduceSum(double *send_receive_buffer, int count) override {
+  void AllReduceSum(double *send_receive_buffer, int count) override {
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     dh::safe_nccl(ncclAllReduce(send_receive_buffer, send_receive_buffer, count, ncclDouble,
                                 ncclSum, nccl_comm_, cuda_stream_));
@@ -69,9 +69,8 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     allreduce_calls_ += 1;
   }
 
-  void DeviceAllGatherV(void const *send_buffer, size_t length_bytes,
-                        std::vector<std::size_t> *segments,
-                        dh::caching_device_vector<char> *receive_buffer) override {
+  void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
+                  dh::caching_device_vector<char> *receive_buffer) override {
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     int const world_size = communicator_->GetWorldSize();
     int const rank = communicator_->GetRank();
@@ -92,6 +91,11 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
       offset += as_bytes;
     }
     dh::safe_nccl(ncclGroupEnd());
+  }
+
+  void Synchronize() override {
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    dh::safe_cuda(cudaStreamSynchronize(cuda_stream_));
   }
 
  private:

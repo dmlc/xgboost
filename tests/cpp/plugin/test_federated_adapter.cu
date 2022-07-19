@@ -58,7 +58,7 @@ TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
       int const count = 3;
       thrust::device_vector<double> buffer(count, 0);
       thrust::sequence(buffer.begin(), buffer.end());
-      adapter.DeviceAllReduceSum(buffer.data().get(), count);
+      adapter.AllReduceSum(buffer.data().get(), count);
       thrust::host_vector<double> host_buffer = buffer;
       EXPECT_EQ(host_buffer.size(), count);
       for (auto i = 0; i < count; i++) {
@@ -84,8 +84,7 @@ TEST_F(FederatedAdapterTest, DeviceAllGatherV) {
       std::vector<std::size_t> segments(kWorldSize);
       dh::caching_device_vector<char> receive_buffer{};
 
-      adapter.DeviceAllGatherV(buffer.data().get(), count, &segments,
-                               &receive_buffer);
+      adapter.AllGatherV(buffer.data().get(), count, &segments, &receive_buffer);
 
       EXPECT_EQ(segments[0], 2);
       EXPECT_EQ(segments[1], 3);
