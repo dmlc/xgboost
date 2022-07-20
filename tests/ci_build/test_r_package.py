@@ -1,23 +1,12 @@
 import argparse
 import os
 import subprocess
+from test_utils import DirectoryExcursion
 
 ROOT = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir,
                  os.path.pardir))
 r_package = os.path.join(ROOT, 'R-package')
-
-
-class DirectoryExcursion:
-    def __init__(self, path: os.PathLike):
-        self.path = path
-        self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
-
-    def __enter__(self):
-        os.chdir(self.path)
-
-    def __exit__(self, *args):
-        os.chdir(self.curdir)
 
 
 def get_mingw_bin():

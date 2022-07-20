@@ -178,7 +178,7 @@ class PartitionBuilder {
    * \tparam Pred       Predicate for whether a row should be partitioned to the left node.
    *
    * \param node_in_set The index of node in current batch of nodes.
-   * \param nid         The cannonical node index (node index in the tree).
+   * \param nid         The canonical node index (node index in the tree).
    * \param range       The range of input row index.
    * \param fidx        Feature index.
    * \param p_row_set_collection Pointer to rows that are  being partitioned.

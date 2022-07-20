@@ -27,8 +27,8 @@ void TestEquivalent(float sparsity) {
     offset += num_elements;
   }
   auto from_iter = page_concatenated->GetDeviceAccessor(0);
-  ASSERT_EQ(m.Info().num_col_, CudaArrayIterForTest::kCols);
-  ASSERT_EQ(m.Info().num_row_, CudaArrayIterForTest::kRows);
+  ASSERT_EQ(m.Info().num_col_, CudaArrayIterForTest::Cols());
+  ASSERT_EQ(m.Info().num_row_, CudaArrayIterForTest::Rows());
 
   std::string interface_str = iter.AsArray();
   auto adapter = CupyAdapter(interface_str);
@@ -98,8 +98,8 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
     auto impl = ellpack.Impl();
     common::CompressedIterator<uint32_t> iterator(
         impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
-    auto cols = CudaArrayIterForTest::kCols;
-    auto rows = CudaArrayIterForTest::kRows;
+    auto cols = CudaArrayIterForTest::Cols();
+    auto rows = CudaArrayIterForTest::Rows();
 
     auto j_interface =
         Json::Load({interface_str.c_str(), interface_str.size()});

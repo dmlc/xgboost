@@ -87,19 +87,6 @@ cover: check
 endif
 
 
-# dask is required to pass, others are not
-# If any of the dask tests failed, contributor won't see the other error.
-mypy:
-	cd python-package; \
-	mypy . && \
-	mypy ../demo/guide-python/external_memory.py && \
-	mypy ../demo/guide-python/categorical.py && \
-	mypy ../demo/guide-python/cat_in_the_dat.py && \
-	mypy ../tests/python-gpu/test_gpu_with_dask.py && \
-	mypy ../tests/python/test_data_iterator.py && \
-	mypy ../tests/python-gpu/test_gpu_data_iterator.py  || exit 1; \
-	mypy . || true ;
-
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
