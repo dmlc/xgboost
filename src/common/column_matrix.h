@@ -242,13 +242,13 @@ class ColumnMatrix {
       num_nonzeros_.resize(n_features, 0);
       auto get_bin_idx = [&](auto bin_id, auto rid, bst_feature_t fid) {
         if (type_[fid] == kDenseColumn) {
-          ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+          ColumnBinT* begin = reinterpret_cast<ColumnBinT*>(&local_index[feature_offsets_[fid]]);
           begin[rid] = bin_id - index_base_[fid];
           // not thread-safe with bool vector.  FIXME(jiamingy): We can directly assign
           // kMissingId to the index to avoid missing flags.
           missing_flags_[feature_offsets_[fid] + rid] = false;
         } else {
-          ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+          ColumnBinT* begin = reinterpret_cast<ColumnBinT*>(&local_index[feature_offsets_[fid]]);
           begin[num_nonzeros_[fid]] = bin_id - index_base_[fid];
           row_ind_[feature_offsets_[fid] + num_nonzeros_[fid]] = rid;
           ++num_nonzeros_[fid];
