@@ -729,5 +729,95 @@ class MeanAbsoluteError : public ObjFunction {
 XGBOOST_REGISTER_OBJECTIVE(MeanAbsoluteError, "reg:absoluteerror")
     .describe("Mean absoluate error.")
     .set_body([]() { return new MeanAbsoluteError(); });
+
+
+struct QuantileLossParam : public XGBoostParameter<QuantileLossParam> {
+  float quantile_value{0.5};
+
+  DMLC_DECLARE_PARAMETER(QuantileLossParam) {
+    DMLC_DECLARE_FIELD(quantile_value).set_range(0.0f, 1.0f)
+        .set_default(0.5f)
+        .describe("The quantile to use for the loss function, must be in (0,1).");
+  }
+};
+
+class QuantileRegression : public ObjFunction {
+  private:
+   std::string metric_;
+   QuantileLossParam param_;
+
+ public:
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+    param_.UpdateAllowUnknown(args);
+    std::ostringstream os;
+    os << "quantile-loss@" << param_.quantile_value;
+    metric_ = os.str();
+  }
+  ObjInfo Task() const override { return ObjInfo::kRegression; }
+
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info, int /*iter*/,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CheckRegInputs(info, preds);
+    auto labels = info.labels.View(ctx_->gpu_id);
+
+    out_gpair->SetDevice(ctx_->gpu_id);
+    out_gpair->Resize(info.labels.Size());
+    auto gpair = linalg::MakeVec(out_gpair);
+
+    preds.SetDevice(ctx_->gpu_id);
+    auto predt = linalg::MakeVec(&preds);
+    info.weights_.SetDevice(ctx_->gpu_id);
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+
+    auto alpha = param_.quantile_value;
+    linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
+      auto quantile_fun = [&alpha](auto x) {
+        return - alpha * (x > static_cast<decltype(x)>(0)) + (1.0f - alpha) * (x < static_cast<decltype(x)>(0));
+      };
+      auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
+      auto grad = quantile_fun(y - predt(i)) * weight[i];
+      auto hess = weight[sample_id];
+      gpair(i) = GradientPair{grad, hess};
+    });
+  }
+
+  void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
+                      HostDeviceVector<float> const& prediction, RegTree* p_tree) const override {
+    if (ctx_->IsCPU()) {
+      auto const& h_position = position.ConstHostVector();
+      detail::UpdateTreeLeafHost(ctx_, h_position, info, prediction, 0.5, p_tree);
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      position.SetDevice(ctx_->gpu_id);
+      auto d_position = position.ConstDeviceSpan();
+      detail::UpdateTreeLeafDevice(ctx_, d_position, info, prediction, 0.5, p_tree);
+#else
+      common::AssertGPUSupport();
+#endif  //  defined(XGBOOST_USE_CUDA)
+    }
+  }
+
+  const char* DefaultEvalMetric() const override {
+    return metric_.c_str();
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:quantilereg");
+    out["quantile_loss_param"] = ToJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    FromJson(in["quantile_loss_param"], &param_);
+  }
+};
+
+DMLC_REGISTER_PARAMETER(QuantileLossParam);
+
+XGBOOST_REGISTER_OBJECTIVE(QuantileRegression, "reg:quantilereg")
+    .describe("Quantile regression loss.")
+    .set_body([]() { return new QuantileRegression(); });
+
 }  // namespace obj
 }  // namespace xgboost

@@ -433,6 +433,22 @@
               ]
             },
             {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:quantilereg" },
+                "quantile_loss_param": {
+                  "type": "object",
+                  "properties": {
+                    "quantile_value": { "type": "string" }
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "target_quantile"
+              ]
+            },
+            {
               "properties": {
                 "name": {
                   "const": "reg:absoluteerror"

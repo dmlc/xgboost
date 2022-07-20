@@ -87,6 +87,36 @@ TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
                    {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
 }
 
+TEST(Objective, DeclareUnifiedTest(QuantileRegression)) {
+  GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
+  Args args;
+
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantilereg", &tparam)};
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:quantilereg");
+
+  CheckObjFunction(obj, {0.1f, 0.2f, 1.0f, 1.2f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {1.0f, 2.0f, 1.0f, 2.0f, 1.0f},                               // weights
+                   {-0.5f, -1.0f, 0.0f, 1.0f, 0.5f},                             // out_grad
+                   {1.0f,  2.0f, 1.0f, 2.0f, 1.0f});                             // out_hess
+  CheckObjFunction(obj, {0.1f, 0.2f, 1.0f, 1.2f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {},                                                           // empty weights
+                   {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f},                             // out_grad
+                   {1.0f,  1.0f,  1.0f, 1.0f, 1.0f});                            // out_hess
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"quantile-loss@0.5"});
+
+  obj->Configure({{"quantile_value", "0.25"}});
+  CheckConfigReload(obj, "reg:quantilereg");
+  CheckObjFunction(obj, {0.1f, 0.2f, 1.0f, 1.2f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {1.0f, 2.0f, 1.0f, 2.0f, 1.0f},                               // weights
+                   {-0.25f, -0.5f, 0.0f, 1.5f, 0.75f},                           // out_grad
+                   {1.0f,   2.0f,  1.0f, 2.0f, 1.0f});                           // out_hess
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"quantile-loss@0.25"});
+}
+
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;

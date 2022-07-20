@@ -290,6 +290,34 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
   xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"poisson-nloglik"}, GPUIDX);
 }
 
+TEST(Metric, DeclareUnifiedTest(QuantileErrorLoss)) {
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Metric * metric = xgboost::Metric::Create("quantile-loss", &lparam);
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "quantile-loss");
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.5f, 0, 0.8f, 0.4f},
+                            {   0, 0, 1.0f, 1.0f}),
+              0.1625f, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.5f,    0, 0.8f, 0.4f},
+                            {   0,    0, 1.0f, 1.0f},
+                            {1.0f, 5.0f, 1.0f, 1.0f}),
+              0.08125f, 1e-10);
+
+  delete metric;
+  metric = xgboost::Metric::Create("quantile-loss@0.25", &lparam);
+  metric->Configure({});
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {1.0f, 1.0f, 1.0f,  1.0f},
+                            {2.0f, 3.0f,    0, -2.0f}),
+              0.9375f, 1e-10);
+  delete metric;
+
+  xgboost::CheckDeterministicMetricElementWise(xgboost::StringView{"quantile-loss"}, GPUIDX);
+}
+
 TEST(Metric, DeclareUnifiedTest(MultiRMSE)) {
   size_t n_samples = 32, n_targets = 8;
   linalg::Tensor<float, 2> y{{n_samples, n_targets}, GPUIDX};

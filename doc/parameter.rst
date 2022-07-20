@@ -370,6 +370,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``rank:map``: Use LambdaMART to perform list-wise ranking where `Mean Average Precision (MAP) <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_ is maximized
   - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications>`_.
   - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications>`_.
+  - ``reg:quantilereg``: `Quantile regression <https://en.wikipedia.org/wiki/Quantile_regression>`_ using an asymmetric l1 loss .
 
 * ``base_score`` [default=0.5]
 
@@ -419,6 +420,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
       See :doc:`/tutorials/aft_survival_analysis` for details.
     - ``interval-regression-accuracy``: Fraction of data points whose predicted labels fall in the interval-censored labels.
       Only applicable for interval-censored data.  See :doc:`/tutorials/aft_survival_analysis` for details.
+    - ``quantile-loss``: asymmetric l1 loss (corresponding to asymmetry/quantile as specified by ``quantile_value`` parameter)
+
 
 * ``seed`` [default=0]
 
@@ -441,6 +444,11 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 ===========================================================
 
 * ``huber_slope`` : A parameter used for Pseudo-Huber loss to define the :math:`\delta` term. [default = 1.0]
+
+Parameter for Quantile Regression (``reg:quantileref``)
+===========================================================
+
+* ``quantile_value`` : Parameter used to define which quantile to target. [default = 0.5]
 
 ***********************
 Command Line Parameters

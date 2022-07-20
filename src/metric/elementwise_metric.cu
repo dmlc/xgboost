@@ -332,6 +332,30 @@ struct EvalTweedieNLogLik {
  protected:
   bst_float rho_;
 };
+
+struct EvalQuantileErrorLoss {
+  explicit EvalQuantileErrorLoss(const char* param) {
+    alpha_ = param != nullptr ? atof(param) : 0.5f;
+    CHECK(alpha_ < 1 && alpha_ > 0)
+        << "chosen target quantile must be in interval (0, 1)";
+  }
+
+  static const char *Name() {
+    return "quantile-loss";
+  }
+
+  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float p) const {
+    bst_float z = y - p;
+    return std::abs(z) * (alpha_* (z > 0) + (1 - alpha_) * (z < 0));
+  }
+  static double GetFinal(double esum, double wsum) {
+    return wsum == 0 ? esum : esum / wsum;
+  }
+
+ protected:
+  bst_float alpha_;
+};
+
 /*!
  * \brief base class of element-wise evaluation
  * \tparam Derived the name of subclass
@@ -420,5 +444,12 @@ XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
 .set_body([](const char* param) {
   return new EvalEWiseBase<EvalTweedieNLogLik>(param);
 });
+
+XGBOOST_REGISTER_METRIC(QuantileErrorLoss, "quantile-loss")
+.describe("Mean Quantile error.")
+.set_body([](const char* param) {
+  return new EvalEWiseBase<EvalQuantileErrorLoss>(param);
+});
+
 }  // namespace metric
 }  // namespace xgboost
