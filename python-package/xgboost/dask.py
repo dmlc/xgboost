@@ -31,49 +31,76 @@ Optional dask configuration
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
-import platform
-import logging
 import collections
+import logging
+import platform
 import socket
-from contextlib import contextmanager
 from collections import defaultdict
-from threading import Thread
+from contextlib import contextmanager
 from functools import partial, update_wrapper
-from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
-from typing import Sequence
-from typing import Awaitable, Generator, TypeVar
+from threading import Thread
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import numpy
 
-from . import rabit, config
-
-from .callback import TrainingCallback
-
-from .compat import LazyLoader
-from .compat import scipy_sparse
-from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
-from .compat import lazy_isinstance
-
+from . import config, rabit
 from ._typing import FeatureNames, FeatureTypes
-
-from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
-from .core import Objective, Metric
-from .core import _deprecate_positional_args, _has_categorical
-from .training import train as worker_train
+from .callback import TrainingCallback
+from .compat import (
+    PANDAS_INSTALLED,
+    DataFrame,
+    LazyLoader,
+    Series,
+    lazy_isinstance,
+    pandas_concat,
+    scipy_sparse,
+)
+from .core import (
+    Booster,
+    DataIter,
+    DeviceQuantileDMatrix,
+    DMatrix,
+    Metric,
+    Objective,
+    _deprecate_positional_args,
+    _expect,
+    _has_categorical,
+)
+from .sklearn import (
+    XGBClassifier,
+    XGBClassifierBase,
+    XGBModel,
+    XGBRanker,
+    XGBRankerMixIn,
+    XGBRegressorBase,
+    _check_rf_callback,
+    _cls_predict_proba,
+    _objective_decorator,
+    _wrap_evaluation_matrices,
+    xgboost_model_doc,
+)
 from .tracker import RabitTracker, get_host_ip
-from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
-from .sklearn import _wrap_evaluation_matrices, _objective_decorator, _check_rf_callback
-from .sklearn import XGBRankerMixIn
-from .sklearn import xgboost_model_doc
-from .sklearn import _cls_predict_proba
-from .sklearn import XGBRanker
-
+from .training import train as worker_train
 
 if TYPE_CHECKING:
-    from dask import dataframe as dd
-    from dask import array as da
     import dask
     import distributed
+    from dask import array as da
+    from dask import dataframe as dd
 else:
     dd = LazyLoader("dd", globals(), "dask.dataframe")
     da = LazyLoader("da", globals(), "dask.array")

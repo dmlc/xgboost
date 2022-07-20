@@ -4,23 +4,21 @@
 # pylint: disable=too-few-public-methods
 import numpy as np
 import pandas as pd
-from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
-
-from pyspark.ml.functions import array_to_vector, vector_to_array
 from pyspark.ml import Estimator, Model
+from pyspark.ml.functions import array_to_vector, vector_to_array
 from pyspark.ml.linalg import VectorUDT
+from pyspark.ml.param import Param, Params, TypeConverters
 from pyspark.ml.param.shared import (
     HasFeaturesCol,
     HasLabelCol,
-    HasWeightCol,
     HasPredictionCol,
     HasProbabilityCol,
     HasRawPredictionCol,
     HasValidationIndicatorCol,
+    HasWeightCol,
 )
-from pyspark.ml.param import Param, Params, TypeConverters
 from pyspark.ml.util import MLReadable, MLWritable
-from pyspark.sql.functions import col, pandas_udf, countDistinct, struct
+from pyspark.sql.functions import col, countDistinct, pandas_udf, struct
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
@@ -29,35 +27,32 @@ from pyspark.sql.types import (
     LongType,
     ShortType,
 )
-
-import xgboost
-from xgboost import XGBClassifier, XGBRegressor
+from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
-from .data import (
-    _convert_partition_data_to_dmatrix,
-)
+import xgboost
+from xgboost import XGBClassifier, XGBRegressor
+
+from .data import _convert_partition_data_to_dmatrix
 from .model import (
-    SparkXGBReader,
-    SparkXGBWriter,
     SparkXGBModelReader,
     SparkXGBModelWriter,
+    SparkXGBReader,
+    SparkXGBWriter,
 )
+from .params import HasArbitraryParamsDict, HasBaseMarginCol
 from .utils import (
-    get_logger, _get_max_num_concurrent_tasks,
-    _get_default_params_from_func,
-    get_class_name,
     RabitContext,
-    _get_rabit_args,
     _get_args_from_message_list,
+    _get_default_params_from_func,
+    _get_gpu_id,
+    _get_max_num_concurrent_tasks,
+    _get_rabit_args,
     _get_spark_session,
     _is_local,
-    _get_gpu_id,
-)
-from .params import (
-    HasArbitraryParamsDict,
-    HasBaseMarginCol,
+    get_class_name,
+    get_logger,
 )
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
@@ -282,10 +277,7 @@ class _SparkXGBParams(
                 .get("spark.task.resource.gpu.amount")
             )
 
-            is_local = _is_local(
-                _get_spark_session()
-                .sparkContext
-            )
+            is_local = _is_local(_get_spark_session().sparkContext)
 
             if is_local:
                 # checking spark local mode.
@@ -301,7 +293,8 @@ class _SparkXGBParams(
                 # gpu numbers and raising the exception.
                 get_logger(self.__class__.__name__).warning(
                     "You enabled use_gpu in spark local mode. Please make sure your local node "
-                    "has at least %d GPUs", self.getOrDefault(self.num_workers)
+                    "has at least %d GPUs",
+                    self.getOrDefault(self.num_workers),
                 )
             else:
                 # checking spark non-local mode.
@@ -316,7 +309,7 @@ class _SparkXGBParams(
                     get_logger(self.__class__.__name__).warning(
                         "You configured %s GPU cores for each spark task, but in "
                         "XGBoost training, every Spark task will only use one GPU core.",
-                        gpu_per_task
+                        gpu_per_task,
                     )
 
 
@@ -545,7 +538,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 "training is greater than current max number of concurrent "
                 "spark task slots, you need wait until more task slots available "
                 "or you need increase spark cluster workers.",
-                num_workers
+                num_workers,
             )
 
         if self._repartition_needed(dataset):
@@ -568,10 +561,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params["nthread"] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)
 
-        is_local = _is_local(
-            _get_spark_session()
-            .sparkContext
-        )
+        is_local = _is_local(_get_spark_session().sparkContext)
 
         def _train_booster(pandas_df_iter):
             """
@@ -584,8 +574,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if use_gpu:
-                booster_params["gpu_id"] = context.partitionId() if is_local \
-                    else _get_gpu_id(context)
+                booster_params["gpu_id"] = (
+                    context.partitionId() if is_local else _get_gpu_id(context)
+                )
 
             _rabit_args = ""
             if context.partitionId() == 0:
