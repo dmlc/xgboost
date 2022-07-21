@@ -1949,7 +1949,7 @@ class LDGIterator {
   const T *ptr_;
 
  public:
-  explicit LDGIterator(const T *ptr) : ptr_(ptr) {}
+  XGBOOST_DEVICE explicit LDGIterator(const T *ptr) : ptr_(ptr) {}
   __device__ T operator[](std::size_t idx) const {
     DeviceWordT tmp[kNumWords];
     static_assert(sizeof(tmp) == sizeof(T), "Expect sizes to be equal.");

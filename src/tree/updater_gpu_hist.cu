@@ -171,7 +171,7 @@ class DeviceHistogramStorage {
 template <typename GradientSumT>
 struct GPUHistMakerDevice {
  private:
-  GPUHistEvaluator<GradientSumT> evaluator_;
+  GPUHistEvaluator evaluator_;
   Context const* ctx_;
 
  public:
