@@ -126,5 +126,21 @@ TEST(ColumnSampler, WeightedSampling) {
     EXPECT_NEAR(freq[i], feature_weights[i], 1e-2);
   }
 }
+
+TEST(ColumnSampler, WeightedMultiSampling) {
+  size_t constexpr kCols = 32;
+  std::vector<float> feature_weights(kCols, 0);
+  for (size_t i = 0; i < feature_weights.size(); ++i) {
+    feature_weights[i] = i;
+  }
+  ColumnSampler cs{0};
+  float bytree{0.5}, bylevel{0.5}, bynode{0.5};
+  cs.Init(feature_weights.size(), feature_weights, bytree, bylevel, bynode);
+  auto feature_set = cs.GetFeatureSet(0);
+  size_t n_sampled = kCols * bytree * bylevel * bynode;
+  ASSERT_EQ(feature_set->Size(), n_sampled);
+  feature_set = cs.GetFeatureSet(1);
+  ASSERT_EQ(feature_set->Size(), n_sampled);
+}
 }  // namespace common
 }  // namespace xgboost
