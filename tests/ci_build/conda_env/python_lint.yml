@@ -3,13 +3,17 @@ channels:
 - conda-forge
 dependencies:
 - python=3.8
+- pylint
 - wheel
 - setuptools
 - mypy
 - numpy
 - scipy
 - pandas
+- scikit-learn
 - dask
 - distributed
 - black
 - isort
+- pyspark
+- cloudpickle
