@@ -14,8 +14,7 @@
 
 namespace xgboost {
 namespace tree {
-template <typename GradientSumT>
-void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
+void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
                                            common::Span<FeatureType const> ft,
                                            bst_feature_t n_features, TrainParam const &param,
                                            int32_t device) {
@@ -68,8 +67,7 @@ void GPUHistEvaluator<GradientSumT>::Reset(common::HistogramCuts const &cuts,
   }
 }
 
-template <typename GradientSumT>
-common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
+common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     common::Span<const EvaluateSplitInputs> d_inputs, EvaluateSplitSharedInputs shared_inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
@@ -128,7 +126,5 @@ common::Span<bst_feature_t const> GPUHistEvaluator<GradientSumT>::SortHistogram(
   return dh::ToSpan(cat_sorted_idx_);
 }
 
-template class GPUHistEvaluator<GradientPair>;
-template class GPUHistEvaluator<GradientPairPrecise>;
 }  // namespace tree
 }  // namespace xgboost

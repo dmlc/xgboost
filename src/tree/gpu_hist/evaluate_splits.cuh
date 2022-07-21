@@ -51,7 +51,6 @@ struct CatAccessor {
   }
 };
 
-template <typename GradientSumT>
 class GPUHistEvaluator {
   using CatST = common::CatBitField::value_type;  // categorical storage type
   // use pinned memory to stage the categories, used for sort based splits.
