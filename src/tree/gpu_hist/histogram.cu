@@ -270,7 +270,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   smem_size = shared ? smem_size : 0;
 
   constexpr int kBlockThreads = 1024;
-  constexpr int kItemsPerThread = 8;
+  constexpr int kItemsPerThread = 4;
   constexpr int kItemsPerTile = kBlockThreads * kItemsPerThread;
 
   auto runit = [&](auto kernel) {
@@ -293,7 +293,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
     // Otherwise launch blocks such that each block has a minimum amount of work to do
     // There are fixed costs to launching each block, e.g. zeroing shared memory
     // The below amount of minimum work was found by experimentation
-    constexpr int kMinItemsPerBlock = kItemsPerTile * 16;
+    constexpr int kMinItemsPerBlock = kItemsPerTile;
     int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
     // Average number of matrix elements processed by each group
     std::size_t items_per_group = d_ridx.size() * columns_per_group;
@@ -303,6 +303,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
     grid_size =
         min(grid_size,
             unsigned(common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
+
     dh::LaunchKernel {dim3(grid_size, num_groups),
         static_cast<uint32_t>(kBlockThreads), smem_size}(
         kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
