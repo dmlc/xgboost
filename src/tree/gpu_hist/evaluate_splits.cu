@@ -31,12 +31,18 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
   return missing_left_out?missing_left_gain:missing_right_gain;
 }
 
-
-template <int BLOCK_THREADS, typename GradientSumT>
+// This kernel uses block_size == warp_size. This is an unusually small block size for a cuda kernel
+// - normally a larger block size is preferred to increase the number of resident warps on each SM
+// (occupancy). In the below case each thread has a very large amount of work per thread relative to
+// typical cuda kernels. Thus the SM can be highly utilised by a small number of threads. It was
+// discovered by experiments that a small block size here is significantly faster. Furthermore,
+// using only a single warp, synchronisation barriers are eliminated and broadcasts can be performed
+// using warp intrinsics instead of slower shared memory.
+template <int kBlockSize, typename GradientSumT>
 class EvaluateSplitAgent {
  public:
   using ArgMaxT = cub::KeyValuePair<int, float>;
-  using BlockScanT = cub::BlockScan<GradientSumT, BLOCK_THREADS>;
+  using BlockScanT = cub::BlockScan<GradientSumT, kBlockSize>;
   using MaxReduceT =
       cub::WarpReduce<ArgMaxT>;
   using SumReduceT = cub::WarpReduce<GradientSumT>;
@@ -76,10 +82,13 @@ class EvaluateSplitAgent {
         parent_sum(dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0]),
         param(shared_inputs.param),
         evaluator(evaluator),
-        missing(parent_sum - ReduceFeature()) {}
+        missing(parent_sum - ReduceFeature()) {
+    static_assert(kBlockSize == 32,
+                  "This kernel relies on the assumption block_size == warp_size");
+  }
   __device__ GradientSumT ReduceFeature() {
     GradientSumT local_sum;
-    for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += BLOCK_THREADS) {
+    for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += kBlockSize) {
       local_sum += LoadGpair(node_histogram + idx);
     }
     local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);
@@ -97,7 +106,7 @@ class EvaluateSplitAgent {
   }
 
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *__restrict__ best_split) {
-    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += BLOCK_THREADS) {
+    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
       GradientSumT bin =
           thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x) : GradientSumT();
@@ -129,7 +138,7 @@ class EvaluateSplitAgent {
   }
 
   __device__ __forceinline__ void OneHot(DeviceSplitCandidate *__restrict__ best_split) {
-    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += BLOCK_THREADS) {
+    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
       auto rest =
@@ -161,7 +170,7 @@ class EvaluateSplitAgent {
   __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
                                          bst_feature_t * __restrict__ sorted_idx,
                                          std::size_t offset) {
-    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += BLOCK_THREADS) {
+    for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
       auto rest = thread_active
@@ -197,8 +206,8 @@ class EvaluateSplitAgent {
   }
 };
 
-template <int BLOCK_THREADS, typename GradientSumT>
-__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(
+template <int kBlockSize, typename GradientSumT>
+__global__ __launch_bounds__(kBlockSize) void EvaluateSplitsKernel(
     bst_feature_t number_active_features, common::Span<const EvaluateSplitInputs> d_inputs,
     const EvaluateSplitSharedInputs shared_inputs, common::Span<bst_feature_t> sorted_idx,
     const TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
@@ -220,7 +229,7 @@ __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(
 
   int fidx = inputs.feature_set[blockIdx.x % number_active_features];
 
-  using AgentT = EvaluateSplitAgent<BLOCK_THREADS, GradientSumT>;
+  using AgentT = EvaluateSplitAgent<kBlockSize, GradientSumT>;
   __shared__ typename AgentT::TempStorage temp_storage;
   AgentT agent(&temp_storage, fidx, inputs, shared_inputs, evaluator);
 
