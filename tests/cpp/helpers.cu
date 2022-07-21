@@ -15,10 +15,6 @@ CudaArrayIterForTest::CudaArrayIterForTest(float sparsity, size_t rows,
   this->Reset();
 }
 
-size_t constexpr CudaArrayIterForTest::kRows;
-size_t constexpr CudaArrayIterForTest::kCols;
-size_t constexpr CudaArrayIterForTest::kBatches;
-
 int CudaArrayIterForTest::Next() {
   if (iter_ == n_batches_) {
     return 0;

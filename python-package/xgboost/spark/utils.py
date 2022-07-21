@@ -1,15 +1,15 @@
 # type: ignore
 """Xgboost pyspark integration submodule for helper functions."""
 import inspect
-from threading import Thread
-import sys
 import logging
+import sys
+from threading import Thread
 
 import pyspark
 from pyspark.sql.session import SparkSession
+from xgboost.tracker import RabitTracker
 
 from xgboost import rabit
-from xgboost.tracker import RabitTracker
 
 
 def get_class_name(cls):
@@ -128,3 +128,23 @@ def _get_max_num_concurrent_tasks(spark_context):
             spark_context._jsc.sc().resourceProfileManager().resourceProfileFromId(0)
         )
     return spark_context._jsc.sc().maxNumConcurrentTasks()
+
+
+def _is_local(spark_context) -> bool:
+    """Whether it is Spark local mode"""
+    # pylint: disable=protected-access
+    return spark_context._jsc.sc().isLocal()
+
+
+def _get_gpu_id(task_context) -> int:
+    """Get the gpu id from the task resources"""
+    if task_context is None:
+        # This is a safety check.
+        raise RuntimeError("_get_gpu_id should not be invoked from driver side.")
+    resources = task_context.resources()
+    if "gpu" not in resources:
+        raise RuntimeError(
+            "Couldn't get the gpu id, Please check the GPU resource configuration"
+        )
+    # return the first gpu id.
+    return int(resources["gpu"].addresses[0].strip())

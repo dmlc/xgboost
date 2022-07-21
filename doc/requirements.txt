@@ -10,3 +10,5 @@ numpy
 recommonmark
 xgboost_ray
 sphinx-gallery
+pyspark
+cloudpickle

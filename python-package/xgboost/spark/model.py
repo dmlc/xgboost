@@ -5,13 +5,12 @@ import base64
 import os
 import uuid
 
-from pyspark import cloudpickle
-from pyspark import SparkFiles
-from pyspark.sql import SparkSession
+from pyspark import SparkFiles, cloudpickle
 from pyspark.ml.util import DefaultParamsReader, DefaultParamsWriter, MLReader, MLWriter
+from pyspark.sql import SparkSession
 from xgboost.core import Booster
 
-from .utils import get_logger, get_class_name
+from .utils import get_class_name, get_logger
 
 
 def _get_or_create_tmp_dir():
@@ -250,7 +249,9 @@ class SparkXGBModelReader(MLReader):
             self.cls, path, self.sc, self.logger
         )
 
-        xgb_sklearn_params = py_model._gen_xgb_params_dict(gen_xgb_sklearn_estimator_param=True)
+        xgb_sklearn_params = py_model._gen_xgb_params_dict(
+            gen_xgb_sklearn_estimator_param=True
+        )
         model_load_path = os.path.join(path, "model.json")
 
         ser_xgb_model = (
@@ -263,8 +264,6 @@ class SparkXGBModelReader(MLReader):
         def create_xgb_model():
             return self.cls._xgb_cls()(**xgb_sklearn_params)
 
-        xgb_model = deserialize_xgb_model(
-            ser_xgb_model, create_xgb_model
-        )
+        xgb_model = deserialize_xgb_model(ser_xgb_model, create_xgb_model)
         py_model._xgb_sklearn_model = xgb_model
         return py_model
