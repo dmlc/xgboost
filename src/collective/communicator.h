@@ -92,6 +92,16 @@ class Communicator {
    */
   virtual void Broadcast(void *send_receive_buffer, std::size_t size, int root) = 0;
 
+  /**
+   * @brief Gets the name of the processor.
+   */
+  virtual std::string GetProcessorName() = 0;
+
+  /**
+   * @brief Prints the message.
+   */
+  virtual void Print(std::string const &message) = 0;
+
  private:
   int const world_size_;
   int const rank_;

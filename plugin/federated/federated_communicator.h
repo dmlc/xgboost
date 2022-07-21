@@ -57,6 +57,10 @@ class FederatedCommunicator : public Communicator {
     }
   }
 
+  std::string GetProcessorName() override { return "rank" + std::to_string(GetRank()); }
+
+  void Print(const std::string &message) override { LOG(CONSOLE) << message; }
+
  private:
   static xgboost::federated::DataType ConvertDataType(DataType data_type) {
     xgboost::federated::DataType result{};

@@ -39,6 +39,10 @@ class RabitCommunicator : public Communicator {
     rabit::Broadcast(send_receive_buffer, size, root);
   }
 
+  std::string GetProcessorName() override { return rabit::GetProcessorName(); }
+
+  void Print(const std::string &message) override { rabit::TrackerPrint(message); }
+
  private:
   template <typename DType>
   void DoAllReduce(void *send_receive_buffer, std::size_t count, Operation op) {
