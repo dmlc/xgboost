@@ -62,7 +62,7 @@ void TestEvaluateSingleSplit(bool is_categorical) {
       cuts.min_vals_.ConstDeviceSpan(),
   };
 
-  GPUHistEvaluator<GradientPairPrecise> evaluator{
+  GPUHistEvaluator evaluator{
       tparam, static_cast<bst_feature_t>(feature_set.size()), 0};
   evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, 0);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
@@ -109,7 +109,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
       dh::ToSpan(feature_min_values),
   };
 
-  GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, feature_set.size(), 0);
+  GPUHistEvaluator evaluator(tparam, feature_set.size(), 0);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 0);
@@ -121,7 +121,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
 
 TEST(GpuHist, EvaluateSingleSplitEmpty) {
   TrainParam tparam = ZeroParam();
-  GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, 1, 0);
+  GPUHistEvaluator evaluator(tparam, 1, 0);
   DeviceSplitCandidate result =
       evaluator.EvaluateSingleSplit(EvaluateSplitInputs{}, EvaluateSplitSharedInputs{}).split;
   EXPECT_EQ(result.findex, -1);
@@ -159,7 +159,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
                                           dh::ToSpan(feature_min_values),
   };
 
-  GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, feature_min_values.size(), 0);
+  GPUHistEvaluator evaluator(tparam, feature_min_values.size(), 0);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
@@ -199,7 +199,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
                                           dh::ToSpan(feature_min_values),
   };
 
-  GPUHistEvaluator<GradientPairPrecise> evaluator(tparam, feature_min_values.size(), 0);
+  GPUHistEvaluator evaluator(tparam, feature_min_values.size(), 0);
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input,shared_inputs).split;
 
   EXPECT_EQ(result.findex, 0);
@@ -246,7 +246,7 @@ TEST(GpuHist, EvaluateSplits) {
                                           dh::ToSpan(feature_min_values),
   };
 
-  GPUHistEvaluator<GradientPairPrecise> evaluator{
+  GPUHistEvaluator evaluator{
       tparam, static_cast<bst_feature_t>(feature_min_values.size()), 0};
   dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input_left,input_right};
   evaluator.LaunchEvaluateSplits(input_left.feature_set.size(),dh::ToSpan(inputs),shared_inputs, evaluator.GetEvaluator(),
@@ -263,7 +263,7 @@ TEST(GpuHist, EvaluateSplits) {
 
 TEST_F(TestPartitionBasedSplit, GpuHist) {
   dh::device_vector<FeatureType> ft{std::vector<FeatureType>{FeatureType::kCategorical}};
-  GPUHistEvaluator<GradientPairPrecise> evaluator{param_,
+  GPUHistEvaluator evaluator{param_,
                                                   static_cast<bst_feature_t>(info_.num_col_), 0};
 
   cuts_.cut_ptrs_.SetDevice(0);
@@ -287,5 +287,6 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   auto split = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
   ASSERT_NEAR(split.loss_chg, best_score_, 1e-16);
 }
+
 }  // namespace tree
 }  // namespace xgboost
