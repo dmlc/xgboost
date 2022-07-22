@@ -4,10 +4,6 @@
 #pragma once
 #include "communicator.h"
 
-#if defined(XGBOOST_USE_FEDERATED)
-#include "../../plugin/federated/federated_communicator.h"
-#endif
-
 namespace xgboost {
 namespace collective {
 
@@ -27,7 +23,9 @@ class CommunicatorFactory {
 
   Communicator* GetCommunicator() { return communicator_.get(); }
 
+#if defined(XGBOOST_USE_CUDA)
   DeviceCommunicator* GetDeviceCommunicator(int device_ordinal);
+#endif
 
   /** @brief Get the communicator type from environment variables. Visible for testing. */
   static CommunicatorType GetTypeFromEnv() {
@@ -76,7 +74,9 @@ class CommunicatorFactory {
   static thread_local std::unique_ptr<CommunicatorFactory> instance_;
   CommunicatorType type_;
   std::unique_ptr<Communicator> communicator_;
+#if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<DeviceCommunicator> device_communicator_;
+#endif
 };
 
 }  // namespace collective
