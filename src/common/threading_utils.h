@@ -278,6 +278,9 @@ class MemStackAllocator {
   T& operator[](size_t i) { return ptr_[i]; }
   T const& operator[](size_t i) const { return ptr_[i]; }
 
+  auto cbegin() const { return ptr_; }                 // NOLINT
+  auto cend() const { return ptr_ + required_size_; }  // NOLINT
+
  private:
   T* ptr_ = nullptr;
   size_t required_size_;

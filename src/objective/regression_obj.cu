@@ -16,6 +16,7 @@
 #include "../common/common.h"
 #include "../common/linalg_op.h"
 #include "../common/pseudo_huber.h"
+#include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
@@ -37,13 +38,17 @@
 namespace xgboost {
 namespace obj {
 namespace {
-void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+void CheckInitInputs(MetaInfo const& info) {
   CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
-  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
   if (!info.weights_.Empty()) {
     CHECK_EQ(info.weights_.Size(), info.num_row_)
         << "Number of weights should be equal to number of data points.";
   }
+}
+
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+  CheckInitInputs(info);
+  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
 }  // anonymous namespace
 
@@ -160,6 +165,17 @@ class RegLossObj : public ObjFunction {
 
   float ProbToMargin(float base_score) const override {
     return Loss::ProbToMargin(base_score);
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
+    CheckInitInputs(info);
+    base_margin->Reshape(1);
+    auto out = base_margin->HostView();
+    std::uint64_t n_samples = info.num_row_;
+    rabit::Allreduce<rabit::op::Sum>(&n_samples, 1);
+    auto mean = common::Mean(ctx_, info.labels, info.weights_, n_samples);
+    rabit::Allreduce<rabit::op::Sum>(&mean, 1);
+    out(0) = mean;
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -696,6 +712,28 @@ class MeanAbsoluteError : public ObjFunction {
       auto hess = weight[sample_id];
       gpair(i) = GradientPair{grad, hess};
     });
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
+    CheckInitInputs(info);
+    base_margin->Reshape(1);
+    auto out = base_margin->HostView();
+    std::int32_t invalid{0};
+    if (info.num_row_ == 0) {
+      out(0) = 0;
+      invalid++;
+    } else {
+      out(0) = common::Median(ctx_, info.labels, info.weights_);
+    }
+
+    auto world = static_cast<float>(rabit::GetWorldSize());
+    rabit::Allreduce<rabit::op::Sum>(&invalid, 1);  // number of empty workers
+    world -= static_cast<float>(invalid);           // number of non-empty workers
+
+    // average base score across all valid workers
+    rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
+    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
+                   [world](float v) { return v / world; });
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

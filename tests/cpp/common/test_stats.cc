@@ -54,5 +54,17 @@ TEST(Stats, WeightedQuantile) {
   q = WeightedQuantile(1.0, beg, end, w);
   ASSERT_EQ(q, 5);
 }
+
+TEST(Stats, Mean) {
+  Context ctx;
+  linalg::Tensor<float, 2> arr({1.f, 2.f, 3.f, 4.f}, {2, 2}, Context::kCpuId);
+  HostDeviceVector<float> weights;
+  auto mean = Mean(&ctx, arr, weights);
+  ASSERT_EQ(mean, 2.5);
+
+  weights.Resize(2, 1.0f);
+  mean = Mean(&ctx, arr, weights);
+  ASSERT_EQ(mean, 2.5);
+}
 }  // namespace common
 }  // namespace xgboost
