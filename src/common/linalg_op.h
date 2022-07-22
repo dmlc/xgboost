@@ -59,6 +59,7 @@ void ElementWiseKernel(GenericParameter const* ctx, linalg::TensorView<T, D> t, 
   ElementWiseKernelHost(t, ctx->Threads(), fn);
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
 }  // namespace linalg
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_LINALG_OP_H_

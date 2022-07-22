@@ -1,4 +1,4 @@
-from random import choice
+import json
 from string import ascii_lowercase
 from typing import Dict, Any
 import testing as tm
@@ -397,3 +397,72 @@ class TestTreeMethod:
     def test_categorical_missing(self, rows, cols, cats):
         self.run_categorical_missing(rows, cols, cats, "approx")
         self.run_categorical_missing(rows, cols, cats, "hist")
+
+    def run_adaptive(self, tree_method, weighted) -> None:
+        rng = np.random.RandomState(1994)
+        from sklearn.datasets import make_regression
+        from sklearn.utils import stats
+
+        n_samples = 256
+        X, y = make_regression(n_samples, 16, random_state=rng)
+        if weighted:
+            w = rng.normal(size=n_samples)
+            w -= w.min()
+            Xy = xgb.DMatrix(X, y, weight=w)
+            base_score = stats._weighted_percentile(y, w, percentile=50)
+        else:
+            Xy = xgb.DMatrix(X, y)
+            base_score = np.median(y)
+
+        booster_0 = xgb.train(
+            {
+                "tree_method": tree_method,
+                "base_score": base_score,
+                "objective": "reg:absoluteerror",
+            },
+            Xy,
+            num_boost_round=1,
+        )
+        booster_1 = xgb.train(
+            {"tree_method": tree_method, "objective": "reg:absoluteerror"},
+            Xy,
+            num_boost_round=1,
+        )
+        config_0 = json.loads(booster_0.save_config())
+        config_1 = json.loads(booster_1.save_config())
+
+        def get_score(config: Dict) -> float:
+            return float(config["learner"]["learner_model_param"]["base_score"])
+
+        assert get_score(config_0) == get_score(config_1)
+
+        raw_booster = booster_1.save_raw(raw_format="deprecated")
+        booster_2 = xgb.Booster(model_file=raw_booster)
+        config_2 = json.loads(booster_2.save_config())
+        assert get_score(config_1) == get_score(config_2)
+
+        raw_booster = booster_1.save_raw(raw_format="ubj")
+        booster_2 = xgb.Booster(model_file=raw_booster)
+        config_2 = json.loads(booster_2.save_config())
+        assert get_score(config_1) == get_score(config_2)
+
+        booster_0 = xgb.train(
+            {
+                "tree_method": tree_method,
+                "base_score": base_score + 1.0,
+                "objective": "reg:absoluteerror",
+            },
+            Xy,
+            num_boost_round=1,
+        )
+        config_0 = json.loads(booster_0.save_config())
+        np.testing.assert_allclose(get_score(config_0), get_score(config_1) + 1)
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.parametrize(
+        "tree_method,weighted", [
+            ("approx", False), ("hist", False), ("approx", True), ("hist", True)
+        ]
+    )
+    def test_adaptive(self, tree_method, weighted) -> None:
+        self.run_adaptive(tree_method, weighted)

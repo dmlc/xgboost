@@ -16,6 +16,7 @@
 #include "../common/common.h"
 #include "../common/linalg_op.h"
 #include "../common/pseudo_huber.h"
+#include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
@@ -696,6 +697,17 @@ class MeanAbsoluteError : public ObjFunction {
       auto hess = weight[sample_id];
       gpair(i) = GradientPair{grad, hess};
     });
+  }
+
+  float InitEstimation(MetaInfo const& info) const override {
+    if (ctx_->IsCPU()) {
+      return common::Median(ctx_, info.labels.HostView(),
+                            common::OptionalWeights{info.weights_.ConstHostSpan()});
+    } else {
+      info.weights_.SetDevice(ctx_->gpu_id);
+      return common::Median(ctx_, info.labels.View(ctx_->gpu_id),
+                            common::OptionalWeights{info.weights_.DeviceSpan()});
+    }
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

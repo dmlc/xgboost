@@ -208,3 +208,8 @@ class TestGPUUpdaters:
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)
         assert tm.non_increasing(result['train'][dataset.metric])
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.parametrize("weighted", [True, False])
+    def test_adaptive(self, weighted) -> None:
+        self.cputest.run_adaptive("gpu_hist", weighted)

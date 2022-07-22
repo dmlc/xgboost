@@ -265,6 +265,7 @@ struct OptionalWeights {
   explicit OptionalWeights(float w) : dft{w} {}
 
   XGBOOST_DEVICE float operator[](size_t i) const { return weights.empty() ? dft : weights[i]; }
+  auto Empty() const { return weights.empty(); }
 };
 
 /**

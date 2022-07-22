@@ -75,6 +75,14 @@ class ObjFunction : public Configurable {
   virtual bst_float ProbToMargin(bst_float base_score) const {
     return base_score;
   }
+  /**
+   * \brief Make initialize estimation of prediction.
+   *
+   * \param info MetaInfo that contains label.
+   *
+   * \return NaN if there's no initial estimation.
+   */
+  virtual float InitEstimation(MetaInfo const& info) const;
   /*!
    * \brief Return task of this objective.
    */

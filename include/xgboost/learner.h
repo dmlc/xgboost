@@ -17,6 +17,7 @@
 #include <xgboost/predictor.h>
 #include <xgboost/task.h>
 
+#include <limits>  // std::numeric_limit
 #include <map>
 #include <memory>
 #include <string>
@@ -299,7 +300,7 @@ struct LearnerModelParamLegacy;
  */
 struct LearnerModelParam {
   /* \brief global bias */
-  bst_float base_score { 0.5f };
+  bst_float base_score { std::numeric_limits<float>::quiet_NaN() };
   /* \brief number of features  */
   uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
@@ -312,7 +313,7 @@ struct LearnerModelParam {
   // this one as an immutable copy.
   LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin, ObjInfo t);
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
-  bool Initialized() const { return num_feature != 0; }
+  bool Initialized() const { return num_feature != 0 && !std::isnan(base_score); }
 };
 
 }  // namespace xgboost

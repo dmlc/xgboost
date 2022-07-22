@@ -90,7 +90,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
-    base_score = 0.5f;
+    base_score = std::numeric_limits<float>::quiet_NaN();
     num_target = 1;
     major_version = std::get<0>(Version::Self());
     minor_version = std::get<1>(Version::Self());
@@ -156,7 +156,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
     DMLC_DECLARE_FIELD(base_score)
-        .set_default(0.5f)
+        .set_default(std::numeric_limits<float>::quiet_NaN())
         .describe("Global bias of the model.");
     DMLC_DECLARE_FIELD(num_feature)
         .set_default(0)
@@ -338,8 +338,6 @@ class LearnerConfiguration : public Learner {
     Args args = {cfg_.cbegin(), cfg_.cend()};
 
     tparam_.UpdateAllowUnknown(args);
-    auto mparam_backup = mparam_;
-
     mparam_.UpdateAllowUnknown(args);
 
     auto initialized = generic_parameters_.GetInitialised();
@@ -364,7 +362,7 @@ class LearnerConfiguration : public Learner {
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
-    auto task = this->ConfigureTargets();
+    this->ConfigureTargets();
 
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
@@ -378,9 +376,8 @@ class LearnerConfiguration : public Learner {
     // - model loaded from new binary or JSON.
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
-    if (!learner_model_param_.Initialized() || mparam_.base_score != mparam_backup.base_score) {
-      learner_model_param_ =
-          LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), task);
+    if (!learner_model_param_.Initialized()) {
+      learner_model_param_ = LearnerModelParam(mparam_, mparam_.base_score, obj_->Task());
     }
 
     this->ConfigureGBM(old_tparam, args);
@@ -394,6 +391,17 @@ class LearnerConfiguration : public Learner {
 
     cfg_.clear();
     monitor_.Stop("Configure");
+  }
+
+  void ConfigureBaseScore(DMatrix const* p_fmat) {
+    CHECK(obj_);
+    if (std::isnan(mparam_.base_score)) {
+      mparam_.base_score = obj_->InitEstimation(p_fmat->Info());
+      CHECK(!learner_model_param_.Initialized());
+    }
+    auto task = obj_->Task();
+    learner_model_param_ = LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), task);
+    CHECK(learner_model_param_.Initialized());
   }
 
   virtual PredictionContainer* GetPredictionCache() const {
@@ -703,7 +711,7 @@ class LearnerConfiguration : public Learner {
   /**
    * Get number of targets from objective function.
    */
-  ObjInfo ConfigureTargets() {
+  void ConfigureTargets() {
     CHECK(this->obj_);
     auto const& cache = this->GetPredictionCache()->Container();
     size_t n_targets = 1;
@@ -722,7 +730,6 @@ class LearnerConfiguration : public Learner {
     } else {
       mparam_.num_target = n_targets;
     }
-    return this->obj_->Task();
   }
 };
 
@@ -1161,6 +1168,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->CheckDataSplitMode();
+    this->ConfigureBaseScore(train.get());
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
@@ -1189,7 +1197,9 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->CheckDataSplitMode();
+    this->ConfigureBaseScore(train.get());
     this->ValidateDMatrix(train.get(), true);
+
     auto local_cache = this->GetPredictionCache();
     local_cache->Cache(train, generic_parameters_.gpu_id);
 
@@ -1324,8 +1334,7 @@ class LearnerImpl : public LearnerIO {
     info.Validate(generic_parameters_.gpu_id);
 
     auto const row_based_split = [this]() {
-      return tparam_.dsplit == DataSplitMode::kRow ||
-             tparam_.dsplit == DataSplitMode::kAuto;
+      return tparam_.dsplit == DataSplitMode::kRow || tparam_.dsplit == DataSplitMode::kAuto;
     };
     if (row_based_split()) {
       if (is_training) {
