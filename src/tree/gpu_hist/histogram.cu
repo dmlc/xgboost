@@ -270,7 +270,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   smem_size = shared ? smem_size : 0;
 
   constexpr int kBlockThreads = 1024;
-  constexpr int kItemsPerThread = 4;
+  constexpr int kItemsPerThread = 8;
   constexpr int kItemsPerTile = kBlockThreads * kItemsPerThread;
 
   auto runit = [&](auto kernel) {
