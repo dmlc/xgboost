@@ -3,7 +3,9 @@
  */
 #include "communicator_factory.h"
 #include "device_communicator_adapter.cuh"
+#ifdef XGBOOST_USE_NCCL
 #include "nccl_device_communicator.cuh"
+#endif
 #include "rabit_communicator.h"
 
 namespace xgboost {

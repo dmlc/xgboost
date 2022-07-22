@@ -66,7 +66,9 @@ class FederatedEngine : public IEngine {
   void Allreduce(void *sendrecvbuf, size_t size, mpi::DataType dtype, mpi::OpType op) {
     auto *buffer = reinterpret_cast<char *>(sendrecvbuf);
     std::string const send_buffer(buffer, size);
-    auto const receive_buffer = client_->Allreduce(send_buffer, GetDataType(dtype), GetOp(op));
+    auto const receive_buffer =
+        client_->Allreduce(send_buffer, static_cast<xgboost::federated::DataType>(dtype),
+                           static_cast<xgboost::federated::ReduceOperation>(op));
     receive_buffer.copy(buffer, size);
   }
 
@@ -84,13 +86,9 @@ class FederatedEngine : public IEngine {
     }
   }
 
-  int LoadCheckPoint() override {
-    return 0;
-  }
+  int LoadCheckPoint() override { return 0; }
 
-  void CheckPoint() override {
-    version_number_ += 1;
-  }
+  void CheckPoint() override { version_number_ += 1; }
 
   int VersionNumber() const override { return version_number_; }
 
@@ -112,51 +110,6 @@ class FederatedEngine : public IEngine {
   }
 
  private:
-  /** @brief Transform mpi::DataType to xgboost::federated::DataType. */
-  static xgboost::federated::DataType GetDataType(mpi::DataType data_type) {
-    switch (data_type) {
-      case mpi::kChar:
-        return xgboost::federated::CHAR;
-      case mpi::kUChar:
-        return xgboost::federated::UCHAR;
-      case mpi::kInt:
-        return xgboost::federated::INT;
-      case mpi::kUInt:
-        return xgboost::federated::UINT;
-      case mpi::kLong:
-        return xgboost::federated::LONG;
-      case mpi::kULong:
-        return xgboost::federated::ULONG;
-      case mpi::kFloat:
-        return xgboost::federated::FLOAT;
-      case mpi::kDouble:
-        return xgboost::federated::DOUBLE;
-      case mpi::kLongLong:
-        return xgboost::federated::LONGLONG;
-      case mpi::kULongLong:
-        return xgboost::federated::ULONGLONG;
-    }
-    utils::Error("unknown mpi::DataType");
-    return xgboost::federated::CHAR;
-  }
-
-  /** @brief Transform mpi::OpType to enum to MPI OP */
-  static xgboost::federated::ReduceOperation GetOp(mpi::OpType op_type) {
-    switch (op_type) {
-      case mpi::kMax:
-        return xgboost::federated::MAX;
-      case mpi::kMin:
-        return xgboost::federated::MIN;
-      case mpi::kSum:
-        return xgboost::federated::SUM;
-      case mpi::kBitwiseOR:
-        utils::Error("Bitwise OR is not supported");
-        return xgboost::federated::MAX;
-    }
-    utils::Error("unknown mpi::OpType");
-    return xgboost::federated::MAX;
-  }
-
   void SetParam(std::string const &name, std::string const &val) {
     if (!strcasecmp(name.c_str(), "FEDERATED_SERVER_ADDRESS")) {
       server_address_ = val;

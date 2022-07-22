@@ -42,7 +42,8 @@ class FederatedCommunicator : public Communicator {
     std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer),
                                   count * GetTypeSize(data_type));
     auto const received =
-        client_->Allreduce(send_buffer, ConvertDataType(data_type), ConvertOperation(op));
+        client_->Allreduce(send_buffer, static_cast<xgboost::federated::DataType>(data_type),
+                           static_cast<xgboost::federated::ReduceOperation>(op));
     received.copy(reinterpret_cast<char *>(send_receive_buffer), count * GetTypeSize(data_type));
   }
 
@@ -62,57 +63,6 @@ class FederatedCommunicator : public Communicator {
   void Print(const std::string &message) override { LOG(CONSOLE) << message; }
 
  private:
-  static xgboost::federated::DataType ConvertDataType(DataType data_type) {
-    xgboost::federated::DataType result{};
-    switch (data_type) {
-      case DataType::kInt8:
-        result = xgboost::federated::DataType::CHAR;
-        break;
-      case DataType::kUInt8:
-        result = xgboost::federated::DataType::UCHAR;
-        break;
-      case DataType::kInt32:
-        result = xgboost::federated::DataType::INT;
-        break;
-      case DataType::kUInt32:
-        result = xgboost::federated::DataType::UINT;
-        break;
-      case DataType::kInt64:
-        result = xgboost::federated::DataType::LONG;
-        break;
-      case DataType::kUInt64:
-        result = xgboost::federated::DataType::ULONG;
-        break;
-      case DataType::kFloat:
-        result = xgboost::federated::DataType::FLOAT;
-        break;
-      case DataType::kDouble:
-        result = xgboost::federated::DataType::DOUBLE;
-        break;
-      default:
-        LOG(FATAL) << "Unknown data type.";
-    }
-    return result;
-  }
-
-  static xgboost::federated::ReduceOperation ConvertOperation(Operation operation) {
-    xgboost::federated::ReduceOperation result{};
-    switch (operation) {
-      case Operation::kMax:
-        result = xgboost::federated::ReduceOperation::MAX;
-        break;
-      case Operation::kMin:
-        result = xgboost::federated::ReduceOperation::MIN;
-        break;
-      case Operation::kSum:
-        result = xgboost::federated::ReduceOperation::SUM;
-        break;
-      default:
-        LOG(FATAL) << "Unknown reduce operation.";
-    }
-    return result;
-  }
-
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
 };
 
