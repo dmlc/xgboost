@@ -9,10 +9,12 @@
 
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
+#include <cstddef>
 #include <cstdio>
 #include <cstdint>
 #else
 #define XGB_EXTERN_C
+#include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 #endif  // __cplusplus
