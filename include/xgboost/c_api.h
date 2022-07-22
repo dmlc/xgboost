@@ -1378,4 +1378,86 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
                                   bst_ulong *out_dim,
                                   bst_ulong const **out_shape,
                                   float const **out_scores);
+
+/*!
+ * \brief initialize the collective communicator,
+ *  call this once before using anything
+ *  The additional arguments is not necessary.
+ *  Usually the communicator will detect settings
+ *  from environment variables.
+ * \param argc number of arguments in argv
+ * \param argv the array of input arguments
+ */
+XGB_DLL int XGCommunicatorInit(int argc, char *argv[]);
+
+/*!
+ * \brief finalize the collective communicator,
+ * call this function after you finished all jobs.
+ * \return true if the communicator is finalized successfully otherwise false
+ */
+XGB_DLL int XGCommunicatorFinalize(void);
+
+/*!
+ * \brief get rank of current process
+ * \return rank number of worker
+ * */
+XGB_DLL int XGCommunicatorGetRank(void);
+
+/*!
+ * \brief get total number of process
+ * \return total world size
+ * */
+XGB_DLL int XGCommunicatorGetWorldSize(void);
+
+/*!
+ * \brief get if the communicator is distributed
+ * \return if the communicator is distributed
+ * */
+XGB_DLL int XGCommunicatorIsDistributed(void);
+
+/*!
+ * \brief print the msg to the communicator,
+ *    this function can be used to communicate the information of the progress to
+ *    the user who monitors the communicator
+ * \param message the message to be printed
+ */
+XGB_DLL int XGCommunicatorPrint(char const *message);
+
+/*!
+ * \brief get name of processor
+ * \param out_name hold output string
+ * \param out_len hold length of output string
+ * \param max_len maximum buffer length of input
+ */
+XGB_DLL int XGCommunicatorGetProcessorName(char *out_name,
+                                           bst_ulong *out_len,
+                                           bst_ulong max_len);
+/*!
+ * \brief broadcast an memory region to all others from root
+ *
+ *     Example: int a = 1; Broadcast(&a, sizeof(a), root);
+ * \param send_receive_buffer the pointer to send or receive buffer,
+ * \param size the size of the data
+ * \param root the root of process
+ */
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, std::size_t size, int root);
+
+/*!
+ * \brief perform in-place allreduce, on sendrecvbuf
+ *        this function is NOT thread-safe
+ *
+ * Example Usage: the following code gives sum of the result
+ *     vector<int> data(10);
+ *     ...
+ *     Allreduce<op::Sum>(&data[0], data.size());
+ *     ...
+ * \param send_receive_buffer buffer for both sending and receiving data
+ * \param count number of elements to be reduced
+ * \param enum_dtype the enumeration of data type, see xgboost::collective::DataType in communicator.h
+ * \param enum_op the enumeration of operation type, see xgboost::collective::Operation in communicator.h
+ */
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, std::size_t count, int enum_dtype,
+                                    int enum_op);
+
+
 #endif  // XGBOOST_C_API_H_

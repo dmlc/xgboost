@@ -22,6 +22,8 @@
 
 #include "c_api_error.h"
 #include "c_api_utils.h"
+#include "../collective/communicator.h"
+#include "../collective/communicator_factory.h"
 #include "../common/io.h"
 #include "../common/charconv.h"
 #include "../data/adapter.h"
@@ -1343,6 +1345,64 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
   *out_shape = dmlc::BeginPtr(shape);
   *out_scores = scores.data();
   *out_features = dmlc::BeginPtr(feature_names_c);
+  API_END();
+}
+
+using xgboost::collective::CommunicatorFactory;
+
+XGB_DLL int XGCommunicatorInit(int argc, char *argv[]) {
+  API_BEGIN();
+  CommunicatorFactory::Init(argc, argv);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorFinalize(void) {
+  API_BEGIN();
+  CommunicatorFactory::Finalize();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetRank(void) {
+  return CommunicatorFactory::GetInstance()->GetCommunicator()->GetRank();
+}
+
+XGB_DLL int XGCommunicatorGetWorldSize(void) {
+  return CommunicatorFactory::GetInstance()->GetCommunicator()->GetWorldSize();
+}
+
+XGB_DLL int XGCommunicatorIsDistributed(void) {
+  return CommunicatorFactory::GetInstance()->GetCommunicator()->IsDistributed();
+}
+
+XGB_DLL int XGCommunicatorPrint(char const *message) {
+  API_BEGIN();
+  CommunicatorFactory::GetInstance()->GetCommunicator()->Print(message);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetProcessorName(char *out_name, bst_ulong *out_len, bst_ulong max_len) {
+  API_BEGIN();
+  auto s = CommunicatorFactory::GetInstance()->GetCommunicator()->GetProcessorName();
+  if (s.length() > max_len) {
+    s.resize(max_len - 1);
+  }
+  s.copy(out_name, s.length());
+  *out_len = static_cast<bst_ulong>(s.length());
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, std::size_t size, int root) {
+  API_BEGIN();
+  CommunicatorFactory::GetInstance()->GetCommunicator()->Broadcast(send_receive_buffer, size, root);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, std::size_t count, int enum_dtype,
+                                    int enum_op) {
+  API_BEGIN();
+  CommunicatorFactory::GetInstance()->GetCommunicator()->AllReduce(
+      send_receive_buffer, count, static_cast<xgboost::collective::DataType>(enum_dtype),
+      static_cast<xgboost::collective::Operation>(enum_op));
   API_END();
 }
 

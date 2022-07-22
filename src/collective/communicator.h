@@ -8,25 +8,43 @@ namespace xgboost {
 namespace collective {
 
 /** @brief Defines the integral and floating data types. */
-enum class DataType { kInt, kFloat, kDouble, kSizeT, kUInt64 };
+enum class DataType {
+  kInt8 = 0,
+  kUInt8 = 1,
+  kInt32 = 2,
+  kUInt32 = 3,
+  kInt64 = 4,
+  kUInt64 = 5,
+  kFloat = 6,
+  kDouble = 7
+};
 
 inline std::size_t GetTypeSize(DataType data_type) {
   std::size_t size{0};
   switch (data_type) {
-    case DataType::kInt:
-      size = sizeof(int);
+    case DataType::kInt8:
+      size = sizeof(std::int8_t);
+      break;
+    case DataType::kUInt8:
+      size = sizeof(std::uint8_t);
+      break;
+    case DataType::kInt32:
+      size = sizeof(std::int32_t);
+      break;
+    case DataType::kUInt32:
+      size = sizeof(std::uint32_t);
+      break;
+    case DataType::kInt64:
+      size = sizeof(std::int64_t);
+      break;
+    case DataType::kUInt64:
+      size = sizeof(std::uint64_t);
       break;
     case DataType::kFloat:
       size = sizeof(float);
       break;
     case DataType::kDouble:
       size = sizeof(double);
-      break;
-    case DataType::kSizeT:
-      size = sizeof(std::size_t);
-      break;
-    case DataType::kUInt64:
-      size = sizeof(uint64_t);
       break;
     default:
       LOG(FATAL) << "Unknown data type.";
@@ -35,7 +53,7 @@ inline std::size_t GetTypeSize(DataType data_type) {
 }
 
 /** @brief Defines the reduction operation. */
-enum class Operation { kMax, kSum };
+enum class Operation { kMax = 0, kMin = 1, kSum = 2 };
 
 /**
  * @brief A communicator class that handles collective communication.

@@ -78,7 +78,8 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     segments->clear();
     segments->resize(world_size, 0);
     segments->at(rank) = length_bytes;
-    communicator_->AllReduce(segments->data(), segments->size(), DataType::kSizeT, Operation::kMax);
+    communicator_->AllReduce(segments->data(), segments->size(), DataType::kUInt64,
+                             Operation::kMax);
     auto total_bytes = std::accumulate(segments->cbegin(), segments->cend(), 0UL);
     receive_buffer->resize(total_bytes);
 

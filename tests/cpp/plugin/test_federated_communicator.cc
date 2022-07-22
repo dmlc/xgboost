@@ -45,7 +45,7 @@ class FederatedCommunicatorTest : public ::testing::Test {
 
   static void CheckAllreduce(FederatedCommunicator& comm) {
     int buffer[] = {1, 2, 3, 4, 5};
-    comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt, Operation::kSum);
+    comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt32, Operation::kSum);
     int expected[] = {3, 6, 9, 12, 15};
     for (auto i = 0; i < 5; i++) {
       EXPECT_EQ(buffer[i], expected[i]);

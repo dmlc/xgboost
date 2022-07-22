@@ -18,17 +18,29 @@ class RabitCommunicator : public Communicator {
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {
     switch (data_type) {
-      case DataType::kInt:
-        DoAllReduce<int>(send_receive_buffer, count, op);
+      case DataType::kInt8:
+        DoAllReduce<char>(send_receive_buffer, count, op);
+        break;
+      case DataType::kUInt8:
+        DoAllReduce<unsigned char>(send_receive_buffer, count, op);
+        break;
+      case DataType::kInt32:
+        DoAllReduce<std::int32_t>(send_receive_buffer, count, op);
+        break;
+      case DataType::kUInt32:
+        DoAllReduce<std::uint32_t>(send_receive_buffer, count, op);
+        break;
+      case DataType::kInt64:
+        DoAllReduce<std::int64_t>(send_receive_buffer, count, op);
+        break;
+      case DataType::kUInt64:
+        DoAllReduce<std::uint64_t>(send_receive_buffer, count, op);
         break;
       case DataType::kFloat:
         DoAllReduce<float>(send_receive_buffer, count, op);
         break;
       case DataType::kDouble:
         DoAllReduce<double>(send_receive_buffer, count, op);
-        break;
-      case DataType::kSizeT:
-        DoAllReduce<std::size_t>(send_receive_buffer, count, op);
         break;
       default:
         LOG(FATAL) << "Unknown data type";

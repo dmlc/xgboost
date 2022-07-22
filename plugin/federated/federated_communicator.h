@@ -65,8 +65,23 @@ class FederatedCommunicator : public Communicator {
   static xgboost::federated::DataType ConvertDataType(DataType data_type) {
     xgboost::federated::DataType result{};
     switch (data_type) {
-      case DataType::kInt:
+      case DataType::kInt8:
+        result = xgboost::federated::DataType::CHAR;
+        break;
+      case DataType::kUInt8:
+        result = xgboost::federated::DataType::UCHAR;
+        break;
+      case DataType::kInt32:
         result = xgboost::federated::DataType::INT;
+        break;
+      case DataType::kUInt32:
+        result = xgboost::federated::DataType::UINT;
+        break;
+      case DataType::kInt64:
+        result = xgboost::federated::DataType::LONG;
+        break;
+      case DataType::kUInt64:
+        result = xgboost::federated::DataType::ULONG;
         break;
       case DataType::kFloat:
         result = xgboost::federated::DataType::FLOAT;
@@ -74,6 +89,8 @@ class FederatedCommunicator : public Communicator {
       case DataType::kDouble:
         result = xgboost::federated::DataType::DOUBLE;
         break;
+      default:
+        LOG(FATAL) << "Unknown data type.";
     }
     return result;
   }
@@ -84,9 +101,14 @@ class FederatedCommunicator : public Communicator {
       case Operation::kMax:
         result = xgboost::federated::ReduceOperation::MAX;
         break;
+      case Operation::kMin:
+        result = xgboost::federated::ReduceOperation::MIN;
+        break;
       case Operation::kSum:
         result = xgboost::federated::ReduceOperation::SUM;
         break;
+      default:
+        LOG(FATAL) << "Unknown reduce operation.";
     }
     return result;
   }
