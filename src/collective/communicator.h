@@ -125,5 +125,14 @@ class Communicator {
   int const rank_;
 };
 
+/* \brief Case-insensitive string comparison */
+inline int CompareStringsCaseInsensitive(const char* s1, const char* s2) {
+#ifdef _MSC_VER
+  return _stricmp(s1, s2);
+#else  // _MSC_VER
+  return strcasecmp(s1, s2);
+#endif  // _MSC_VER
+}
+
 }  // namespace collective
 }  // namespace xgboost

@@ -119,17 +119,17 @@ class FederatedCommunicatorFactory {
 
  private:
   void SetParam(std::string const &name, std::string const &val) {
-    if (!strcasecmp(name.c_str(), "FEDERATED_SERVER_ADDRESS")) {
+    if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_SERVER_ADDRESS")) {
       server_address_ = val;
-    } else if (!strcasecmp(name.c_str(), "FEDERATED_WORLD_SIZE")) {
+    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_WORLD_SIZE")) {
       world_size_ = std::stoi(val);
-    } else if (!strcasecmp(name.c_str(), "FEDERATED_RANK")) {
+    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_RANK")) {
       rank_ = std::stoi(val);
-    } else if (!strcasecmp(name.c_str(), "FEDERATED_SERVER_CERT")) {
+    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_SERVER_CERT")) {
       server_cert_ = val;
-    } else if (!strcasecmp(name.c_str(), "FEDERATED_CLIENT_KEY")) {
+    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_CLIENT_KEY")) {
       client_key_ = val;
-    } else if (!strcasecmp(name.c_str(), "FEDERATED_CLIENT_CERT")) {
+    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_CLIENT_CERT")) {
       client_cert_ = val;
     }
   }

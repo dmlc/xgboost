@@ -2,8 +2,6 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
-#include <strings.h>
-
 #include "communicator.h"
 
 namespace xgboost {
@@ -47,7 +45,7 @@ class CommunicatorFactory {
       if (delimiter != std::string::npos) {
         auto const key = key_value.substr(0, delimiter);
         auto const value = key_value.substr(delimiter + 1);
-        if (!strcasecmp(key.c_str(), kCommunicatorKey)) {
+        if (!CompareStringsCaseInsensitive(key.c_str(), kCommunicatorKey)) {
           return StringToType(value.c_str());
         }
       }
@@ -61,11 +59,11 @@ class CommunicatorFactory {
  private:
   static CommunicatorType StringToType(char const* str) {
     CommunicatorType result = CommunicatorType::kUnknown;
-    if (!strcasecmp("rabit", str)) {
+    if (!CompareStringsCaseInsensitive("rabit", str)) {
       result = CommunicatorType::kRabit;
-    } else if (!strcasecmp("mpi", str)) {
+    } else if (!CompareStringsCaseInsensitive("mpi", str)) {
       result = CommunicatorType::kMPI;
-    } else if (!strcasecmp("federated", str)) {
+    } else if (!CompareStringsCaseInsensitive("federated", str)) {
       result = CommunicatorType::kFederated;
     } else {
       LOG(FATAL) << "Unknown communicator type " << str;
