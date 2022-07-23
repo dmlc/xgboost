@@ -28,11 +28,15 @@ jobs:
     - name: Run mypy
       shell: bash -l {0}
       run: |
-        python tests/ci_build/lint_python.py --format=0 --type-check=1
+        python tests/ci_build/lint_python.py --format=0 --type-check=1 --pylint=0
     - name: Run formatter
       shell: bash -l {0}
       run: |
-        python tests/ci_build/lint_python.py --format=1 --type-check=0
+        python tests/ci_build/lint_python.py --format=1 --type-check=0 --pylint=0
+    - name: Run pylint
+      shell: bash -l {0}
+      run: |
+        python tests/ci_build/lint_python.py --format=0 --type-check=0 --pylint=1
 
   python-sdist-test:
     runs-on: ${{ matrix.os }}
