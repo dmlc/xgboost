@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
+#include <thrust/shuffle.h>
+#include <thrust/random.h>
 
 #include "../../../../src/common/categorical.h"
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
@@ -156,5 +158,98 @@ TEST(Histogram, GPUHistCategorical) {
     TestGPUHistogramCategorical(num_categories);
   }
 }
+
+void RunBenchmark(std::string branch, std::string name, std::size_t kCols, std::size_t kRows, float sparsity, int max_depth){
+  size_t constexpr kBins = 256;
+  float constexpr kLower = -1e-2, kUpper = 1e2;
+  auto matrix = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix();
+  BatchParam batch_param{0, static_cast<int32_t>(kBins)};
+  int num_bins = kBins * kCols;
+  dh::device_vector<GradientPairPrecise> histogram(num_bins);
+  auto d_histogram = dh::ToSpan(histogram);
+  auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
+  gpair.SetDevice(0);
+  auto rounding = CreateRoundingFactor<GradientPairPrecise>(gpair.DeviceSpan());
+  thrust::device_vector<uint32_t> ridx(kRows);
+  for (auto const& batch : matrix->GetBatches<EllpackPage>(batch_param)) {
+    auto* page = batch.Impl();
+    FeatureGroups feature_groups(page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(0),
+                                 sizeof(GradientPairPrecise));
+    for (int depth = 1; depth <= max_depth; depth++) {
+      std::size_t depth_rows = kRows / (1 << (depth - 1));
+      std::cout << branch << ',' << name << ',' << depth << ',' << depth_rows << ',' << kCols
+                << ',';
+      thrust::shuffle(ridx.begin(), ridx.end(), thrust::default_random_engine(depth));
+      auto d_ridx = dh::ToSpan(ridx).subspan(0, depth_rows);
+      cudaEvent_t start, stop;
+      cudaEventCreate(&start);
+      cudaEventCreate(&stop);
+
+      cudaEventRecord(start);
+      BuildGradientHistogram(page->GetDeviceAccessor(0), feature_groups.DeviceAccessor(0),
+                             gpair.DeviceSpan(), d_ridx, d_histogram, rounding);
+      cudaEventRecord(stop);
+      cudaEventSynchronize(stop);
+      float milliseconds = 0;
+      cudaEventElapsedTime(&milliseconds, start, stop);
+
+      std::cout << milliseconds << ',' << ((depth_rows * kCols) / milliseconds)/1000 << '\n';
+    }
+  }
+}
+
+TEST(Histogram, Benchmark) {
+  float sparsity = 0.0f;
+  std::string branch("overflow");
+  std::cout << "branch,dataset,depth,rows,cols,time(ms),Million elements/s\n";
+  int max_depth = 8;
+  RunBenchmark(branch, "epsilon", 2000, 500000, sparsity, max_depth);
+  RunBenchmark(branch, "higgs", 32, 10000000, sparsity, max_depth);
+  RunBenchmark(branch, "airline", 13, 115000000, sparsity, max_depth);
+  RunBenchmark(branch, "year", 90, 515345, sparsity, max_depth);
+}
+
+
+void TestAtomicAddWithOverflow() {
+  thrust::device_vector<GradientPairPrecise> histogram(2);
+  thrust::device_vector<GradientPair> gpair = std::vector<GradientPair>{{1.0, 1.0}, {-0.01, 0.1}, {0.02, 0.1}, {-2.0, 1.0}};
+  auto d_gpair = dh::ToSpan(gpair);
+  auto rounding = CreateRoundingFactor<GradientPairPrecise>(d_gpair);
+  auto d_histogram = histogram.data().get();
+  dh::LaunchN(gpair.size(), [=] __device__(int idx) {
+    __shared__ char shared[sizeof(GradientPairInt32)];
+    auto shared_histogram = reinterpret_cast<GradientPairInt32*>(shared);
+    if (idx == 0) {
+      shared_histogram[0] = GradientPairInt32();
+    }
+
+    // Global memory version
+    GradientPairPrecise truncated{
+        TruncateWithRoundingFactor<GradientPairPrecise::ValueT>(rounding.rounding.GetGrad(),
+                                                         d_gpair[idx].GetGrad()),
+        TruncateWithRoundingFactor<GradientPairPrecise::ValueT>(rounding.rounding.GetHess(),
+                                                         d_gpair[idx].GetHess()),
+    };
+    dh::AtomicAddGpair(d_histogram, truncated);
+
+    // Reduced precision shared memory version
+    auto adjusted = rounding.ToFixedPoint(d_gpair[idx]);
+    AtomicAddGpairWithOverflow(shared_histogram, adjusted, d_histogram + 1, rounding);
+    // First thread copies shared back to global
+    if (idx == 0) {
+      dh::AtomicAddGpair(d_histogram + 1, rounding.ToFloatingPoint(GradientPairInt64{shared_histogram[idx].GetGrad(),shared_histogram[idx].GetHess()}));
+    }
+  });
+
+  GradientPairPrecise global = histogram[0];
+  GradientPairPrecise shared = histogram[1];
+  ASSERT_EQ(global.GetGrad(), shared.GetGrad());
+  ASSERT_EQ(global.GetHess(), shared.GetHess());
+}
+
+TEST(Histogram, AtomicAddWithOverflow) {
+TestAtomicAddWithOverflow();
+}
+
 }  // namespace tree
 }  // namespace xgboost

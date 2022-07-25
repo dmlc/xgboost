@@ -232,7 +232,7 @@ struct GPUHistMakerDevice {
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(ctx_->gpu_id));
     feature_groups.reset(new FeatureGroups(page->Cuts(), page->is_dense,
                                            dh::MaxSharedMemoryOptin(ctx_->gpu_id),
-                                           sizeof(GradientSumT)));
+                                           sizeof(typename HistRounding<GradientSumT>::SharedSumT)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT

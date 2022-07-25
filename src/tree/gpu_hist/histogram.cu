@@ -90,7 +90,7 @@ HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const>
                    CreateRoundingFactor<T>(std::max(positive_sum.GetHess(), negative_sum.GetHess()),
                                            gpair.size())};
 
-  using IntT = typename HistRounding<GradientSumT>::SharedSumT::ValueT;
+  using IntT = typename HistRounding<GradientSumT>::GlobalSumT::ValueT;
 
   /**
    * Factor for converting gradients from fixed-point to floating-point.
@@ -150,11 +150,11 @@ class HistogramAgent {
          idx < min(offset + kBlockThreads * kItemsPerTile, n_elements); idx += kBlockThreads) {
       int ridx = d_ridx[idx / feature_stride];
       int gidx =
-          matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature + idx % feature_stride] -
-          group.start_bin;
+          matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature + idx % feature_stride];
       if (matrix.is_dense || gidx != matrix.NumBins()) {
         auto adjusted = rounding.ToFixedPoint(d_gpair[ridx]);
-        dh::AtomicAddGpair(smem_arr + gidx, adjusted);
+        //dh::AtomicAddGpair(smem_arr + gidx, adjusted);
+        AtomicAddGpairWithOverflow(smem_arr + gidx - group.start_bin, adjusted, d_node_hist + gidx, rounding);
       }
     }
   }
@@ -184,7 +184,7 @@ class HistogramAgent {
     for (int i = 0; i < kItemsPerThread; i++) {
       if ((matrix.is_dense || gidx[i] != matrix.NumBins())) {
         auto adjusted = rounding.ToFixedPoint(gpair[i]);
-        dh::AtomicAddGpair(smem_arr + gidx[i] - group.start_bin, adjusted);
+        AtomicAddGpairWithOverflow(smem_arr + gidx[i] - group.start_bin, adjusted, d_node_hist + gidx[i], rounding);
       }
     }
   }
@@ -202,7 +202,7 @@ class HistogramAgent {
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      auto truncated = rounding.ToFloatingPoint(smem_arr[i]);
+      auto truncated = rounding.ToFloatingPoint({smem_arr[i].GetGrad(),smem_arr[i].GetHess()});
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
   }

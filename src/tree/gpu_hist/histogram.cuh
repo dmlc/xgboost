@@ -31,17 +31,16 @@ struct HistRounding {
   GradientSumT to_floating_point;
 
   /* Type used in shared memory. */
-  using SharedSumT = std::conditional_t<
-      std::is_same<typename GradientSumT::ValueT, float>::value,
-      GradientPairInt32, GradientPairInt64>;
+  using SharedSumT = GradientPairInt32;
+  using GlobalSumT = GradientPairInt64;
   using T = typename GradientSumT::ValueT;
 
-  XGBOOST_DEV_INLINE SharedSumT ToFixedPoint(GradientPair const& gpair) const {
-    auto adjusted = SharedSumT(T(gpair.GetGrad() * to_fixed_point.GetGrad()),
+  XGBOOST_DEV_INLINE GlobalSumT ToFixedPoint(GradientPair const& gpair) const {
+    auto adjusted = GlobalSumT(T(gpair.GetGrad() * to_fixed_point.GetGrad()),
                                T(gpair.GetHess() * to_fixed_point.GetHess()));
     return adjusted;
   }
-  XGBOOST_DEV_INLINE GradientSumT ToFloatingPoint(SharedSumT const &gpair) const {
+  XGBOOST_DEV_INLINE GradientSumT ToFloatingPoint(GlobalSumT const &gpair) const {
     auto g = gpair.GetGrad() * to_floating_point.GetGrad();
     auto h = gpair.GetHess() * to_floating_point.GetHess();
     GradientSumT truncated{
@@ -54,6 +53,22 @@ struct HistRounding {
 
 template <typename GradientSumT>
 HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const> gpair);
+
+XGBOOST_DEV_INLINE void AtomicAddGpairWithOverflow(
+    xgboost::GradientPairInt32* dst_shared, xgboost::GradientPairInt64 const& gpair,
+    xgboost::GradientPairPrecise* dst_global, const HistRounding<GradientPairPrecise>& rounding) {
+  auto dst_ptr = reinterpret_cast<typename xgboost::GradientPairInt32::ValueT*>(dst_shared);
+  int old_grad = atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
+  int64_t grad_diff = (old_grad + gpair.GetGrad()) - (old_grad + static_cast<int>(gpair.GetGrad()));
+
+  int old_hess = atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
+  int64_t hess_diff = (old_hess + gpair.GetHess()) - (old_hess + static_cast<int>(gpair.GetHess()));
+
+  if (grad_diff != 0 || hess_diff != 0) {
+    auto truncated = rounding.ToFloatingPoint({grad_diff, hess_diff});
+    dh::AtomicAddGpair(dst_global, truncated);
+  }
+}
 
 template <typename GradientSumT>
 void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
