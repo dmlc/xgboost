@@ -15,9 +15,7 @@ PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.par
 def run_formatter(rel_path: str) -> bool:
     path = os.path.join(PROJECT_ROOT, rel_path)
     isort_ret = subprocess.run(["isort", "--check", "--profile=black", path]).returncode
-    black_ret = subprocess.run(
-        ["black", "--check", "./python-package/xgboost/dask.py"]
-    ).returncode
+    black_ret = subprocess.run(["black", "--check", rel_path]).returncode
     if isort_ret != 0 or black_ret != 0:
         msg = (
             "Please run the following command on your machine to address the format"

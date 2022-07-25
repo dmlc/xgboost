@@ -100,7 +100,7 @@ class PartIter(DataIter):
 def create_dmatrix_from_partitions(
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
-    kwargs: Dict[str, Any],     # use dict to make sure this parameter is passed.
+    kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
     """Create DMatrix from spark data partitions. This is not particularly efficient as
     we need to convert the pandas series format to numpy then concatenate all the data.
