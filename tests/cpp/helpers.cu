@@ -27,7 +27,7 @@ int CudaArrayIterForTest::Next() {
 std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix() {
   CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
   auto m = std::make_shared<data::IterativeDMatrix>(
-      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
   return m;
 }
 }  // namespace xgboost

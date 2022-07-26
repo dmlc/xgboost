@@ -275,13 +275,14 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   API_END();
 }
 
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
-    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-    XGDMatrixCallbackNext *next, float missing, int nthread,
-    int max_bin, DMatrixHandle *out) {
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
+                                                      DataIterResetCallback *reset,
+                                                      XGDMatrixCallbackNext *next, float missing,
+                                                      int nthread, int max_bin,
+                                                      DMatrixHandle *out) {
   API_BEGIN();
   *out = new std::shared_ptr<xgboost::DMatrix>{
-    xgboost::DMatrix::Create(iter, proxy, reset, next, missing, nthread, max_bin)};
+      xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin)};
   API_END();
 }
 
