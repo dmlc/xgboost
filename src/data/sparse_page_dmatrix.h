@@ -120,15 +120,11 @@ class SparsePageDMatrix : public DMatrix {
   std::shared_ptr<EllpackPageSource> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
-  std::shared_ptr<GHistIndexMatrix> ghist_index_page_;  // hist
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
 
-  bool EllpackExists() const override {
-    return static_cast<bool>(ellpack_page_source_);
-  }
-  bool SparsePageExists() const override {
-    return static_cast<bool>(sparse_page_source_);
-  }
+  bool EllpackExists() const override { return static_cast<bool>(ellpack_page_source_); }
+  bool GHistIndexExists() const override { return static_cast<bool>(ghist_index_source_); }
+  bool SparsePageExists() const override { return static_cast<bool>(sparse_page_source_); }
 };
 
 inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {

@@ -384,7 +384,7 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
 std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix() {
   NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
   auto m = std::make_shared<data::IterativeDMatrix>(
-      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
   return m;
 }
 
@@ -569,7 +569,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   auto& h_gpair = gpair.HostVector();
   h_gpair.resize(kRows);
   for (size_t i = 0; i < kRows; ++i) {
-    h_gpair[i] = {static_cast<float>(i), 1};
+    h_gpair[i] = GradientPair{static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predts;
