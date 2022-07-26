@@ -315,7 +315,6 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
     runit(SharedMemHistKernel<GradientSumT, false, kBlockThreads, kItemsPerThread>);
   }
 
-  dh::safe_cuda(cudaDeviceSynchronize());
   dh::safe_cuda(cudaGetLastError());
 }
 

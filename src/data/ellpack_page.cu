@@ -249,7 +249,7 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
     size_t row_idx = idx / row_stride;
     size_t row_offset = idx % row_stride;
     if (row_offset >= row_counts[row_idx]) {
-      writer.Write(idx,device_accessor.NullValue());
+      writer.Write(idx, device_accessor.NullValue());
     }
   });
 }
@@ -290,9 +290,8 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl const *page,
   }
   auto src = page->GetDeviceAccessor(device).gidx_iter;
   common::CompressedWriter writer(this->gidx_buffer.DevicePointer(), this->NumSymbols());
-  dh::LaunchN(num_elements, [=]__device__ (std::size_t idx) mutable {
-    writer.Write(offset + idx, src[idx]);
-  });
+  dh::LaunchN(num_elements,
+              [=] __device__(std::size_t idx) mutable { writer.Write(offset + idx, src[idx]); });
   monitor_.Stop("Copy");
   return num_elements;
 }
@@ -316,10 +315,9 @@ struct CompactPage {
   size_t base_rowid;
   size_t row_stride;
 
-  CompactPage(EllpackPageImpl* dst, EllpackPageImpl const* src,
-              common::Span<size_t> row_indexes,int device)
-      : 
-        writer(dst->gidx_buffer.DevicePointer(), dst->NumSymbols()),
+  CompactPage(EllpackPageImpl* dst, EllpackPageImpl const* src, common::Span<size_t> row_indexes,
+              int device)
+      : writer(dst->gidx_buffer.DevicePointer(), dst->NumSymbols()),
         src_iterator_d{src->GetDeviceAccessor(device).gidx_iter},
         row_indexes(row_indexes),
         base_rowid{src->base_rowid},
@@ -418,10 +416,10 @@ void EllpackPageImpl::CreateHistIndices(int device,
     const dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                      common::DivRoundUp(row_stride, block3.y), 1);
     auto device_accessor = GetDeviceAccessor(device);
-    dh::LaunchKernel{grid3, block3}(
+    dh::LaunchKernel {grid3, block3}(
         CompressBinEllpackKernel,
-        common::CompressedWriter(gidx_buffer.DevicePointer(), NumSymbols()),
-        row_ptrs.data().get(), entries_d.data().get(), device_accessor.gidx_fvalue_map.data(),
+        common::CompressedWriter(gidx_buffer.DevicePointer(), NumSymbols()), row_ptrs.data().get(),
+        entries_d.data().get(), device_accessor.gidx_fvalue_map.data(),
         device_accessor.feature_segments.data(), feature_types, batch_row_begin, batch_nrows,
         row_stride, null_gidx_value);
   }

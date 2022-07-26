@@ -44,8 +44,7 @@ class CompressedWriter {
   int symbol_bits_ {0};
 
  public:
-  CompressedWriter (CompressedByteT *buffer, size_t num_symbols)
-      : buffer_(buffer) {
+  CompressedWriter(CompressedByteT *buffer, size_t num_symbols) : buffer_(buffer) {
     symbol_bits_ = SmallestWordSize(num_symbols);
   }
 
