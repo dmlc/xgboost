@@ -1,194 +1,181 @@
-# type: ignore
-"""Xgboost pyspark integration submodule for data related functions."""
-# pylint: disable=too-many-arguments
-from typing import Iterator
+"""Utilities for processing spark partitions."""
+from collections import defaultdict, namedtuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+from xgboost.compat import concat
 
-from xgboost import DMatrix
-
-
-def _prepare_train_val_data(
-    data_iterator, has_weight, has_validation, has_fit_base_margin
-):
-    def gen_data_pdf():
-        for pdf in data_iterator:
-            yield pdf
-
-    return _process_data_iter(
-        gen_data_pdf(),
-        train=True,
-        has_weight=has_weight,
-        has_validation=has_validation,
-        has_fit_base_margin=has_fit_base_margin,
-        has_predict_base_margin=False,
-    )
+from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
 
 
-def _check_feature_dims(num_dims, expected_dims):
-    """
-    Check all feature vectors has the same dimension
-    """
-    if expected_dims is None:
-        return num_dims
-    if num_dims != expected_dims:
-        raise ValueError(
-            f"Rows contain different feature dimensions: Expecting {expected_dims}, got {num_dims}."
-        )
-    return expected_dims
+def stack_series(series: pd.Series) -> np.ndarray:
+    """Stack a series of arrays."""
+    array = series.to_numpy(copy=False)
+    array = np.stack(array)
+    return array
 
 
-def _row_tuple_list_to_feature_matrix_y_w(
-    data_iterator,
-    train,
-    has_weight,
-    has_fit_base_margin,
-    has_predict_base_margin,
-    has_validation: bool = False,
-):
-    """
-    Construct a feature matrix in ndarray format, label array y and weight array w
-    from the row_tuple_list.
-    If train == False, y and w will be None.
-    If has_weight == False, w will be None.
-    If has_base_margin == False, b_m will be None.
-    Note: the row_tuple_list will be cleared during
-    executing for reducing peak memory consumption
-    """
-    # pylint: disable=too-many-locals
-    expected_feature_dims = None
-    label_list, weight_list, base_margin_list = [], [], []
-    label_val_list, weight_val_list, base_margin_val_list = [], [], []
-    values_list, values_val_list = [], []
+# Global constant for defining column alias shared between estimator and data
+# processing procedures.
+Alias = namedtuple("Alias", ("data", "label", "weight", "margin", "valid"))
+alias = Alias("values", "label", "weight", "baseMargin", "validationIndicator")
 
-    # Process rows
-    for pdf in data_iterator:
-        if len(pdf) == 0:
-            continue
-        if train and has_validation:
-            pdf_val = pdf.loc[pdf["validationIndicator"], :]
-            pdf = pdf.loc[~pdf["validationIndicator"], :]
 
-        num_feature_dims = len(pdf["values"].values[0])
+def concat_or_none(seq: Optional[Sequence[np.ndarray]]) -> Optional[np.ndarray]:
+    """Concatenate the data if it's not None."""
+    if seq:
+        return concat(seq)
+    return None
 
-        expected_feature_dims = _check_feature_dims(
-            num_feature_dims, expected_feature_dims
-        )
 
-        # Note: each element in `pdf["values"]` is an numpy array.
-        values_list.append(pdf["values"].to_list())
-        if train:
-            label_list.append(pdf["label"].to_numpy())
-        if has_weight:
-            weight_list.append(pdf["weight"].to_numpy())
-        if has_fit_base_margin or has_predict_base_margin:
-            base_margin_list.append(pdf["baseMargin"].to_numpy())
+def cache_partitions(
+    iterator: Iterator[pd.DataFrame], append: Callable[[pd.DataFrame, str, bool], None]
+) -> None:
+    """Extract partitions from pyspark iterator. `append` is a user defined function for
+    accepting new partition."""
+
+    def make_blob(part: pd.DataFrame, is_valid: bool) -> None:
+        append(part, alias.data, is_valid)
+        append(part, alias.label, is_valid)
+        append(part, alias.weight, is_valid)
+        append(part, alias.margin, is_valid)
+
+    has_validation: Optional[bool] = None
+
+    for part in iterator:
+        if has_validation is None:
+            has_validation = alias.valid in part.columns
+        if has_validation is True:
+            assert alias.valid in part.columns
+
         if has_validation:
-            values_val_list.append(pdf_val["values"].to_list())
-            if train:
-                label_val_list.append(pdf_val["label"].to_numpy())
-            if has_weight:
-                weight_val_list.append(pdf_val["weight"].to_numpy())
-            if has_fit_base_margin or has_predict_base_margin:
-                base_margin_val_list.append(pdf_val["baseMargin"].to_numpy())
+            train = part.loc[~part[alias.valid], :]
+            valid = part.loc[part[alias.valid], :]
+        else:
+            train, valid = part, None
 
-    # Construct feature_matrix
-    if expected_feature_dims is None:
-        return [], [], [], []
+        make_blob(train, False)
+        if valid is not None:
+            make_blob(valid, True)
 
-    # Construct feature_matrix, y and w
-    feature_matrix = np.concatenate(values_list)
-    y = np.concatenate(label_list) if train else None
-    w = np.concatenate(weight_list) if has_weight else None
-    b_m = (
-        np.concatenate(base_margin_list)
-        if (has_fit_base_margin or has_predict_base_margin)
-        else None
-    )
-    if has_validation:
-        feature_matrix_val = np.concatenate(values_val_list)
-        y_val = np.concatenate(label_val_list) if train else None
-        w_val = np.concatenate(weight_val_list) if has_weight else None
-        b_m_val = (
-            np.concatenate(base_margin_val_list)
-            if (has_fit_base_margin or has_predict_base_margin)
-            else None
+
+class PartIter(DataIter):
+    """Iterator for creating Quantile DMatrix from partitions."""
+
+    def __init__(self, data: Dict[str, List], on_device: bool) -> None:
+        self._iter = 0
+        self._cuda = on_device
+        self._data = data
+
+        super().__init__()
+
+    def _fetch(self, data: Optional[Sequence[pd.DataFrame]]) -> Optional[pd.DataFrame]:
+        if not data:
+            return None
+
+        if self._cuda:
+            import cudf  # pylint: disable=import-error
+
+            return cudf.DataFrame(data[self._iter])
+
+        return data[self._iter]
+
+    def next(self, input_data: Callable) -> int:
+        if self._iter == len(self._data[alias.data]):
+            return 0
+        input_data(
+            data=self._fetch(self._data[alias.data]),
+            label=self._fetch(self._data.get(alias.label, None)),
+            weight=self._fetch(self._data.get(alias.weight, None)),
+            base_margin=self._fetch(self._data.get(alias.margin, None)),
         )
-        return feature_matrix, y, w, b_m, feature_matrix_val, y_val, w_val, b_m_val
-    return feature_matrix, y, w, b_m
+        self._iter += 1
+        return 1
+
+    def reset(self) -> None:
+        self._iter = 0
 
 
-def _process_data_iter(
-    data_iterator: Iterator[pd.DataFrame],
-    train: bool,
-    has_weight: bool,
-    has_validation: bool,
-    has_fit_base_margin: bool = False,
-    has_predict_base_margin: bool = False,
-):
+def create_dmatrix_from_partitions(
+    iterator: Iterator[pd.DataFrame],
+    feature_cols: Optional[Sequence[str]],
+    kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
+) -> Tuple[DMatrix, Optional[DMatrix]]:
+    """Create DMatrix from spark data partitions. This is not particularly efficient as
+    we need to convert the pandas series format to numpy then concatenate all the data.
+
+    Parameters
+    ----------
+    iterator :
+        Pyspark partition iterator.
+    kwargs :
+        Metainfo for DMatrix.
+
     """
-    If input is for train and has_validation=True, it will split the train data into train dataset
-    and validation dataset, and return (train_X, train_y, train_w, train_b_m <-
-    train base margin, val_X, val_y, val_w, val_b_m <- validation base margin)
-    otherwise return (X, y, w, b_m <- base margin)
-    """
-    return _row_tuple_list_to_feature_matrix_y_w(
-        data_iterator,
-        train,
-        has_weight,
-        has_fit_base_margin,
-        has_predict_base_margin,
-        has_validation,
-    )
 
+    train_data: Dict[str, List[np.ndarray]] = defaultdict(list)
+    valid_data: Dict[str, List[np.ndarray]] = defaultdict(list)
 
-def _convert_partition_data_to_dmatrix(
-    partition_data_iter,
-    has_weight,
-    has_validation,
-    has_base_margin,
-    dmatrix_kwargs=None,
-):
-    # pylint: disable=too-many-locals, unbalanced-tuple-unpacking
-    dmatrix_kwargs = dmatrix_kwargs or {}
-    # if we are not using external storage, we use the standard method of parsing data.
-    train_val_data = _prepare_train_val_data(
-        partition_data_iter, has_weight, has_validation, has_base_margin
-    )
-    if has_validation:
-        (
-            train_x,
-            train_y,
-            train_w,
-            train_b_m,
-            val_x,
-            val_y,
-            val_w,
-            val_b_m,
-        ) = train_val_data
-        training_dmatrix = DMatrix(
-            data=train_x,
-            label=train_y,
-            weight=train_w,
-            base_margin=train_b_m,
-            **dmatrix_kwargs,
+    n_features: int = 0
+
+    def append_m(part: pd.DataFrame, name: str, is_valid: bool) -> None:
+        nonlocal n_features
+        if name in part.columns:
+            array = part[name]
+            if name == alias.data:
+                array = stack_series(array)
+                if n_features == 0:
+                    n_features = array.shape[1]
+                assert n_features == array.shape[1]
+
+            if is_valid:
+                valid_data[name].append(array)
+            else:
+                train_data[name].append(array)
+
+    def append_dqm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
+        """Preprocessing for DeviceQuantileDMatrix"""
+        nonlocal n_features
+        if name == alias.data or name in part.columns:
+            if name == alias.data:
+                cname = feature_cols
+            else:
+                cname = name
+
+            array = part[cname]
+            if name == alias.data:
+                if n_features == 0:
+                    n_features = array.shape[1]
+                assert n_features == array.shape[1]
+
+            if is_valid:
+                valid_data[name].append(array)
+            else:
+                train_data[name].append(array)
+
+    def make(values: Dict[str, List[np.ndarray]], kwargs: Dict[str, Any]) -> DMatrix:
+        data = concat_or_none(values[alias.data])
+        label = concat_or_none(values.get(alias.label, None))
+        weight = concat_or_none(values.get(alias.weight, None))
+        margin = concat_or_none(values.get(alias.margin, None))
+        return DMatrix(
+            data=data, label=label, weight=weight, base_margin=margin, **kwargs
         )
-        val_dmatrix = DMatrix(
-            data=val_x,
-            label=val_y,
-            weight=val_w,
-            base_margin=val_b_m,
-            **dmatrix_kwargs,
-        )
-        return training_dmatrix, val_dmatrix
 
-    train_x, train_y, train_w, train_b_m = train_val_data
-    training_dmatrix = DMatrix(
-        data=train_x,
-        label=train_y,
-        weight=train_w,
-        base_margin=train_b_m,
-        **dmatrix_kwargs,
-    )
-    return training_dmatrix
+    is_dmatrix = feature_cols is None
+    if is_dmatrix:
+        cache_partitions(iterator, append_m)
+        dtrain = make(train_data, kwargs)
+    else:
+        cache_partitions(iterator, append_dqm)
+        it = PartIter(train_data, True)
+        dtrain = DeviceQuantileDMatrix(it, **kwargs)
+
+    dvalid = make(valid_data, kwargs) if len(valid_data) != 0 else None
+
+    assert dtrain.num_col() == n_features
+    if dvalid is not None:
+        assert dvalid.num_col() == dtrain.num_col()
+
+    return dtrain, dvalid

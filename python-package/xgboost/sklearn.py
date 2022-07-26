@@ -17,7 +17,9 @@ from typing import (
     Type,
     cast,
 )
+
 import numpy as np
+from scipy.special import softmax
 
 from .core import Booster, DMatrix, XGBoostError
 from .core import _deprecate_positional_args, _convert_ntree_limit
@@ -1540,17 +1542,20 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         """
         # custom obj:      Do nothing as we don't know what to do.
         # softprob:        Do nothing, output is proba.
-        # softmax:         Unsupported by predict_proba()
+        # softmax:         Use softmax from scipy
         # binary:logistic: Expand the prob vector into 2-class matrix after predict.
         # binary:logitraw: Unsupported by predict_proba()
         if self.objective == "multi:softmax":
-            # We need to run a Python implementation of softmax for it.  Just ask user to
-            # use softprob since XGBoost's implementation has mitigation for floating
-            # point overflow.  No need to reinvent the wheel.
-            raise ValueError(
-                "multi:softmax doesn't support `predict_proba`.  "
-                "Switch to `multi:softproba` instead"
+            raw_predt = super().predict(
+                X=X,
+                ntree_limit=ntree_limit,
+                validate_features=validate_features,
+                base_margin=base_margin,
+                iteration_range=iteration_range,
+                output_margin=True
             )
+            class_prob = softmax(raw_predt, axis=1)
+            return class_prob
         class_probs = super().predict(
             X=X,
             ntree_limit=ntree_limit,

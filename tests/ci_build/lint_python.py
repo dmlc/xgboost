@@ -15,13 +15,11 @@ PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.par
 def run_formatter(rel_path: str) -> bool:
     path = os.path.join(PROJECT_ROOT, rel_path)
     isort_ret = subprocess.run(["isort", "--check", "--profile=black", path]).returncode
-    black_ret = subprocess.run(
-        ["black", "--check", "./python-package/xgboost/dask.py"]
-    ).returncode
+    black_ret = subprocess.run(["black", "--check", rel_path]).returncode
     if isort_ret != 0 or black_ret != 0:
         msg = (
             "Please run the following command on your machine to address the format"
-            f" errors:\n isort --check --profile=black {rel_path}\n black {rel_path}\n"
+            f" errors:\n isort --profile=black {rel_path}\n black {rel_path}\n"
         )
         print(msg, file=sys.stdout)
         return False
@@ -38,7 +36,8 @@ def run_mypy(rel_path: str) -> bool:
 
 
 class PyLint:
-    """A helper for running pylint, mostly copied from dmlc-core/scripts. """
+    """A helper for running pylint, mostly copied from dmlc-core/scripts."""
+
     def __init__(self) -> None:
         self.pypackage_root = os.path.join(PROJECT_ROOT, "python-package/")
         self.pylint_cats = set(["error", "warning", "convention", "refactor"])
@@ -115,6 +114,8 @@ if __name__ == "__main__":
             for path in [
                 "python-package/xgboost/dask.py",
                 "python-package/xgboost/spark",
+                "tests/python/test_spark/test_data.py",
+                "tests/python-gpu/test_spark_with_gpu/test_data.py",
                 "tests/ci_build/lint_python.py",
             ]
         ):
@@ -128,8 +129,10 @@ if __name__ == "__main__":
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "tests/python/test_data_iterator.py",
+                "tests/python/test_spark/test_data.py",
                 "tests/python-gpu/test_gpu_with_dask.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
+                "tests/python-gpu/test_spark_with_gpu/test_data.py",
                 "tests/ci_build/lint_python.py",
             ]
         ):
