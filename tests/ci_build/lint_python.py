@@ -36,7 +36,8 @@ def run_mypy(rel_path: str) -> bool:
 
 
 class PyLint:
-    """A helper for running pylint, mostly copied from dmlc-core/scripts. """
+    """A helper for running pylint, mostly copied from dmlc-core/scripts."""
+
     def __init__(self) -> None:
         self.pypackage_root = os.path.join(PROJECT_ROOT, "python-package/")
         self.pylint_cats = set(["error", "warning", "convention", "refactor"])
