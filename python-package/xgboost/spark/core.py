@@ -2,7 +2,7 @@
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=too-few-public-methods
-from typing import Iterator, Tuple, Optional
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,9 +26,9 @@ from pyspark.sql.types import (
     DoubleType,
     FloatType,
     IntegerType,
+    IntegralType,
     LongType,
     ShortType,
-    IntegralType,
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 from xgboost.core import Booster
@@ -77,12 +77,7 @@ _pyspark_specific_params = [
     "features_cols",
 ]
 
-_non_booster_params = [
-    "missing",
-    "n_estimators",
-    "feature_types",
-    "feature_weights",
-]
+_non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
 
 _pyspark_param_alias_map = {
     "features_col": "featuresCol",
@@ -265,9 +260,8 @@ class _SparkXGBParams(
                 "Therefore, that parameter will be ignored."
             )
 
-        if (
-            self.getOrDefault(self.features_cols)
-            and not self.getOrDefault(self.use_gpu)
+        if self.getOrDefault(self.features_cols) and not self.getOrDefault(
+            self.use_gpu
         ):
             raise ValueError(
                 "XGBoost accepts a list of feature column names only when use_gpu is enabled."
@@ -326,7 +320,9 @@ class _SparkXGBParams(
                     )
 
 
-def _validate_and_convert_feature_col_as_float_col(dataset, features_col_name: list) -> list:
+def _validate_and_convert_feature_col_as_float_col(
+    dataset, features_col_name: list
+) -> list:
     """feature column names must be IntegralType or float or double types"""
     feature_cols = []
     for c in features_col_name:
@@ -367,14 +363,16 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
     return features_array_col
 
 
-def _validate_and_convert_feature_col(dataset, feature_names: list, feature_name: str) -> list:
+def _validate_and_convert_feature_col(
+    dataset, feature_names: list, feature_name: str
+) -> list:
     """XGBoost model trained with features_cols parameter is also can transform
     vector or array feature type. But we first check features_cols and then check
     featuresCol"""
     if (
-        len(feature_names) >
-        0 >=
-        len([c for c in feature_names if c not in dataset.columns])
+        len(feature_names)
+        > 0
+        >= len([c for c in feature_names if c not in dataset.columns])
     ):
         return _validate_and_convert_feature_col_as_float_col(dataset, feature_names)
 
@@ -413,10 +411,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     f"Please use param name {_inverse_pyspark_param_alias_map[k]} instead."
                 )
             if k in _pyspark_param_alias_map:
-                if (
-                    k == _inverse_pyspark_param_alias_map[self.featuresCol.name]
-                    and isinstance(v, list)
-                ):
+                if k == _inverse_pyspark_param_alias_map[
+                    self.featuresCol.name
+                ] and isinstance(v, list):
                     real_k = self.features_cols.name
                     k = real_k
                 else:
@@ -545,7 +542,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         label_col = col(self.getOrDefault(self.labelCol)).alias(alias.label)
 
         select_cols = [label_col]
-        features_cols_names=None
+        features_cols_names = None
         if len(self.getOrDefault(self.features_cols)):
             features_cols_names = self.getOrDefault(self.features_cols)
             features_cols = _validate_and_convert_feature_col_as_float_col(
@@ -639,9 +636,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result = {}
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter,
-                    features_cols_names,
-                    dmatrix_kwargs,
+                    pandas_df_iter, features_cols_names, dmatrix_kwargs
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
@@ -750,15 +745,15 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         feature_col_names = self.getOrDefault(self.features_cols)
         features_col = []
         if (
-            len(feature_col_names) >
-            0 >=
-            len([c for c in feature_col_names if c not in dataset.columns])
+            len(feature_col_names)
+            > 0
+            >= len([c for c in feature_col_names if c not in dataset.columns])
         ):
             # The model is trained with features_cols and the predicted dataset
             # also contains all the columns specified by features_cols.
             features_col = _validate_and_convert_feature_col_as_float_col(
-                dataset,
-                feature_col_names)
+                dataset, feature_col_names
+            )
         else:
             # 1. The model was trained by features_cols, but the dataset doesn't contain
             #       all the columns specified by features_cols, so we need to check if
@@ -768,8 +763,8 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             feature_col_names = None
             features_col.append(
                 _validate_and_convert_feature_col_as_array_col(
-                    dataset,
-                    self.getOrDefault(self.featuresCol))
+                    dataset, self.getOrDefault(self.featuresCol)
+                )
             )
         return features_col, feature_col_names
 
