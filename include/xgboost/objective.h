@@ -27,7 +27,8 @@ class RegTree;
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
  protected:
-  GenericParameter const* ctx_;
+  Context const* ctx_;
+  static constexpr float DefaultBaseScore() { return 0.5; };
 
  public:
   /*! \brief virtual destructor */

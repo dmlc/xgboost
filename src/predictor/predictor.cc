@@ -87,7 +87,9 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
   } else {
     out_preds->Resize(n);
     // cannot rely on the Resize to fill as it might skip if the size is already correct.
-    out_preds->Fill(model.learner_model_param->base_score);
+    auto base_score = model.learner_model_param->base_score;
+    CHECK(!std::isnan(base_score));
+    out_preds->Fill(base_score);
   }
 }
 }  // namespace xgboost

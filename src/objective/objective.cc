@@ -31,7 +31,7 @@ ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const
   return pobj;
 }
 
-float ObjFunction::InitEstimation(MetaInfo const&) const { return 0.5; }
+float ObjFunction::InitEstimation(MetaInfo const&) const { return DefaultBaseScore(); }
 }  // namespace xgboost
 
 namespace xgboost {

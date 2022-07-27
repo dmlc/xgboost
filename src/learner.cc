@@ -90,6 +90,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
+    // use nan to flag this is uninitialized.
     base_score = std::numeric_limits<float>::quiet_NaN();
     num_target = 1;
     major_version = std::get<0>(Version::Self());
@@ -393,6 +394,9 @@ class LearnerConfiguration : public Learner {
     monitor_.Stop("Configure");
   }
 
+  /**
+   * \brief Calculate the `base_score` based on input data.
+   */
   void ConfigureBaseScore(DMatrix const* p_fmat) {
     CHECK(obj_);
     if (std::isnan(mparam_.base_score)) {
@@ -1197,7 +1201,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->CheckDataSplitMode();
-    this->ConfigureBaseScore(train.get());
+    CHECK(!std::isnan(learner_model_param_.base_score));
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
@@ -1251,6 +1255,13 @@ class LearnerImpl : public LearnerIO {
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
+    // This is only needed when custom objective is used.
+    if (gpair_.Empty()) {
+      this->ConfigureBaseScore(data.get());
+    } else {
+      CHECK(!std::isnan(learner_model_param_.base_score));
+    }
+
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
       gbm_->PredictContribution(data.get(), out_preds, layer_begin, layer_end, approx_contribs);
