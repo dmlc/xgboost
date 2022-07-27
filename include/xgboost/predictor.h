@@ -102,13 +102,10 @@ class PredictionContainer {
  */
 class Predictor {
  protected:
-  /*
-   * \brief Runtime parameters.
-   */
-  GenericParameter const* ctx_;
+  Context const* ctx_;
 
  public:
-  explicit Predictor(GenericParameter const* ctx) : ctx_{ctx} {}
+  explicit Predictor(Context const* ctx) : ctx_{ctx} {}
 
   virtual ~Predictor() = default;
 

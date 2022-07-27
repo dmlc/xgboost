@@ -511,7 +511,7 @@ void ExtractPaths(
           n = d_nodes[n.Parent() + tree_offset];
           path_length++;
         }
-        return PathInfo{int64_t(idx), path_length, tree_idx};
+        return PathInfo{static_cast<int64_t>(idx), path_length, tree_idx};
       });
   auto end = thrust::copy_if(
       thrust::cuda::par(alloc), nodes_transform,
@@ -859,13 +859,14 @@ class GPUPredictor : public xgboost::Predictor {
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-    float base_score = model.learner_model_param->base_score;
-    dh::LaunchN(
-        p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-        [=] __device__(size_t idx) {
-          phis[(idx + 1) * contributions_columns - 1] +=
-              margin.empty() ? base_score : margin[idx];
-        });
+    CHECK_EQ(model.learner_model_param->base_score.Size(), 1);
+    model.learner_model_param->base_score.SetDevice(ctx_->gpu_id);
+    float const* base_score = model.learner_model_param->base_score.ConstDevicePointer();
+    dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
+                [=] __device__(size_t idx) {
+                  phis[(idx + 1) * contributions_columns - 1] +=
+                      margin.empty() ? *base_score : margin[idx];
+                });
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
@@ -918,17 +919,19 @@ class GPUPredictor : public xgboost::Predictor {
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-    float base_score = model.learner_model_param->base_score;
+
+    CHECK_EQ(model.learner_model_param->base_score.Size(), 1);
+    model.learner_model_param->base_score.SetDevice(ctx_->gpu_id);
+    float const* base_score = model.learner_model_param->base_score.ConstDevicePointer();
     size_t n_features = model.learner_model_param->num_feature;
-    dh::LaunchN(
-        p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-        [=] __device__(size_t idx) {
-          size_t group = idx % ngroup;
-          size_t row_idx = idx / ngroup;
-          phis[gpu_treeshap::IndexPhiInteractions(
-              row_idx, ngroup, group, n_features, n_features, n_features)] +=
-              margin.empty() ? base_score : margin[idx];
-        });
+    dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
+                [=] __device__(size_t idx) {
+                  size_t group = idx % ngroup;
+                  size_t row_idx = idx / ngroup;
+                  phis[gpu_treeshap::IndexPhiInteractions(row_idx, ngroup, group, n_features,
+                                                          n_features, n_features)] +=
+                      margin.empty() ? *base_score : margin[idx];
+                });
   }
 
   void PredictInstance(const SparsePage::Inst&,

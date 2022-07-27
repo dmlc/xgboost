@@ -206,8 +206,7 @@ TEST(Learner, MultiThreadedPredict) {
   p_dmat->Info().labels.Reshape(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
-  std::shared_ptr<DMatrix> p_data{
-      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  std::shared_ptr<DMatrix> p_data{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
   CHECK_NE(p_data->Info().num_col_, 0);
 
   std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};

@@ -300,7 +300,7 @@ struct LearnerModelParamLegacy;
  */
 struct LearnerModelParam {
   /* \brief global bias */
-  bst_float base_score { std::numeric_limits<float>::quiet_NaN() };
+  HostDeviceVector<float> base_score;
   /* \brief number of features  */
   uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
@@ -311,9 +311,21 @@ struct LearnerModelParam {
   LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin, ObjInfo t);
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, HostDeviceVector<float> base_margin,
+                    ObjInfo t);
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t);
+  LearnerModelParam(bst_feature_t n_features, HostDeviceVector<float> base_margin,
+                    uint32_t n_groups)
+      : base_score{std::move(base_margin)}, num_feature{n_features}, num_output_group{n_groups} {}
+
+  void Copy(LearnerModelParam const& that) {
+    base_score.Resize(that.base_score.Size());
+    base_score.Copy(that.base_score);
+    num_feature = that.num_feature;
+    num_output_group = that.num_output_group, task = that.task;
+  }
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
-  bool Initialized() const { return num_feature != 0 && !std::isnan(base_score); }
+  bool Initialized() const { return num_feature != 0; }
 };
 
 }  // namespace xgboost

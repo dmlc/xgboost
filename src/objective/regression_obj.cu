@@ -703,15 +703,17 @@ class MeanAbsoluteError : public ObjFunction {
     });
   }
 
-  float InitEstimation(MetaInfo const& info) const override {
+  void InitEstimation(MetaInfo const& info, HostDeviceVector<float>* base_margin) const override {
     CheckInitInputs(info);
+    auto& h_base_margin = base_margin->HostVector();
+    h_base_margin.resize(1);
     if (ctx_->IsCPU()) {
-      return common::Median(ctx_, info.labels.HostView(),
-                            common::OptionalWeights{info.weights_.ConstHostSpan()});
+      h_base_margin.front() = common::Median(
+          ctx_, info.labels.HostView(), common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       info.weights_.SetDevice(ctx_->gpu_id);
-      return common::Median(ctx_, info.labels.View(ctx_->gpu_id),
-                            common::OptionalWeights{info.weights_.DeviceSpan()});
+      h_base_margin.front() = common::Median(ctx_, info.labels.View(ctx_->gpu_id),
+                                             common::OptionalWeights{info.weights_.DeviceSpan()});
     }
   }
 

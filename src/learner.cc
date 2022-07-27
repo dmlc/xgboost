@@ -174,9 +174,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   }
 };
 
-LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin,
-                                     ObjInfo t)
-    : base_score{base_margin}, num_feature{user_param.num_feature}, task{t} {
+LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t)
+    : num_feature{user_param.num_feature}, task{t} {
   auto n_classes = std::max(static_cast<uint32_t>(user_param.num_class), 1u);
   auto n_targets = user_param.num_target;
   num_output_group = std::max(n_classes, n_targets);
@@ -184,6 +183,12 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
   CHECK(n_classes <= 1 || n_targets <= 1)
       << "Multi-class multi-output is not yet supported. n_classes:" << n_classes
       << ", n_targets:" << n_targets;
+}
+
+LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param,
+                                     HostDeviceVector<float> base_margin, ObjInfo t)
+    : LearnerModelParam{user_param, t} {
+  std::swap(base_score, base_margin);
 }
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
@@ -377,9 +382,6 @@ class LearnerConfiguration : public Learner {
     // - model loaded from new binary or JSON.
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
-    if (!learner_model_param_.Initialized()) {
-      learner_model_param_ = LearnerModelParam(mparam_, mparam_.base_score, obj_->Task());
-    }
 
     this->ConfigureGBM(old_tparam, args);
     generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
@@ -397,15 +399,39 @@ class LearnerConfiguration : public Learner {
   /**
    * \brief Calculate the `base_score` based on input data.
    */
-  void ConfigureBaseScore(DMatrix const* p_fmat) {
+  void ConfigureLearnerParam(DMatrix const* p_fmat) {
     CHECK(obj_);
-    if (std::isnan(mparam_.base_score)) {
-      mparam_.base_score = obj_->InitEstimation(p_fmat->Info());
-      CHECK(!learner_model_param_.Initialized());
+    if (!learner_model_param_.base_score.Empty()) {
+      auto task = obj_->Task();
+      learner_model_param_ =
+          LearnerModelParam(mparam_, std::move(learner_model_param_.base_score), task);
+      CHECK(learner_model_param_.Initialized());
+      CHECK(!learner_model_param_.base_score.Empty());
+      return;
+    }
+
+    HostDeviceVector<float> base_score;
+    if (!std::isnan(mparam_.base_score)) {
+      // if base_score is set by user, use it.
+      base_score.Resize(1);
+      base_score.Fill(obj_->ProbToMargin(mparam_.base_score));
+    } else if (p_fmat) {
+      // otherwise, we estimate it from input data.
+      obj_->InitEstimation(p_fmat->Info(), &base_score);
+      auto& h_base_score = base_score.HostVector();
+      rabit::Allreduce<rabit::op::Sum>(h_base_score.data(), h_base_score.size());
+      float world = rabit::GetWorldSize();
+      std::transform(h_base_score.begin(), h_base_score.end(), h_base_score.begin(),
+                     [&](float v) { return obj_->ProbToMargin(v / world); });
+    } else {
+      // lastly, if data is not available (prediction for custom objective), use default.
+      base_score.Resize(1);
+      base_score.Fill(obj_->ProbToMargin(ObjFunction::DefaultBaseScore()));
     }
     auto task = obj_->Task();
-    learner_model_param_ = LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), task);
+    learner_model_param_ = LearnerModelParam(mparam_, std::move(base_score), task);
     CHECK(learner_model_param_.Initialized());
+    CHECK(!learner_model_param_.base_score.Empty());
   }
 
   virtual PredictionContainer* GetPredictionCache() const {
@@ -796,7 +822,19 @@ class LearnerIO : public LearnerConfiguration {
       std::transform(feature_types.cbegin(), feature_types.cend(), feature_types_.begin(),
                      [](Json const& fn) { return get<String const>(fn); });
     }
-
+    it = learner.find("base_score");
+    if (it != learner.cend()) {
+      if (IsA<F32Array>(it->second)) {
+        auto& base_score = get<F32Array const>(it->second);
+        learner_model_param_.base_score.HostVector() = base_score;
+      } else {
+        auto& base_score = get<Array const>(it->second);
+        auto& h_result = learner_model_param_.base_score.HostVector();
+        for (auto v : base_score) {
+          h_result.push_back(get<Number const>(v));
+        }
+      }
+    }
     this->need_configuration_ = true;
   }
 
@@ -822,6 +860,10 @@ class LearnerIO : public LearnerConfiguration {
     for (auto const& kv : attributes_) {
       learner["attributes"][kv.first] = String(kv.second);
     }
+
+    learner["base_score"] = F32Array();
+    auto& base_score = get<F32Array>(learner["base_score"]);
+    base_score = learner_model_param_.base_score.ConstHostVector();
 
     learner["feature_names"] = Array();
     auto& feature_names = get<Array>(learner["feature_names"]);
@@ -936,7 +978,7 @@ class LearnerIO : public LearnerConfiguration {
     }
 
     learner_model_param_ =
-        LearnerModelParam(mparam_, obj_->ProbToMargin(mparam_.base_score), obj_->Task());
+        LearnerModelParam(mparam_, {obj_->ProbToMargin(mparam_.base_score)}, obj_->Task());
     if (attributes_.find("objective") != attributes_.cend()) {
       auto obj_str = attributes_.at("objective");
       auto j_obj = Json::Load({obj_str.c_str(), obj_str.size()});
@@ -951,6 +993,17 @@ class LearnerIO : public LearnerConfiguration {
       attributes_.erase("metrics");
       for (auto const& n : names) {
         this->SetParam(kEvalMetric, n);
+      }
+    }
+    auto it = attributes_.find("base_score");
+    if (it != attributes_.cend()) {
+      auto const& base_score_str = it->second;
+      auto loaded = Json::Load(StringView{base_score_str});
+      auto const& base_score = get<Array const>(loaded);
+      auto& h_result = learner_model_param_.base_score.HostVector();
+      h_result.clear();
+      for (auto const& v : base_score) {
+        h_result.push_back(get<Number const>(v));
       }
     }
 
@@ -1011,6 +1064,16 @@ class LearnerIO : public LearnerConfiguration {
       }
       extra_attr.emplace_back("metrics", os.str());
     }
+
+    {
+      // serialize base score
+      F32Array base_score(learner_model_param_.base_score.Size());
+      base_score.GetArray() = learner_model_param_.base_score.ConstHostVector();
+      std::string base_score_str;
+      Json::Dump(Json(std::move(base_score)), &base_score_str);
+      extra_attr.emplace_back("base_score", base_score_str);
+    }
+
     std::string header {"binf"};
     fo->Write(header.data(), 4);
     if (DMLC_IO_NO_ENDIAN_SWAP) {
@@ -1131,8 +1194,8 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
     CHECK_NE(this->learner_model_param_.num_feature, 0);
     CHECK_GE(begin_layer, 0);
-    auto *out_impl = new LearnerImpl({});
-    out_impl->learner_model_param_ = this->learner_model_param_;
+    auto* out_impl = new LearnerImpl({});
+    out_impl->learner_model_param_.Copy(this->learner_model_param_);
     out_impl->generic_parameters_ = this->generic_parameters_;
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
         this->tparam_.booster, &out_impl->generic_parameters_,
@@ -1172,7 +1235,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->CheckDataSplitMode();
-    this->ConfigureBaseScore(train.get());
+    this->ConfigureLearnerParam(train.get());
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
@@ -1201,7 +1264,6 @@ class LearnerImpl : public LearnerIO {
     }
 
     this->CheckDataSplitMode();
-    CHECK(!std::isnan(learner_model_param_.base_score));
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
@@ -1255,12 +1317,7 @@ class LearnerImpl : public LearnerIO {
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
-    // This is only needed when custom objective is used.
-    if (gpair_.Empty()) {
-      this->ConfigureBaseScore(data.get());
-    } else {
-      CHECK(!std::isnan(learner_model_param_.base_score));
-    }
+    this->ConfigureLearnerParam(nullptr);
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {

@@ -31,7 +31,11 @@ ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const
   return pobj;
 }
 
-float ObjFunction::InitEstimation(MetaInfo const&) const { return DefaultBaseScore(); }
+void ObjFunction::InitEstimation(MetaInfo const&, HostDeviceVector<float>* base_score) const {
+  CHECK(base_score);
+  base_score->Resize(1);
+  base_score->Fill(DefaultBaseScore());
+}
 }  // namespace xgboost
 
 namespace xgboost {

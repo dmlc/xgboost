@@ -638,13 +638,12 @@ void GPUDartPredictInc(common::Span<float> out_predts,
 }
 #endif
 
-void GPUDartInplacePredictInc(common::Span<float> out_predts,
-                              common::Span<float> predts, float tree_w,
-                              size_t n_rows, float base_score,
-                              bst_group_t n_groups,
+void GPUDartInplacePredictInc(common::Span<float> out_predts, common::Span<float> predts,
+                              float tree_w, size_t n_rows,
+                              HostDeviceVector<float> const& base_score, bst_group_t n_groups,
                               bst_group_t group)
 #if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
+    ;  // NOLINT
 #else
 {
   common::AssertGPUSupport();
@@ -850,15 +849,18 @@ class Dart : public GBTree {
       size_t n_rows = p_fmat->Info().num_row_;
       if (predts.predictions.DeviceIdx() != Context::kCpuId) {
         p_out_preds->predictions.SetDevice(predts.predictions.DeviceIdx());
+        model_.learner_model_param->base_score.SetDevice(predts.predictions.DeviceIdx());
         GPUDartInplacePredictInc(p_out_preds->predictions.DeviceSpan(),
                                  predts.predictions.DeviceSpan(), w, n_rows,
                                  model_.learner_model_param->base_score, n_groups, group);
       } else {
+        CHECK_EQ(model_.learner_model_param->base_score.Size(), 1);
+        auto base_score = model_.learner_model_param->base_score.HostVector().front();
         auto& h_predts = predts.predictions.HostVector();
         auto& h_out_predts = p_out_preds->predictions.HostVector();
         common::ParallelFor(n_rows, ctx_->Threads(), [&](auto ridx) {
           const size_t offset = ridx * n_groups + group;
-          h_out_predts[offset] += (h_predts[offset] - model_.learner_model_param->base_score) * w;
+          h_out_predts[offset] += (h_predts[offset] - base_score) * w;
         });
       }
     }

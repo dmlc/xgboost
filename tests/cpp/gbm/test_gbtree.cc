@@ -21,7 +21,7 @@ TEST(GBTree, SelectTreeMethod) {
   GenericParameter generic_param;
   generic_param.UpdateAllowUnknown(Args{});
   LearnerModelParam mparam;
-  mparam.base_score = 0.5;
+  mparam.base_score.Resize(1, 0.5);
   mparam.num_feature = kCols;
   mparam.num_output_group = 1;
 
@@ -58,7 +58,7 @@ TEST(GBTree, PredictionCache) {
   GenericParameter generic_param;
   generic_param.UpdateAllowUnknown(Args{});
   LearnerModelParam mparam;
-  mparam.base_score = 0.5;
+  mparam.base_score.Resize(1, 0.5);
   mparam.num_feature = kCols;
   mparam.num_output_group = 1;
 
@@ -179,7 +179,7 @@ TEST(GBTree, JsonIO) {
   LearnerModelParam mparam;
   mparam.num_feature = kCols;
   mparam.num_output_group = 1;
-  mparam.base_score = 0.5;
+  mparam.base_score.Resize(1, 0.5);
 
   GenericParameter gparam;
   gparam.Init(Args{});
@@ -217,7 +217,7 @@ TEST(Dart, JsonIO) {
 
   LearnerModelParam mparam;
   mparam.num_feature = kCols;
-  mparam.base_score = 0.5;
+  mparam.base_score.Resize(1, 0.5);
   mparam.num_output_group = 1;
 
   GenericParameter gparam;

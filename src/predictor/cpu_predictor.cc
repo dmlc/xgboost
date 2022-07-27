@@ -429,11 +429,12 @@ class CPUPredictor : public Predictor {
     }
     out_preds->resize(model.learner_model_param->num_output_group *
                       (model.param.size_leaf_vector + 1));
+    auto const& base_score = model.learner_model_param->base_score.HostVector().front();
     // loop over output groups
     for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {
-      (*out_preds)[gid] = PredValue(inst, model.trees, model.tree_info, gid,
-                                    &feat_vecs[0], 0, ntree_limit) +
-                          model.learner_model_param->base_score;
+      (*out_preds)[gid] =
+          PredValue(inst, model.trees, model.tree_info, gid, &feat_vecs[0], 0, ntree_limit) +
+          base_score;
     }
   }
 
@@ -505,6 +506,8 @@ class CPUPredictor : public Predictor {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
     auto base_margin = info.base_margin_.View(GenericParameter::kCpuId);
+    CHECK_EQ(model.learner_model_param->base_score.Size(), 1);
+    auto base_score = model.learner_model_param->base_score.HostVector().front();
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
@@ -548,7 +551,7 @@ class CPUPredictor : public Predictor {
             CHECK_EQ(base_margin.Shape(1), ngroup);
             p_contribs[ncolumns - 1] += base_margin(row_idx, gid);
           } else {
-            p_contribs[ncolumns - 1] += model.learner_model_param->base_score;
+            p_contribs[ncolumns - 1] += base_score;
           }
         }
       });

@@ -28,7 +28,9 @@ class RegTree;
 class ObjFunction : public Configurable {
  protected:
   Context const* ctx_;
-  static constexpr float DefaultBaseScore() { return 0.5; };
+
+ public:
+  static constexpr float DefaultBaseScore() { return 0.5f; };
 
  public:
   /*! \brief virtual destructor */
@@ -80,10 +82,9 @@ class ObjFunction : public Configurable {
    * \brief Make initialize estimation of prediction.
    *
    * \param info MetaInfo that contains label.
-   *
-   * \return NaN if there's no initial estimation.
+   * \param base_score Output estimation.
    */
-  virtual float InitEstimation(MetaInfo const& info) const;
+  virtual void InitEstimation(MetaInfo const& info, HostDeviceVector<float>* base_score) const;
   /*!
    * \brief Return task of this objective.
    */

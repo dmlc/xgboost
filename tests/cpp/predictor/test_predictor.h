@@ -12,11 +12,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
                                      std::shared_ptr<DMatrix> p_hist) {
   constexpr size_t kClasses { 3 };
 
-  LearnerModelParam param;
-  param.num_feature = cols;
-  param.num_output_group = kClasses;
-  param.base_score = 0.5;
-
+  LearnerModelParam param(cols, {.5}, kClasses);
   auto lparam = CreateEmptyGenericParam(0);
 
   std::unique_ptr<Predictor> predictor =
