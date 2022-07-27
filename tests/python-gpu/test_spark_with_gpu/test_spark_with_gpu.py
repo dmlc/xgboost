@@ -3,6 +3,7 @@ import sys
 import logging
 import pytest
 import sklearn
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 sys.path.append("tests/python")
 import testing as tm
@@ -166,6 +167,25 @@ def test_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature_co
     model = classifier.fit(train_df)
     pred_result_df = model.transform(test_df)
     evaluator = MulticlassClassificationEvaluator(metricName="f1")
+    f1 = evaluator.evaluate(pred_result_df)
+    assert f1 >= 0.97
+
+
+def test_cv_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature_cols):
+    from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+    train_df, test_df, feature_names = spark_iris_dataset_feature_cols
+
+    classifier = SparkXGBClassifier(
+        features_col=feature_names,
+        use_gpu=True,
+        num_workers=num_workers,
+    )
+    grid = ParamGridBuilder().addGrid(classifier.max_bin, [6, 8]).build()
+    evaluator = MulticlassClassificationEvaluator(metricName="f1")
+    cv = CrossValidator(
+        estimator=classifier, evaluator=evaluator, estimatorParamMaps=grid, numFolds=3)
+    cvModel = cv.fit(train_df)
+    pred_result_df = cvModel.transform(test_df)
     f1 = evaluator.evaluate(pred_result_df)
     assert f1 >= 0.97
 
