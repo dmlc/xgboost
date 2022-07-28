@@ -238,12 +238,11 @@ class _SparkXGBParams(
 
     def _validate_params(self):
         init_model = self.getOrDefault(self.xgb_model)
-        if init_model is not None:
-            if init_model is not None and not isinstance(init_model, Booster):
-                raise ValueError(
-                    "The xgb_model param must be set with a `xgboost.core.Booster` "
-                    "instance."
-                )
+        if init_model is not None and not isinstance(init_model, Booster):
+            raise ValueError(
+                "The xgb_model param must be set with a `xgboost.core.Booster` "
+                "instance."
+            )
 
         if self.getOrDefault(self.num_workers) < 1:
             raise ValueError(
@@ -260,11 +259,12 @@ class _SparkXGBParams(
                 "Therefore, that parameter will be ignored."
             )
 
-        if self.getOrDefault(self.features_cols) and not self.getOrDefault(
-            self.use_gpu
-        ):
-            raise ValueError(
-                "XGBoost accepts a list of feature column names only when use_gpu is enabled."
+        if self.getOrDefault(self.features_cols):
+            if not self.getOrDefault(self.use_gpu):
+                raise ValueError("features_cols param requires enabling use_gpu.")
+
+            get_logger(self.__class__.__name__).warning(
+                "If features_cols param set, then features_col param is ignored."
             )
 
         if self.getOrDefault(self.use_gpu):
@@ -320,19 +320,19 @@ class _SparkXGBParams(
                     )
 
 
-def _validate_and_convert_feature_col_as_float_col(
-    dataset, features_col_name: list
+def _validate_and_convert_feature_col_as_float_col_list(
+    dataset, features_col_names: list
 ) -> list:
-    """feature column names must be IntegralType or float or double types"""
+    """Values in feature columns must be integral types or float/double types"""
     feature_cols = []
-    for c in features_col_name:
+    for c in features_col_names:
         if isinstance(dataset.schema[c].dataType, DoubleType):
             feature_cols.append(col(c).cast(FloatType()).alias(c))
         elif isinstance(dataset.schema[c].dataType, (FloatType, IntegralType)):
             feature_cols.append(col(c))
         else:
             raise ValueError(
-                "Feature column must be integral types or float/double types"
+                "Values in feature columns must be integral types or float/double types."
             )
     return feature_cols
 
@@ -361,22 +361,6 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
             "type column first."
         )
     return features_array_col
-
-
-def _validate_and_convert_feature_col(
-    dataset, feature_names: list, feature_name: str
-) -> list:
-    """XGBoost model trained with features_cols parameter is also can transform
-    vector or array feature type. But we first check features_cols and then check
-    featuresCol"""
-    if (
-        len(feature_names)
-        > 0
-        >= len([c for c in feature_names if c not in dataset.columns])
-    ):
-        return _validate_and_convert_feature_col_as_float_col(dataset, feature_names)
-
-    return [_validate_and_convert_feature_col_as_array_col(dataset, feature_name)]
 
 
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
@@ -545,7 +529,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         features_cols_names = None
         if len(self.getOrDefault(self.features_cols)):
             features_cols_names = self.getOrDefault(self.features_cols)
-            features_cols = _validate_and_convert_feature_col_as_float_col(
+            features_cols = _validate_and_convert_feature_col_as_float_col_list(
                 dataset, features_cols_names
             )
             select_cols.extend(features_cols)
@@ -738,7 +722,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
 
     def _get_feature_col(self, dataset) -> (list, Optional[list]):
         """XGBoost model trained with features_cols parameter can also predict
-        vector or array feature type. But frist we need to check features_cols
+        vector or array feature type. But first we need to check features_cols
         and then featuresCol
         """
 
@@ -751,7 +735,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         ):
             # The model is trained with features_cols and the predicted dataset
             # also contains all the columns specified by features_cols.
-            features_col = _validate_and_convert_feature_col_as_float_col(
+            features_col = _validate_and_convert_feature_col_as_float_col_list(
                 dataset, feature_col_names
             )
         else:
