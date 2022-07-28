@@ -34,8 +34,9 @@ TEST(GPUPredictor, Basic) {
     int n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
-    LearnerModelParam mparam{MakeMP(n_col, .5, 1)};
-    GenericParameter ctx;
+    Context ctx;
+    ctx.gpu_id = 0;
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1, ctx.gpu_id)};
     gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
     // Test predict batch
@@ -89,9 +90,10 @@ TEST(GPUPredictor, ExternalMemoryTest) {
   gpu_predictor->Configure({});
 
   const int n_classes = 3;
-  LearnerModelParam mparam{MakeMP(5, .5, n_classes)};
-
   Context ctx;
+  ctx.gpu_id = 0;
+  LearnerModelParam mparam{MakeMP(5, .5, n_classes, ctx.gpu_id)};
+
   gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, n_classes);
   std::vector<std::unique_ptr<DMatrix>> dmats;
 
@@ -162,8 +164,9 @@ TEST(GpuPredictor, LesserFeatures) {
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);
 
-  LearnerModelParam mparam{MakeMP(1, .5, 1)};
   Context ctx;
+  ctx.gpu_id = 0;
+  LearnerModelParam mparam{MakeMP(1, .5, 1, ctx.gpu_id)};
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
@@ -188,8 +191,9 @@ TEST(GPUPredictor, ShapStump) {
 }
 
 TEST(GPUPredictor, Shap) {
-  LearnerModelParam mparam{MakeMP(1, .5, 1)};
   Context ctx;
+  ctx.gpu_id = 0;
+  LearnerModelParam mparam{MakeMP(1, .5, 1, ctx.gpu_id)};
   gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;

@@ -679,7 +679,7 @@ class Tensor {
     }
     if (device >= 0) {
       data_.SetDevice(device);
-      data_.DevicePointer();  // Pull to device;
+      data_.ConstDevicePointer();  // Pull to device;
     }
     CHECK_EQ(data_.Size(), detail::CalcSize(shape_));
   }

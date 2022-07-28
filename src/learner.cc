@@ -416,22 +416,11 @@ class LearnerConfiguration : public Learner {
 
     this->ConfigureTargets();
 
-    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
-    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
-    // keep the stability, we initialize it in binary LoadModel instead of configuration.
-    // Under what condition should we omit the transformation:
-    //
-    // - base_score is loaded from old binary model.
-    //
-    // What are the other possible conditions:
-    //
-    // - model loaded from new binary or JSON.
-    // - model is created from scratch.
-    // - model is configured second time due to change of parameter
-    this->ConfigureLearnerParam(p_fmat);
-
+    learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
     ctx_.ConfigureGpuId(this->gbm_->UseGPU());
+    this->ConfigureLearnerParam(p_fmat);
+
     this->ConfigureMetrics(args);
 
     this->need_configuration_ = false;
@@ -447,6 +436,18 @@ class LearnerConfiguration : public Learner {
    * \brief Calculate the `base_score` based on input data.
    */
   void ConfigureLearnerParam(DMatrix const* p_fmat) {
+    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
+    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
+    // keep the stability, we initialize it in binary LoadModel instead of configuration.
+    // Under what condition should we omit the transformation:
+    //
+    // - base_score is loaded from old binary model.
+    //
+    // What are the other possible conditions:
+    //
+    // - model loaded from new binary or JSON.
+    // - model is created from scratch.
+    // - model is configured second time due to change of parameter
     CHECK(obj_);
     float world = rabit::GetWorldSize();
     if (base_score_.Size() != 0) {
