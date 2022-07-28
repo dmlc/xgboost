@@ -64,6 +64,11 @@ Conda should be able to detect the existence of a GPU on your machine and instal
 
 Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
 
+.. note:: ``py-xgboost-gpu`` not available on Windows.
+
+   The ``py-xgboost-gpu`` is currently not available on Windows. If you are using Windows,
+   please use ``pip`` to install XGBoost with GPU support.
+
 R
 -
 
