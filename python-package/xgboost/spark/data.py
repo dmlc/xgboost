@@ -79,8 +79,16 @@ class PartIter(DataIter):
 
             import cupy as cp
             cp.cuda.runtime.setDevice(self._device_id)
-
-            return cudf.DataFrame(data[self._iter])
+            import pyspark
+            context = pyspark.TaskContext.get()
+            pid = context.partitionId()
+            f = open(f"/tmp/debug_hanging_{pid}", "w")
+            gpu_id = cp.cuda.runtime.getDevice()
+            f.write(f"got gpu id {gpu_id} for partition {pid} \n")
+            df = cudf.DataFrame(data[self._iter])
+            f.write("after cudf ----")
+            f.close()
+            return df
 
         return data[self._iter]
 
@@ -173,7 +181,7 @@ def create_dmatrix_from_partitions(
         dtrain = make(train_data, kwargs)
     else:
         cache_partitions(iterator, append_dqm)
-        it = PartIter(train_data, True, gpu_id)
+        it = PartIter(train_data, gpu_id)
         dtrain = DeviceQuantileDMatrix(it, **kwargs)
 
     dvalid = make(valid_data, kwargs) if len(valid_data) != 0 else None
