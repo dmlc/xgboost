@@ -21,11 +21,11 @@ TEST(CpuPredictor, Basic) {
   size_t constexpr kRows = 5;
   size_t constexpr kCols = 5;
 
-  LearnerModelParam param{kCols, {0.0}, 1};
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
 
   GenericParameter ctx;
   ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model = CreateTestModel(&param, &ctx);
+  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
@@ -101,11 +101,11 @@ TEST(CpuPredictor, ExternalMemory) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
-  LearnerModelParam param(dmat->Info().num_col_, {0.0}, 1);
+  LearnerModelParam mparam{MakeMP(dmat->Info().num_col_, .0, 1)};
 
   GenericParameter ctx;
   ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model = CreateTestModel(&param, &ctx);
+  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
   // Test predict batch
   PredictionCacheEntry out_predictions;
@@ -195,7 +195,7 @@ TEST(CpuPredictor, InplacePredict) {
 
 void TestUpdatePredictionCache(bool use_subsampling) {
   size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
-  LearnerModelParam mparam{kCols, {0.0}, kClasses};
+  LearnerModelParam mparam{MakeMP(kCols, .0, kClasses)};
   Context ctx;
 
   std::unique_ptr<gbm::GBTree> gbm;

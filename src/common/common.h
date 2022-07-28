@@ -277,7 +277,7 @@ XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
 }
 
 /**
- * @brief A CRTP (curiously recurring template pattern) helper function.
+ * \brief A CRTP (curiously recurring template pattern) helper function.
  *
  * https://www.fluentcpp.com/2017/05/19/crtp-helper/
  *
@@ -285,7 +285,7 @@ XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
  * 1. Makes "crtp" explicit in the inheritance structure of a CRTP base class.
  * 2. Avoids having to `static_cast` in a lot of places.
  *
- * @tparam T The derived class in a CRTP hierarchy.
+ * \tparam T The derived class in a CRTP hierarchy.
  */
 template <typename T>
 struct Crtp {
@@ -293,6 +293,13 @@ struct Crtp {
   T const &Underlying() const { return static_cast<T const &>(*this); }
 };
 
+/**
+ * \brief C++17 std::as_const
+ */
+template <typename T>
+typename std::add_const<T>::type &AsConst(T &v) noexcept {
+  return v;
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_

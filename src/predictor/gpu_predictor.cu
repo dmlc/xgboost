@@ -859,13 +859,12 @@ class GPUPredictor : public xgboost::Predictor {
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
-    CHECK_EQ(model.learner_model_param->base_score.Size(), 1);
-    model.learner_model_param->base_score.SetDevice(ctx_->gpu_id);
-    float const* base_score = model.learner_model_param->base_score.ConstDevicePointer();
+
+    auto base_score = model.learner_model_param->BaseScore(ctx_);
     dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
                 [=] __device__(size_t idx) {
                   phis[(idx + 1) * contributions_columns - 1] +=
-                      margin.empty() ? *base_score : margin[idx];
+                      margin.empty() ? base_score(0) : margin[idx];
                 });
   }
 
@@ -920,9 +919,7 @@ class GPUPredictor : public xgboost::Predictor {
     p_fmat->Info().base_margin_.SetDevice(ctx_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
 
-    CHECK_EQ(model.learner_model_param->base_score.Size(), 1);
-    model.learner_model_param->base_score.SetDevice(ctx_->gpu_id);
-    float const* base_score = model.learner_model_param->base_score.ConstDevicePointer();
+    auto base_score = model.learner_model_param->BaseScore(ctx_);
     size_t n_features = model.learner_model_param->num_feature;
     dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
                 [=] __device__(size_t idx) {
@@ -930,7 +927,7 @@ class GPUPredictor : public xgboost::Predictor {
                   size_t row_idx = idx / ngroup;
                   phis[gpu_treeshap::IndexPhiInteractions(row_idx, ngroup, group, n_features,
                                                           n_features, n_features)] +=
-                      margin.empty() ? *base_score : margin[idx];
+                      margin.empty() ? base_score(0) : margin[idx];
                 });
   }
 

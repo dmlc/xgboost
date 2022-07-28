@@ -85,7 +85,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*!
    * \brief Configure Learner based on set parameters.
    */
-  virtual void Configure() = 0;
+  virtual void Configure(DMatrix const* p_fmat = nullptr) = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.
@@ -290,7 +290,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
   /*! \brief Training parameter. */
-  GenericParameter generic_parameters_;
+  Context ctx_;
 };
 
 struct LearnerModelParamLegacy;
@@ -299,8 +299,11 @@ struct LearnerModelParamLegacy;
  * \brief Basic Model Parameters, used to describe the booster.
  */
 struct LearnerModelParam {
+ private:
   /* \brief global bias */
-  HostDeviceVector<float> base_score;
+  linalg::Tensor<float, 1> base_score_;
+
+ public:
   /* \brief number of features  */
   uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
@@ -311,19 +314,18 @@ struct LearnerModelParam {
   LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, HostDeviceVector<float> base_margin,
-                    ObjInfo t);
+  LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
+                    linalg::Tensor<float, 1> base_margin, ObjInfo t);
   LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t);
-  LearnerModelParam(bst_feature_t n_features, HostDeviceVector<float> base_margin,
+  LearnerModelParam(bst_feature_t n_features, linalg::Tensor<float, 1> base_margin,
                     uint32_t n_groups)
-      : base_score{std::move(base_margin)}, num_feature{n_features}, num_output_group{n_groups} {}
+      : base_score_{std::move(base_margin)}, num_feature{n_features}, num_output_group{n_groups} {}
 
-  void Copy(LearnerModelParam const& that) {
-    base_score.Resize(that.base_score.Size());
-    base_score.Copy(that.base_score);
-    num_feature = that.num_feature;
-    num_output_group = that.num_output_group, task = that.task;
-  }
+  linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
+  linalg::TensorView<float const, 1> BaseScore(int32_t device) const;
+
+  void Copy(LearnerModelParam const& that);
+
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
   bool Initialized() const { return num_feature != 0; }
 };

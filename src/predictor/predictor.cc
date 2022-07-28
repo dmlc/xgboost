@@ -87,10 +87,8 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
   } else {
     // cannot rely on the Resize to fill as it might skip if the size is already correct.
     out_preds->Resize(n);
-    auto const& base_score = model.learner_model_param->base_score;
-    CHECK_EQ(base_score.Size(), 1);
-    // FIXME(jiamingy): Support multi-class
-    out_preds->Fill(base_score.HostVector().front());
+    auto base_score = model.learner_model_param->BaseScore(Context::kCpuId)(0);
+    out_preds->Fill(base_score);
   }
 }
 }  // namespace xgboost

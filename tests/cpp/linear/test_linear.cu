@@ -15,7 +15,7 @@ TEST(Linear, GPUCoordinate) {
   auto mat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   auto ctx = CreateEmptyGenericParam(GPUIDX);
 
-  LearnerModelParam mparam(kCols, {.5}, 1);
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("gpu_coord_descent", &ctx));
   updater->Configure({{"eta", "1."}});

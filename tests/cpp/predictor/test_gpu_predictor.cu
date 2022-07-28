@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2022 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -34,9 +34,9 @@ TEST(GPUPredictor, Basic) {
     int n_row = i, n_col = i;
     auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
-    LearnerModelParam param(n_col, {.5}, 1);
+    LearnerModelParam mparam{MakeMP(n_col, .5, 1)};
     GenericParameter ctx;
-    gbm::GBTreeModel model = CreateTestModel(&param, &ctx);
+    gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
     // Test predict batch
     PredictionCacheEntry gpu_out_predictions;
@@ -89,10 +89,10 @@ TEST(GPUPredictor, ExternalMemoryTest) {
   gpu_predictor->Configure({});
 
   const int n_classes = 3;
-  LearnerModelParam param(5, {.5}, n_classes);
+  LearnerModelParam mparam{MakeMP(5, .5, n_classes)};
 
   Context ctx;
-  gbm::GBTreeModel model = CreateTestModel(&param, &ctx, n_classes);
+  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, n_classes);
   std::vector<std::unique_ptr<DMatrix>> dmats;
 
   dmats.push_back(CreateSparsePageDMatrix(400));
@@ -162,9 +162,9 @@ TEST(GpuPredictor, LesserFeatures) {
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);
 
-  LearnerModelParam param(1, {.5}, 1);
+  LearnerModelParam mparam{MakeMP(1, .5, 1)};
   Context ctx;
-  gbm::GBTreeModel model(&param, &ctx);
+  gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
@@ -178,7 +178,7 @@ TEST(GPUPredictor, ShapStump) {
   auto dmat = RandomDataGenerator(3, 1, 0).GenerateDMatrix();
   gpu_predictor->PredictContribution(dmat.get(), &predictions, model);
   auto& phis = predictions.HostVector();
-  auto base_score = param.base_score.HostVector().front();
+  auto base_score = mparam.BaseScore(Context::kCpuId)(0);
   EXPECT_EQ(phis[0], 0.0);
   EXPECT_EQ(phis[1], base_score);
   EXPECT_EQ(phis[2], 0.0);
@@ -188,9 +188,9 @@ TEST(GPUPredictor, ShapStump) {
 }
 
 TEST(GPUPredictor, Shap) {
-  LearnerModelParam param(1, {.5}, 1);
+  LearnerModelParam mparam{MakeMP(1, .5, 1)};
   Context ctx;
-  gbm::GBTreeModel model(&param, &ctx);
+  gbm::GBTreeModel model(&mparam, &ctx);
 
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
@@ -238,9 +238,9 @@ TEST(GPUPredictor, PredictLeafBasic) {
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({});
 
-  LearnerModelParam param(kCols, {.0}, 1);
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
   Context ctx;
-  gbm::GBTreeModel model = CreateTestModel(&param, &ctx);
+  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx);
 
   HostDeviceVector<float> leaf_out_predictions;
   gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);

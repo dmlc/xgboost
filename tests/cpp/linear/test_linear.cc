@@ -18,7 +18,7 @@ TEST(Linear, Shotgun) {
   auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  LearnerModelParam mparam(kCols, {.5}, 1);
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   {
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
@@ -51,7 +51,7 @@ TEST(Linear, coordinate) {
   auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  LearnerModelParam mparam(kCols, {.5}, 1);
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("coord_descent", &lparam));

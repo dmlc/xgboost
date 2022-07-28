@@ -33,13 +33,12 @@ void GPUDartPredictInc(common::Span<float> out_predts,
 
 void GPUDartInplacePredictInc(common::Span<float> out_predts, common::Span<float> predts,
                               float tree_w, size_t n_rows,
-                              HostDeviceVector<float> const &base_score, bst_group_t n_groups,
+                              linalg::TensorView<float const, 1> base_score, bst_group_t n_groups,
                               bst_group_t group) {
-  auto const* d_score = base_score.ConstDevicePointer();
   CHECK_EQ(base_score.Size(), 1);
   dh::LaunchN(n_rows, [=] XGBOOST_DEVICE(size_t ridx) {
     const size_t offset = ridx * n_groups + group;
-    out_predts[offset] += (predts[offset] - *d_score) * tree_w;
+    out_predts[offset] += (predts[offset] - base_score(0)) * tree_w;
   });
 }
 }  // namespace gbm

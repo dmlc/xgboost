@@ -84,7 +84,7 @@ class ObjFunction : public Configurable {
    * \param info MetaInfo that contains label.
    * \param base_score Output estimation.
    */
-  virtual void InitEstimation(MetaInfo const& info, HostDeviceVector<float>* base_score) const;
+  virtual void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const;
   /*!
    * \brief Return task of this objective.
    */

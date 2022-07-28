@@ -161,10 +161,10 @@ class GBLinear : public GradientBooster {
                        uint32_t layer_begin, uint32_t) override {
     LinearCheckLayer(layer_begin);
     const int ngroup = model_.learner_model_param->num_output_group;
-    CHECK_EQ(learner_model_param_->base_score.Size(), 1);
-    auto base_score = learner_model_param_->base_score.HostVector().front();
+
+    auto base_score = learner_model_param_->BaseScore(ctx_);
     for (int gid = 0; gid < ngroup; ++gid) {
-      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_score);
+      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_score(0));
     }
   }
 
@@ -185,8 +185,7 @@ class GBLinear : public GradientBooster {
     contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
-    CHECK_EQ(learner_model_param_->base_score.Size(), 1);
-    auto base_score = learner_model_param_->base_score.HostVector().front();
+    auto base_score = learner_model_param_->BaseScore(ctx_);
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
@@ -206,7 +205,7 @@ class GBLinear : public GradientBooster {
           // add base margin to BIAS
           p_contribs[ncolumns - 1] =
               model_.Bias()[gid] +
-              ((base_margin.Size() != 0) ? base_margin(row_idx, gid) : base_score);
+              ((base_margin.Size() != 0) ? base_margin(row_idx, gid) : base_score(0));
         }
       });
     }
@@ -275,8 +274,8 @@ class GBLinear : public GradientBooster {
     // start collecting the prediction
     const int ngroup = model_.learner_model_param->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
-    CHECK_EQ(learner_model_param_->base_score.Size(), 1);
-    auto base_score = learner_model_param_->base_score.HostVector().front();
+
+    auto base_score = learner_model_param_->BaseScore(ctx_);
     for (const auto &page : p_fmat->GetBatches<SparsePage>()) {
       auto const& batch = page.GetView();
       // output convention: nrow * k, where nrow is number of rows
@@ -290,7 +289,7 @@ class GBLinear : public GradientBooster {
         const size_t ridx = page.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
-          float margin = (base_margin.Size() != 0) ? base_margin(ridx, gid) : base_score;
+          float margin = (base_margin.Size() != 0) ? base_margin(ridx, gid) : base_score(0);
           this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
         }
       });

@@ -429,7 +429,7 @@ class CPUPredictor : public Predictor {
     }
     out_preds->resize(model.learner_model_param->num_output_group *
                       (model.param.size_leaf_vector + 1));
-    auto const& base_score = model.learner_model_param->base_score.HostVector().front();
+    auto base_score = model.learner_model_param->BaseScore(ctx_)(0);
     // loop over output groups
     for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {
       (*out_preds)[gid] =
@@ -506,8 +506,7 @@ class CPUPredictor : public Predictor {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
     auto base_margin = info.base_margin_.View(GenericParameter::kCpuId);
-    CHECK_EQ(model.learner_model_param->base_score.Size(), 1);
-    auto base_score = model.learner_model_param->base_score.HostVector().front();
+    auto base_score = model.learner_model_param->BaseScore(ctx_)(0);
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();

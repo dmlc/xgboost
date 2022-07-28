@@ -4,47 +4,48 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
+#include "xgboost/learner.h"
+
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
 
-#include <atomic>
-#include <mutex>
 #include <algorithm>
+#include <atomic>
 #include <iomanip>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <sstream>
-#include <string>
 #include <stack>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "common/charconv.h"
+#include "common/common.h"
+#include "common/io.h"
+#include "common/linalg_op.h"
+#include "common/observer.h"
+#include "common/random.h"
+#include "common/threading_utils.h"
+#include "common/timer.h"
+#include "common/version.h"
 #include "dmlc/any.h"
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
-#include "xgboost/model.h"
-#include "xgboost/predictor.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"
 #include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
-#include "xgboost/learner.h"
 #include "xgboost/logging.h"
 #include "xgboost/metric.h"
+#include "xgboost/model.h"
 #include "xgboost/objective.h"
 #include "xgboost/parameter.h"
-
-#include "common/common.h"
-#include "common/io.h"
-#include "common/observer.h"
-#include "common/random.h"
-#include "common/timer.h"
-#include "common/charconv.h"
-#include "common/version.h"
-#include "common/threading_utils.h"
+#include "xgboost/predictor.h"
 
 namespace {
 
@@ -99,13 +100,12 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
                   "Do not change the size of this struct, as it will break binary IO.");
   }
   // Skip other legacy fields.
-  Json ToJson() const {
+  Json ToJson(linalg::TensorView<float const, 1> base_score_new) const {
     Object obj;
     char floats[NumericLimits<float>::kToCharsSize];
-    auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
+    auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score_new(0));
     CHECK(ret.ec == std::errc());
-    obj["base_score"] =
-        std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
+    obj["base_score"] = std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
 
     char integers[NumericLimits<int64_t>::kToCharsSize];
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
@@ -126,7 +126,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
     return Json(std::move(obj));
   }
-  void FromJson(Json const& obj) {
+  void FromJson(Json const& obj, linalg::Tensor<float, 1>* base_score_new) {
     auto const& j_param = get<Object const>(obj);
     std::map<std::string, std::string> m;
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
@@ -137,8 +137,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     }
 
     this->Init(m);
+
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
+    base_score_new->Reshape(1);
+    (*base_score_new)(0) = base_score;
   }
   inline LearnerModelParamLegacy ByteSwap() const {
     LearnerModelParamLegacy x = *this;
@@ -185,10 +188,47 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
       << ", n_targets:" << n_targets;
 }
 
-LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param,
-                                     HostDeviceVector<float> base_margin, ObjInfo t)
+LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
+                                     linalg::Tensor<float, 1> base_margin, ObjInfo t)
     : LearnerModelParam{user_param, t} {
-  std::swap(base_score, base_margin);
+  std::swap(base_score_, base_margin);
+  // Make sure read access everywhere for thread-safe prediction.
+  common::AsConst(base_score_).HostView();
+  if (!ctx->IsCPU()) {
+    common::AsConst(base_score_).View(ctx->gpu_id);
+  }
+}
+
+linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
+  // multi-class is not supported yet.
+  CHECK_EQ(base_score_.Size(), 1);
+  if (device == Context::kCpuId) {
+    CHECK(base_score_.Data()->HostCanRead());
+    return base_score_.HostView();
+  }
+  CHECK(base_score_.Data()->DeviceCanRead());
+  auto v = base_score_.View(device);
+  CHECK(base_score_.Data()->HostCanRead());  // make sure read access is not removed.
+  return v;
+}
+
+linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(Context const* ctx) const {
+  return this->BaseScore(ctx->gpu_id);
+}
+
+void LearnerModelParam::Copy(LearnerModelParam const& that) {
+  base_score_.Reshape(that.base_score_.Shape());
+  base_score_.Data()->SetDevice(that.base_score_.DeviceIdx());
+  base_score_.Data()->Copy(*that.base_score_.Data());
+  common::AsConst(base_score_).HostView();
+  if (that.base_score_.DeviceIdx() != Context::kCpuId) {
+    common::AsConst(base_score_).View(that.base_score_.DeviceIdx());
+  }
+  CHECK(base_score_.Data()->DeviceCanRead());
+  CHECK(base_score_.Data()->HostCanRead());
+
+  num_feature = that.num_feature;
+  num_output_group = that.num_output_group, task = that.task;
 }
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
@@ -314,6 +354,8 @@ class LearnerConfiguration : public Learner {
   LearnerModelParamLegacy mparam_;
   LearnerModelParam learner_model_param_;
   LearnerTrainParam tparam_;
+  // Initial prediction.
+  linalg::Tensor<float, 1> base_score_;
   std::vector<std::string> metric_names_;
 
  public:
@@ -333,11 +375,15 @@ class LearnerConfiguration : public Learner {
   }
 
   // Configuration before data is known.
-  void Configure() override {
+  void Configure(DMatrix const* p_fmat = nullptr) override {
     // Varient of double checked lock
-    if (!this->need_configuration_) { return; }
+    if (!this->need_configuration_) {
+      return;
+    }
     std::lock_guard<std::mutex> guard(config_lock_);
-    if (!this->need_configuration_) { return; }
+    if (!this->need_configuration_) {
+      return;
+    }
 
     monitor_.Start("Configure");
     auto old_tparam = tparam_;
@@ -346,9 +392,9 @@ class LearnerConfiguration : public Learner {
     tparam_.UpdateAllowUnknown(args);
     mparam_.UpdateAllowUnknown(args);
 
-    auto initialized = generic_parameters_.GetInitialised();
-    auto old_seed = generic_parameters_.seed;
-    generic_parameters_.UpdateAllowUnknown(args);
+    auto initialized = ctx_.GetInitialised();
+    auto old_seed = ctx_.seed;
+    ctx_.UpdateAllowUnknown(args);
 
     ConsoleLogger::Configure(args);
 
@@ -359,8 +405,8 @@ class LearnerConfiguration : public Learner {
     }
 
     // set seed only before the model is initialized
-    if (!initialized || generic_parameters_.seed != old_seed) {
-      common::GlobalRandom().seed(generic_parameters_.seed);
+    if (!initialized || ctx_.seed != old_seed) {
+      common::GlobalRandom().seed(ctx_.seed);
     }
 
     // must precede configure gbm since num_features is required for gbm
@@ -382,13 +428,14 @@ class LearnerConfiguration : public Learner {
     // - model loaded from new binary or JSON.
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
+    this->ConfigureLearnerParam(p_fmat);
 
     this->ConfigureGBM(old_tparam, args);
-    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+    ctx_.ConfigureGpuId(this->gbm_->UseGPU());
     this->ConfigureMetrics(args);
 
     this->need_configuration_ = false;
-    if (generic_parameters_.validate_parameters) {
+    if (ctx_.validate_parameters) {
       this->ValidateParameters();
     }
 
@@ -401,37 +448,35 @@ class LearnerConfiguration : public Learner {
    */
   void ConfigureLearnerParam(DMatrix const* p_fmat) {
     CHECK(obj_);
-    if (!learner_model_param_.base_score.Empty()) {
-      auto task = obj_->Task();
-      learner_model_param_ =
-          LearnerModelParam(mparam_, std::move(learner_model_param_.base_score), task);
-      CHECK(learner_model_param_.Initialized());
-      CHECK(!learner_model_param_.base_score.Empty());
-      return;
-    }
-
-    HostDeviceVector<float> base_score;
-    if (!std::isnan(mparam_.base_score)) {
+    float world = rabit::GetWorldSize();
+    if (base_score_.Size() != 0) {
+      // do nothing
+    } else if (!std::isnan(mparam_.base_score)) {
       // if base_score is set by user, use it.
-      base_score.Resize(1);
-      base_score.Fill(obj_->ProbToMargin(mparam_.base_score));
+      base_score_.Reshape(1);
+      base_score_(0) = mparam_.base_score;
     } else if (p_fmat) {
       // otherwise, we estimate it from input data.
-      obj_->InitEstimation(p_fmat->Info(), &base_score);
-      auto& h_base_score = base_score.HostVector();
-      rabit::Allreduce<rabit::op::Sum>(h_base_score.data(), h_base_score.size());
-      float world = rabit::GetWorldSize();
-      std::transform(h_base_score.begin(), h_base_score.end(), h_base_score.begin(),
-                     [&](float v) { return obj_->ProbToMargin(v / world); });
+      obj_->InitEstimation(p_fmat->Info(), &base_score_);
     } else {
       // lastly, if data is not available (prediction for custom objective), use default.
-      base_score.Resize(1);
-      base_score.Fill(obj_->ProbToMargin(ObjFunction::DefaultBaseScore()));
+      base_score_.Reshape(1);
+      base_score_(0) = obj_->ProbToMargin(ObjFunction::DefaultBaseScore());
     }
+
     auto task = obj_->Task();
-    learner_model_param_ = LearnerModelParam(mparam_, std::move(base_score), task);
+    rabit::Allreduce<rabit::op::Sum>(base_score_.Data()->HostVector().data(),
+                                     base_score_.Data()->Size());
+    linalg::Tensor<float, 1> copy{base_score_.Shape(), ctx_.gpu_id};
+
+    auto in = base_score_.HostView();
+    auto out = copy.HostView();
+    std::transform(linalg::cbegin(in), linalg::cend(in), linalg::begin(out),
+                   [&](float v) { return obj_->ProbToMargin(v / world); });
+
+    learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
     CHECK(learner_model_param_.Initialized());
-    CHECK(!learner_model_param_.base_score.Empty());
+    CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
   }
 
   virtual PredictionContainer* GetPredictionCache() const {
@@ -455,7 +500,7 @@ class LearnerConfiguration : public Learner {
 
     auto const& objective_fn = learner_parameters.at("objective");
     if (!obj_) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
+      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
     obj_->LoadConfig(objective_fn);
     learner_model_param_.task = obj_->Task();
@@ -463,7 +508,7 @@ class LearnerConfiguration : public Learner {
     tparam_.booster = get<String>(gradient_booster["name"]);
     if (!gbm_) {
       gbm_.reset(GradientBooster::Create(tparam_.booster,
-                                         &generic_parameters_, &learner_model_param_));
+                                         &ctx_, &learner_model_param_));
     }
     gbm_->LoadConfig(gradient_booster);
 
@@ -479,15 +524,15 @@ class LearnerConfiguration : public Learner {
       } else {
         metric_names_[i] = get<String>(j_metrics[i]["name"]);
       }
-      metrics_[i] = std::unique_ptr<Metric>(Metric::Create(metric_names_[i], &generic_parameters_));
+      metrics_[i] = std::unique_ptr<Metric>(Metric::Create(metric_names_[i], &ctx_));
       if (!old_serialization) {
         metrics_[i]->LoadConfig(j_metrics[i]);
       }
     }
 
-    FromJson(learner_parameters.at("generic_param"), &generic_parameters_);
+    FromJson(learner_parameters.at("generic_param"), &ctx_);
     // make sure the GPU ID is valid in new environment before start running configure.
-    generic_parameters_.ConfigureGpuId(false);
+    ctx_.ConfigureGpuId(false);
 
     this->need_configuration_ = true;
   }
@@ -501,7 +546,7 @@ class LearnerConfiguration : public Learner {
     auto& learner_parameters = out["learner"];
 
     learner_parameters["learner_train_param"] = ToJson(tparam_);
-    learner_parameters["learner_model_param"] = mparam_.ToJson();
+    learner_parameters["learner_model_param"] = mparam_.ToJson(base_score_.HostView());
     learner_parameters["gradient_booster"] = Object();
     auto& gradient_booster = learner_parameters["gradient_booster"];
     gbm_->SaveConfig(&gradient_booster);
@@ -516,7 +561,7 @@ class LearnerConfiguration : public Learner {
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
 
-    learner_parameters["generic_param"] = ToJson(generic_parameters_);
+    learner_parameters["generic_param"] = ToJson(ctx_);
   }
 
   void SetParam(const std::string& key, const std::string& value) override {
@@ -589,7 +634,7 @@ class LearnerConfiguration : public Learner {
     return cfg_;
   }
 
-  GenericParameter const* Ctx() const override { return &generic_parameters_; }
+  GenericParameter const* Ctx() const override { return &ctx_; }
 
  private:
   void ValidateParameters() {
@@ -692,7 +737,7 @@ class LearnerConfiguration : public Learner {
 
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
     if (gbm_ == nullptr || old.booster != tparam_.booster) {
-      gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
+      gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_,
                                          &learner_model_param_));
     }
     gbm_->Configure(args);
@@ -716,7 +761,7 @@ class LearnerConfiguration : public Learner {
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
+      obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
     }
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
@@ -729,7 +774,7 @@ class LearnerConfiguration : public Learner {
                         return m->Name() != name;
                       };
       if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
-        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &generic_parameters_)));
+        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_)));
         mparam_.contain_eval_metrics = 1;
       }
     }
@@ -785,20 +830,20 @@ class LearnerIO : public LearnerConfiguration {
     }
 
     auto const& learner = get<Object>(in["learner"]);
-    mparam_.FromJson(learner.at("learner_model_param"));
+    mparam_.FromJson(learner.at("learner_model_param"), &base_score_);
 
     auto const& objective_fn = learner.at("objective");
 
     std::string name = get<String>(objective_fn["name"]);
     tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(name, &generic_parameters_));
+    obj_.reset(ObjFunction::Create(name, &ctx_));
     obj_->LoadConfig(objective_fn);
 
     auto const& gradient_booster = learner.at("gradient_booster");
     name = get<String>(gradient_booster["name"]);
     tparam_.UpdateAllowUnknown(Args{{"booster", name}});
     gbm_.reset(
-        GradientBooster::Create(tparam_.booster, &generic_parameters_, &learner_model_param_));
+        GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
     gbm_->LoadModel(gradient_booster);
 
     auto const& j_attributes = get<Object const>(learner.at("attributes"));
@@ -822,19 +867,7 @@ class LearnerIO : public LearnerConfiguration {
       std::transform(feature_types.cbegin(), feature_types.cend(), feature_types_.begin(),
                      [](Json const& fn) { return get<String const>(fn); });
     }
-    it = learner.find("base_score");
-    if (it != learner.cend()) {
-      if (IsA<F32Array>(it->second)) {
-        auto& base_score = get<F32Array const>(it->second);
-        learner_model_param_.base_score.HostVector() = base_score;
-      } else {
-        auto& base_score = get<Array const>(it->second);
-        auto& h_result = learner_model_param_.base_score.HostVector();
-        for (auto v : base_score) {
-          h_result.push_back(get<Number const>(v));
-        }
-      }
-    }
+
     this->need_configuration_ = true;
   }
 
@@ -847,7 +880,7 @@ class LearnerIO : public LearnerConfiguration {
     out["learner"] = Object();
     auto& learner = out["learner"];
 
-    learner["learner_model_param"] = mparam_.ToJson();
+    learner["learner_model_param"] = mparam_.ToJson(base_score_.HostView());
     learner["gradient_booster"] = Object();
     auto& gradient_booster = learner["gradient_booster"];
     gbm_->SaveModel(&gradient_booster);
@@ -860,10 +893,6 @@ class LearnerIO : public LearnerConfiguration {
     for (auto const& kv : attributes_) {
       learner["attributes"][kv.first] = String(kv.second);
     }
-
-    learner["base_score"] = F32Array();
-    auto& base_score = get<F32Array>(learner["base_score"]);
-    base_score = learner_model_param_.base_score.ConstHostVector();
 
     learner["feature_names"] = Array();
     auto& feature_names = get<Array>(learner["feature_names"]);
@@ -879,7 +908,7 @@ class LearnerIO : public LearnerConfiguration {
 
   // About to be deprecated by JSON format
   void LoadModel(dmlc::Stream* fi) override {
-    generic_parameters_.UpdateAllowUnknown(Args{});
+    ctx_.UpdateAllowUnknown(Args{});
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
@@ -934,8 +963,8 @@ class LearnerIO : public LearnerConfiguration {
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
-    obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
-    gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
+    obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
+    gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_,
                                        &learner_model_param_));
     gbm_->Load(fi);
     if (mparam_.contain_extra_attrs != 0) {
@@ -978,7 +1007,14 @@ class LearnerIO : public LearnerConfiguration {
     }
 
     learner_model_param_ =
-        LearnerModelParam(mparam_, {obj_->ProbToMargin(mparam_.base_score)}, obj_->Task());
+        LearnerModelParam(&ctx_, mparam_,
+                          linalg::Tensor<float, 1>{{std::isnan(mparam_.base_score)
+                                                        ? std::numeric_limits<float>::quiet_NaN()
+                                                        : obj_->ProbToMargin(mparam_.base_score)},
+                                                   {1},
+                                                   Context::kCpuId},
+                          obj_->Task());
+
     if (attributes_.find("objective") != attributes_.cend()) {
       auto obj_str = attributes_.at("objective");
       auto j_obj = Json::Load({obj_str.c_str(), obj_str.size()});
@@ -1000,7 +1036,8 @@ class LearnerIO : public LearnerConfiguration {
       auto const& base_score_str = it->second;
       auto loaded = Json::Load(StringView{base_score_str});
       auto const& base_score = get<Array const>(loaded);
-      auto& h_result = learner_model_param_.base_score.HostVector();
+      base_score_.Reshape(base_score.size());
+      auto& h_result = base_score_.Data()->HostVector();
       h_result.clear();
       for (auto const& v : base_score) {
         h_result.push_back(get<Number const>(v));
@@ -1067,8 +1104,10 @@ class LearnerIO : public LearnerConfiguration {
 
     {
       // serialize base score
-      F32Array base_score(learner_model_param_.base_score.Size());
-      base_score.GetArray() = learner_model_param_.base_score.ConstHostVector();
+      std::vector<Json> base_score;
+      for (auto v : base_score_.Data()->HostVector()) {
+        base_score.emplace_back(Number(v));
+      }
       std::string base_score_str;
       Json::Dump(Json(std::move(base_score)), &base_score_str);
       extra_attr.emplace_back("base_score", base_score_str);
@@ -1189,21 +1228,20 @@ class LearnerImpl : public LearnerIO {
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
-  Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
-                 bool *out_of_bound) override {
+  Learner* Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
+                 bool* out_of_bound) override {
     this->Configure();
     CHECK_NE(this->learner_model_param_.num_feature, 0);
     CHECK_GE(begin_layer, 0);
     auto* out_impl = new LearnerImpl({});
     out_impl->learner_model_param_.Copy(this->learner_model_param_);
-    out_impl->generic_parameters_ = this->generic_parameters_;
+    out_impl->ctx_ = this->ctx_;
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
-        this->tparam_.booster, &out_impl->generic_parameters_,
-        &out_impl->learner_model_param_));
+        this->tparam_.booster, &out_impl->ctx_, &out_impl->learner_model_param_));
     this->gbm_->Slice(begin_layer, end_layer, step, gbm.get(), out_of_bound);
     out_impl->gbm_ = std::move(gbm);
 
-    Json config { Object() };
+    Json config{Object()};
     this->SaveConfig(&config);
     out_impl->mparam_ = this->mparam_;
     out_impl->attributes_ = this->attributes_;
@@ -1229,17 +1267,16 @@ class LearnerImpl : public LearnerIO {
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->Configure();
-    if (generic_parameters_.seed_per_iteration) {
-      common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
+    this->Configure(train.get());
+    if (ctx_.seed_per_iteration) {
+      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
     this->CheckDataSplitMode();
-    this->ConfigureLearnerParam(train.get());
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
-    auto& predt = local_cache->Cache(train, generic_parameters_.gpu_id);
+    auto& predt = local_cache->Cache(train, ctx_.gpu_id);
 
     monitor_.Start("PredictRaw");
     this->PredictRaw(train.get(), &predt, true, 0, 0);
@@ -1258,16 +1295,16 @@ class LearnerImpl : public LearnerIO {
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
-    this->Configure();
-    if (generic_parameters_.seed_per_iteration) {
-      common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
+    this->Configure(train.get());
+    if (ctx_.seed_per_iteration) {
+      common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
 
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get(), true);
 
     auto local_cache = this->GetPredictionCache();
-    local_cache->Cache(train, generic_parameters_.gpu_id);
+    local_cache->Cache(train, ctx_.gpu_id);
 
     gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()), obj_.get());
     monitor_.Stop("BoostOneIter");
@@ -1283,18 +1320,18 @@ class LearnerImpl : public LearnerIO {
     os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
-      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
+      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &ctx_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
 
     auto local_cache = this->GetPredictionCache();
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
-      auto &predt = local_cache->Cache(m, generic_parameters_.gpu_id);
+      auto &predt = local_cache->Cache(m, ctx_.gpu_id);
       this->ValidateDMatrix(m.get(), false);
       this->PredictRaw(m.get(), &predt, false, 0, 0);
 
-      auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
+      auto &out = output_predictions_.Cache(m, ctx_.gpu_id).predictions;
       out.Resize(predt.predictions.Size());
       out.Copy(predt.predictions);
 
@@ -1317,7 +1354,6 @@ class LearnerImpl : public LearnerIO {
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
-    this->ConfigureLearnerParam(nullptr);
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
@@ -1329,10 +1365,10 @@ class LearnerImpl : public LearnerIO {
       gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end);
     } else {
       auto local_cache = this->GetPredictionCache();
-      auto& prediction = local_cache->Cache(data, generic_parameters_.gpu_id);
+      auto& prediction = local_cache->Cache(data, ctx_.gpu_id);
       this->PredictRaw(data.get(), &prediction, training, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(generic_parameters_.gpu_id);
+      out_preds->SetDevice(ctx_.gpu_id);
       out_preds->Resize(prediction.predictions.Size());
       out_preds->Copy(prediction.predictions);
       if (!output_margin) {
@@ -1399,7 +1435,7 @@ class LearnerImpl : public LearnerIO {
 
   void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {
     MetaInfo const& info = p_fmat->Info();
-    info.Validate(generic_parameters_.gpu_id);
+    info.Validate(ctx_.gpu_id);
 
     auto const row_based_split = [this]() {
       return tparam_.dsplit == DataSplitMode::kRow || tparam_.dsplit == DataSplitMode::kAuto;

@@ -210,8 +210,7 @@ void TestCategoricalPrediction(std::string name) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
-  LearnerModelParam param(kCols, {.5}, 1);
-
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
   float left_weight = 1.3f;
@@ -219,7 +218,7 @@ void TestCategoricalPrediction(std::string name) {
 
   GenericParameter ctx;
   ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model(&param, &ctx);
+  gbm::GBTreeModel model(&mparam, &ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
   ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
@@ -234,7 +233,7 @@ void TestCategoricalPrediction(std::string name) {
 
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
-  auto score = param.base_score.HostVector().front();
+  auto score = mparam.BaseScore(Context::kCpuId)(0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
             right_weight + score);  // go to right for matching cat
@@ -251,7 +250,7 @@ void TestCategoricalPredictLeaf(StringView name) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
-  LearnerModelParam param(kCols, {.5}, 1);
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
@@ -261,7 +260,7 @@ void TestCategoricalPredictLeaf(StringView name) {
   GenericParameter ctx;
   ctx.UpdateAllowUnknown(Args{});
 
-  gbm::GBTreeModel model(&param, &ctx);
+  gbm::GBTreeModel model(&mparam, &ctx);
   GBTreeModelForTest(&model, split_ind, split_cat, left_weight, right_weight);
 
   ctx.gpu_id = 0;

@@ -12,7 +12,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
                                      std::shared_ptr<DMatrix> p_hist) {
   constexpr size_t kClasses { 3 };
 
-  LearnerModelParam param(cols, {.5}, kClasses);
+  LearnerModelParam mparam{MakeMP(cols, .5, kClasses)};
   auto lparam = CreateEmptyGenericParam(0);
 
   std::unique_ptr<Predictor> predictor =
@@ -21,7 +21,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
 
   GenericParameter ctx;
   ctx.UpdateAllowUnknown(Args{});
-  gbm::GBTreeModel model = CreateTestModel(&param, &ctx, kClasses);
+  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, kClasses);
 
   {
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
