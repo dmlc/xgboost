@@ -606,10 +606,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context = BarrierTaskContext.get()
             context.barrier()
 
+            gpu_id = None
             if use_gpu:
-                booster_params["gpu_id"] = (
-                    context.partitionId() if is_local else _get_gpu_id(context)
-                )
+                gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
+                booster_params["gpu_id"] = gpu_id
 
             _rabit_args = ""
             if context.partitionId() == 0:
@@ -620,7 +620,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result = {}
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter, features_cols_names, dmatrix_kwargs
+                    pandas_df_iter, features_cols_names, gpu_id, dmatrix_kwargs
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]

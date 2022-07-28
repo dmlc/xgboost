@@ -63,9 +63,9 @@ def cache_partitions(
 class PartIter(DataIter):
     """Iterator for creating Quantile DMatrix from partitions."""
 
-    def __init__(self, data: Dict[str, List], on_device: bool) -> None:
+    def __init__(self, data: Dict[str, List], device_id: Optional[int]) -> None:
         self._iter = 0
-        self._cuda = on_device
+        self._device_id = device_id
         self._data = data
 
         super().__init__()
@@ -74,8 +74,11 @@ class PartIter(DataIter):
         if not data:
             return None
 
-        if self._cuda:
+        if self._device_id:
             import cudf  # pylint: disable=import-error
+
+            import cupy as cp
+            cp.cuda.runtime.setDevice(self._device_id)
 
             return cudf.DataFrame(data[self._iter])
 
@@ -100,6 +103,7 @@ class PartIter(DataIter):
 def create_dmatrix_from_partitions(
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
+    gpu_id: Optional[int],
     kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
     """Create DMatrix from spark data partitions. This is not particularly efficient as
@@ -169,7 +173,7 @@ def create_dmatrix_from_partitions(
         dtrain = make(train_data, kwargs)
     else:
         cache_partitions(iterator, append_dqm)
-        it = PartIter(train_data, True)
+        it = PartIter(train_data, True, gpu_id)
         dtrain = DeviceQuantileDMatrix(it, **kwargs)
 
     dvalid = make(valid_data, kwargs) if len(valid_data) != 0 else None
