@@ -297,7 +297,7 @@ struct Crtp {
  * \brief C++17 std::as_const
  */
 template <typename T>
-typename std::add_const<T>::type &AsConst(T &v) noexcept {
+typename std::add_const<T>::type &AsConst(T &v) noexcept {  // NOLINT(runtime/references)
   return v;
 }
 }  // namespace common

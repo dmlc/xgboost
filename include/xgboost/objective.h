@@ -30,7 +30,7 @@ class ObjFunction : public Configurable {
   Context const* ctx_;
 
  public:
-  static constexpr float DefaultBaseScore() { return 0.5f; };
+  static constexpr float DefaultBaseScore() { return 0.5f; }
 
  public:
   /*! \brief virtual destructor */
