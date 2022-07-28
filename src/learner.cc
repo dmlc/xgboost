@@ -224,7 +224,7 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   if (that.base_score_.DeviceIdx() != Context::kCpuId) {
     common::AsConst(base_score_).View(that.base_score_.DeviceIdx());
   }
-  CHECK(base_score_.Data()->DeviceCanRead());
+  CHECK_EQ(base_score_.Data()->DeviceCanRead(), that.base_score_.Data()->DeviceCanRead());
   CHECK(base_score_.Data()->HostCanRead());
 
   num_feature = that.num_feature;
@@ -461,7 +461,7 @@ class LearnerConfiguration : public Learner {
     } else {
       // lastly, if data is not available (prediction for custom objective), use default.
       base_score_.Reshape(1);
-      base_score_(0) = obj_->ProbToMargin(ObjFunction::DefaultBaseScore());
+      base_score_(0) = ObjFunction::DefaultBaseScore();
     }
 
     auto task = obj_->Task();

@@ -270,12 +270,12 @@ class GBLinear : public GradientBooster {
     monitor_.Start("PredictBatchInternal");
     model_.LazyInitModel();
     std::vector<bst_float> &preds = *out_preds;
-    auto base_margin = p_fmat->Info().base_margin_.View(GenericParameter::kCpuId);
+    auto base_margin = p_fmat->Info().base_margin_.View(Context::kCpuId);
     // start collecting the prediction
     const int ngroup = model_.learner_model_param->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
 
-    auto base_score = learner_model_param_->BaseScore(ctx_);
+    auto base_score = learner_model_param_->BaseScore(Context::kCpuId);
     for (const auto &page : p_fmat->GetBatches<SparsePage>()) {
       auto const& batch = page.GetView();
       // output convention: nrow * k, where nrow is number of rows
