@@ -1,9 +1,8 @@
+import logging
 import sys
 
-import logging
 import pytest
 import sklearn
-from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 sys.path.append("tests/python")
 import testing as tm
@@ -13,10 +12,10 @@ if tm.no_dask()["condition"]:
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
-
-from pyspark.sql import SparkSession
 from pyspark.ml.linalg import Vectors
-from xgboost.spark import SparkXGBRegressor, SparkXGBClassifier
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+from pyspark.sql import SparkSession
+from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
 gpu_discovery_script_path = "tests/python-gpu/test_spark_with_gpu/discover_gpu.sh"
 executor_gpu_amount = 4
@@ -47,9 +46,9 @@ def spark_session_with_gpu():
     spark = builder.getOrCreate()
     logging.getLogger("pyspark").setLevel(logging.INFO)
     # We run a dummy job so that we block until the workers have connected to the master
-    spark.sparkContext.parallelize(range(num_workers), num_workers).barrier().mapPartitions(
-        lambda _: []
-    ).collect()
+    spark.sparkContext.parallelize(
+        range(num_workers), num_workers
+    ).barrier().mapPartitions(lambda _: []).collect()
     yield spark
     spark.stop()
 
@@ -84,14 +83,16 @@ def spark_iris_dataset_feature_cols(spark_session_with_gpu):
         for features, label in zip(data.data[0::2], data.target[0::2])
     ]
     train_df = spark.createDataFrame(
-        spark.sparkContext.parallelize(train_rows, num_workers), [*data.feature_names, "label"]
+        spark.sparkContext.parallelize(train_rows, num_workers),
+        [*data.feature_names, "label"],
     )
     test_rows = [
         (*features.tolist(), float(label))
         for features, label in zip(data.data[1::2], data.target[1::2])
     ]
     test_df = spark.createDataFrame(
-        spark.sparkContext.parallelize(test_rows, num_workers), [*data.feature_names, "label"]
+        spark.sparkContext.parallelize(test_rows, num_workers),
+        [*data.feature_names, "label"],
     )
     return train_df, test_df, data.feature_names
 
@@ -126,14 +127,16 @@ def spark_diabetes_dataset_feature_cols(spark_session_with_gpu):
         for features, label in zip(data.data[0::2], data.target[0::2])
     ]
     train_df = spark.createDataFrame(
-        spark.sparkContext.parallelize(train_rows, num_workers), [*data.feature_names, "label"]
+        spark.sparkContext.parallelize(train_rows, num_workers),
+        [*data.feature_names, "label"],
     )
     test_rows = [
         (*features.tolist(), float(label))
         for features, label in zip(data.data[1::2], data.target[1::2])
     ]
     test_df = spark.createDataFrame(
-        spark.sparkContext.parallelize(test_rows, num_workers), [*data.feature_names, "label"]
+        spark.sparkContext.parallelize(test_rows, num_workers),
+        [*data.feature_names, "label"],
     )
     return train_df, test_df, data.feature_names
 
@@ -141,10 +144,7 @@ def spark_diabetes_dataset_feature_cols(spark_session_with_gpu):
 def test_sparkxgb_classifier_with_gpu(spark_iris_dataset):
     from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
-    classifier = SparkXGBClassifier(
-        use_gpu=True,
-        num_workers=num_workers,
-    )
+    classifier = SparkXGBClassifier(use_gpu=True, num_workers=num_workers)
     train_df, test_df = spark_iris_dataset
     model = classifier.fit(train_df)
     pred_result_df = model.transform(test_df)
@@ -159,9 +159,7 @@ def test_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature_co
     train_df, test_df, feature_names = spark_iris_dataset_feature_cols
 
     classifier = SparkXGBClassifier(
-        features_col=feature_names,
-        use_gpu=True,
-        num_workers=num_workers,
+        features_col=feature_names, use_gpu=True, num_workers=num_workers
     )
 
     model = classifier.fit(train_df)
@@ -173,17 +171,17 @@ def test_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature_co
 
 def test_cv_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature_cols):
     from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
     train_df, test_df, feature_names = spark_iris_dataset_feature_cols
 
     classifier = SparkXGBClassifier(
-        features_col=feature_names,
-        use_gpu=True,
-        num_workers=num_workers,
+        features_col=feature_names, use_gpu=True, num_workers=num_workers
     )
     grid = ParamGridBuilder().addGrid(classifier.max_bin, [6, 8]).build()
     evaluator = MulticlassClassificationEvaluator(metricName="f1")
     cv = CrossValidator(
-        estimator=classifier, evaluator=evaluator, estimatorParamMaps=grid, numFolds=3)
+        estimator=classifier, evaluator=evaluator, estimatorParamMaps=grid, numFolds=3
+    )
     cvModel = cv.fit(train_df)
     pred_result_df = cvModel.transform(test_df)
     f1 = evaluator.evaluate(pred_result_df)
@@ -193,10 +191,7 @@ def test_cv_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature
 def test_sparkxgb_regressor_with_gpu(spark_diabetes_dataset):
     from pyspark.ml.evaluation import RegressionEvaluator
 
-    regressor = SparkXGBRegressor(
-        use_gpu=True,
-        num_workers=num_workers,
-    )
+    regressor = SparkXGBRegressor(use_gpu=True, num_workers=num_workers)
     train_df, test_df = spark_diabetes_dataset
     model = regressor.fit(train_df)
     pred_result_df = model.transform(test_df)
@@ -207,11 +202,10 @@ def test_sparkxgb_regressor_with_gpu(spark_diabetes_dataset):
 
 def test_sparkxgb_regressor_feature_cols_with_gpu(spark_diabetes_dataset_feature_cols):
     from pyspark.ml.evaluation import RegressionEvaluator
+
     train_df, test_df, feature_names = spark_diabetes_dataset_feature_cols
     regressor = SparkXGBRegressor(
-        features_col=feature_names,
-        use_gpu=True,
-        num_workers=num_workers,
+        features_col=feature_names, use_gpu=True, num_workers=num_workers
     )
 
     model = regressor.fit(train_df)
