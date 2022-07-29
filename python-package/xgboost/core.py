@@ -1260,7 +1260,9 @@ class QuantileDMatrix(DMatrix):
 
     ref :
         The training dataset that provides quantile information, needed when creating
-        validation/test dataset with ``QuantileDMatrix``.
+        validation/test dataset with ``QuantileDMatrix``. Supplying the training DMatrix
+        as a reference means that the same quantisation applied to the training data is
+        applied to the validation/test data
 
     """
 
