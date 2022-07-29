@@ -100,10 +100,10 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
                   "Do not change the size of this struct, as it will break binary IO.");
   }
   // Skip other legacy fields.
-  Json ToJson(linalg::TensorView<float const, 1> base_score_new) const {
+  Json ToJson() const {
     Object obj;
     char floats[NumericLimits<float>::kToCharsSize];
-    auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score_new(0));
+    auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
     CHECK(ret.ec == std::errc());
     obj["base_score"] = std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
 
@@ -126,7 +126,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
     return Json(std::move(obj));
   }
-  void FromJson(Json const& obj, linalg::Tensor<float, 1>* base_score_new) {
+  void FromJson(Json const& obj) {
     auto const& j_param = get<Object const>(obj);
     std::map<std::string, std::string> m;
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
@@ -140,9 +140,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
-    base_score_new->Reshape(1);
-    (*base_score_new)(0) = base_score;
   }
+
   inline LearnerModelParamLegacy ByteSwap() const {
     LearnerModelParamLegacy x = *this;
     dmlc::ByteSwap(&x.base_score, sizeof(x.base_score), 1);
@@ -355,8 +354,56 @@ class LearnerConfiguration : public Learner {
   LearnerModelParam learner_model_param_;
   LearnerTrainParam tparam_;
   // Initial prediction.
-  linalg::Tensor<float, 1> base_score_;
   std::vector<std::string> metric_names_;
+
+  /**
+   * \brief Calculate the `base_score` based on input data.
+   */
+  void ConfigureLearnerParam(DMatrix const* p_fmat) {
+    linalg::Tensor<float, 1> base_score;
+    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
+    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
+    // keep the stability, we initialize it in binary LoadModel instead of configuration.
+    // Under what condition should we omit the transformation:
+    //
+    // - base_score is loaded from old binary model.
+    //
+    // What are the other possible conditions:
+    //
+    // - model loaded from new binary or JSON.
+    // - model is created from scratch.
+    // - model is configured second time due to change of parameter
+    CHECK(obj_);
+    float world = rabit::GetWorldSize();
+    if (!std::isnan(mparam_.base_score)) {
+      // if base_score is set by user, use it.
+      base_score.Reshape(1);
+      base_score(0) = mparam_.base_score;
+    } else if (p_fmat) {
+      // otherwise, we estimate it from input data.
+      obj_->InitEstimation(p_fmat->Info(), &base_score);
+    } else {
+      // lastly, if data is not available (prediction for custom objective), use default.
+      base_score.Reshape(1);
+      base_score(0) = ObjFunction::DefaultBaseScore();
+    }
+
+    auto task = obj_->Task();
+    auto in = base_score.HostView();
+    rabit::Allreduce<rabit::op::Sum>(in.Values().data(), in.Values().size());
+    std::transform(linalg::cbegin(in), linalg::cend(in), linalg::begin(in),
+                   [world](float v) { return v / world; });
+    mparam_.base_score = base_score(0);
+
+    linalg::Tensor<float, 1> copy(base_score.Shape(), ctx_.gpu_id);
+    auto out = copy.HostView();
+    std::transform(linalg::cbegin(in), linalg::cend(in), linalg::begin(out),
+                   [&](float v) { return obj_->ProbToMargin(v); });
+
+    learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
+    CHECK(learner_model_param_.Initialized());
+    CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
+  }
 
  public:
   explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix> > cache)
@@ -432,54 +479,6 @@ class LearnerConfiguration : public Learner {
     monitor_.Stop("Configure");
   }
 
-  /**
-   * \brief Calculate the `base_score` based on input data.
-   */
-  void ConfigureLearnerParam(DMatrix const* p_fmat) {
-    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
-    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
-    // keep the stability, we initialize it in binary LoadModel instead of configuration.
-    // Under what condition should we omit the transformation:
-    //
-    // - base_score is loaded from old binary model.
-    //
-    // What are the other possible conditions:
-    //
-    // - model loaded from new binary or JSON.
-    // - model is created from scratch.
-    // - model is configured second time due to change of parameter
-    CHECK(obj_);
-    float world = rabit::GetWorldSize();
-    if (base_score_.Size() != 0) {
-      // do nothing
-    } else if (!std::isnan(mparam_.base_score)) {
-      // if base_score is set by user, use it.
-      base_score_.Reshape(1);
-      base_score_(0) = mparam_.base_score;
-    } else if (p_fmat) {
-      // otherwise, we estimate it from input data.
-      obj_->InitEstimation(p_fmat->Info(), &base_score_);
-    } else {
-      // lastly, if data is not available (prediction for custom objective), use default.
-      base_score_.Reshape(1);
-      base_score_(0) = ObjFunction::DefaultBaseScore();
-    }
-
-    auto task = obj_->Task();
-    rabit::Allreduce<rabit::op::Sum>(base_score_.Data()->HostVector().data(),
-                                     base_score_.Data()->Size());
-    linalg::Tensor<float, 1> copy{base_score_.Shape(), ctx_.gpu_id};
-
-    auto in = base_score_.HostView();
-    auto out = copy.HostView();
-    std::transform(linalg::cbegin(in), linalg::cend(in), linalg::begin(out),
-                   [&](float v) { return obj_->ProbToMargin(v / world); });
-
-    learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
-    CHECK(learner_model_param_.Initialized());
-    CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
-  }
-
   virtual PredictionContainer* GetPredictionCache() const {
     return &((*ThreadLocalPredictionCache::Get())[this]);
   }
@@ -547,7 +546,7 @@ class LearnerConfiguration : public Learner {
     auto& learner_parameters = out["learner"];
 
     learner_parameters["learner_train_param"] = ToJson(tparam_);
-    learner_parameters["learner_model_param"] = mparam_.ToJson(base_score_.HostView());
+    learner_parameters["learner_model_param"] = mparam_.ToJson();
     learner_parameters["gradient_booster"] = Object();
     auto& gradient_booster = learner_parameters["gradient_booster"];
     gbm_->SaveConfig(&gradient_booster);
@@ -831,7 +830,7 @@ class LearnerIO : public LearnerConfiguration {
     }
 
     auto const& learner = get<Object>(in["learner"]);
-    mparam_.FromJson(learner.at("learner_model_param"), &base_score_);
+    mparam_.FromJson(learner.at("learner_model_param"));
 
     auto const& objective_fn = learner.at("objective");
 
@@ -881,7 +880,7 @@ class LearnerIO : public LearnerConfiguration {
     out["learner"] = Object();
     auto& learner = out["learner"];
 
-    learner["learner_model_param"] = mparam_.ToJson(base_score_.HostView());
+    learner["learner_model_param"] = mparam_.ToJson();
     learner["gradient_booster"] = Object();
     auto& gradient_booster = learner["gradient_booster"];
     gbm_->SaveModel(&gradient_booster);
@@ -1032,18 +1031,6 @@ class LearnerIO : public LearnerConfiguration {
         this->SetParam(kEvalMetric, n);
       }
     }
-    auto it = attributes_.find("base_score");
-    if (it != attributes_.cend()) {
-      auto const& base_score_str = it->second;
-      auto loaded = Json::Load(StringView{base_score_str});
-      auto const& base_score = get<Array const>(loaded);
-      base_score_.Reshape(base_score.size());
-      auto& h_result = base_score_.Data()->HostVector();
-      h_result.clear();
-      for (auto const& v : base_score) {
-        h_result.push_back(get<Number const>(v));
-      }
-    }
 
     if (warn_old_model) {
       LOG(WARNING) << "Loading model from XGBoost < 1.0.0, consider saving it "
@@ -1101,17 +1088,6 @@ class LearnerIO : public LearnerConfiguration {
         os << ev->Name() << ";";
       }
       extra_attr.emplace_back("metrics", os.str());
-    }
-
-    {
-      // serialize base score
-      std::vector<Json> base_score;
-      for (auto v : base_score_.Data()->HostVector()) {
-        base_score.emplace_back(Number(v));
-      }
-      std::string base_score_str;
-      Json::Dump(Json(std::move(base_score)), &base_score_str);
-      extra_attr.emplace_back("base_score", base_score_str);
     }
 
     std::string header {"binf"};
