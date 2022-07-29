@@ -272,7 +272,11 @@ TEST(CAPI, XGBGlobalConfig) {
     }
   )json";
     ret = XGBSetGlobalConfig(config_str);
-    ASSERT_EQ(ret, 0);
+    if (common::WithRMMSupport()) {
+      ASSERT_EQ(ret, 0);
+    } else {
+      ASSERT_EQ(ret, -1);
+    }
     const char *updated_config_cstr;
     ret = XGBGetGlobalConfig(&updated_config_cstr);
     ASSERT_EQ(ret, 0);
@@ -280,7 +284,11 @@ TEST(CAPI, XGBGlobalConfig) {
     std::string updated_config_str{updated_config_cstr};
     auto updated_config =
         Json::Load({updated_config_str.data(), updated_config_str.size()});
-    ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), true);
+    if (common::WithRMMSupport()) {
+      ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), true);
+    } else {
+      ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), false);
+    }
   }
   {
     const char *config_str = R"json(
