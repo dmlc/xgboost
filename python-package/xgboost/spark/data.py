@@ -74,21 +74,14 @@ class PartIter(DataIter):
         if not data:
             return None
 
-        if self._device_id:
+        if self._device_id is not None:
             import cudf  # pylint: disable=import-error
-
             import cupy as cp
+
+            # We must set the device after import cudf, which will change the device id to 0
+            # See https://github.com/rapidsai/cudf/issues/11386
             cp.cuda.runtime.setDevice(self._device_id)
-            import pyspark
-            context = pyspark.TaskContext.get()
-            pid = context.partitionId()
-            f = open(f"/tmp/debug_hanging_{pid}", "w")
-            gpu_id = cp.cuda.runtime.getDevice()
-            f.write(f"got gpu id {gpu_id} for partition {pid} \n")
-            df = cudf.DataFrame(data[self._iter])
-            f.write("after cudf ----")
-            f.close()
-            return df
+            return cudf.DataFrame(data[self._iter])
 
         return data[self._iter]
 
