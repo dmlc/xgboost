@@ -48,7 +48,7 @@ diabetes_train_spark_df2 = diabetes_train_spark_df.withColumn(
 
 # train xgboost regressor model with validation dataset
 xgb_regressor2 = SparkXGBRegressor(max_depth=5, validation_indicator_col="validationIndicatorCol")
-xgb_regressor_model2 = xgb_regressor.fit(diabetes_train_spark_df2)
+xgb_regressor_model2 = xgb_regressor2.fit(diabetes_train_spark_df2)
 transformed_diabetes_test_spark_df2 = xgb_regressor_model2.transform(diabetes_test_spark_df)
 print(f"regressor2 rmse={regressor_evaluator.evaluate(transformed_diabetes_test_spark_df2)}")
 
