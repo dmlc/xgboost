@@ -75,7 +75,7 @@ iris_train_spark_df2 = iris_train_spark_df.withColumn(
 
 # train xgboost classifier model with validation dataset
 xgb_classifier2 = SparkXGBClassifier(max_depth=5, validation_indicator_col="validationIndicatorCol")
-xgb_classifier_model2 = xgb_classifier.fit(iris_train_spark_df2)
+xgb_classifier_model2 = xgb_classifier2.fit(iris_train_spark_df2)
 transformed_iris_test_spark_df2 = xgb_classifier_model2.transform(iris_test_spark_df)
 print(f"classifier2 f1={classifier_evaluator.evaluate(transformed_iris_test_spark_df2)}")
 
