@@ -115,7 +115,7 @@ if __name__ == "__main__":
                 "python-package/xgboost/dask.py",
                 "python-package/xgboost/spark",
                 "tests/python/test_spark/test_data.py",
-                "tests/python-gpu/test_spark_with_gpu/test_data.py",
+                "tests/python-gpu/test_gpu_spark/test_data.py",
                 "tests/ci_build/lint_python.py",
             ]
         ):
@@ -130,9 +130,9 @@ if __name__ == "__main__":
                 "demo/guide-python/cat_in_the_dat.py",
                 "tests/python/test_data_iterator.py",
                 "tests/python/test_spark/test_data.py",
-                "tests/python-gpu/test_gpu_with_dask.py",
+                "tests/python-gpu/test_gpu_with_dask/test_gpu_with_dask.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/python-gpu/test_spark_with_gpu/test_data.py",
+                "tests/python-gpu/test_gpu_spark/test_data.py",
                 "tests/ci_build/lint_python.py",
             ]
         ):
