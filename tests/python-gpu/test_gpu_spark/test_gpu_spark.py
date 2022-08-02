@@ -177,7 +177,7 @@ def test_cv_sparkxgb_classifier_feature_cols_with_gpu(spark_iris_dataset_feature
     classifier = SparkXGBClassifier(
         features_col=feature_names, use_gpu=True, num_workers=num_workers
     )
-    grid = ParamGridBuilder().addGrid(classifier.max_bin, [6, 8]).build()
+    grid = ParamGridBuilder().addGrid(classifier.max_depth, [6, 8]).build()
     evaluator = MulticlassClassificationEvaluator(metricName="f1")
     cv = CrossValidator(
         estimator=classifier, evaluator=evaluator, estimatorParamMaps=grid, numFolds=3
