@@ -611,6 +611,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
                 booster_params["gpu_id"] = gpu_id
 
+                # max_bin is needed for qdm
+                if (
+                    features_cols_names is not None
+                    and booster_params.get("max_bin", None) is not None
+                ):
+                    dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
+
             _rabit_args = ""
             if context.partitionId() == 0:
                 _rabit_args = str(_get_rabit_args(context, num_workers))
