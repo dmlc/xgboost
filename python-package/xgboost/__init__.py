@@ -6,6 +6,7 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 from .core import (
     DMatrix,
     DeviceQuantileDMatrix,
+    QuantileDMatrix,
     Booster,
     DataIter,
     build_info,
@@ -33,6 +34,7 @@ __all__ = [
     # core
     "DMatrix",
     "DeviceQuantileDMatrix",
+    "QuantileDMatrix",
     "Booster",
     "DataIter",
     "train",

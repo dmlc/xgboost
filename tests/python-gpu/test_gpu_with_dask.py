@@ -429,9 +429,10 @@ class TestDistributedGPU:
         sig = OrderedDict(signature(dxgb.DaskDMatrix).parameters)
         del sig["client"]
         ddm_names = list(sig.keys())
-        sig = OrderedDict(signature(dxgb.DaskDeviceQuantileDMatrix).parameters)
+        sig = OrderedDict(signature(dxgb.DaskQuantileDMatrix).parameters)
         del sig["client"]
         del sig["max_bin"]
+        del sig["ref"]
         ddqdm_names = list(sig.keys())
         assert len(ddm_names) == len(ddqdm_names)
 
@@ -442,9 +443,10 @@ class TestDistributedGPU:
         sig = OrderedDict(signature(xgb.DMatrix).parameters)
         del sig["nthread"]      # no nthread in dask
         dm_names = list(sig.keys())
-        sig = OrderedDict(signature(xgb.DeviceQuantileDMatrix).parameters)
+        sig = OrderedDict(signature(xgb.QuantileDMatrix).parameters)
         del sig["nthread"]
         del sig["max_bin"]
+        del sig["ref"]
         dqdm_names = list(sig.keys())
 
         # between single node
@@ -498,7 +500,6 @@ class TestDistributedGPU:
             # setup environment for running the c++ part.
             for arg in rabit_args:
                 if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
-                    port_env = arg.decode('utf-8')
                     port_env = arg.decode('utf-8')
                 if arg.decode("utf-8").startswith("DMLC_TRACKER_URI"):
                     uri_env = arg.decode("utf-8")
