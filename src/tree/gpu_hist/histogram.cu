@@ -121,40 +121,41 @@ template <typename GradientSumT, int kBlockThreads, int kItemsPerThread,
           int kItemsPerTile = kBlockThreads* kItemsPerThread>
 class HistogramAgent {
   using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
-  SharedSumT* smem_arr;
-  GradientSumT* d_node_hist;
-  dh::LDGIterator<const RowPartitioner::RowIndexT> d_ridx;
-  const GradientPair* d_gpair;
-  const FeatureGroup group;
-  const EllpackDeviceAccessor& matrix;
-  const int feature_stride;
-  const std::size_t n_elements;
-  const HistRounding<GradientSumT>& rounding;
+  SharedSumT* smem_arr_;
+  GradientSumT* d_node_hist_;
+  dh::LDGIterator<const RowPartitioner::RowIndexT> d_ridx_;
+  const GradientPair* d_gpair_;
+  const FeatureGroup group_;
+  const EllpackDeviceAccessor& matrix_;
+  const int feature_stride_;
+  const std::size_t n_elements_;
+  const HistRounding<GradientSumT>& rounding_;
 
  public:
   __device__ HistogramAgent(SharedSumT* smem_arr, GradientSumT* __restrict__ d_node_hist,
                             const FeatureGroup& group, const EllpackDeviceAccessor& matrix,
                             common::Span<const RowPartitioner::RowIndexT> d_ridx,
                             const HistRounding<GradientSumT>& rounding, const GradientPair* d_gpair)
-      : smem_arr(smem_arr),
-        d_node_hist(d_node_hist),
-        d_ridx(d_ridx.data()),
-        group(group),
-        matrix(matrix),
-        feature_stride(matrix.is_dense ? group.num_features : matrix.row_stride),
-        n_elements(feature_stride * d_ridx.size()),
-        rounding(rounding),
-        d_gpair(d_gpair) {}
+      : smem_arr_(smem_arr),
+        d_node_hist_(d_node_hist),
+        d_ridx_(d_ridx.data()),
+        group_(group),
+        matrix_(matrix),
+        feature_stride_(matrix.is_dense ? group.num_features : matrix.row_stride),
+        n_elements_(feature_stride_ * d_ridx.size()),
+        rounding_(rounding),
+        d_gpair_(d_gpair) {}
   __device__ void ProcessPartialTileShared(std::size_t offset) {
     for (std::size_t idx = offset + threadIdx.x;
-         idx < min(offset + kBlockThreads * kItemsPerTile, n_elements); idx += kBlockThreads) {
-      int ridx = d_ridx[idx / feature_stride];
+         idx < min(offset + kBlockThreads * kItemsPerTile, n_elements_); idx += kBlockThreads) {
+      int ridx = d_ridx_[idx / feature_stride_];
       int gidx =
-          matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature + idx % feature_stride] -
-          group.start_bin;
-      if (matrix.is_dense || gidx != matrix.NumBins()) {
-        auto adjusted = rounding.ToFixedPoint(d_gpair[ridx]);
-        dh::AtomicAddGpair(smem_arr + gidx, adjusted);
+          matrix_
+              .gidx_iter[ridx * matrix_.row_stride + group_.start_feature + idx % feature_stride_] -
+          group_.start_bin;
+      if (matrix_.is_dense || gidx != matrix_.NumBins()) {
+        auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
+        dh::AtomicAddGpair(smem_arr_ + gidx, adjusted);
       }
     }
   }
@@ -172,28 +173,28 @@ class HistogramAgent {
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      ridx[i] = d_ridx[idx[i] / feature_stride];
+      ridx[i] = d_ridx_[idx[i] / feature_stride_];
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      gpair[i] = d_gpair[ridx[i]];
-      gidx[i] = matrix.gidx_iter[ridx[i] * matrix.row_stride + group.start_feature +
-                                 idx[i] % feature_stride];
+      gpair[i] = d_gpair_[ridx[i]];
+      gidx[i] = matrix_.gidx_iter[ridx[i] * matrix_.row_stride + group_.start_feature +
+                                 idx[i] % feature_stride_];
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      if ((matrix.is_dense || gidx[i] != matrix.NumBins())) {
-        auto adjusted = rounding.ToFixedPoint(gpair[i]);
-        dh::AtomicAddGpair(smem_arr + gidx[i] - group.start_bin, adjusted);
+      if ((matrix_.is_dense || gidx[i] != matrix_.NumBins())) {
+        auto adjusted = rounding_.ToFixedPoint(gpair[i]);
+        dh::AtomicAddGpair(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
     }
   }
   __device__ void BuildHistogramWithShared() {
-    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
+    dh::BlockFill(smem_arr_, group_.num_bins, SharedSumT());
     __syncthreads();
 
     std::size_t offset = blockIdx.x * kItemsPerTile;
-    while (offset + kItemsPerTile <= n_elements) {
+    while (offset + kItemsPerTile <= n_elements_) {
       ProcessFullTileShared(offset);
       offset += kItemsPerTile * gridDim.x;
     }
@@ -201,27 +202,28 @@ class HistogramAgent {
 
     // Write shared memory back to global memory
     __syncthreads();
-    for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
-      auto truncated = rounding.ToFloatingPoint(smem_arr[i]);
-      dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
+    for (auto i : dh::BlockStrideRange(0, group_.num_bins)) {
+      auto truncated = rounding_.ToFloatingPoint(smem_arr_[i]);
+      dh::AtomicAddGpair(d_node_hist_ + group_.start_bin + i, truncated);
     }
   }
 
   __device__ void BuildHistogramWithGlobal() {
-    for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements)) {
-      int ridx = d_ridx[idx / feature_stride];
+    for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements_)) {
+      int ridx = d_ridx_[idx / feature_stride_];
       int gidx =
-          matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature + idx % feature_stride];
-      if (matrix.is_dense || gidx != matrix.NumBins()) {
+          matrix_
+              .gidx_iter[ridx * matrix_.row_stride + group_.start_feature + idx % feature_stride_];
+      if (matrix_.is_dense || gidx != matrix_.NumBins()) {
         // If we are not using shared memory, accumulate the values directly into
         // global memory
         GradientSumT truncated{
-            TruncateWithRoundingFactor<GradientSumT::ValueT>(rounding.rounding.GetGrad(),
-                                                             d_gpair[ridx].GetGrad()),
-            TruncateWithRoundingFactor<GradientSumT::ValueT>(rounding.rounding.GetHess(),
-                                                             d_gpair[ridx].GetHess()),
+            TruncateWithRoundingFactor<GradientSumT::ValueT>(rounding_.rounding.GetGrad(),
+                                                             d_gpair_[ridx].GetGrad()),
+            TruncateWithRoundingFactor<GradientSumT::ValueT>(rounding_.rounding.GetHess(),
+                                                             d_gpair_[ridx].GetHess()),
         };
-        dh::AtomicAddGpair(d_node_hist + gidx, truncated);
+        dh::AtomicAddGpair(d_node_hist_ + gidx, truncated);
       }
     }
   }
