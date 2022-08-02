@@ -17,7 +17,7 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
-gpu_discovery_script_path = "tests/python-gpu/test_spark_with_gpu/discover_gpu.sh"
+gpu_discovery_script_path = "tests/python-gpu/test_gpu_spark/discover_gpu.sh"
 executor_gpu_amount = 4
 executor_cores = 4
 num_workers = executor_gpu_amount
