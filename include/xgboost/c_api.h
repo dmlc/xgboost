@@ -415,28 +415,26 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
-                                        DMatrixHandle proxy,
-                                        DataIterResetCallback *reset,
-                                        XGDMatrixCallbackNext *next,
-                                        char const* c_json_config,
-                                        DMatrixHandle *out);
+XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
+                                        DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
+                                        char const *c_json_config, DMatrixHandle *out);
 
 /*!
  * \brief Create a Quantile DMatrix with data iterator.
  *
- * Short note for how to use the second set of callback for GPU Hist tree method:
+ * Short note for how to use the second set of callback for (GPU)Hist tree method:
  *
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
  * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
- *           `XGDeviceQuantileDMatrixCreateFromCallback`.
+ *           `XGQuantileDMatrixCreateFromCallback`.
  * - Step 3: Call appropriate data setters in `next` functions.
  *
- * See test_iterative_device_dmatrix.cu or Python interface for examples.
+ * See test_iterative_dmatrix.cu or Python interface for examples.
  *
  * \param iter     A handle to external data iterator.
  * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param ref      Reference DMatrix for providing quantile information.
  * \param reset    Callback function resetting the iterator state.
  * \param next     Callback function yielding the next batch of data.
  * \param missing  Which value to represent missing value
@@ -446,10 +444,20 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
-    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-    XGDMatrixCallbackNext *next, float missing, int nthread, int max_bin,
-    DMatrixHandle *out);
+XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
+                                                DataIterHandle ref, DataIterResetCallback *reset,
+                                                XGDMatrixCallbackNext *next, char const *config,
+                                                DMatrixHandle *out);
+
+/*!
+ * \brief Create a Device Quantile DMatrix with data iterator.
+ * \deprecated since 2.0
+ * \see XGQuantileDMatrixCreateFromCallback()
+ */
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
+                                                      DataIterResetCallback *reset,
+                                                      XGDMatrixCallbackNext *next, float missing,
+                                                      int nthread, int max_bin, DMatrixHandle *out);
 
 /*!
  * \brief Set data on a DMatrix proxy.

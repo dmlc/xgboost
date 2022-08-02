@@ -16,6 +16,7 @@ void DMatrixProxy::FromCudaColumnar(StringView interface_str) {
   this->Info().num_row_ = adapter->NumRows();
   if (ctx_.gpu_id < 0) {
     CHECK_EQ(this->Info().num_row_, 0);
+    ctx_.gpu_id = dh::CurrentDevice();
   }
 }
 
@@ -27,6 +28,7 @@ void DMatrixProxy::FromCudaArray(StringView interface_str) {
   this->Info().num_row_ = adapter->NumRows();
   if (ctx_.gpu_id < 0) {
     CHECK_EQ(this->Info().num_row_, 0);
+    ctx_.gpu_id = dh::CurrentDevice();
   }
 }
 }  // namespace data

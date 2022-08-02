@@ -149,10 +149,10 @@ struct SparsePageLoader {
 
 struct EllpackLoader {
   EllpackDeviceAccessor const& matrix;
-  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool,
-                               bst_feature_t, bst_row_t, size_t, float)
+  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool, bst_feature_t, bst_row_t,
+                               size_t, float)
       : matrix{m} {}
-  __device__ __forceinline__ float GetElement(size_t  ridx, size_t  fidx) const {
+  __device__ __forceinline__ float GetElement(size_t ridx, size_t fidx) const {
     auto gidx = matrix.GetBinIndex(ridx, fidx);
     if (gidx == -1) {
       return nan("");

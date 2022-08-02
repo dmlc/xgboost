@@ -6,7 +6,7 @@ dependencies:
 - pylint
 - wheel
 - setuptools
-- mypy
+- mypy=0.961
 - numpy
 - scipy
 - pandas

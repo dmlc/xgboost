@@ -1,44 +1,43 @@
 /*!
  * Copyright 2020-2022 XGBoost contributors
  */
+#include <algorithm>
 #include <memory>
 #include <type_traits>
-#include <algorithm>
 
 #include "../common/hist_util.cuh"
-#include "simple_batch_iterator.h"
-#include "iterative_dmatrix.h"
-#include "sparse_page_source.h"
-#include "ellpack_page.cuh"
-#include "proxy_dmatrix.h"
-#include "proxy_dmatrix.cuh"
 #include "device_adapter.cuh"
+#include "ellpack_page.cuh"
+#include "iterative_dmatrix.h"
+#include "proxy_dmatrix.cuh"
+#include "proxy_dmatrix.h"
+#include "simple_batch_iterator.h"
+#include "sparse_page_source.h"
 
 namespace xgboost {
 namespace data {
-void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
+void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
+                                    std::shared_ptr<DMatrix> ref) {
   // A handle passed to external iterator.
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
   // The external iterator
-  auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
-    iter_handle, reset_, next_};
+  auto iter =
+      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
 
   dh::XGBCachingDeviceAllocator<char> alloc;
 
   auto num_rows = [&]() {
-    return Dispatch(proxy, [](auto const &value) { return value.NumRows(); });
+    return Dispatch(proxy, [](auto const& value) { return value.NumRows(); });
   };
   auto num_cols = [&]() {
-    return Dispatch(proxy, [](auto const &value) { return value.NumCols(); });
+    return Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
   };
 
   size_t row_stride = 0;
   size_t nnz = 0;
   // Sketch for all batches.
-  iter.Reset();
-
   std::vector<common::SketchContainer> sketch_containers;
   size_t batches = 0;
   size_t accumulated_rows = 0;
@@ -52,69 +51,77 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
     return d;
   };
 
-  while (iter.Next()) {
+  /**
+   * Generate quantiles
+   */
+  common::HistogramCuts cuts;
+  do {
+    // We use do while here as the first batch is fetched in ctor
     ctx_.gpu_id = proxy->DeviceIdx();
     CHECK_LT(ctx_.gpu_id, common::AllVisibleGPUs());
     dh::safe_cuda(cudaSetDevice(get_device()));
     if (cols == 0) {
       cols = num_cols();
       rabit::Allreduce<rabit::op::Max>(&cols, 1);
+      this->info_.num_col_ = cols;
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
     }
-    sketch_containers.emplace_back(proxy->Info().feature_types,
-                                   batch_param_.max_bin, cols, num_rows(), get_device());
-    auto* p_sketch = &sketch_containers.back();
-    proxy->Info().weights_.SetDevice(get_device());
-    Dispatch(proxy, [&](auto const &value) {
-        common::AdapterDeviceSketch(value, batch_param_.max_bin,
-                                    proxy->Info(), missing, p_sketch);
+    if (!ref) {
+      sketch_containers.emplace_back(proxy->Info().feature_types, batch_param_.max_bin, cols,
+                                     num_rows(), get_device());
+      auto* p_sketch = &sketch_containers.back();
+      proxy->Info().weights_.SetDevice(get_device());
+      Dispatch(proxy, [&](auto const& value) {
+        common::AdapterDeviceSketch(value, batch_param_.max_bin, proxy->Info(), missing, p_sketch);
       });
+    }
     auto batch_rows = num_rows();
     accumulated_rows += batch_rows;
     dh::caching_device_vector<size_t> row_counts(batch_rows + 1, 0);
-    common::Span<size_t> row_counts_span(row_counts.data().get(),
-                                         row_counts.size());
-    row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const &value) {
-          return GetRowCounts(value, row_counts_span,
-                              get_device(), missing);
-        }));
-    nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(),
-                          row_counts.end());
+    common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
+    row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const& value) {
+                            return GetRowCounts(value, row_counts_span, get_device(), missing);
+                          }));
+    nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(), row_counts.end());
     batches++;
-  }
+  } while (iter.Next());
   iter.Reset();
+
   dh::safe_cuda(cudaSetDevice(get_device()));
-  HostDeviceVector<FeatureType> ft;
-  common::SketchContainer final_sketch(
-      sketch_containers.empty() ? ft : sketch_containers.front().FeatureTypes(),
-      batch_param_.max_bin, cols, accumulated_rows, get_device());
-  for (auto const& sketch : sketch_containers) {
-    final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
-    final_sketch.FixError();
+  if (!ref) {
+    HostDeviceVector<FeatureType> ft;
+    common::SketchContainer final_sketch(
+        sketch_containers.empty() ? ft : sketch_containers.front().FeatureTypes(),
+        batch_param_.max_bin, cols, accumulated_rows, get_device());
+    for (auto const& sketch : sketch_containers) {
+      final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
+      final_sketch.FixError();
+    }
+    sketch_containers.clear();
+    sketch_containers.shrink_to_fit();
+
+    final_sketch.MakeCuts(&cuts);
+  } else {
+    GetCutsFromRef(ref, Info().num_col_, batch_param_, &cuts);
   }
-  sketch_containers.clear();
-  sketch_containers.shrink_to_fit();
 
-  common::HistogramCuts cuts;
-  final_sketch.MakeCuts(&cuts);
-
-  this->info_.num_col_ = cols;
   this->info_.num_row_ = accumulated_rows;
   this->info_.num_nonzero_ = nnz;
 
-  auto init_page = [this, &proxy, &cuts, row_stride, accumulated_rows,
-                    get_device]() {
-    if (!page_) {
+  auto init_page = [this, &proxy, &cuts, row_stride, accumulated_rows, get_device]() {
+    if (!ellpack_) {
       // Should be put inside the while loop to protect against empty batch.  In
       // that case device id is invalid.
-      page_.reset(new EllpackPage);
-      *(page_->Impl()) = EllpackPageImpl(get_device(), cuts, this->IsDense(),
-                                         row_stride, accumulated_rows);
+      ellpack_.reset(new EllpackPage);
+      *(ellpack_->Impl()) =
+          EllpackPageImpl(get_device(), cuts, this->IsDense(), row_stride, accumulated_rows);
     }
   };
 
-  // Construct the final ellpack page.
+  /**
+   * Generate gradient index.
+   */
   size_t offset = 0;
   iter.Reset();
   size_t n_batches_for_verification = 0;
@@ -123,11 +130,10 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
     dh::safe_cuda(cudaSetDevice(get_device()));
     auto rows = num_rows();
     dh::caching_device_vector<size_t> row_counts(rows + 1, 0);
-    common::Span<size_t> row_counts_span(row_counts.data().get(),
-                                         row_counts.size());
+    common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
     Dispatch(proxy, [=](auto const& value) {
-        return GetRowCounts(value, row_counts_span, get_device(), missing);
-      });
+      return GetRowCounts(value, row_counts_span, get_device(), missing);
+    });
     auto is_dense = this->IsDense();
 
     proxy->Info().feature_types.SetDevice(get_device());
@@ -136,7 +142,7 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
       return EllpackPageImpl(value, missing, get_device(), is_dense, row_counts_span,
                              d_feature_types, row_stride, rows, cuts);
     });
-    size_t num_elements = page_->Impl()->Copy(get_device(), &new_impl, offset);
+    size_t num_elements = ellpack_->Impl()->Copy(get_device(), &new_impl, offset);
     offset += num_elements;
 
     proxy->Info().num_row_ = num_rows();
@@ -160,15 +166,15 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing) {
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 
-BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam& param) {
-  CHECK(page_);
-  // FIXME(Jiamingy): https://github.com/dmlc/xgboost/issues/7976
-  if (param.max_bin != batch_param_.max_bin) {
-    LOG(WARNING) << "Inconsistent max_bin between Quantile DMatrix and Booster:" << param.max_bin
-                 << " vs. " << batch_param_.max_bin;
-  }
-  auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(page_));
+BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(BatchParam const& param) {
+  CheckParam(param);
+  CHECK(ellpack_) << "Not initialized with GPU data";
+  auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(begin_iter);
+}
+
+void GetCutsFromEllpack(EllpackPage const& page, common::HistogramCuts* cuts) {
+  *cuts = page.Impl()->Cuts();
 }
 }  // namespace data
 }  // namespace xgboost
