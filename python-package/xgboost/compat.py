@@ -1,20 +1,21 @@
 # pylint: disable= invalid-name,  unused-import
 """For compatibility and optional dependencies."""
-from typing import Any, Type, Dict, Optional, List, Sequence, cast
-import sys
-import types
 import importlib.util
 import logging
+import sys
+import types
+from typing import Any, Dict, List, Optional, Sequence, Type, cast
+
 import numpy as np
 
 from ._typing import _T
 
-assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
+assert sys.version_info[0] == 3, "Python 2 is no longer supported."
 
 
 def py_str(x: bytes) -> str:
     """convert c string back to python string"""
-    return x.decode('utf-8')  # type: ignore
+    return x.decode("utf-8")  # type: ignore
 
 
 def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
@@ -30,8 +31,7 @@ def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
 
 # pandas
 try:
-    from pandas import DataFrame, Series
-    from pandas import MultiIndex
+    from pandas import DataFrame, MultiIndex, Series
     from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
@@ -45,23 +45,17 @@ except ImportError:
 
 # sklearn
 try:
-    from sklearn.base import (
-         BaseEstimator as XGBModelBase,
-         RegressorMixin as XGBRegressorBase,
-         ClassifierMixin as XGBClassifierBase
-    )
+    from sklearn.base import BaseEstimator as XGBModelBase
+    from sklearn.base import ClassifierMixin as XGBClassifierBase
+    from sklearn.base import RegressorMixin as XGBRegressorBase
     from sklearn.preprocessing import LabelEncoder
 
     try:
-        from sklearn.model_selection import (
-            KFold as XGBKFold,
-            StratifiedKFold as XGBStratifiedKFold
-        )
+        from sklearn.model_selection import KFold as XGBKFold
+        from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
     except ImportError:
-        from sklearn.cross_validation import (
-            KFold as XGBKFold,
-            StratifiedKFold as XGBStratifiedKFold
-        )
+        from sklearn.cross_validation import KFold as XGBKFold
+        from sklearn.cross_validation import StratifiedKFold as XGBStratifiedKFold
 
     SKLEARN_INSTALLED = True
 
@@ -79,9 +73,10 @@ except ImportError:
 
 
 class XGBoostLabelEncoder(LabelEncoder):
-    '''Label encoder with JSON serialization methods.'''
+    """Label encoder with JSON serialization methods."""
+
     def to_json(self) -> Dict:
-        '''Returns a JSON compatible dictionary'''
+        """Returns a JSON compatible dictionary"""
         meta = {}
         for k, v in self.__dict__.items():
             if isinstance(v, np.ndarray):
@@ -92,10 +87,10 @@ class XGBoostLabelEncoder(LabelEncoder):
 
     def from_json(self, doc: Dict) -> None:
         # pylint: disable=attribute-defined-outside-init
-        '''Load the encoder back from a JSON compatible dict.'''
+        """Load the encoder back from a JSON compatible dict."""
         meta = {}
         for k, v in doc.items():
-            if k == 'classes_':
+            if k == "classes_":
                 self.classes_ = np.array(v)
                 continue
             meta[k] = v
@@ -159,15 +154,14 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
 # KIND, either express or implied.  See the License for the specific language governing
 # permissions and limitations under the License.
 class LazyLoader(types.ModuleType):
-    """Lazily import a module, mainly to avoid pulling in large dependencies.
-    """
+    """Lazily import a module, mainly to avoid pulling in large dependencies."""
 
     def __init__(
-         self,
-         local_name: str,
-         parent_module_globals: Dict,
-         name: str,
-         warning: Optional[str] = None
+        self,
+        local_name: str,
+        parent_module_globals: Dict,
+        name: str,
+        warning: Optional[str] = None,
     ) -> None:
         self._local_name = local_name
         self._parent_module_globals = parent_module_globals

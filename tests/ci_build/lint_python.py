@@ -112,13 +112,25 @@ if __name__ == "__main__":
         if not all(
             run_formatter(path)
             for path in [
+                # core
+                "python-package/xgboost/__init__.py",
+                "python-package/xgboost/_typing.py",
+                "python-package/xgboost/compat.py",
+                "python-package/xgboost/config.py",
                 "python-package/xgboost/dask.py",
                 "python-package/xgboost/sklearn.py",
                 "python-package/xgboost/spark",
+                "python-package/xgboost/federated.py",
+                "python-package/xgboost/spark",
+                # tests
                 "tests/python/test_config.py",
-                "tests/python/test_spark/test_data.py",
-                "tests/python-gpu/test_gpu_spark/test_data.py",
+                "tests/python/test_spark/",
+                "tests/python-gpu/test_gpu_spark/",
                 "tests/ci_build/lint_python.py",
+                # demo
+                "demo/guide-python/cat_in_the_dat.py",
+                "demo/guide-python/categorical.py",
+                "demo/guide-python/spark_estimator_examples.py",
             ]
         ):
             sys.exit(-1)
