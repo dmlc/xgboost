@@ -73,7 +73,6 @@ class IterativeDMatrix : public DMatrix {
     return BatchSet<Page>(BatchIterator<Page>(nullptr));
   }
 
- public:
   void InitFromCUDA(DataIterHandle iter, float missing, std::shared_ptr<DMatrix> ref);
   void InitFromCPU(DataIterHandle iter_handle, float missing, std::shared_ptr<DMatrix> ref);
 
