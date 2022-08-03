@@ -527,7 +527,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         select_cols = [label_col]
         features_cols_names = None
-        if len(self.getOrDefault(self.features_cols)):
+        if self.getOrDefault(self.features_cols):
             features_cols_names = self.getOrDefault(self.features_cols)
             features_cols = _validate_and_convert_feature_col_as_float_col_list(
                 dataset, features_cols_names
@@ -735,11 +735,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
 
         feature_col_names = self.getOrDefault(self.features_cols)
         features_col = []
-        if (
-            len(feature_col_names)
-            > 0
-            >= len([c for c in feature_col_names if c not in dataset.columns])
-        ):
+        if feature_col_names and set(feature_col_names).issubset(set(dataset.columns)):
             # The model is trained with features_cols and the predicted dataset
             # also contains all the columns specified by features_cols.
             features_col = _validate_and_convert_feature_col_as_float_col_list(
