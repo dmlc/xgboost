@@ -28,7 +28,7 @@ class Json;
 class FeatureMap;
 class ObjFunction;
 
-struct GenericParameter;
+struct Context;
 struct LearnerModelParam;
 struct PredictionCacheEntry;
 class PredictionContainer;
@@ -38,8 +38,8 @@ class PredictionContainer;
  */
 class GradientBooster : public Model, public Configurable {
  protected:
-  GenericParameter const* ctx_;
-  explicit GradientBooster(GenericParameter const* ctx) : ctx_{ctx} {}
+  Context const* ctx_;
+  explicit GradientBooster(Context const* ctx) : ctx_{ctx} {}
 
  public:
   /*! \brief virtual destructor */
@@ -177,21 +177,16 @@ class GradientBooster : public Model, public Configurable {
                             common::Span<int32_t const> trees,
                             std::vector<bst_feature_t>* features,
                             std::vector<float>* scores) const = 0;
-  /*!
-   * \brief Whether the current booster uses GPU.
-   */
-  virtual bool UseGPU() const = 0;
+
   /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster
-   * \param generic_param Pointer to runtime parameters
+   * \param ctx Pointer to runtime parameters
    * \param learner_model_param pointer to global model parameters
    * \return The created booster.
    */
-  static GradientBooster* Create(
-      const std::string& name,
-      GenericParameter const* generic_param,
-      LearnerModelParam const* learner_model_param);
+  static GradientBooster* Create(const std::string& name, Context const* ctx,
+                                 LearnerModelParam const* learner_model_param);
 };
 
 /*!
@@ -201,7 +196,7 @@ struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
           GradientBoosterReg,
           std::function<GradientBooster*(LearnerModelParam const* learner_model_param,
-                                         GenericParameter const* ctx)> > {};
+                                         Context const* ctx)> > {};
 
 /*!
  * \brief Macro to register gradient booster.

@@ -211,12 +211,6 @@ class GBTree : public GradientBooster {
   void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
                PredictionCacheEntry* predt, ObjFunction const* obj) override;
 
-  bool UseGPU() const override {
-    return
-        tparam_.predictor == PredictorType::kGPUPredictor ||
-        tparam_.tree_method == TreeMethod::kGPUHist;
-  }
-
   GBTreeTrainParam const& GetTrainParam() const {
     return tparam_;
   }
@@ -413,8 +407,7 @@ class GBTree : public GradientBooster {
                      int bst_group,
                      std::vector<std::unique_ptr<RegTree> >* ret);
 
-  std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
-                                                 DMatrix* f_dmat = nullptr) const;
+  std::unique_ptr<Predictor> const& GetPredictor(DMatrix* f_dmat = nullptr) const;
 
   // commit new trees all at once
   virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees);
