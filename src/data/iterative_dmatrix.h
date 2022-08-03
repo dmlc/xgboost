@@ -43,8 +43,9 @@ namespace data {
  *   we can obtain the GPU format from CPU but not the other way around since we can't
  *   recover the CSC from Ellpack. More concretely, if users want to construct a CPU
  *   version of `QuantileDMatrix`, input data must be on CPU. However, if users want to
- *   have a GPU version of `QuantileDMatrix`, data can be anywhere. We can fix this by
- *   retaining the feature index information in ellpack if there are feature requests.
+ *   have a GPU version of `QuantileDMatrix`, data can be on either place. We can fix this
+ *   by retaining the feature index information in ellpack if there are feature
+ *   requests. Or by retaining the callback and run sketching again.
  */
 class IterativeDMatrix : public DMatrix {
   MetaInfo info_;
