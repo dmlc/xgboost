@@ -154,10 +154,10 @@ __model_doc = f"""
         recommended to study this option from the parameters document :doc:`tree method
         </treemethod>`
     n_jobs : Optional[int]
-        Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
-        algorithms like grid search, you may choose which algorithm to parallelize and
-        balance the threads.  Creating thread contention will significantly slow down both
-        algorithms.
+        Number of parallel threads used to run xgboost.  When used with other
+        Scikit-Learn algorithms like grid search, you may choose which algorithm to
+        parallelize and balance the threads.  Creating thread contention will
+        significantly slow down both algorithms.
     gamma : Optional[float]
         (min_split_loss) Minimum loss reduction required to make a further partition on a
         leaf node of the tree.
@@ -1089,8 +1089,8 @@ class XGBModel(XGBModelBase):
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
             random forest is trained with 100 rounds.  Specifying ``iteration_range=(10,
-            20)``, then only the forests built during [10, 20) (half open set) rounds are
-            used in this prediction.
+            20)``, then only the forests built during [10, 20) (half open set) rounds
+            are used in this prediction.
 
             .. versionadded:: 1.4.0
 

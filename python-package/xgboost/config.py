@@ -70,6 +70,23 @@ def config_doc(
             # Suppress warning caused by model generated with XGBoost version < 1.0.0
             bst = xgb.Booster(model_file='./old_model.bin')
         assert xgb.get_config()['verbosity'] == 2  # old value restored
+
+    Nested configuration context is also supported:
+
+    Example
+    -------
+
+    .. code-block:: python
+
+        with xgb.config_context(verbosity=3):
+            assert xgb.get_config()["verbosity"] == 3
+            with xgb.config_context(verbosity=2):
+                assert xgb.get_config()["verbosity"] == 2
+
+        xgb.set_config(verbosity=2)
+        assert xgb.get_config()["verbosity"] == 2
+        with xgb.config_context(verbosity=3):
+            assert xgb.get_config()["verbosity"] == 3
     """
 
     def none_to_str(value: Optional[str]) -> str:

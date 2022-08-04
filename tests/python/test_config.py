@@ -45,6 +45,13 @@ def test_nested_config():
         with xgb.config_context(verbosity=None):
             assert xgb.get_config()["verbosity"] == 3  # None has no effect
 
+    verbosity = xgb.get_config()["verbosity"]
+    xgb.set_config(verbosity=2)
+    assert xgb.get_config()["verbosity"] == 2
+    with xgb.config_context(verbosity=3):
+        assert xgb.get_config()["verbosity"] == 3
+    xgb.set_config(verbosity=verbosity)  # reset
+
 
 def test_thread_safty():
     n_threads = multiprocessing.cpu_count()

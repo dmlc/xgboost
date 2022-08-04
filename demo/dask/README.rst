@@ -1,3 +1,5 @@
+.. _dask-examples:
+
 XGBoost Dask Feature Walkthrough
 ================================
 
