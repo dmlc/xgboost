@@ -98,7 +98,11 @@ def config_doc(
         Keyword arguments representing the parameters and their values
             """)
 def set_config(**new_config: Any) -> None:
-    config = json.dumps(new_config)
+    not_none = {}
+    for k, v in new_config.items():
+        if v is not None:
+            not_none[k] = v
+    config = json.dumps(not_none)
     _check_call(_LIB.XGBSetGlobalConfig(c_str(config)))
 
 

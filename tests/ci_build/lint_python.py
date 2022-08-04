@@ -114,6 +114,7 @@ if __name__ == "__main__":
             for path in [
                 "python-package/xgboost/dask.py",
                 "python-package/xgboost/spark",
+                "tests/python/test_config.py",
                 "tests/python/test_spark/test_data.py",
                 "tests/python-gpu/test_spark_with_gpu/test_data.py",
                 "tests/ci_build/lint_python.py",

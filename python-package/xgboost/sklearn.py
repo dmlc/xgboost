@@ -1,43 +1,49 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
 import copy
-import warnings
 import json
 import os
+import warnings
 from typing import (
-    Union,
-    Optional,
-    List,
-    Dict,
+    Any,
     Callable,
+    Dict,
+    List,
+    Optional,
     Sequence,
     Tuple,
-    Any,
-    TypeVar,
     Type,
+    TypeVar,
+    Union,
     cast,
 )
 
 import numpy as np
 from scipy.special import softmax
 
-from .core import Booster, DMatrix, XGBoostError
-from .core import _deprecate_positional_args, _convert_ntree_limit
-from .core import Metric
-from .training import train
-from .callback import TrainingCallback
-from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 from ._typing import ArrayLike, FeatureNames, FeatureTypes
+from .callback import TrainingCallback
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
 from .compat import (
     SKLEARN_INSTALLED,
-    XGBModelBase,
     XGBClassifierBase,
-    XGBRegressorBase,
+    XGBModelBase,
     XGBoostLabelEncoder,
+    XGBRegressorBase,
 )
+from .config import config_context
+from .core import (
+    Booster,
+    DMatrix,
+    Metric,
+    XGBoostError,
+    _convert_ntree_limit,
+    _deprecate_positional_args,
+)
+from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
+from .training import train
 
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
@@ -59,9 +65,7 @@ def _check_rf_callback(
 
 
 _SklObjective = Optional[
-    Union[
-        str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
-    ]
+    Union[str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]]
 ]
 
 
@@ -95,10 +99,12 @@ def _objective_decorator(
             The training set from which the labels will be extracted using
             ``dmatrix.get_label()``
     """
+
     def inner(preds: np.ndarray, dmatrix: DMatrix) -> Tuple[np.ndarray, np.ndarray]:
         """internal function"""
         labels = dmatrix.get_label()
         return func(labels, preds)
+
     return inner
 
 
@@ -109,19 +115,21 @@ def _metric_decorator(func: Callable) -> Metric:
     is compatible with :py:func:`train`
 
     """
+
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> Tuple[str, float]:
         y_true = dmatrix.get_label()
         return func.__name__, func(y_true, y_score)
+
     return inner
 
 
-__estimator_doc = '''
+__estimator_doc = """
     n_estimators : int
         Number of gradient boosted trees.  Equivalent to number of boosting
         rounds.
-'''
+"""
 
-__model_doc = f'''
+__model_doc = f"""
     max_depth :  Optional[int]
         Maximum tree depth for base learners.
     max_leaves :
@@ -332,9 +340,9 @@ __model_doc = f'''
             \\*\\*kwargs is unsupported by scikit-learn.  We do not guarantee
             that parameters passed via this argument will interact properly
             with scikit-learn.
-'''
+"""
 
-__custom_obj_note = '''
+__custom_obj_note = """
         .. note::  Custom objective function
 
             A custom objective function can be provided for the ``objective``
@@ -350,15 +358,16 @@ __custom_obj_note = '''
                 The value of the gradient for each sample point.
             hess: array_like of shape [n_samples]
                 The value of the second derivative for each sample point
-'''
+"""
 
 
 def xgboost_model_doc(
-    header: str, items: List[str],
+    header: str,
+    items: List[str],
     extra_parameters: Optional[str] = None,
-    end_note: Optional[str] = None
+    end_note: Optional[str] = None,
 ) -> Callable[[Type], Type]:
-    '''Obtain documentation for Scikit-Learn wrappers
+    """Obtain documentation for Scikit-Learn wrappers
 
     Parameters
     ----------
@@ -372,29 +381,34 @@ def xgboost_model_doc(
     extra_parameters: str
        Document for class specific parameters, placed at the head.
     end_note: str
-       Extra notes put to the end.
-'''
+       Extra notes put to the end."""
+
     def get_doc(item: str) -> str:
-        '''Return selected item'''
-        __doc = {'estimators': __estimator_doc,
-                 'model': __model_doc,
-                 'objective': __custom_obj_note}
+        """Return selected item"""
+        __doc = {
+            "estimators": __estimator_doc,
+            "model": __model_doc,
+            "objective": __custom_obj_note,
+        }
         return __doc[item]
 
     def adddoc(cls: Type) -> Type:
-        doc = ['''
+        doc = [
+            """
 Parameters
 ----------
-''']
+"""
+        ]
         if extra_parameters:
             doc.append(extra_parameters)
         doc.extend([get_doc(i) for i in items])
         if end_note:
             doc.append(end_note)
-        full_doc = [header + '\n\n']
+        full_doc = [header + "\n\n"]
         full_doc.extend(doc)
-        cls.__doc__ = ''.join(full_doc)
+        cls.__doc__ = "".join(full_doc)
         return cls
+
     return adddoc
 
 
@@ -459,11 +473,12 @@ def _wrap_evaluation_matrices(
             # Skip the duplicated entry.
             if all(
                 (
-                    valid_X is X, valid_y is y,
+                    valid_X is X,
+                    valid_y is y,
                     sample_weight_eval_set[i] is sample_weight,
                     base_margin_eval_set[i] is base_margin,
                     eval_group[i] is group,
-                    eval_qid[i] is qid
+                    eval_qid[i] is qid,
                 )
             ):
                 evals.append(train_dmatrix)
@@ -546,7 +561,7 @@ class XGBModel(XGBModelBase):
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         if not SKLEARN_INSTALLED:
             raise ImportError(
@@ -907,7 +922,7 @@ class XGBModel(XGBModelBase):
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
         feature_weights: Optional[ArrayLike] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "XGBModel":
         # pylint: disable=invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model.
@@ -963,54 +978,61 @@ class XGBModel(XGBModelBase):
             .. deprecated:: 1.6.0
                 Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
         """
-        evals_result: TrainingCallback.EvalsLog = {}
-        train_dmatrix, evals = _wrap_evaluation_matrices(
-            missing=self.missing,
-            X=X,
-            y=y,
-            group=None,
-            qid=None,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            feature_weights=feature_weights,
-            eval_set=eval_set,
-            sample_weight_eval_set=sample_weight_eval_set,
-            base_margin_eval_set=base_margin_eval_set,
-            eval_group=None,
-            eval_qid=None,
-            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
-            enable_categorical=self.enable_categorical,
-            feature_types=self.feature_types
-        )
-        params = self.get_xgb_params()
+        with config_context(verbosity=self.verbosity):
+            evals_result: TrainingCallback.EvalsLog = {}
+            train_dmatrix, evals = _wrap_evaluation_matrices(
+                missing=self.missing,
+                X=X,
+                y=y,
+                group=None,
+                qid=None,
+                sample_weight=sample_weight,
+                base_margin=base_margin,
+                feature_weights=feature_weights,
+                eval_set=eval_set,
+                sample_weight_eval_set=sample_weight_eval_set,
+                base_margin_eval_set=base_margin_eval_set,
+                eval_group=None,
+                eval_qid=None,
+                create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+                enable_categorical=self.enable_categorical,
+                feature_types=self.feature_types,
+            )
+            params = self.get_xgb_params()
 
-        if callable(self.objective):
-            obj: Optional[
-                Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-            ] = _objective_decorator(self.objective)
-            params["objective"] = "reg:squarederror"
-        else:
-            obj = None
+            if callable(self.objective):
+                obj: Optional[
+                    Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+                ] = _objective_decorator(self.objective)
+                params["objective"] = "reg:squarederror"
+            else:
+                obj = None
 
-        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
-        )
-        self._Booster = train(
-            params,
-            train_dmatrix,
-            self.get_num_boosting_rounds(),
-            evals=evals,
-            early_stopping_rounds=early_stopping_rounds,
-            evals_result=evals_result,
-            obj=obj,
-            custom_metric=metric,
-            verbose_eval=verbose,
-            xgb_model=model,
-            callbacks=callbacks,
-        )
+            (
+                model,
+                metric,
+                params,
+                early_stopping_rounds,
+                callbacks,
+            ) = self._configure_fit(
+                xgb_model, eval_metric, params, early_stopping_rounds, callbacks
+            )
+            self._Booster = train(
+                params,
+                train_dmatrix,
+                self.get_num_boosting_rounds(),
+                evals=evals,
+                early_stopping_rounds=early_stopping_rounds,
+                evals_result=evals_result,
+                obj=obj,
+                custom_metric=metric,
+                verbose_eval=verbose,
+                xgb_model=model,
+                callbacks=callbacks,
+            )
 
-        self._set_evaluation_result(evals_result)
-        return self
+            self._set_evaluation_result(evals_result)
+            return self
 
     def _can_use_inplace_predict(self) -> bool:
         # When predictor is explicitly set, using `inplace_predict` might result into
@@ -1077,47 +1099,50 @@ class XGBModel(XGBModelBase):
         prediction
 
         """
-        iteration_range = _convert_ntree_limit(
-            self.get_booster(), ntree_limit, iteration_range
-        )
-        iteration_range = self._get_iteration_range(iteration_range)
-        if self._can_use_inplace_predict():
-            try:
-                predts = self.get_booster().inplace_predict(
-                    data=X,
-                    iteration_range=iteration_range,
-                    predict_type="margin" if output_margin else "value",
-                    missing=self.missing,
-                    base_margin=base_margin,
-                    validate_features=validate_features,
-                )
-                if _is_cupy_array(predts):
-                    import cupy     # pylint: disable=import-error
-                    predts = cupy.asnumpy(predts)  # ensure numpy array is used.
-                return predts
-            except TypeError:
-                # coo, csc, dt
-                pass
+        with config_context(verbosity=self.verbosity):
+            iteration_range = _convert_ntree_limit(
+                self.get_booster(), ntree_limit, iteration_range
+            )
+            iteration_range = self._get_iteration_range(iteration_range)
+            if self._can_use_inplace_predict():
+                try:
+                    predts = self.get_booster().inplace_predict(
+                        data=X,
+                        iteration_range=iteration_range,
+                        predict_type="margin" if output_margin else "value",
+                        missing=self.missing,
+                        base_margin=base_margin,
+                        validate_features=validate_features,
+                    )
+                    if _is_cupy_array(predts):
+                        import cupy  # pylint: disable=import-error
 
-        test = DMatrix(
-            X,
-            base_margin=base_margin,
-            missing=self.missing,
-            nthread=self.n_jobs,
-            feature_types=self.feature_types,
-            enable_categorical=self.enable_categorical
-        )
-        return self.get_booster().predict(
-            data=test,
-            iteration_range=iteration_range,
-            output_margin=output_margin,
-            validate_features=validate_features,
-        )
+                        predts = cupy.asnumpy(predts)  # ensure numpy array is used.
+                    return predts
+                except TypeError:
+                    # coo, csc, dt
+                    pass
+
+            test = DMatrix(
+                X,
+                base_margin=base_margin,
+                missing=self.missing,
+                nthread=self.n_jobs,
+                feature_types=self.feature_types,
+                enable_categorical=self.enable_categorical,
+            )
+            return self.get_booster().predict(
+                data=test,
+                iteration_range=iteration_range,
+                output_margin=output_margin,
+                validate_features=validate_features,
+            )
 
     def apply(
-        self, X: ArrayLike,
+        self,
+        X: ArrayLike,
         ntree_limit: int = 0,
-        iteration_range: Optional[Tuple[int, int]] = None
+        iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """Return the predicted leaf every tree for each sample. If the model is trained with
         early stopping, then `best_iteration` is used automatically.
@@ -1141,18 +1166,20 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
 
         """
-        iteration_range = _convert_ntree_limit(
-            self.get_booster(), ntree_limit, iteration_range
-        )
-        iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = DMatrix(
-            X, missing=self.missing, feature_types=self.feature_types, nthread=self.n_jobs
-        )
-        return self.get_booster().predict(
-            test_dmatrix,
-            pred_leaf=True,
-            iteration_range=iteration_range
-        )
+        with config_context(verbosity=self.verbosity):
+            iteration_range = _convert_ntree_limit(
+                self.get_booster(), ntree_limit, iteration_range
+            )
+            iteration_range = self._get_iteration_range(iteration_range)
+            test_dmatrix = DMatrix(
+                X,
+                missing=self.missing,
+                feature_types=self.feature_types,
+                nthread=self.n_jobs,
+            )
+            return self.get_booster().predict(
+                test_dmatrix, pred_leaf=True, iteration_range=iteration_range
+            )
 
     def evals_result(self) -> Dict[str, Dict[str, List[float]]]:
         """Return the evaluation results.
@@ -1372,99 +1399,106 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
         feature_weights: Optional[ArrayLike] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
-        evals_result: TrainingCallback.EvalsLog = {}
+        with config_context(verbosity=self.verbosity):
+            evals_result: TrainingCallback.EvalsLog = {}
 
-        if _is_cudf_df(y) or _is_cudf_ser(y):
-            import cupy as cp  # pylint: disable=E0401
+            if _is_cudf_df(y) or _is_cudf_ser(y):
+                import cupy as cp  # pylint: disable=E0401
 
-            self.classes_ = cp.unique(y.values)
-            self.n_classes_ = len(self.classes_)
-            expected_classes = cp.arange(self.n_classes_)
-        elif _is_cupy_array(y):
-            import cupy as cp  # pylint: disable=E0401
+                self.classes_ = cp.unique(y.values)
+                self.n_classes_ = len(self.classes_)
+                expected_classes = cp.arange(self.n_classes_)
+            elif _is_cupy_array(y):
+                import cupy as cp  # pylint: disable=E0401
 
-            self.classes_ = cp.unique(y)
-            self.n_classes_ = len(self.classes_)
-            expected_classes = cp.arange(self.n_classes_)
-        else:
-            self.classes_ = np.unique(np.asarray(y))
-            self.n_classes_ = len(self.classes_)
-            expected_classes = np.arange(self.n_classes_)
-        if (
-            self.classes_.shape != expected_classes.shape
-            or not (self.classes_ == expected_classes).all()
-        ):
-            raise ValueError(
-                f"Invalid classes inferred from unique values of `y`.  "
-                f"Expected: {expected_classes}, got {self.classes_}"
+                self.classes_ = cp.unique(y)
+                self.n_classes_ = len(self.classes_)
+                expected_classes = cp.arange(self.n_classes_)
+            else:
+                self.classes_ = np.unique(np.asarray(y))
+                self.n_classes_ = len(self.classes_)
+                expected_classes = np.arange(self.n_classes_)
+            if (
+                self.classes_.shape != expected_classes.shape
+                or not (self.classes_ == expected_classes).all()
+            ):
+                raise ValueError(
+                    f"Invalid classes inferred from unique values of `y`.  "
+                    f"Expected: {expected_classes}, got {self.classes_}"
+                )
+
+            params = self.get_xgb_params()
+
+            if callable(self.objective):
+                obj: Optional[
+                    Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+                ] = _objective_decorator(self.objective)
+                # Use default value. Is it really not used ?
+                params["objective"] = "binary:logistic"
+            else:
+                obj = None
+
+            if self.n_classes_ > 2:
+                # Switch to using a multiclass objective in the underlying XGB instance
+                if params.get("objective", None) != "multi:softmax":
+                    params["objective"] = "multi:softprob"
+                params["num_class"] = self.n_classes_
+
+            (
+                model,
+                metric,
+                params,
+                early_stopping_rounds,
+                callbacks,
+            ) = self._configure_fit(
+                xgb_model, eval_metric, params, early_stopping_rounds, callbacks
+            )
+            train_dmatrix, evals = _wrap_evaluation_matrices(
+                missing=self.missing,
+                X=X,
+                y=y,
+                group=None,
+                qid=None,
+                sample_weight=sample_weight,
+                base_margin=base_margin,
+                feature_weights=feature_weights,
+                eval_set=eval_set,
+                sample_weight_eval_set=sample_weight_eval_set,
+                base_margin_eval_set=base_margin_eval_set,
+                eval_group=None,
+                eval_qid=None,
+                create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+                enable_categorical=self.enable_categorical,
+                feature_types=self.feature_types,
             )
 
-        params = self.get_xgb_params()
+            self._Booster = train(
+                params,
+                train_dmatrix,
+                self.get_num_boosting_rounds(),
+                evals=evals,
+                early_stopping_rounds=early_stopping_rounds,
+                evals_result=evals_result,
+                obj=obj,
+                custom_metric=metric,
+                verbose_eval=verbose,
+                xgb_model=model,
+                callbacks=callbacks,
+            )
 
-        if callable(self.objective):
-            obj: Optional[
-                Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-            ] = _objective_decorator(self.objective)
-            # Use default value. Is it really not used ?
-            params["objective"] = "binary:logistic"
-        else:
-            obj = None
+            if not callable(self.objective):
+                self.objective = params["objective"]
 
-        if self.n_classes_ > 2:
-            # Switch to using a multiclass objective in the underlying XGB instance
-            if params.get("objective", None) != "multi:softmax":
-                params["objective"] = "multi:softprob"
-            params["num_class"] = self.n_classes_
-
-        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
-        )
-        train_dmatrix, evals = _wrap_evaluation_matrices(
-            missing=self.missing,
-            X=X,
-            y=y,
-            group=None,
-            qid=None,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            feature_weights=feature_weights,
-            eval_set=eval_set,
-            sample_weight_eval_set=sample_weight_eval_set,
-            base_margin_eval_set=base_margin_eval_set,
-            eval_group=None,
-            eval_qid=None,
-            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
-            enable_categorical=self.enable_categorical,
-            feature_types=self.feature_types,
-        )
-
-        self._Booster = train(
-            params,
-            train_dmatrix,
-            self.get_num_boosting_rounds(),
-            evals=evals,
-            early_stopping_rounds=early_stopping_rounds,
-            evals_result=evals_result,
-            obj=obj,
-            custom_metric=metric,
-            verbose_eval=verbose,
-            xgb_model=model,
-            callbacks=callbacks,
-        )
-
-        if not callable(self.objective):
-            self.objective = params["objective"]
-
-        self._set_evaluation_result(evals_result)
-        return self
+            self._set_evaluation_result(evals_result)
+            return self
 
     assert XGBModel.fit.__doc__ is not None
     fit.__doc__ = XGBModel.fit.__doc__.replace(
-        'Fit gradient boosting model',
-        'Fit gradient boosting classifier', 1)
+        "Fit gradient boosting model", "Fit gradient boosting classifier", 1
+    )
 
     def predict(
         self,
@@ -1475,35 +1509,36 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
-        class_probs = super().predict(
-            X=X,
-            output_margin=output_margin,
-            ntree_limit=ntree_limit,
-            validate_features=validate_features,
-            base_margin=base_margin,
-            iteration_range=iteration_range,
-        )
-        if output_margin:
-            # If output_margin is active, simply return the scores
-            return class_probs
+        with config_context(verbosity=self.verbosity):
+            class_probs = super().predict(
+                X=X,
+                output_margin=output_margin,
+                ntree_limit=ntree_limit,
+                validate_features=validate_features,
+                base_margin=base_margin,
+                iteration_range=iteration_range,
+            )
+            if output_margin:
+                # If output_margin is active, simply return the scores
+                return class_probs
 
-        if len(class_probs.shape) > 1 and self.n_classes_ != 2:
-            # multi-class, turns softprob into softmax
-            column_indexes: np.ndarray = np.argmax(class_probs, axis=1)  # type: ignore
-        elif len(class_probs.shape) > 1 and class_probs.shape[1] != 1:
-            # multi-label
-            column_indexes = np.zeros(class_probs.shape)
-            column_indexes[class_probs > 0.5] = 1
-        elif self.objective == "multi:softmax":
-            return class_probs.astype(np.int32)
-        else:
-            # turns soft logit into class label
-            column_indexes = np.repeat(0, class_probs.shape[0])
-            column_indexes[class_probs > 0.5] = 1
+            if len(class_probs.shape) > 1 and self.n_classes_ != 2:
+                # multi-class, turns softprob into softmax
+                column_indexes: np.ndarray = np.argmax(class_probs, axis=1)  # type: ignore
+            elif len(class_probs.shape) > 1 and class_probs.shape[1] != 1:
+                # multi-label
+                column_indexes = np.zeros(class_probs.shape)
+                column_indexes[class_probs > 0.5] = 1
+            elif self.objective == "multi:softmax":
+                return class_probs.astype(np.int32)
+            else:
+                # turns soft logit into class label
+                column_indexes = np.repeat(0, class_probs.shape[0])
+                column_indexes[class_probs > 0.5] = 1
 
-        if hasattr(self, '_le'):
-            return self._le.inverse_transform(column_indexes)
-        return column_indexes
+            if hasattr(self, "_le"):
+                return self._le.inverse_transform(column_indexes)
+            return column_indexes
 
     def predict_proba(
         self,
@@ -1768,7 +1803,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
         base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
         feature_weights: Optional[ArrayLike] = None,
-        callbacks: Optional[Sequence[TrainingCallback]] = None
+        callbacks: Optional[Sequence[TrainingCallback]] = None,
     ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
@@ -1853,56 +1888,65 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
         """
         # check if group information is provided
-        if group is None and qid is None:
-            raise ValueError("group or qid is required for ranking task")
+        with config_context(verbosity=self.verbosity):
+            if group is None and qid is None:
+                raise ValueError("group or qid is required for ranking task")
 
-        if eval_set is not None:
-            if eval_group is None and eval_qid is None:
-                raise ValueError(
-                    "eval_group or eval_qid is required if eval_set is not None")
-        train_dmatrix, evals = _wrap_evaluation_matrices(
-            missing=self.missing,
-            X=X,
-            y=y,
-            group=group,
-            qid=qid,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            feature_weights=feature_weights,
-            eval_set=eval_set,
-            sample_weight_eval_set=sample_weight_eval_set,
-            base_margin_eval_set=base_margin_eval_set,
-            eval_group=eval_group,
-            eval_qid=eval_qid,
-            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
-            enable_categorical=self.enable_categorical,
-            feature_types=self.feature_types,
-        )
-
-        evals_result: TrainingCallback.EvalsLog = {}
-        params = self.get_xgb_params()
-
-        model, metric, params, early_stopping_rounds, callbacks = self._configure_fit(
-            xgb_model, eval_metric, params, early_stopping_rounds, callbacks
-        )
-        if callable(metric):
-            raise ValueError(
-                'Custom evaluation metric is not yet supported for XGBRanker.'
+            if eval_set is not None:
+                if eval_group is None and eval_qid is None:
+                    raise ValueError(
+                        "eval_group or eval_qid is required if eval_set is not None"
+                    )
+            train_dmatrix, evals = _wrap_evaluation_matrices(
+                missing=self.missing,
+                X=X,
+                y=y,
+                group=group,
+                qid=qid,
+                sample_weight=sample_weight,
+                base_margin=base_margin,
+                feature_weights=feature_weights,
+                eval_set=eval_set,
+                sample_weight_eval_set=sample_weight_eval_set,
+                base_margin_eval_set=base_margin_eval_set,
+                eval_group=eval_group,
+                eval_qid=eval_qid,
+                create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+                enable_categorical=self.enable_categorical,
+                feature_types=self.feature_types,
             )
 
-        self._Booster = train(
-            params,
-            train_dmatrix,
-            self.get_num_boosting_rounds(),
-            early_stopping_rounds=early_stopping_rounds,
-            evals=evals,
-            evals_result=evals_result,
-            custom_metric=metric,
-            verbose_eval=verbose, xgb_model=model,
-            callbacks=callbacks
-        )
+            evals_result: TrainingCallback.EvalsLog = {}
+            params = self.get_xgb_params()
 
-        self.objective = params["objective"]
+            (
+                model,
+                metric,
+                params,
+                early_stopping_rounds,
+                callbacks,
+            ) = self._configure_fit(
+                xgb_model, eval_metric, params, early_stopping_rounds, callbacks
+            )
+            if callable(metric):
+                raise ValueError(
+                    "Custom evaluation metric is not yet supported for XGBRanker."
+                )
 
-        self._set_evaluation_result(evals_result)
-        return self
+            self._Booster = train(
+                params,
+                train_dmatrix,
+                self.get_num_boosting_rounds(),
+                early_stopping_rounds=early_stopping_rounds,
+                evals=evals,
+                evals_result=evals_result,
+                custom_metric=metric,
+                verbose_eval=verbose,
+                xgb_model=model,
+                callbacks=callbacks,
+            )
+
+            self.objective = params["objective"]
+
+            self._set_evaluation_result(evals_result)
+            return self
