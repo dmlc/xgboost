@@ -113,6 +113,7 @@ if __name__ == "__main__":
             run_formatter(path)
             for path in [
                 "python-package/xgboost/dask.py",
+                "python-package/xgboost/sklearn.py",
                 "python-package/xgboost/spark",
                 "tests/python/test_config.py",
                 "tests/python/test_spark/test_data.py",
