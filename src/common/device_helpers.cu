@@ -33,6 +33,9 @@ std::string PrintUUID(xgboost::common::Span<uint64_t, kUuidLength> uuid) {
 void NcclAllReducer::DoInit(int _device_ordinal) {
   int32_t const rank = rabit::GetRank();
   int32_t const world = rabit::GetWorldSize();
+  if (world == 1) {
+    return;
+  }
 
   std::vector<uint64_t> uuids(world * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};
