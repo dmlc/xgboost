@@ -2,7 +2,7 @@
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=too-few-public-methods
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,6 +26,7 @@ from pyspark.sql.types import (
     DoubleType,
     FloatType,
     IntegerType,
+    IntegralType,
     LongType,
     ShortType,
 )
@@ -43,7 +44,7 @@ from .model import (
     SparkXGBReader,
     SparkXGBWriter,
 )
-from .params import HasArbitraryParamsDict, HasBaseMarginCol
+from .params import HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols
 from .utils import (
     RabitContext,
     _get_args_from_message_list,
@@ -73,14 +74,10 @@ _pyspark_specific_params = [
     "num_workers",
     "use_gpu",
     "feature_names",
+    "features_cols",
 ]
 
-_non_booster_params = [
-    "missing",
-    "n_estimators",
-    "feature_types",
-    "feature_weights",
-]
+_non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
 
 _pyspark_param_alias_map = {
     "features_col": "featuresCol",
@@ -126,6 +123,7 @@ class _SparkXGBParams(
     HasValidationIndicatorCol,
     HasArbitraryParamsDict,
     HasBaseMarginCol,
+    HasFeaturesCols,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -240,12 +238,11 @@ class _SparkXGBParams(
 
     def _validate_params(self):
         init_model = self.getOrDefault(self.xgb_model)
-        if init_model is not None:
-            if init_model is not None and not isinstance(init_model, Booster):
-                raise ValueError(
-                    "The xgb_model param must be set with a `xgboost.core.Booster` "
-                    "instance."
-                )
+        if init_model is not None and not isinstance(init_model, Booster):
+            raise ValueError(
+                "The xgb_model param must be set with a `xgboost.core.Booster` "
+                "instance."
+            )
 
         if self.getOrDefault(self.num_workers) < 1:
             raise ValueError(
@@ -260,6 +257,14 @@ class _SparkXGBParams(
             get_logger(self.__class__.__name__).warning(
                 "You set force_repartition to true when there is no need for a repartition."
                 "Therefore, that parameter will be ignored."
+            )
+
+        if self.getOrDefault(self.features_cols):
+            if not self.getOrDefault(self.use_gpu):
+                raise ValueError("features_cols param requires enabling use_gpu.")
+
+            get_logger(self.__class__.__name__).warning(
+                "If features_cols param set, then features_col param is ignored."
             )
 
         if self.getOrDefault(self.use_gpu):
@@ -313,6 +318,23 @@ class _SparkXGBParams(
                         "XGBoost training, every Spark task will only use one GPU core.",
                         gpu_per_task,
                     )
+
+
+def _validate_and_convert_feature_col_as_float_col_list(
+    dataset, features_col_names: list
+) -> list:
+    """Values in feature columns must be integral types or float/double types"""
+    feature_cols = []
+    for c in features_col_names:
+        if isinstance(dataset.schema[c].dataType, DoubleType):
+            feature_cols.append(col(c).cast(FloatType()).alias(c))
+        elif isinstance(dataset.schema[c].dataType, (FloatType, IntegralType)):
+            feature_cols.append(col(c))
+        else:
+            raise ValueError(
+                "Values in feature columns must be integral types or float/double types."
+            )
+    return feature_cols
 
 
 def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
@@ -373,8 +395,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     f"Please use param name {_inverse_pyspark_param_alias_map[k]} instead."
                 )
             if k in _pyspark_param_alias_map:
-                real_k = _pyspark_param_alias_map[k]
-                k = real_k
+                if k == _inverse_pyspark_param_alias_map[
+                    self.featuresCol.name
+                ] and isinstance(v, list):
+                    real_k = self.features_cols.name
+                    k = real_k
+                else:
+                    real_k = _pyspark_param_alias_map[k]
+                    k = real_k
 
             if self.hasParam(k):
                 self._set(**{str(k): v})
@@ -497,10 +525,19 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         self._validate_params()
         label_col = col(self.getOrDefault(self.labelCol)).alias(alias.label)
 
-        features_array_col = _validate_and_convert_feature_col_as_array_col(
-            dataset, self.getOrDefault(self.featuresCol)
-        )
-        select_cols = [features_array_col, label_col]
+        select_cols = [label_col]
+        features_cols_names = None
+        if self.getOrDefault(self.features_cols):
+            features_cols_names = self.getOrDefault(self.features_cols)
+            features_cols = _validate_and_convert_feature_col_as_float_col_list(
+                dataset, features_cols_names
+            )
+            select_cols.extend(features_cols)
+        else:
+            features_array_col = _validate_and_convert_feature_col_as_array_col(
+                dataset, self.getOrDefault(self.featuresCol)
+            )
+            select_cols.append(features_array_col)
 
         if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol):
             select_cols.append(
@@ -569,10 +606,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context = BarrierTaskContext.get()
             context.barrier()
 
+            gpu_id = None
             if use_gpu:
-                booster_params["gpu_id"] = (
-                    context.partitionId() if is_local else _get_gpu_id(context)
-                )
+                gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
+                booster_params["gpu_id"] = gpu_id
+
+                # max_bin is needed for qdm
+                if (
+                    features_cols_names is not None
+                    and booster_params.get("max_bin", None) is not None
+                ):
+                    dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
             _rabit_args = ""
             if context.partitionId() == 0:
@@ -583,9 +627,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result = {}
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter,
-                    None,
-                    dmatrix_kwargs,
+                    pandas_df_iter, features_cols_names, gpu_id, dmatrix_kwargs
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
@@ -685,6 +727,34 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
     def _transform(self, dataset):
         raise NotImplementedError()
 
+    def _get_feature_col(self, dataset) -> (list, Optional[list]):
+        """XGBoost model trained with features_cols parameter can also predict
+        vector or array feature type. But first we need to check features_cols
+        and then featuresCol
+        """
+
+        feature_col_names = self.getOrDefault(self.features_cols)
+        features_col = []
+        if feature_col_names and set(feature_col_names).issubset(set(dataset.columns)):
+            # The model is trained with features_cols and the predicted dataset
+            # also contains all the columns specified by features_cols.
+            features_col = _validate_and_convert_feature_col_as_float_col_list(
+                dataset, feature_col_names
+            )
+        else:
+            # 1. The model was trained by features_cols, but the dataset doesn't contain
+            #       all the columns specified by features_cols, so we need to check if
+            #       the dataframe has the featuresCol
+            # 2. The model was trained by featuresCol, and the predicted dataset must contain
+            #       featuresCol column.
+            feature_col_names = None
+            features_col.append(
+                _validate_and_convert_feature_col_as_array_col(
+                    dataset, self.getOrDefault(self.featuresCol)
+                )
+            )
+        return features_col, feature_col_names
+
 
 class SparkXGBRegressorModel(_SparkXGBModel):
     """
@@ -712,11 +782,17 @@ class SparkXGBRegressorModel(_SparkXGBModel):
                 alias.margin
             )
 
+        features_col, feature_col_names = self._get_feature_col(dataset)
+
         @pandas_udf("double")
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             model = xgb_sklearn_model
             for data in iterator:
-                X = stack_series(data[alias.data])
+                if feature_col_names is not None:
+                    X = data[feature_col_names]
+                else:
+                    X = stack_series(data[alias.data])
+
                 if has_base_margin:
                     base_margin = data[alias.margin].to_numpy()
                 else:
@@ -730,14 +806,10 @@ class SparkXGBRegressorModel(_SparkXGBModel):
                 )
                 yield pd.Series(preds)
 
-        features_col = _validate_and_convert_feature_col_as_array_col(
-            dataset, self.getOrDefault(self.featuresCol)
-        )
-
         if has_base_margin:
-            pred_col = predict_udf(struct(features_col, base_margin_col))
+            pred_col = predict_udf(struct(*features_col, base_margin_col))
         else:
-            pred_col = predict_udf(struct(features_col))
+            pred_col = predict_udf(struct(*features_col))
 
         predictionColName = self.getOrDefault(self.predictionCol)
 
@@ -783,6 +855,8 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                 class_probs = softmax(raw_preds, axis=1)
             return raw_preds, class_probs
 
+        features_col, feature_col_names = self._get_feature_col(dataset)
+
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"
         )
@@ -791,7 +865,11 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         ) -> Iterator[pd.DataFrame]:
             model = xgb_sklearn_model
             for data in iterator:
-                X = stack_series(data[alias.data])
+                if feature_col_names is not None:
+                    X = data[feature_col_names]
+                else:
+                    X = stack_series(data[alias.data])
+
                 if has_base_margin:
                     base_margin = stack_series(data[alias.margin])
                 else:
@@ -817,14 +895,10 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
                     }
                 )
 
-        features_col = _validate_and_convert_feature_col_as_array_col(
-            dataset, self.getOrDefault(self.featuresCol)
-        )
-
         if has_base_margin:
-            pred_struct = predict_udf(struct(features_col, base_margin_col))
+            pred_struct = predict_udf(struct(*features_col, base_margin_col))
         else:
-            pred_struct = predict_udf(struct(features_col))
+            pred_struct = predict_udf(struct(*features_col))
 
         pred_struct_col = "_prediction_struct"
 

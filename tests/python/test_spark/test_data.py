@@ -62,9 +62,11 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
     kwargs = {"feature_types": feature_types}
     if is_dqm:
         cols = [f"feat-{i}" for i in range(n_features)]
-        train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), cols, kwargs)
+        train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), cols, 0, kwargs)
     else:
-        train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), None, kwargs)
+        train_Xy, valid_Xy = create_dmatrix_from_partitions(
+            iter(dfs), None, None, kwargs
+        )
 
     assert valid_Xy is not None
     assert valid_Xy.num_row() + train_Xy.num_row() == n_samples_per_batch * n_batches
