@@ -170,9 +170,15 @@ void GBTree::ConfigureUpdaters() {
       break;
     case TreeMethod::kApprox:
       tparam_.updater_seq = "grow_histmaker";
+      if (ctx_->IsCUDA()) {
+        LOG(FATAL) << "Approx tree method is not supported on GPU.";
+      }
       break;
     case TreeMethod::kExact:
       tparam_.updater_seq = "grow_colmaker,prune";
+      if (ctx_->IsCUDA()) {
+        LOG(FATAL) << "Exact tree method is not supported on GPU.";
+      }
       break;
     case TreeMethod::kHist:
       LOG(INFO) << "Tree method is selected to be 'hist'.";
