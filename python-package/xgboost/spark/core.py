@@ -44,7 +44,9 @@ from .model import (
     SparkXGBReader,
     SparkXGBWriter,
 )
-from .params import HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols
+from .params import (
+    HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols, HasEnableSparseDataOptim
+)
 from .utils import (
     RabitContext,
     _get_args_from_message_list,
@@ -124,6 +126,7 @@ class _SparkXGBParams(
     HasArbitraryParamsDict,
     HasBaseMarginCol,
     HasFeaturesCols,
+    HasEnableSparseDataOptim,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -363,6 +366,23 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
     return features_array_col
 
 
+def _get_unwrap_udf_fn():
+    try:
+        from pyspark.sql.functions import unwrap_udt
+        return unwrap_udt
+    except ImportError:
+        pass
+
+    try:
+        from pyspark.databricks.sql.functions import unwrap_udt
+        return unwrap_udt
+    except ImportError:
+        raise RuntimeError(
+            "Cannot import pyspark `unwrap_udt` function. Please install pyspark>=3.4 "
+            "or run on Databricks Runtime."
+        )
+
+
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     def __init__(self):
         super().__init__()
@@ -527,17 +547,37 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         select_cols = [label_col]
         features_cols_names = None
-        if self.getOrDefault(self.features_cols):
-            features_cols_names = self.getOrDefault(self.features_cols)
-            features_cols = _validate_and_convert_feature_col_as_float_col_list(
-                dataset, features_cols_names
-            )
-            select_cols.extend(features_cols)
+        if self.getOrDefault(self.enable_sparse_data_optim):
+            from pyspark.ml.linalg import VectorUDT
+
+            if self.getOrDefault(self.features_cols):
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, you cannot set multiple feature columns "
+                    "but you should set one feature column with values of "
+                    "`pyspark.ml.linalg.Vector` type."
+                )
+            features_col_name = self.getOrDefault(self.featuresCol)
+            features_col_datatype = dataset.schema[features_col_name].dataType
+            if not isinstance(features_col_datatype, VectorUDT):
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, the feature column values must be "
+                    "`pyspark.ml.linalg.Vector` type."
+                )
+
+            unwrap_udf = _get_unwrap_udf_fn()
+
         else:
-            features_array_col = _validate_and_convert_feature_col_as_array_col(
-                dataset, self.getOrDefault(self.featuresCol)
-            )
-            select_cols.append(features_array_col)
+            if self.getOrDefault(self.features_cols):
+                features_cols_names = self.getOrDefault(self.features_cols)
+                features_cols = _validate_and_convert_feature_col_as_float_col_list(
+                    dataset, features_cols_names
+                )
+                select_cols.extend(features_cols)
+            else:
+                features_array_col = _validate_and_convert_feature_col_as_array_col(
+                    dataset, self.getOrDefault(self.featuresCol)
+                )
+                select_cols.append(features_array_col)
 
         if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol):
             select_cols.append(
