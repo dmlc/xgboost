@@ -1,11 +1,13 @@
 from random import choice
 from string import ascii_lowercase
-from typing import Dict, Any
-import testing as tm
-import pytest
-import xgboost as xgb
+from typing import Any, Dict
+
 import numpy as np
-from hypothesis import given, strategies, settings, note
+import pytest
+import testing as tm
+from hypothesis import given, note, settings, strategies
+
+import xgboost as xgb
 
 exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(1, 4),
@@ -272,8 +274,7 @@ class TestTreeMethod:
         by_etl_results = {}
         by_builtin_results = {}
 
-        predictor = "gpu_predictor" if tree_method == "gpu_hist" else None
-        parameters = {"tree_method": tree_method, "predictor": predictor}
+        parameters = {"tree_method": tree_method}
         # Use one-hot exclusively
         parameters["max_cat_to_onehot"] = self.USE_ONEHOT
 

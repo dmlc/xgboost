@@ -248,11 +248,10 @@ void GBTree::DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
   // Weird case that tree method is cpu-based but gpu_id is set.  Ideally we should let
   // `gpu_id` be the single source of determining what algorithms to run, but that will
   // break a lots of existing code.
-  auto device = tparam_.tree_method != TreeMethod::kGPUHist ? Context::kCpuId : ctx_->gpu_id;
   auto out = linalg::TensorView<float, 2>{
-      device == Context::kCpuId ? predt->predictions.HostSpan() : predt->predictions.DeviceSpan(),
+      ctx_->IsCPU() ? predt->predictions.HostSpan() : predt->predictions.DeviceSpan(),
       {static_cast<size_t>(p_fmat->Info().num_row_), static_cast<size_t>(ngroup)},
-      device};
+      ctx_->gpu_id};
   CHECK_NE(ngroup, 0);
 
   if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
