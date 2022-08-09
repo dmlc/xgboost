@@ -55,23 +55,10 @@ class DMatrixProxy : public DMatrix {
  public:
   int DeviceIdx() const { return ctx_.gpu_id; }
 
-  void SetCUDAArray(char const* c_interface) {
-    common::AssertGPUSupport();
-#if defined(XGBOOST_USE_CUDA)
-    StringView interface_str{c_interface};
-    Json json_array_interface = Json::Load(interface_str);
-    if (IsA<Array>(json_array_interface)) {
-      this->FromCudaColumnar(interface_str);
-    } else {
-      this->FromCudaArray(interface_str);
-    }
-#endif  // defined(XGBOOST_USE_CUDA)
-  }
-
+  void SetCUDAArray(char const* c_interface);
   void SetArrayData(char const* c_interface);
-  void SetCSRData(char const *c_indptr, char const *c_indices,
-                  char const *c_values, bst_feature_t n_features,
-                  bool on_host);
+  void SetCSRData(char const* c_indptr, char const* c_indices, char const* c_values,
+                  bst_feature_t n_features, bool on_host);
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }

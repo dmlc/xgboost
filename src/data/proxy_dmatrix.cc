@@ -7,6 +7,21 @@
 
 namespace xgboost {
 namespace data {
+void DMatrixProxy::SetCUDAArray(char const *c_interface) {
+  common::AssertGPUSupport();
+#if defined(XGBOOST_USE_CUDA)
+  StringView interface_str{c_interface};
+  Json json_array_interface = Json::Load(interface_str);
+  if (IsA<Array>(json_array_interface)) {
+    this->FromCudaColumnar(interface_str);
+  } else {
+    this->FromCudaArray(interface_str);
+  }
+#else
+  (void*)c_interface;
+#endif  // defined(XGBOOST_USE_CUDA)
+}
+
 void DMatrixProxy::SetArrayData(char const *c_interface) {
   std::shared_ptr<ArrayAdapter> adapter{new ArrayAdapter(StringView{c_interface})};
   this->batch_ = adapter;

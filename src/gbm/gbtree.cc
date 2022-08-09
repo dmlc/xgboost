@@ -555,25 +555,29 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
 }
 
 std::unique_ptr<Predictor> const& GBTree::GetPredictor(DMatrix* f_dmat) const {
+#if defined(XGBOOST_USE_CUDA)
   // Data comes from Device DMatrix.
   auto is_ellpack =
       f_dmat && f_dmat->PageExists<EllpackPage>() && !f_dmat->PageExists<SparsePage>();
-  auto is_ghist =
-      f_dmat && f_dmat->PageExists<GHistIndexMatrix>() && !f_dmat->PageExists<SparsePage>();
   if (is_ellpack) {
     CHECK(gpu_predictor_);
     return gpu_predictor_;
   }
+  if (ctx_->IsCUDA()) {
+    CHECK(gpu_predictor_);
+    return gpu_predictor_;
+  }
+#endif  //  defined(XGBOOST_USE_CUDA)
+
+  auto is_ghist =
+      f_dmat && f_dmat->PageExists<GHistIndexMatrix>() && !f_dmat->PageExists<SparsePage>();
   if (is_ghist) {
     CHECK(cpu_predictor_);
     return cpu_predictor_;
   }
-  if (ctx_->IsCPU()) {
-    CHECK(cpu_predictor_);
-    return cpu_predictor_;
-  } else {
-    return gpu_predictor_;
-  }
+  CHECK(ctx_->IsCPU());
+  CHECK(cpu_predictor_);
+  return cpu_predictor_;
 }
 
 /** Increment the prediction on GPU.
