@@ -399,11 +399,10 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     Parameters
     ----------
     cache_prefix:
-        Prefix to the cache files, only used in external memory.  It can be either an URI
-        or a file path.
+        Prefix to the cache files, only used in external memory.  It can be either an
+        URI or a file path.
 
     """
-    _T = TypeVar("_T")
 
     def __init__(self, cache_prefix: Optional[str] = None) -> None:
         self.cache_prefix = cache_prefix
