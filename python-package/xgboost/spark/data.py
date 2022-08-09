@@ -106,6 +106,7 @@ def create_dmatrix_from_partitions(
     feature_cols: Optional[Sequence[str]],
     gpu_id: Optional[int],
     kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
+    enable_sparse_data_optim: bool,
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
     """Create DMatrix from spark data partitions. This is not particularly efficient as
     we need to convert the pandas series format to numpy then concatenate all the data.
@@ -139,6 +140,59 @@ def create_dmatrix_from_partitions(
             else:
                 train_data[name].append(array)
 
+    def append_m_sparse(part: pd.DataFrame, name: str, is_valid: bool) -> None:
+        from scipy.sparse import csr_matrix
+        nonlocal n_features
+
+        if name == alias.data or name in part.columns:
+            if name == alias.data:
+                # variables for constructing csr_matrix
+                csr_indices_list, csr_indptr_list, csr_values_list = [], [0], []
+
+                for vec_type, vec_size_, vec_indices, vec_values in zip(
+                    part.featureVectorType,
+                    part.featureVectorSize,
+                    part.featureVectorIndices,
+                    part.featureVectorValues
+                ):
+                    if vec_type == 0:
+                        # sparse vector
+                        vec_size = int(vec_size_)
+                        csr_indices = vec_indices
+                        csr_values = vec_values
+                    else:
+                        # dense vector
+                        # Note: According to spark ML VectorUDT format,
+                        # when type field is 1, the size field is also empty.
+                        # we need to check the values field to get vector length.
+                        vec_size = len(vec_values)
+                        csr_indices = np.array(range(n_features))
+                        csr_values = vec_values
+
+                    if n_features == 0:
+                        n_features = vec_size
+                    assert n_features == vec_size
+
+                    csr_indices_list.append(csr_indices)
+                    csr_indptr_list.append(csr_indptr_list[-1] + len(csr_indices))
+                    csr_values_list.append(csr_values)
+
+                csr_indptr_arr = np.array(csr_indptr_list)
+                csr_indices_arr = np.concatenate(csr_indices_list)
+                csr_values_arr = np.concatenate(csr_values_list)
+
+                array = csr_matrix(
+                    (csr_values_arr, csr_indices_arr, csr_indptr_arr),
+                    shape=(len(part), n_features)
+                )
+            else:
+                array = part[name]
+
+            if is_valid:
+                valid_data[name].append(array)
+            else:
+                train_data[name].append(array)
+
     def append_dqm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         """Preprocessing for DeviceQuantileDMatrix"""
         nonlocal n_features
@@ -164,13 +218,20 @@ def create_dmatrix_from_partitions(
         label = concat_or_none(values.get(alias.label, None))
         weight = concat_or_none(values.get(alias.weight, None))
         margin = concat_or_none(values.get(alias.margin, None))
+        if enable_sparse_data_optim:
+            assert kwargs["missing"] == 0.0
+
         return DMatrix(
             data=data, label=label, weight=weight, base_margin=margin, **kwargs
         )
 
     is_dmatrix = feature_cols is None
     if is_dmatrix:
-        cache_partitions(iterator, append_m)
+        if enable_sparse_data_optim:
+            append_fn = append_m_sparse
+        else:
+            append_fn = append_m
+        cache_partitions(iterator, append_fn)
         dtrain = make(train_data, kwargs)
     else:
         cache_partitions(iterator, append_dqm)

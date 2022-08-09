@@ -547,8 +547,22 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         select_cols = [label_col]
         features_cols_names = None
-        if self.getOrDefault(self.enable_sparse_data_optim):
+        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
+        if enable_sparse_data_optim:
             from pyspark.ml.linalg import VectorUDT
+
+            if self.getOrDefault(self.missing) != 0.0:
+                # If DMatrix is constructed from csr / csc matrix, then inactive elements
+                # in csr / csc matrix are regarded as missing value, but, in pyspark, we
+                # are hard to control elements to be active or inactive in sparse vector column,
+                # some spark transformers such as VectorAssembler might compress vectors
+                # to be dense or sparse format automatically, and when a spark ML vector object
+                # is compressed to sparse vector, then all zero value elements become inactive.
+                # So we force setting missing param to be 0 when enable_sparse_data_optim config
+                # is True.
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, missing param != 0 is not supported."
+                )
 
             if self.getOrDefault(self.features_cols):
                 raise ValueError(
@@ -565,7 +579,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
 
             unwrap_udf = _get_unwrap_udf_fn()
-
+            features_unwrapped_vec_col = unwrap_udf(col(features_col_name))
+            select_cols.extend([
+                features_unwrapped_vec_col.type.alias("featureVectorType"),
+                features_unwrapped_vec_col.size.alias("featureVectorSize"),
+                features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
+                features_unwrapped_vec_col.values.alias("featureVectorValues"),
+            ])
         else:
             if self.getOrDefault(self.features_cols):
                 features_cols_names = self.getOrDefault(self.features_cols)
@@ -629,7 +649,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             "feature_types": self.getOrDefault(self.feature_types),
             "feature_names": self.getOrDefault(self.feature_names),
             "feature_weights": self.getOrDefault(self.feature_weights),
-            "missing": self.getOrDefault(self.missing),
+            "missing": float(self.getOrDefault(self.missing)),
         }
         booster_params["nthread"] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)
@@ -667,7 +687,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result = {}
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter, features_cols_names, gpu_id, dmatrix_kwargs
+                    pandas_df_iter, features_cols_names, gpu_id, dmatrix_kwargs,
+                    enable_sparse_data_optim=enable_sparse_data_optim,
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
