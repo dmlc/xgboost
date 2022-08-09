@@ -1010,7 +1010,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
         Returns
         -------
-        number of columns : int
+        number of columns
         """
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumCol(self.handle, ctypes.byref(ret)))
