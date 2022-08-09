@@ -1,6 +1,3 @@
-/**
- * \brief Configuration for creating context.
- */
 #include <cctype>  // std::tolower
 #include <string>
 
@@ -21,10 +18,7 @@ Context::Context() noexcept(false) : cfs_cpu_count_{common::GetCfsCPUCount()} {
 - CUDA:<device ordinal>
 )"};
   auto original = GlobalConfigThreadLocalStore::Get()->device;
-  std::string device{"CPU"};
-  if (original.has_value()) {
-    device = original.value();
-  }
+  std::string device = original;
   std::transform(device.cbegin(), device.cend(), device.begin(),
                  [](auto c) { return std::tolower(c); });
   auto split_it = std::find(device.cbegin(), device.cend(), ':');
