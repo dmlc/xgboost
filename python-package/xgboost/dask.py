@@ -31,10 +31,8 @@ Optional dask configuration
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
-import copy
-import platform
-import logging
 import collections
+import copy
 import logging
 import platform
 import socket
