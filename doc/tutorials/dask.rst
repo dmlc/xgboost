@@ -115,7 +115,7 @@ Alternatively, XGBoost also implements the Scikit-Learn interface with
 :py:class:`~xgboost.dask.DaskXGBRanker` and 2 random forest variances.  This wrapper is
 similar to the single node Scikit-Learn interface in xgboost, with dask collection as
 inputs and has an additional ``client`` attribute.  See following sections and
-:ref:`sphx_glr_python_dask-examples` for more examples.
+:ref:`dask-examples` for more examples.
 
 
 ******************
