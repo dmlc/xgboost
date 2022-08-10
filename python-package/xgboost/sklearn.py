@@ -1259,8 +1259,12 @@ class XGBModel(XGBModelBase):
 
     @property
     def feature_importances_(self) -> np.ndarray:
-        """
-        Feature importances property, return depends on `importance_type` parameter.
+        """Feature importances property, return depends on `importance_type`
+        parameter. When model trained with multi-class/multi-label/multi-target dataset,
+        the feature importance is "averaged" over all targets. The "average" is defined
+        based on the importance type. For instance, if the importance type is
+        "total_gain", then the score is sum of loss change for each split from all
+        trees.
 
         Returns
         -------
