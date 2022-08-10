@@ -12,6 +12,7 @@
 #include "../common/math.h"
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
+#include "../data/gradient_index.h"
 #include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
 #include "predict_fn.h"
@@ -125,29 +126,70 @@ void FVecDrop(const size_t block_size, const size_t batch_offset, DataView* batc
   }
 }
 
-template <size_t kUnrollLen = 8>
+namespace {
+static size_t constexpr kUnroll = 8;
+}  // anonymous namespace
+
 struct SparsePageView {
   bst_row_t base_rowid;
   HostSparsePageView view;
-  static size_t constexpr kUnroll = kUnrollLen;
 
-  explicit SparsePageView(SparsePage const *p)
-      : base_rowid{p->base_rowid} {
-    view = p->GetView();
-  }
+  explicit SparsePageView(SparsePage const *p) : base_rowid{p->base_rowid} { view = p->GetView(); }
   SparsePage::Inst operator[](size_t i) { return view[i]; }
   size_t Size() const { return view.Size(); }
 };
 
-template <typename Adapter, size_t kUnrollLen = 8>
+struct GHistIndexMatrixView {
+ private:
+  GHistIndexMatrix const &page_;
+  uint64_t n_features_;
+  common::Span<FeatureType const> ft_;
+  common::Span<Entry> workspace_;
+  std::vector<size_t> current_unroll_;
+
+ public:
+  size_t base_rowid;
+
+ public:
+  GHistIndexMatrixView(GHistIndexMatrix const &_page, uint64_t n_feat,
+                       common::Span<FeatureType const> ft, common::Span<Entry> workplace,
+                       int32_t n_threads)
+      : page_{_page},
+        n_features_{n_feat},
+        ft_{ft},
+        workspace_{workplace},
+        current_unroll_(n_threads > 0 ? n_threads : 1, 0),
+        base_rowid{_page.base_rowid} {}
+
+  SparsePage::Inst operator[](size_t r) {
+    auto t = omp_get_thread_num();
+    auto const beg = (n_features_ * kUnroll * t) + (current_unroll_[t] * n_features_);
+    size_t non_missing{beg};
+
+    for (bst_feature_t c = 0; c < n_features_; ++c) {
+      float f = page_.GetFvalue(r, c, common::IsCat(ft_, c));
+      if (!common::CheckNAN(f)) {
+        workspace_[non_missing] = Entry{c, f};
+        ++non_missing;
+      }
+    }
+
+    auto ret = workspace_.subspan(beg, non_missing - beg);
+    current_unroll_[t]++;
+    if (current_unroll_[t] == kUnroll) {
+      current_unroll_[t] = 0;
+    }
+    return ret;
+  }
+  size_t Size() const { return page_.Size(); }
+};
+
+template <typename Adapter>
 class AdapterView {
   Adapter* adapter_;
   float missing_;
   common::Span<Entry> workspace_;
   std::vector<size_t> current_unroll_;
-
- public:
-  static size_t constexpr kUnroll = kUnrollLen;
 
  public:
   explicit AdapterView(Adapter *adapter, float missing, common::Span<Entry> workplace,
@@ -251,33 +293,59 @@ class CPUPredictor : public Predictor {
     }
   }
 
+  void PredictGHistIndex(DMatrix *p_fmat, gbm::GBTreeModel const &model, int32_t tree_begin,
+                         int32_t tree_end, std::vector<bst_float> *out_preds) const {
+    auto const n_threads = this->ctx_->Threads();
+
+    constexpr double kDensityThresh = .5;
+    size_t total =
+        std::max(p_fmat->Info().num_row_ * p_fmat->Info().num_col_, static_cast<uint64_t>(1));
+    double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
+    bool blocked = density > kDensityThresh;
+
+    std::vector<RegTree::FVec> feat_vecs;
+    InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
+    std::vector<Entry> workspace(p_fmat->Info().num_col_ * kUnroll * n_threads);
+    auto ft = p_fmat->Info().feature_types.ConstHostVector();
+    for (auto const &batch : p_fmat->GetBatches<GHistIndexMatrix>({})) {
+      if (blocked) {
+        PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, kBlockOfRowsSize>(
+            GHistIndexMatrixView{batch, p_fmat->Info().num_col_, ft, workspace, n_threads},
+            out_preds, model, tree_begin, tree_end, &feat_vecs, n_threads);
+      } else {
+        PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, 1>(
+            GHistIndexMatrixView{batch, p_fmat->Info().num_col_, ft, workspace, n_threads},
+            out_preds, model, tree_begin, tree_end, &feat_vecs, n_threads);
+      }
+    }
+  }
+
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
-                      gbm::GBTreeModel const &model, int32_t tree_begin,
-                      int32_t tree_end) const {
+                      gbm::GBTreeModel const &model, int32_t tree_begin, int32_t tree_end) const {
+    if (!p_fmat->PageExists<SparsePage>()) {
+      this->PredictGHistIndex(p_fmat, model, tree_begin, tree_end, out_preds);
+      return;
+    }
+
     auto const n_threads = this->ctx_->Threads();
     constexpr double kDensityThresh = .5;
-    size_t total = std::max(p_fmat->Info().num_row_ * p_fmat->Info().num_col_,
-                            static_cast<uint64_t>(1));
-    double density = static_cast<double>(p_fmat->Info().num_nonzero_) /
-                     static_cast<double>(total);
+    size_t total =
+        std::max(p_fmat->Info().num_row_ * p_fmat->Info().num_col_, static_cast<uint64_t>(1));
+    double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
     bool blocked = density > kDensityThresh;
 
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
-               p_fmat->Info().num_row_ *
-                   model.learner_model_param->num_output_group);
-      size_t constexpr kUnroll = 8;
+               p_fmat->Info().num_row_ * model.learner_model_param->num_output_group);
       if (blocked) {
-        PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>, kBlockOfRowsSize>(
-            SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs,
-            n_threads);
+        PredictBatchByBlockOfRowsKernel<SparsePageView, kBlockOfRowsSize>(
+            SparsePageView{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs, n_threads);
 
       } else {
-        PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>, 1>(
-            SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs,
-            n_threads);
+        PredictBatchByBlockOfRowsKernel<SparsePageView, 1>(
+            SparsePageView{&batch}, out_preds, model, tree_begin, tree_end, &feat_vecs, n_threads);
       }
     }
   }
@@ -316,7 +384,7 @@ class CPUPredictor : public Predictor {
       info.num_row_ = m->NumRows();
       this->InitOutPredictions(info, &(out_preds->predictions), model);
     }
-    std::vector<Entry> workspace(m->NumColumns() * 8 * n_threads);
+    std::vector<Entry> workspace(m->NumColumns() * kUnroll * n_threads);
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
     InitThreadTemp(n_threads * kBlockSize, &thread_temp);

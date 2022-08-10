@@ -3,12 +3,13 @@ Example of training with Dask on GPU
 ====================================
 """
 from dask_cuda import LocalCUDACluster
-from dask.distributed import Client
+import dask_cudf
+from dask.distributed import Client, wait
 from dask import array as da
+from dask import dataframe as dd
 import xgboost as xgb
 from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
-import cupy as cp
 import argparse
 
 
@@ -45,11 +46,11 @@ def using_quantile_device_dmatrix(client: Client, X, y):
 
     '''
     # Input must be on GPU for `DaskDeviceQuantileDMatrix`.
-    X = X.map_blocks(cp.array)
-    y = y.map_blocks(cp.array)
+    X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X))
+    y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y))
 
     # `DaskDeviceQuantileDMatrix` is used instead of `DaskDMatrix`, be careful
-    # that it can not be used for anything else than training.
+    # that it can not be used for anything else other than training.
     dtrain = dxgb.DaskDeviceQuantileDMatrix(client, X, y)
     output = xgb.dask.train(client,
                             {'verbosity': 2,

@@ -1137,16 +1137,15 @@ class SparsePageAdapterBatch {
 
  public:
   struct Line {
-    SparsePage::Inst inst;
+    Entry const* inst;
+    size_t n;
     bst_row_t ridx;
-    COOTuple GetElement(size_t idx) const {
-      return COOTuple{ridx, inst.data()[idx].index, inst.data()[idx].fvalue};
-    }
-    size_t Size() const { return inst.size(); }
+    COOTuple GetElement(size_t idx) const { return {ridx, inst[idx].index, inst[idx].fvalue}; }
+    size_t Size() const { return n; }
   };
 
   explicit SparsePageAdapterBatch(HostSparsePageView page) : page_{std::move(page)} {}
-  Line GetLine(size_t ridx) const { return Line{page_[ridx], ridx}; }
+  Line GetLine(size_t ridx) const { return Line{page_[ridx].data(), page_[ridx].size(), ridx}; }
   size_t Size() const { return page_.Size(); }
 };
 };  // namespace data

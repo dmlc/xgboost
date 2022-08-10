@@ -17,25 +17,40 @@ class HistogramCuts;
 }
 
 namespace tree {
-template <typename GradientSumT>
+
+// Inputs specific to each node
 struct EvaluateSplitInputs {
   int nidx;
+  int depth;
   GradientPairPrecise parent_sum;
-  GPUTrainingParam param;
   common::Span<const bst_feature_t> feature_set;
+  common::Span<const GradientPairPrecise> gradient_histogram;
+};
+
+// Inputs necessary for all nodes
+struct EvaluateSplitSharedInputs {
+  GPUTrainingParam param;
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;
   common::Span<const float> min_fvalue;
-  common::Span<const GradientSumT> gradient_histogram;
-
   XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
   __device__ auto FeatureBins(bst_feature_t fidx) const {
     return feature_segments[fidx + 1] - feature_segments[fidx];
   }
 };
 
-template <typename GradientSumT>
+// Used to return internal storage regions for categoricals
+// Usable on device
+struct CatAccessor {
+  common::Span<common::CatBitField::value_type> cat_storage;
+  std::size_t node_categorical_storage_size;
+  XGBOOST_DEVICE common::Span<common::CatBitField::value_type> GetNodeCatStorage(bst_node_t nidx) {
+    return this->cat_storage.subspan(nidx * this->node_categorical_storage_size,
+                                     this->node_categorical_storage_size);
+  }
+};
+
 class GPUHistEvaluator {
   using CatST = common::CatBitField::value_type;  // categorical storage type
   // use pinned memory to stage the categories, used for sort based splits.
@@ -52,7 +67,7 @@ class GPUHistEvaluator {
   // storage for sorted index of feature histogram, used for sort based splits.
   dh::device_vector<bst_feature_t> cat_sorted_idx_;
   // cached input for sorting the histogram, used for sort based splits.
-  using SortPair = thrust::tuple<uint32_t, double>;
+  using SortPair = thrust::tuple<uint32_t, float>;
   dh::device_vector<SortPair> sort_input_;
   // cache for feature index
   dh::device_vector<bst_feature_t> feature_idx_;
@@ -61,61 +76,53 @@ class GPUHistEvaluator {
   // Do we have any categorical features that require sorting histograms?
   // use this to skip the expensive sort step
   bool need_sort_histogram_ = false;
+  bool has_categoricals_ = false;
   // Number of elements of categorical storage type
   // needed to hold categoricals for a single mode
   std::size_t node_categorical_storage_size_ = 0;
 
   // Copy the categories from device to host asynchronously.
-  void CopyToHost(EvaluateSplitInputs<GradientSumT> const &input, common::Span<CatST> cats_out);
+  void CopyToHost( const std::vector<bst_node_t>& nidx);
 
   /**
    * \brief Get host category storage of nidx for internal calculation.
    */
-  auto HostCatStorage(bst_node_t nidx) {
-
-    std::size_t min_size=(nidx+2)*node_categorical_storage_size_;
-    if(h_split_cats_.size()<min_size){
+  auto HostCatStorage(const std::vector<bst_node_t> &nidx) {
+    if (!has_categoricals_) return CatAccessor{};
+    auto max_nidx = *std::max_element(nidx.begin(), nidx.end());
+    std::size_t min_size = (max_nidx + 2) * node_categorical_storage_size_;
+    if (h_split_cats_.size() < min_size) {
       h_split_cats_.resize(min_size);
     }
-
-    if (nidx == RegTree::kRoot) {
-      auto cats_out = common::Span<CatST>{h_split_cats_}.subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_);
-      return cats_out;
-    }
-    auto cats_out = common::Span<CatST>{h_split_cats_}.subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_ * 2);
-    return cats_out;
+    return CatAccessor{{h_split_cats_.data(), h_split_cats_.size()},
+                       node_categorical_storage_size_};
   }
 
   /**
    * \brief Get device category storage of nidx for internal calculation.
    */
-  auto DeviceCatStorage(bst_node_t nidx) {
-    std::size_t min_size=(nidx+2)*node_categorical_storage_size_;
-    if(split_cats_.size()<min_size){
+  auto DeviceCatStorage(const std::vector<bst_node_t> &nidx) {
+    if (!has_categoricals_) return CatAccessor{};
+    auto max_nidx = *std::max_element(nidx.begin(), nidx.end());
+    std::size_t min_size = (max_nidx + 2) * node_categorical_storage_size_;
+    if (split_cats_.size() < min_size) {
       split_cats_.resize(min_size);
     }
-    if (nidx == RegTree::kRoot) {
-      auto cats_out = dh::ToSpan(split_cats_).subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_);
-      return cats_out;
-    }
-    auto cats_out = dh::ToSpan(split_cats_).subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_ * 2);
-    return cats_out;
+    return CatAccessor{dh::ToSpan(split_cats_), node_categorical_storage_size_};
   }
 
   /**
    * \brief Get sorted index storage based on the left node of inputs.
    */
-  auto SortedIdx(EvaluateSplitInputs<GradientSumT> left) {
-    if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
-      return dh::ToSpan(cat_sorted_idx_).first(left.feature_values.size());
-    }
+  auto SortedIdx(int num_nodes, bst_feature_t total_bins) {
+    if(!need_sort_histogram_) return common::Span<bst_feature_t>();
+    cat_sorted_idx_.resize(num_nodes * total_bins);
     return dh::ToSpan(cat_sorted_idx_);
   }
 
-  auto SortInput(EvaluateSplitInputs<GradientSumT> left) {
-    if (left.nidx == RegTree::kRoot && !cat_sorted_idx_.empty()) {
-      return dh::ToSpan(sort_input_).first(left.feature_values.size());
-    }
+  auto SortInput(int num_nodes, bst_feature_t total_bins) {
+    if(!need_sort_histogram_) return common::Span<SortPair>();
+    sort_input_.resize(num_nodes * total_bins);
     return dh::ToSpan(sort_input_);
   }
 
@@ -154,26 +161,25 @@ class GPUHistEvaluator {
   /**
    * \brief Sort the histogram based on output to obtain contiguous partitions.
    */
-  common::Span<bst_feature_t const> SortHistogram(
-      EvaluateSplitInputs<GradientSumT> const &left, EvaluateSplitInputs<GradientSumT> const &right,
+  common::Span<bst_feature_t const> SortHistogram(common::Span<const EvaluateSplitInputs> d_inputs,
+      EvaluateSplitSharedInputs shared_inputs,
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
-  void EvaluateSplits(EvaluateSplitInputs<GradientSumT> left,
-                      EvaluateSplitInputs<GradientSumT> right,
+  void LaunchEvaluateSplits(bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,EvaluateSplitSharedInputs shared_inputs,
                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                       common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
-  void EvaluateSplits(GPUExpandEntry candidate,
-                      EvaluateSplitInputs<GradientSumT> left,
-                      EvaluateSplitInputs<GradientSumT> right,
+  void EvaluateSplits(const std::vector<bst_node_t> &nidx,bst_feature_t number_active_features,common::Span<const EvaluateSplitInputs> d_inputs,
+                      EvaluateSplitSharedInputs shared_inputs,
                       common::Span<GPUExpandEntry> out_splits);
   /**
    * \brief Evaluate splits for root node.
    */
-  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs<GradientSumT> input, float weight);
+  GPUExpandEntry EvaluateSingleSplit(EvaluateSplitInputs input,
+                                     EvaluateSplitSharedInputs shared_inputs);
 };
 }  // namespace tree
 }  // namespace xgboost

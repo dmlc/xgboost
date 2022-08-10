@@ -298,6 +298,7 @@ class RandomDataGenerator {
 #if defined(XGBOOST_USE_CUDA)
   std::shared_ptr<DMatrix> GenerateDeviceDMatrix();
 #endif
+  std::shared_ptr<DMatrix> GenerateQuantileDMatrix();
 };
 
 inline std::vector<float>
@@ -401,36 +402,36 @@ class ArrayIterForTest {
   size_t n_batches_;
 
  public:
-  size_t static constexpr kRows { 1000 };
-  size_t static constexpr kBatches { 100 };
-  size_t static constexpr kCols { 13 };
+  size_t static constexpr Rows() { return 1024; }
+  size_t static constexpr Batches() { return 100; }
+  size_t static constexpr Cols() { return 13; }
 
-  std::string AsArray() const {
-    return interface_;
-  }
+ public:
+  std::string AsArray() const { return interface_; }
 
-  virtual int Next();
-  virtual void Reset() {
-    iter_ = 0;
-  }
+  virtual int Next() = 0;
+  virtual void Reset() { iter_ = 0; }
   size_t Iter() const { return iter_; }
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 
-  explicit ArrayIterForTest(float sparsity, size_t rows = kRows,
-                            size_t cols = kCols, size_t batches = kBatches);
+  explicit ArrayIterForTest(float sparsity, size_t rows, size_t cols, size_t batches);
   virtual ~ArrayIterForTest();
 };
 
 class CudaArrayIterForTest : public ArrayIterForTest {
  public:
-  size_t static constexpr kRows{1000};
-  size_t static constexpr kBatches{100};
-  size_t static constexpr kCols{13};
-
-  explicit CudaArrayIterForTest(float sparsity, size_t rows = kRows,
-                                size_t cols = kCols, size_t batches = kBatches);
+  explicit CudaArrayIterForTest(float sparsity, size_t rows = Rows(), size_t cols = Cols(),
+                                size_t batches = Batches());
   int Next() override;
   ~CudaArrayIterForTest() override = default;
+};
+
+class NumpyArrayIterForTest : public ArrayIterForTest {
+ public:
+  explicit NumpyArrayIterForTest(float sparsity, size_t rows = Rows(), size_t cols = Cols(),
+                                 size_t batches = Batches());
+  int Next() override;
+  ~NumpyArrayIterForTest() override = default;
 };
 
 void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,

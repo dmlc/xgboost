@@ -66,21 +66,20 @@ class TreeEvaluator {
 
   template <typename ParamT>
   struct SplitEvaluator {
-    common::Span<int const> constraints;
-    common::Span<float const> lower;
-    common::Span<float const> upper;
+    const int* constraints;
+    const float* lower;
+    const float* upper;
     bool has_constraint;
 
-    XGBOOST_DEVICE double CalcSplitGain(const ParamT &param, bst_node_t nidx,
-                                        bst_feature_t fidx,
-                                        tree::GradStats const& left,
-                                        tree::GradStats const& right) const {
-      int constraint = constraints[fidx];
-      const double negative_infinity = -std::numeric_limits<double>::infinity();
-      double wleft = this->CalcWeight(nidx, param, left);
-      double wright = this->CalcWeight(nidx, param, right);
+    template <typename GradientSumT>
+    XGBOOST_DEVICE float CalcSplitGain(const ParamT& param, bst_node_t nidx, bst_feature_t fidx,
+                                       GradientSumT const& left, GradientSumT const& right) const {
+      int constraint = has_constraint ? constraints[fidx] : 0;
+      const float negative_infinity = -std::numeric_limits<float>::infinity();
+      float wleft = this->CalcWeight(nidx, param, left);
+      float wright = this->CalcWeight(nidx, param, right);
 
-      double gain = this->CalcGainGivenWeight(param, left, wleft) +
+      float gain = this->CalcGainGivenWeight(param, left, wleft) +
                     this->CalcGainGivenWeight(param, right, wright);
 
       if (constraint == 0) {
@@ -92,8 +91,9 @@ class TreeEvaluator {
       }
     }
 
+    template <typename GradientSumT>
     XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT &param,
-                                    tree::GradStats const& stats) const {
+                                    GradientSumT const& stats) const {
       float w = ::xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
         return w;
@@ -101,9 +101,9 @@ class TreeEvaluator {
 
       if (nodeid == kRootParentId) {
         return w;
-      } else if (w < lower(nodeid)) {
+      } else if (w < lower[nodeid]) {
         return lower[nodeid];
-      } else if (w > upper(nodeid)) {
+      } else if (w > upper[nodeid]) {
         return upper[nodeid];
       } else {
         return w;
@@ -111,28 +111,39 @@ class TreeEvaluator {
     }
 
     template <typename GradientSumT>
-    XGBOOST_DEVICE double CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
+    XGBOOST_DEVICE float CalcWeightCat(ParamT const& param, GradientSumT const& stats) const {
       // FIXME(jiamingy): This is a temporary solution until we have categorical feature
       // specific regularization parameters.  During sorting we should try to avoid any
       // regularization.
       return ::xgboost::tree::CalcWeight(param, stats);
     }
 
-    XGBOOST_DEVICE float
-    CalcGainGivenWeight(ParamT const &p, tree::GradStats const& stats, float w) const {
+    // Fast floating point division instruction on device
+    XGBOOST_DEVICE float Divide(float a, float b) const {
+#ifdef __CUDA_ARCH__
+      return __fdividef(a, b);
+#else
+      return a / b;
+#endif
+    }
+
+    template <typename GradientSumT>
+    XGBOOST_DEVICE float CalcGainGivenWeight(ParamT const& p, GradientSumT const& stats,
+                                             float w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
       // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
       if (p.max_delta_step == 0.0f && has_constraint == false) {
-        return common::Sqr(ThresholdL1(stats.sum_grad, p.reg_alpha)) /
-               (stats.sum_hess + p.reg_lambda);
+        return Divide(common::Sqr(ThresholdL1(stats.GetGrad(), p.reg_alpha)),
+                      (stats.GetHess() + p.reg_lambda));
       }
-      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.sum_grad,
-                                                      stats.sum_hess, w);
+      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(),
+                                                      stats.GetHess(), w);
     }
+    template <typename GradientSumT>
     XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const &p,
-                                  tree::GradStats const& stats) const {
+                                  GradientSumT const& stats) const {
       return this->CalcGainGivenWeight(p, stats, this->CalcWeight(nid, p, stats));
     }
   };
@@ -141,15 +152,13 @@ class TreeEvaluator {
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam> auto GetEvaluator() const {
     if (device_ != GenericParameter::kCpuId) {
-      auto constraints = monotone_.ConstDeviceSpan();
-      return SplitEvaluator<ParamT>{
-          constraints, lower_bounds_.ConstDeviceSpan(),
-          upper_bounds_.ConstDeviceSpan(), has_constraint_};
+      auto constraints = monotone_.ConstDevicePointer();
+      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
+                                    upper_bounds_.ConstDevicePointer(), has_constraint_};
     } else {
-      auto constraints = monotone_.ConstHostSpan();
-      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostSpan(),
-                                    upper_bounds_.ConstHostSpan(),
-                                    has_constraint_};
+      auto constraints = monotone_.ConstHostPointer();
+      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostPointer(),
+                                    upper_bounds_.ConstHostPointer(), has_constraint_};
     }
   }
 

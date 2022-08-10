@@ -285,13 +285,15 @@ class TestDistributedGPU:
                                      'booster']
             assert hasattr(booster, 'best_score')
             dump = booster.get_dump(dump_format='json')
+            print(booster.best_iteration)
             assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
             valid_X = X
             valid_y = y
             cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
                                          tree_method='gpu_hist',
-                                         n_estimators=100)
+                                         eval_metric='error',
+                                                                                  n_estimators=100)
             cls.client = client
             cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
                     eval_set=[(valid_X, valid_y)])
@@ -427,9 +429,10 @@ class TestDistributedGPU:
         sig = OrderedDict(signature(dxgb.DaskDMatrix).parameters)
         del sig["client"]
         ddm_names = list(sig.keys())
-        sig = OrderedDict(signature(dxgb.DaskDeviceQuantileDMatrix).parameters)
+        sig = OrderedDict(signature(dxgb.DaskQuantileDMatrix).parameters)
         del sig["client"]
         del sig["max_bin"]
+        del sig["ref"]
         ddqdm_names = list(sig.keys())
         assert len(ddm_names) == len(ddqdm_names)
 
@@ -440,9 +443,10 @@ class TestDistributedGPU:
         sig = OrderedDict(signature(xgb.DMatrix).parameters)
         del sig["nthread"]      # no nthread in dask
         dm_names = list(sig.keys())
-        sig = OrderedDict(signature(xgb.DeviceQuantileDMatrix).parameters)
+        sig = OrderedDict(signature(xgb.QuantileDMatrix).parameters)
         del sig["nthread"]
         del sig["max_bin"]
+        del sig["ref"]
         dqdm_names = list(sig.keys())
 
         # between single node
@@ -497,14 +501,18 @@ class TestDistributedGPU:
             for arg in rabit_args:
                 if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
                     port_env = arg.decode('utf-8')
+                if arg.decode("utf-8").startswith("DMLC_TRACKER_URI"):
+                    uri_env = arg.decode("utf-8")
             port = port_env.split('=')
             env = os.environ.copy()
             env[port[0]] = port[1]
+            uri = uri_env.split("=")
+            env[uri[0]] = uri[1]
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
         with Client(local_cuda_cluster) as client:
             workers = _get_client_workers(client)
-            rabit_args = client.sync(dxgb._get_rabit_args, workers, None, client)
+            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
             futures = client.map(runit,
                                  workers,
                                  pure=False,

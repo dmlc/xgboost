@@ -26,7 +26,7 @@
 #include "../common/group_data.h"
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
-#include "../data/iterative_device_dmatrix.h"
+#include "../data/iterative_dmatrix.h"
 #include "file_iterator.h"
 
 #include "validation.h"
@@ -931,15 +931,13 @@ DMatrix* DMatrix::Load(const std::string& uri,
   }
   return dmat;
 }
-template <typename DataIterHandle, typename DMatrixHandle,
-          typename DataIterResetCallback, typename XGDMatrixCallbackNext>
-DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
-                         DataIterResetCallback *reset,
-                         XGDMatrixCallbackNext *next, float missing,
-                         int nthread,
-                         int max_bin) {
-  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing,
-                                          nthread, max_bin);
+
+template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
+          typename XGDMatrixCallbackNext>
+DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
+                         DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
+                         int nthread, bst_bin_t max_bin) {
+  return new data::IterativeDMatrix(iter, proxy, ref, reset, next, missing, nthread, max_bin);
 }
 
 template <typename DataIterHandle, typename DMatrixHandle,
@@ -953,11 +951,12 @@ DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
                                      cache);
 }
 
-template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
-                                  DataIterResetCallback, XGDMatrixCallbackNext>(
-    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-    XGDMatrixCallbackNext *next, float missing, int nthread,
-    int max_bin);
+template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback,
+                                  XGDMatrixCallbackNext>(DataIterHandle iter, DMatrixHandle proxy,
+                                                         std::shared_ptr<DMatrix> ref,
+                                                         DataIterResetCallback* reset,
+                                                         XGDMatrixCallbackNext* next, float missing,
+                                                         int nthread, int max_bin);
 
 template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
                                   DataIterResetCallback, XGDMatrixCallbackNext>(

@@ -1,25 +1,27 @@
 /*!
  * Copyright 2016-2022 by XGBoost contributors
  */
+#include "helpers.h"
+
 #include <dmlc/filesystem.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
-#include <xgboost/metric.h>
-#include <xgboost/learner.h>
+#include <gtest/gtest.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
-#include <gtest/gtest.h>
+#include <xgboost/learner.h>
+#include <xgboost/logging.h>
+#include <xgboost/metric.h>
+#include <xgboost/objective.h>
 
 #include <algorithm>
-#include <random>
 #include <cinttypes>
+#include <random>
 
-#include "helpers.h"
-#include "xgboost/c_api.h"
 #include "../../src/data/adapter.h"
+#include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "xgboost/c_api.h"
 #include "xgboost/predictor.h"
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -379,6 +381,30 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
   return out;
 }
 
+std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix() {
+  NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
+  auto m = std::make_shared<data::IterativeDMatrix>(
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+  return m;
+}
+
+NumpyArrayIterForTest::NumpyArrayIterForTest(float sparsity, size_t rows, size_t cols,
+                                             size_t batches)
+    : ArrayIterForTest{sparsity, rows, cols, batches} {
+  rng_->Device(Context::kCpuId);
+  std::tie(batches_, interface_) = rng_->GenerateArrayInterfaceBatch(&data_, n_batches_);
+  this->Reset();
+}
+
+int NumpyArrayIterForTest::Next() {
+  if (iter_ == n_batches_) {
+    return 0;
+  }
+  XGProxyDMatrixSetDataDense(proxy_, batches_[iter_].c_str());
+  iter_++;
+  return 1;
+}
+
 std::shared_ptr<DMatrix>
 GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
@@ -389,7 +415,7 @@ GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_row_t n_samples, bst_feature_t n_features,
                                                  size_t n_batches, std::string prefix) {
   CHECK_GE(n_samples, n_batches);
-  ArrayIterForTest iter(0, n_samples, n_features, n_batches);
+  NumpyArrayIterForTest iter(0, n_samples, n_features, n_batches);
 
   std::unique_ptr<DMatrix> dmat{
       DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
@@ -416,7 +442,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
                                                  std::string prefix) {
   size_t n_columns = 3;
   size_t n_rows = n_entries / n_columns;
-  ArrayIterForTest iter(0, n_rows, n_columns, 2);
+  NumpyArrayIterForTest iter(0, n_rows, n_columns, 2);
 
   std::unique_ptr<DMatrix> dmat{DMatrix::Create(
       static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
@@ -543,7 +569,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   auto& h_gpair = gpair.HostVector();
   h_gpair.resize(kRows);
   for (size_t i = 0; i < kRows; ++i) {
-    h_gpair[i] = {static_cast<float>(i), 1};
+    h_gpair[i] = GradientPair{static_cast<float>(i), 1};
   }
 
   PredictionCacheEntry predts;
@@ -562,18 +588,6 @@ ArrayIterForTest::ArrayIterForTest(float sparsity, size_t rows, size_t cols,
 }
 
 ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }
-
-int ArrayIterForTest::Next() {
-  if (iter_ == n_batches_) {
-    return 0;
-  }
-  XGProxyDMatrixSetDataDense(proxy_, batches_[iter_].c_str());
-  iter_++;
-  return 1;
-}
-
-size_t constexpr ArrayIterForTest::kRows;
-size_t constexpr ArrayIterForTest::kCols;
 
 void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
                   std::vector<size_t> *p_row_ptr,

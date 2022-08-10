@@ -33,6 +33,7 @@ pipeline {
         }
         sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
+        deleteDir()
       }
     }
     stage('Jenkins Win64: Build') {
@@ -107,8 +108,10 @@ def BuildWin64() {
     stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      bat """
+      cd python-package
+      conda activate && for /R %%i in (dist\\*.whl) DO python -m awscli s3 cp "%%i" s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      """
     }
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost.exe'
@@ -127,8 +130,9 @@ def BuildRPackageWithCUDAWin64() {
       bash tests/ci_build/build_r_pkg_with_cuda_win64.sh ${commit_id}
       """
       echo 'Uploading R tarball...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_win64_*.tar.gz'
+      bat """
+      conda activate && for /R %%i in (xgboost_r_gpu_win64_*.tar.gz) DO python -m awscli s3 cp "%%i" s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      """
     }
     deleteDir()
   }

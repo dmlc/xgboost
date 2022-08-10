@@ -2,7 +2,7 @@ name: macos_test
 channels:
 - conda-forge
 dependencies:
-- python=3.7
+- python=3.8
 - pip
 - wheel
 - pyyaml
@@ -35,6 +35,8 @@ dependencies:
 - py-ubjson
 - cffi
 - pyarrow
+- pyspark
+- cloudpickle
 - pip:
   - sphinx_rtd_theme
   - datatable

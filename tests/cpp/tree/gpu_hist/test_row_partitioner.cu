@@ -19,49 +19,7 @@
 namespace xgboost {
 namespace tree {
 
-void TestSortPosition(const std::vector<int>& position_in, int left_idx,
-                      int right_idx) {
-  dh::safe_cuda(cudaSetDevice(0));
-  std::vector<int64_t> left_count = {
-      std::count(position_in.begin(), position_in.end(), left_idx)};
-  dh::caching_device_vector<int64_t> d_left_count = left_count;
-  dh::caching_device_vector<int> position = position_in;
-  dh::caching_device_vector<int> position_out(position.size());
-
-  dh::caching_device_vector<RowPartitioner::RowIndexT> ridx(position.size());
-  thrust::sequence(ridx.begin(), ridx.end());
-  dh::caching_device_vector<RowPartitioner::RowIndexT> ridx_out(ridx.size());
-  RowPartitioner rp(0,10);
-  rp.SortPosition(
-      common::Span<int>(position.data().get(), position.size()),
-      common::Span<int>(position_out.data().get(), position_out.size()),
-      common::Span<RowPartitioner::RowIndexT>(ridx.data().get(), ridx.size()),
-      common::Span<RowPartitioner::RowIndexT>(ridx_out.data().get(), ridx_out.size()), left_idx,
-      right_idx, d_left_count.data().get(), nullptr);
-  thrust::host_vector<int> position_result = position_out;
-  thrust::host_vector<int> ridx_result = ridx_out;
-
-  // Check position is sorted
-  EXPECT_TRUE(std::is_sorted(position_result.begin(), position_result.end()));
-  // Check row indices are sorted inside left and right segment
-  EXPECT_TRUE(
-      std::is_sorted(ridx_result.begin(), ridx_result.begin() + left_count[0]));
-  EXPECT_TRUE(
-      std::is_sorted(ridx_result.begin() + left_count[0], ridx_result.end()));
-
-  // Check key value pairs are the same
-  for (auto i = 0ull; i < ridx_result.size(); i++) {
-    EXPECT_EQ(position_result[i], position_in[ridx_result[i]]);
-  }
-}
-TEST(GpuHist, SortPosition) {
-  TestSortPosition({1, 2, 1, 2, 1}, 1, 2);
-  TestSortPosition({1, 1, 1, 1}, 1, 2);
-  TestSortPosition({2, 2, 2, 2}, 1, 2);
-  TestSortPosition({1, 2, 1, 2, 3}, 1, 2);
-}
-
-void TestUpdatePosition() {
+void TestUpdatePositionBatch() {
   const int kNumRows = 10;
   RowPartitioner rp(0, kNumRows);
   auto rows = rp.GetRowsHost(0);
@@ -69,16 +27,11 @@ void TestUpdatePosition() {
   for (auto i = 0ull; i < kNumRows; i++) {
     EXPECT_EQ(rows[i], i);
   }
+  std::vector<int> extra_data = {0};
   // Send the first five training instances to the right node
   // and the second 5 to the left node
-  rp.UpdatePosition(0, 1, 2,
-    [=] __device__(RowPartitioner::RowIndexT ridx) {
-    if (ridx > 4) {
-      return 1;
-    }
-    else {
-      return 2;
-    }
+  rp.UpdatePositionBatch({0}, {1}, {2}, extra_data, [=] __device__(RowPartitioner::RowIndexT ridx, int) {
+    return ridx > 4;
   });
   rows = rp.GetRowsHost(1);
   for (auto r : rows) {
@@ -90,88 +43,58 @@ void TestUpdatePosition() {
   }
 
   // Split the left node again
-  rp.UpdatePosition(1, 3, 4, [=]__device__(RowPartitioner::RowIndexT ridx)
-  {
-    if (ridx < 7) {
-      return 3
-        ;
-    }
-    return 4;
+  rp.UpdatePositionBatch({1}, {3}, {4}, extra_data,[=] __device__(RowPartitioner::RowIndexT ridx, int) {
+    return ridx < 7;
   });
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
-  // Check position is as expected
-  EXPECT_EQ(rp.GetPositionHost(), std::vector<bst_node_t>({3,3,4,4,4,2,2,2,2,2}));
 }
 
-TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
+TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 
-void TestFinalise() {
-  const int kNumRows = 10;
+void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
+  thrust::device_vector<uint32_t> ridx = ridx_in;
+  thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());
+  thrust::device_vector<bst_uint> counts(segments.size());
 
-  ObjInfo task{ObjInfo::kRegression, false, false};
-  HostDeviceVector<bst_node_t> position;
-  Context ctx;
-  ctx.gpu_id = 0;
+  auto op = [=] __device__(auto ridx, int data) { return ridx % 2 == 0; };
+  std::vector<int> op_data(segments.size());
+  std::vector<PerNodeData<int>> h_batch_info(segments.size());
+  dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
 
-  {
-    RowPartitioner rp(0, kNumRows);
-    rp.FinalisePosition(
-        &ctx, task, &position,
-        [=] __device__(RowPartitioner::RowIndexT ridx, int position) { return 7; },
-        [] XGBOOST_DEVICE(size_t) { return false; });
-
-    auto position = rp.GetPositionHost();
-    for (auto p : position) {
-      EXPECT_EQ(p, 7);
-    }
+  std::size_t total_rows = 0;
+  for (size_t i = 0; i < segments.size(); i++) {
+    h_batch_info[i] = {segments.at(i), 0};
+    total_rows += segments.at(i).Size();
   }
+  dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
+                                h_batch_info.size() * sizeof(PerNodeData<int>), cudaMemcpyDefault,
+                                nullptr));
+  dh::device_vector<int8_t> tmp;
+  SortPositionBatch<uint32_t, decltype(op), int>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
+                                                 dh::ToSpan(ridx_tmp), dh::ToSpan(counts),
+                                                 total_rows, op, &tmp, nullptr);
 
-  /**
-   * Test for sampling.
-   */
-  dh::device_vector<float> hess(kNumRows);
-  for (size_t i = 0; i < hess.size(); ++i) {
-    // removed rows, 0, 3, 6, 9
-    if (i % 3 == 0) {
-      hess[i] = 0;
-    } else {
-      hess[i] = i;
-    }
-  }
-
-  auto d_hess = dh::ToSpan(hess);
-
-  RowPartitioner rp(0, kNumRows);
-  rp.FinalisePosition(
-      &ctx, task, &position,
-      [] __device__(RowPartitioner::RowIndexT ridx, bst_node_t position) {
-        return ridx % 2 == 0 ? 1 : 2;
-      },
-      [d_hess] __device__(size_t ridx) { return d_hess[ridx] - 0.f == 0.f; });
-
-  auto const& h_position = position.ConstHostVector();
-  for (size_t ridx = 0; ridx < h_position.size(); ++ridx) {
-    if (ridx % 3 == 0) {
-      ASSERT_LT(h_position[ridx], 0);
-    } else {
-      ASSERT_EQ(h_position[ridx], ridx % 2 == 0 ? 1 : 2);
-    }
+  auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
+  for (size_t i = 0; i < segments.size(); i++) {
+    auto begin = ridx.begin() + segments[i].begin;
+    auto end = ridx.begin() + segments[i].end;
+    bst_uint count = counts[i];
+    auto left_partition_count =
+        thrust::count_if(thrust::device, begin, begin + count, op_without_data);
+    EXPECT_EQ(left_partition_count, count);
+    auto right_partition_count =
+        thrust::count_if(thrust::device, begin + count, end, op_without_data);
+    EXPECT_EQ(right_partition_count, 0);
   }
 }
 
-TEST(RowPartitioner, Finalise) { TestFinalise(); }
-
-void TestIncorrectRow() {
-  RowPartitioner rp(0, 1);
-  rp.UpdatePosition(0, 1, 2, [=]__device__ (RowPartitioner::RowIndexT ridx)
-  {
-    return 4; // This is not the left branch or the right branch
-  });
+TEST(GpuHist, SortPositionBatch) { 
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 3}, {3, 6}}); 
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 1}, {3, 6}}); 
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 6}});
+  TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
 }
 
-TEST(RowPartitionerDeathTest, IncorrectRow) {
-  ASSERT_DEATH({ TestIncorrectRow(); },".*");
-}
 }  // namespace tree
 }  // namespace xgboost

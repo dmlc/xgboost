@@ -419,9 +419,8 @@ void TestHistogramExternalMemory(BatchParam batch_param, bool is_approx) {
 
     auto cut = common::SketchOnDMatrix(m.get(), batch_param.max_bin, common::OmpGetNumThreads(0),
                                        false, hess);
-    GHistIndexMatrix gmat;
-    gmat.Init(concat, {}, cut, batch_param.max_bin, false, std::numeric_limits<double>::quiet_NaN(),
-              common::OmpGetNumThreads(0));
+    GHistIndexMatrix gmat(concat, {}, cut, batch_param.max_bin, false,
+                          std::numeric_limits<double>::quiet_NaN(), common::OmpGetNumThreads(0));
     single_build.BuildHist(0, gmat, &tree, row_set_collection, nodes, {}, h_gpair);
     single_page = single_build.Histogram()[0];
   }

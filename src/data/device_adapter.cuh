@@ -92,9 +92,8 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
  */
 class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
  public:
-  explicit CudfAdapter(std::string cuda_interfaces_str) {
-    Json interfaces =
-        Json::Load({cuda_interfaces_str.c_str(), cuda_interfaces_str.size()});
+  explicit CudfAdapter(StringView cuda_interfaces_str) {
+    Json interfaces = Json::Load(cuda_interfaces_str);
     std::vector<Json> const& json_columns = get<Array>(interfaces);
     size_t n_columns = json_columns.size();
     CHECK_GT(n_columns, 0) << "Number of columns must not equal to 0.";
@@ -123,6 +122,9 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     columns_ = columns;
     batch_ = CudfAdapterBatch(dh::ToSpan(columns_), num_rows_);
   }
+  explicit CudfAdapter(std::string cuda_interfaces_str)
+      : CudfAdapter{StringView{cuda_interfaces_str}} {}
+
   const CudfAdapterBatch& Value() const override {
     CHECK_EQ(batch_.columns_.data(), columns_.data().get());
     return batch_;
@@ -163,9 +165,8 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
 
 class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
  public:
-  explicit CupyAdapter(std::string cuda_interface_str) {
-    Json json_array_interface =
-        Json::Load({cuda_interface_str.c_str(), cuda_interface_str.size()});
+  explicit CupyAdapter(StringView cuda_interface_str) {
+    Json json_array_interface = Json::Load(cuda_interface_str);
     array_interface_ = ArrayInterface<2>(get<Object const>(json_array_interface));
     batch_ = CupyAdapterBatch(array_interface_);
     if (array_interface_.Shape(0) == 0) {
@@ -174,6 +175,8 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
     device_idx_ = dh::CudaGetPointerDevice(array_interface_.data);
     CHECK_NE(device_idx_, -1);
   }
+  explicit CupyAdapter(std::string cuda_interface_str)
+      : CupyAdapter{StringView{cuda_interface_str}} {}
   const CupyAdapterBatch& Value() const override { return batch_; }
 
   size_t NumRows() const { return array_interface_.Shape(0); }

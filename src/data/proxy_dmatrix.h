@@ -48,8 +48,8 @@ class DMatrixProxy : public DMatrix {
   Context ctx_;
 
 #if defined(XGBOOST_USE_CUDA)
-  void FromCudaColumnar(std::string interface_str);
-  void FromCudaArray(std::string interface_str);
+  void FromCudaColumnar(StringView interface_str);
+  void FromCudaArray(StringView interface_str);
 #endif  // defined(XGBOOST_USE_CUDA)
 
  public:
@@ -58,16 +58,12 @@ class DMatrixProxy : public DMatrix {
   void SetCUDAArray(char const* c_interface) {
     common::AssertGPUSupport();
 #if defined(XGBOOST_USE_CUDA)
-    std::string interface_str = c_interface;
-    Json json_array_interface =
-        Json::Load({interface_str.c_str(), interface_str.size()});
+    StringView interface_str{c_interface};
+    Json json_array_interface = Json::Load(interface_str);
     if (IsA<Array>(json_array_interface)) {
       this->FromCudaColumnar(interface_str);
     } else {
       this->FromCudaArray(interface_str);
-    }
-    if (this->info_.num_row_ == 0) {
-      this->ctx_.gpu_id = Context::kCpuId;
     }
 #endif  // defined(XGBOOST_USE_CUDA)
   }
@@ -81,9 +77,11 @@ class DMatrixProxy : public DMatrix {
   MetaInfo const& Info() const override { return info_; }
   Context const* Ctx() const override { return &ctx_; }
 
-  bool SingleColBlock() const override { return true; }
-  bool EllpackExists() const override { return true; }
+  bool SingleColBlock() const override { return false; }
+  bool EllpackExists() const override { return false; }
+  bool GHistIndexExists() const override { return false; }
   bool SparsePageExists() const override { return false; }
+
   DMatrix* Slice(common::Span<int32_t const> /*ridxs*/) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
     return nullptr;
@@ -114,10 +112,11 @@ class DMatrixProxy : public DMatrix {
   }
 };
 
-inline DMatrixProxy *MakeProxy(DMatrixHandle proxy) {
-  auto proxy_handle = static_cast<std::shared_ptr<DMatrix> *>(proxy);
+inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
+  auto proxy_handle = static_cast<std::shared_ptr<DMatrix>*>(proxy);
   CHECK(proxy_handle) << "Invalid proxy handle.";
-  DMatrixProxy *typed = static_cast<DMatrixProxy *>(proxy_handle->get());
+  DMatrixProxy* typed = static_cast<DMatrixProxy*>(proxy_handle->get());
+  CHECK(typed) << "Invalid proxy handle.";
   return typed;
 }
 

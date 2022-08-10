@@ -87,6 +87,7 @@ class TestGPUUpdaters:
     def test_categorical_missing(self, rows, cols, cats):
         self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
 
+    @pytest.mark.skipif(**tm.no_pandas())
     def test_max_cat(self) -> None:
         self.cputest.run_max_cat("gpu_hist")
 
@@ -113,7 +114,7 @@ class TestGPUUpdaters:
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_device_dmat(), num_rounds)
         note(result)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
 
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)

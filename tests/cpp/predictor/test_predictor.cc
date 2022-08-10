@@ -66,6 +66,14 @@ void TestTrainingPrediction(size_t rows, size_t bins,
       learner->UpdateOneIter(i, p_hist);
     }
 
+    Json model{Object{}};
+    learner->SaveModel(&model);
+
+    learner.reset(Learner::Create({}));
+    learner->LoadModel(model);
+    learner->SetParam("predictor", predictor);
+    learner->Configure();
+
     HostDeviceVector<float> from_full;
     learner->Predict(p_full, false, &from_full, 0, 0);
 
