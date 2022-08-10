@@ -1,11 +1,11 @@
-import sys
-import random
 import json
-import uuid
 import os
+import random
+import sys
+import uuid
 
-import pytest
 import numpy as np
+import pytest
 import testing as tm
 
 if tm.no_spark()["condition"]:
@@ -13,10 +13,11 @@ if tm.no_spark()["condition"]:
 if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
-from .utils import SparkLocalClusterTestCase
+from pyspark.ml.linalg import Vectors
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from xgboost.spark.utils import _get_max_num_concurrent_tasks
-from pyspark.ml.linalg import Vectors
+
+from .utils import SparkLocalClusterTestCase
 
 
 class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):

@@ -1,7 +1,7 @@
 """Shared typing definition."""
 import ctypes
 import os
-from typing import Any, TypeVar, Union, Type, Sequence, Callable, List, Dict
+from typing import Any, Callable, Dict, List, Sequence, Type, TypeVar, Union
 
 # os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
 # cudf.DataFrame/cupy.array/dlpack

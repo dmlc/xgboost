@@ -1,6 +1,6 @@
-# pylint: disable=too-many-arguments, too-many-locals, no-name-in-module
+# pylint: disable=too-many-arguments, too-many-locals
 # pylint: disable=missing-class-docstring, invalid-name
-# pylint: disable=too-many-lines, fixme
+# pylint: disable=too-many-lines
 # pylint: disable=too-few-public-methods
 # pylint: disable=import-error
 """
@@ -227,7 +227,7 @@ class RabitContext(rabit.RabitContext):
         )
 
 
-def dconcat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statements
+def dconcat(value: Sequence[_T]) -> _T:
     """Concatenate sequence of partitions."""
     try:
         return concat(value)
@@ -253,7 +253,7 @@ def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Clie
 
 
 class DaskDMatrix:
-    # pylint: disable=missing-docstring, too-many-instance-attributes
+    # pylint: disable=too-many-instance-attributes
     """DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing a
     `DaskDMatrix` forces all lazy computation to be carried out.  Wait for the input
     data explicitly if you want to see actual computation of constructing `DaskDMatrix`.
@@ -486,6 +486,12 @@ class DaskDMatrix:
         }
 
     def num_col(self) -> int:
+        """Get the number of columns (features) in the DMatrix.
+
+        Returns
+        -------
+        number of columns
+        """
         return self._n_cols
 
 
