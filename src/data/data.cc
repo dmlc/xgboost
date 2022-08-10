@@ -378,35 +378,6 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   return out;
 }
 
-// try to load group information from file, if exists
-inline bool MetaTryLoadGroup(const std::string& fname,
-                             std::vector<unsigned>* group) {
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-  if (fi == nullptr) return false;
-  dmlc::istream is(fi.get());
-  group->clear();
-  group->push_back(0);
-  unsigned nline = 0;
-  while (is >> nline) {
-    group->push_back(group->back() + nline);
-  }
-  return true;
-}
-
-// try to load weight information from file, if exists
-inline bool MetaTryLoadFloatInfo(const std::string& fname,
-                                 std::vector<bst_float>* data) {
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-  if (fi == nullptr) return false;
-  dmlc::istream is(fi.get());
-  data->clear();
-  bst_float value;
-  while (is >> value) {
-    data->push_back(value);
-  }
-  return true;
-}
-
 namespace {
 template <int32_t D, typename T>
 void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
@@ -811,9 +782,7 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
   return nullptr;
 }
 
-DMatrix* DMatrix::Load(const std::string& uri,
-                       bool silent,
-                       bool load_row_split,
+DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
                        const std::string& file_format) {
   std::string fname, cache_file;
   size_t dlm_pos = uri.find('#');
@@ -846,50 +815,47 @@ DMatrix* DMatrix::Load(const std::string& uri,
   } else {
     fname = uri;
   }
+
+  // legacy handling of binary data loading
+  if (file_format == "auto") {
+    DMatrix* loaded = TryLoadBinary(fname, silent);
+    if (loaded) {
+      return loaded;
+    }
+  }
+
   int partid = 0, npart = 1;
   if (load_row_split) {
     partid = rabit::GetRank();
     npart = rabit::GetWorldSize();
   } else {
     // test option to load in part
-    npart = dmlc::GetEnv("XGBOOST_TEST_NPART", 1);
+    npart = 1;
   }
 
   if (npart != 1) {
-    LOG(CONSOLE) << "Load part of data " << partid
-                 << " of " << npart << " parts";
-  }
-
-  // legacy handling of binary data loading
-  if (file_format == "auto" && npart == 1) {
-    DMatrix *loaded = TryLoadBinary(fname, silent);
-    if (loaded) {
-      return loaded;
-    }
+    LOG(CONSOLE) << "Load part of data " << partid << " of " << npart << " parts";
   }
 
   DMatrix* dmat {nullptr};
   try {
     if (cache_file.empty()) {
       std::unique_ptr<dmlc::Parser<uint32_t>> parser(
-          dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart,
-                                         file_format.c_str()));
+          dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
       data::FileAdapter adapter(parser.get());
-      dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                             1, cache_file);
+      dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1, cache_file);
     } else {
       data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
                               file_format};
-      dmat = new data::SparsePageDMatrix{
-          &iter,
-          iter.Proxy(),
-          data::fileiter::Reset,
-          data::fileiter::Next,
-          std::numeric_limits<float>::quiet_NaN(),
-          1,
-          cache_file};
+      dmat = new data::SparsePageDMatrix{&iter,
+                                         iter.Proxy(),
+                                         data::fileiter::Reset,
+                                         data::fileiter::Next,
+                                         std::numeric_limits<float>::quiet_NaN(),
+                                         1,
+                                         cache_file};
     }
-  } catch (dmlc::Error &e) {
+  } catch (dmlc::Error& e) {
     std::vector<std::string> splited = common::Split(fname, '#');
     std::vector<std::string> args = common::Split(splited.front(), '?');
     std::string format {file_format};
@@ -917,24 +883,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
   rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
-  // backward compatiblity code.
-  if (!load_row_split) {
-    MetaInfo& info = dmat->Info();
-    if (MetaTryLoadGroup(fname + ".group", &info.group_ptr_) && !silent) {
-      LOG(CONSOLE) << info.group_ptr_.size() - 1
-                   << " groups are loaded from " << fname << ".group";
-    }
-    if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin_.Data()->HostVector()) &&
-        !silent) {
-      LOG(CONSOLE) << info.base_margin_.Size() << " base_margin are loaded from " << fname
-                   << ".base_margin";
-    }
-    if (MetaTryLoadFloatInfo
-        (fname + ".weight", &info.weights_.HostVector()) && !silent) {
-      LOG(CONSOLE) << info.weights_.Size()
-                   << " weights are loaded from " << fname << ".weight";
-    }
-  }
   return dmat;
 }
 template <typename DataIterHandle, typename DMatrixHandle,
