@@ -366,7 +366,7 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
     return features_array_col
 
 
-def _get_unwrap_udf_fn():
+def _get_unwrap_udt_fn():
     try:
         from pyspark.sql.functions import unwrap_udt
         return unwrap_udt
@@ -578,8 +578,20 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     "`pyspark.ml.linalg.Vector` type."
                 )
 
-            unwrap_udf = _get_unwrap_udf_fn()
-            features_unwrapped_vec_col = unwrap_udf(col(features_col_name))
+            unwrap_udt = _get_unwrap_udt_fn()
+            features_unwrapped_vec_col = unwrap_udt(col(features_col_name))
+
+            # After a `pyspark.ml.linalg.VectorUDT` type column being unwrapped, it becomes
+            # a pyspark struct type column, the struct fields are:
+            #  - `type`: byte
+            #  - `size`: int
+            #  - `indices`: array<int>
+            #  - `values`: array<double>
+            # For sparse vector, `type` field is 0, `size` field means vector length,
+            # `indices` field is the array of active element indices, `values` field
+            # is the array of active element values.
+            # For dense vector, `type` field is 1, `size` and `indices` fields are None,
+            # `values` field is the array of the vector element values.
             select_cols.extend([
                 features_unwrapped_vec_col.type.alias("featureVectorType"),
                 features_unwrapped_vec_col.size.alias("featureVectorSize"),
