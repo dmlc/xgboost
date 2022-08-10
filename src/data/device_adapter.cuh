@@ -113,7 +113,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface<1>(get<Object const>(json_col));
       columns.push_back(column);
-      num_rows_ = std::max(num_rows_, size_t(column.Shape(0)));
+      num_rows_ = std::max(num_rows_, column.Shape(0));
       CHECK_EQ(device_idx_, dh::CudaGetPointerDevice(column.data))
           << "All columns should use the same device.";
       CHECK_EQ(num_rows_, column.Shape(0))
@@ -138,7 +138,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   CudfAdapterBatch batch_;
   dh::device_vector<ArrayInterface<1>> columns_;
   size_t num_rows_{0};
-  int device_idx_;
+  int32_t device_idx_{-1};
 };
 
 class CupyAdapterBatch : public detail::NoMetaInfo {
