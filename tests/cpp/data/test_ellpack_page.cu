@@ -237,8 +237,10 @@ TEST(EllpackPage, Compact) {
   }
 }
 
-TEST(EllpackPage, FromGHistIndex) {
-  auto test = [&](float sparsity) {
+namespace {
+class EllpackPageTest : public testing::TestWithParam<float> {
+ protected:
+  void Run(float sparsity) {
     // Only testing with small sample size as the cuts might be different between host and
     // device.
     size_t n_samples{128}, n_features{13};
@@ -269,10 +271,10 @@ TEST(EllpackPage, FromGHistIndex) {
         EXPECT_EQ(from_ghist_it[i], from_sparse_it[i]);
       }
     }
-  };
-
-  for (auto s : {0.0, 0.2, 0.4, 0.8}) {
-    test(s);
   }
-}
+};
+}  // namespace
+
+TEST_P(EllpackPageTest, FromGHistIndex) { this->Run(GetParam()); }
+INSTANTIATE_TEST_SUITE_P(EllpackPage, EllpackPageTest, testing::Values(.0f, .2f, .4f, .8f));
 }  // namespace xgboost
