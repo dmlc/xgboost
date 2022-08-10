@@ -166,16 +166,33 @@ def create_dmatrix_from_partitions(
                         # when type field is 1, the size field is also empty.
                         # we need to check the values field to get vector length.
                         vec_size = len(vec_values)
-                        csr_indices = np.array(range(n_features))
+                        csr_indices = np.arange(vec_size, dtype=np.int32)
                         csr_values = vec_values
 
                     if n_features == 0:
                         n_features = vec_size
                     assert n_features == vec_size
 
-                    csr_indices_list.append(csr_indices)
-                    csr_indptr_list.append(csr_indptr_list[-1] + len(csr_indices))
-                    csr_values_list.append(csr_values)
+                    # remove zero elements from csr_indices / csr_values
+                    n_actives = len(csr_indices)
+                    nz_csr_indices = np.empty(n_actives, dtype=np.int32)
+                    nz_csr_values = np.empty(n_actives, dtype=np.int32)
+
+                    active_i = 0
+                    nz_i = 0
+                    while active_i < n_actives:
+                        if csr_values[active_i] != 0.0:
+                            nz_csr_indices[nz_i] = csr_indices[active_i]
+                            nz_csr_values[nz_i] = csr_values[active_i]
+                            nz_i += 1
+                        active_i += 1
+
+                    nz_csr_indices = nz_csr_indices[:nz_i]
+                    nz_csr_values = nz_csr_values[:nz_i]
+
+                    csr_indices_list.append(nz_csr_indices)
+                    csr_indptr_list.append(csr_indptr_list[-1] + len(nz_csr_indices))
+                    csr_values_list.append(nz_csr_values)
 
                 csr_indptr_arr = np.array(csr_indptr_list)
                 csr_indices_arr = np.concatenate(csr_indices_list)
