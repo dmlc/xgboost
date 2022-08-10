@@ -5,11 +5,12 @@ import numpy as np
 import pandas as pd
 import pytest
 import testing as tm
+from unittest import mock
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
-    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
+#if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
+#    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from xgboost.spark.data import alias, create_dmatrix_from_partitions, stack_series
 
@@ -62,10 +63,10 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
     kwargs = {"feature_types": feature_types}
     if is_dqm:
         cols = [f"feat-{i}" for i in range(n_features)]
-        train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), cols, 0, kwargs)
+        train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), cols, 0, kwargs, False)
     else:
         train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), None, None, kwargs
+            iter(dfs), None, None, kwargs, True
         )
 
     assert valid_Xy is not None
@@ -100,3 +101,28 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
 
 def test_dmatrix_ctor() -> None:
     run_dmatrix_ctor(False)
+
+
+def test_dmatrix_ctor_with_sparse_optim():
+    from scipy.sparse import csr_matrix
+    pd1 = pd.DataFrame({
+        "featureVectorType": [0, 1],
+        "featureVectorSize": [3, None],
+        "featureVectorIndices": [np.array([0, 2], dtype=np.int32), None],
+        "featureVectorValues": [np.array([3.0, 0.0], dtype=np.float64), np.array([13.0, 14.0, 0.0], dtype=np.float64)],
+    })
+    pd2 = pd.DataFrame({
+        "featureVectorType": [1, 0],
+        "featureVectorSize": [None, 3],
+        "featureVectorIndices": [None, np.array([1, 2], dtype=np.int32)],
+        "featureVectorValues": [np.array([0.0, 24.0, 25.0], dtype=np.float64), np.array([0.0, 35.0], dtype=np.float64)],
+    })
+
+    with mock.patch("xgboost.core.DMatrix.__init__", return_value=None) as mock_dmatrix_ctor:
+        create_dmatrix_from_partitions([pd1, pd2], None, None, {}, True)
+    sm = mock_dmatrix_ctor.call_args_list[0][1]["data"]
+    assert isinstance(sm, csr_matrix)
+    np.testing.assert_array_equal(sm.data, [3, 13, 14, 24, 25, 35])
+    np.testing.assert_array_equal(sm.indptr, [0, 1, 3, 5, 6])
+    np.testing.assert_array_equal(sm.indices, [0, 0, 1, 1, 2, 2])
+    assert sm.shape == (4, 3)

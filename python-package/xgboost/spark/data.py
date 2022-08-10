@@ -235,8 +235,6 @@ def create_dmatrix_from_partitions(
         label = concat_or_none(values.get(alias.label, None))
         weight = concat_or_none(values.get(alias.weight, None))
         margin = concat_or_none(values.get(alias.margin, None))
-        if enable_sparse_data_optim:
-            assert kwargs["missing"] == 0.0
 
         return DMatrix(
             data=data, label=label, weight=weight, base_margin=margin, **kwargs
