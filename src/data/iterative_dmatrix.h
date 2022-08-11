@@ -40,12 +40,9 @@ namespace data {
  *
  * - The CPU format and the GPU format are different, the former uses a CSR + CSC for
  *   histogram index while the latter uses only Ellpack. This results into a design that
- *   we can obtain the GPU format from CPU but not the other way around since we can't
- *   recover the CSC from Ellpack. More concretely, if users want to construct a CPU
- *   version of `QuantileDMatrix`, input data must be on CPU. However, if users want to
- *   have a GPU version of `QuantileDMatrix`, data can be on either place. We can fix this
- *   by retaining the feature index information in ellpack if there are feature
- *   requests.
+ *   we can obtain the GPU format from CPU but the other way around is not yet
+ *   supported. We can search the bin value from ellpack to recover the feature index when
+ *   we support copying data from GPU to CPU.
  */
 class IterativeDMatrix : public DMatrix {
   MetaInfo info_;
