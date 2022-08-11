@@ -4,7 +4,6 @@
 
 namespace xgboost {
 namespace common {
-
 TEST(CompressedIterator, Test) {
   ASSERT_TRUE(detail::SymbolBits(256) == 8);
   ASSERT_TRUE(detail::SymbolBits(150) == 8);
@@ -18,25 +17,36 @@ TEST(CompressedIterator, Test) {
       std::vector<int> input(num_elements);
       std::generate(input.begin(), input.end(),
         [=]() { return rand() % alphabet_size; });
+      CompressedBufferWriter cbw(alphabet_size);
 
       // Test write entire array
       std::vector<unsigned char> buffer(
-        CompressedWriter::CalculateBufferSize(input.size(),
+        CompressedBufferWriter::CalculateBufferSize(input.size(),
           alphabet_size));
-      CompressedWriter writer(buffer.data(), alphabet_size);
-      CompressedIterator iter(buffer.data(), alphabet_size);
 
-      for (size_t i = 0; i < input.size(); i++) {
-        writer.Write(i,input[i]);
-      }
+      cbw.Write(buffer.data(), input.begin(), input.end());
 
+      CompressedIterator<int> ci(buffer.data(), alphabet_size);
       std::vector<int> output(input.size());
       for (size_t i = 0; i < input.size(); i++) {
-        output[i] = iter[i];
+        output[i] = ci[i];
       }
 
       ASSERT_TRUE(input == output);
 
+      // Test write Symbol
+      std::vector<unsigned char> buffer2(
+        CompressedBufferWriter::CalculateBufferSize(input.size(),
+          alphabet_size));
+      for (size_t i = 0; i < input.size(); i++) {
+        cbw.WriteSymbol(buffer2.data(), input[i], i);
+      }
+      CompressedIterator<int> ci2(buffer.data(), alphabet_size);
+      std::vector<int> output2(input.size());
+      for (size_t i = 0; i < input.size(); i++) {
+        output2[i] = ci2[i];
+      }
+      ASSERT_TRUE(input == output2);
     }
   }
 }

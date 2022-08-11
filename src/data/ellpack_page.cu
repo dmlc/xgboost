@@ -27,7 +27,8 @@ void EllpackPage::SetBaseRowId(size_t row_id) { impl_->SetBaseRowId(row_id); }
 
 // Bin each input data entry, store the bin indices in compressed form.
 __global__ void CompressBinEllpackKernel(
-    common::CompressedWriter writer,
+    common::CompressedBufferWriter wr,
+    common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
     const size_t* __restrict__ row_ptrs,           // row offset of input data
     const Entry* __restrict__ entries,      // One batch of input data
     const float* __restrict__ cuts,         // HistogramCuts::cut_values_
@@ -71,7 +72,7 @@ __global__ void CompressBinEllpackKernel(
     bin += cut_rows[feature];
   }
   // Write to gidx buffer.
-  writer.Write((irow + base_row) * row_stride + ifeature, bin);
+  wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
 // Construct an ELLPACK matrix with the given number of empty rows.
@@ -130,17 +131,21 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
 
 template <typename AdapterBatchT>
 struct WriteCompressedEllpackFunctor {
-  WriteCompressedEllpackFunctor(common::CompressedWriter writer,
+  WriteCompressedEllpackFunctor(common::CompressedByteT* buffer,
+                                const common::CompressedBufferWriter& writer,
                                 AdapterBatchT batch,
                                 EllpackDeviceAccessor accessor,
                                 common::Span<FeatureType const> feature_types,
                                 const data::IsValidFunctor& is_valid)
-      : writer(writer),
+      : d_buffer(buffer),
+      writer(writer),
       batch(std::move(batch)),
       accessor(std::move(accessor)),
       feature_types(std::move(feature_types)),
       is_valid(is_valid) {}
-  common::CompressedWriter writer;
+
+  common::CompressedByteT* d_buffer;
+  common::CompressedBufferWriter writer;
   AdapterBatchT batch;
   EllpackDeviceAccessor accessor;
   common::Span<FeatureType const> feature_types;
@@ -159,7 +164,7 @@ struct WriteCompressedEllpackFunctor {
       } else {
         bin_idx = accessor.SearchBin<false>(e.value, e.column_idx);
       }
-      writer.Write(output_position, bin_idx);
+      writer.AtomicWriteSymbol(d_buffer, bin_idx, output_position);
     }
     return 0;
   }
@@ -213,11 +218,12 @@ void CopyDataToEllpack(const AdapterBatchT &batch,
   using Tuple = thrust::tuple<size_t, size_t, size_t>;
 
   auto device_accessor = dst->GetDeviceAccessor(device_idx);
-  common::CompressedWriter writer(dst->gidx_buffer.DevicePointer(), dst->NumSymbols());
+  common::CompressedBufferWriter writer(device_accessor.NumSymbols());
+  auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
 
   // We redirect the scan output into this functor to do the actual writing
-  WriteCompressedEllpackFunctor<AdapterBatchT> functor(writer,
-       batch, device_accessor, feature_types,
+  WriteCompressedEllpackFunctor<AdapterBatchT> functor(
+      d_compressed_buffer, writer, batch, device_accessor, feature_types,
       is_valid);
   dh::TypedDiscard<Tuple> discard;
   thrust::transform_output_iterator<
@@ -241,15 +247,18 @@ void CopyDataToEllpack(const AdapterBatchT &batch,
 void WriteNullValues(EllpackPageImpl* dst, int device_idx,
                      common::Span<size_t> row_counts) {
   // Write the null values
-  common::CompressedWriter writer(dst->gidx_buffer.DevicePointer(), dst->NumSymbols());
   auto device_accessor = dst->GetDeviceAccessor(device_idx);
+  common::CompressedBufferWriter writer(device_accessor.NumSymbols());
+  auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
   auto row_stride = dst->row_stride;
-  dh::LaunchN(row_stride * dst->n_rows, [=] __device__(size_t idx) mutable {
+  dh::LaunchN(row_stride * dst->n_rows, [=] __device__(size_t idx) {
     // For some reason this variable got captured as const
+    auto writer_non_const = writer;
     size_t row_idx = idx / row_stride;
     size_t row_offset = idx % row_stride;
     if (row_offset >= row_counts[row_idx]) {
-      writer.Write(idx, device_accessor.NullValue());
+      writer_non_const.AtomicWriteSymbol(d_compressed_buffer,
+                                         device_accessor.NullValue(), idx);
     }
   });
 }
@@ -275,6 +284,24 @@ EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device, 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
 
+// A functor that copies the data from one EllpackPage to another.
+struct CopyPage {
+  common::CompressedBufferWriter cbw;
+  common::CompressedByteT* dst_data_d;
+  common::CompressedIterator<uint32_t> src_iterator_d;
+  // The number of elements to skip.
+  size_t offset;
+
+  CopyPage(EllpackPageImpl *dst, EllpackPageImpl const *src, size_t offset)
+      : cbw{dst->NumSymbols()}, dst_data_d{dst->gidx_buffer.DevicePointer()},
+        src_iterator_d{src->gidx_buffer.DevicePointer(), src->NumSymbols()},
+        offset(offset) {}
+
+  __device__ void operator()(size_t element_id) {
+    cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[element_id],
+                          element_id + offset);
+  }
+};
 
 // Copy the data from the given EllpackPage to the current page.
 size_t EllpackPageImpl::Copy(int device, EllpackPageImpl const *page,
@@ -288,18 +315,18 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl const *page,
     LOG(FATAL) << "Concatenating the same Ellpack.";
     return this->n_rows * this->row_stride;
   }
-  auto src = page->GetDeviceAccessor(device).gidx_iter;
-  common::CompressedWriter writer(this->gidx_buffer.DevicePointer(), this->NumSymbols());
-  dh::LaunchN(num_elements,
-              [=] __device__(std::size_t idx) mutable { writer.Write(offset + idx, src[idx]); });
+  gidx_buffer.SetDevice(device);
+  page->gidx_buffer.SetDevice(device);
+  dh::LaunchN(num_elements, CopyPage(this, page, offset));
   monitor_.Stop("Copy");
   return num_elements;
 }
 
 // A functor that compacts the rows from one EllpackPage into another.
 struct CompactPage {
-  common::CompressedWriter writer;
-  common::CompressedIterator src_iterator_d;
+  common::CompressedBufferWriter cbw;
+  common::CompressedByteT* dst_data_d;
+  common::CompressedIterator<uint32_t> src_iterator_d;
   /*! \brief An array that maps the rows from the full DMatrix to the compacted
    * page.
    *
@@ -315,10 +342,11 @@ struct CompactPage {
   size_t base_rowid;
   size_t row_stride;
 
-  CompactPage(EllpackPageImpl* dst, EllpackPageImpl const* src, common::Span<size_t> row_indexes,
-              int device)
-      : writer(dst->gidx_buffer.DevicePointer(), dst->NumSymbols()),
-        src_iterator_d{src->GetDeviceAccessor(device).gidx_iter},
+  CompactPage(EllpackPageImpl* dst, EllpackPageImpl const* src,
+              common::Span<size_t> row_indexes)
+      : cbw{dst->NumSymbols()},
+        dst_data_d{dst->gidx_buffer.DevicePointer()},
+        src_iterator_d{src->gidx_buffer.DevicePointer(), src->NumSymbols()},
         row_indexes(row_indexes),
         base_rowid{src->base_rowid},
         row_stride{src->row_stride} {}
@@ -330,7 +358,8 @@ struct CompactPage {
     size_t dst_offset = dst_row * row_stride;
     size_t src_offset = row_id * row_stride;
     for (size_t j = 0; j < row_stride; j++) {
-      writer.Write(dst_offset + j, src_iterator_d[src_offset + j]);
+      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset + j],
+                            dst_offset + j);
     }
   }
 };
@@ -344,7 +373,7 @@ void EllpackPageImpl::Compact(int device, EllpackPageImpl const* page,
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
-  dh::LaunchN(page->n_rows, CompactPage(this, page, row_indexes, device));
+  dh::LaunchN(page->n_rows, CompactPage(this, page, row_indexes));
   monitor_.Stop("Compact");
 }
 
@@ -354,7 +383,7 @@ void EllpackPageImpl::InitCompressedData(int device) {
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes =
-    common::CompressedWriter::CalculateBufferSize(row_stride * n_rows,
+    common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
       num_symbols);
   gidx_buffer.SetDevice(device);
   // Don't call fill unnecessarily
@@ -417,11 +446,12 @@ void EllpackPageImpl::CreateHistIndices(int device,
                      common::DivRoundUp(row_stride, block3.y), 1);
     auto device_accessor = GetDeviceAccessor(device);
     dh::LaunchKernel {grid3, block3}(
-        CompressBinEllpackKernel,
-        common::CompressedWriter(gidx_buffer.DevicePointer(), NumSymbols()), row_ptrs.data().get(),
+        CompressBinEllpackKernel, common::CompressedBufferWriter(NumSymbols()),
+        gidx_buffer.DevicePointer(), row_ptrs.data().get(),
         entries_d.data().get(), device_accessor.gidx_fvalue_map.data(),
-        device_accessor.feature_segments.data(), feature_types, batch_row_begin, batch_nrows,
-        row_stride, null_gidx_value);
+        device_accessor.feature_segments.data(), feature_types,
+        batch_row_begin, batch_nrows, row_stride,
+        null_gidx_value);
   }
 }
 
@@ -433,26 +463,12 @@ size_t EllpackPageImpl::MemCostBytes(size_t num_rows, size_t row_stride,
                                      const common::HistogramCuts& cuts) {
   // Required buffer size for storing data matrix in EtoLLPack format.
   size_t compressed_size_bytes =
-      common::CompressedWriter::CalculateBufferSize(row_stride * num_rows,
+      common::CompressedBufferWriter::CalculateBufferSize(row_stride * num_rows,
                                                           cuts.TotalBins() + 1);
   return compressed_size_bytes;
 }
 
 EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
-    int device, common::Span<FeatureType const> feature_types) {
-  gidx_buffer.SetDevice(device);
-  return {device,
-          cuts_,
-          is_dense,
-          row_stride,
-          base_rowid,
-          n_rows,
-          common::CompressedIterator(gidx_buffer.DevicePointer(),
-                                               NumSymbols()),
-          feature_types};
-  }
-
-const EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
     int device, common::Span<FeatureType const> feature_types) const {
   gidx_buffer.SetDevice(device);
   return {device,
@@ -461,7 +477,7 @@ const EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
           row_stride,
           base_rowid,
           n_rows,
-          common::CompressedIterator(gidx_buffer.ConstDevicePointer(),
+          common::CompressedIterator<uint32_t>(gidx_buffer.ConstDevicePointer(),
                                                NumSymbols()),
           feature_types};
 }
