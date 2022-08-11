@@ -19,13 +19,14 @@ Also, see the tutorial for using XGBoost with categorical data:
 """
 
 from __future__ import annotations
-from time import time
+
 import os
 from tempfile import TemporaryDirectory
+from time import time
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
 
 import xgboost as xgb
 

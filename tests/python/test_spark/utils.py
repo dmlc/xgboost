@@ -3,22 +3,18 @@ import logging
 import shutil
 import sys
 import tempfile
-
 import unittest
+
 import pytest
-
-from six import StringIO
-
 import testing as tm
+from six import StringIO
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
-from pyspark.sql import SQLContext
-from pyspark.sql import SparkSession
-
+from pyspark.sql import SparkSession, SQLContext
 from xgboost.spark.utils import _get_default_params_from_func
 
 
