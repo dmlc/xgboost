@@ -44,7 +44,7 @@ from .model import (
     SparkXGBReader,
     SparkXGBWriter,
 )
-from .params import HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols
+from .params import HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols, HasQueryIdCol
 from .utils import (
     RabitContext,
     _get_args_from_message_list,
@@ -97,6 +97,7 @@ _unsupported_xgb_params = [
     "use_label_encoder",
     "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
     "nthread",  # Ditto
+    "eval_metric",  # TODO
 ]
 
 _unsupported_fit_params = {
@@ -105,6 +106,7 @@ _unsupported_fit_params = {
     "eval_set",
     "sample_weight_eval_set",
     "base_margin",  # Supported by spark param base_margin_col
+    "eval_metric",  # Use constructor param instead
 }
 
 _unsupported_predict_params = {
@@ -124,6 +126,7 @@ class _SparkXGBParams(
     HasArbitraryParamsDict,
     HasBaseMarginCol,
     HasFeaturesCols,
+    HasQueryIdCol,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -755,18 +758,6 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
             )
         return features_col, feature_col_names
 
-
-class SparkXGBRegressorModel(_SparkXGBModel):
-    """
-    The model returned by :func:`xgboost.spark.SparkXGBRegressor.fit`
-
-    .. Note:: This API is experimental.
-    """
-
-    @classmethod
-    def _xgb_cls(cls):
-        return XGBRegressor
-
     def _transform(self, dataset):
         # Save xgb_sklearn_model and predict_params to be local variable
         # to avoid the `self` object to be pickled to remote.
@@ -814,6 +805,18 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         predictionColName = self.getOrDefault(self.predictionCol)
 
         return dataset.withColumn(predictionColName, pred_col)
+
+
+class SparkXGBRegressorModel(_SparkXGBModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBRegressor.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls):
+        return XGBRegressor
 
 
 class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictionCol):

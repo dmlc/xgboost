@@ -50,3 +50,21 @@ class HasFeaturesCols(Params):
     def __init__(self):
         super().__init__()
         self._setDefault(features_cols=[])
+
+
+class HasQueryIdCol(Params):
+    """
+    Mixin for param featuresCols: a list of feature column names.
+    This parameter is taken effect only when use_gpu is enabled.
+    """
+
+    features_cols = Param(
+        Params._dummy(),
+        "qid_col",
+        "query id column name",
+        typeConverter=TypeConverters.toListString,
+    )
+
+    def __init__(self):
+        super().__init__()
+
