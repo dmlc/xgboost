@@ -41,6 +41,7 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
     bytes += sizeof(impl->is_dense);
     fo->Write(impl->row_stride);
     bytes += sizeof(impl->row_stride);
+    CHECK(!impl->gidx_buffer.ConstHostVector().empty());
     fo->Write(impl->gidx_buffer.HostVector());
     bytes += impl->gidx_buffer.ConstHostSpan().size_bytes() + sizeof(uint64_t);
     fo->Write(impl->base_rowid);

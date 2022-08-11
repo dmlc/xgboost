@@ -9,7 +9,7 @@ import pytest
 def test_large_input():
     available_bytes, _ = cp.cuda.runtime.memGetInfo()
     # 15 GB
-    required_bytes = 1.6e+10
+    required_bytes = 1.5e+10
     if available_bytes < required_bytes:
         pytest.skip("Not enough memory on this device")
     n = 1000
