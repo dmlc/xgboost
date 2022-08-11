@@ -236,4 +236,45 @@ TEST(EllpackPage, Compact) {
     }
   }
 }
+
+namespace {
+class EllpackPageTest : public testing::TestWithParam<float> {
+ protected:
+  void Run(float sparsity) {
+    // Only testing with small sample size as the cuts might be different between host and
+    // device.
+    size_t n_samples{128}, n_features{13};
+    Context ctx;
+    ctx.gpu_id = 0;
+    auto Xy = RandomDataGenerator{n_samples, n_features, sparsity}.GenerateDMatrix(true);
+    std::unique_ptr<EllpackPageImpl> from_ghist;
+    ASSERT_TRUE(Xy->SingleColBlock());
+    for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(BatchParam{17, 0.6})) {
+      from_ghist.reset(new EllpackPageImpl{&ctx, page, {}});
+    }
+
+    for (auto const& page : Xy->GetBatches<EllpackPage>(BatchParam{0, 17})) {
+      auto from_sparse_page = page.Impl();
+      ASSERT_EQ(from_sparse_page->is_dense, from_ghist->is_dense);
+      ASSERT_EQ(from_sparse_page->base_rowid, 0);
+      ASSERT_EQ(from_sparse_page->base_rowid, from_ghist->base_rowid);
+      ASSERT_EQ(from_sparse_page->n_rows, from_ghist->n_rows);
+      ASSERT_EQ(from_sparse_page->gidx_buffer.Size(), from_ghist->gidx_buffer.Size());
+      auto const& h_gidx_from_sparse = from_sparse_page->gidx_buffer.HostVector();
+      auto const& h_gidx_from_ghist = from_ghist->gidx_buffer.HostVector();
+      ASSERT_EQ(from_sparse_page->NumSymbols(), from_ghist->NumSymbols());
+      common::CompressedIterator<uint32_t> from_ghist_it(h_gidx_from_ghist.data(),
+                                                         from_ghist->NumSymbols());
+      common::CompressedIterator<uint32_t> from_sparse_it(h_gidx_from_sparse.data(),
+                                                          from_sparse_page->NumSymbols());
+      for (size_t i = 0; i < from_ghist->n_rows * from_ghist->row_stride; ++i) {
+        EXPECT_EQ(from_ghist_it[i], from_sparse_it[i]);
+      }
+    }
+  }
+};
+}  // namespace
+
+TEST_P(EllpackPageTest, FromGHistIndex) { this->Run(GetParam()); }
+INSTANTIATE_TEST_SUITE_P(EllpackPage, EllpackPageTest, testing::Values(.0f, .2f, .4f, .8f));
 }  // namespace xgboost

@@ -168,7 +168,17 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
 
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(BatchParam const& param) {
   CheckParam(param);
-  CHECK(ellpack_) << "Not initialized with GPU data";
+  if (!ellpack_ && !ghist_) {
+    LOG(FATAL) << "`QuantileDMatrix` not initialized.";
+  }
+  if (!ellpack_ && ghist_) {
+    ellpack_.reset(new EllpackPage());
+    this->ctx_.gpu_id = param.gpu_id;
+    this->Info().feature_types.SetDevice(param.gpu_id);
+    *ellpack_->Impl() =
+        EllpackPageImpl(&ctx_, *this->ghist_, this->Info().feature_types.ConstDeviceSpan());
+  }
+  CHECK(ellpack_);
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(begin_iter);
 }

@@ -108,12 +108,12 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     }
 
     device_idx_ = dh::CudaGetPointerDevice(first_column.data);
-    CHECK_NE(device_idx_, -1);
+    CHECK_NE(device_idx_, Context::kCpuId);
     dh::safe_cuda(cudaSetDevice(device_idx_));
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface<1>(get<Object const>(json_col));
       columns.push_back(column);
-      num_rows_ = std::max(num_rows_, size_t(column.Shape(0)));
+      num_rows_ = std::max(num_rows_, column.Shape(0));
       CHECK_EQ(device_idx_, dh::CudaGetPointerDevice(column.data))
           << "All columns should use the same device.";
       CHECK_EQ(num_rows_, column.Shape(0))
@@ -138,7 +138,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   CudfAdapterBatch batch_;
   dh::device_vector<ArrayInterface<1>> columns_;
   size_t num_rows_{0};
-  int device_idx_;
+  int32_t device_idx_{Context::kCpuId};
 };
 
 class CupyAdapterBatch : public detail::NoMetaInfo {
@@ -173,7 +173,7 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
       return;
     }
     device_idx_ = dh::CudaGetPointerDevice(array_interface_.data);
-    CHECK_NE(device_idx_, -1);
+    CHECK_NE(device_idx_, Context::kCpuId);
   }
   explicit CupyAdapter(std::string cuda_interface_str)
       : CupyAdapter{StringView{cuda_interface_str}} {}
@@ -186,7 +186,7 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
  private:
   ArrayInterface<2> array_interface_;
   CupyAdapterBatch batch_;
-  int32_t device_idx_ {-1};
+  int32_t device_idx_ {Context::kCpuId};
 };
 
 // Returns maximum row length

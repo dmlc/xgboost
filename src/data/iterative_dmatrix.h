@@ -22,7 +22,28 @@ class HistogramCuts;
 }
 
 namespace data {
-
+/**
+ * \brief DMatrix type for `QuantileDMatrix`, the naming `IterativeDMatix` is due to its
+ *        construction process.
+ *
+ * `QuantileDMatrix` is an intermediate storage for quantilization results including
+ * quantile cuts and histogram index. Quantilization is designed to be performed on stream
+ * of data (or batches of it). As a result, the `QuantileDMatrix` is also designed to work
+ * with batches of data. During initializaion, it will walk through the data multiple
+ * times iteratively in order to perform quantilization. This design can help us reduce
+ * memory usage significantly by avoiding data concatenation along with removing the CSR
+ * matrix `SparsePage`. However, it has its limitation (can be fixed if needed):
+ *
+ * - It's only supported by hist tree method (both CPU and GPU) since approx requires a
+ *   re-calculation of quantiles for each iteration. We can fix this by retaining a
+ *   reference to the callback if there are feature requests.
+ *
+ * - The CPU format and the GPU format are different, the former uses a CSR + CSC for
+ *   histogram index while the latter uses only Ellpack. This results into a design that
+ *   we can obtain the GPU format from CPU but the other way around is not yet
+ *   supported. We can search the bin value from ellpack to recover the feature index when
+ *   we support copying data from GPU to CPU.
+ */
 class IterativeDMatrix : public DMatrix {
   MetaInfo info_;
   Context ctx_;
@@ -40,7 +61,8 @@ class IterativeDMatrix : public DMatrix {
       LOG(WARNING) << "Inconsistent max_bin between Quantile DMatrix and Booster:" << param.max_bin
                    << " vs. " << batch_param_.max_bin;
     }
-    CHECK(!param.regen) << "Only `hist` and `gpu_hist` tree method can use `QuantileDMatrix`.";
+    CHECK(!param.regen && param.hess.empty())
+        << "Only `hist` and `gpu_hist` tree method can use `QuantileDMatrix`.";
   }
 
   template <typename Page>
@@ -49,7 +71,6 @@ class IterativeDMatrix : public DMatrix {
     return BatchSet<Page>(BatchIterator<Page>(nullptr));
   }
 
- public:
   void InitFromCUDA(DataIterHandle iter, float missing, std::shared_ptr<DMatrix> ref);
   void InitFromCPU(DataIterHandle iter_handle, float missing, std::shared_ptr<DMatrix> ref);
 
@@ -73,8 +94,9 @@ class IterativeDMatrix : public DMatrix {
     batch_param_ = BatchParam{d, max_bin};
     batch_param_.sparse_thresh = 0.2;  // default from TrainParam
 
-    ctx_.UpdateAllowUnknown(Args{{"nthread", std::to_string(nthread)}});
-    if (d == Context::kCpuId) {
+    ctx_.UpdateAllowUnknown(
+        Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
+    if (ctx_.IsCPU()) {
       this->InitFromCPU(iter_handle, missing, ref);
     } else {
       this->InitFromCUDA(iter_handle, missing, ref);

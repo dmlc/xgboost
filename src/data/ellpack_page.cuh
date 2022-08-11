@@ -116,6 +116,8 @@ struct EllpackDeviceAccessor {
 };
 
 
+class GHistIndexMatrix;
+
 class EllpackPageImpl {
  public:
   /*!
@@ -154,6 +156,11 @@ class EllpackPageImpl {
                            common::Span<size_t> row_counts_span,
                            common::Span<FeatureType const> feature_types, size_t row_stride,
                            size_t n_rows, common::HistogramCuts const& cuts);
+  /**
+   * \brief Constructor from an existing CPU gradient index.
+   */
+  explicit EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
+                           common::Span<FeatureType const> ft);
 
   /*! \brief Copy the elements of the given ELLPACK page into this page.
    *
