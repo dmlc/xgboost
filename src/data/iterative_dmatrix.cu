@@ -37,8 +37,6 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
 
   size_t row_stride = 0;
   size_t nnz = 0;
-  // Sketch for all batches.
-  std::vector<common::SketchContainer> sketch_containers;
   size_t batches = 0;
   size_t accumulated_rows = 0;
   bst_feature_t cols = 0;
@@ -55,6 +53,13 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
    * Generate quantiles
    */
   common::HistogramCuts cuts;
+  HostDeviceVector<FeatureType> ft;
+  ft.SetDevice(proxy->Info().feature_types.DeviceIdx());
+  ft.Resize(proxy->Info().feature_types.Size());
+  ft.Copy(proxy->Info().feature_types);
+
+  std::unique_ptr<common::SketchContainer> sketcher;
+
   do {
     // We use do while here as the first batch is fetched in ctor
     ctx_.gpu_id = proxy->DeviceIdx();
@@ -68,12 +73,14 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
     }
     if (!ref) {
-      sketch_containers.emplace_back(proxy->Info().feature_types, batch_param_.max_bin, cols,
-                                     num_rows(), get_device());
-      auto* p_sketch = &sketch_containers.back();
       proxy->Info().weights_.SetDevice(get_device());
+      if (!sketcher) {
+        sketcher = std::make_unique<common::SketchContainer>(ft, batch_param_.max_bin, cols,
+                                                             accumulated_rows, get_device());
+      }
       Dispatch(proxy, [&](auto const& value) {
-        common::AdapterDeviceSketch(value, batch_param_.max_bin, proxy->Info(), missing, p_sketch);
+        common::AdapterDeviceSketch(value, batch_param_.max_bin, proxy->Info(), missing,
+                                    sketcher.get());
       });
     }
     auto batch_rows = num_rows();
@@ -90,18 +97,7 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
 
   dh::safe_cuda(cudaSetDevice(get_device()));
   if (!ref) {
-    HostDeviceVector<FeatureType> ft;
-    common::SketchContainer final_sketch(
-        sketch_containers.empty() ? ft : sketch_containers.front().FeatureTypes(),
-        batch_param_.max_bin, cols, accumulated_rows, get_device());
-    for (auto const& sketch : sketch_containers) {
-      final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
-      final_sketch.FixError();
-    }
-    sketch_containers.clear();
-    sketch_containers.shrink_to_fit();
-
-    final_sketch.MakeCuts(&cuts);
+    sketcher->MakeCuts(&cuts);
   } else {
     GetCutsFromRef(ref, Info().num_col_, batch_param_, &cuts);
   }
