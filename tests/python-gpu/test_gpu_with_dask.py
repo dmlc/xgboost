@@ -82,7 +82,7 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
 
     cp.testing.assert_allclose(single_node, predictions.compute())
     np.testing.assert_allclose(single_node,
-                               series_predictions.compute().to_array())
+                               series_predictions.compute().to_numpy())
 
     predt = dxgb.predict(client, out, X)
     assert isinstance(predt, dd.Series)
