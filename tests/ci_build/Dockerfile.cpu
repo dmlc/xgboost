@@ -10,13 +10,13 @@ RUN \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 ninja-build gcc-8 g++-8 openjdk-8-jdk-headless && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
-    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python
+    wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
+    bash Mambaforge-Linux-x86_64.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
 ENV CC=gcc-8
@@ -24,10 +24,11 @@ ENV CXX=g++-8
 ENV CPP=cpp-8
 
 ENV GOSU_VERSION 1.10
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 
 # Create new Conda environment
 COPY conda_env/cpu_test.yml /scripts/
-RUN conda env create -n cpu_test --file=/scripts/cpu_test.yml
+RUN mamba env create -n cpu_test --file=/scripts/cpu_test.yml
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

@@ -27,8 +27,7 @@ RUN \
     export NCCL_VERSION=2.13.4-1 && \
     yum-config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo && \
     yum -y update && \
-    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
-    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
+    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/python/bin:/opt/maven/bin:$PATH
 ENV CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
