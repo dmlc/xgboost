@@ -42,4 +42,4 @@ with cd(dirname):
 
     filesize = os.path.getsize(new_name) / 1024 / 1024  # MB
     msg = f"Limit of wheel size set by PyPI is exceeded. {new_name}: {filesize}"
-    assert filesize <= 200, msg
+    assert filesize <= 300, msg
