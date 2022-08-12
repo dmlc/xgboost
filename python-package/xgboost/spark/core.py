@@ -81,6 +81,7 @@ _pyspark_specific_params = [
     "use_gpu",
     "feature_names",
     "features_cols",
+    "enable_sparse_data_optim",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
