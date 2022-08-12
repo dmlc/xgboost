@@ -101,6 +101,52 @@ class PartIter(DataIter):
         self._iter = 0
 
 
+def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame):
+    from scipy.sparse import csr_matrix
+
+    # variables for constructing csr_matrix
+    csr_indices_list, csr_indptr_list, csr_values_list = [], [0], []
+
+    n_features = 0
+
+    for vec_type, vec_size_, vec_indices, vec_values in zip(
+        part.featureVectorType,
+        part.featureVectorSize,
+        part.featureVectorIndices,
+        part.featureVectorValues
+    ):
+        if vec_type == 0:
+            # sparse vector
+            vec_size = int(vec_size_)
+            csr_indices = vec_indices
+            csr_values = vec_values
+        else:
+            # dense vector
+            # Note: According to spark ML VectorUDT format,
+            # when type field is 1, the size field is also empty.
+            # we need to check the values field to get vector length.
+            vec_size = len(vec_values)
+            csr_indices = np.arange(vec_size, dtype=np.int32)
+            csr_values = vec_values
+
+        if n_features == 0:
+            n_features = vec_size
+        assert n_features == vec_size
+
+        csr_indices_list.append(csr_indices)
+        csr_indptr_list.append(csr_indptr_list[-1] + len(csr_indices))
+        csr_values_list.append(csr_values)
+
+    csr_indptr_arr = np.array(csr_indptr_list)
+    csr_indices_arr = np.concatenate(csr_indices_list)
+    csr_values_arr = np.concatenate(csr_values_list)
+
+    return csr_matrix(
+        (csr_values_arr, csr_indices_arr, csr_indptr_arr),
+        shape=(len(part), n_features)
+    )
+
+
 def create_dmatrix_from_partitions(
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
@@ -141,67 +187,14 @@ def create_dmatrix_from_partitions(
                 train_data[name].append(array)
 
     def append_m_sparse(part: pd.DataFrame, name: str, is_valid: bool) -> None:
-        from scipy.sparse import csr_matrix
         nonlocal n_features
 
         if name == alias.data or name in part.columns:
             if name == alias.data:
-                # variables for constructing csr_matrix
-                csr_indices_list, csr_indptr_list, csr_values_list = [], [0], []
-
-                for vec_type, vec_size_, vec_indices, vec_values in zip(
-                    part.featureVectorType,
-                    part.featureVectorSize,
-                    part.featureVectorIndices,
-                    part.featureVectorValues
-                ):
-                    if vec_type == 0:
-                        # sparse vector
-                        vec_size = int(vec_size_)
-                        csr_indices = vec_indices
-                        csr_values = vec_values
-                    else:
-                        # dense vector
-                        # Note: According to spark ML VectorUDT format,
-                        # when type field is 1, the size field is also empty.
-                        # we need to check the values field to get vector length.
-                        vec_size = len(vec_values)
-                        csr_indices = np.arange(vec_size, dtype=np.int32)
-                        csr_values = vec_values
-
-                    if n_features == 0:
-                        n_features = vec_size
-                    assert n_features == vec_size
-
-                    # remove zero elements from csr_indices / csr_values
-                    n_actives = len(csr_indices)
-                    nz_csr_indices = np.empty(n_actives, dtype=np.int32)
-                    nz_csr_values = np.empty(n_actives, dtype=np.int32)
-
-                    active_i = 0
-                    nz_i = 0
-                    while active_i < n_actives:
-                        if csr_values[active_i] != 0.0:
-                            nz_csr_indices[nz_i] = csr_indices[active_i]
-                            nz_csr_values[nz_i] = csr_values[active_i]
-                            nz_i += 1
-                        active_i += 1
-
-                    nz_csr_indices = nz_csr_indices[:nz_i]
-                    nz_csr_values = nz_csr_values[:nz_i]
-
-                    csr_indices_list.append(nz_csr_indices)
-                    csr_indptr_list.append(csr_indptr_list[-1] + len(nz_csr_indices))
-                    csr_values_list.append(nz_csr_values)
-
-                csr_indptr_arr = np.array(csr_indptr_list)
-                csr_indices_arr = np.concatenate(csr_indices_list)
-                csr_values_arr = np.concatenate(csr_values_list)
-
-                array = csr_matrix(
-                    (csr_values_arr, csr_indices_arr, csr_indptr_arr),
-                    shape=(len(part), n_features)
-                )
+                array = _read_csr_matrix_from_unwrapped_spark_vec(part)
+                if n_features == 0:
+                    n_features = array.shape[1]
+                assert n_features == array.shape[1]
             else:
                 array = part[name]
 
@@ -244,6 +237,7 @@ def create_dmatrix_from_partitions(
     if is_dmatrix:
         if enable_sparse_data_optim:
             append_fn = append_m_sparse
+            assert "missing" in kwargs and kwargs["missing"] == 0.0
         else:
             append_fn = append_m
         cache_partitions(iterator, append_fn)

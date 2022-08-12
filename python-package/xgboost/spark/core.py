@@ -19,6 +19,7 @@ from pyspark.ml.param.shared import (
     HasValidationIndicatorCol,
     HasWeightCol,
 )
+from pyspark.ml.linalg import VectorUDT
 from pyspark.ml.util import MLReadable, MLWritable
 from pyspark.sql.functions import col, countDistinct, pandas_udf, struct
 from pyspark.sql.types import (
@@ -269,6 +270,26 @@ class _SparkXGBParams(
             get_logger(self.__class__.__name__).warning(
                 "If features_cols param set, then features_col param is ignored."
             )
+
+        if self.getOrDefault(self.enable_sparse_data_optim):
+            if self.getOrDefault(self.missing) != 0.0:
+                # If DMatrix is constructed from csr / csc matrix, then inactive elements
+                # in csr / csc matrix are regarded as missing value, but, in pyspark, we
+                # are hard to control elements to be active or inactive in sparse vector column,
+                # some spark transformers such as VectorAssembler might compress vectors
+                # to be dense or sparse format automatically, and when a spark ML vector object
+                # is compressed to sparse vector, then all zero value elements become inactive.
+                # So we force setting missing param to be 0 when enable_sparse_data_optim config
+                # is True.
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, missing param != 0 is not supported."
+                )
+            if self.getOrDefault(self.features_cols):
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, you cannot set multiple feature columns "
+                    "but you should set one feature column with values of "
+                    "`pyspark.ml.linalg.Vector` type."
+                )
 
         if self.getOrDefault(self.use_gpu):
             tree_method = self.getParam("tree_method")
@@ -549,27 +570,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         features_cols_names = None
         enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
         if enable_sparse_data_optim:
-            from pyspark.ml.linalg import VectorUDT
-
-            if self.getOrDefault(self.missing) != 0.0:
-                # If DMatrix is constructed from csr / csc matrix, then inactive elements
-                # in csr / csc matrix are regarded as missing value, but, in pyspark, we
-                # are hard to control elements to be active or inactive in sparse vector column,
-                # some spark transformers such as VectorAssembler might compress vectors
-                # to be dense or sparse format automatically, and when a spark ML vector object
-                # is compressed to sparse vector, then all zero value elements become inactive.
-                # So we force setting missing param to be 0 when enable_sparse_data_optim config
-                # is True.
-                raise ValueError(
-                    "If enable_sparse_data_optim is True, missing param != 0 is not supported."
-                )
-
-            if self.getOrDefault(self.features_cols):
-                raise ValueError(
-                    "If enable_sparse_data_optim is True, you cannot set multiple feature columns "
-                    "but you should set one feature column with values of "
-                    "`pyspark.ml.linalg.Vector` type."
-                )
             features_col_name = self.getOrDefault(self.featuresCol)
             features_col_datatype = dataset.schema[features_col_name].dataType
             if not isinstance(features_col_datatype, VectorUDT):
