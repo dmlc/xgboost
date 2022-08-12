@@ -35,7 +35,7 @@ from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
 import xgboost
-from xgboost import XGBClassifier, XGBRegressor
+from xgboost import XGBClassifier, XGBRegressor, XGBRanker
 
 from .data import alias, create_dmatrix_from_partitions, stack_series
 from .model import (
@@ -75,6 +75,7 @@ _pyspark_specific_params = [
     "use_gpu",
     "feature_names",
     "features_cols",
+    "qid_col",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -97,7 +98,7 @@ _unsupported_xgb_params = [
     "use_label_encoder",
     "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
     "nthread",  # Ditto
-    "eval_metric",  # TODO
+    "eval_metric",  # TODO: support this.
 ]
 
 _unsupported_fit_params = {
@@ -106,7 +107,9 @@ _unsupported_fit_params = {
     "eval_set",
     "sample_weight_eval_set",
     "base_margin",  # Supported by spark param base_margin_col
-    "eval_metric",  # Use constructor param instead
+    "eval_metric",  # Use constructor param instead,
+    "group",  # Use spark param `qid_col` instead
+    "qid",  # Use spark param `qid_col` instead
 }
 
 _unsupported_predict_params = {
@@ -561,6 +564,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 col(self.getOrDefault(self.base_margin_col)).alias(alias.margin)
             )
 
+        if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col):
+            select_cols.append(
+                col(self.getOrDefault(self.qid_col)).alias(alias.qid)
+            )
+
         dataset = dataset.select(*select_cols)
 
         num_workers = self.getOrDefault(self.num_workers)
@@ -817,6 +825,18 @@ class SparkXGBRegressorModel(_SparkXGBModel):
     @classmethod
     def _xgb_cls(cls):
         return XGBRegressor
+
+
+class SparkXGBRankerModel(_SparkXGBModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBRanker.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls):
+        return XGBRanker
 
 
 class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictionCol):

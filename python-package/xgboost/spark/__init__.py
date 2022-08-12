@@ -12,6 +12,7 @@ from .estimator import (
     SparkXGBClassifierModel,
     SparkXGBRegressor,
     SparkXGBRegressorModel,
+    SparkXGBRanker,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "SparkXGBClassifierModel",
     "SparkXGBRegressor",
     "SparkXGBRegressorModel",
+    "SparkXGBRanker",
 ]

@@ -3,11 +3,13 @@
 # pylint: disable=too-many-ancestors
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
-from xgboost import XGBClassifier, XGBRegressor
+
+from xgboost import XGBClassifier, XGBRegressor, XGBRanker
 
 from .core import (
     SparkXGBClassifierModel,
     SparkXGBRegressorModel,
+    SparkXGBRankerModel,
     _set_pyspark_xgb_cls_param_attrs,
     _SparkXGBEstimator,
 )
@@ -217,3 +219,18 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 _set_pyspark_xgb_cls_param_attrs(SparkXGBClassifier, SparkXGBClassifierModel)
 
 
+class SparkXGBRanker(_SparkXGBEstimator):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.setParams(**kwargs)
+
+    @classmethod
+    def _xgb_cls(cls):
+        return XGBRanker
+
+    @classmethod
+    def _pyspark_model_cls(cls):
+        return SparkXGBRankerModel
+
+
+_set_pyspark_xgb_cls_param_attrs(SparkXGBRanker, SparkXGBRankerModel)
