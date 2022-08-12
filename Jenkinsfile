@@ -7,7 +7,7 @@
 dockerRun = 'tests/ci_build/ci_build.sh'
 
 // Which CUDA version to use when building reference distribution wheel
-ref_cuda_ver = '11.0'
+ref_cuda_ver = '11.0.3'
 
 import groovy.transform.Field
 
@@ -60,9 +60,9 @@ pipeline {
             'build-cpu-rabit-mock': { BuildCPUMock() },
             // Build reference, distribution-ready Python wheel with CUDA 11.0
             // using CentOS 7 image
-            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
-            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '11.0') },
-            'build-jvm-packages-gpu-cuda11.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.1', cuda_version: '11.0') },
+            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0.3', build_rmm: true) },
+            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '11.0.3') },
+            'build-jvm-packages-gpu-cuda11.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.1', cuda_version: '11.0.3') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.1') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -77,9 +77,9 @@ pipeline {
             'test-python-cpu': { TestPythonCPU() },
             'test-python-cpu-arm64': { TestPythonCPUARM64() },
             // artifact_cuda_version doesn't apply to RMM tests; RMM tests will always match CUDA version between artifact and host env
-            'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
-            'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', multi_gpu: true, test_rmm: true) },
-            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
+            'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0.3', host_cuda_version: '11.0.3', test_rmm: true) },
+            'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0.3', host_cuda_version: '11.0.3', multi_gpu: true, test_rmm: true) },
+            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0.3', host_cuda_version: '11.0.3', test_rmm: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') }
           ])
         }
@@ -123,7 +123,7 @@ def ClangTidy() {
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
     def docker_binary = "docker"
-    def dockerArgs = "--build-arg CUDA_VERSION_ARG=11.0"
+    def dockerArgs = "--build-arg CUDA_VERSION_ARG=11.0.3"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py --cuda-archs 75
     """
@@ -445,7 +445,7 @@ def DeployJVMPackages(args) {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Deploying to xgboost-maven-repo S3 repo...'
       sh """
-      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=11.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=11.0.3 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
       """
     }
     deleteDir()

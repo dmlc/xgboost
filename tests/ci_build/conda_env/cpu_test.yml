@@ -30,15 +30,13 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- numba
-- llvmlite
 - py-ubjson
 - cffi
 - pyarrow
-- protobuf<=3.20
+- protobuf
+- pyspark>=3.3.0
+- cloudpickle
+- shap
+- modin
 - pip:
-  - shap
-  - ipython                     # required by shap at import time.
-  - sphinx_rtd_theme
   - datatable
-  - modin[all]

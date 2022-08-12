@@ -10,7 +10,7 @@ SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 RUN \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
     apt-get update && \
-    apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
+    apt-get install -y wget unzip bzip2 libgomp1 build-essential openjdk-8-jdk-headless && \
     # Python
     wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python
@@ -19,11 +19,14 @@ ENV PATH=/opt/python/bin:$PATH
 
 # Create new Conda environment with cuDF, Dask, and cuPy
 RUN \
-    conda create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.8 cudf=21.10* rmm=21.10* cudatoolkit=$CUDA_VERSION_ARG dask dask-cuda=21.10* dask-cudf=21.10* cupy=9.1* \
-        numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis
+    conda install -c conda-forge mamba && \
+    mamba create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
+        python=3.8 cudf=22.04* rmm=22.04* cudatoolkit=$CUDA_VERSION_ARG dask dask-cuda=22.04* dask-cudf=22.04* cupy \
+        numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
+        pyspark cloudpickle cuda-python=11.7.0
 
 ENV GOSU_VERSION 1.10
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
