@@ -972,3 +972,12 @@ class XgboostLocalTest(SparkTestCase):
         )
         model = classifier.fit(self.cls_df_train)
         model.transform(self.cls_df_test).collect()
+
+    def test_regressor_with_sparse_optim(self):
+        regressor = SparkXGBRegressor(missing=0.0)
+        model = regressor.fit(self.reg_df_train)
+        pred_result = model.transform(self.reg_df_test).collect()
+        for row in pred_result:
+            self.assertTrue(
+                np.isclose(row.prediction, row.expected_prediction, atol=1e-3)
+            )

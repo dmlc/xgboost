@@ -68,7 +68,7 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
         train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), cols, 0, kwargs, False)
     else:
         train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), None, None, kwargs, True
+            iter(dfs), None, None, kwargs, False
         )
 
     assert valid_Xy is not None

@@ -19,7 +19,6 @@ from pyspark.ml.param.shared import (
     HasValidationIndicatorCol,
     HasWeightCol,
 )
-from pyspark.ml.linalg import VectorUDT
 from pyspark.ml.util import MLReadable, MLWritable
 from pyspark.sql.functions import col, countDistinct, pandas_udf, struct
 from pyspark.sql.types import (
@@ -38,7 +37,11 @@ from xgboost.training import train as worker_train
 import xgboost
 from xgboost import XGBClassifier, XGBRegressor
 
-from .data import alias, create_dmatrix_from_partitions, stack_series
+from .data import (
+    alias,
+    create_dmatrix_from_partitions, stack_series,
+    _read_csr_matrix_from_unwrapped_spark_vec,
+)
 from .model import (
     SparkXGBModelReader,
     SparkXGBModelWriter,
@@ -805,6 +808,17 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         vector or array feature type. But first we need to check features_cols
         and then featuresCol
         """
+        if self.getOrDefault(self.enable_sparse_data_optim):
+            unwrap_udt = _get_unwrap_udt_fn()
+            feature_col_names = None
+            features_unwrapped_vec_col = unwrap_udt(col(self.getOrDefault(self.featuresCol)))
+            features_col = [
+                features_unwrapped_vec_col.type.alias("featureVectorType"),
+                features_unwrapped_vec_col.size.alias("featureVectorSize"),
+                features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
+                features_unwrapped_vec_col.values.alias("featureVectorValues"),
+            ]
+            return features_col, feature_col_names
 
         feature_col_names = self.getOrDefault(self.features_cols)
         features_col = []
@@ -856,15 +870,19 @@ class SparkXGBRegressorModel(_SparkXGBModel):
             )
 
         features_col, feature_col_names = self._get_feature_col(dataset)
+        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
 
         @pandas_udf("double")
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             model = xgb_sklearn_model
             for data in iterator:
-                if feature_col_names is not None:
-                    X = data[feature_col_names]
+                if enable_sparse_data_optim:
+                    X = _read_csr_matrix_from_unwrapped_spark_vec(data)
                 else:
-                    X = stack_series(data[alias.data])
+                    if feature_col_names is not None:
+                        X = data[feature_col_names]
+                    else:
+                        X = stack_series(data[alias.data])
 
                 if has_base_margin:
                     base_margin = data[alias.margin].to_numpy()
@@ -929,6 +947,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
             return raw_preds, class_probs
 
         features_col, feature_col_names = self._get_feature_col(dataset)
+        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
 
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"
@@ -938,10 +957,13 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         ) -> Iterator[pd.DataFrame]:
             model = xgb_sklearn_model
             for data in iterator:
-                if feature_col_names is not None:
-                    X = data[feature_col_names]
+                if enable_sparse_data_optim:
+                    X = _read_csr_matrix_from_unwrapped_spark_vec(data)
                 else:
-                    X = stack_series(data[alias.data])
+                    if feature_col_names is not None:
+                        X = data[feature_col_names]
+                    else:
+                        X = stack_series(data[alias.data])
 
                 if has_base_margin:
                     base_margin = stack_series(data[alias.margin])
