@@ -1403,9 +1403,11 @@ class Booster:
         self.set_param(params_processed or {})
 
     def _transform_monotone_constrains(
-        self, value: Union[Dict[str, int], str]
+        self, value: Union[Dict[str, int], str, Tuple[int, ...]]
     ) -> Union[Tuple[int, ...], str]:
         if isinstance(value, str):
+            return value
+        if isinstance(value, tuple):
             return value
 
         constrained_features = set(value.keys())
