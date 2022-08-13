@@ -58,7 +58,7 @@ class HasQueryIdCol(Params):
     This parameter is taken effect only when use_gpu is enabled.
     """
 
-    features_cols = Param(
+    qid_col = Param(
         Params._dummy(),
         "qid_col",
         "query id column name",
