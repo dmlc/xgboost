@@ -396,10 +396,10 @@ class XgboostLocalTest(SparkTestCase):
             [
                 (Vectors.dense(1.5, 2.0, 3.0), 0, 0.0004951),
                 (Vectors.dense(4.5, 5.0, 6.0), 0, 0.9995),
-                (Vectors.dense(9.0, 4.5, 8.0), 0, 0),
+                (Vectors.dense(9.0, 4.5, 8.0), 0, 0.0),
                 (Vectors.sparse(3, {1: 1.0, 2: 6.0}), 1, 0.0004951),
                 (Vectors.sparse(3, {1: 6.0, 2: 7.0}), 1, 0.9995),
-                (Vectors.sparse(3, {1: 8.0, 2: 10.5}), 1, 0),
+                (Vectors.sparse(3, {1: 8.0, 2: 10.5}), 1, 0.0),
             ],
             ["features", "qid", "expected_prediction"],
         )
