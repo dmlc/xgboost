@@ -408,6 +408,31 @@ def _get_unwrap_udt_fn():
         )
 
 
+def _get_unwrapped_vec_cols(feature_col):
+    unwrap_udt = _get_unwrap_udt_fn()
+    features_unwrapped_vec_col = unwrap_udt(feature_col)
+
+    # After a `pyspark.ml.linalg.VectorUDT` type column being unwrapped, it becomes
+    # a pyspark struct type column, the struct fields are:
+    #  - `type`: byte
+    #  - `size`: int
+    #  - `indices`: array<int>
+    #  - `values`: array<double>
+    # For sparse vector, `type` field is 0, `size` field means vector length,
+    # `indices` field is the array of active element indices, `values` field
+    # is the array of active element values.
+    # For dense vector, `type` field is 1, `size` and `indices` fields are None,
+    # `values` field is the array of the vector element values.
+    return [
+        features_unwrapped_vec_col.type.alias("featureVectorType"),
+        features_unwrapped_vec_col.size.alias("featureVectorSize"),
+        features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
+        # Note: the value field is double type, cast it to float32 type
+        # for speedup following repartitioning.
+        features_unwrapped_vec_col.values.cast(FloatType()).alias("featureVectorValues"),
+    ]
+
+
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     def __init__(self):
         super().__init__()
@@ -581,27 +606,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     "If enable_sparse_data_optim is True, the feature column values must be "
                     "`pyspark.ml.linalg.Vector` type."
                 )
-
-            unwrap_udt = _get_unwrap_udt_fn()
-            features_unwrapped_vec_col = unwrap_udt(col(features_col_name))
-
-            # After a `pyspark.ml.linalg.VectorUDT` type column being unwrapped, it becomes
-            # a pyspark struct type column, the struct fields are:
-            #  - `type`: byte
-            #  - `size`: int
-            #  - `indices`: array<int>
-            #  - `values`: array<double>
-            # For sparse vector, `type` field is 0, `size` field means vector length,
-            # `indices` field is the array of active element indices, `values` field
-            # is the array of active element values.
-            # For dense vector, `type` field is 1, `size` and `indices` fields are None,
-            # `values` field is the array of the vector element values.
-            select_cols.extend([
-                features_unwrapped_vec_col.type.alias("featureVectorType"),
-                features_unwrapped_vec_col.size.alias("featureVectorSize"),
-                features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
-                features_unwrapped_vec_col.values.alias("featureVectorValues"),
-            ])
+            select_cols.extend(_get_unwrapped_vec_cols(col(features_col_name)))
         else:
             if self.getOrDefault(self.features_cols):
                 features_cols_names = self.getOrDefault(self.features_cols)
@@ -810,15 +815,8 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         and then featuresCol
         """
         if self.getOrDefault(self.enable_sparse_data_optim):
-            unwrap_udt = _get_unwrap_udt_fn()
             feature_col_names = None
-            features_unwrapped_vec_col = unwrap_udt(col(self.getOrDefault(self.featuresCol)))
-            features_col = [
-                features_unwrapped_vec_col.type.alias("featureVectorType"),
-                features_unwrapped_vec_col.size.alias("featureVectorSize"),
-                features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
-                features_unwrapped_vec_col.values.alias("featureVectorValues"),
-            ]
+            features_col = _get_unwrapped_vec_cols(col(self.getOrDefault(self.featuresCol)))
             return features_col, feature_col_names
 
         feature_col_names = self.getOrDefault(self.features_cols)
