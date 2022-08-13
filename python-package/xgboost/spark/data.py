@@ -4,10 +4,10 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tupl
 
 import numpy as np
 import pandas as pd
+from scipy.sparse import csr_matrix
 from xgboost.compat import concat
 
 from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
-from scipy.sparse import csr_matrix
 
 
 def stack_series(series: pd.Series) -> np.ndarray:

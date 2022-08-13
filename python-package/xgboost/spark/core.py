@@ -38,10 +38,10 @@ import xgboost
 from xgboost import XGBClassifier, XGBRegressor
 
 from .data import (
+    _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
     create_dmatrix_from_partitions,
     stack_series,
-    _read_csr_matrix_from_unwrapped_spark_vec,
 )
 from .model import (
     SparkXGBModelReader,
@@ -52,8 +52,8 @@ from .model import (
 from .params import (
     HasArbitraryParamsDict,
     HasBaseMarginCol,
-    HasFeaturesCols,
     HasEnableSparseDataOptim,
+    HasFeaturesCols,
 )
 from .utils import (
     RabitContext,
