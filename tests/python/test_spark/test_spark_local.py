@@ -26,6 +26,7 @@ from xgboost.spark import (
     SparkXGBClassifierModel,
     SparkXGBRegressor,
     SparkXGBRegressorModel,
+    SparkXGBRanker,
 )
 from xgboost.spark.core import _non_booster_params
 
@@ -379,6 +380,24 @@ class XgboostLocalTest(SparkTestCase):
                 "expected_prob_with_base_margin",
                 "expected_prediction_with_base_margin",
             ],
+        )
+        self.ranker_df_train = self.session.createDataFrame(
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
+                (Vectors.dense(4.0, 5.0, 6.0), 1, 0),
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 1),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
+            ],
+            ["features", "label", "qid"],
+        )
+        self.ranker_df_test = self.session.createDataFrame(
+            [
+                (Vectors.dense(1.5, 2.0, 3.0), 0),
+                (Vectors.dense(4.5, 5.0, 6.0), 0),
+                (Vectors.sparse(3, {1: 1.0, 2: 6.0}), 1),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.0}), 1),
+            ],
+            ["features", "qid"],
         )
 
     def get_local_tmp_dir(self):
@@ -972,3 +991,12 @@ class XgboostLocalTest(SparkTestCase):
         )
         model = classifier.fit(self.cls_df_train)
         model.transform(self.cls_df_test).collect()
+
+    def test_ranker(self):
+        ranker = SparkXGBRanker(qid_col="qid")
+        model = ranker.fit(self.ranker_df_train)
+        pred_result = model.transform(self.ranker_df_test).collect()
+        for row in pred_result:
+            print(row.prediction)
+            print("\n")
+
