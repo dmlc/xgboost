@@ -427,9 +427,10 @@ def _get_unwrapped_vec_cols(feature_col):
         features_unwrapped_vec_col.type.alias("featureVectorType"),
         features_unwrapped_vec_col.size.alias("featureVectorSize"),
         features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
-        # Note: the value field is double type, cast it to float32 type
+        # Note: the value field is double array type, cast it to float32 array type
         # for speedup following repartitioning.
-        features_unwrapped_vec_col.values.cast(FloatType()).alias("featureVectorValues"),
+        features_unwrapped_vec_col.values.cast(ArrayType(FloatType())) \
+            .alias("featureVectorValues"),
     ]
 
 
