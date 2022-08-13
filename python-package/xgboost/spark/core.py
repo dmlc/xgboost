@@ -1,7 +1,7 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
-# pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods, too-many-lines
 from typing import Iterator, Optional, Tuple
 
 import numpy as np
@@ -249,6 +249,7 @@ class _SparkXGBParams(
         return predict_params
 
     def _validate_params(self):
+        # pylint: disable=too-many-branches
         init_model = self.getOrDefault(self.xgb_model)
         if init_model is not None and not isinstance(init_model, Booster):
             raise ValueError(
@@ -407,11 +408,11 @@ def _get_unwrap_udt_fn():
         from pyspark.databricks.sql.functions import unwrap_udt
 
         return unwrap_udt
-    except ImportError:
+    except ImportError as exc:
         raise RuntimeError(
             "Cannot import pyspark `unwrap_udt` function. Please install pyspark>=3.4 "
             "or run on Databricks Runtime."
-        )
+        ) from exc
 
 
 def _get_unwrapped_vec_cols(feature_col):
@@ -931,6 +932,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         return XGBClassifier
 
     def _transform(self, dataset):
+        # pylint: disable=too-many-locals
         # Save xgb_sklearn_model and predict_params to be local variable
         # to avoid the `self` object to be pickled to remote.
         xgb_sklearn_model = self._xgb_sklearn_model

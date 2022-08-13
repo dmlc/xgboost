@@ -163,7 +163,7 @@ def create_dmatrix_from_partitions(
         Metainfo for DMatrix.
 
     """
-
+    # pylint: disable=too-many-locals, too-many-statements
     train_data: Dict[str, List[np.ndarray]] = defaultdict(list)
     valid_data: Dict[str, List[np.ndarray]] = defaultdict(list)
 
