@@ -62,7 +62,7 @@ class HasQueryIdCol(Params):
         Params._dummy(),
         "qid_col",
         "query id column name",
-        typeConverter=TypeConverters.toListString,
+        typeConverter=TypeConverters.toString,
     )
 
     def __init__(self):
