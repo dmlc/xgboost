@@ -39,7 +39,8 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from .data import (
     alias,
-    create_dmatrix_from_partitions, stack_series,
+    create_dmatrix_from_partitions,
+    stack_series,
     _read_csr_matrix_from_unwrapped_spark_vec,
 )
 from .model import (
@@ -49,7 +50,10 @@ from .model import (
     SparkXGBWriter,
 )
 from .params import (
-    HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols, HasEnableSparseDataOptim
+    HasArbitraryParamsDict,
+    HasBaseMarginCol,
+    HasFeaturesCols,
+    HasEnableSparseDataOptim,
 )
 from .utils import (
     RabitContext,
@@ -394,12 +398,14 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
 def _get_unwrap_udt_fn():
     try:
         from pyspark.sql.functions import unwrap_udt
+
         return unwrap_udt
     except ImportError:
         pass
 
     try:
         from pyspark.databricks.sql.functions import unwrap_udt
+
         return unwrap_udt
     except ImportError:
         raise RuntimeError(
@@ -429,8 +435,9 @@ def _get_unwrapped_vec_cols(feature_col):
         features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
         # Note: the value field is double array type, cast it to float32 array type
         # for speedup following repartitioning.
-        features_unwrapped_vec_col.values.cast(ArrayType(FloatType())) \
-            .alias("featureVectorValues"),
+        features_unwrapped_vec_col.values.cast(ArrayType(FloatType())).alias(
+            "featureVectorValues"
+        ),
     ]
 
 
@@ -709,7 +716,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result = {}
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter, features_cols_names, gpu_id, dmatrix_kwargs,
+                    pandas_df_iter,
+                    features_cols_names,
+                    gpu_id,
+                    dmatrix_kwargs,
                     enable_sparse_data_optim=enable_sparse_data_optim,
                 )
                 if dvalid is not None:
@@ -817,7 +827,9 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         """
         if self.getOrDefault(self.enable_sparse_data_optim):
             feature_col_names = None
-            features_col = _get_unwrapped_vec_cols(col(self.getOrDefault(self.featuresCol)))
+            features_col = _get_unwrapped_vec_cols(
+                col(self.getOrDefault(self.featuresCol))
+            )
             return features_col, feature_col_names
 
         feature_col_names = self.getOrDefault(self.features_cols)

@@ -7,6 +7,7 @@ import pandas as pd
 from xgboost.compat import concat
 
 from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
+from scipy.sparse import csr_matrix
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
@@ -101,9 +102,7 @@ class PartIter(DataIter):
         self._iter = 0
 
 
-def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame):
-    from scipy.sparse import csr_matrix
-
+def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame) -> csr_matrix:
     # variables for constructing csr_matrix
     csr_indices_list, csr_indptr_list, csr_values_list = [], [0], []
 
@@ -113,7 +112,7 @@ def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame):
         part.featureVectorType,
         part.featureVectorSize,
         part.featureVectorIndices,
-        part.featureVectorValues
+        part.featureVectorValues,
     ):
         if vec_type == 0:
             # sparse vector
@@ -142,8 +141,7 @@ def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame):
     csr_values_arr = np.concatenate(csr_values_list)
 
     return csr_matrix(
-        (csr_values_arr, csr_indices_arr, csr_indptr_arr),
-        shape=(len(part), n_features)
+        (csr_values_arr, csr_indices_arr, csr_indptr_arr), shape=(len(part), n_features)
     )
 
 

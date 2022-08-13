@@ -105,7 +105,7 @@ def test_dmatrix_ctor() -> None:
     run_dmatrix_ctor(False)
 
 
-def test_read_csr_matrix_from_unwrapped_spark_vec():
+def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
     from scipy.sparse import csr_matrix
     pd1 = pd.DataFrame({
         "featureVectorType": [0, 1, 1, 0],
