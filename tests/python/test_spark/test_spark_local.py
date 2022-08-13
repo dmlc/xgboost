@@ -994,11 +994,14 @@ class XgboostLocalTest(SparkTestCase):
     def test_regressor_with_sparse_optim(self):
         regressor = SparkXGBRegressor(missing=0.0)
         model = regressor.fit(self.reg_df_sparse_train)
+        assert model._xgb_sklearn_model.missing == 0.0
         pred_result = model.transform(self.reg_df_sparse_train).collect()
 
         # enable sparse optimiaztion
         regressor2 = SparkXGBRegressor(missing=0.0, enable_sparse_data_optim=True)
         model2 = regressor2.fit(self.reg_df_sparse_train)
+        assert model2.getOrDefault(model2.enable_sparse_data_optim)
+        assert model2._xgb_sklearn_model.missing == 0.0
         pred_result2 = model2.transform(self.reg_df_sparse_train).collect()
 
         for row1, row2 in zip(pred_result, pred_result2):
@@ -1009,11 +1012,14 @@ class XgboostLocalTest(SparkTestCase):
     def test_classifier_with_sparse_optim(self):
         cls = SparkXGBClassifier(missing=0.0)
         model = cls.fit(self.cls_df_sparse_train)
+        assert model._xgb_sklearn_model.missing == 0.0
         pred_result = model.transform(self.cls_df_sparse_train).collect()
 
         # enable sparse optimiaztion
         cls2 = SparkXGBClassifier(missing=0.0, enable_sparse_data_optim=True)
         model2 = cls2.fit(self.cls_df_sparse_train)
+        assert model2.getOrDefault(model2.enable_sparse_data_optim)
+        assert model2._xgb_sklearn_model.missing == 0.0
         pred_result2 = model2.transform(self.cls_df_sparse_train).collect()
 
         for row1, row2 in zip(pred_result, pred_result2):
