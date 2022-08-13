@@ -1,11 +1,10 @@
-import sys
 import logging
 import random
+import sys
 import uuid
 
 import numpy as np
 import pytest
-
 import testing as tm
 
 if tm.no_spark()["condition"]:
@@ -13,25 +12,26 @@ if tm.no_spark()["condition"]:
 if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
-from pyspark.ml.functions import vector_to_array
-from pyspark.sql import functions as spark_sql_func
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import (
     BinaryClassificationEvaluator,
     MulticlassClassificationEvaluator,
 )
+from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
-
+from pyspark.sql import functions as spark_sql_func
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
     SparkXGBRegressor,
     SparkXGBRegressorModel,
 )
-from .utils import SparkTestCase
-from xgboost import XGBClassifier, XGBRegressor
 from xgboost.spark.core import _non_booster_params
+
+from xgboost import XGBClassifier, XGBRegressor
+
+from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
 
@@ -386,7 +386,8 @@ class XgboostLocalTest(SparkTestCase):
                 (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
                 (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
                 (Vectors.sparse(5, {4: -3.0}), 2),
-            ] * 10,
+            ]
+            * 10,
             ["features", "label"],
         )
 
@@ -395,8 +396,9 @@ class XgboostLocalTest(SparkTestCase):
                 (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
                 (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
                 (Vectors.sparse(5, {4: -3.0}), 0),
-            ] * 10,
-            ["features", "label"]
+            ]
+            * 10,
+            ["features", "label"],
         )
 
     def get_local_tmp_dir(self):
@@ -1005,9 +1007,7 @@ class XgboostLocalTest(SparkTestCase):
         pred_result2 = model2.transform(self.reg_df_sparse_train).collect()
 
         for row1, row2 in zip(pred_result, pred_result2):
-            self.assertTrue(
-                np.isclose(row1.prediction, row2.prediction, atol=1e-3)
-            )
+            self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
 
     def test_classifier_with_sparse_optim(self):
         cls = SparkXGBClassifier(missing=0.0)
@@ -1023,6 +1023,4 @@ class XgboostLocalTest(SparkTestCase):
         pred_result2 = model2.transform(self.cls_df_sparse_train).collect()
 
         for row1, row2 in zip(pred_result, pred_result2):
-            self.assertTrue(
-                np.allclose(row1.probability, row2.probability, rtol=1e-3)
-            )
+            self.assertTrue(np.allclose(row1.probability, row2.probability, rtol=1e-3))
