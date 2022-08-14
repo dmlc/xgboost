@@ -1003,4 +1003,5 @@ class XgboostLocalTest(SparkTestCase):
         pred_result = model.transform(self.ranker_df_test).collect()
 
         for row in pred_result:
-            print(row.prediction)
+            assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
+
