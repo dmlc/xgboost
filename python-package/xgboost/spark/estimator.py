@@ -220,7 +220,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     def _validate_params(self):
         super(SparkXGBClassifier, self)._validate_params()
-        if self.isDefined(self.objective):
+        if self.getOrDefault(self.objective):
             raise ValueError(
                 "Setting custom 'objective' param is not allowed in 'SparkXGBClassifier'."
             )
