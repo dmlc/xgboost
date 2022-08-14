@@ -203,6 +203,11 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     def __init__(self, **kwargs):
         super().__init__()
+        # The default 'objective' param value comes from sklearn `XGBClassifier` ctor,
+        # but in pyspark we will automatically set objective param depending on
+        # binary or multinomial input dataset, and we need to remove the fixed default
+        # param value as well to avoid causing ambiguity.
+        self._setDefault(objective=None)
         self.setParams(**kwargs)
 
     @classmethod
@@ -215,7 +220,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     def _validate_params(self):
         super(SparkXGBClassifier, self)._validate_params()
-        if self.getOrDefault(self.objective) is not None:
+        if self.isDefined(self.objective):
             raise ValueError(
                 "Setting custom 'objective' param is not allowed in 'SparkXGBClassifier'."
             )

@@ -504,14 +504,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         params.update(fit_params)
         params["verbose_eval"] = verbose_eval
         classification = self._xgb_cls() == XGBClassifier
-        num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
-        if classification and num_classes == 2:
-            params["objective"] = "binary:logistic"
-        elif classification and num_classes > 2:
-            params["objective"] = "multi:softprob"
-            params["num_class"] = num_classes
+        if classification:
+            num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
+            if num_classes <= 2:
+                params["objective"] = "binary:logistic"
+            else:
+                params["objective"] = "multi:softprob"
+                params["num_class"] = num_classes
         else:
-            params["objective"] = "reg:squarederror"
+            # use user specified objective or default objective.
+            # e.g., the default objective for Regressor is 'reg:squarederror'
+            params["objective"] = self.getOrDefault(self.objective)
 
         # TODO: support "num_parallel_tree" for random forest
         params["num_boost_round"] = self.getOrDefault(self.n_estimators)
