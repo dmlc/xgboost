@@ -101,10 +101,11 @@ _unsupported_xgb_params = [
 
 _unsupported_fit_params = {
     "sample_weight",  # Supported by spark param weightCol
-    # Supported by spark param weightCol # and validationIndicatorCol
-    "eval_set",
-    "sample_weight_eval_set",
+    "eval_set",  # Supported by spark param validation_indicator_col
+    "sample_weight_eval_set",  # Supported by spark param weight_col + validation_indicator_col
     "base_margin",  # Supported by spark param base_margin_col
+    "base_margin_eval_set",  # Supported by spark param base_margin_col + validation_indicator_col
+    "feature_weights",  # Use constructor feature_weights param instead
 }
 
 _unsupported_predict_params = {
@@ -591,6 +592,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
         )
+        print("DBG: booster param:")
+        print(booster_params)
 
         cpu_per_task = int(
             _get_spark_session().sparkContext.getConf().get("spark.task.cpus", "1")
