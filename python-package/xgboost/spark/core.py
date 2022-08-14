@@ -596,8 +596,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
         )
-        print("DBG: booster param:")
-        print(booster_params)
 
         cpu_per_task = int(
             _get_spark_session().sparkContext.getConf().get("spark.task.cpus", "1")
