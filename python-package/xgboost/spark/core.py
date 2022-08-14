@@ -105,7 +105,6 @@ _unsupported_fit_params = {
     "sample_weight_eval_set",  # Supported by spark param weight_col + validation_indicator_col
     "base_margin",  # Supported by spark param base_margin_col
     "base_margin_eval_set",  # Supported by spark param base_margin_col + validation_indicator_col
-    "feature_weights",  # Use constructor feature_weights param instead
 }
 
 _unsupported_predict_params = {
@@ -531,6 +530,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 kwargs_params[key] = value
             else:
                 booster_params[key] = value
+
+        booster_params = {
+            k: v
+            for k, v in booster_params.items() if k not in _non_booster_params
+        }
         return booster_params, kwargs_params
 
     def _fit(self, dataset):
