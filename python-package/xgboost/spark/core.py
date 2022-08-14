@@ -98,7 +98,6 @@ _unsupported_xgb_params = [
     "use_label_encoder",
     "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
     "nthread",  # Ditto
-    "eval_metric",  # TODO: support this.
 ]
 
 _unsupported_fit_params = {
@@ -107,7 +106,6 @@ _unsupported_fit_params = {
     "eval_set",
     "sample_weight_eval_set",
     "base_margin",  # Supported by spark param base_margin_col
-    "eval_metric",  # Use constructor param instead,
     "group",  # Use spark param `qid_col` instead
     "qid",  # Use spark param `qid_col` instead
 }
