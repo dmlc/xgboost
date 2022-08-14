@@ -267,6 +267,18 @@ class _SparkXGBParams(
                 "If features_cols param set, then features_col param is ignored."
             )
 
+        if self.getOrDefault(self.objective) is not None:
+            if not isinstance(self.getOrDefault(self.objective), str):
+                raise ValueError(
+                    "Only string type 'objective' param is allowed."
+                )
+
+        if self.getOrDefault(self.eval_metric) is not None:
+            if not isinstance(self.getOrDefault(self.eval_metric), str):
+                raise ValueError(
+                    "Only string type 'eval_metric' param is allowed."
+                )
+
         if self.getOrDefault(self.use_gpu):
             tree_method = self.getParam("tree_method")
             if (
