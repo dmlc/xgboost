@@ -593,9 +593,10 @@ void TestAdapterSketchFromWeights(bool with_group) {
   ValidateCuts(cuts, dmat.get(), kBins);
 
   if (with_group) {
+    dmat->Info().weights_ = decltype(dmat->Info().weights_)();  // remove weight
     HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
-      EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
+      ASSERT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
     }
     for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
       ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
@@ -603,6 +604,24 @@ void TestAdapterSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
     }
+  }
+
+  if (with_group) {
+    common::HistogramCuts weighted;
+    auto& h_weights = info.weights_.HostVector();
+    h_weights.resize(kGroups);
+    // Generate different weight.
+    for (size_t i = 0; i < h_weights.size(); ++i) {
+      // FIXME(jiamingy): Some entries generated GPU test cannot pass the validate cuts if
+      // we use more diverse weights, partially caused by
+      // https://github.com/dmlc/xgboost/issues/7946
+      h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
+    }
+    SketchContainer sketch_container(ft, kBins, kCols, kRows, 0);
+    AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+                        &sketch_container);
+    sketch_container.MakeCuts(&weighted);
+    ValidateCuts(weighted, dmat.get(), kBins);
   }
 }
 
