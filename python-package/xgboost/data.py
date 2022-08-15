@@ -749,8 +749,9 @@ def _is_cudf_ser(data: DataType) -> bool:
 
 
 def _is_cupy_array(data: DataType) -> bool:
-    return lazy_isinstance(data, "cupy.core.core", "ndarray") or lazy_isinstance(
-        data, "cupy._core.core", "ndarray"
+    return any(
+        lazy_isinstance(data, n, "ndarray")
+        for n in ("cupy.core.core", "cupy", "cupy._core.core")
     )
 
 
@@ -1166,6 +1167,7 @@ def _proxy_transform(
     if _is_dlpack(data):
         return _transform_dlpack(data), None, feature_names, feature_types
     if _is_numpy_array(data):
+        data, _ = _ensure_np_dtype(data, data.dtype)
         return data, None, feature_names, feature_types
     if _is_scipy_csr(data):
         return data, None, feature_names, feature_types

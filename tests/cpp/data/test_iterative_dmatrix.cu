@@ -3,19 +3,19 @@
  */
 #include <gtest/gtest.h>
 
-#include "../helpers.h"
-#include "../../../src/data/iterative_dmatrix.h"
-#include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/device_adapter.cuh"
+#include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/iterative_dmatrix.h"
+#include "../helpers.h"
+#include "test_iterative_dmatrix.h"
 
 namespace xgboost {
 namespace data {
 
 void TestEquivalent(float sparsity) {
   CudaArrayIterForTest iter{sparsity};
-  IterativeDMatrix m(
-      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
-      0, 256);
+  IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
+                     std::numeric_limits<float>::quiet_NaN(), 0, 256);
   size_t offset = 0;
   auto first = (*m.GetEllpackBatches({}).begin()).Impl();
   std::unique_ptr<EllpackPageImpl> page_concatenated {
@@ -88,9 +88,8 @@ TEST(IterativeDeviceDMatrix, Basic) {
 
 TEST(IterativeDeviceDMatrix, RowMajor) {
   CudaArrayIterForTest iter(0.0f);
-  IterativeDMatrix m(
-      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
-      0, 256);
+  IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
+                     std::numeric_limits<float>::quiet_NaN(), 0, 256);
   size_t n_batches = 0;
   std::string interface_str = iter.AsArray();
   for (auto& ellpack : m.GetBatches<EllpackPage>({})) {
@@ -139,9 +138,8 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
       reinterpret_cast<float *>(get<Integer>(j_interface["data"][0])));
   thrust::copy(h_data.cbegin(), h_data.cend(), ptr);
 
-  IterativeDMatrix m(
-      &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
-      0, 256);
+  IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
+                     std::numeric_limits<float>::quiet_NaN(), 0, 256);
   auto &ellpack = *m.GetBatches<EllpackPage>({0, 256}).begin();
   auto impl = ellpack.Impl();
   common::CompressedIterator<uint32_t> iterator(
@@ -157,11 +155,10 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
 
 TEST(IterativeDeviceDMatrix, IsDense) {
   int num_bins = 16;
-  auto test = [num_bins] (float sparsity) {
+  auto test = [num_bins](float sparsity) {
     CudaArrayIterForTest iter(sparsity);
-    IterativeDMatrix m(
-        &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
-        0, 256);
+    IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
+                       std::numeric_limits<float>::quiet_NaN(), 0, num_bins);
     if (sparsity == 0.0) {
       ASSERT_TRUE(m.IsDense());
     } else {
@@ -170,6 +167,12 @@ TEST(IterativeDeviceDMatrix, IsDense) {
   };
   test(0.0);
   test(0.1);
+  test(1.0);
+}
+
+TEST(IterativeDeviceDMatrix, Ref) {
+  TestRefDMatrix<EllpackPage, CudaArrayIterForTest>(
+      [](EllpackPage const& page) { return page.Impl()->Cuts(); });
 }
 }  // namespace data
 }  // namespace xgboost

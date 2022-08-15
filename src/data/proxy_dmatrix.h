@@ -65,9 +65,6 @@ class DMatrixProxy : public DMatrix {
     } else {
       this->FromCudaArray(interface_str);
     }
-    if (this->info_.num_row_ == 0) {
-      this->ctx_.gpu_id = Context::kCpuId;
-    }
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
@@ -80,9 +77,11 @@ class DMatrixProxy : public DMatrix {
   MetaInfo const& Info() const override { return info_; }
   Context const* Ctx() const override { return &ctx_; }
 
-  bool SingleColBlock() const override { return true; }
-  bool EllpackExists() const override { return true; }
+  bool SingleColBlock() const override { return false; }
+  bool EllpackExists() const override { return false; }
+  bool GHistIndexExists() const override { return false; }
   bool SparsePageExists() const override { return false; }
+
   DMatrix* Slice(common::Span<int32_t const> /*ridxs*/) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for Proxy DMatrix.";
     return nullptr;

@@ -1,14 +1,16 @@
 /*!
- * Copyright 2019-2020 XGBoost contributors
+ * Copyright 2019-2022 XGBoost contributors
  */
-#include <xgboost/data.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
+
 #include "../common/categorical.h"
 #include "../common/hist_util.cuh"
 #include "../common/random.h"
 #include "./ellpack_page.cuh"
 #include "device_adapter.cuh"
+#include "gradient_index.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 
@@ -32,7 +34,7 @@ __global__ void CompressBinEllpackKernel(
     const size_t* __restrict__ row_ptrs,           // row offset of input data
     const Entry* __restrict__ entries,      // One batch of input data
     const float* __restrict__ cuts,         // HistogramCuts::cut_values_
-    const uint32_t* __restrict__ cut_rows,  // HistogramCuts::cut_ptrs_
+    const uint32_t* __restrict__ cut_ptrs,  // HistogramCuts::cut_ptrs_
     common::Span<FeatureType const> feature_types,
     size_t base_row,                        // batch_row_begin
     size_t n_rows,
@@ -50,8 +52,8 @@ __global__ void CompressBinEllpackKernel(
     int feature = entry.index;
     float fvalue = entry.fvalue;
     // {feature_cuts, ncuts} forms the array of cuts of `feature'.
-    const float* feature_cuts = &cuts[cut_rows[feature]];
-    int ncuts = cut_rows[feature + 1] - cut_rows[feature];
+    const float* feature_cuts = &cuts[cut_ptrs[feature]];
+    int ncuts = cut_ptrs[feature + 1] - cut_ptrs[feature];
     bool is_cat = common::IsCat(feature_types, ifeature);
     // Assigning the bin in current entry.
     // S.t.: fvalue < feature_cuts[bin]
@@ -69,7 +71,7 @@ __global__ void CompressBinEllpackKernel(
       bin = ncuts - 1;
     }
     // Add the number of bins in previous features.
-    bin += cut_rows[feature];
+    bin += cut_ptrs[feature];
   }
   // Write to gidx buffer.
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
@@ -283,6 +285,70 @@ EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device, 
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
+
+namespace {
+void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const> d_row_ptr,
+                        size_t row_stride, common::CompressedByteT* d_compressed_buffer,
+                        size_t null) {
+  dh::device_vector<uint8_t> data(page.index.begin(), page.index.end());
+  auto d_data = dh::ToSpan(data);
+
+  dh::device_vector<size_t> csc_indptr(page.index.Offset(),
+                                       page.index.Offset() + page.index.OffsetSize());
+  auto d_csc_indptr = dh::ToSpan(csc_indptr);
+
+  auto bin_type = page.index.GetBinTypeSize();
+  common::CompressedBufferWriter writer{page.cut.TotalBins() + 1};  // +1 for null value
+
+  dh::LaunchN(row_stride * page.Size(), [=] __device__(size_t idx) mutable {
+    auto ridx = idx / row_stride;
+    auto ifeature = idx % row_stride;
+
+    auto r_begin = d_row_ptr[ridx];
+    auto r_end = d_row_ptr[ridx + 1];
+    size_t r_size = r_end - r_begin;
+
+    if (ifeature >= r_size) {
+      writer.AtomicWriteSymbol(d_compressed_buffer, null, idx);
+      return;
+    }
+
+    size_t offset = 0;
+    if (!d_csc_indptr.empty()) {
+      // is dense, ifeature is the actual feature index.
+      offset = d_csc_indptr[ifeature];
+    }
+    common::cuda::DispatchBinType(bin_type, [&](auto t) {
+      using T = decltype(t);
+      auto ptr = reinterpret_cast<T const*>(d_data.data());
+      auto bin_idx = ptr[r_begin + ifeature] + offset;
+      writer.AtomicWriteSymbol(d_compressed_buffer, bin_idx, idx);
+    });
+  });
+}
+}  // anonymous namespace
+
+EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
+                                 common::Span<FeatureType const> ft)
+    : is_dense{page.IsDense()}, base_rowid{page.base_rowid}, n_rows{page.Size()}, cuts_{page.cut} {
+  auto it = common::MakeIndexTransformIter(
+      [&](size_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
+  row_stride = *std::max_element(it, it + page.Size());
+
+  CHECK_GE(ctx->gpu_id, 0);
+  monitor_.Start("InitCompressedData");
+  InitCompressedData(ctx->gpu_id);
+  monitor_.Stop("InitCompressedData");
+
+  // copy gidx
+  common::CompressedByteT* d_compressed_buffer = gidx_buffer.DevicePointer();
+  dh::device_vector<size_t> row_ptr(page.row_ptr);
+  auto d_row_ptr = dh::ToSpan(row_ptr);
+
+  auto accessor = this->GetDeviceAccessor(ctx->gpu_id, ft);
+  auto null = accessor.NullValue();
+  CopyGHistToEllpack(page, d_row_ptr, row_stride, d_compressed_buffer, null);
+}
 
 // A functor that copies the data from one EllpackPage to another.
 struct CopyPage {

@@ -19,16 +19,18 @@ Python
 
 .. code-block:: python
 
-  import xgboost as xgb
-  # read in data
-  dtrain = xgb.DMatrix('demo/data/agaricus.txt.train')
-  dtest = xgb.DMatrix('demo/data/agaricus.txt.test')
-  # specify parameters via map
-  param = {'max_depth':2, 'eta':1, 'objective':'binary:logistic' }
-  num_round = 2
-  bst = xgb.train(param, dtrain, num_round)
-  # make prediction
-  preds = bst.predict(dtest)
+  from xgboost import XGBClassifier
+  # read data
+  from sklearn.datasets import load_iris
+  from sklearn.model_selection import train_test_split
+  data = load_iris()
+  X_train, X_test, y_train, y_test = train_test_split(data['data'], data['target'], test_size=.2)
+  # create model instance
+  bst = XGBClassifier(n_estimators=2, max_depth=2, learning_rate=1, objective='binary:logistic')
+  # fit model
+  bst.fit(X_train, y_train)
+  # make predictions
+  preds = bst.predict(X_test)
 
 ***
 R

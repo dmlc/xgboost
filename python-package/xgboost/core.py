@@ -399,11 +399,10 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     Parameters
     ----------
     cache_prefix:
-        Prefix to the cache files, only used in external memory.  It can be either an URI
-        or a file path.
+        Prefix to the cache files, only used in external memory.  It can be either an
+        URI or a file path.
 
     """
-    _T = TypeVar("_T")
 
     def __init__(self, cache_prefix: Optional[str] = None) -> None:
         self.cache_prefix = cache_prefix
@@ -1010,7 +1009,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
         Returns
         -------
-        number of columns : int
+        number of columns
         """
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumCol(self.handle, ctypes.byref(ret)))
@@ -1146,7 +1145,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        feature_types : list or None
+        feature_types :
             Labels for features. None will reset existing feature names
 
         """
@@ -1189,7 +1188,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
 
 class _ProxyDMatrix(DMatrix):
-    """A placeholder class when DMatrix cannot be constructed (DeviceQuantileDMatrix,
+    """A placeholder class when DMatrix cannot be constructed (QuantileDMatrix,
     inplace_predict).
 
     """
@@ -1234,17 +1233,35 @@ class _ProxyDMatrix(DMatrix):
         )
 
 
-class DeviceQuantileDMatrix(DMatrix):
-    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do
-    not use this for test/validation tasks as some information may be lost in
-    quantisation. This DMatrix is primarily designed to save memory in training from
-    device memory inputs by avoiding intermediate storage. Set max_bin to control the
-    number of bins during quantisation.  See doc string in :py:obj:`xgboost.DMatrix` for
-    documents on meta info.
+class QuantileDMatrix(DMatrix):
+    """A DMatrix variant that generates quantilized data directly from input for
+    ``hist`` and ``gpu_hist`` tree methods. This DMatrix is primarily designed to save
+    memory in training by avoiding intermediate storage. Set ``max_bin`` to control the
+    number of bins during quantisation, which should be consistent with the training
+    parameter ``max_bin``. When ``QuantileDMatrix`` is used for validation/test dataset,
+    ``ref`` should be another ``QuantileDMatrix``(or ``DMatrix``, but not recommended as
+    it defeats the purpose of saving memory) constructed from training dataset.  See
+    :py:obj:`xgboost.DMatrix` for documents on meta info.
 
-    You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
+    .. note::
 
-    .. versionadded:: 1.1.0
+        Do not use ``QuantileDMatrix`` as validation/test dataset without supplying a
+        reference (the training dataset) ``QuantileDMatrix`` using ``ref`` as some
+        information may be lost in quantisation.
+
+    .. versionadded:: 2.0.0
+
+    Parameters
+    ----------
+    max_bin :
+        The number of histogram bin, should be consistent with the training parameter
+        ``max_bin``.
+
+    ref :
+        The training dataset that provides quantile information, needed when creating
+        validation/test dataset with ``QuantileDMatrix``. Supplying the training DMatrix
+        as a reference means that the same quantisation applied to the training data is
+        applied to the validation/test data
 
     """
 
@@ -1261,7 +1278,8 @@ class DeviceQuantileDMatrix(DMatrix):
         feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[FeatureTypes] = None,
         nthread: Optional[int] = None,
-        max_bin: int = 256,
+        max_bin: Optional[int] = None,
+        ref: Optional[DMatrix] = None,
         group: Optional[ArrayLike] = None,
         qid: Optional[ArrayLike] = None,
         label_lower_bound: Optional[ArrayLike] = None,
@@ -1269,9 +1287,9 @@ class DeviceQuantileDMatrix(DMatrix):
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
     ) -> None:
-        self.max_bin = max_bin
+        self.max_bin: int = max_bin if max_bin is not None else 256
         self.missing = missing if missing is not None else np.nan
-        self.nthread = nthread if nthread is not None else 1
+        self.nthread = nthread if nthread is not None else -1
         self._silent = silent  # unused, kept for compatibility
 
         if isinstance(data, ctypes.c_void_p):
@@ -1280,12 +1298,13 @@ class DeviceQuantileDMatrix(DMatrix):
 
         if qid is not None and group is not None:
             raise ValueError(
-                'Only one of the eval_qid or eval_group for each evaluation '
-                'dataset should be provided.'
+                "Only one of the eval_qid or eval_group for each evaluation "
+                "dataset should be provided."
             )
 
         self._init(
             data,
+            ref=ref,
             label=label,
             weight=weight,
             base_margin=base_margin,
@@ -1299,7 +1318,13 @@ class DeviceQuantileDMatrix(DMatrix):
             enable_categorical=enable_categorical,
         )
 
-    def _init(self, data: DataType, enable_categorical: bool, **meta: Any) -> None:
+    def _init(
+        self,
+        data: DataType,
+        ref: Optional[DMatrix],
+        enable_categorical: bool,
+        **meta: Any,
+    ) -> None:
         from .data import (
             _is_dlpack,
             _transform_dlpack,
@@ -1317,26 +1342,46 @@ class DeviceQuantileDMatrix(DMatrix):
             it = SingleBatchInternalIter(data=data, **meta)
 
         handle = ctypes.c_void_p()
-        reset_callback, next_callback = it.get_callbacks(False, enable_categorical)
+        reset_callback, next_callback = it.get_callbacks(True, enable_categorical)
         if it.cache_prefix is not None:
             raise ValueError(
-                "DeviceQuantileDMatrix doesn't cache data, remove the cache_prefix "
+                "QuantileDMatrix doesn't cache data, remove the cache_prefix "
                 "in iterator to fix this error."
             )
-        ret = _LIB.XGDeviceQuantileDMatrixCreateFromCallback(
+
+        args = {
+            "nthread": self.nthread,
+            "missing": self.missing,
+            "max_bin": self.max_bin,
+        }
+        config = from_pystr_to_cstr(json.dumps(args))
+        ret = _LIB.XGQuantileDMatrixCreateFromCallback(
             None,
             it.proxy.handle,
+            ref.handle if ref is not None else ref,
             reset_callback,
             next_callback,
-            ctypes.c_float(self.missing),
-            ctypes.c_int(self.nthread),
-            ctypes.c_int(self.max_bin),
+            config,
             ctypes.byref(handle),
         )
         it.reraise()
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
+
+
+class DeviceQuantileDMatrix(QuantileDMatrix):
+    """ Use `QuantileDMatrix` instead.
+
+    .. deprecated:: 2.0.0
+
+    .. versionadded:: 1.1.0
+
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        warnings.warn("Please use `QuantileDMatrix` instead.", FutureWarning)
+        super().__init__(*args, **kwargs)
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]

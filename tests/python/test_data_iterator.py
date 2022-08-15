@@ -1,30 +1,10 @@
 import xgboost as xgb
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 import numpy as np
-from testing import IteratorForTest, non_increasing
-from typing import Tuple, List
+from testing import IteratorForTest, non_increasing, make_batches
 import pytest
 from hypothesis import given, strategies, settings
 from scipy.sparse import csr_matrix
-
-
-def make_batches(
-    n_samples_per_batch: int, n_features: int, n_batches: int, use_cupy: bool = False
-) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    X = []
-    y = []
-    if use_cupy:
-        import cupy
-
-        rng = cupy.random.RandomState(1994)
-    else:
-        rng = np.random.RandomState(1994)
-    for i in range(n_batches):
-        _X = rng.randn(n_samples_per_batch, n_features)
-        _y = rng.randn(n_samples_per_batch)
-        X.append(_X)
-        y.append(_y)
-    return X, y
 
 
 def test_single_batch(tree_method: str = "approx") -> None:
@@ -111,8 +91,8 @@ def run_data_iterator(
     if not subsample:
         assert non_increasing(results_from_it["Train"]["rmse"])
 
-    X, y = it.as_arrays()
-    Xy = xgb.DMatrix(X, y)
+    X, y, w = it.as_arrays()
+    Xy = xgb.DMatrix(X, y, weight=w)
     assert Xy.num_row() == n_samples_per_batch * n_batches
     assert Xy.num_col() == n_features
 

@@ -43,6 +43,7 @@
 #include "../src/data/gradient_index_format.cc"
 #include "../src/data/sparse_page_dmatrix.cc"
 #include "../src/data/proxy_dmatrix.cc"
+#include "../src/data/iterative_dmatrix.cc"
 
 // prediction
 #include "../src/predictor/predictor.cc"
