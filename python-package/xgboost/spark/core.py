@@ -108,6 +108,8 @@ _unsupported_fit_params = {
     "base_margin",  # Supported by spark param base_margin_col
     "group",  # Use spark param `qid_col` instead
     "qid",  # Use spark param `qid_col` instead
+    "eval_group",  # Use spark param `qid_col` instead
+    "eval_qid",  # Use spark param `qid_col` instead
 }
 
 _unsupported_predict_params = {
