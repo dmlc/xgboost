@@ -4,6 +4,8 @@
 #pragma once
 #include <rabit/rabit.h>
 
+#include <string>
+
 #include "communicator.h"
 
 namespace xgboost {

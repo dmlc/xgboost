@@ -4,6 +4,8 @@
 #pragma once
 #include <xgboost/logging.h>
 
+#include <string>
+
 namespace xgboost {
 namespace collective {
 
@@ -87,7 +89,7 @@ class Communicator {
   int GetRank() const { return rank_; }
 
   /** @brief Whether the communicator is running in distributed mode. */
-  bool IsDistributed() const { return world_size_ > 1; };
+  bool IsDistributed() const { return world_size_ > 1; }
 
   /**
    * @brief Combines values from all processes and distributes the result back to all processes.
@@ -126,10 +128,10 @@ class Communicator {
 };
 
 /* \brief Case-insensitive string comparison */
-inline int CompareStringsCaseInsensitive(const char* s1, const char* s2) {
+inline int CompareStringsCaseInsensitive(const char *s1, const char *s2) {
 #ifdef _MSC_VER
   return _stricmp(s1, s2);
-#else  // _MSC_VER
+#else   // _MSC_VER
   return strcasecmp(s1, s2);
 #endif  // _MSC_VER
 }
