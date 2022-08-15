@@ -1,6 +1,7 @@
 /*!
  * Copyright 2022 XGBoost contributors
  */
+#include <dmlc/parameter.h>
 #include <grpcpp/server_builder.h>
 #include <gtest/gtest.h>
 
@@ -43,7 +44,7 @@ class FederatedCommunicatorTest : public ::testing::Test {
     server_thread_->join();
   }
 
-  static void CheckAllreduce(FederatedCommunicator& comm) {
+  static void CheckAllreduce(FederatedCommunicator &comm) {
     int buffer[] = {1, 2, 3, 4, 5};
     comm.AllReduce(buffer, sizeof(buffer) / sizeof(buffer[0]), DataType::kInt32, Operation::kSum);
     int expected[] = {3, 6, 9, 12, 15};
@@ -52,7 +53,7 @@ class FederatedCommunicatorTest : public ::testing::Test {
     }
   }
 
-  static void CheckBroadcast(FederatedCommunicator& comm, int rank) {
+  static void CheckBroadcast(FederatedCommunicator &comm, int rank) {
     if (rank == 0) {
       std::string buffer{"hello"};
       comm.Broadcast(&buffer[0], buffer.size(), 0);
@@ -105,7 +106,7 @@ TEST_F(FederatedCommunicatorTest, Allreduce) {
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(std::thread(&FederatedCommunicatorTest::VerifyAllreduce, rank));
   }
-  for (auto& thread : threads) {
+  for (auto &thread : threads) {
     thread.join();
   }
 }
@@ -115,93 +116,93 @@ TEST_F(FederatedCommunicatorTest, Broadcast) {
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(std::thread(&FederatedCommunicatorTest::VerifyBroadcast, rank));
   }
-  for (auto& thread : threads) {
+  for (auto &thread : threads) {
     thread.join();
   }
 }
 
 TEST(FederatedCommunicatorFactoryTest, ServerAddress) {
-    FederatedCommunicatorFactory factory0{0, nullptr};
-    EXPECT_EQ(factory0.GetServerAddress(), "");
+  FederatedCommunicatorFactory factory0{0, nullptr};
+  EXPECT_EQ(factory0.GetServerAddress(), "");
 
-    setenv("FEDERATED_SERVER_ADDRESS", "localhost:9091", 1);
-    FederatedCommunicatorFactory factory1{0, nullptr};
-    EXPECT_EQ(factory1.GetServerAddress(), "localhost:9091");
+  dmlc::SetEnv<std::string>("FEDERATED_SERVER_ADDRESS", "localhost:9091");
+  FederatedCommunicatorFactory factory1{0, nullptr};
+  EXPECT_EQ(factory1.GetServerAddress(), "localhost:9091");
 
-    char *args[1];
-    args[0] = strdup("federated_server_address=foo:9091");
-    FederatedCommunicatorFactory factory2{1, args};
-    EXPECT_EQ(factory2.GetServerAddress(), "foo:9091");
+  char *args[1];
+  args[0] = strdup("federated_server_address=foo:9091");
+  FederatedCommunicatorFactory factory2{1, args};
+  EXPECT_EQ(factory2.GetServerAddress(), "foo:9091");
 }
 
 TEST(FederatedCommunicatorFactoryTest, WorldSize) {
-    FederatedCommunicatorFactory factory0{0, nullptr};
-    EXPECT_EQ(factory0.GetWorldSize(), 0);
+  FederatedCommunicatorFactory factory0{0, nullptr};
+  EXPECT_EQ(factory0.GetWorldSize(), 0);
 
-    setenv("FEDERATED_WORLD_SIZE", "2", 1);
-    FederatedCommunicatorFactory factory1{0, nullptr};
-    EXPECT_EQ(factory1.GetWorldSize(), 2);
+  dmlc::SetEnv<std::string>("FEDERATED_WORLD_SIZE", "2");
+  FederatedCommunicatorFactory factory1{0, nullptr};
+  EXPECT_EQ(factory1.GetWorldSize(), 2);
 
-    char *args[1];
-    args[0] = strdup("federated_world_size=3");
-    FederatedCommunicatorFactory factory2{1, args};
-    EXPECT_EQ(factory2.GetWorldSize(), 3);
+  char *args[1];
+  args[0] = strdup("federated_world_size=3");
+  FederatedCommunicatorFactory factory2{1, args};
+  EXPECT_EQ(factory2.GetWorldSize(), 3);
 }
 
 TEST(FederatedCommunicatorFactoryTest, Rank) {
-    FederatedCommunicatorFactory factory0{0, nullptr};
-    EXPECT_EQ(factory0.GetRank(), -1);
+  FederatedCommunicatorFactory factory0{0, nullptr};
+  EXPECT_EQ(factory0.GetRank(), -1);
 
-    setenv("FEDERATED_RANK", "1", 1);
-    FederatedCommunicatorFactory factory1{0, nullptr};
-    EXPECT_EQ(factory1.GetRank(), 1);
+  dmlc::SetEnv<std::string>("FEDERATED_RANK", "1");
+  FederatedCommunicatorFactory factory1{0, nullptr};
+  EXPECT_EQ(factory1.GetRank(), 1);
 
-    char *args[1];
-    args[0] = strdup("federated_rank=2");
-    FederatedCommunicatorFactory factory2{1, args};
-    EXPECT_EQ(factory2.GetRank(), 2);
+  char *args[1];
+  args[0] = strdup("federated_rank=2");
+  FederatedCommunicatorFactory factory2{1, args};
+  EXPECT_EQ(factory2.GetRank(), 2);
 }
 
 TEST(FederatedCommunicatorFactoryTest, ServerCert) {
-    FederatedCommunicatorFactory factory0{0, nullptr};
-    EXPECT_EQ(factory0.GetServerCert(), "");
+  FederatedCommunicatorFactory factory0{0, nullptr};
+  EXPECT_EQ(factory0.GetServerCert(), "");
 
-    setenv("FEDERATED_SERVER_CERT", "foo/server-cert.pem", 1);
-    FederatedCommunicatorFactory factory1{0, nullptr};
-    EXPECT_EQ(factory1.GetServerCert(), "foo/server-cert.pem");
+  dmlc::SetEnv<std::string>("FEDERATED_SERVER_CERT", "foo/server-cert.pem");
+  FederatedCommunicatorFactory factory1{0, nullptr};
+  EXPECT_EQ(factory1.GetServerCert(), "foo/server-cert.pem");
 
-    char *args[1];
-    args[0] = strdup("federated_server_cert=bar/server-cert.pem");
-    FederatedCommunicatorFactory factory2{1, args};
-    EXPECT_EQ(factory2.GetServerCert(), "bar/server-cert.pem");
+  char *args[1];
+  args[0] = strdup("federated_server_cert=bar/server-cert.pem");
+  FederatedCommunicatorFactory factory2{1, args};
+  EXPECT_EQ(factory2.GetServerCert(), "bar/server-cert.pem");
 }
 
 TEST(FederatedCommunicatorFactoryTest, ClientKey) {
-    FederatedCommunicatorFactory factory0{0, nullptr};
-    EXPECT_EQ(factory0.GetClientKey(), "");
+  FederatedCommunicatorFactory factory0{0, nullptr};
+  EXPECT_EQ(factory0.GetClientKey(), "");
 
-    setenv("FEDERATED_CLIENT_KEY", "foo/client-key.pem", 1);
-    FederatedCommunicatorFactory factory1{0, nullptr};
-    EXPECT_EQ(factory1.GetClientKey(), "foo/client-key.pem");
+  dmlc::SetEnv<std::string>("FEDERATED_CLIENT_KEY", "foo/client-key.pem");
+  FederatedCommunicatorFactory factory1{0, nullptr};
+  EXPECT_EQ(factory1.GetClientKey(), "foo/client-key.pem");
 
-    char *args[1];
-    args[0] = strdup("federated_client_key=bar/client-key.pem");
-    FederatedCommunicatorFactory factory2{1, args};
-    EXPECT_EQ(factory2.GetClientKey(), "bar/client-key.pem");
+  char *args[1];
+  args[0] = strdup("federated_client_key=bar/client-key.pem");
+  FederatedCommunicatorFactory factory2{1, args};
+  EXPECT_EQ(factory2.GetClientKey(), "bar/client-key.pem");
 }
 
 TEST(FederatedCommunicatorFactoryTest, ClientCert) {
-    FederatedCommunicatorFactory factory0{0, nullptr};
-    EXPECT_EQ(factory0.GetClientCert(), "");
+  FederatedCommunicatorFactory factory0{0, nullptr};
+  EXPECT_EQ(factory0.GetClientCert(), "");
 
-    setenv("FEDERATED_CLIENT_CERT", "foo/client-cert.pem", 1);
-    FederatedCommunicatorFactory factory1{0, nullptr};
-    EXPECT_EQ(factory1.GetClientCert(), "foo/client-cert.pem");
+  dmlc::SetEnv<std::string>("FEDERATED_CLIENT_CERT", "foo/client-cert.pem");
+  FederatedCommunicatorFactory factory1{0, nullptr};
+  EXPECT_EQ(factory1.GetClientCert(), "foo/client-cert.pem");
 
-    char *args[1];
-    args[0] = strdup("federated_client_cert=bar/client-cert.pem");
-    FederatedCommunicatorFactory factory2{1, args};
-    EXPECT_EQ(factory2.GetClientCert(), "bar/client-cert.pem");
+  char *args[1];
+  args[0] = strdup("federated_client_cert=bar/client-cert.pem");
+  FederatedCommunicatorFactory factory2{1, args};
+  EXPECT_EQ(factory2.GetClientCert(), "bar/client-cert.pem");
 }
 
 }  // namespace collective
