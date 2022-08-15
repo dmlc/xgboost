@@ -1450,7 +1450,7 @@ XGB_DLL int XGCommunicatorGetProcessorName(char *out_name,
  * \param size the size of the data
  * \param root the root of process
  */
-XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, std::size_t size, int root);
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root);
 
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf
@@ -1466,7 +1466,7 @@ XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, std::size_t size,
  * \param enum_dtype the enumeration of data type, see xgboost::collective::DataType in communicator.h
  * \param enum_op the enumeration of operation type, see xgboost::collective::Operation in communicator.h
  */
-XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, std::size_t count, int enum_dtype,
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
                                     int enum_op);
 
 

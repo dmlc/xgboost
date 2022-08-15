@@ -1415,13 +1415,13 @@ XGB_DLL int XGCommunicatorGetProcessorName(char *out_name, bst_ulong *out_len, b
   API_END();
 }
 
-XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, std::size_t size, int root) {
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root) {
   API_BEGIN();
   CommunicatorFactory::GetInstance()->GetCommunicator()->Broadcast(send_receive_buffer, size, root);
   API_END();
 }
 
-XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, std::size_t count, int enum_dtype,
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
                                     int enum_op) {
   API_BEGIN();
   CommunicatorFactory::GetInstance()->GetCommunicator()->AllReduce(
