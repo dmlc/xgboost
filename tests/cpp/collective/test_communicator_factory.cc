@@ -26,21 +26,20 @@ TEST(CommunicatorFactory, TypeFromEnv) {
 }
 
 TEST(CommunicatorFactory, TypeFromArgs) {
-  char *args[1];
-  args[0] = strdup("foo=bar");
-  EXPECT_EQ(CommunicatorType::kUnknown, CommunicatorFactory::GetTypeFromArgs(1, args));
+  char *args0[] = {(char *)("foo=bar")};
+  EXPECT_EQ(CommunicatorType::kUnknown, CommunicatorFactory::GetTypeFromArgs(1, args0));
 
-  args[0] = strdup("xgboost_communicator=rabit");
-  EXPECT_EQ(CommunicatorType::kRabit, CommunicatorFactory::GetTypeFromArgs(1, args));
+  char *args1[] = {(char *)("xgboost_communicator=rabit")};
+  EXPECT_EQ(CommunicatorType::kRabit, CommunicatorFactory::GetTypeFromArgs(1, args1));
 
-  args[0] = strdup("xgboost_communicator=MPI");
-  EXPECT_EQ(CommunicatorType::kMPI, CommunicatorFactory::GetTypeFromArgs(1, args));
+  char *args2[] = {(char *)("xgboost_communicator=MPI")};
+  EXPECT_EQ(CommunicatorType::kMPI, CommunicatorFactory::GetTypeFromArgs(1, args2));
 
-  args[0] = strdup("xgboost_communicator=Federated");
-  EXPECT_EQ(CommunicatorType::kFederated, CommunicatorFactory::GetTypeFromArgs(1, args));
+  char *args3[] = {(char *)("xgboost_communicator=federated")};
+  EXPECT_EQ(CommunicatorType::kFederated, CommunicatorFactory::GetTypeFromArgs(1, args3));
 
-  args[0] = strdup("xgboost_communicator=foo");
-  EXPECT_THROW(CommunicatorFactory::GetTypeFromArgs(1, args), dmlc::Error);
+  char *args4[] = {(char *)("xgboost_communicator=foo")};
+  EXPECT_THROW(CommunicatorFactory::GetTypeFromArgs(1, args4), dmlc::Error);
 }
 
 }  // namespace collective
