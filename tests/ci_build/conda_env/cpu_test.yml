@@ -37,6 +37,5 @@ dependencies:
 - pyspark>=3.3.0
 - cloudpickle
 - shap
-- modin
 - pip:
   - datatable
