@@ -141,6 +141,10 @@ if (USE_CUDA)
   if ((${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 11.4) AND (NOT BUILD_WITH_CUDA_CUB))
     set(BUILD_WITH_CUDA_CUB ON)
   endif ()
+
+  if (USE_NCCL)
+    add_custom_target(PruneLibNccl nvprune ${GEN_CODE} /usr/lib64/libnccl_static.a -o libnccl_static.a)
+  endif (USE_NCCL)
 endif (USE_CUDA)
 
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
