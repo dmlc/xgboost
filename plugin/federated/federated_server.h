@@ -40,5 +40,7 @@ class FederatedService final : public Federated::Service {
 void RunServer(int port, int world_size, char const* server_key_file, char const* server_cert_file,
                char const* client_cert_file);
 
+void RunInsecureServer(int port, int world_size);
+
 }  // namespace federated
 }  // namespace xgboost

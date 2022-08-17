@@ -33,7 +33,7 @@ class FederatedClient {
         }()},
         rank_{rank} {}
 
-  /** @brief Insecure client for testing only. */
+  /** @brief Insecure client for connecting to localhost only. */
   FederatedClient(std::string const &server_address, int rank)
       : stub_{Federated::NewStub(
             grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()))},
