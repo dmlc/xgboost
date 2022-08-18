@@ -113,7 +113,7 @@ def make_categorical(
 def generate_array(
     with_weights: bool = False,
 ) -> Tuple[
-    xgb.dask._DataT, xgb.dask._DaskCollection, Optional[xgb.dask._DaskCollection]
+    xgb.dask._DaskCollection, xgb.dask._DaskCollection, Optional[xgb.dask._DaskCollection]
 ]:
     chunk_size = 20
     rng = da.random.RandomState(1994)
