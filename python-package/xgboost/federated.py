@@ -6,9 +6,9 @@ from .core import _LIB, XGBoostError, _check_call, build_info, c_str
 def run_federated_server(
     port: int,
     world_size: int,
-    server_key_path: str = '',
-    server_cert_path: str = '',
-    client_cert_path: str = '',
+    server_key_path: str = "",
+    server_cert_path: str = "",
+    client_cert_path: str = "",
 ) -> None:
     """Run the Federated Learning server.
 
@@ -35,7 +35,7 @@ def run_federated_server(
                     world_size,
                     c_str(server_key_path),
                     c_str(server_cert_path),
-                    c_str(client_cert_path)
+                    c_str(client_cert_path),
                 )
             )
     else:
