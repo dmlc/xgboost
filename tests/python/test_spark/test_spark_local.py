@@ -381,6 +381,26 @@ class XgboostLocalTest(SparkTestCase):
             ],
         )
 
+        self.reg_df_sparse_train = self.session.createDataFrame(
+            [
+                (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
+                (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
+                (Vectors.sparse(5, {4: -3.0}), 2),
+            ]
+            * 10,
+            ["features", "label"],
+        )
+
+        self.cls_df_sparse_train = self.session.createDataFrame(
+            [
+                (Vectors.dense(1.0, 0.0, 3.0, 0.0, 0.0), 0),
+                (Vectors.sparse(5, {1: 1.0, 3: 5.5}), 1),
+                (Vectors.sparse(5, {4: -3.0}), 0),
+            ]
+            * 10,
+            ["features", "label"],
+        )
+
     def get_local_tmp_dir(self):
         return self.tempdir + str(uuid.uuid4())
 
@@ -972,3 +992,35 @@ class XgboostLocalTest(SparkTestCase):
         )
         model = classifier.fit(self.cls_df_train)
         model.transform(self.cls_df_test).collect()
+
+    def test_regressor_with_sparse_optim(self):
+        regressor = SparkXGBRegressor(missing=0.0)
+        model = regressor.fit(self.reg_df_sparse_train)
+        assert model._xgb_sklearn_model.missing == 0.0
+        pred_result = model.transform(self.reg_df_sparse_train).collect()
+
+        # enable sparse optimiaztion
+        regressor2 = SparkXGBRegressor(missing=0.0, enable_sparse_data_optim=True)
+        model2 = regressor2.fit(self.reg_df_sparse_train)
+        assert model2.getOrDefault(model2.enable_sparse_data_optim)
+        assert model2._xgb_sklearn_model.missing == 0.0
+        pred_result2 = model2.transform(self.reg_df_sparse_train).collect()
+
+        for row1, row2 in zip(pred_result, pred_result2):
+            self.assertTrue(np.isclose(row1.prediction, row2.prediction, atol=1e-3))
+
+    def test_classifier_with_sparse_optim(self):
+        cls = SparkXGBClassifier(missing=0.0)
+        model = cls.fit(self.cls_df_sparse_train)
+        assert model._xgb_sklearn_model.missing == 0.0
+        pred_result = model.transform(self.cls_df_sparse_train).collect()
+
+        # enable sparse optimiaztion
+        cls2 = SparkXGBClassifier(missing=0.0, enable_sparse_data_optim=True)
+        model2 = cls2.fit(self.cls_df_sparse_train)
+        assert model2.getOrDefault(model2.enable_sparse_data_optim)
+        assert model2._xgb_sklearn_model.missing == 0.0
+        pred_result2 = model2.transform(self.cls_df_sparse_train).collect()
+
+        for row1, row2 in zip(pred_result, pred_result2):
+            self.assertTrue(np.allclose(row1.probability, row2.probability, rtol=1e-3))
