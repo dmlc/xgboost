@@ -193,9 +193,7 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
-                                    int silent,
-                                    DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
   if (rabit::IsDistributed()) {
