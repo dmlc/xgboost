@@ -42,8 +42,13 @@ class FederatedEngine : public IEngine {
     }
     utils::Printf("Connecting to federated server %s, world size %d, rank %d",
                   server_address_.c_str(), world_size_, rank_);
-    client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_, server_cert_,
-                                                          client_key_, client_cert_));
+    if (server_cert_.empty() || client_key_.empty() || client_cert_.empty()) {
+      utils::Printf("Certificates not specified, turning off SSL.");
+      client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_));
+    } else {
+      client_.reset(new xgboost::federated::FederatedClient(server_address_, rank_, server_cert_,
+                                                            client_key_, client_cert_));
+    }
   }
 
   void Finalize() { client_.reset(); }
@@ -84,13 +89,9 @@ class FederatedEngine : public IEngine {
     }
   }
 
-  int LoadCheckPoint() override {
-    return 0;
-  }
+  int LoadCheckPoint() override { return 0; }
 
-  void CheckPoint() override {
-    version_number_ += 1;
-  }
+  void CheckPoint() override { version_number_ += 1; }
 
   int VersionNumber() const override { return version_number_; }
 

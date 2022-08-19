@@ -231,5 +231,20 @@ void RunServer(int port, int world_size, char const* server_key_file, char const
   server->Wait();
 }
 
+void RunInsecureServer(int port, int world_size) {
+  std::string const server_address = "0.0.0.0:" + std::to_string(port);
+  FederatedService service{world_size};
+
+  grpc::ServerBuilder builder;
+  builder.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&service);
+  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+  LOG(CONSOLE) << "Insecure federated server listening on " << server_address << ", world size "
+               << world_size;
+
+  server->Wait();
+}
+
 }  // namespace federated
 }  // namespace xgboost
