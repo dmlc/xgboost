@@ -75,7 +75,7 @@ def download_wheels(
     return filenames
 
 
-def download_py_packages(branch, major: int, minor: int, commit_hash: str):
+def download_py_packages(branch: str, major: int, minor: int, commit_hash: str) -> None:
     platforms = [
         "win_amd64",
         "manylinux2014_x86_64",
@@ -169,7 +169,7 @@ def main(args: argparse.Namespace) -> None:
         release, branch, "" if rc is None else rc + str(rc_ver), commit_hash
     )
 
-    download_py_packages(major, minor, commit_hash)
+    download_py_packages(branch, major, minor, commit_hash)
 
 
 if __name__ == "__main__":
