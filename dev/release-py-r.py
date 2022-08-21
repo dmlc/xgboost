@@ -75,7 +75,7 @@ def download_wheels(
     return filenames
 
 
-def download_py_packages(major: int, minor: int, commit_hash: str):
+def download_py_packages(branch: str, major: int, minor: int, commit_hash: str) -> None:
     platforms = [
         "win_amd64",
         "manylinux2014_x86_64",
@@ -84,7 +84,8 @@ def download_py_packages(major: int, minor: int, commit_hash: str):
         "macosx_12_0_arm64"
     ]
 
-    dir_URL = PREFIX + str(major) + "." + str(minor) + ".0" + "/"
+    branch = branch.split("_")[1]  # release_x.y.z
+    dir_URL = PREFIX + branch + "/"
     src_filename_prefix = "xgboost-" + args.release + "%2B" + commit_hash + "-py3-none-"
     target_filename_prefix = "xgboost-" + args.release + "-py3-none-"
 
@@ -105,16 +106,17 @@ Following steps should be done manually:
     )
 
 
-def download_r_packages(release: str, rc: str, commit: str) -> None:
+def download_r_packages(release: str, branch: str, rc: str, commit: str) -> None:
     platforms = ["win64", "linux"]
     dirname = "./r-packages"
     if not os.path.exists(dirname):
         os.mkdir(dirname)
 
     filenames = []
+    branch = branch.split("_")[1]  # release_x.y.z
 
     for plat in platforms:
-        url = f"{PREFIX}{release}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
+        url = f"{PREFIX}{branch}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
 
         if not rc:
             filename = f"xgboost_r_gpu_{plat}_{release}.tar.gz"
@@ -152,7 +154,11 @@ def main(args: argparse.Namespace) -> None:
         assert rc == "rc"
 
     release = str(major) + "." + str(minor) + "." + str(patch)
-    branch = "release_" + release
+    if args.branch is not None:
+        branch = args.branch
+    else:
+        branch = "release_" + str(major) + "." + str(minor) + ".0"
+
     git.clean("-xdf")
     git.checkout(branch)
     git.pull("origin", branch)
@@ -160,10 +166,10 @@ def main(args: argparse.Namespace) -> None:
     commit_hash = latest_hash()
 
     download_r_packages(
-        release, "" if rc is None else rc + str(rc_ver), commit_hash
+        release, branch, "" if rc is None else rc + str(rc_ver), commit_hash
     )
 
-    download_py_packages(major, minor, commit_hash)
+    download_py_packages(branch, major, minor, commit_hash)
 
 
 if __name__ == "__main__":
@@ -173,6 +179,15 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Version tag, e.g. '1.3.2', or '1.5.0rc1'"
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default=None,
+        help=(
+            "Optional branch. Usually patch releases reuse the same branch of the"
+            " major release, but there can be exception."
+        )
     )
     args = parser.parse_args()
     main(args)
