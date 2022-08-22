@@ -49,8 +49,6 @@ inline XGBOOST_DEVICE bool InvalidCat(float cat) {
 }
 
 /* \brief Whether should it traverse to left branch of a tree.
- *
- *  For one hot split, go to left if it's NOT the matching category.
  */
 template <bool validate = true>
 inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat, bool dft_left) {
@@ -63,9 +61,9 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, float cat
 
   auto pos = KCatBitField::ToBitPos(cat);
   if (pos.int_pos >= cats.size()) {
-    return true;
+    return false;
   }
-  return !s_cats.Check(AsCat(cat));
+  return s_cats.Check(AsCat(cat));
 }
 
 inline void InvalidCategory() {

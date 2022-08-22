@@ -141,9 +141,8 @@ class EvaluateSplitAgent {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
-      auto rest = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
+      auto bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
                                 : GradientPairPrecise();
-      GradientPairPrecise bin = parent_sum - rest - missing;
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
       float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
@@ -172,13 +171,11 @@ class EvaluateSplitAgent {
                                          std::size_t offset) {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
-
-      auto rest = thread_active
+      auto bin = thread_active
                       ? LoadGpair(node_histogram + sorted_idx[scan_begin + threadIdx.x] - offset)
                       : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
-      BlockScanT(temp_storage->scan).InclusiveSum(rest, rest,  prefix_op);
-      GradientPairPrecise bin = parent_sum - rest - missing;
+      BlockScanT(temp_storage->scan).InclusiveSum(bin, bin,  prefix_op);
 
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
@@ -283,26 +280,14 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   auto best_thresh = out_split.PopBestThresh();
   auto f_sorted_idx = node_sorted_idx.subspan(shared_inputs.feature_segments[fidx],
                                               shared_inputs.FeatureBins(fidx));
-  if (out_split.dir != kLeftDir) {
-    // forward, missing on right
-    auto beg = dh::tcbegin(f_sorted_idx);
-    // Don't put all the categories into one side
-    auto boundary = std::min(static_cast<size_t>((best_thresh + 1)), (f_sorted_idx.size() - 1));
-    boundary = std::max(boundary, static_cast<size_t>(1ul));
-    auto end = beg + boundary;
-    thrust::for_each(thrust::seq, beg, end, [&](auto c) {
-      auto cat = shared_inputs.feature_values[c - node_offset];
-      assert(!out_split.split_cats.Check(cat) && "already set");
-      out_split.SetCat(cat);
-    });
-  } else {
-    assert((f_sorted_idx.size() - best_thresh + 1) != 0 && " == 0");
-    thrust::for_each(thrust::seq, dh::tcrbegin(f_sorted_idx),
-                     dh::tcrbegin(f_sorted_idx) + (f_sorted_idx.size() - best_thresh), [&](auto c) {
-                       auto cat = shared_inputs.feature_values[c - node_offset];
-                       out_split.SetCat(cat);
-                     });
-  }
+  auto beg = dh::tcbegin(f_sorted_idx);
+  auto boundary = std::min(static_cast<size_t>((best_thresh + 1)), f_sorted_idx.size());
+  auto end = beg + boundary;
+  thrust::for_each(thrust::seq, beg, end, [&](auto c) {
+    auto cat = shared_inputs.feature_values[c - node_offset];
+    assert(!out_split.split_cats.Check(cat) && "already set");
+    out_split.SetCat(cat);
+  });
 }
 
 void GPUHistEvaluator::LaunchEvaluateSplits(

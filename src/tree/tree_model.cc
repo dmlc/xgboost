@@ -255,8 +255,7 @@ class TextGenerator : public TreeGenerator {
 
   std::string Indicator(RegTree const& tree, int32_t nid, uint32_t) const override {
     static std::string const kIndicatorTemplate = "{nid}:[{fname}] yes={yes},no={no}";
-    int32_t nyes = tree[nid].DefaultLeft() ?
-                   tree[nid].RightChild() : tree[nid].LeftChild();
+    int32_t nyes = tree[nid].LeftChild();
     auto split_index = tree[nid].SplitIndex();
     std::string result = SuperT::Match(
         kIndicatorTemplate,
@@ -315,7 +314,7 @@ class TextGenerator : public TreeGenerator {
     auto cats = GetSplitCategories(tree, nid);
     std::string cats_str = PrintCatsAsSet(cats);
     static std::string const kNodeTemplate =
-        "{tabs}{nid}:[{fname}:{cond}] yes={right},no={left},missing={missing}";
+        "{tabs}{nid}:[{fname}:{cond}] yes={left},no={right},missing={missing}";
     std::string const result =
         SplitNodeImpl(tree, nid, kNodeTemplate, cats_str, depth);
     return result;
@@ -621,12 +620,7 @@ class GraphvizGenerator : public TreeGenerator {
         "    {nid} -> {child} [label=\"{branch}\" color=\"{color}\"]\n";
     // Is this the default child for missing value?
     bool is_missing = tree[nid].DefaultChild() == child;
-    std::string branch;
-    if (is_categorical) {
-      branch = std::string{left ? "no" : "yes"} + std::string{is_missing ? ", missing" : ""};
-    } else {
-      branch = std::string{left ? "yes" : "no"} + std::string{is_missing ? ", missing" : ""};
-    }
+    std::string branch = std::string{left ? "yes" : "no"} + std::string{is_missing ? ", missing" : ""};
     std::string buffer =
         SuperT::Match(kEdgeTemplate,
                 {{"{nid}", std::to_string(nid)},
