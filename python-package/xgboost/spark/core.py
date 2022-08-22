@@ -834,9 +834,6 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         """
         return SparkXGBModelReader(cls)
 
-    def _transform(self, dataset):
-        raise NotImplementedError()
-
     def _get_feature_col(self, dataset) -> (list, Optional[list]):
         """XGBoost model trained with features_cols parameter can also predict
         vector or array feature type. But first we need to check features_cols

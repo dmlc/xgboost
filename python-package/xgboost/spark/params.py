@@ -86,6 +86,3 @@ class HasQueryIdCol(Params):
         "query id column name",
         typeConverter=TypeConverters.toString,
     )
-
-    def __init__(self):
-        super().__init__()
