@@ -798,6 +798,10 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         super().__init__()
         self._xgb_sklearn_model = xgb_sklearn_model
 
+    @classmethod
+    def _xgb_cls(cls):
+        raise NotImplementedError()
+
     def get_booster(self):
         """
         Return the `xgboost.core.Booster` instance.
