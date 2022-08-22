@@ -1,7 +1,7 @@
 # type: ignore
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
-# pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods, too-many-lines
 from typing import Iterator, Optional, Tuple
 
 import numpy as np
@@ -37,14 +37,24 @@ from xgboost.training import train as worker_train
 import xgboost
 from xgboost import XGBClassifier, XGBRegressor
 
-from .data import alias, create_dmatrix_from_partitions, stack_series
+from .data import (
+    _read_csr_matrix_from_unwrapped_spark_vec,
+    alias,
+    create_dmatrix_from_partitions,
+    stack_series,
+)
 from .model import (
     SparkXGBModelReader,
     SparkXGBModelWriter,
     SparkXGBReader,
     SparkXGBWriter,
 )
-from .params import HasArbitraryParamsDict, HasBaseMarginCol, HasFeaturesCols
+from .params import (
+    HasArbitraryParamsDict,
+    HasBaseMarginCol,
+    HasEnableSparseDataOptim,
+    HasFeaturesCols,
+)
 from .utils import (
     RabitContext,
     _get_args_from_message_list,
@@ -75,6 +85,7 @@ _pyspark_specific_params = [
     "use_gpu",
     "feature_names",
     "features_cols",
+    "enable_sparse_data_optim",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -124,6 +135,7 @@ class _SparkXGBParams(
     HasArbitraryParamsDict,
     HasBaseMarginCol,
     HasFeaturesCols,
+    HasEnableSparseDataOptim,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -237,6 +249,7 @@ class _SparkXGBParams(
         return predict_params
 
     def _validate_params(self):
+        # pylint: disable=too-many-branches
         init_model = self.getOrDefault(self.xgb_model)
         if init_model is not None and not isinstance(init_model, Booster):
             raise ValueError(
@@ -266,6 +279,26 @@ class _SparkXGBParams(
             get_logger(self.__class__.__name__).warning(
                 "If features_cols param set, then features_col param is ignored."
             )
+
+        if self.getOrDefault(self.enable_sparse_data_optim):
+            if self.getOrDefault(self.missing) != 0.0:
+                # If DMatrix is constructed from csr / csc matrix, then inactive elements
+                # in csr / csc matrix are regarded as missing value, but, in pyspark, we
+                # are hard to control elements to be active or inactive in sparse vector column,
+                # some spark transformers such as VectorAssembler might compress vectors
+                # to be dense or sparse format automatically, and when a spark ML vector object
+                # is compressed to sparse vector, then all zero value elements become inactive.
+                # So we force setting missing param to be 0 when enable_sparse_data_optim config
+                # is True.
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, missing param != 0 is not supported."
+                )
+            if self.getOrDefault(self.features_cols):
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, you cannot set multiple feature columns "
+                    "but you should set one feature column with values of "
+                    "`pyspark.ml.linalg.Vector` type."
+                )
 
         if self.getOrDefault(self.use_gpu):
             tree_method = self.getParam("tree_method")
@@ -361,6 +394,52 @@ def _validate_and_convert_feature_col_as_array_col(dataset, features_col_name):
             "type column first."
         )
     return features_array_col
+
+
+def _get_unwrap_udt_fn():
+    try:
+        from pyspark.sql.functions import unwrap_udt
+
+        return unwrap_udt
+    except ImportError:
+        pass
+
+    try:
+        from pyspark.databricks.sql.functions import unwrap_udt
+
+        return unwrap_udt
+    except ImportError as exc:
+        raise RuntimeError(
+            "Cannot import pyspark `unwrap_udt` function. Please install pyspark>=3.4 "
+            "or run on Databricks Runtime."
+        ) from exc
+
+
+def _get_unwrapped_vec_cols(feature_col):
+    unwrap_udt = _get_unwrap_udt_fn()
+    features_unwrapped_vec_col = unwrap_udt(feature_col)
+
+    # After a `pyspark.ml.linalg.VectorUDT` type column being unwrapped, it becomes
+    # a pyspark struct type column, the struct fields are:
+    #  - `type`: byte
+    #  - `size`: int
+    #  - `indices`: array<int>
+    #  - `values`: array<double>
+    # For sparse vector, `type` field is 0, `size` field means vector length,
+    # `indices` field is the array of active element indices, `values` field
+    # is the array of active element values.
+    # For dense vector, `type` field is 1, `size` and `indices` fields are None,
+    # `values` field is the array of the vector element values.
+    return [
+        features_unwrapped_vec_col.type.alias("featureVectorType"),
+        features_unwrapped_vec_col.size.alias("featureVectorSize"),
+        features_unwrapped_vec_col.indices.alias("featureVectorIndices"),
+        # Note: the value field is double array type, cast it to float32 array type
+        # for speedup following repartitioning.
+        features_unwrapped_vec_col.values.cast(ArrayType(FloatType())).alias(
+            "featureVectorValues"
+        ),
+    ]
 
 
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
@@ -527,17 +606,28 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         select_cols = [label_col]
         features_cols_names = None
-        if self.getOrDefault(self.features_cols):
-            features_cols_names = self.getOrDefault(self.features_cols)
-            features_cols = _validate_and_convert_feature_col_as_float_col_list(
-                dataset, features_cols_names
-            )
-            select_cols.extend(features_cols)
+        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
+        if enable_sparse_data_optim:
+            features_col_name = self.getOrDefault(self.featuresCol)
+            features_col_datatype = dataset.schema[features_col_name].dataType
+            if not isinstance(features_col_datatype, VectorUDT):
+                raise ValueError(
+                    "If enable_sparse_data_optim is True, the feature column values must be "
+                    "`pyspark.ml.linalg.Vector` type."
+                )
+            select_cols.extend(_get_unwrapped_vec_cols(col(features_col_name)))
         else:
-            features_array_col = _validate_and_convert_feature_col_as_array_col(
-                dataset, self.getOrDefault(self.featuresCol)
-            )
-            select_cols.append(features_array_col)
+            if self.getOrDefault(self.features_cols):
+                features_cols_names = self.getOrDefault(self.features_cols)
+                features_cols = _validate_and_convert_feature_col_as_float_col_list(
+                    dataset, features_cols_names
+                )
+                select_cols.extend(features_cols)
+            else:
+                features_array_col = _validate_and_convert_feature_col_as_array_col(
+                    dataset, self.getOrDefault(self.featuresCol)
+                )
+                select_cols.append(features_array_col)
 
         if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol):
             select_cols.append(
@@ -589,7 +679,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             "feature_types": self.getOrDefault(self.feature_types),
             "feature_names": self.getOrDefault(self.feature_names),
             "feature_weights": self.getOrDefault(self.feature_weights),
-            "missing": self.getOrDefault(self.missing),
+            "missing": float(self.getOrDefault(self.missing)),
         }
         booster_params["nthread"] = cpu_per_task
         use_gpu = self.getOrDefault(self.use_gpu)
@@ -627,7 +717,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             evals_result = {}
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
-                    pandas_df_iter, features_cols_names, gpu_id, dmatrix_kwargs
+                    pandas_df_iter,
+                    features_cols_names,
+                    gpu_id,
+                    dmatrix_kwargs,
+                    enable_sparse_data_optim=enable_sparse_data_optim,
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
@@ -732,6 +826,12 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         vector or array feature type. But first we need to check features_cols
         and then featuresCol
         """
+        if self.getOrDefault(self.enable_sparse_data_optim):
+            feature_col_names = None
+            features_col = _get_unwrapped_vec_cols(
+                col(self.getOrDefault(self.featuresCol))
+            )
+            return features_col, feature_col_names
 
         feature_col_names = self.getOrDefault(self.features_cols)
         features_col = []
@@ -783,15 +883,19 @@ class SparkXGBRegressorModel(_SparkXGBModel):
             )
 
         features_col, feature_col_names = self._get_feature_col(dataset)
+        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
 
         @pandas_udf("double")
         def predict_udf(iterator: Iterator[pd.DataFrame]) -> Iterator[pd.Series]:
             model = xgb_sklearn_model
             for data in iterator:
-                if feature_col_names is not None:
-                    X = data[feature_col_names]
+                if enable_sparse_data_optim:
+                    X = _read_csr_matrix_from_unwrapped_spark_vec(data)
                 else:
-                    X = stack_series(data[alias.data])
+                    if feature_col_names is not None:
+                        X = data[feature_col_names]
+                    else:
+                        X = stack_series(data[alias.data])
 
                 if has_base_margin:
                     base_margin = data[alias.margin].to_numpy()
@@ -828,6 +932,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         return XGBClassifier
 
     def _transform(self, dataset):
+        # pylint: disable=too-many-locals
         # Save xgb_sklearn_model and predict_params to be local variable
         # to avoid the `self` object to be pickled to remote.
         xgb_sklearn_model = self._xgb_sklearn_model
@@ -856,6 +961,7 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
             return raw_preds, class_probs
 
         features_col, feature_col_names = self._get_feature_col(dataset)
+        enable_sparse_data_optim = self.getOrDefault(self.enable_sparse_data_optim)
 
         @pandas_udf(
             "rawPrediction array<double>, prediction double, probability array<double>"
@@ -865,10 +971,13 @@ class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictio
         ) -> Iterator[pd.DataFrame]:
             model = xgb_sklearn_model
             for data in iterator:
-                if feature_col_names is not None:
-                    X = data[feature_col_names]
+                if enable_sparse_data_optim:
+                    X = _read_csr_matrix_from_unwrapped_spark_vec(data)
                 else:
-                    X = stack_series(data[alias.data])
+                    if feature_col_names is not None:
+                        X = data[feature_col_names]
+                    else:
+                        X = stack_series(data[alias.data])
 
                 if has_base_margin:
                     base_margin = stack_series(data[alias.margin])

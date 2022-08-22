@@ -171,6 +171,8 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
             build_tool = 'ninja'
         else:
             build_tool = 'make'
+        if sys.platform.startswith('os400'):
+            build_tool = 'make'
 
         if system() == 'Windows':
             # Pick up from LGB, just test every possible tool chain.
