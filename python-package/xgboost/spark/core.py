@@ -35,7 +35,7 @@ from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
 import xgboost
-from xgboost import XGBClassifier, XGBRegressor, XGBRanker
+from xgboost import XGBClassifier, XGBRanker, XGBRegressor
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
@@ -580,7 +580,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         classification = self._xgb_cls() == XGBClassifier
         num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
         if classification:
-            num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
+            num_classes = int(
+                dataset.select(countDistinct(alias.label)).collect()[0][0]
+            )
             if num_classes <= 2:
                 params["objective"] = "binary:logistic"
             else:
@@ -660,9 +662,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
 
         if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col):
-            select_cols.append(
-                col(self.getOrDefault(self.qid_col)).alias(alias.qid)
-            )
+            select_cols.append(col(self.getOrDefault(self.qid_col)).alias(alias.qid))
 
         dataset = dataset.select(*select_cols)
 

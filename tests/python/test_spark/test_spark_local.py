@@ -24,9 +24,9 @@ from pyspark.sql import functions as spark_sql_func
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
+    SparkXGBRanker,
     SparkXGBRegressor,
     SparkXGBRegressorModel,
-    SparkXGBRanker,
 )
 from xgboost.spark.core import _non_booster_params
 
@@ -1056,4 +1056,3 @@ class XgboostLocalTest(SparkTestCase):
 
         for row in pred_result:
             assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
-
