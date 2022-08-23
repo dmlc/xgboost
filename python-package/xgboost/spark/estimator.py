@@ -232,8 +232,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
             raise ValueError(
                 "Spark Xgboost classifier estimator does not support `qid_col` param."
             )
-        super(SparkXGBClassifier, self)._validate_params()
-        if self.getOrDefault(self.objective):
+        if self.getOrDefault(self.objective):  # pylint: disable=no-member
             raise ValueError(
                 "Setting custom 'objective' param is not allowed in 'SparkXGBClassifier'."
             )

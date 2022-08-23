@@ -289,15 +289,11 @@ class _SparkXGBParams(
 
         if self.getOrDefault(self.objective) is not None:
             if not isinstance(self.getOrDefault(self.objective), str):
-                raise ValueError(
-                    "Only string type 'objective' param is allowed."
-                )
+                raise ValueError("Only string type 'objective' param is allowed.")
 
         if self.getOrDefault(self.eval_metric) is not None:
             if not isinstance(self.getOrDefault(self.eval_metric), str):
-                raise ValueError(
-                    "Only string type 'eval_metric' param is allowed."
-                )
+                raise ValueError("Only string type 'eval_metric' param is allowed.")
 
         if self.getOrDefault(self.enable_sparse_data_optim):
             if self.getOrDefault(self.missing) != 0.0:
@@ -598,7 +594,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         params["verbose_eval"] = verbose_eval
         classification = self._xgb_cls() == XGBClassifier
         if classification:
-            num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
+            num_classes = int(
+                dataset.select(countDistinct(alias.label)).collect()[0][0]
+            )
             if num_classes <= 2:
                 params["objective"] = "binary:logistic"
             else:
@@ -628,8 +626,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 booster_params[key] = value
 
         booster_params = {
-            k: v
-            for k, v in booster_params.items() if k not in _non_booster_params
+            k: v for k, v in booster_params.items() if k not in _non_booster_params
         }
         return booster_params, kwargs_params
 
