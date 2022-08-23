@@ -5,8 +5,8 @@
 #include <xgboost/base.h>
 
 #include "../../../../src/common/hist_util.h"
+#include "../../../../src/tree/common_row_partitioner.h"
 #include "../../../../src/tree/hist/evaluate_splits.h"
-#include "../../../../src/tree/updater_quantile_hist.h"
 #include "../test_evaluate_splits.h"
 #include "../../helpers.h"
 

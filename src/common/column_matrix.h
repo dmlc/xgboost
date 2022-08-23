@@ -102,15 +102,18 @@ class SparseColumnIter : public Column<BinIdxT> {
 
 template <typename BinIdxT, bool any_missing>
 class DenseColumnIter : public Column<BinIdxT> {
+ public:
+   using ByteType = uint8_t;
+
  private:
   using Base = Column<BinIdxT>;
   /* flags for missing values in dense columns */
-  std::vector<bool> const& missing_flags_;
+  std::vector<ByteType> const& missing_flags_;
   size_t feature_offset_;
 
  public:
   explicit DenseColumnIter(common::Span<const BinIdxT> index, bst_bin_t index_base,
-                           std::vector<bool> const& missing_flags, size_t feature_offset)
+                           std::vector<ByteType> const& missing_flags, size_t feature_offset)
       : Base{index, index_base}, missing_flags_{missing_flags}, feature_offset_{feature_offset} {}
   DenseColumnIter(DenseColumnIter const&) = delete;
   DenseColumnIter(DenseColumnIter&&) = default;
@@ -136,6 +139,7 @@ class ColumnMatrix {
   void InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold);
 
  public:
+  using ByteType = uint8_t;
   // get number of features
   bst_feature_t GetNumFeature() const { return static_cast<bst_feature_t>(type_.size()); }
 
@@ -295,6 +299,7 @@ class ColumnMatrix {
 
     fi->Read(&row_ind_);
     fi->Read(&feature_offsets_);
+    fi->Read(&missing_flags_);
     index_base_ = index_base;
 #if !DMLC_LITTLE_ENDIAN
     std::underlying_type<BinTypeSize>::type v;
@@ -329,6 +334,7 @@ class ColumnMatrix {
 #endif  // !DMLC_LITTLE_ENDIAN
     write_vec(row_ind_);
     write_vec(feature_offsets_);
+    write_vec(missing_flags_);
 
 #if !DMLC_LITTLE_ENDIAN
     auto v = static_cast<std::underlying_type<BinTypeSize>::type>(bins_type_size_);
@@ -356,7 +362,7 @@ class ColumnMatrix {
 
   // index_base_[fid]: least bin id for feature fid
   uint32_t const* index_base_;
-  std::vector<bool> missing_flags_;
+  std::vector<ByteType> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;
 };

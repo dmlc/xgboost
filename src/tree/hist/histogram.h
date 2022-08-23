@@ -8,6 +8,7 @@
 #include <limits>
 #include <vector>
 
+#include "../common_row_partitioner.h"
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
 #include "expand_entry.h"

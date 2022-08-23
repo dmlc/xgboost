@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "../../../src/common/numeric.h"
-#include "../../../src/tree/updater_approx.h"
+#include "../../../src/tree/common_row_partitioner.h"
 #include "../helpers.h"
 #include "test_partitioner.h"
 
@@ -12,13 +12,13 @@ namespace xgboost {
 namespace tree {
 TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
-  ApproxRowPartitioner partitioner{n_samples, base_rowid};
+  GenericParameter ctx;
+  CommonRowPartitioner partitioner{n_samples, base_rowid,  ctx.Threads()};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  GenericParameter ctx;
   ctx.InitAllowUnknown(Args{});
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
 
@@ -32,7 +32,7 @@ TEST(Approx, Partitioner) {
     {
       auto min_value = page.cut.MinValues()[split_ind];
       RegTree tree;
-      ApproxRowPartitioner partitioner{n_samples, base_rowid};
+      CommonRowPartitioner partitioner{n_samples, base_rowid,  ctx.Threads()};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
@@ -40,7 +40,7 @@ TEST(Approx, Partitioner) {
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
-      ApproxRowPartitioner partitioner{n_samples, base_rowid};
+      CommonRowPartitioner partitioner{n_samples, base_rowid,  ctx.Threads()};
       auto ptr = page.cut.Ptrs()[split_ind + 1];
       float split_value = page.cut.Values().at(ptr / 2);
       RegTree tree;
@@ -68,11 +68,11 @@ TEST(Approx, Partitioner) {
 namespace {
 void TestLeafPartition(size_t n_samples) {
   size_t const n_features = 2, base_rowid = 0;
+  GenericParameter ctx;
   common::RowSetCollection row_set;
-  ApproxRowPartitioner partitioner{n_samples, base_rowid};
+  CommonRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  GenericParameter ctx;
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
   RegTree tree;
   std::vector<float> hess(n_samples, 0);

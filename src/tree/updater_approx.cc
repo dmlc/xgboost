@@ -3,12 +3,12 @@
  *
  * \brief Implementation for the approx tree method.
  */
-#include "updater_approx.h"
 
 #include <algorithm>
 #include <memory>
 #include <vector>
 
+#include "common_row_partitioner.h"
 #include "../common/random.h"
 #include "../data/gradient_index.h"
 #include "constraints.h"
@@ -46,7 +46,7 @@ class GloablApproxBuilder {
   Context const *ctx_;
   ObjInfo const task_;
 
-  std::vector<ApproxRowPartitioner> partitioner_;
+  std::vector<CommonRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
   RegTree *p_last_tree_{nullptr};
   common::Monitor *monitor_;
@@ -69,7 +69,7 @@ class GloablApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(page.Size(), page.base_rowid);
+      partitioner_.emplace_back(page.Size(), page.base_rowid, this->ctx_->Threads());
       n_batches_++;
     }
 
@@ -151,7 +151,7 @@ class GloablApproxBuilder {
     monitor_->Stop(__func__);
   }
 
-  void LeafPartition(RegTree const &tree, common::Span<float> hess,
+  void LeafPartition(RegTree const &tree, common::Span<float const> hess,
                      std::vector<bst_node_t> *p_out_position) {
     monitor_->Start(__func__);
     if (!task_.UpdateTreeLeaf()) {
