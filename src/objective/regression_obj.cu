@@ -707,6 +707,11 @@ class MeanAbsoluteError : public ObjFunction {
     CheckInitInputs(info);
     base_margin->Reshape(1);
     auto h_base_margin = base_margin->HostView();
+    if (info.num_row_ == 0) {
+      h_base_margin(0) = DefaultBaseScore();
+      return;
+    }
+
     if (ctx_->IsCPU()) {
       h_base_margin(0) = common::Median(ctx_, info.labels.HostView(),
                                         common::OptionalWeights{info.weights_.ConstHostSpan()});
