@@ -447,6 +447,7 @@ TEST_F(L1SerializationTest, Hist) {
                            fmap_, p_dmat_);
 }
 
+#if defined(XGBOOST_USE_CUDA)
 TEST_F(L1SerializationTest, GpuHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"objective", "reg:absoluteerror"},
@@ -455,6 +456,7 @@ TEST_F(L1SerializationTest, GpuHist) {
                             {"tree_method", "gpu_hist"}},
                            fmap_, p_dmat_);
 }
+#endif  //  defined(XGBOOST_USE_CUDA)
 
 class LogitSerializationTest : public SerializationTest {
  protected:
