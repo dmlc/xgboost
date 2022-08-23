@@ -103,7 +103,7 @@ class SparseColumnIter : public Column<BinIdxT> {
 template <typename BinIdxT, bool any_missing>
 class DenseColumnIter : public Column<BinIdxT> {
  public:
-   using ByteType = uint8_t;
+  using ByteType = uint8_t;
 
  private:
   using Base = Column<BinIdxT>;

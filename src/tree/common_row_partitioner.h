@@ -6,6 +6,10 @@
 #ifndef XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 #define XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 
+#include <algorithm>
+#include <limits>
+#include <vector>
+
 #include "../common/partition_builder.h"
 #include "../common/random.h"
 #include "constraints.h"
@@ -28,7 +32,8 @@ class CommonRowPartitioner {
   bst_row_t base_rowid = 0;
 
   CommonRowPartitioner() = default;
-  CommonRowPartitioner(bst_row_t num_row, bst_row_t _base_rowid, int n_threads) : base_rowid{_base_rowid} {
+  CommonRowPartitioner(bst_row_t num_row, bst_row_t _base_rowid, int n_threads) :
+                                                              base_rowid{_base_rowid} {
     row_set_collection_.Clear();
     const size_t block_size = num_row / n_threads + !!(num_row % n_threads);
     dmlc::OMPException exc;
