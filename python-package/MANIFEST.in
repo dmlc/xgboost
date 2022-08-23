@@ -18,6 +18,8 @@ recursive-include xgboost/include *
 recursive-include xgboost/plugin *
 recursive-include xgboost/src *
 
+recursive-include xgboost/gputreeshap/GPUTreeShap *
+
 include xgboost/rabit/CMakeLists.txt
 recursive-include xgboost/rabit/include *
 recursive-include xgboost/rabit/src *

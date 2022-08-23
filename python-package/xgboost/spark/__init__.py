@@ -10,6 +10,7 @@ except ImportError as e:
 from .estimator import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
+    SparkXGBRanker,
     SparkXGBRegressor,
     SparkXGBRegressorModel,
 )
@@ -19,4 +20,5 @@ __all__ = [
     "SparkXGBClassifierModel",
     "SparkXGBRegressor",
     "SparkXGBRegressorModel",
+    "SparkXGBRanker",
 ]

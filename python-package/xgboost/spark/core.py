@@ -35,7 +35,7 @@ from xgboost.core import Booster
 from xgboost.training import train as worker_train
 
 import xgboost
-from xgboost import XGBClassifier, XGBRegressor
+from xgboost import XGBClassifier, XGBRanker, XGBRegressor
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
@@ -54,6 +54,7 @@ from .params import (
     HasBaseMarginCol,
     HasEnableSparseDataOptim,
     HasFeaturesCols,
+    HasQueryIdCol,
 )
 from .utils import (
     RabitContext,
@@ -86,6 +87,7 @@ _pyspark_specific_params = [
     "feature_names",
     "features_cols",
     "enable_sparse_data_optim",
+    "qid_col",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -116,6 +118,10 @@ _unsupported_fit_params = {
     "eval_set",
     "sample_weight_eval_set",
     "base_margin",  # Supported by spark param base_margin_col
+    "group",  # Use spark param `qid_col` instead
+    "qid",  # Use spark param `qid_col` instead
+    "eval_group",  # Use spark param `qid_col` instead
+    "eval_qid",  # Use spark param `qid_col` instead
 }
 
 _unsupported_predict_params = {
@@ -136,6 +142,7 @@ class _SparkXGBParams(
     HasBaseMarginCol,
     HasFeaturesCols,
     HasEnableSparseDataOptim,
+    HasQueryIdCol,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -572,13 +579,19 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         params["verbose_eval"] = verbose_eval
         classification = self._xgb_cls() == XGBClassifier
         num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
-        if classification and num_classes == 2:
-            params["objective"] = "binary:logistic"
-        elif classification and num_classes > 2:
-            params["objective"] = "multi:softprob"
-            params["num_class"] = num_classes
+        if classification:
+            num_classes = int(
+                dataset.select(countDistinct(alias.label)).collect()[0][0]
+            )
+            if num_classes <= 2:
+                params["objective"] = "binary:logistic"
+            else:
+                params["objective"] = "multi:softprob"
+                params["num_class"] = num_classes
         else:
-            params["objective"] = "reg:squarederror"
+            # use user specified objective or default objective.
+            # e.g., the default objective for Regressor is 'reg:squarederror'
+            params["objective"] = self.getOrDefault(self.objective)
 
         # TODO: support "num_parallel_tree" for random forest
         params["num_boost_round"] = self.getOrDefault(self.n_estimators)
@@ -647,6 +660,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             select_cols.append(
                 col(self.getOrDefault(self.base_margin_col)).alias(alias.margin)
             )
+
+        if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col):
+            select_cols.append(col(self.getOrDefault(self.qid_col)).alias(alias.qid))
 
         dataset = dataset.select(*select_cols)
 
@@ -782,6 +798,10 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         super().__init__()
         self._xgb_sklearn_model = xgb_sklearn_model
 
+    @classmethod
+    def _xgb_cls(cls):
+        raise NotImplementedError()
+
     def get_booster(self):
         """
         Return the `xgboost.core.Booster` instance.
@@ -818,9 +838,6 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         """
         return SparkXGBModelReader(cls)
 
-    def _transform(self, dataset):
-        raise NotImplementedError()
-
     def _get_feature_col(self, dataset) -> (list, Optional[list]):
         """XGBoost model trained with features_cols parameter can also predict
         vector or array feature type. But first we need to check features_cols
@@ -854,18 +871,6 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
                 )
             )
         return features_col, feature_col_names
-
-
-class SparkXGBRegressorModel(_SparkXGBModel):
-    """
-    The model returned by :func:`xgboost.spark.SparkXGBRegressor.fit`
-
-    .. Note:: This API is experimental.
-    """
-
-    @classmethod
-    def _xgb_cls(cls):
-        return XGBRegressor
 
     def _transform(self, dataset):
         # Save xgb_sklearn_model and predict_params to be local variable
@@ -918,6 +923,30 @@ class SparkXGBRegressorModel(_SparkXGBModel):
         predictionColName = self.getOrDefault(self.predictionCol)
 
         return dataset.withColumn(predictionColName, pred_col)
+
+
+class SparkXGBRegressorModel(_SparkXGBModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBRegressor.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls):
+        return XGBRegressor
+
+
+class SparkXGBRankerModel(_SparkXGBModel):
+    """
+    The model returned by :func:`xgboost.spark.SparkXGBRanker.fit`
+
+    .. Note:: This API is experimental.
+    """
+
+    @classmethod
+    def _xgb_cls(cls):
+        return XGBRanker
 
 
 class SparkXGBClassifierModel(_SparkXGBModel, HasProbabilityCol, HasRawPredictionCol):
