@@ -353,14 +353,7 @@ class _SparkXGBParams(
                 )
             else:
                 # checking spark non-local mode.
-                if not gpu_per_task:
-                    # For spark cluster with GPU config, the "spark.task.resource.gpu.amount"
-                    # config might not be set. In this case, the default gpu per task is 1.
-                    # If running on no GPU available, in spark task calling `_get_gpu_id` will
-                    # raise gpu not found error.
-                    gpu_per_task = "1"
-
-                if int(gpu_per_task) < 1:
+                if not gpu_per_task or int(gpu_per_task) < 1:
                     raise RuntimeError(
                         "The spark cluster does not have the necessary GPU"
                         + "configuration for the spark task. Therefore, we cannot"
