@@ -11,7 +11,12 @@ if tm.no_spark()["condition"]:
 if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
-from xgboost.spark.data import alias, create_dmatrix_from_partitions, stack_series
+from xgboost.spark.data import (
+    _read_csr_matrix_from_unwrapped_spark_vec,
+    alias,
+    create_dmatrix_from_partitions,
+    stack_series,
+)
 
 
 def test_stack() -> None:
@@ -62,10 +67,12 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
     kwargs = {"feature_types": feature_types}
     if is_dqm:
         cols = [f"feat-{i}" for i in range(n_features)]
-        train_Xy, valid_Xy = create_dmatrix_from_partitions(iter(dfs), cols, 0, kwargs)
+        train_Xy, valid_Xy = create_dmatrix_from_partitions(
+            iter(dfs), cols, 0, kwargs, False
+        )
     else:
         train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), None, None, kwargs
+            iter(dfs), None, None, kwargs, False
         )
 
     assert valid_Xy is not None
@@ -100,3 +107,35 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
 
 def test_dmatrix_ctor() -> None:
     run_dmatrix_ctor(False)
+
+
+def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:
+    from scipy.sparse import csr_matrix
+
+    pd1 = pd.DataFrame(
+        {
+            "featureVectorType": [0, 1, 1, 0],
+            "featureVectorSize": [3, None, None, 3],
+            "featureVectorIndices": [
+                np.array([0, 2], dtype=np.int32),
+                None,
+                None,
+                np.array([1, 2], dtype=np.int32),
+            ],
+            "featureVectorValues": [
+                np.array([3.0, 0.0], dtype=np.float64),
+                np.array([13.0, 14.0, 0.0], dtype=np.float64),
+                np.array([0.0, 24.0, 25.0], dtype=np.float64),
+                np.array([0.0, 35.0], dtype=np.float64),
+            ],
+        }
+    )
+    sm = _read_csr_matrix_from_unwrapped_spark_vec(pd1)
+    assert isinstance(sm, csr_matrix)
+
+    np.testing.assert_array_equal(
+        sm.data, [3.0, 0.0, 13.0, 14.0, 0.0, 0.0, 24.0, 25.0, 0.0, 35.0]
+    )
+    np.testing.assert_array_equal(sm.indptr, [0, 2, 5, 8, 10])
+    np.testing.assert_array_equal(sm.indices, [0, 2, 0, 1, 2, 0, 1, 2, 1, 2])
+    assert sm.shape == (4, 3)

@@ -170,9 +170,11 @@ def _try_start_tracker(
                 use_logger=False,
             )
         else:
-            assert isinstance(addrs[0], str) or addrs[0] is None
+            addr = addrs[0]
+            assert isinstance(addr, str) or addr is None
+            host_ip = get_host_ip(addr)
             rabit_context = RabitTracker(
-                host_ip=get_host_ip(addrs[0]), n_workers=n_workers, use_logger=False
+                host_ip=host_ip, n_workers=n_workers, use_logger=False, sortby="task"
             )
         env.update(rabit_context.worker_envs())
         rabit_context.start(n_workers)
@@ -222,8 +224,16 @@ class RabitContext(rabit.RabitContext):
     def __init__(self, args: List[bytes]) -> None:
         super().__init__(args)
         worker = distributed.get_worker()
+        with distributed.worker_client() as client:
+            info = client.scheduler_info()
+            w = info["workers"][worker.address]
+            wid = w["id"]
+        # We use task ID for rank assignment which makes the RABIT rank consistent (but
+        # not the same as task ID is string and "10" is sorted before "2") with dask
+        # worker ID. This outsources the rank assignment to dask and prevents
+        # non-deterministic issue.
         self.args.append(
-            ("DMLC_TASK_ID=[xgboost.dask]:" + str(worker.address)).encode()
+            (f"DMLC_TASK_ID=[xgboost.dask-{wid}]:" + str(worker.address)).encode()
         )
 
 
@@ -841,6 +851,8 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
+    # make sure all workers are online so that we can obtain reliable scheduler_info
+    client.wait_for_workers(n_workers)
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )

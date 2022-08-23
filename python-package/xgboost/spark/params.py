@@ -50,3 +50,39 @@ class HasFeaturesCols(Params):
     def __init__(self):
         super().__init__()
         self._setDefault(features_cols=[])
+
+
+class HasEnableSparseDataOptim(Params):
+
+    """
+    This is a Params based class that is extended by _SparkXGBParams
+    and holds the variable to store the boolean config of enabling sparse data optimization.
+    """
+
+    enable_sparse_data_optim = Param(
+        Params._dummy(),
+        "enable_sparse_data_optim",
+        "This stores the boolean config of enabling sparse data optimization, if enabled, "
+        "Xgboost DMatrix object will be constructed from sparse matrix instead of "
+        "dense matrix. This config is disabled by default. If most of examples in your "
+        "training dataset contains sparse features, we suggest to enable this config.",
+        typeConverter=TypeConverters.toBoolean,
+    )
+
+    def __init__(self):
+        super().__init__()
+        self._setDefault(enable_sparse_data_optim=False)
+
+
+class HasQueryIdCol(Params):
+    """
+    Mixin for param featuresCols: a list of feature column names.
+    This parameter is taken effect only when use_gpu is enabled.
+    """
+
+    qid_col = Param(
+        Params._dummy(),
+        "qid_col",
+        "query id column name",
+        typeConverter=TypeConverters.toString,
+    )

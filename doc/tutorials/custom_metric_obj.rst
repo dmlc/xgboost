@@ -24,7 +24,7 @@ concepts should be readily applicable to other language bindings.
    * Breaking change was made in XGBoost 1.6.
 
 In the following two sections, we will provide a step by step walk through of implementing
-``Squared Log Error(SLE)`` objective function:
+the ``Squared Log Error (SLE)`` objective function:
 
 .. math::
    \frac{1}{2}[log(pred + 1) - log(label + 1)]^2
@@ -114,10 +114,10 @@ monitor our model's performance.  As mentioned above, the default metric for ``S
         elements = np.power(np.log1p(y) - np.log1p(predt), 2)
         return 'PyRMSLE', float(np.sqrt(np.sum(elements) / len(y)))
 
-Since we are demonstrating in Python, the metric or objective needs not be a function,
-any callable object should suffice.  Similarly to the objective function, our metric also
-accepts ``predt`` and ``dtrain`` as inputs, but returns the name of metric itself and a
-floating point value as result.  After passing it into XGBoost as argument of ``feval``
+Since we are demonstrating in Python, the metric or objective need not be a function,
+any callable object should suffice.  Similar to the objective function, our metric also
+accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and a
+floating point value as the result.  After passing it into XGBoost as argument of ``feval``
 parameter:
 
 .. code-block:: python
@@ -154,7 +154,7 @@ Reverse Link Function
 *********************
 
 When using builtin objective, the raw prediction is transformed according to the objective
-function.  When custom objective is provided XGBoost doesn't know its link function so the
+function.  When a custom objective is provided XGBoost doesn't know its link function so the
 user is responsible for making the transformation for both objective and custom evaluation
 metric.  For objective with identiy link like ``squared error`` this is trivial, but for
 other link functions like log link or inverse link the difference is significant.
@@ -162,9 +162,9 @@ other link functions like log link or inverse link the difference is significant
 For the Python package, the behaviour of prediction can be controlled by the
 ``output_margin`` parameter in ``predict`` function.  When using the ``custom_metric``
 parameter without a custom objective, the metric function will receive transformed
-prediction since the objective is defined by XGBoost. However, when custom objective is
+prediction since the objective is defined by XGBoost. However, when the custom objective is
 also provided along with that metric, then both the objective and custom metric will
-recieve raw prediction.  Following example provides a comparison between two different
+recieve raw prediction.  The following example provides a comparison between two different
 behavior with a multi-class classification model. Firstly we define 2 different Python
 metric functions implementing the same underlying metric for comparison,
 `merror_with_transform` is used when custom objective is also used, otherwise the simpler

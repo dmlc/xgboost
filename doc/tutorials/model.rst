@@ -29,7 +29,7 @@ With judicious choices for :math:`y_i`, we may express a variety of tasks, such 
 The task of **training** the model amounts to finding the best parameters :math:`\theta` that best fit the training data :math:`x_i` and labels :math:`y_i`. In order to train the model, we need to define the **objective function**
 to measure how well the model fit the training data.
 
-A salient characteristic of objective functions is that they consist two parts: **training loss** and **regularization term**:
+A salient characteristic of objective functions is that they consist of two parts: **training loss** and **regularization term**:
 
 .. math::
 

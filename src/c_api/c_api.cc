@@ -1377,6 +1377,13 @@ XGB_DLL int XGBRunFederatedServer(int port, int world_size, char const *server_k
   federated::RunServer(port, world_size, server_key_path, server_cert_path, client_cert_path);
   API_END();
 }
+
+// Run a server without SSL for local testing.
+XGB_DLL int XGBRunInsecureFederatedServer(int port, int world_size) {
+  API_BEGIN();
+  federated::RunInsecureServer(port, world_size);
+  API_END();
+}
 #endif
 
 // force link rabit

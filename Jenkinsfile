@@ -114,10 +114,6 @@ def checkoutSrcs() {
   }
 }
 
-def GetCUDABuildContainerType(cuda_version) {
-  return (cuda_version == ref_cuda_ver) ? 'gpu_build_centos7' : 'gpu_build'
-}
-
 def ClangTidy() {
   node('linux && cpu_build') {
     unstash name: 'srcs'
@@ -208,7 +204,7 @@ def BuildCUDA(args) {
   node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Build with CUDA ${args.cuda_version}"
-    def container_type = GetCUDABuildContainerType(args.cuda_version)
+    def container_type = "gpu_build_centos7"
     def docker_binary = "docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=${args.cuda_version}"
     def arch_flag = ""
@@ -217,7 +213,8 @@ def BuildCUDA(args) {
     }
     def wheel_tag = "manylinux2014_x86_64"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON ${arch_flag}
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/prune_libnccl.sh
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DUSE_OPENMP=ON -DHIDE_CXX_SYMBOLS=ON -DUSE_NCCL_LIB_PATH=ON -DNCCL_INCLUDE_DIR=/usr/include -DNCCL_LIBRARY=/workspace/libnccl_static.a ${arch_flag}
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} ${wheel_tag}
     """
