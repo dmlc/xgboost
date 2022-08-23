@@ -505,8 +505,8 @@ class CPUPredictor : public Predictor {
     common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
       FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
     });
-    auto base_margin = info.base_margin_.View(GenericParameter::kCpuId);
-    auto base_score = model.learner_model_param->BaseScore(ctx_)(0);
+    auto base_margin = info.base_margin_.View(Context::kCpuId);
+    auto base_score = model.learner_model_param->BaseScore(Context::kCpuId)(0);
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
