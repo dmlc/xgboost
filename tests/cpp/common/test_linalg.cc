@@ -59,7 +59,7 @@ TEST(Linalg, TensorView) {
   float v = t(0, 1, 2);
   ASSERT_EQ(v, 6);
 
-  auto s = t(1, All(), All());
+  auto s = t.Slice(1, All(), All());
   ASSERT_EQ(s.Shape().size(), 2);
   ASSERT_EQ(s.Shape()[0], 3);
   ASSERT_EQ(s.Shape()[1], 4);
@@ -86,9 +86,9 @@ TEST(Linalg, TensorView) {
   {
     // as matrix
     TensorView<double, 2> mat(data, {6, 4}, -1);
-    auto s = mat(2, All());
+    auto s = mat.Slice(2, All());
     ASSERT_EQ(s.Shape().size(), 1);
-    s = mat(All(), 1);
+    s = mat.Slice(All(), 1);
     ASSERT_EQ(s.Shape().size(), 1);
   }
 
@@ -107,7 +107,7 @@ TEST(Linalg, TensorView) {
     // Don't assign the initial dimension, tensor should be able to deduce the correct dim
     // for Slice.
     auto t = MakeTensorView(data, {2, 3, 4}, 0);
-    auto s = t(1, 2, All());
+    auto s = t.Slice(1, 2, All());
     static_assert(decltype(s)::kDimension == 1, "");
   }
   {

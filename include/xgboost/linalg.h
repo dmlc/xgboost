@@ -442,11 +442,6 @@ class TensorView {
     return ptr_[offset];
   }
 
-  template <typename... S, std::enable_if_t<!detail::IsAllIntegral<S...>::value> * = nullptr>
-  LINALG_HD auto operator()(S &&...slices) const {
-    return this->Slice(std::forward<S>(slices)...);
-  }
-
   /**
    * \brief Slice the tensor.  The returned tensor has inferred dim and shape.  Scalar
    *        result is not supported.
@@ -801,8 +796,7 @@ class Tensor {
    *
    *    If the total size is changed, then data in this tensor is no longer valid.
    */
-  template <typename... S, std::enable_if_t<detail::Conjunction<
-                               std::is_integral<std::remove_reference_t<S>>...>::value> * = nullptr>
+  template <typename... S, detail::EnableIfIntegral<S...> * = nullptr>
   void Reshape(S &&...s) {
     static_assert(sizeof...(S) <= kDim, "Invalid shape.");
     detail::ReshapeImpl<0>(shape_, std::forward<S>(s)...);
