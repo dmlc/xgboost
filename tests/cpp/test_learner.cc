@@ -447,4 +447,17 @@ TEST(Learner, MultiTarget) {
     EXPECT_THROW({ learner->Configure(); }, dmlc::Error);
   }
 }
+
+TEST(Learner, BaseScore) {
+  size_t constexpr kRows{1024}, kCols{16};
+  auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  learner->SetParam("objective", "reg:absoluteerror");
+  for (size_t i = 0; i < 4; ++i) {
+    learner->UpdateOneIter(i, m);
+  }
+  Json config{Object{}};
+  learner->SaveConfig(&config);
+  std::cout << config << std::endl;
+}
 }  // namespace xgboost
