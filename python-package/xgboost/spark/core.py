@@ -114,10 +114,10 @@ _unsupported_xgb_params = [
 
 _unsupported_fit_params = {
     "sample_weight",  # Supported by spark param weightCol
-    # Supported by spark param weightCol # and validationIndicatorCol
-    "eval_set",
-    "sample_weight_eval_set",
+    "eval_set",  # Supported by spark param validation_indicator_col
+    "sample_weight_eval_set",  # Supported by spark param weight_col + validation_indicator_col
     "base_margin",  # Supported by spark param base_margin_col
+    "base_margin_eval_set",  # Supported by spark param base_margin_col + validation_indicator_col
     "group",  # Use spark param `qid_col` instead
     "qid",  # Use spark param `qid_col` instead
     "eval_group",  # Use spark param `qid_col` instead
@@ -286,6 +286,14 @@ class _SparkXGBParams(
             get_logger(self.__class__.__name__).warning(
                 "If features_cols param set, then features_col param is ignored."
             )
+
+        if self.getOrDefault(self.objective) is not None:
+            if not isinstance(self.getOrDefault(self.objective), str):
+                raise ValueError("Only string type 'objective' param is allowed.")
+
+        if self.getOrDefault(self.eval_metric) is not None:
+            if not isinstance(self.getOrDefault(self.eval_metric), str):
+                raise ValueError("Only string type 'eval_metric' param is allowed.")
 
         if self.getOrDefault(self.enable_sparse_data_optim):
             if self.getOrDefault(self.missing) != 0.0:
@@ -578,7 +586,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         params.update(fit_params)
         params["verbose_eval"] = verbose_eval
         classification = self._xgb_cls() == XGBClassifier
-        num_classes = int(dataset.select(countDistinct(alias.label)).collect()[0][0])
         if classification:
             num_classes = int(
                 dataset.select(countDistinct(alias.label)).collect()[0][0]
@@ -610,6 +617,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 kwargs_params[key] = value
             else:
                 booster_params[key] = value
+
+        booster_params = {
+            k: v for k, v in booster_params.items() if k not in _non_booster_params
+        }
         return booster_params, kwargs_params
 
     def _fit(self, dataset):

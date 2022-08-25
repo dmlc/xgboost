@@ -141,7 +141,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     SparkXGBClassifier doesn't support `validate_features` and `output_margin` param.
 
-    SparkXGBRegressor doesn't support setting `nthread` xgboost param, instead, the `nthread`
+    SparkXGBClassifier doesn't support setting `nthread` xgboost param, instead, the `nthread`
     param for each xgboost worker will be set equal to `spark.task.cpus` config value.
 
 
@@ -211,6 +211,11 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     def __init__(self, **kwargs):
         super().__init__()
+        # The default 'objective' param value comes from sklearn `XGBClassifier` ctor,
+        # but in pyspark we will automatically set objective param depending on
+        # binary or multinomial input dataset, and we need to remove the fixed default
+        # param value as well to avoid causing ambiguity.
+        self._setDefault(objective=None)
         self.setParams(**kwargs)
 
     @classmethod
@@ -227,6 +232,10 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
             raise ValueError(
                 "Spark Xgboost classifier estimator does not support `qid_col` param."
             )
+        if self.getOrDefault(self.objective):  # pylint: disable=no-member
+            raise ValueError(
+                "Setting custom 'objective' param is not allowed in 'SparkXGBClassifier'."
+            )
 
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBClassifier, SparkXGBClassifierModel)
@@ -234,15 +243,15 @@ _set_pyspark_xgb_cls_param_attrs(SparkXGBClassifier, SparkXGBClassifierModel)
 
 class SparkXGBRanker(_SparkXGBEstimator):
     """SparkXGBRanker is a PySpark ML estimator. It implements the XGBoost
-    classification algorithm based on XGBoost python library, and it can be used in
+    ranking algorithm based on XGBoost python library, and it can be used in
     PySpark Pipeline and PySpark ML meta algorithms like
     :py:class:`~pyspark.ml.tuning.CrossValidator`/
     :py:class:`~pyspark.ml.tuning.TrainValidationSplit`/
     :py:class:`~pyspark.ml.classification.OneVsRest`
 
     SparkXGBRanker automatically supports most of the parameters in
-    `xgboost.XGBClassifier` constructor and most of the parameters used in
-    :py:class:`xgboost.XGBClassifier` fit and predict method.
+    `xgboost.XGBRanker` constructor and most of the parameters used in
+    :py:class:`xgboost.XGBRanker` fit and predict method.
 
     SparkXGBRanker doesn't support setting `gpu_id` but support another param `use_gpu`,
     see doc below for more details.
@@ -264,21 +273,21 @@ class SparkXGBRanker(_SparkXGBEstimator):
 
     callbacks:
         The export and import of the callback functions are at best effort. For
-        details, see :py:attr:`xgboost.spark.SparkXGBClassifier.callbacks` param doc.
+        details, see :py:attr:`xgboost.spark.SparkXGBRanker.callbacks` param doc.
     validation_indicator_col:
-        For params related to `xgboost.XGBClassifier` training with
+        For params related to `xgboost.XGBRanker` training with
         evaluation dataset's supervision,
-        set :py:attr:`xgboost.spark.SparkXGBClassifier.validation_indicator_col`
-        parameter instead of setting the `eval_set` parameter in `xgboost.XGBClassifier`
+        set :py:attr:`xgboost.spark.XGBRanker.validation_indicator_col`
+        parameter instead of setting the `eval_set` parameter in `xgboost.XGBRanker`
         fit method.
     weight_col:
         To specify the weight of the training and validation dataset, set
-        :py:attr:`xgboost.spark.SparkXGBClassifier.weight_col` parameter instead of setting
-        `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBClassifier`
+        :py:attr:`xgboost.spark.SparkXGBRanker.weight_col` parameter instead of setting
+        `sample_weight` and `sample_weight_eval_set` parameter in `xgboost.XGBRanker`
         fit method.
     xgb_model:
         Set the value to be the instance returned by
-        :func:`xgboost.spark.SparkXGBClassifierModel.get_booster`.
+        :func:`xgboost.spark.SparkXGBRankerModel.get_booster`.
     num_workers:
         Integer that specifies the number of XGBoost workers to use.
         Each XGBoost worker corresponds to one spark task.
@@ -304,23 +313,33 @@ class SparkXGBRanker(_SparkXGBEstimator):
     Examples
     --------
 
-    >>> from xgboost.spark import SparkXGBClassifier
+    >>> from xgboost.spark import SparkXGBRanker
     >>> from pyspark.ml.linalg import Vectors
-    >>> df_train = spark.createDataFrame([
-    ...     (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-    ...     (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-    ...     (Vectors.dense(4.0, 5.0, 6.0), 0, True, 1.0),
-    ...     (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, True, 2.0),
-    ... ], ["features", "label", "isVal", "weight"])
-    >>> df_test = spark.createDataFrame([
-    ...     (Vectors.dense(1.0, 2.0, 3.0), ),
-    ... ], ["features"])
-    >>> xgb_classifier = SparkXGBClassifier(max_depth=5, missing=0.0,
-    ...     validation_indicator_col='isVal', weight_col='weight',
-    ...     early_stopping_rounds=1, eval_metric='logloss')
-    >>> xgb_clf_model = xgb_classifier.fit(df_train)
-    >>> xgb_clf_model.transform(df_test).show()
-
+    >>> ranker = SparkXGBRanker(qid_col="qid")
+    >>> df_train = spark.createDataFrame(
+    ...     [
+    ...         (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
+    ...         (Vectors.dense(4.0, 5.0, 6.0), 1, 0),
+    ...         (Vectors.dense(9.0, 4.0, 8.0), 2, 0),
+    ...         (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 0, 1),
+    ...         (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
+    ...         (Vectors.sparse(3, {1: 8.0, 2: 9.5}), 2, 1),
+    ...     ],
+    ...     ["features", "label", "qid"],
+    ... )
+    >>> df_test = spark.createDataFrame(
+    ...     [
+    ...         (Vectors.dense(1.5, 2.0, 3.0), 0),
+    ...         (Vectors.dense(4.5, 5.0, 6.0), 0),
+    ...         (Vectors.dense(9.0, 4.5, 8.0), 0),
+    ...         (Vectors.sparse(3, {1: 1.0, 2: 6.0}), 1),
+    ...         (Vectors.sparse(3, {1: 6.0, 2: 7.0}), 1),
+    ...         (Vectors.sparse(3, {1: 8.0, 2: 10.5}), 1),
+    ...     ],
+    ...     ["features", "qid"],
+    ... )
+    >>> model = ranker.fit(df_train)
+    >>> model.transform(df_test).show()
     """
 
     def __init__(self, **kwargs):
