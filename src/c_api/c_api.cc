@@ -1404,14 +1404,11 @@ XGB_DLL int XGCommunicatorPrint(char const *message) {
   API_END();
 }
 
-XGB_DLL int XGCommunicatorGetProcessorName(char *out_name, bst_ulong *out_len, bst_ulong max_len) {
+XGB_DLL int XGCommunicatorGetProcessorName(char const **name_str) {
   API_BEGIN();
-  auto s = CommunicatorFactory::GetInstance()->GetCommunicator()->GetProcessorName();
-  if (s.length() > max_len) {
-    s.resize(max_len - 1);
-  }
-  s.copy(out_name, s.length());
-  *out_len = static_cast<bst_ulong>(s.length());
+  auto& local = *GlobalConfigAPIThreadLocalStore::Get();
+  local.ret_str = CommunicatorFactory::GetInstance()->GetCommunicator()->GetProcessorName();
+  *name_str = local.ret_str.c_str();
   API_END();
 }
 

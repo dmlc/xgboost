@@ -1435,13 +1435,11 @@ XGB_DLL int XGCommunicatorPrint(char const *message);
 
 /*!
  * \brief get name of processor
- * \param out_name hold output string
- * \param out_len hold length of output string
- * \param max_len maximum buffer length of input
+ * \param name_str pointer to received returned processor name.
+ * \return 0 for success, -1 for failure
  */
-XGB_DLL int XGCommunicatorGetProcessorName(char *out_name,
-                                           bst_ulong *out_len,
-                                           bst_ulong max_len);
+XGB_DLL int XGCommunicatorGetProcessorName(const char** name_str);
+
 /*!
  * \brief broadcast an memory region to all others from root
  *

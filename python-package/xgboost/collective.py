@@ -1,23 +1,16 @@
 """XGBoost collective communication related API."""
 import ctypes
-from enum import IntEnum, unique
 import logging
 import pickle
-from typing import Any, TypeVar, Optional, cast, List, Union
+from enum import IntEnum, unique
+from typing import Any, Optional, cast, List, Union
 
 import numpy as np
 
-from .core import _LIB, c_str, _check_call
+from ._typing import _T
+from .core import _LIB, _check_call, c_str, py_str
 
 LOGGER = logging.getLogger("[xgboost.collective]")
-
-
-def _init_collective() -> None:
-    """internal library initializer."""
-    if _LIB is not None:
-        _LIB.XGCommunicatorGetRank.restype = ctypes.c_int
-        _LIB.XGCommunicatorGetWorldSize.restype = ctypes.c_int
-        _LIB.XGCommunicatorIsDistributed.restype = ctypes.c_int
 
 
 def init(args: Optional[List[bytes]] = None) -> None:
@@ -84,7 +77,7 @@ def communicator_print(msg: Any) -> None:
         print(msg.strip(), flush=True)
 
 
-def get_processor_name() -> bytes:
+def get_processor_name() -> str:
     """Get the processor name.
 
     Returns
@@ -92,17 +85,14 @@ def get_processor_name() -> bytes:
     name : str
         the name of processor(host)
     """
-    mxlen = 256
-    length = ctypes.c_ulong()
-    buf = ctypes.create_string_buffer(mxlen)
-    _LIB.XGCommunicatorGetProcessorName(buf, ctypes.byref(length), mxlen)
-    return buf.value
+    name_str = ctypes.c_char_p()
+    _check_call(_LIB.XGCommunicatorGetProcessorName(ctypes.byref(name_str)))
+    value = name_str.value
+    assert value
+    return py_str(value)
 
 
-T = TypeVar("T")                # pylint:disable=invalid-name
-
-
-def broadcast(data: T, root: int) -> T:
+def broadcast(data: _T, root: int) -> _T:
     """Broadcast object from one node to all other nodes.
 
     Parameters
@@ -161,8 +151,8 @@ class Op(IntEnum):
     SUM = 2
 
 
-def allreduce(                  # pylint:disable=invalid-name
-    data: np.ndarray, op: Op
+def allreduce(  # pylint:disable=invalid-name
+        data: np.ndarray, op: Op
 ) -> np.ndarray:
     """Perform allreduce, return the result.
 
@@ -211,7 +201,3 @@ class CommunicatorContext:
     def __exit__(self, *args: List) -> None:
         finalize()
         LOGGER.debug("--------------- communicator say bye ------------------")
-
-
-# initialization script
-_init_collective()
