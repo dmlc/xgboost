@@ -35,8 +35,12 @@ class FederatedClient {
 
   /** @brief Insecure client for connecting to localhost only. */
   FederatedClient(std::string const &server_address, int rank)
-      : stub_{Federated::NewStub(
-            grpc::CreateChannel(server_address, grpc::InsecureChannelCredentials()))},
+      : stub_{[&] {
+          grpc::ChannelArguments args;
+          args.SetMaxReceiveMessageSize(std::numeric_limits<int>::max());
+          return Federated::NewStub(
+              grpc::CreateCustomChannel(server_address, grpc::InsecureChannelCredentials(), args));
+        }()},
         rank_{rank} {}
 
   std::string Allgather(std::string const &send_buffer) {
