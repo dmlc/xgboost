@@ -87,6 +87,9 @@
 #include "../src/common/threading_utils.cc"
 #include "../src/common/version.cc"
 
+// collective
+#include "../src/collective/socket.cc"
+
 // c_api
 #include "../src/c_api/c_api.cc"
 #include "../src/c_api/c_api_error.cc"
