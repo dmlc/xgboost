@@ -28,6 +28,10 @@ void CommunicatorFactory::Init(int argc, char* argv[]) {
   if (arg != CommunicatorType::kUnknown) {
     type = arg;
   }
+  if (type == CommunicatorType::kUnknown) {
+    // Default to Rabit if unspecified.
+    type = CommunicatorType::kRabit;
+  }
   switch (type) {
     case CommunicatorType::kRabit: {
       RabitCommunicatorFactory factory{argc, argv};
@@ -50,7 +54,6 @@ void CommunicatorFactory::Init(int argc, char* argv[]) {
     }
     case CommunicatorType::kUnknown:
       LOG(FATAL) << "Unknown communicator type.";
-      break;
   }
 }
 

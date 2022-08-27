@@ -37,6 +37,8 @@ class FederatedCommunicator : public Communicator {
 
   ~FederatedCommunicator() override { client_.reset(); }
 
+  bool IsDistributed() const override { return true; }
+
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {
     std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer),

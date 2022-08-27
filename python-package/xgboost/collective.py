@@ -19,12 +19,12 @@ def init(args: Optional[List[bytes]] = None) -> None:
         args = []
     arr = (ctypes.c_char_p * len(args))()
     arr[:] = cast(List[Union[ctypes.c_char_p, bytes, None, int]], args)
-    _LIB.XGCommunicatorInit(len(arr), arr)
+    _check_call(_LIB.XGCommunicatorInit(len(arr), arr))
 
 
 def finalize() -> None:
     """Finalize the process, notify tracker everything is done."""
-    _LIB.XGCommunicatorFinalize()
+    _check_call(_LIB.XGCommunicatorFinalize())
 
 
 def get_rank() -> int:

@@ -89,7 +89,7 @@ class Communicator {
   int GetRank() const { return rank_; }
 
   /** @brief Whether the communicator is running in distributed mode. */
-  bool IsDistributed() const { return world_size_ > 1; }
+  virtual bool IsDistributed() const = 0;
 
   /**
    * @brief Combines values from all processes and distributes the result back to all processes.

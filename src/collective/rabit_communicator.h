@@ -17,6 +17,8 @@ class RabitCommunicator : public Communicator {
 
   ~RabitCommunicator() override { rabit::Finalize(); }
 
+  bool IsDistributed() const override { return rabit::IsDistributed(); }
+
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {
     switch (data_type) {
