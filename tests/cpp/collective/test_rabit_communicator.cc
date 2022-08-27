@@ -30,13 +30,9 @@ TEST(RabitCommunicatorSimpleTest, GetWorldSizeAndRank) {
 }
 
 TEST(RabitCommunicatorSimpleTest, IsNotDistributed) {
-  RabitCommunicator comm{1, 0};
-  EXPECT_FALSE(comm.IsDistributed());
-}
-
-TEST(RabitCommunicatorSimpleTest, IsDistributed) {
   RabitCommunicator comm{2, 1};
-  EXPECT_TRUE(comm.IsDistributed());
+  // Rabit is only distributed with a tracker.
+  EXPECT_FALSE(comm.IsDistributed());
 }
 
 }  // namespace collective
