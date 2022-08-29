@@ -126,6 +126,7 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
 
         return CUDF_concat(value, axis=0)
     from .data import _is_cupy_array
+
     if _is_cupy_array(value[0]):
         import cupy  # pylint: disable=import-error
 
