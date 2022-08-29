@@ -4,7 +4,7 @@ import importlib.util
 import logging
 import sys
 import types
-from typing import Any, Dict, List, Optional, Sequence, Type, cast
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 import numpy as np
 
