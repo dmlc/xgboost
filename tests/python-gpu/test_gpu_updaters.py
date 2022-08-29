@@ -3,7 +3,7 @@ import sys
 import gc
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
+from hypothesis import given, strategies, assume, settings, note, reproduce_failure
 
 sys.path.append("tests/python")
 import testing as tm
@@ -84,6 +84,7 @@ class TestGPUUpdaters:
     )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
+    @reproduce_failure('6.47.1', b'AAAAAAA=')
     def test_categorical_missing(self, rows, cols, cats):
         self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
 

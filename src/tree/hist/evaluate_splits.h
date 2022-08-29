@@ -193,7 +193,7 @@ class HistEvaluator {
       bst_bin_t partition = d_step == 1 ? (best_thresh - ibegin + 1) : (best_thresh - f_begin);
       CHECK_GT(partition, 0);
       std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
-                    [&](size_t c) { cat_bits.Set(c); });
+                    [&](size_t c) { cat_bits.Set(c); });  // fixme: cut_values[c]
     }
 
     p_best->Update(best);

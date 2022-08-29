@@ -167,35 +167,34 @@ class EvaluateSplitAgent {
       }
     }
   }
+
   __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
-                                         bst_feature_t * __restrict__ sorted_idx,
-                                         std::size_t offset) {
+                                            bst_feature_t *__restrict__ sorted_idx,
+                                            std::size_t offset) {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
-      auto rest = thread_active
-                      ? LoadGpair(node_histogram + sorted_idx[scan_begin + threadIdx.x] - offset)
-                      : GradientPairPrecise();
+      auto right_sum =
+          thread_active ? LoadGpair(node_histogram + sorted_idx[scan_begin + threadIdx.x] - offset)
+                        : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
-      BlockScanT(temp_storage->scan).InclusiveSum(rest, rest,  prefix_op);
-      GradientPairPrecise bin = parent_sum - rest - missing;
+      BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
+      GradientPairPrecise left_sum = parent_sum - right_sum - missing;
 
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
-                                                     evaluator, missing_left)
+      float gain = thread_active ? LossChangeMissing(left_sum, missing, parent_sum, param, nidx,
+                                                     fidx, evaluator, missing_left)
                                  : kNullGain;
 
-
       // Find thread with best gain
-      auto best =
-          MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
+      auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
       // This reduce result is only valid in thread 0
       // broadcast to the rest of the warp
       auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
-        GradientPairPrecise left = missing_left ? bin + missing : bin;
+        GradientPairPrecise left = missing_left ? left_sum + missing : left_sum;
         GradientPairPrecise right = parent_sum - left;
         auto best_thresh =
             threadIdx.x + (scan_begin - gidx_begin);  // index of best threshold inside a feature.
@@ -277,32 +276,54 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
     return;
   }
 
+  // partition-based split
   auto node_sorted_idx = d_sorted_idx.subspan(shared_inputs.feature_values.size() * input_idx,
                                               shared_inputs.feature_values.size());
   size_t node_offset = input_idx * shared_inputs.feature_values.size();
   auto best_thresh = out_split.PopBestThresh();
   auto f_sorted_idx = node_sorted_idx.subspan(shared_inputs.feature_segments[fidx],
                                               shared_inputs.FeatureBins(fidx));
-  if (out_split.dir != kLeftDir) {
-    // forward, missing on right
-    auto beg = dh::tcbegin(f_sorted_idx);
-    // Don't put all the categories into one side
-    auto boundary = std::min(static_cast<size_t>((best_thresh + 1)), (f_sorted_idx.size() - 1));
-    boundary = std::max(boundary, static_cast<size_t>(1ul));
-    auto end = beg + boundary;
-    thrust::for_each(thrust::seq, beg, end, [&](auto c) {
-      auto cat = shared_inputs.feature_values[c - node_offset];
-      assert(!out_split.split_cats.Check(cat) && "already set");
-      out_split.SetCat(cat);
-    });
+  bool forward = out_split.dir == kLeftDir;
+  auto cut_ptr = shared_inputs.feature_segments;
+
+  auto n_bins = shared_inputs.FeatureBins(fidx);
+  bst_bin_t ibegin, iend;
+  bst_bin_t f_begin = cut_ptr[fidx];
+  if (forward) {
+    ibegin = f_begin;
+    iend = ibegin + n_bins - 1;
   } else {
-    assert((f_sorted_idx.size() - best_thresh + 1) != 0 && " == 0");
-    thrust::for_each(thrust::seq, dh::tcrbegin(f_sorted_idx),
-                     dh::tcrbegin(f_sorted_idx) + (f_sorted_idx.size() - best_thresh), [&](auto c) {
-                       auto cat = shared_inputs.feature_values[c - node_offset];
-                       out_split.SetCat(cat);
-                     });
+    ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
+    iend = ibegin - n_bins + 1;
   }
+
+  bst_bin_t partition = forward ? (best_thresh - ibegin + 1) : (best_thresh - f_begin);
+  auto beg = dh::tcbegin(f_sorted_idx);
+  thrust::for_each(thrust::seq, beg, beg + partition, [&](size_t c) {
+    auto cat = shared_inputs.feature_values[c - node_offset];
+    out_split.SetCat(cat);
+  });
+
+  // if (out_split.dir != kLeftDir) {
+  //   // backward, missing on right
+  //   auto beg = dh::tcbegin(f_sorted_idx);
+  //   // Don't put all the categories into one side
+  //   auto boundary = std::min(static_cast<size_t>((best_thresh + 1)), (f_sorted_idx.size() - 1));
+  //   boundary = std::max(boundary, static_cast<size_t>(1ul));
+  //   auto end = beg + boundary;
+  //   thrust::for_each(thrust::seq, beg, end, [&](auto c) {
+  //     auto cat = shared_inputs.feature_values[c - node_offset];
+  //     assert(!out_split.split_cats.Check(cat) && "already set");
+  //     out_split.SetCat(cat);
+  //   });
+  // } else {
+  //   assert((f_sorted_idx.size() - best_thresh + 1) != 0 && " == 0");
+  //   thrust::for_each(thrust::seq, dh::tcrbegin(f_sorted_idx),
+  //                    dh::tcrbegin(f_sorted_idx) + (f_sorted_idx.size() - best_thresh), [&](auto c) {
+  //                      auto cat = shared_inputs.feature_values[c - node_offset];
+  //                      out_split.SetCat(cat);
+  //                    });
+  // }
 }
 
 void GPUHistEvaluator::LaunchEvaluateSplits(

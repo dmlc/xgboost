@@ -257,10 +257,7 @@ class TestTreeMethod:
             np.testing.assert_allclose(rmse, evals_result["Train"]["rmse"][-1])
 
         # Test with OHE split
-        run(self.USE_ONEHOT)
-
-        if tree_method == "gpu_hist":  # fixme: Test with GPU.
-            return
+        # run(self.USE_ONEHOT)
 
         # Test with partition-based split
         run(self.USE_PART)
