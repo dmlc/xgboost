@@ -2,6 +2,8 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
+#include <xgboost/json.h>
+
 #include <memory>
 #include <string>
 
@@ -16,9 +18,7 @@ class DeviceCommunicator;
 
 class CommunicatorFactory {
  public:
-  static constexpr char const* kCommunicatorKey = "XGBOOST_COMMUNICATOR";
-
-  static void Init(int argc, char* argv[]);
+  static void Init(Json const& config);
 
   static void Finalize();
 
@@ -32,7 +32,7 @@ class CommunicatorFactory {
 
   /** @brief Get the communicator type from environment variables. Visible for testing. */
   static CommunicatorType GetTypeFromEnv() {
-    auto* env = std::getenv(kCommunicatorKey);
+    auto* env = std::getenv("XGBOOST_COMMUNICATOR");
     if (env != nullptr) {
       return StringToType(env);
     } else {
@@ -40,18 +40,15 @@ class CommunicatorFactory {
     }
   }
 
-  /** @brief Get the communicator type from arguments. Visible for testing. */
-  static CommunicatorType GetTypeFromArgs(int argc, char* argv[]) {
-    for (int i = 0; i < argc; ++i) {
-      std::string const key_value = argv[i];
-      auto const delimiter = key_value.find('=');
-      if (delimiter != std::string::npos) {
-        auto const key = key_value.substr(0, delimiter);
-        auto const value = key_value.substr(delimiter + 1);
-        if (!CompareStringsCaseInsensitive(key.c_str(), kCommunicatorKey)) {
-          return StringToType(value.c_str());
-        }
-      }
+  /** @brief Get the communicator type from runtime configuration. Visible for testing. */
+  static CommunicatorType GetTypeFromConfig(Json const& config) {
+    auto const& j_upper = config["XGBOOST_COMMUNICATOR"];
+    if (IsA<String const>(j_upper)) {
+      return StringToType(get<String const>(j_upper).c_str());
+    }
+    auto const& j_lower = config["xgboost_communicator"];
+    if (IsA<String const>(j_lower)) {
+      return StringToType(get<String const>(j_lower).c_str());
     }
     return CommunicatorType::kUnknown;
   }

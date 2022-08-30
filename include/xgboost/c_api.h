@@ -1390,15 +1390,49 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
                                   float const **out_scores);
 
 /*!
- * \brief initialize the collective communicator,
- *  call this once before using anything
- *  The additional arguments is not necessary.
- *  Usually the communicator will detect settings
+ * \brief Initialize the collective communicator.
+ *
+ *  Call this once before using anything.
+ *
+ *  The additional configuration is not required. Usually the communicator will detect settings
  *  from environment variables.
- * \param argc number of arguments in argv
- * \param argv the array of input arguments
+ *
+ * \param json_config JSON encoded configuration. Accepted JSON keys are:
+ *   - xgboost_communicator: The type of the communicator. Can be set as an environment variable.
+ *     * rabit: Use Rabit. This is the default if the type is unspecified.
+ *     * mpi: Use MPI.
+ *     * federated: Use the gRPC interface for Federated Learning.
+ * Only applicable to the Rabit communicator (these are case-sensitive):
+ *   - rabit_tracker_uri: Hostname of the tracker.
+ *   - rabit_tracker_port: Port number of the tracker.
+ *   - rabit_task_id: ID of the current task, can be used to obtain deterministic rank assignment.
+ *   - rabit_world_size: Total number of workers.
+ *   - rabit_hadoop_mode: Enable Hadoop support.
+ *   - rabit_tree_reduce_minsize: Minimal size for tree reduce.
+ *   - rabit_reduce_ring_mincount: Minimal count to perform ring reduce.
+ *   - rabit_reduce_buffer: Size of the reduce buffer.
+ *   - rabit_bootstrap_cache: Size of the bootstrap cache.
+ *   - rabit_debug: Enable debugging.
+ *   - rabit_timeout: Enable timeout.
+ *   - rabit_timeout_sec: Timeout in seconds.
+ *   - rabit_enable_tcp_no_delay: Enable TCP no delay on Unix platforms.
+ * Only applicable to the Rabit communicator (these are case-sensitive, and can be set as
+ * environment variables):
+ *   - DMLC_TRACKER_URI: Hostname of the tracker.
+ *   - DMLC_TRACKER_PORT: Port number of the tracker.
+ *   - DMLC_TASK_ID: ID of the current task, can be used to obtain deterministic rank assignment.
+ *   - DMLC_ROLE: Role of the current task, "worker" or "server".
+ *   - DMLC_NUM_ATTEMPT: Number of attempts after task failure.
+ *   - DMLC_WORKER_CONNECT_RETRY: Number of retries to connect to the tracker.
+ * Only applicable to the Federated communicator (these are not case-sensitive):
+ *   - federated_server_address: Address of the federated server.
+ *   - federated_world_size: Number of federated workers.
+ *   - federated_rank: Rank of the current worker.
+ *   - federated_server_cert: Server certificate file path. Only needed for the SSL mode.
+ *   - federated_client_key: Client key file path. Only needed for the SSL mode.
+ *   - federated_client_cert: Client certificate file path. Only needed for the SSL mode.
  */
-XGB_DLL int XGCommunicatorInit(int argc, char *argv[]);
+XGB_DLL int XGCommunicatorInit(char const* json_config);
 
 /*!
  * \brief finalize the collective communicator,

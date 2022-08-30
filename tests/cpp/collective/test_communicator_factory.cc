@@ -12,35 +12,51 @@ namespace collective {
 TEST(CommunicatorFactory, TypeFromEnv) {
   EXPECT_EQ(CommunicatorType::kUnknown, CommunicatorFactory::GetTypeFromEnv());
 
-  dmlc::SetEnv<std::string>(CommunicatorFactory::kCommunicatorKey, "rabit");
+  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "rabit");
   EXPECT_EQ(CommunicatorType::kRabit, CommunicatorFactory::GetTypeFromEnv());
 
-  dmlc::SetEnv<std::string>(CommunicatorFactory::kCommunicatorKey, "MPI");
+  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "MPI");
   EXPECT_EQ(CommunicatorType::kMPI, CommunicatorFactory::GetTypeFromEnv());
 
-  dmlc::SetEnv<std::string>(CommunicatorFactory::kCommunicatorKey, "Federated");
+  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "Federated");
   EXPECT_EQ(CommunicatorType::kFederated, CommunicatorFactory::GetTypeFromEnv());
 
-  dmlc::SetEnv<std::string>(CommunicatorFactory::kCommunicatorKey, "foo");
+  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "foo");
   EXPECT_THROW(CommunicatorFactory::GetTypeFromEnv(), dmlc::Error);
 }
 
 TEST(CommunicatorFactory, TypeFromArgs) {
-  char *args0[] = {(char *)("foo=bar")};  // NOLINT(google-readability-casting)
-  EXPECT_EQ(CommunicatorType::kUnknown, CommunicatorFactory::GetTypeFromArgs(1, args0));
+  Json config{JsonObject()};
+  EXPECT_EQ(CommunicatorType::kUnknown, CommunicatorFactory::GetTypeFromConfig(config));
 
-  char *args1[] = {(char *)("xgboost_communicator=rabit")};  // NOLINT(google-readability-casting)
-  EXPECT_EQ(CommunicatorType::kRabit, CommunicatorFactory::GetTypeFromArgs(1, args1));
+  config["xgboost_communicator"] = String("rabit");
+  EXPECT_EQ(CommunicatorType::kRabit, CommunicatorFactory::GetTypeFromConfig(config));
 
-  char *args2[] = {(char *)("xgboost_communicator=MPI")};  // NOLINT(google-readability-casting)
-  EXPECT_EQ(CommunicatorType::kMPI, CommunicatorFactory::GetTypeFromArgs(1, args2));
+  config["xgboost_communicator"] = String("MPI");
+  EXPECT_EQ(CommunicatorType::kMPI, CommunicatorFactory::GetTypeFromConfig(config));
 
-  char *args3[] = {
-      (char *)("xgboost_communicator=federated")};  // NOLINT(google-readability-casting)
-  EXPECT_EQ(CommunicatorType::kFederated, CommunicatorFactory::GetTypeFromArgs(1, args3));
+  config["xgboost_communicator"] = String("federated");
+  EXPECT_EQ(CommunicatorType::kFederated, CommunicatorFactory::GetTypeFromConfig(config));
 
-  char *args4[] = {(char *)("xgboost_communicator=foo")};  // NOLINT(google-readability-casting)
-  EXPECT_THROW(CommunicatorFactory::GetTypeFromArgs(1, args4), dmlc::Error);
+  config["xgboost_communicator"] = String("foo");
+  EXPECT_THROW(CommunicatorFactory::GetTypeFromConfig(config), dmlc::Error);
+}
+
+TEST(CommunicatorFactory, TypeFromArgsUpperCase) {
+  Json config{JsonObject()};
+  EXPECT_EQ(CommunicatorType::kUnknown, CommunicatorFactory::GetTypeFromConfig(config));
+
+  config["XGBOOST_COMMUNICATOR"] = String("rabit");
+  EXPECT_EQ(CommunicatorType::kRabit, CommunicatorFactory::GetTypeFromConfig(config));
+
+  config["XGBOOST_COMMUNICATOR"] = String("MPI");
+  EXPECT_EQ(CommunicatorType::kMPI, CommunicatorFactory::GetTypeFromConfig(config));
+
+  config["XGBOOST_COMMUNICATOR"] = String("federated");
+  EXPECT_EQ(CommunicatorType::kFederated, CommunicatorFactory::GetTypeFromConfig(config));
+
+  config["XGBOOST_COMMUNICATOR"] = String("foo");
+  EXPECT_THROW(CommunicatorFactory::GetTypeFromConfig(config), dmlc::Error);
 }
 
 }  // namespace collective

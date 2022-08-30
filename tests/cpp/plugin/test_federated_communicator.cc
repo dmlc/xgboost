@@ -91,11 +91,6 @@ TEST(FederatedCommunicatorSimpleTest, GetWorldSizeAndRank) {
   EXPECT_EQ(comm.GetRank(), 3);
 }
 
-TEST(FederatedCommunicatorSimpleTest, IsNotDistributed) {
-  FederatedCommunicator comm{1, 0, kServerAddress};
-  EXPECT_FALSE(comm.IsDistributed());
-}
-
 TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
   FederatedCommunicator comm{2, 1, kServerAddress};
   EXPECT_TRUE(comm.IsDistributed());
@@ -122,86 +117,86 @@ TEST_F(FederatedCommunicatorTest, Broadcast) {
 }
 
 TEST(FederatedCommunicatorFactoryTest, ServerAddress) {
-  FederatedCommunicatorFactory factory0{0, nullptr};
+  Json config{JsonObject()};
+  FederatedCommunicatorFactory factory0{config};
   EXPECT_EQ(factory0.GetServerAddress(), "");
 
   dmlc::SetEnv<std::string>("FEDERATED_SERVER_ADDRESS", "localhost:9091");
-  FederatedCommunicatorFactory factory1{0, nullptr};
+  FederatedCommunicatorFactory factory1{config};
   EXPECT_EQ(factory1.GetServerAddress(), "localhost:9091");
 
-  char *args[1];
-  args[0] = strdup("federated_server_address=foo:9091");
-  FederatedCommunicatorFactory factory2{1, args};
+  config["federated_server_address"] = String("foo:9091");
+  FederatedCommunicatorFactory factory2{config};
   EXPECT_EQ(factory2.GetServerAddress(), "foo:9091");
 }
 
 TEST(FederatedCommunicatorFactoryTest, WorldSize) {
-  FederatedCommunicatorFactory factory0{0, nullptr};
+  Json config{JsonObject()};
+  FederatedCommunicatorFactory factory0{config};
   EXPECT_EQ(factory0.GetWorldSize(), 0);
 
   dmlc::SetEnv<std::string>("FEDERATED_WORLD_SIZE", "2");
-  FederatedCommunicatorFactory factory1{0, nullptr};
+  FederatedCommunicatorFactory factory1{config};
   EXPECT_EQ(factory1.GetWorldSize(), 2);
 
-  char *args[1];
-  args[0] = strdup("federated_world_size=3");
-  FederatedCommunicatorFactory factory2{1, args};
+  config["federated_world_size"] = Integer(3);
+  FederatedCommunicatorFactory factory2{config};
   EXPECT_EQ(factory2.GetWorldSize(), 3);
 }
 
 TEST(FederatedCommunicatorFactoryTest, Rank) {
-  FederatedCommunicatorFactory factory0{0, nullptr};
+  Json config{JsonObject()};
+  FederatedCommunicatorFactory factory0{config};
   EXPECT_EQ(factory0.GetRank(), -1);
 
   dmlc::SetEnv<std::string>("FEDERATED_RANK", "1");
-  FederatedCommunicatorFactory factory1{0, nullptr};
+  FederatedCommunicatorFactory factory1{config};
   EXPECT_EQ(factory1.GetRank(), 1);
 
-  char *args[1];
-  args[0] = strdup("federated_rank=2");
-  FederatedCommunicatorFactory factory2{1, args};
+  config["federated_rank"] = Integer(2);
+  FederatedCommunicatorFactory factory2{config};
   EXPECT_EQ(factory2.GetRank(), 2);
 }
 
 TEST(FederatedCommunicatorFactoryTest, ServerCert) {
-  FederatedCommunicatorFactory factory0{0, nullptr};
+  Json config{JsonObject()};
+  FederatedCommunicatorFactory factory0{config};
   EXPECT_EQ(factory0.GetServerCert(), "");
 
   dmlc::SetEnv<std::string>("FEDERATED_SERVER_CERT", "foo/server-cert.pem");
-  FederatedCommunicatorFactory factory1{0, nullptr};
+  FederatedCommunicatorFactory factory1{config};
   EXPECT_EQ(factory1.GetServerCert(), "foo/server-cert.pem");
 
-  char *args[1];
-  args[0] = strdup("federated_server_cert=bar/server-cert.pem");
-  FederatedCommunicatorFactory factory2{1, args};
+  config["federated_server_cert"] = String("bar/server-cert.pem");
+  FederatedCommunicatorFactory factory2{config};
   EXPECT_EQ(factory2.GetServerCert(), "bar/server-cert.pem");
 }
 
 TEST(FederatedCommunicatorFactoryTest, ClientKey) {
-  FederatedCommunicatorFactory factory0{0, nullptr};
+  Json config{JsonObject()};
+  FederatedCommunicatorFactory factory0{config};
   EXPECT_EQ(factory0.GetClientKey(), "");
 
   dmlc::SetEnv<std::string>("FEDERATED_CLIENT_KEY", "foo/client-key.pem");
-  FederatedCommunicatorFactory factory1{0, nullptr};
+  FederatedCommunicatorFactory factory1{config};
   EXPECT_EQ(factory1.GetClientKey(), "foo/client-key.pem");
 
-  char *args[1];
-  args[0] = strdup("federated_client_key=bar/client-key.pem");
-  FederatedCommunicatorFactory factory2{1, args};
+  config["federated_client_key"] = String("bar/client-key.pem");
+  FederatedCommunicatorFactory factory2{config};
   EXPECT_EQ(factory2.GetClientKey(), "bar/client-key.pem");
 }
 
 TEST(FederatedCommunicatorFactoryTest, ClientCert) {
-  FederatedCommunicatorFactory factory0{0, nullptr};
+  Json config{JsonObject()};
+  FederatedCommunicatorFactory factory0{config};
   EXPECT_EQ(factory0.GetClientCert(), "");
 
   dmlc::SetEnv<std::string>("FEDERATED_CLIENT_CERT", "foo/client-cert.pem");
-  FederatedCommunicatorFactory factory1{0, nullptr};
+  FederatedCommunicatorFactory factory1{config};
   EXPECT_EQ(factory1.GetClientCert(), "foo/client-cert.pem");
 
-  char *args[1];
-  args[0] = strdup("federated_client_cert=bar/client-cert.pem");
-  FederatedCommunicatorFactory factory2{1, args};
+  config["federated_client_cert"] = String("bar/client-cert.pem");
+  FederatedCommunicatorFactory factory2{config};
   EXPECT_EQ(factory2.GetClientCert(), "bar/client-cert.pem");
 }
 

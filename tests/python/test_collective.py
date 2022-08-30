@@ -8,7 +8,7 @@ from xgboost import RabitTracker
 
 
 def run_rabit_worker(rabit_env, world_size, rank):
-    with xgb.collective.CommunicatorContext(rabit_env):
+    with xgb.collective.CommunicatorContext(**rabit_env):
         assert xgb.collective.get_world_size() == world_size
         assert xgb.collective.get_rank() == rank
         assert xgb.collective.is_distributed()
@@ -23,15 +23,10 @@ def test_rabit_communicator():
     world_size = 2
     tracker = RabitTracker(host_ip='127.0.0.1', n_workers=world_size)
     tracker.start(world_size)
-    worker_env = tracker.worker_envs()
-    rabit_env = []
-    for k, v in worker_env.items():
-        rabit_env.append(f"{k}={v}".encode())
-
     workers = []
     for rank in reversed(range(world_size)):
         worker = multiprocessing.Process(target=run_rabit_worker,
-                                         args=(rabit_env, world_size, rank))
+                                         args=(tracker.worker_envs(), world_size, rank))
         workers.append(worker)
         worker.start()
     for worker in workers:

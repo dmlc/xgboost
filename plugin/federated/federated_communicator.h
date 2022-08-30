@@ -2,6 +2,8 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
+#include <xgboost/json.h>
+
 #include "../../src/collective/communicator.h"
 #include "../../src/common/io.h"
 #include "federated_client.h"
@@ -70,7 +72,7 @@ class FederatedCommunicator : public Communicator {
 
 class FederatedCommunicatorFactory {
  public:
-  FederatedCommunicatorFactory(int argc, char *argv[]) {
+  explicit FederatedCommunicatorFactory(Json const &config) {
     // Parse environment variables first.
     for (auto const &env_var : env_vars_) {
       char const *value = getenv(env_var.c_str());
@@ -79,13 +81,30 @@ class FederatedCommunicatorFactory {
       }
     }
 
-    // Command line argument overrides.
-    for (int i = 0; i < argc; ++i) {
-      std::string const key_value = argv[i];
-      auto const delimiter = key_value.find('=');
-      if (delimiter != std::string::npos) {
-        SetParam(key_value.substr(0, delimiter), key_value.substr(delimiter + 1));
-      }
+    // Runtime configuration overrides.
+    auto const &j_server_address = config["federated_server_address"];
+    if (IsA<String const>(j_server_address)) {
+      server_address_ = get<String const>(j_server_address);
+    }
+    auto const &j_world_size = config["federated_world_size"];
+    if (IsA<Integer const>(j_world_size)) {
+      world_size_ = static_cast<int>(get<Integer const>(j_world_size));
+    }
+    auto const &j_rank = config["federated_rank"];
+    if (IsA<Integer const>(j_rank)) {
+      rank_ = static_cast<int>(get<Integer const>(j_rank));
+    }
+    auto const &j_server_cert = config["federated_server_cert"];
+    if (IsA<String const>(j_server_cert)) {
+      server_cert_ = get<String const>(j_server_cert);
+    }
+    auto const &j_client_key = config["federated_client_key"];
+    if (IsA<String const>(j_client_key)) {
+      client_key_ = get<String const>(j_client_key);
+    }
+    auto const &j_client_cert = config["federated_client_cert"];
+    if (IsA<String const>(j_client_cert)) {
+      client_cert_ = get<String const>(j_client_cert);
     }
   }
 

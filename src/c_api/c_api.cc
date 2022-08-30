@@ -1374,9 +1374,10 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
 
 using xgboost::collective::CommunicatorFactory;
 
-XGB_DLL int XGCommunicatorInit(int argc, char *argv[]) {
+XGB_DLL int XGCommunicatorInit(char const* json_config) {
   API_BEGIN();
-  CommunicatorFactory::Init(argc, argv);
+  Json config { Json::Load(StringView{json_config}) };
+  CommunicatorFactory::Init(config);
   API_END();
 }
 

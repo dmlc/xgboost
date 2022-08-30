@@ -1,25 +1,68 @@
 """XGBoost collective communication related API."""
 import ctypes
+import json
 import logging
 import pickle
 from enum import IntEnum, unique
-from typing import Any, Optional, cast, List, Union
+from typing import Any, List
 
 import numpy as np
 
 from ._typing import _T
-from .core import _LIB, _check_call, c_str, py_str
+from .core import _LIB, _check_call, c_str, py_str, from_pystr_to_cstr
 
 LOGGER = logging.getLogger("[xgboost.collective]")
 
 
-def init(args: Optional[List[bytes]] = None) -> None:
-    """Initialize the collective library with arguments"""
-    if args is None:
-        args = []
-    arr = (ctypes.c_char_p * len(args))()
-    arr[:] = cast(List[Union[ctypes.c_char_p, bytes, None, int]], args)
-    _check_call(_LIB.XGCommunicatorInit(len(arr), arr))
+def init(**args: Any) -> None:
+    """Initialize the collective library with arguments.
+
+    Parameters
+    ----------
+    args: Dict[str, Any]
+        Keyword arguments representing the parameters and their values.
+
+        Accepted parameters:
+          - xgboost_communicator: The type of the communicator. Can be set as an environment
+            variable.
+            * rabit: Use Rabit. This is the default if the type is unspecified.
+            * mpi: Use MPI.
+            * federated: Use the gRPC interface for Federated Learning.
+        Only applicable to the Rabit communicator (these are case sensitive):
+          -- rabit_tracker_uri: Hostname of the tracker.
+          -- rabit_tracker_port: Port number of the tracker.
+          -- rabit_task_id: ID of the current task, can be used to obtain deterministic rank
+             assignment.
+          -- rabit_world_size: Total number of workers.
+          -- rabit_hadoop_mode: Enable Hadoop support.
+          -- rabit_tree_reduce_minsize: Minimal size for tree reduce.
+          -- rabit_reduce_ring_mincount: Minimal count to perform ring reduce.
+          -- rabit_reduce_buffer: Size of the reduce buffer.
+          -- rabit_bootstrap_cache: Size of the bootstrap cache.
+          -- rabit_debug: Enable debugging.
+          -- rabit_timeout: Enable timeout.
+          -- rabit_timeout_sec: Timeout in seconds.
+          -- rabit_enable_tcp_no_delay: Enable TCP no delay on Unix platforms.
+        Only applicable to the Rabit communicator (these are case-sensitive, and can be set as
+        environment variables):
+          -- DMLC_TRACKER_URI: Hostname of the tracker.
+          -- DMLC_TRACKER_PORT: Port number of the tracker.
+          -- DMLC_TASK_ID: ID of the current task, can be used to obtain deterministic rank
+             assignment.
+          -- DMLC_ROLE: Role of the current task, "worker" or "server".
+          -- DMLC_NUM_ATTEMPT: Number of attempts after task failure.
+          -- DMLC_WORKER_CONNECT_RETRY: Number of retries to connect to the tracker.
+        Only applicable to the Federated communicator (use upper case for environment variables, use
+        lower case for runtime configuration):
+          -- federated_server_address: Address of the federated server.
+          -- federated_world_size: Number of federated workers.
+          -- federated_rank: Rank of the current worker.
+          -- federated_server_cert: Server certificate file path. Only needed for the SSL mode.
+          -- federated_client_key: Client key file path. Only needed for the SSL mode.
+          -- federated_client_cert: Client certificate file path. Only needed for the SSL mode.
+    """
+    config = from_pystr_to_cstr(json.dumps(args))
+    _check_call(_LIB.XGCommunicatorInit(config))
 
 
 def finalize() -> None:
@@ -188,13 +231,11 @@ def allreduce(  # pylint:disable=invalid-name
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, args: List[bytes] = None) -> None:
-        if args is None:
-            args = []
+    def __init__(self, **args: Any) -> None:
         self.args = args
 
     def __enter__(self) -> None:
-        init(self.args)
+        init(**self.args)
         assert is_distributed()
         LOGGER.debug("-------------- communicator say hello ------------------")
 

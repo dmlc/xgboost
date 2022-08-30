@@ -18,13 +18,13 @@ thread_local std::unique_ptr<CommunicatorFactory> CommunicatorFactory::instance_
 CommunicatorFactory::CommunicatorFactory(CommunicatorType type, Communicator* communicator)
     : type_{type}, communicator_{communicator} {}
 
-void CommunicatorFactory::Init(int argc, char* argv[]) {
+void CommunicatorFactory::Init(Json const& config) {
   if (instance_) {
     LOG(FATAL) << "Communicator factory can only be initialized once.";
   }
 
   auto type = GetTypeFromEnv();
-  auto const arg = GetTypeFromArgs(argc, argv);
+  auto const arg = GetTypeFromConfig(config);
   if (arg != CommunicatorType::kUnknown) {
     type = arg;
   }
@@ -34,7 +34,7 @@ void CommunicatorFactory::Init(int argc, char* argv[]) {
   }
   switch (type) {
     case CommunicatorType::kRabit: {
-      RabitCommunicatorFactory factory{argc, argv};
+      RabitCommunicatorFactory factory{config};
       auto* comm = factory.Create();
       instance_.reset(new CommunicatorFactory(type, comm));
       break;
@@ -44,7 +44,7 @@ void CommunicatorFactory::Init(int argc, char* argv[]) {
       break;
     case CommunicatorType::kFederated: {
 #if defined(XGBOOST_USE_FEDERATED)
-      FederatedCommunicatorFactory factory{argc, argv};
+      FederatedCommunicatorFactory factory{config};
       auto* comm = factory.Create();
       instance_.reset(new CommunicatorFactory(type, comm));
 #else
