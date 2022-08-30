@@ -144,7 +144,10 @@ class HistEvaluator {
 
     auto const &cut_ptr = cut.Ptrs();
     auto const &parent = snode_[nidx];
-    bst_bin_t n_bins_feature{static_cast<bst_bin_t>(cut_ptr[fidx + 1] - cut_ptr[fidx])};
+
+    bst_bin_t f_begin = cut_ptr[fidx];
+    bst_bin_t f_end = cut_ptr[fidx + 1];
+    bst_bin_t n_bins_feature{f_end - f_begin};
     auto n_bins = std::min(param_.max_cat_threshold, n_bins_feature);
 
     // statistics on both sides of split
@@ -153,19 +156,18 @@ class HistEvaluator {
     // best split so far
     SplitEntry best;
 
-    auto f_hist = hist.subspan(cut_ptr[fidx], n_bins_feature);
-    bst_bin_t ibegin, iend;
-    bst_bin_t f_begin = cut_ptr[fidx];
+    auto f_hist = hist.subspan(f_begin, n_bins_feature);
+    bst_bin_t it_begin, it_end;
     if (d_step > 0) {
-      ibegin = f_begin;
-      iend = ibegin + n_bins - 1;
+      it_begin = f_begin;
+      it_end = it_begin + n_bins - 1;
     } else {
-      ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
-      iend = ibegin - n_bins + 1;
+      it_begin = f_end - 1;
+      it_end = it_begin - n_bins + 1;
     }
 
     bst_bin_t best_thresh{-1};
-    for (bst_bin_t i = ibegin; i != iend; i += d_step) {
+    for (bst_bin_t i = it_begin; i != it_end; i += d_step) {
       auto j = i - f_begin;  // index local to current feature
       if (d_step == 1) {
         right_sum.Add(f_hist[sorted_idx[j]].GetGrad(), f_hist[sorted_idx[j]].GetHess());
@@ -190,7 +192,7 @@ class HistEvaluator {
       auto n = common::CatBitField::ComputeStorageSize(n_bins_feature + 1);
       best.cat_bits = decltype(best.cat_bits)(n, 0);
       common::CatBitField cat_bits{best.cat_bits};
-      bst_bin_t partition = d_step == 1 ? (best_thresh - ibegin + 1) : (best_thresh - f_begin);
+      bst_bin_t partition = d_step == 1 ? (best_thresh - it_begin + 1) : (best_thresh - f_begin);
       CHECK_GT(partition, 0);
       std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
                     [&](size_t c) { cat_bits.Set(c); });  // fixme: cut_values[c]
