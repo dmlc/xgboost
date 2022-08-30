@@ -27,7 +27,7 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
       evaluator.CalcSplitGain(param, nidx, fidx, left_sum, parent_sum - left_sum);
   float missing_right_gain = evaluator.CalcSplitGain(param, nidx, fidx, scan, parent_sum - scan);
 
-  missing_left_out = missing_left_gain >= missing_right_gain;
+  missing_left_out = missing_left_gain > missing_right_gain;
   return missing_left_out?missing_left_gain:missing_right_gain;
 }
 
@@ -168,10 +168,10 @@ class EvaluateSplitAgent {
   }
 
   __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
-                                            bst_feature_t *__restrict__ sorted_idx,
+                                            common::Span<bst_feature_t> sorted_idx,
                                             std::size_t offset) {
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
-      bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
+    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end - 1; scan_begin += kBlockSize) {
+      bool thread_active = (scan_begin + threadIdx.x) < (gidx_end - 1);
 
       auto right_sum =
           thread_active ? LoadGpair(node_histogram + sorted_idx[scan_begin + threadIdx.x] - offset)
@@ -179,26 +179,9 @@ class EvaluateSplitAgent {
 
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
-      GradientPairPrecise left_sum = parent_sum - right_sum - missing;
-
-      // Whether the gradient of missing values is put to the left side.
-      bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(left_sum, missing, parent_sum, param, nidx,
-                                                     fidx, evaluator, missing_left)
-                                 : kNullGain;
-      // printf("l: %f, r: %f, gain: %f\n", left_sum.GetHess(), right_sum.GetHess(), gain);
-
-      auto const thresh = threadIdx.x + scan_begin;
-      auto const &forward = missing_left;
-      auto const &backward = !forward;
-      // prevent splitting on missing value alone, skip the last bin if it's forward scan
-      // and skip the first bin if it's backward
-      auto const first_bin = gidx_begin;
-      auto const last_bin = gidx_end - 1;
-      bool const should_skip = (forward && thresh == last_bin) || (backward && thresh == first_bin);
-      if (should_skip) {
-        gain = kNullGain;
-      }
+      GradientPairPrecise left_sum = parent_sum - right_sum;
+      auto gain = thread_active ? evaluator.CalcSplitGain(param, nidx, fidx, left_sum, right_sum)
+                                : kNullGain;
 
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -207,13 +190,42 @@ class EvaluateSplitAgent {
       auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
       // Best thread updates the split
       if (threadIdx.x == best_thread) {
-        GradientPairPrecise left = missing_left ? left_sum + missing : left_sum;
-        GradientPairPrecise right = parent_sum - left;
         // index of best threshold inside a feature.
         auto best_thresh = threadIdx.x + (scan_begin - gidx_begin);
-        auto dft_dir = missing_left ? kLeftDir : kRightDir;
-        // printf("best_thresh: %d\n", static_cast<int32_t>(best_thresh));
-        best_split->UpdateCat(gain, dft_dir, best_thresh, fidx, left, right, param);
+        best_split->UpdateCat(gain, kLeftDir, best_thresh, fidx, left_sum, right_sum, param);
+      }
+    }
+    cub::CTA_SYNC();
+
+    // backward
+    bst_bin_t n_bins = gidx_end - gidx_begin;
+    bst_bin_t it_begin = gidx_end - 1;
+    bst_bin_t it_end = it_begin - n_bins + 1;
+    SumCallbackOp<GradientPairPrecise> backward_op;
+    for (bst_bin_t scan_begin = it_begin; scan_begin > it_end; scan_begin -= kBlockSize) {
+      auto it = scan_begin - static_cast<bst_bin_t>(threadIdx.x);
+      bool thread_active = it > it_end;
+      auto left_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - offset)
+                                    : GradientPairPrecise();
+      BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, backward_op);
+      GradientPairPrecise right_sum = parent_sum - left_sum;
+
+      auto gain = thread_active ? evaluator.CalcSplitGain(param, nidx, fidx, left_sum, right_sum)
+                                : kNullGain;
+
+      // Find thread with best gain
+      auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
+      // This reduce result is only valid in thread 0
+      // broadcast to the rest of the warp
+      auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
+      // Best thread updates the split
+      if (threadIdx.x == best_thread) {
+        assert(thread_active);
+        // index of best threshold inside a feature.
+        // auto best_thresh = (it_begin - scan_begin) - static_cast<int32_t>(threadIdx.x);
+        auto best_thresh = scan_begin - static_cast<int32_t>(threadIdx.x) - gidx_begin;
+        assert(best_thresh > 0);
+        best_split->UpdateCat(gain, kRightDir, best_thresh, fidx, left_sum, right_sum, param);
       }
     }
   }
@@ -255,7 +267,7 @@ __global__ __launch_bounds__(kBlockSize) void EvaluateSplitsKernel(
       auto total_bins = shared_inputs.feature_values.size();
       size_t offset = total_bins * input_idx;
       auto node_sorted_idx = sorted_idx.subspan(offset, total_bins);
-      agent.Partition(&best_split, node_sorted_idx.data(), offset);
+      agent.Partition(&best_split, node_sorted_idx, offset);
     }
   } else {
     agent.Numerical(&best_split);
@@ -296,16 +308,11 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   size_t node_offset = input_idx * shared_inputs.feature_values.size();
   auto const best_thresh = out_split.thresh;
   if (best_thresh == -1) {
-    printf("Invalid split\n");
     return;
   }
   auto f_sorted_idx = node_sorted_idx.subspan(shared_inputs.feature_segments[fidx],
                                               shared_inputs.FeatureBins(fidx));
-  // bool forward = true;
   bool forward = out_split.dir == kLeftDir;
-  // printf("best_thresh setter: %d, forward: %d\n", static_cast<int32_t>(best_thresh),
-  //        static_cast<int32_t>(forward));
-
   bst_bin_t partition = forward ? best_thresh + 1 : best_thresh;
   auto beg = dh::tcbegin(f_sorted_idx);
   assert(partition > 0 && "Invalid partition.");
