@@ -29,6 +29,7 @@ struct GPUTrainingParam {
   float max_delta_step;
   float learning_rate;
   uint32_t max_cat_to_onehot;
+  bst_bin_t max_cat_threshold;
 
   GPUTrainingParam() = default;
 
@@ -38,7 +39,8 @@ struct GPUTrainingParam {
         reg_alpha(param.reg_alpha),
         max_delta_step(param.max_delta_step),
         learning_rate{param.learning_rate},
-        max_cat_to_onehot{param.max_cat_to_onehot} {}
+        max_cat_to_onehot{param.max_cat_to_onehot},
+        max_cat_threshold{param.max_cat_threshold} {}
 };
 
 /**

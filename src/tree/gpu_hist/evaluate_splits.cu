@@ -167,66 +167,66 @@ class EvaluateSplitAgent {
     }
   }
 
+  __device__ __forceinline__ void PartitionUpdate(bst_bin_t scan_begin, bool thread_active,
+                                                  bool missing_left, bst_bin_t it,
+                                                  GradientPairPrecise const &left_sum,
+                                                  GradientPairPrecise const &right_sum,
+                                                  DeviceSplitCandidate *__restrict__ best_split) {
+    auto gain =
+        thread_active ? evaluator.CalcSplitGain(param, nidx, fidx, left_sum, right_sum) : kNullGain;
+
+    // Find thread with best gain
+    auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
+    // This reduce result is only valid in thread 0
+    // broadcast to the rest of the warp
+    auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
+    // Best thread updates the split
+    if (threadIdx.x == best_thread) {
+      assert(thread_active);
+      // index of best threshold inside a feature.
+      auto best_thresh = it - gidx_begin;
+      best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left_sum,
+                            right_sum, param);
+    }
+  }
+
   __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
                                             common::Span<bst_feature_t> sorted_idx,
-                                            std::size_t offset) {
-    for (bst_bin_t scan_begin = gidx_begin; scan_begin < gidx_end - 1; scan_begin += kBlockSize) {
-      bool thread_active = (scan_begin + threadIdx.x) < (gidx_end - 1);
+                                            std::size_t offset, GPUTrainingParam const& param) {
+    bst_bin_t n_bins_feature = gidx_end - gidx_begin;
+    auto n_bins = std::min(param.max_cat_threshold, n_bins_feature);
 
-      auto right_sum =
-          thread_active ? LoadGpair(node_histogram + sorted_idx[scan_begin + threadIdx.x] - offset)
-                        : GradientPairPrecise();
+    bst_bin_t it_begin = gidx_begin;
+    bst_bin_t it_end = it_begin + n_bins - 1;
 
+    // forward
+    for (bst_bin_t scan_begin = it_begin; scan_begin < it_end; scan_begin += kBlockSize) {
+      auto it = scan_begin + threadIdx.x;
+      bool thread_active = it < it_end;
+
+      auto right_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - offset)
+                                     : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
       GradientPairPrecise left_sum = parent_sum - right_sum;
-      auto gain = thread_active ? evaluator.CalcSplitGain(param, nidx, fidx, left_sum, right_sum)
-                                : kNullGain;
 
-      // Find thread with best gain
-      auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
-      // This reduce result is only valid in thread 0
-      // broadcast to the rest of the warp
-      auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
-      // Best thread updates the split
-      if (threadIdx.x == best_thread) {
-        // index of best threshold inside a feature.
-        auto best_thresh = threadIdx.x + (scan_begin - gidx_begin);
-        best_split->UpdateCat(gain, kLeftDir, best_thresh, fidx, left_sum, right_sum, param);
-      }
+      PartitionUpdate(scan_begin, thread_active, true, it, left_sum, right_sum, best_split);
     }
-    cub::CTA_SYNC();
 
     // backward
-    bst_bin_t n_bins = gidx_end - gidx_begin;
-    bst_bin_t it_begin = gidx_end - 1;
-    bst_bin_t it_end = it_begin - n_bins + 1;
+    it_begin = gidx_end - 1;
+    it_end = it_begin - n_bins + 1;
     SumCallbackOp<GradientPairPrecise> backward_op;
     for (bst_bin_t scan_begin = it_begin; scan_begin > it_end; scan_begin -= kBlockSize) {
       auto it = scan_begin - static_cast<bst_bin_t>(threadIdx.x);
       bool thread_active = it > it_end;
+
       auto left_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - offset)
                                     : GradientPairPrecise();
+      // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, backward_op);
       GradientPairPrecise right_sum = parent_sum - left_sum;
-
-      auto gain = thread_active ? evaluator.CalcSplitGain(param, nidx, fidx, left_sum, right_sum)
-                                : kNullGain;
-
-      // Find thread with best gain
-      auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
-      // This reduce result is only valid in thread 0
-      // broadcast to the rest of the warp
-      auto best_thread = __shfl_sync(0xffffffff, best.key, 0);
-      // Best thread updates the split
-      if (threadIdx.x == best_thread) {
-        assert(thread_active);
-        // index of best threshold inside a feature.
-        // auto best_thresh = (it_begin - scan_begin) - static_cast<int32_t>(threadIdx.x);
-        auto best_thresh = scan_begin - static_cast<int32_t>(threadIdx.x) - gidx_begin;
-        assert(best_thresh > 0);
-        best_split->UpdateCat(gain, kRightDir, best_thresh, fidx, left_sum, right_sum, param);
-      }
+      PartitionUpdate(scan_begin, thread_active, false, it, left_sum, right_sum, best_split);
     }
   }
 };
@@ -267,7 +267,7 @@ __global__ __launch_bounds__(kBlockSize) void EvaluateSplitsKernel(
       auto total_bins = shared_inputs.feature_values.size();
       size_t offset = total_bins * input_idx;
       auto node_sorted_idx = sorted_idx.subspan(offset, total_bins);
-      agent.Partition(&best_split, node_sorted_idx, offset);
+      agent.Partition(&best_split, node_sorted_idx, offset, shared_inputs.param);
     }
   } else {
     agent.Numerical(&best_split);
