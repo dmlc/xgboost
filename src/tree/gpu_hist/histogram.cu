@@ -275,7 +275,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   constexpr int kItemsPerThread = 8;
   constexpr int kItemsPerTile = kBlockThreads * kItemsPerThread;
 
-  auto runit = [&, kMinItemsPerBlock=kItemsPerTile](auto kernel) {
+  auto runit = [&, kMinItemsPerBlock = kItemsPerTile](auto kernel) {
     if (shared) {
       dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                          max_shared_memory));
