@@ -246,16 +246,10 @@ class TestTreeMethod:
             booster = xgb.train(
                 parameters,
                 Xy,
-                num_boost_round=8,
+                num_boost_round=16,
                 evals=[(Xy, "Train")],
                 evals_result=evals_result
             )
-            import json
-            booster.save_model(f"{tree_method}.json")
-            with open(f"{tree_method}.json", "r") as fd:
-                model = json.load(fd)
-            with open(f"{tree_method}.json", "w") as fd:
-                json.dump(model, fd, indent=2)
             assert tm.non_increasing(evals_result["Train"]["rmse"])
             y_predt = booster.predict(Xy)
 
@@ -263,7 +257,7 @@ class TestTreeMethod:
             np.testing.assert_allclose(rmse, evals_result["Train"]["rmse"][-1])
 
         # Test with OHE split
-        # run(self.USE_ONEHOT)
+        run(self.USE_ONEHOT)
 
         # Test with partition-based split
         run(self.USE_PART)
@@ -400,7 +394,6 @@ class TestTreeMethod:
     )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    @reproduce_failure('6.47.1', b'AACGAQE=')
     def test_categorical_missing(self, rows, cols, cats):
-        # self.run_categorical_missing(rows, cols, cats, "approx")
+        self.run_categorical_missing(rows, cols, cats, "approx")
         self.run_categorical_missing(rows, cols, cats, "hist")
