@@ -196,6 +196,8 @@ class HistEvaluator {
       CHECK_GT(partition, 0);
       std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
                     [&](size_t c) { cat_bits.Set(c); });  // fixme: cut_values[c]
+      // printf("best_thresh setter: %d, forward: %d\n", static_cast<int32_t>(best_thresh),
+      //        static_cast<int32_t>(d_step == 1));
     }
 
     p_best->Update(best);

@@ -5,7 +5,7 @@ import testing as tm
 import pytest
 import xgboost as xgb
 import numpy as np
-from hypothesis import given, strategies, settings, note
+from hypothesis import given, strategies, settings, note, reproduce_failure
 
 exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(1, 4),
@@ -234,7 +234,7 @@ class TestTreeMethod:
     ) -> None:
         parameters: Dict[str, Any] = {"tree_method": tree_method}
         cat, label = tm.make_categorical(
-            n_samples=256, n_features=4, n_categories=8, onehot=False, sparsity=0.5
+            n_samples=rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
         )
         Xy = xgb.DMatrix(cat, label, enable_categorical=True)
 
@@ -246,10 +246,16 @@ class TestTreeMethod:
             booster = xgb.train(
                 parameters,
                 Xy,
-                num_boost_round=16,
+                num_boost_round=8,
                 evals=[(Xy, "Train")],
                 evals_result=evals_result
             )
+            import json
+            booster.save_model(f"{tree_method}.json")
+            with open(f"{tree_method}.json", "r") as fd:
+                model = json.load(fd)
+            with open(f"{tree_method}.json", "w") as fd:
+                json.dump(model, fd, indent=2)
             assert tm.non_increasing(evals_result["Train"]["rmse"])
             y_predt = booster.predict(Xy)
 
@@ -394,6 +400,7 @@ class TestTreeMethod:
     )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
+    @reproduce_failure('6.47.1', b'AACGAQE=')
     def test_categorical_missing(self, rows, cols, cats):
-        self.run_categorical_missing(rows, cols, cats, "approx")
+        # self.run_categorical_missing(rows, cols, cats, "approx")
         self.run_categorical_missing(rows, cols, cats, "hist")

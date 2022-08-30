@@ -27,7 +27,7 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
       evaluator.CalcSplitGain(param, nidx, fidx, left_sum, parent_sum - left_sum);
   float missing_right_gain = evaluator.CalcSplitGain(param, nidx, fidx, scan, parent_sum - scan);
 
-  missing_left_out = missing_left_gain > missing_right_gain;
+  missing_left_out = missing_left_gain >= missing_right_gain;
   return missing_left_out?missing_left_gain:missing_right_gain;
 }
 
@@ -176,6 +176,7 @@ class EvaluateSplitAgent {
       auto right_sum =
           thread_active ? LoadGpair(node_histogram + sorted_idx[scan_begin + threadIdx.x] - offset)
                         : GradientPairPrecise();
+
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
       GradientPairPrecise left_sum = parent_sum - right_sum - missing;
@@ -185,6 +186,7 @@ class EvaluateSplitAgent {
       float gain = thread_active ? LossChangeMissing(left_sum, missing, parent_sum, param, nidx,
                                                      fidx, evaluator, missing_left)
                                  : kNullGain;
+      // printf("l: %f, r: %f, gain: %f\n", left_sum.GetHess(), right_sum.GetHess(), gain);
 
       auto const thresh = threadIdx.x + scan_begin;
       auto const &forward = missing_left;
@@ -210,6 +212,7 @@ class EvaluateSplitAgent {
         // index of best threshold inside a feature.
         auto best_thresh = threadIdx.x + (scan_begin - gidx_begin);
         auto dft_dir = missing_left ? kLeftDir : kRightDir;
+        // printf("best_thresh: %d\n", static_cast<int32_t>(best_thresh));
         best_split->UpdateCat(gain, dft_dir, best_thresh, fidx, left, right, param);
       }
     }
@@ -291,18 +294,17 @@ __device__ void SetCategoricalSplit(const EvaluateSplitSharedInputs &shared_inpu
   auto node_sorted_idx = d_sorted_idx.subspan(shared_inputs.feature_values.size() * input_idx,
                                               shared_inputs.feature_values.size());
   size_t node_offset = input_idx * shared_inputs.feature_values.size();
-  auto best_thresh = out_split.thresh;
+  auto const best_thresh = out_split.thresh;
   if (best_thresh == -1) {
+    printf("Invalid split\n");
     return;
   }
-
   auto f_sorted_idx = node_sorted_idx.subspan(shared_inputs.feature_segments[fidx],
                                               shared_inputs.FeatureBins(fidx));
+  // bool forward = true;
   bool forward = out_split.dir == kLeftDir;
-  auto cut_ptr = shared_inputs.feature_segments;
-
-  auto n_bins = shared_inputs.FeatureBins(fidx);
-  bst_bin_t f_begin = cut_ptr[fidx];
+  // printf("best_thresh setter: %d, forward: %d\n", static_cast<int32_t>(best_thresh),
+  //        static_cast<int32_t>(forward));
 
   bst_bin_t partition = forward ? best_thresh + 1 : best_thresh;
   auto beg = dh::tcbegin(f_sorted_idx);

@@ -84,7 +84,7 @@ class TestGPUUpdaters:
     )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    @reproduce_failure('6.47.1', b'AAAAAAA=')
+    @reproduce_failure('6.47.1', b'AACGAQE=')
     def test_categorical_missing(self, rows, cols, cats):
         self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
 
