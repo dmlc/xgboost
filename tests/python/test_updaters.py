@@ -5,7 +5,7 @@ import testing as tm
 import pytest
 import xgboost as xgb
 import numpy as np
-from hypothesis import given, strategies, settings, note, reproduce_failure
+from hypothesis import given, strategies, settings, note
 
 exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(1, 4),

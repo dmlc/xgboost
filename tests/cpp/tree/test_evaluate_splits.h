@@ -97,19 +97,5 @@ class TestPartitionBasedSplit : public ::testing::Test {
     } while (std::next_permutation(sorted_idx_.begin(), sorted_idx_.end()));
   }
 };
-
-class TestPartitionBasedEvaluation : public testing::Test {
-  common::HistogramCuts cuts;
-
- public:
-  void SetUp() override {
-    cuts.cut_values_.HostVector() = std::vector<float>{0.0, 1.0, 2.0};
-    cuts.cut_ptrs_.HostVector() = std::vector<uint32_t>{0, 3};
-    cuts.min_vals_.HostVector() = std::vector<float>{0.0};
-
-    auto max_cat = *std::max_element(cuts.Values().begin(), cuts.Values().end());
-    cuts.SetCategorical(true, max_cat);
-  }
-};
 }  // namespace tree
 }  // namespace xgboost
