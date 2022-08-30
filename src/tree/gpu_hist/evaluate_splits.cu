@@ -216,7 +216,7 @@ class EvaluateSplitAgent {
     // backward
     it_begin = gidx_end - 1;
     it_end = it_begin - n_bins + 1;
-    SumCallbackOp<GradientPairPrecise> backward_op;
+    prefix_op = SumCallbackOp<GradientPairPrecise>{};  // reset
     for (bst_bin_t scan_begin = it_begin; scan_begin > it_end; scan_begin -= kBlockSize) {
       auto it = scan_begin - static_cast<bst_bin_t>(threadIdx.x);
       bool thread_active = it > it_end;
@@ -224,7 +224,7 @@ class EvaluateSplitAgent {
       auto left_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - offset)
                                     : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
-      BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, backward_op);
+      BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, prefix_op);
       GradientPairPrecise right_sum = parent_sum - left_sum;
       PartitionUpdate(scan_begin, thread_active, false, it, left_sum, right_sum, best_split);
     }
