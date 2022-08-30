@@ -143,6 +143,7 @@ class HistEvaluator {
     static_assert(d_step == +1 || d_step == -1, "Invalid step.");
 
     auto const &cut_ptr = cut.Ptrs();
+    auto const &cut_val = cut.Values();
     auto const &parent = snode_[nidx];
 
     bst_bin_t f_begin = cut_ptr[fidx];
@@ -194,8 +195,10 @@ class HistEvaluator {
       common::CatBitField cat_bits{best.cat_bits};
       bst_bin_t partition = d_step == 1 ? (best_thresh - it_begin + 1) : (best_thresh - f_begin);
       CHECK_GT(partition, 0);
-      std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition,
-                    [&](size_t c) { cat_bits.Set(c); });  // fixme: cut_values[c]
+      std::for_each(sorted_idx.begin(), sorted_idx.begin() + partition, [&](size_t c) {
+        auto cat = cut_val[c + f_begin];
+        cat_bits.Set(cat);
+      });
     }
 
     p_best->Update(best);
