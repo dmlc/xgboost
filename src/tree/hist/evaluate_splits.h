@@ -190,7 +190,7 @@ class HistEvaluator {
     }
 
     if (best_thresh != -1) {
-      auto n = common::CatBitField::ComputeStorageSize(n_bins_feature + 1);
+      auto n = common::CatBitField::ComputeStorageSize(n_bins_feature);
       best.cat_bits = decltype(best.cat_bits)(n, 0);
       common::CatBitField cat_bits{best.cat_bits};
       bst_bin_t partition = d_step == 1 ? (best_thresh - it_begin + 1) : (best_thresh - f_begin);

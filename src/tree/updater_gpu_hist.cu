@@ -608,7 +608,7 @@ struct GPUHistMakerDevice {
       CHECK_GT(candidate.split.split_cats.Bits().size(), 0);
       auto h_cats = this->evaluator_.GetHostNodeCats(candidate.nid);
       auto n_bins_feature = page->Cuts().FeatureBins(candidate.split.findex);
-      split_cats.resize(common::CatBitField::ComputeStorageSize(n_bins_feature + 1), 0);
+      split_cats.resize(common::CatBitField::ComputeStorageSize(n_bins_feature), 0);
       CHECK_LE(split_cats.size(), h_cats.size());
       std::copy(h_cats.data(), h_cats.data() + split_cats.size(), split_cats.data());
 
