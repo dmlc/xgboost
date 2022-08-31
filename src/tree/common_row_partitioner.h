@@ -55,27 +55,6 @@ class CommonRowPartitioner {
     row_set_collection_.Init();
   }
 
-  static auto SearchCutValue(bst_row_t ridx, bst_feature_t fidx, GHistIndexMatrix const &index,
-                             std::vector<uint32_t> const &cut_ptrs,
-                             std::vector<float> const &cut_values) {
-    int32_t gidx = -1;
-    if (index.IsDense()) {
-      // RowIdx returns the starting pos of this row
-      gidx = index.index[index.RowIdx(ridx) + fidx];
-    } else {
-      auto begin = index.RowIdx(ridx);
-      auto end = index.RowIdx(ridx + 1);
-      auto f_begin = cut_ptrs[fidx];
-      auto f_end = cut_ptrs[fidx + 1];
-      gidx = common::BinarySearchBin(begin, end, index.index, f_begin, f_end);
-    }
-    if (gidx == -1) {
-      return std::numeric_limits<float>::quiet_NaN();
-    }
-    // FIXME
-    return cut_values.at(gidx);
-  }
-
   void FindSplitConditions(const std::vector<CPUExpandEntry> &nodes,
                            const RegTree &tree, const GHistIndexMatrix &gmat,
                            std::vector<int32_t> *split_conditions) {
@@ -114,11 +93,9 @@ class CommonRowPartitioner {
   void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     if (gmat.cut.HasCategorical()) {
-      constexpr bool any_cat = true;
-      this->template UpdatePosition<any_cat>(ctx, gmat, nodes, p_tree);
+      this->template UpdatePosition<true>(ctx, gmat, nodes, p_tree);
     } else {
-      constexpr bool any_cat = false;
-      this->template UpdatePosition<any_cat>(ctx, gmat, nodes, p_tree);
+      this->template UpdatePosition<false>(ctx, gmat, nodes, p_tree);
     }
   }
 
@@ -127,11 +104,9 @@ class CommonRowPartitioner {
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     auto const& column_matrix = gmat.Transpose();
     if (column_matrix.AnyMissing()) {
-      constexpr bool any_missing = true;
-      this->template UpdatePosition<any_missing, any_cat>(ctx, gmat, column_matrix, nodes, p_tree);
+      this->template UpdatePosition<true, any_cat>(ctx, gmat, column_matrix, nodes, p_tree);
     } else {
-      constexpr bool any_missing = false;
-      this->template UpdatePosition<any_missing, any_cat>(ctx, gmat, column_matrix, nodes, p_tree);
+      this->template UpdatePosition<false, any_cat>(ctx, gmat, column_matrix, nodes, p_tree);
     }
   }
 
@@ -164,7 +139,6 @@ class CommonRowPartitioner {
                       std::vector<CPUExpandEntry> const &nodes, RegTree const *p_tree) {
     // 1. Find split condition for each split
     size_t n_nodes = nodes.size();
-
 
     std::vector<int32_t> split_conditions(n_nodes);
     FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
