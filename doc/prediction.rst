@@ -153,7 +153,7 @@ underlying booster is ``gbtree`` or ``dart``, which means as long as tree model 
 prediction itself should thread safe.  But the safety is only guaranteed with prediction.
 If one tries to train a model in one thread and provide prediction at the other using the
 same model the behaviour is undefined.  This happens easier than one might expect, for
-instance we might accidientally call ``clf.set_params()`` inside a predict function:
+instance we might accidentally call ``clf.set_params()`` inside a predict function:
 
 .. code-block:: python
 
