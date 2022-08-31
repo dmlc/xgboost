@@ -14,6 +14,45 @@
 namespace xgboost {
 namespace data {
 
+IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
+                                   std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
+                                   XGDMatrixCallbackNext* next, float missing, int nthread,
+                                   bst_bin_t max_bin)
+    : proxy_{proxy}, reset_{reset}, next_{next} {
+  // fetch the first batch
+  auto iter =
+      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
+  iter.Reset();
+  bool valid = iter.Next();
+  CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
+
+  auto d = MakeProxy(proxy_)->DeviceIdx();
+
+  StringView msg{"All batch should be on the same device."};
+  if (batch_param_.gpu_id != Context::kCpuId) {
+    CHECK_EQ(d, batch_param_.gpu_id) << msg;
+  }
+
+  int32_t max_device{d};
+  rabit::Allreduce<rabit::op::Max>(&max_device, 1);
+  if (max_device != d) {
+    CHECK_EQ(MakeProxy(proxy_)->Info().num_row_, 0);
+    CHECK_NE(d, Context::kCpuId) << msg;
+    d = max_device;
+  }
+
+  batch_param_ = BatchParam{d, max_bin};
+  batch_param_.sparse_thresh = 0.2;  // default from TrainParam
+
+  ctx_.UpdateAllowUnknown(
+      Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
+  if (ctx_.IsCPU()) {
+    this->InitFromCPU(iter_handle, missing, ref);
+  } else {
+    this->InitFromCUDA(iter_handle, missing, ref);
+  }
+}
+
 void GetCutsFromRef(std::shared_ptr<DMatrix> ref_, bst_feature_t n_features, BatchParam p,
                     common::HistogramCuts* p_cuts) {
   CHECK(ref_);
@@ -199,6 +238,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
   if (n_batches == 1) {
     this->info_ = std::move(proxy->Info());
     this->info_.num_nonzero_ = nnz;
+    this->info_.num_col_ = n_features;  // proxy might be empty.
     CHECK_EQ(proxy->Info().labels.Size(), 0);
   }
 }
