@@ -10,9 +10,11 @@ namespace xgboost {
 void CopyEllpackToGHist(Context const* ctx, MetaInfo const& info, EllpackPageImpl const& page,
                         GHistIndexMatrix* p_out) {
   CHECK_EQ(info.num_row_, page.Size());
-  auto cuts = page.Cuts();
   GHistIndexMatrix& out = *p_out;
   out.cut = page.Cuts();
+  out.cut.Ptrs();
+  out.cut.Values();
+  out.cut.MinValues();
 
   out.ResizeIndex(info.num_nonzero_, page.is_dense);
   if (page.is_dense) {
@@ -84,8 +86,12 @@ void CopyEllpackToGHist(Context const* ctx, MetaInfo const& info, EllpackPageImp
       hit_count_tloc[tid * n_bins_total + idx] = 0;  // reset for next batch
     }
   });
+
   CHECK_EQ(out.Features(), info.num_col_);
   CHECK_EQ(out.Size(), info.num_row_);
+  CHECK(out.cut.cut_ptrs_.HostCanRead());
+  CHECK(out.cut.cut_values_.HostCanRead());
+  CHECK(out.cut.min_vals_.HostCanRead());
 }
 
 GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
