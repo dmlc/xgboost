@@ -150,7 +150,6 @@ class ColumnMatrix {
     // pre-fill index_ for dense columns
     auto n_features = gmat.Features();
     if (!any_missing_) {
-      missing_flags_.resize(feature_offsets_[n_features], false);
       // row index is compressed, we need to dispatch it.
       DispatchBinType(gmat.index.GetBinTypeSize(), [&, size = batch.Size(), n_features = n_features,
                                                     n_threads = n_threads](auto t) {
@@ -210,6 +209,7 @@ class ColumnMatrix {
   template <typename RowBinIdxT>
   void SetIndexNoMissing(bst_row_t base_rowid, RowBinIdxT const* row_index, const size_t n_samples,
                          const size_t n_features, int32_t n_threads) {
+    missing_flags_.resize(feature_offsets_[n_features], false);
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
       auto column_index = Span<ColumnBinT>{reinterpret_cast<ColumnBinT*>(index_.data()),

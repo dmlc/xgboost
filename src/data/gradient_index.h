@@ -150,6 +150,13 @@ class GHistIndexMatrix {
    */
   GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts, bst_bin_t max_bin_per_feat);
   /**
+   * \brief Constructor fro Iterative DMatrix where we might copy an existing ellpack page
+   *        to host gradient index.
+   */
+  GHistIndexMatrix(Context const* ctx, MetaInfo const& info, EllpackPage const& page,
+                   BatchParam const& p);
+
+  /**
    * \brief Constructor for external memory.
    */
   GHistIndexMatrix(SparsePage const& page, common::Span<FeatureType const> ft,
