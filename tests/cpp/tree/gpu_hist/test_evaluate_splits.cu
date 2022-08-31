@@ -68,7 +68,11 @@ void TestEvaluateSingleSplit(bool is_categorical) {
   DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
 
   EXPECT_EQ(result.findex, 1);
-  EXPECT_EQ(result.fvalue, 11.0);
+  if (is_categorical) {
+    ASSERT_TRUE(std::isnan(result.fvalue));
+  } else {
+    EXPECT_EQ(result.fvalue, 11.0);
+  }
   EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(),
                   parent_sum.GetGrad());
   EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(),
