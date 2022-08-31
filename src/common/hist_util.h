@@ -22,6 +22,7 @@
 #include "row_set.h"
 #include "threading_utils.h"
 #include "timer.h"
+#include "algorithm.h"  // SegmentId
 
 namespace xgboost {
 class GHistIndexMatrix;
@@ -144,6 +145,18 @@ class HistogramCuts {
     return bin_idx;
   }
   bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
+
+  static bst_feature_t SearchFeature(std::vector<uint32_t> const& ptrs, bst_bin_t bin_idx) {
+    auto fidx = SegmentId(ptrs.cbegin(), ptrs.cend(), bin_idx);
+    return fidx;
+  }
+  /**
+   * \brief Search the feature index with histogram bin index.
+   */
+  bst_feature_t SearchFeature(bst_bin_t bin_idx) {
+    auto const& ptrs = this->Ptrs();  // might race due to pulling data to host.
+    return SearchFeature(ptrs, bin_idx);
+  }
 };
 
 /**

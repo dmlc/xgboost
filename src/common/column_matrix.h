@@ -18,6 +18,7 @@
 
 #include "../data/adapter.h"
 #include "../data/gradient_index.h"
+#include "algorithm.h"
 #include "hist_util.h"
 
 namespace xgboost {
@@ -157,8 +158,57 @@ class ColumnMatrix {
         SetIndexNoMissing(base_rowid, gmat.index.data<RowBinIdxT>(), size, n_features, n_threads);
       });
     } else {
-      missing_flags_.resize(feature_offsets_[n_features], true);
       SetIndexMixedColumns(base_rowid, batch, gmat, n_features, missing);
+    }
+  }
+
+  void PushBatch(int32_t n_threads, GHistIndexMatrix const& gmat) {
+    auto n_features = gmat.Features();
+    if (!any_missing_) {
+      // row index is compressed, we need to dispatch it.
+      DispatchBinType(gmat.index.GetBinTypeSize(), [&, size = gmat.Size(), n_threads = n_threads,
+                                                    n_features = n_features](auto t) {
+        using RowBinIdxT = decltype(t);
+        SetIndexNoMissing(gmat.base_rowid, gmat.index.data<RowBinIdxT>(), size, n_features,
+                          n_threads);
+      });
+    } else {
+      missing_flags_.resize(feature_offsets_[n_features], true);
+      auto const* row_index = gmat.index.data<uint32_t>() + gmat.row_ptr[gmat.base_rowid];
+      auto const& ptrs = gmat.cut.Ptrs();
+      num_nonzeros_.resize(n_features, 0);
+
+      DispatchBinType(bins_type_size_, [&](auto t) {
+        using ColumnBinT = decltype(t);
+        ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
+
+        auto get_bin_idx = [&](auto bin_id, auto rid, bst_feature_t fid) {
+          if (type_[fid] == kDenseColumn) {
+            ColumnBinT* begin = reinterpret_cast<ColumnBinT*>(&local_index[feature_offsets_[fid]]);
+            begin[rid] = bin_id - index_base_[fid];
+            // not thread-safe with bool vector.  FIXME(jiamingy): We can directly assign
+            // kMissingId to the index to avoid missing flags.
+            missing_flags_[feature_offsets_[fid] + rid] = false;
+          } else {
+            ColumnBinT* begin = reinterpret_cast<ColumnBinT*>(&local_index[feature_offsets_[fid]]);
+            begin[num_nonzeros_[fid]] = bin_id - index_base_[fid];
+            row_ind_[feature_offsets_[fid] + num_nonzeros_[fid]] = rid;
+            ++num_nonzeros_[fid];
+          }
+        };
+        auto batch_size = gmat.Size();
+        size_t k{0};
+        for (size_t ridx = 0; ridx < batch_size; ++ridx) {
+          auto r_beg = gmat.row_ptr[ridx];
+          auto r_end = gmat.row_ptr[ridx + 1];
+          for (size_t j = r_beg; j < r_end; ++j) {
+            const uint32_t bin_idx = row_index[k];
+            auto fidx = HistogramCuts::SearchFeature(ptrs, bin_idx);
+            get_bin_idx(bin_idx, ridx, fidx);
+            ++k;
+          }
+        }
+      });
     }
   }
 
@@ -233,6 +283,7 @@ class ColumnMatrix {
   template <typename Batch>
   void SetIndexMixedColumns(size_t base_rowid, Batch const& batch, const GHistIndexMatrix& gmat,
                             size_t n_features, float missing) {
+    missing_flags_.resize(feature_offsets_[n_features], true);
     auto const* row_index = gmat.index.data<uint32_t>() + gmat.row_ptr[base_rowid];
     auto is_valid = data::IsValidFunctor {missing};
 

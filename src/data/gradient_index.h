@@ -81,6 +81,17 @@ class GHistIndexMatrix {
     });
   }
 
+  // Gather hit_count from all threads
+  void GatherHitCount(int32_t n_threads, bst_bin_t n_bins_total) {
+    CHECK_EQ(hit_count.size(), n_bins_total);
+    common::ParallelFor(n_bins_total, n_threads, [&](bst_omp_uint idx) {
+      for (int32_t tid = 0; tid < n_threads; ++tid) {
+        hit_count[idx] += hit_count_tloc_[tid * n_bins_total + idx];
+        hit_count_tloc_[tid * n_bins_total + idx] = 0;  // reset for next batch
+      }
+    });
+  }
+
   template <typename Batch, typename IsValid>
   void PushBatchImpl(int32_t n_threads, Batch const& batch, size_t rbegin, IsValid&& is_valid,
                      common::Span<FeatureType const> ft) {
@@ -115,13 +126,7 @@ class GHistIndexMatrix {
       SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
                    [](auto idx, auto) { return idx; });
     }
-
-    common::ParallelFor(n_bins_total, n_threads, [&](bst_omp_uint idx) {
-      for (int32_t tid = 0; tid < n_threads; ++tid) {
-        hit_count[idx] += hit_count_tloc_[tid * n_bins_total + idx];
-        hit_count_tloc_[tid * n_bins_total + idx] = 0;  // reset for next batch
-      }
-    });
+    this->GatherHitCount(n_threads, n_bins_total);
   }
 
  public:
@@ -134,7 +139,7 @@ class GHistIndexMatrix {
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
   /*! \brief max_bin for each feature. */
-  size_t max_num_bins;
+  bst_bin_t max_num_bins;
   /*! \brief base row index for current page (used by external memory) */
   size_t base_rowid{0};
 
