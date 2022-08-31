@@ -132,6 +132,7 @@ struct DeviceSplitCandidate {
        << "dir: " << c.dir << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
+       << "thresh: " << c.thresh << ", "
        << "is_cat: " << c.is_cat << ", "
        << "left sum: " << c.left_sum << ", "
        << "right sum: " << c.right_sum << std::endl;

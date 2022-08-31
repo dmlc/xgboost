@@ -166,7 +166,9 @@ class EvaluateSplitAgent {
       }
     }
   }
-
+  /**
+   * \brief Gather and update the best split.
+   */
   __device__ __forceinline__ void PartitionUpdate(bst_bin_t scan_begin, bool thread_active,
                                                   bool missing_left, bst_bin_t it,
                                                   GradientPairPrecise const &left_sum,
@@ -189,10 +191,13 @@ class EvaluateSplitAgent {
                             right_sum, param);
     }
   }
-
+  /**
+   * \brief Partition-based split for categorical feature.
+   */
   __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
                                             common::Span<bst_feature_t> sorted_idx,
-                                            std::size_t offset, GPUTrainingParam const& param) {
+                                            std::size_t node_offset,
+                                            GPUTrainingParam const &param) {
     bst_bin_t n_bins_feature = gidx_end - gidx_begin;
     auto n_bins = std::min(param.max_cat_threshold, n_bins_feature);
 
@@ -201,10 +206,10 @@ class EvaluateSplitAgent {
 
     // forward
     for (bst_bin_t scan_begin = it_begin; scan_begin < it_end; scan_begin += kBlockSize) {
-      auto it = scan_begin + threadIdx.x;
+      auto it = scan_begin + static_cast<bst_bin_t>(threadIdx.x);
       bool thread_active = it < it_end;
 
-      auto right_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - offset)
+      auto right_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - node_offset)
                                      : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
@@ -217,15 +222,17 @@ class EvaluateSplitAgent {
     it_begin = gidx_end - 1;
     it_end = it_begin - n_bins + 1;
     prefix_op = SumCallbackOp<GradientPairPrecise>{};  // reset
+
     for (bst_bin_t scan_begin = it_begin; scan_begin > it_end; scan_begin -= kBlockSize) {
       auto it = scan_begin - static_cast<bst_bin_t>(threadIdx.x);
       bool thread_active = it > it_end;
 
-      auto left_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - offset)
+      auto left_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - node_offset)
                                     : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, prefix_op);
       GradientPairPrecise right_sum = parent_sum - left_sum;
+
       PartitionUpdate(scan_begin, thread_active, false, it, left_sum, right_sum, best_split);
     }
   }
