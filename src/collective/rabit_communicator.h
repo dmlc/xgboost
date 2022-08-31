@@ -5,6 +5,7 @@
 #include <rabit/rabit.h>
 
 #include <string>
+#include <vector>
 
 #include "communicator.h"
 #include "xgboost/json.h"
