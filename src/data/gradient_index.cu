@@ -50,13 +50,12 @@ void GetRowPtrFromEllpack(Context const* ctx, EllpackPageImpl const* page,
     auto accessor = page->GetHostAccessor();
     auto const kNull = static_cast<bst_bin_t>(accessor.NullValue());
 
-    std::vector<size_t> row_size(page->Size() + 1, 0);
     common::ParallelFor(page->Size(), ctx->Threads(), [&](auto i) {
       size_t ibegin = page->row_stride * i;
       for (size_t j = 0; j < page->row_stride; ++j) {
-        auto bin_idx = accessor.gidx_iter[ibegin + j];
+        bst_bin_t bin_idx = accessor.gidx_iter[ibegin + j];
         if (bin_idx != kNull) {
-          row_size[i + 1]++;
+          row_ptr[i + 1]++;
         }
       }
     });
@@ -93,7 +92,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   } else {
     // no compression
     ::xgboost::SetIndexData<uint32_t>(
-        ctx, page, &hit_count_tloc_, [&](auto bin_idx, auto fidx) { return bin_idx; }, this);
+        ctx, page, &hit_count_tloc_, [&](auto bin_idx, auto) { return bin_idx; }, this);
   }
 
   this->hit_count.resize(n_bins_total, 0);

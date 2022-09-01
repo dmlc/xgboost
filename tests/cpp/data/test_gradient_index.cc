@@ -139,8 +139,12 @@ class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, flo
       auto const &gidx_from_ellpack = from_ellpack->index;
 
       for (size_t i = 0; i < gidx_from_sparse.Size(); ++i) {
-        EXPECT_EQ(gidx_from_sparse[i], gidx_from_ellpack[i]);
+        ASSERT_EQ(gidx_from_sparse[i], gidx_from_ellpack[i]);
       }
+
+      auto const& columns_from_sparse = from_sparse_page.Transpose();
+      auto const& columns_from_ellpack = from_ellpack->Transpose();
+      ASSERT_EQ(columns_from_sparse.AnyMissing(), columns_from_ellpack.AnyMissing());
     }
   }
 };
@@ -160,6 +164,7 @@ INSTANTIATE_TEST_SUITE_P(GHistIndexMatrix, GHistIndexMatrixTest,
                                          std::make_tuple(1.f, .2),    // no missing
                                          std::make_tuple(.5f, .6),    // sparse columns
                                          std::make_tuple(.6f, .4)));  // dense columns
-#endif
+
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace data
 }  // namespace xgboost
