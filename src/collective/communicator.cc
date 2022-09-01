@@ -52,7 +52,7 @@ void Communicator::Init(Json const& config) {
 }
 
 #ifndef XGBOOST_USE_CUDA
-void CommunicatorFactory::Finalize() { communicator_.reset(); }
+void Communicator::Finalize() { communicator_.reset(); }
 #endif
 
 }  // namespace collective
