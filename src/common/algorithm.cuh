@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 by XGBoost Contributors
+ */
 #pragma once
 
 #include <thrust/binary_search.h>     // thrust::upper_bound

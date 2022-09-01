@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 by XGBoost Contributors
+ */
 #pragma once
 #include <algorithm>  // std::upper_bound
 #include <cinttypes>  // std::size_t
