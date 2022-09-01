@@ -38,7 +38,7 @@ void SetIndexData(Context const* ctx, EllpackPageImpl const* page,
       ++hit_count_tloc[tid * n_bins_total + bin_idx];
     }
   });
-};
+}
 
 void GetRowPtrFromEllpack(Context const* ctx, EllpackPageImpl const* page,
                           std::vector<size_t>* p_out) {
