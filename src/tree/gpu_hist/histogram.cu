@@ -275,7 +275,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   constexpr int kItemsPerThread = 8;
   constexpr int kItemsPerTile = kBlockThreads * kItemsPerThread;
 
-  auto runit = [&](auto kernel) {
+  auto runit = [&, kMinItemsPerBlock = kItemsPerTile](auto kernel) {
     if (shared) {
       dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                          max_shared_memory));
@@ -295,7 +295,6 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
     // Otherwise launch blocks such that each block has a minimum amount of work to do
     // There are fixed costs to launching each block, e.g. zeroing shared memory
     // The below amount of minimum work was found by experimentation
-    constexpr int kMinItemsPerBlock = kItemsPerTile;
     int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
     // Average number of matrix elements processed by each group
     std::size_t items_per_group = d_ridx.size() * columns_per_group;
