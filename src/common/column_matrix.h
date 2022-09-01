@@ -266,7 +266,7 @@ class ColumnMatrix {
     DispatchBinType(bins_type_size_, [&](auto t) {
       using ColumnBinT = decltype(t);
       ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
-      size_t const batch_size = gmat.Size();
+      size_t const batch_size = batch.Size();
       size_t k{0};
       for (size_t rid = 0; rid < batch_size; ++rid) {
         auto line = batch.GetLine(rid);
