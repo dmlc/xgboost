@@ -5,6 +5,7 @@
 #include <xgboost/data.h>
 
 #include "../../../src/common/column_matrix.h"
+#include "../../../src/common/io.h"  // MemoryBufferStream
 #include "../../../src/data/gradient_index.h"
 #include "../helpers.h"
 
@@ -142,9 +143,26 @@ class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, flo
         ASSERT_EQ(gidx_from_sparse[i], gidx_from_ellpack[i]);
       }
 
-      auto const& columns_from_sparse = from_sparse_page.Transpose();
-      auto const& columns_from_ellpack = from_ellpack->Transpose();
+      auto const &columns_from_sparse = from_sparse_page.Transpose();
+      auto const &columns_from_ellpack = from_ellpack->Transpose();
       ASSERT_EQ(columns_from_sparse.AnyMissing(), columns_from_ellpack.AnyMissing());
+      ASSERT_EQ(columns_from_sparse.GetTypeSize(), columns_from_ellpack.GetTypeSize());
+      ASSERT_EQ(columns_from_sparse.GetNumFeature(), columns_from_ellpack.GetNumFeature());
+      for (size_t i = 0; i < n_features; ++i) {
+        ASSERT_EQ(columns_from_sparse.GetColumnType(i), columns_from_ellpack.GetColumnType(i));
+      }
+
+      std::string from_sparse_buf;
+      {
+        common::MemoryBufferStream fo{&from_sparse_buf};
+        columns_from_sparse.Write(&fo);
+      }
+      std::string from_ellpack_buf;
+      {
+        common::MemoryBufferStream fo{&from_ellpack_buf};
+        columns_from_sparse.Write(&fo);
+      }
+      ASSERT_EQ(from_sparse_buf, from_ellpack_buf);
     }
   }
 };
