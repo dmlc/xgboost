@@ -107,5 +107,59 @@ TEST(GradientIndex, PushBatch) {
   test(0.5f);
   test(0.9f);
 }
+
+#if defined(XGBOOST_USE_CUDA)
+
+namespace {
+class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, float>> {
+ protected:
+  void Run(float density, double threshold) {
+    // Only testing with small sample size as the cuts might be different between host and
+    // device.
+    size_t n_samples{128}, n_features{13};
+    Context ctx;
+    ctx.gpu_id = 0;
+    auto Xy = RandomDataGenerator{n_samples, n_features, 1 - density}.GenerateDMatrix(true);
+    std::unique_ptr<GHistIndexMatrix> from_ellpack;
+    ASSERT_TRUE(Xy->SingleColBlock());
+    bst_bin_t constexpr kBins{17};
+    auto p = BatchParam{kBins, threshold};
+    for (auto const &page : Xy->GetBatches<EllpackPage>(BatchParam{0, kBins})) {
+      from_ellpack.reset(new GHistIndexMatrix{&ctx, Xy->Info(), page, p});
+    }
+
+    for (auto const &from_sparse_page : Xy->GetBatches<GHistIndexMatrix>(p)) {
+      ASSERT_EQ(from_sparse_page.IsDense(), from_ellpack->IsDense());
+      ASSERT_EQ(from_sparse_page.base_rowid, 0);
+      ASSERT_EQ(from_sparse_page.base_rowid, from_ellpack->base_rowid);
+      ASSERT_EQ(from_sparse_page.Size(), from_ellpack->Size());
+      ASSERT_EQ(from_sparse_page.index.Size(), from_ellpack->index.Size());
+
+      auto const &gidx_from_sparse = from_sparse_page.index;
+      auto const &gidx_from_ellpack = from_ellpack->index;
+
+      for (size_t i = 0; i < gidx_from_sparse.Size(); ++i) {
+        EXPECT_EQ(gidx_from_sparse[i], gidx_from_ellpack[i]);
+      }
+    }
+  }
+};
+}  // anonymous namespace
+
+TEST_P(GHistIndexMatrixTest, FromEllpack) {
+  float sparsity;
+  double thresh;
+  std::tie(sparsity, thresh) = GetParam();
+  this->Run(sparsity, thresh);
+}
+
+INSTANTIATE_TEST_SUITE_P(GHistIndexMatrix, GHistIndexMatrixTest,
+                         testing::Values(std::make_tuple(1.f, .0),    // no missing
+                                         std::make_tuple(.2f, .8),    // sparse columns
+                                         std::make_tuple(.8f, .2),    // dense columns
+                                         std::make_tuple(1.f, .2),    // no missing
+                                         std::make_tuple(.5f, .6),    // sparse columns
+                                         std::make_tuple(.6f, .4)));  // dense columns
+#endif
 }  // namespace data
 }  // namespace xgboost

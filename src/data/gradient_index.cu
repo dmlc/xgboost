@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 by XGBoost Contributors
+ */
 #include <memory>  // std::unique_ptr
 
 #include "../common/column_matrix.h"

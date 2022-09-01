@@ -66,6 +66,13 @@ GHistIndexMatrix::GHistIndexMatrix(MetaInfo const &info, common::HistogramCuts &
       max_num_bins(max_bin_per_feat),
       isDense_{info.num_col_ * info.num_row_ == info.num_nonzero_} {}
 
+#if !defined(XGBOOST_USE_CUDA)
+GHistIndexMatrix::GHistIndexMatrix(Context const *, MetaInfo const &, EllpackPage const &,
+                                   BatchParam const &) {
+  common::AssertGPUSupport();
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
 GHistIndexMatrix::~GHistIndexMatrix() = default;
 
 void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureType const> ft,
