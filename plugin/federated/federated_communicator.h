@@ -16,6 +16,79 @@ namespace collective {
  */
 class FederatedCommunicator : public Communicator {
  public:
+  static Communicator *Create(Json const &config) {
+    std::string server_address{};
+    int world_size{0};
+    int rank{-1};
+    std::string server_cert{};
+    std::string client_key{};
+    std::string client_cert{};
+
+    // Parse environment variables first.
+    auto *value = getenv("FEDERATED_SERVER_ADDRESS");
+    if (value != nullptr) {
+      server_address = value;
+    }
+    value = getenv("FEDERATED_WORLD_SIZE");
+    if (value != nullptr) {
+      world_size = std::stoi(value);
+    }
+    value = getenv("FEDERATED_RANK");
+    if (value != nullptr) {
+      rank = std::stoi(value);
+    }
+    value = getenv("FEDERATED_SERVER_CERT");
+    if (value != nullptr) {
+      server_cert = value;
+    }
+    value = getenv("FEDERATED_CLIENT_KEY");
+    if (value != nullptr) {
+      client_key = value;
+    }
+    value = getenv("FEDERATED_CLIENT_CERT");
+    if (value != nullptr) {
+      client_cert = value;
+    }
+
+    // Runtime configuration overrides.
+    auto const &j_server_address = config["federated_server_address"];
+    if (IsA<String const>(j_server_address)) {
+      server_address = get<String const>(j_server_address);
+    }
+    auto const &j_world_size = config["federated_world_size"];
+    if (IsA<Integer const>(j_world_size)) {
+      world_size = static_cast<int>(get<Integer const>(j_world_size));
+    }
+    auto const &j_rank = config["federated_rank"];
+    if (IsA<Integer const>(j_rank)) {
+      rank = static_cast<int>(get<Integer const>(j_rank));
+    }
+    auto const &j_server_cert = config["federated_server_cert"];
+    if (IsA<String const>(j_server_cert)) {
+      server_cert = get<String const>(j_server_cert);
+    }
+    auto const &j_client_key = config["federated_client_key"];
+    if (IsA<String const>(j_client_key)) {
+      client_key = get<String const>(j_client_key);
+    }
+    auto const &j_client_cert = config["federated_client_cert"];
+    if (IsA<String const>(j_client_cert)) {
+      client_cert = get<String const>(j_client_cert);
+    }
+
+    if (server_address.empty()) {
+      LOG(FATAL) << "Federated server address must be set.";
+    }
+    if (world_size == 0) {
+      LOG(FATAL) << "Federated world size must be set.";
+    }
+    if (rank == -1) {
+      LOG(FATAL) << "Federated rank must be set.";
+    }
+    return new FederatedCommunicator(world_size, rank, server_address, server_cert, client_key,
+                                     client_cert);
+  }
+
   /**
    * @brief Construct a new federated communicator.
    *
@@ -26,9 +99,13 @@ class FederatedCommunicator : public Communicator {
                         std::string const &server_cert_path, std::string const &client_key_path,
                         std::string const &client_cert_path)
       : Communicator{world_size, rank} {
-    client_.reset(new xgboost::federated::FederatedClient(
-        server_address, rank, xgboost::common::ReadAll(server_cert_path),
-        xgboost::common::ReadAll(client_key_path), xgboost::common::ReadAll(client_cert_path)));
+    if (server_cert_path.empty() || client_key_path.empty() || client_cert_path.empty()) {
+      client_.reset(new xgboost::federated::FederatedClient(server_address, rank));
+    } else {
+      client_.reset(new xgboost::federated::FederatedClient(
+          server_address, rank, xgboost::common::ReadAll(server_cert_path),
+          xgboost::common::ReadAll(client_key_path), xgboost::common::ReadAll(client_cert_path)));
+    }
   }
 
   /** @brief Insecure communicator for testing only. */
@@ -69,109 +146,5 @@ class FederatedCommunicator : public Communicator {
  private:
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
 };
-
-class FederatedCommunicatorFactory {
- public:
-  explicit FederatedCommunicatorFactory(Json const &config) {
-    // Parse environment variables first.
-    for (auto const &env_var : env_vars_) {
-      char const *value = getenv(env_var.c_str());
-      if (value != nullptr) {
-        SetParam(env_var, value);
-      }
-    }
-
-    // Runtime configuration overrides.
-    auto const &j_server_address = config["federated_server_address"];
-    if (IsA<String const>(j_server_address)) {
-      server_address_ = get<String const>(j_server_address);
-    }
-    auto const &j_world_size = config["federated_world_size"];
-    if (IsA<Integer const>(j_world_size)) {
-      world_size_ = static_cast<int>(get<Integer const>(j_world_size));
-    }
-    auto const &j_rank = config["federated_rank"];
-    if (IsA<Integer const>(j_rank)) {
-      rank_ = static_cast<int>(get<Integer const>(j_rank));
-    }
-    auto const &j_server_cert = config["federated_server_cert"];
-    if (IsA<String const>(j_server_cert)) {
-      server_cert_ = get<String const>(j_server_cert);
-    }
-    auto const &j_client_key = config["federated_client_key"];
-    if (IsA<String const>(j_client_key)) {
-      client_key_ = get<String const>(j_client_key);
-    }
-    auto const &j_client_cert = config["federated_client_cert"];
-    if (IsA<String const>(j_client_cert)) {
-      client_cert_ = get<String const>(j_client_cert);
-    }
-  }
-
-  Communicator *Create() {
-    if (server_address_.empty()) {
-      LOG(FATAL) << "Federated server address must be set.";
-    }
-    if (world_size_ == 0) {
-      LOG(FATAL) << "Federated world size must be set.";
-    }
-    if (rank_ == -1) {
-      LOG(FATAL) << "Federated rank must be set.";
-    }
-    if (server_cert_.empty()) {
-      LOG(FATAL) << "Federated server cert must be set.";
-    }
-    if (client_key_.empty()) {
-      LOG(FATAL) << "Federated client key must be set.";
-    }
-    if (client_cert_.empty()) {
-      LOG(FATAL) << "Federated client cert must be set.";
-    }
-    return new FederatedCommunicator(world_size_, rank_, server_address_, server_cert_, client_key_,
-                                     client_cert_);
-  }
-
-  std::string const &GetServerAddress() const { return server_address_; }
-  int GetWorldSize() const { return world_size_; }
-  int GetRank() const { return rank_; }
-  std::string const &GetServerCert() const { return server_cert_; }
-  std::string const &GetClientKey() const { return client_key_; }
-  std::string const &GetClientCert() const { return client_cert_; }
-
- private:
-  void SetParam(std::string const &name, std::string const &val) {
-    if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_SERVER_ADDRESS")) {
-      server_address_ = val;
-    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_WORLD_SIZE")) {
-      world_size_ = std::stoi(val);
-    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_RANK")) {
-      rank_ = std::stoi(val);
-    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_SERVER_CERT")) {
-      server_cert_ = val;
-    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_CLIENT_KEY")) {
-      client_key_ = val;
-    } else if (!CompareStringsCaseInsensitive(name.c_str(), "FEDERATED_CLIENT_CERT")) {
-      client_cert_ = val;
-    }
-  }
-
-  // clang-format off
-  std::vector<std::string> const env_vars_{
-      "FEDERATED_SERVER_ADDRESS",
-      "FEDERATED_WORLD_SIZE",
-      "FEDERATED_RANK",
-      "FEDERATED_SERVER_CERT",
-      "FEDERATED_CLIENT_KEY",
-      "FEDERATED_CLIENT_CERT" };
-  // clang-format on
-
-  std::string server_address_{};
-  int world_size_{0};
-  int rank_{-1};
-  std::string server_cert_{};
-  std::string client_key_{};
-  std::string client_cert_{};
-};
-
 }  // namespace collective
 }  // namespace xgboost

@@ -1,7 +1,7 @@
 /*!
  * Copyright 2022 XGBoost contributors
  */
-#include "communicator_factory.h"
+#include "communicator.h"
 
 #include "rabit_communicator.h"
 
@@ -12,15 +12,12 @@
 namespace xgboost {
 namespace collective {
 
-#ifndef XGBOOST_USE_CUDA
-thread_local std::unique_ptr<CommunicatorFactory> CommunicatorFactory::instance_{};
+thread_local std::unique_ptr<Communicator> Communicator::communicator_{};
+thread_local CommunicatorType Communicator::type_{};
 
-CommunicatorFactory::CommunicatorFactory(CommunicatorType type, Communicator* communicator)
-    : type_{type}, communicator_{communicator} {}
-
-void CommunicatorFactory::Init(Json const& config) {
-  if (instance_) {
-    LOG(FATAL) << "Communicator factory can only be initialized once.";
+void Communicator::Init(Json const& config) {
+  if (communicator_) {
+    LOG(FATAL) << "Communicator can only be initialized once.";
   }
 
   auto type = GetTypeFromEnv();
@@ -32,11 +29,10 @@ void CommunicatorFactory::Init(Json const& config) {
     // Default to Rabit if unspecified.
     type = CommunicatorType::kRabit;
   }
+  type_ = type;
   switch (type) {
     case CommunicatorType::kRabit: {
-      RabitCommunicatorFactory factory{config};
-      auto* comm = factory.Create();
-      instance_.reset(new CommunicatorFactory(type, comm));
+      communicator_.reset(RabitCommunicator::Create(config));
       break;
     }
     case CommunicatorType::kMPI:
@@ -44,9 +40,7 @@ void CommunicatorFactory::Init(Json const& config) {
       break;
     case CommunicatorType::kFederated: {
 #if defined(XGBOOST_USE_FEDERATED)
-      FederatedCommunicatorFactory factory{config};
-      auto* comm = factory.Create();
-      instance_.reset(new CommunicatorFactory(type, comm));
+      communicator_.reset(FederatedCommunicator::Create(config));
 #else
       LOG(FATAL) << "XGBoost is not compiled with Federated Learning support.";
 #endif
@@ -57,7 +51,8 @@ void CommunicatorFactory::Init(Json const& config) {
   }
 }
 
-void CommunicatorFactory::Finalize() { instance_.reset(); }
+#ifndef XGBOOST_USE_CUDA
+void CommunicatorFactory::Finalize() { communicator_.reset(); }
 #endif
 
 }  // namespace collective

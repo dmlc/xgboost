@@ -2,6 +2,7 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
+#include <xgboost/json.h>
 #include <xgboost/logging.h>
 
 #include <string>
@@ -57,28 +58,46 @@ inline std::size_t GetTypeSize(DataType data_type) {
 /** @brief Defines the reduction operation. */
 enum class Operation { kMax = 0, kMin = 1, kSum = 2 };
 
+class DeviceCommunicator;
+
+enum class CommunicatorType { kUnknown, kRabit, kMPI, kFederated };
+
+/* \brief Case-insensitive string comparison */
+inline int CompareStringsCaseInsensitive(const char *s1, const char *s2) {
+#ifdef _MSC_VER
+  return _stricmp(s1, s2);
+#else   // _MSC_VER
+  return strcasecmp(s1, s2);
+#endif  // _MSC_VER
+}
+
 /**
  * @brief A communicator class that handles collective communication.
  */
 class Communicator {
  public:
   /**
-   * @brief Construct a new communicator.
+   * @brief Initialize the communicator. This can only be done once.
    *
-   * @param world_size Total number of processes.
-   * @param rank       Rank of the current process.
+   * @param config JSON configuration for the communicator.
    */
-  Communicator(int world_size, int rank) : world_size_(world_size), rank_(rank) {
-    if (world_size < 1) {
-      LOG(FATAL) << "World size " << world_size << " is less than 1.";
-    }
-    if (rank < 0) {
-      LOG(FATAL) << "Rank " << rank << " is less than 0.";
-    }
-    if (rank >= world_size) {
-      LOG(FATAL) << "Rank " << rank << " is greater than world_size - 1: " << world_size - 1 << ".";
-    }
-  }
+  static void Init(Json const &config);
+
+  /** @brief Finalize the communicator. */
+  static void Finalize();
+
+  /** @brief Get the communicator instance. */
+  static Communicator *Get() { return communicator_.get(); }
+
+#if defined(XGBOOST_USE_CUDA)
+  /**
+   * @brief Get the device communicator.
+   *
+   * @param device_ordinal ID of the device.
+   * @return An instance of device communicator.
+   */
+  static DeviceCommunicator *GetDevice(int device_ordinal);
+#endif
 
   virtual ~Communicator() = default;
 
@@ -122,19 +141,73 @@ class Communicator {
    */
   virtual void Print(std::string const &message) = 0;
 
+  /** @brief Get the communicator type from environment variables. Visible for testing. */
+  static CommunicatorType GetTypeFromEnv() {
+    auto *env = std::getenv("XGBOOST_COMMUNICATOR");
+    if (env != nullptr) {
+      return StringToType(env);
+    } else {
+      return CommunicatorType::kUnknown;
+    }
+  }
+
+  /** @brief Get the communicator type from runtime configuration. Visible for testing. */
+  static CommunicatorType GetTypeFromConfig(Json const &config) {
+    auto const &j_upper = config["XGBOOST_COMMUNICATOR"];
+    if (IsA<String const>(j_upper)) {
+      return StringToType(get<String const>(j_upper).c_str());
+    }
+    auto const &j_lower = config["xgboost_communicator"];
+    if (IsA<String const>(j_lower)) {
+      return StringToType(get<String const>(j_lower).c_str());
+    }
+    return CommunicatorType::kUnknown;
+  }
+
+ protected:
+  /**
+   * @brief Construct a new communicator.
+   *
+   * @param world_size Total number of processes.
+   * @param rank       Rank of the current process.
+   */
+  Communicator(int world_size, int rank) : world_size_(world_size), rank_(rank) {
+    if (world_size < 1) {
+      LOG(FATAL) << "World size " << world_size << " is less than 1.";
+    }
+    if (rank < 0) {
+      LOG(FATAL) << "Rank " << rank << " is less than 0.";
+    }
+    if (rank >= world_size) {
+      LOG(FATAL) << "Rank " << rank << " is greater than world_size - 1: " << world_size - 1 << ".";
+    }
+  }
+
  private:
+  static CommunicatorType StringToType(char const *str) {
+    CommunicatorType result = CommunicatorType::kUnknown;
+    if (!CompareStringsCaseInsensitive("rabit", str)) {
+      result = CommunicatorType::kRabit;
+    } else if (!CompareStringsCaseInsensitive("mpi", str)) {
+      result = CommunicatorType::kMPI;
+    } else if (!CompareStringsCaseInsensitive("federated", str)) {
+      result = CommunicatorType::kFederated;
+    } else {
+      LOG(FATAL) << "Unknown communicator type " << str;
+    }
+    return result;
+  }
+
+  static thread_local std::unique_ptr<Communicator> communicator_;
+  static thread_local CommunicatorType type_;
+#if defined(XGBOOST_USE_CUDA)
+  static thread_local int device_ordinal_;
+  static thread_local std::unique_ptr<DeviceCommunicator> device_communicator_;
+#endif
+
   int const world_size_;
   int const rank_;
 };
-
-/* \brief Case-insensitive string comparison */
-inline int CompareStringsCaseInsensitive(const char *s1, const char *s2) {
-#ifdef _MSC_VER
-  return _stricmp(s1, s2);
-#else   // _MSC_VER
-  return strcasecmp(s1, s2);
-#endif  // _MSC_VER
-}
 
 }  // namespace collective
 }  // namespace xgboost

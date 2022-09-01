@@ -72,7 +72,7 @@
 #include "../src/global_config.cc"
 
 // collective
-#include "../src/collective/communicator_factory.cc"
+#include "../src/collective/communicator.cc"
 
 // common
 #include "../src/common/common.cc"

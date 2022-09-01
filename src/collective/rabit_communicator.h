@@ -15,6 +15,38 @@ namespace collective {
 
 class RabitCommunicator : public Communicator {
  public:
+  static Communicator *Create(Json const &config) {
+    std::vector<std::string> args_str;
+    for (auto &items : get<Object const>(config)) {
+      switch (items.second.GetValue().Type()) {
+        case xgboost::Value::ValueKind::kString: {
+          args_str.push_back(items.first + "=" + get<String const>(items.second));
+          break;
+        }
+        case xgboost::Value::ValueKind::kInteger: {
+          args_str.push_back(items.first + "=" + std::to_string(get<Integer const>(items.second)));
+          break;
+        }
+        case xgboost::Value::ValueKind::kBoolean: {
+          if (get<Boolean const>(items.second)) {
+            args_str.push_back(items.first + "=1");
+          } else {
+            args_str.push_back(items.first + "=0");
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    std::vector<char *> args;
+    for (auto &key_value : args_str) {
+      args.push_back(&key_value[0]);
+    }
+    rabit::Init(static_cast<int>(args.size()), &args[0]);
+    return new RabitCommunicator(rabit::GetWorldSize(), rabit::GetRank());
+  }
+
   RabitCommunicator(int world_size, int rank) : Communicator(world_size, rank) {}
 
   ~RabitCommunicator() override { rabit::Finalize(); }
@@ -76,48 +108,5 @@ class RabitCommunicator : public Communicator {
     }
   }
 };
-
-class RabitCommunicatorFactory {
- public:
-  explicit RabitCommunicatorFactory(Json const &config) {
-    std::vector<std::string> args_str;
-    for (auto &items : get<Object const>(config)) {
-      switch (items.second.GetValue().Type()) {
-        case xgboost::Value::ValueKind::kString: {
-          args_str.push_back(items.first + "=" + get<String const>(items.second));
-          break;
-        }
-        case xgboost::Value::ValueKind::kInteger: {
-          args_str.push_back(items.first + "=" + std::to_string(get<Integer const>(items.second)));
-          break;
-        }
-        case xgboost::Value::ValueKind::kBoolean: {
-          if (get<Boolean const>(items.second)) {
-            args_str.push_back(items.first + "=1");
-          } else {
-            args_str.push_back(items.first + "=0");
-          }
-          break;
-        }
-        default:
-          break;
-      }
-    }
-    std::vector<char *> args;
-    for (auto &key_value : args_str) {
-      args.push_back(&key_value[0]);
-    }
-    rabit::Init(static_cast<int>(args.size()), &args[0]);
-    world_size_ = rabit::GetWorldSize();
-    rank_ = rabit::GetRank();
-  }
-
-  Communicator *Create() const { return new RabitCommunicator(world_size_, rank_); }
-
- private:
-  int world_size_;
-  int rank_;
-};
-
 }  // namespace collective
 }  // namespace xgboost
