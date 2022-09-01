@@ -131,18 +131,22 @@ class HistogramCuts {
   /**
    * \brief Search the bin index for categorical feature.
    */
-  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
-    auto const &ptrs = this->Ptrs();
-    auto const &vals = this->Values();
+  bst_bin_t SearchCatBin(float value, bst_feature_t fidx, std::vector<uint32_t> const& ptrs,
+                         std::vector<float> const& vals) const {
     auto end = ptrs.at(fidx + 1) + vals.cbegin();
     auto beg = ptrs[fidx] + vals.cbegin();
     // Truncates the value in case it's not perfectly rounded.
-    auto v  = static_cast<float>(common::AsCat(value));
+    auto v = static_cast<float>(common::AsCat(value));
     auto bin_idx = std::lower_bound(beg, end, v) - vals.cbegin();
     if (bin_idx == ptrs.at(fidx + 1)) {
       bin_idx -= 1;
     }
     return bin_idx;
+  }
+  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
+    auto const& ptrs = this->Ptrs();
+    auto const& vals = this->Values();
+    return this->SearchCatBin(value, fidx, ptrs, vals);
   }
   bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
 

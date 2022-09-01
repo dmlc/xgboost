@@ -16,7 +16,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   CHECK_EQ(info.num_row_, in_page.Size());
 
   this->cut = page->Cuts();
-
+  // pull to host early, prevent race condition
   this->cut.Ptrs();
   this->cut.Values();
   this->cut.MinValues();
@@ -45,6 +45,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
         return static_cast<T>(bin_idx - offsets[fidx]);
       };
       common::Span<T> index_data_span = {this->index.data<T>(), this->index.Size()};
+
       common::ParallelFor(page->Size(), n_threads, [&](auto i) {
         auto tid = omp_get_thread_num();
         size_t ibegin = page->row_stride * i;
@@ -69,6 +70,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
     });
     std::partial_sum(row_size.begin(), row_size.end(), row_size.begin());
     this->row_ptr = std::move(row_size);
+
     common::Span<uint32_t> index_data_span = {this->index.data<uint32_t>(), this->index.Size()};
     common::ParallelFor(page->Size(), n_threads, [&](auto i) {
       auto tid = omp_get_thread_num();
@@ -85,12 +87,7 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   }
 
   this->hit_count.resize(n_bins_total, 0);
-  common::ParallelFor(n_bins_total, ctx->Threads(), [&](auto idx) {
-    for (int32_t tid = 0; tid < n_threads; ++tid) {
-      this->hit_count[idx] += hit_count_tloc[tid * n_bins_total + idx];
-      hit_count_tloc[tid * n_bins_total + idx] = 0;  // reset for next batch
-    }
-  });
+  this->GatherHitCount(n_threads, n_bins_total);
 
   CHECK_EQ(this->Features(), info.num_col_);
   CHECK_EQ(this->Size(), info.num_row_);

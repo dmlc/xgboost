@@ -69,7 +69,7 @@ class GHistIndexMatrix {
         if (is_valid(elem)) {
           bst_bin_t bin_idx{-1};
           if (common::IsCat(ft, elem.column_idx)) {
-            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx);
+            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx, ptrs, values);
           } else {
             bin_idx = cut.SearchBin(elem.value, elem.column_idx, ptrs, values);
           }
