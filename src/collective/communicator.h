@@ -5,6 +5,7 @@
 #include <xgboost/json.h>
 #include <xgboost/logging.h>
 
+#include <memory>
 #include <string>
 
 namespace xgboost {
