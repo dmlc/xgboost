@@ -29,20 +29,17 @@ namespace data {
  * `QuantileDMatrix` is an intermediate storage for quantilization results including
  * quantile cuts and histogram index. Quantilization is designed to be performed on stream
  * of data (or batches of it). As a result, the `QuantileDMatrix` is also designed to work
- * with batches of data. During initializaion, it will walk through the data multiple
- * times iteratively in order to perform quantilization. This design can help us reduce
- * memory usage significantly by avoiding data concatenation along with removing the CSR
- * matrix `SparsePage`. However, it has its limitation (can be fixed if needed):
+ * with batches of data. During initializaion, it walks through the data multiple times
+ * iteratively in order to perform quantilization. This design helps us reduce memory
+ * usage significantly by avoiding data concatenation along with removing the CSR matrix
+ * `SparsePage`. However, it has its limitation (can be fixed if needed):
  *
  * - It's only supported by hist tree method (both CPU and GPU) since approx requires a
  *   re-calculation of quantiles for each iteration. We can fix this by retaining a
  *   reference to the callback if there are feature requests.
  *
  * - The CPU format and the GPU format are different, the former uses a CSR + CSC for
- *   histogram index while the latter uses only Ellpack. This results into a design that
- *   we can obtain the GPU format from CPU but the other way around is not yet
- *   supported. We can search the bin value from ellpack to recover the feature index when
- *   we support copying data from GPU to CPU.
+ *   histogram index while the latter uses only Ellpack.
  */
 class IterativeDMatrix : public DMatrix {
   MetaInfo info_;

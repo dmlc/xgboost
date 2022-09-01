@@ -106,23 +106,16 @@ class GHistIndexMatrix {
     if (isDense_) {
       index.SetBinOffset(cut.Ptrs());
     }
-    uint32_t const* offsets = index.Offset();
     if (isDense_) {
-      // Inside the lambda functions, bin_idx is the index for cut value across all
-      // features. By subtracting it with starting pointer of each feature, we can reduce
-      // it to smaller value and compress it to smaller types.
       common::DispatchBinType(index.GetBinTypeSize(), [&](auto dtype) {
         using T = decltype(dtype);
         common::Span<T> index_data_span = {index.data<T>(), index.Size()};
-        SetIndexData(
-            index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
-            [offsets](auto bin_idx, auto fidx) { return static_cast<T>(bin_idx - offsets[fidx]); });
+        SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
+                     index.MakeCompressor<T>());
       });
     } else {
-      /* For sparse DMatrix we have to store index of feature for each bin
-         in index field to chose right offset. So offset is nullptr and index is
-         not reduced */
       common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
+      // no compression
       SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
                    [](auto idx, auto) { return idx; });
     }
@@ -134,7 +127,7 @@ class GHistIndexMatrix {
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
   common::Index index;
-  /*! \brief hit count of each index */
+  /*! \brief hit count of each index, used for constructing the ColumnMatrix */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;

@@ -206,6 +206,28 @@ auto DispatchBinType(BinTypeSize type, Fn&& fn) {
  *   storage class.
  */
 struct Index {
+  // Inside the compressor, bin_idx is the index for cut value across all features. By
+  // subtracting it with starting pointer of each feature, we can reduce it to smaller
+  // value and store it with smaller types. Usable only with dense data.
+  //
+  // For sparse input we have to store an addition feature index (similar to sparse matrix
+  // formats like CSR) for each bin in index field to choose the right offset.
+  template <typename T>
+  struct CompressBin {
+    uint32_t const* offsets;
+
+    template <typename Bin, typename Feat>
+    auto operator()(Bin bin_idx, Feat fidx) const {
+      return static_cast<T>(bin_idx - offsets[fidx]);
+    }
+  };
+
+  template <typename T>
+  CompressBin<T> MakeCompressor() const {
+    uint32_t const* offsets = this->Offset();
+    return CompressBin<T>{offsets};
+  }
+
   Index() { SetBinTypeSize(binTypeSize_); }
   Index(const Index& i) = delete;
   Index& operator=(Index i) = delete;
