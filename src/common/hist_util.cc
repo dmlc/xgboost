@@ -192,7 +192,7 @@ void BuildHistKernel(const std::vector<GradientPair> &gpair,
     }
     const BinIdxType *gr_index_local = gradient_index + icol_start;
 
-    // The trick with pgh_t helps the compiler to use more effective processor instructions.
+    // The trick with pgh_t buffer helps the compiler to generate faster binary.
     const float pgh_t[] = {pgh[idx_gh], pgh[idx_gh + 1]};
     for (size_t j = 0; j < row_size; ++j) {
       const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[j]) +
