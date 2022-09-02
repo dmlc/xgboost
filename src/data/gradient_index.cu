@@ -106,6 +106,6 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
   CHECK(this->cut.min_vals_.HostCanRead());
 
   this->columns_ = std::make_unique<common::ColumnMatrix>(*this, p.sparse_thresh);
-  this->columns_->PushBatch(ctx->Threads(), *this);
+  this->columns_->InitFromGHist(ctx, *this);
 }
 }  // namespace xgboost

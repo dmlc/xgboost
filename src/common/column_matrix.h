@@ -161,18 +161,15 @@ class ColumnMatrix {
     this->InitStorage(gmat, sparse_threshold);
   }
 
-  template <typename Batch>
-  void PushBatch(int32_t n_threads, Batch const& batch, float missing, GHistIndexMatrix const& gmat,
-                 size_t base_rowid) {
-    // pre-fill index_ for dense columns
-    if (!any_missing_) {
-      this->PushBatch(n_threads, gmat);
-    } else {
-      SetIndexMixedColumns(base_rowid, batch, gmat, missing);
-    }
-  }
-
-  void PushBatch(int32_t n_threads, GHistIndexMatrix const& gmat) {
+  /**
+   * \brief Initialize ColumnMatrix from GHistIndexMatrix without reference to actual
+   * data.
+   *
+   *    This function requires a binary search for each bin to get back the feature index
+   *    for those bins.
+   */
+  void InitFromGHist(Context const* ctx, GHistIndexMatrix const& gmat) {
+    auto n_threads = ctx->Threads();
     if (!any_missing_) {
       // row index is compressed, we need to dispatch it.
       DispatchBinType(gmat.index.GetBinTypeSize(), [&, size = gmat.Size(), n_threads = n_threads,
@@ -183,6 +180,32 @@ class ColumnMatrix {
       });
     } else {
       SetIndexMixedColumns(gmat);
+    }
+  }
+
+  /**
+   * \brief Push batch of data for Quantile DMatrix support.
+   *
+   * \param batch      Input data wrapped inside a adapter batch.
+   * \param gmat       The row-major histogram index that contains index for ALL data.
+   * \param base_rowid The beginning row index for current batch.
+   */
+  template <typename Batch>
+  void PushBatch(int32_t n_threads, Batch const& batch, float missing, GHistIndexMatrix const& gmat,
+                 size_t base_rowid) {
+    // pre-fill index_ for dense columns
+    if (!any_missing_) {
+      // row index is compressed, we need to dispatch it.
+
+      // use base_rowid from input parameter as gmat is a single matrix that contains all
+      // the histogram index instead of being only a batch.
+      DispatchBinType(gmat.index.GetBinTypeSize(), [&, size = batch.Size(), n_threads = n_threads,
+                                                    n_features = gmat.Features()](auto t) {
+        using RowBinIdxT = decltype(t);
+        SetIndexNoMissing(base_rowid, gmat.index.data<RowBinIdxT>(), size, n_features, n_threads);
+      });
+    } else {
+      SetIndexMixedColumns(base_rowid, batch, gmat, missing);
     }
   }
 
