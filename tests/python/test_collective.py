@@ -1,11 +1,16 @@
 import multiprocessing
 import socket
+import sys
 
 import numpy as np
+import pytest
 
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost import collective
+
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping collective tests on Windows", allow_module_level=True)
 
 
 def run_rabit_worker(rabit_env, world_size):
