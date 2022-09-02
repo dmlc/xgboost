@@ -1684,7 +1684,7 @@ class DaskScikitLearnBase(XGBModel):
 
     def __getstate__(self) -> Dict:
         this = self.__dict__.copy()
-        if "_client" in this.keys():
+        if "_client" in this:
             del this["_client"]
         return this
 
