@@ -53,7 +53,7 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
     // hist
     CHECK(!sorted_sketch);
     for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-      this->columns_->Init(page, *this, sparse_thresh, n_threads);
+      this->columns_->InitFromSparse(page, *this, sparse_thresh, n_threads);
     }
   }
 }
@@ -105,7 +105,7 @@ GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<Feature
   this->PushBatch(batch, ft, n_threads);
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
-    this->columns_->Init(batch, *this, sparse_thresh, n_threads);
+    this->columns_->InitFromSparse(batch, *this, sparse_thresh, n_threads);
   }
 }
 

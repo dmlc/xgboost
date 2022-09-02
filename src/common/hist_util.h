@@ -149,18 +149,6 @@ class HistogramCuts {
     return this->SearchCatBin(value, fidx, ptrs, vals);
   }
   bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
-
-  static bst_feature_t SearchFeature(std::vector<uint32_t> const& ptrs, bst_bin_t bin_idx) {
-    auto fidx = SegmentId(ptrs.cbegin(), ptrs.cend(), bin_idx);
-    return fidx;
-  }
-  /**
-   * \brief Search the feature index with histogram bin index.
-   */
-  bst_feature_t SearchFeature(bst_bin_t bin_idx) {
-    auto const& ptrs = this->Ptrs();  // might race due to pulling data to host.
-    return SearchFeature(ptrs, bin_idx);
-  }
 };
 
 /**

@@ -162,6 +162,18 @@ class ColumnMatrix {
   }
 
   /**
+   * \brief Initialize ColumnMatrix from GHistIndexMatrix with reference to the original
+   *        SparsePage.
+   */
+  void InitFromSparse(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
+                      int32_t n_threads) {
+    auto batch = data::SparsePageAdapterBatch{page.GetView()};
+    this->InitStorage(gmat, sparse_threshold);
+    // ignore base row id here as we always has one column matrix for each sparse page.
+    this->PushBatch(n_threads, batch, std::numeric_limits<float>::quiet_NaN(), gmat, 0);
+  }
+
+  /**
    * \brief Initialize ColumnMatrix from GHistIndexMatrix without reference to actual
    * data.
    *
@@ -207,15 +219,6 @@ class ColumnMatrix {
     } else {
       SetIndexMixedColumns(base_rowid, batch, gmat, missing);
     }
-  }
-
-  // construct column matrix from GHistIndexMatrix
-  void Init(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
-            int32_t n_threads) {
-    auto batch = data::SparsePageAdapterBatch{page.GetView()};
-    this->InitStorage(gmat, sparse_threshold);
-    // ignore base row id here as we always has one column matrix for each sparse page.
-    this->PushBatch(n_threads, batch, std::numeric_limits<float>::quiet_NaN(), gmat, 0);
   }
 
   /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
@@ -308,7 +311,7 @@ class ColumnMatrix {
 
   /**
    * \brief Set column index for both dense and sparse columns, but with only GHistMatrix
-   *        available and requires a bianry search for each bin.
+   *        available and requires a search for each bin.
    */
   void SetIndexMixedColumns(const GHistIndexMatrix& gmat) {
     auto n_features = gmat.Features();
@@ -322,12 +325,17 @@ class ColumnMatrix {
       ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
       auto const batch_size = gmat.Size();
       size_t k{0};
+
       for (size_t ridx = 0; ridx < batch_size; ++ridx) {
         auto r_beg = gmat.row_ptr[ridx];
         auto r_end = gmat.row_ptr[ridx + 1];
+        bst_feature_t fidx{0};
         for (size_t j = r_beg; j < r_end; ++j) {
           const uint32_t bin_idx = row_index[k];
-          auto fidx = HistogramCuts::SearchFeature(ptrs, bin_idx);
+          // find the feature index for current bin.
+          while (bin_idx >= ptrs[fidx + 1]) {
+            fidx++;
+          }
           SetBinSparse(bin_idx, ridx, fidx, local_index);
           ++k;
         }
