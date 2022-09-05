@@ -1,13 +1,14 @@
+import glob
 import logging
 import random
 import sys
 import uuid
-import glob
 
-import xgboost as xgb
 import numpy as np
 import pytest
 import testing as tm
+
+import xgboost as xgb
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
@@ -32,7 +33,7 @@ from xgboost.spark import (
 )
 from xgboost.spark.core import _non_booster_params
 
-from xgboost import XGBClassifier, XGBRegressor, XGBModel
+from xgboost import XGBClassifier, XGBModel, XGBRegressor
 
 from .utils import SparkTestCase
 
@@ -64,7 +65,12 @@ class XgboostLocalTest(SparkTestCase):
         # >>> reg2.fit(X, y)
         # >>> reg2.predict(X, ntree_limit=5)
         # array([0.22185266, 0.77814734], dtype=float32)
-        self.reg_params = {"max_depth": 5, "n_estimators": 10, "ntree_limit": 5, "max_bin": 9}
+        self.reg_params = {
+            "max_depth": 5,
+            "n_estimators": 10,
+            "ntree_limit": 5,
+            "max_bin": 9,
+        }
         self.reg_df_train = self.session.createDataFrame(
             [
                 (Vectors.dense(1.0, 2.0, 3.0), 0),
@@ -437,7 +443,6 @@ class XgboostLocalTest(SparkTestCase):
         bst.set_attr(scikit_learn=None)
         self.assertEqual(model.get_booster().save_raw("json"), bst.save_raw("json"))
 
-
     def test_regressor_params_basic(self):
         py_reg = SparkXGBRegressor()
         self.assertTrue(hasattr(py_reg, "n_estimators"))
@@ -698,7 +703,6 @@ class XgboostLocalTest(SparkTestCase):
                 )
             )
         self.assert_model_compatible(model.stages[0], tmp_dir)
-
 
     def test_classifier_with_cross_validator(self):
         xgb_classifer = SparkXGBClassifier()

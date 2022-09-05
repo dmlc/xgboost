@@ -248,11 +248,7 @@ class SparkXGBModelReader(MLReader):
         )
         model_load_path = os.path.join(path, "model")
 
-        ser_xgb_model = (
-            _get_spark_session()
-            .read.text(model_load_path)
-            .collect()[0][0]
-        )
+        ser_xgb_model = _get_spark_session().read.text(model_load_path).collect()[0][0]
 
         def create_xgb_model():
             return self.cls._xgb_cls()(**xgb_sklearn_params)
