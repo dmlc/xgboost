@@ -322,7 +322,7 @@ if __name__ == '__main__':
     # - python setup.py bdist_wheel && pip install <wheel-name>
 
     # When XGBoost is compiled directly with CMake:
-    # - pip install . -e
+    # - pip install -e .
     # - python setup.py develop   # same as above
     logging.basicConfig(level=logging.INFO)
 
