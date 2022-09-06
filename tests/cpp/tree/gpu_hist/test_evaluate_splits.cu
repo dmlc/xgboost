@@ -169,7 +169,6 @@ TEST(GpuHist, PartitionBasic) {
                               dh::ToSpan(feature_histogram)};
     DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
     auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
-    EXPECT_EQ(result.dir, kLeftDir);
     EXPECT_EQ(cats, std::bitset<32>("01000000000000000000000000000000"));
     EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(), parent_sum.GetGrad());
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
