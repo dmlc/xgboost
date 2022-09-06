@@ -141,7 +141,8 @@ class GPUHistEvaluator {
    */
   common::Span<CatST const> GetHostNodeCats(bst_node_t nidx) const {
     copy_stream_.View().Sync();
-    auto cats_out = common::Span<CatST const>{h_split_cats_}.subspan(nidx * node_categorical_storage_size_, node_categorical_storage_size_);
+    auto cats_out = common::Span<CatST const>{h_split_cats_}.subspan(
+        nidx * node_categorical_storage_size_, node_categorical_storage_size_);
     return cats_out;
   }
   /**
