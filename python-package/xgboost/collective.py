@@ -188,7 +188,7 @@ DTYPE_ENUM__ = {
 
 @unique
 class Op(IntEnum):
-    """Supported operations for rabit."""
+    """Supported operations for allreduce."""
     MAX = 0
     MIN = 1
     SUM = 2
@@ -204,7 +204,7 @@ def allreduce(  # pylint:disable=invalid-name
     data :
         Input data.
     op :
-        Reduction operators, can be MAX or SUM
+        Reduction operator.
 
     Returns
     -------
@@ -216,7 +216,7 @@ def allreduce(  # pylint:disable=invalid-name
     This function is not thread-safe.
     """
     if not isinstance(data, np.ndarray):
-        raise Exception('allreduce only takes in numpy.ndarray')
+        raise TypeError('allreduce only takes in numpy.ndarray')
     buf = data.ravel()
     if buf.base is data.base:
         buf = buf.copy()

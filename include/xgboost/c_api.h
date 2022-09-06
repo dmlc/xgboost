@@ -1392,6 +1392,9 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
 /*!
  * \brief Initialize the collective communicator.
  *
+ *  Currently the communicator API is experimental, function signatures may change in the future
+ *  without notice.
+ *
  *  Call this once before using anything.
  *
  *  The additional configuration is not required. Usually the communicator will detect settings

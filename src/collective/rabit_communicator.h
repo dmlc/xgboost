@@ -100,6 +100,9 @@ class RabitCommunicator : public Communicator {
       case Operation::kMax:
         rabit::Allreduce<rabit::op::Max, DType>(static_cast<DType *>(send_receive_buffer), count);
         break;
+      case Operation::kMin:
+        rabit::Allreduce<rabit::op::Min, DType>(static_cast<DType *>(send_receive_buffer), count);
+        break;
       case Operation::kSum:
         rabit::Allreduce<rabit::op::Sum, DType>(static_cast<DType *>(send_receive_buffer), count);
         break;
