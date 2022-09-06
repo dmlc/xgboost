@@ -160,8 +160,8 @@ TEST(GpuHist, PartitionBasic) {
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
   }
   {
-    // -1.0s go left
-    // -3.0s go right
+    // -1.0s go right
+    // -3.0s go left
     GradientPairPrecise parent_sum(-5.0, 3.0);
     thrust::device_vector<GradientPairPrecise> feature_histogram =
         std::vector<GradientPairPrecise>{{-3.0, 1.0}, {-1.0, 1.0}, {-3.0, 1.0}};
