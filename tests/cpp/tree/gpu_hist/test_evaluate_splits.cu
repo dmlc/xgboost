@@ -86,8 +86,8 @@ TEST(GpuHist, PartitionBasic) {
   evaluator.Reset(cuts, dh::ToSpan(feature_types), feature_set.size(), tparam, 0);
 
   {
-    // -1.0s go left
-    // -3.0s go right
+    // -1.0s go right
+    // -3.0s go left
     GradientPairPrecise parent_sum(-5.0, 3.0);
     thrust::device_vector<GradientPairPrecise> feature_histogram =
         std::vector<GradientPairPrecise>{{-1.0, 1.0}, {-1.0, 1.0}, {-3.0, 1.0}};
@@ -95,14 +95,15 @@ TEST(GpuHist, PartitionBasic) {
                               dh::ToSpan(feature_histogram)};
     DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
     auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.dir, kLeftDir);
     EXPECT_EQ(cats, std::bitset<32>("11000000000000000000000000000000"));
     EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(), parent_sum.GetGrad());
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
   }
 
   {
-    // -1.0s go left
-    // -3.0s go right
+    // -1.0s go right
+    // -3.0s go left
     GradientPairPrecise parent_sum(-7.0, 3.0);
     thrust::device_vector<GradientPairPrecise> feature_histogram =
         std::vector<GradientPairPrecise>{{-1.0, 1.0}, {-3.0, 1.0}, {-3.0, 1.0}};
@@ -110,6 +111,7 @@ TEST(GpuHist, PartitionBasic) {
                               dh::ToSpan(feature_histogram)};
     DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
     auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.dir, kLeftDir);
     EXPECT_EQ(cats, std::bitset<32>("10000000000000000000000000000000"));
     EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(), parent_sum.GetGrad());
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
@@ -122,13 +124,13 @@ TEST(GpuHist, PartitionBasic) {
     EvaluateSplitInputs input{2, 0, parent_sum, dh::ToSpan(feature_set),
                               dh::ToSpan(feature_histogram)};
     DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
+    EXPECT_EQ(result.dir, kLeftDir);
     EXPECT_FLOAT_EQ(result.loss_chg, 0.0f);
     EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(), parent_sum.GetGrad());
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
   }
   // With 3.0/3.0 missing values
-  // All categories go left
-  // missing values go right
+  // Forward, first 2 categories are selected, while the last one go to left along with missing value
   {
     GradientPairPrecise parent_sum(0.0, 6.0);
     thrust::device_vector<GradientPairPrecise> feature_histogram =
@@ -143,8 +145,8 @@ TEST(GpuHist, PartitionBasic) {
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
   }
   {
-    // -1.0s go left
-    // -3.0s go right
+    // -1.0s go right
+    // -3.0s go left
     GradientPairPrecise parent_sum(-5.0, 3.0);
     thrust::device_vector<GradientPairPrecise> feature_histogram =
         std::vector<GradientPairPrecise>{{-1.0, 1.0}, {-3.0, 1.0}, {-1.0, 1.0}};
@@ -152,6 +154,7 @@ TEST(GpuHist, PartitionBasic) {
                               dh::ToSpan(feature_histogram)};
     DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
     auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.dir, kLeftDir);
     EXPECT_EQ(cats, std::bitset<32>("10100000000000000000000000000000"));
     EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(), parent_sum.GetGrad());
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
@@ -166,6 +169,7 @@ TEST(GpuHist, PartitionBasic) {
                               dh::ToSpan(feature_histogram)};
     DeviceSplitCandidate result = evaluator.EvaluateSingleSplit(input, shared_inputs).split;
     auto cats = std::bitset<32>(evaluator.GetHostNodeCats(input.nidx)[0]);
+    EXPECT_EQ(result.dir, kLeftDir);
     EXPECT_EQ(cats, std::bitset<32>("01000000000000000000000000000000"));
     EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(), parent_sum.GetGrad());
     EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(), parent_sum.GetHess());
