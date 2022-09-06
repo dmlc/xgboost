@@ -58,7 +58,6 @@ class Value {
   virtual Json& operator[](int ind);
 
   virtual bool operator==(Value const& rhs) const = 0;
-  virtual Value& operator=(Value const& rhs) = delete;
 
   std::string TypeStr() const;
 
