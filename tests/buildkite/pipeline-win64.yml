@@ -1,4 +1,5 @@
 steps:
+  - block: ":rocket: Run this test job"
   #### -------- BUILD --------
   - label: ":windows: Build XGBoost for Windows with CUDA"
     command: "tests/buildkite/build-win64-gpu.ps1"
