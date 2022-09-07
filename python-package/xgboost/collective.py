@@ -26,7 +26,6 @@ def init(**args: Any) -> None:
           - xgboost_communicator: The type of the communicator. Can be set as an environment
             variable.
             * rabit: Use Rabit. This is the default if the type is unspecified.
-            * mpi: Use MPI.
             * federated: Use the gRPC interface for Federated Learning.
         Only applicable to the Rabit communicator (these are case sensitive):
           -- rabit_tracker_uri: Hostname of the tracker.

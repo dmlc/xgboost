@@ -35,9 +35,6 @@ void Communicator::Init(Json const& config) {
       communicator_.reset(RabitCommunicator::Create(config));
       break;
     }
-    case CommunicatorType::kMPI:
-      LOG(FATAL) << "Not implemented yet.";
-      break;
     case CommunicatorType::kFederated: {
 #if defined(XGBOOST_USE_FEDERATED)
       communicator_.reset(FederatedCommunicator::Create(config));

@@ -62,7 +62,7 @@ enum class Operation { kMax = 0, kMin = 1, kSum = 2 };
 
 class DeviceCommunicator;
 
-enum class CommunicatorType { kUnknown, kRabit, kMPI, kFederated };
+enum class CommunicatorType { kUnknown, kRabit, kFederated };
 
 /** \brief Case-insensitive string comparison. */
 inline int CompareStringsCaseInsensitive(const char *s1, const char *s2) {
@@ -190,8 +190,6 @@ class Communicator {
     CommunicatorType result = CommunicatorType::kUnknown;
     if (!CompareStringsCaseInsensitive("rabit", str)) {
       result = CommunicatorType::kRabit;
-    } else if (!CompareStringsCaseInsensitive("mpi", str)) {
-      result = CommunicatorType::kMPI;
     } else if (!CompareStringsCaseInsensitive("federated", str)) {
       result = CommunicatorType::kFederated;
     } else {
