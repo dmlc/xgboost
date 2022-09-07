@@ -50,12 +50,12 @@ a declarative fashion. Every configuration step is now documented explicitly as 
 CloudFormation lets us define a stack of cloud resources (EC2 machines, Lambda functions, S3 etc) using
 a single YAML file.
 
-**Prerequisite**: Make sure to set up a credential pair in order to provision resources on AWS. See
+**Prerequisite**: Gain access to the XGBoost project's AWS account (``admin@xgboost-ci.net``), and then
+set up a credential pair in order to provision resources on AWS. See
 `Creating an IAM user in your AWS account <https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html>`_.
 
 * Option 1. Give full admin privileges to your IAM user. This is the simplest option.
-* Option 2. Give limited set of permissions to your IAM user, to reduce the possibility of messing up other resources
-  in the XGBoost project's AWS account (``admin@xgboost-ci.net``).
+* Option 2. Give limited set of permissions to your IAM user, to reduce the possibility of messing up other resources.
   For this, use the script ``tests/buildkite/infrastructure/service-user/create_service_user.py``.
 
 =====================
