@@ -44,7 +44,8 @@ void TestEvaluateSplits() {
   hist.AddHistRow(0);
   hist.AllocateAllData();
   hist_builder.template BuildHist<false>(row_gpairs, row_set_collection[0],
-                                         gmat, hist[0]);
+                                         gmat, hist[0],
+                                         std::make_shared<common::ColumnSampler>(), 1, false);
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;

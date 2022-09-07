@@ -298,7 +298,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     void BuildHistogram(DMatrix* p_fmat, RegTree* p_tree,
                         std::vector<CPUExpandEntry> const& valid_candidates,
-                        std::vector<GradientPair> const& gpair);
+                        std::vector<GradientPair> const& gpair, int depth);
 
     void LeafPartition(RegTree const& tree, common::Span<GradientPair const> gpair,
                        std::vector<bst_node_t>* p_out_position);

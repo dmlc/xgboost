@@ -221,6 +221,10 @@ class ColumnMatrix {
     }
   }
 
+  bool AnySparseColumn() const {
+    return any_sparse_column_;
+  }
+
   /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
   void SetTypeSize(size_t max_bin_per_feat) {
     if ((max_bin_per_feat - 1) <= static_cast<int>(std::numeric_limits<uint8_t>::max())) {
@@ -430,6 +434,7 @@ class ColumnMatrix {
   std::vector<bool> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;
+  bool any_sparse_column_ = false;
 };
 }  // namespace common
 }  // namespace xgboost

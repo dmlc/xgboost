@@ -23,10 +23,12 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
   gmat.GetFeatureCounts(feature_counts.data());
 
   // classify features
+  any_sparse_column_ = false;
   for (bst_feature_t fid = 0; fid < nfeature; ++fid) {
     if (static_cast<double>(feature_counts[fid]) < sparse_threshold * nrow) {
       type_[fid] = kSparseColumn;
       all_dense_column = false;
+      any_sparse_column_ = true;
     } else {
       type_[fid] = kDenseColumn;
     }
