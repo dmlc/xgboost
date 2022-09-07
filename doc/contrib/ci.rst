@@ -55,7 +55,8 @@ a single YAML file.
 
 * Option 1. Give full admin privileges to your IAM user. This is the simplest option.
 * Option 2. Give limited set of permissions to your IAM user, to reduce the possibility of messing up other resources
-in your AWS account. For this, use the script ``tests/buildkite/infrastructure/service-user/create_service_user.py``
+  in the XGBoost project's AWS account (``admin@xgboost-ci.net``).
+  For this, use the script ``tests/buildkite/infrastructure/service-user/create_service_user.py``.
 
 =====================
 Worker Image Pipeline
