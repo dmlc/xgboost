@@ -16,10 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.rapids.spark
 
-import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
-import com.nvidia.spark.rapids.{GpuColumnVector}
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.java.nvidia.spark.GpuColumnBatch
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, DeviceQuantileDMatrix}
@@ -331,7 +329,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
                   } else {
                     try {
                       currentBatch = new ColumnarBatch(
-                        GpuColumnVector.extractColumns(table, dataTypes).map(_.copyToHost()),
+                        GpuUtils.extractBatchToHost(table, dataTypes),
                         table.getRowCount().toInt)
                       val rowIterator = currentBatch.rowIterator().asScala
                         .map(toUnsafe)
