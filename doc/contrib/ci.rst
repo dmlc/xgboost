@@ -76,7 +76,7 @@ No more. Now we have an automated pipeline for building images for worker machin
   uploaded to the EC2 service. You can locate them in the EC2 console.
 * Make sure to modify ``tests/buildkite/infrastructure/aws-stack-creator/metadata.py`` to use the correct AMI IDs.
   (For ``linux-amd64-cpu`` and ``linux-arm64-cpu``, use the AMIs provided by BuildKite. Consult the ``AWSRegion2AMI``
-  section of https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml.
+  section of https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml.)
 
 ======================
 EC2 Autoscaling Groups
