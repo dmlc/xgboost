@@ -4,7 +4,7 @@ import importlib.util
 import logging
 import sys
 import types
-from typing import Any, Dict, List, Optional, Sequence, Type, cast
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 import numpy as np
 
@@ -125,7 +125,9 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         from cudf import concat as CUDF_concat  # pylint: disable=import-error
 
         return CUDF_concat(value, axis=0)
-    if lazy_isinstance(value[0], "cupy._core.core", "ndarray"):
+    from .data import _is_cupy_array
+
+    if _is_cupy_array(value[0]):
         import cupy  # pylint: disable=import-error
 
         # pylint: disable=c-extension-no-member,no-member
