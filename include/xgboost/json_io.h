@@ -182,12 +182,12 @@ T BuiltinBSwap(T v) {
 #endif  //  defined(__GLIBC__)
 
 template <typename T, std::enable_if_t<sizeof(T) == 1>* = nullptr>
-inline T ByteSwap(T v) {
+inline T ToBigEndian(T v) {
   return v;
 }
 
 template <typename T, std::enable_if_t<sizeof(T) != 1>* = nullptr>
-inline T ByteSwap(T v) {
+inline T ToBigEndian(T v) {
   static_assert(std::is_pod<T>::value, "Only pod is supported.");
 #if DMLC_LITTLE_ENDIAN
   auto constexpr kS = sizeof(T);
@@ -217,7 +217,7 @@ class UBJReader : public JsonReader {
   template <typename T>
   T ReadPrimitive() {
     auto v = ReadStream<T>();
-    v = ByteSwap(v);
+    v = ToBigEndian(v);
     return v;
   }
 

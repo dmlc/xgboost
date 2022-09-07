@@ -254,15 +254,15 @@ TEST(GpuHist, EvaluateRootSplit) {
   std::vector<float> feature_weights;
 
   maker.column_sampler.Init(kNCols, feature_weights, param.colsample_bynode,
-                            param.colsample_bylevel, param.colsample_bytree,
-                            false);
+                            param.colsample_bylevel, param.colsample_bytree);
 
   RegTree tree;
   MetaInfo info;
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
+  DeviceSplitCandidate res =
+      maker.EvaluateRootSplit({6.4f, 12.8f}, 0).split;
 
   ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);

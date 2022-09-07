@@ -127,9 +127,12 @@ the tree method still concatenate all the chunks into 1 final histogram index du
 performance reason, but in compressed format.  So its scalability has an upper bound but
 still has lower memory cost in general.
 
-********
-CPU Hist
-********
+***********
+CPU Version
+***********
 
-It's limited by the same factor of GPU Hist, except that gradient based sampling is not
-yet supported on CPU.
+For CPU histogram based tree methods (``approx``, ``hist``) it's recommended to use
+``grow_policy=depthwise`` for performance reason.  Iterating over data batches is slow,
+with ``depthwise`` policy XGBoost can build a entire layer of tree nodes with a few
+iterations, while with ``lossguide`` XGBoost needs to iterate over the data set for each
+tree node.

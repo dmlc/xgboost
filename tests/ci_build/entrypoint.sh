@@ -20,9 +20,9 @@ else
 fi
 
 if [[ -n $CI_BUILD_UID ]] && [[ -n $CI_BUILD_GID ]]; then
-    groupadd -o -g "${CI_BUILD_GID}" "${CI_BUILD_GROUP}"
+    groupadd -o -g "${CI_BUILD_GID}" "${CI_BUILD_GROUP}" || true
     useradd -o -m -g "${CI_BUILD_GID}" -u "${CI_BUILD_UID}" \
-        "${CI_BUILD_USER}"
+        "${CI_BUILD_USER}" || true
     export HOME="/home/${CI_BUILD_USER}"
     shopt -s dotglob
     cp -r /root/* "$HOME/"

@@ -4,8 +4,9 @@
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
 #include <xgboost/span.h>
+
 #include "../param.h"
-#include "evaluate_splits.cuh"
+#include "../updater_gpu_common.cuh"
 
 namespace xgboost {
 namespace tree {

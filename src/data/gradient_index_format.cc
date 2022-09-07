@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 XGBoost contributors
+ * Copyright 2021-2022 XGBoost contributors
  */
 #include "sparse_page_writer.h"
 #include "gradient_index.h"
@@ -7,7 +7,6 @@
 
 namespace xgboost {
 namespace data {
-
 class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
  public:
   bool Read(GHistIndexMatrix* page, dmlc::SeekStream* fi) override {
@@ -16,14 +15,6 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     }
     // indptr
     fi->Read(&page->row_ptr);
-    // offset
-    using OffsetT = std::iterator_traits<decltype(page->index.Offset())>::value_type;
-    std::vector<OffsetT> offset;
-    if (!fi->Read(&offset)) {
-      return false;
-    }
-    page->index.ResizeOffset(offset.size());
-    std::copy(offset.begin(), offset.end(), page->index.Offset());
     // data
     std::vector<uint8_t> data;
     if (!fi->Read(&data)) {
@@ -55,6 +46,11 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
       return false;
     }
     page->SetDense(is_dense);
+    if (is_dense) {
+      page->index.SetBinOffset(page->cut.Ptrs());
+    }
+
+    page->ReadColumnPage(fi);
     return true;
   }
 
@@ -65,13 +61,6 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     fo->Write(page.row_ptr);
     bytes += page.row_ptr.size() * sizeof(decltype(page.row_ptr)::value_type) +
              sizeof(uint64_t);
-    // offset
-    using OffsetT = std::iterator_traits<decltype(page.index.Offset())>::value_type;
-    std::vector<OffsetT> offset(page.index.OffsetSize());
-    std::copy(page.index.Offset(),
-              page.index.Offset() + page.index.OffsetSize(), offset.begin());
-    fo->Write(offset);
-    bytes += page.index.OffsetSize() * sizeof(OffsetT) + sizeof(uint64_t);
     // data
     std::vector<uint8_t> data(page.index.begin(), page.index.end());
     fo->Write(data);
@@ -93,6 +82,8 @@ class GHistIndexRawFormat : public SparsePageFormat<GHistIndexMatrix> {
     bytes += sizeof(page.base_rowid);
     fo->Write(page.IsDense());
     bytes += sizeof(page.IsDense());
+
+    bytes += page.WriteColumnPage(fo);
     return bytes;
   }
 };

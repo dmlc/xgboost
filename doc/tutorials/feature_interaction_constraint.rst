@@ -129,7 +129,7 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
 
 .. |fig1| image:: ../_static/feature_interaction_illustration2.svg
    :scale: 7%
-   :align: middle  
+   :align: middle
 
 .. |fig2| image:: ../_static/feature_interaction_illustration3.svg
    :scale: 7%
@@ -174,10 +174,13 @@ parameter:
                                      num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
 
-**Choice of tree construction algorithm**. To use feature interaction constraints, be sure
-to set the ``tree_method`` parameter to one of the following: ``exact``, ``hist``,
-``approx`` or ``gpu_hist``.  Support for ``gpu_hist`` and ``approx`` is added only in
-1.0.0.
+**************************
+Using feature name instead
+**************************
+
+XGBoost's Python package supports using feature names instead of feature index for
+specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
+feature interaction constraint can be specified as ``[["f0", "f2"]]``.
 
 **************
 Advanced topic

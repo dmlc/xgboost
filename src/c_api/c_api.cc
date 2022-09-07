@@ -193,9 +193,7 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
-                                    int silent,
-                                    DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
   if (rabit::IsDistributed()) {
@@ -416,6 +414,27 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   API_END();
 }
 
+XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array,
+                                     void *ptr_schema) {
+  API_BEGIN();
+  static_cast<data::RecordBatchesIterAdapter *>(data_handle)
+      ->SetData(static_cast<struct ArrowArray *>(ptr_array),
+                static_cast<struct ArrowSchema *>(ptr_schema));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+                                             DMatrixHandle *out) {
+  API_BEGIN();
+  auto config = Json::Load(StringView{json_config});
+  auto missing = GetMissing(config);
+  int32_t n_threads = get<Integer const>(config["nthread"]);
+  n_threads = common::OmpGetNumThreads(n_threads);
+  data::RecordBatchesIterAdapter adapter(next, n_threads);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,
@@ -464,35 +483,30 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
-                                  const char* field,
-                                  const bst_float* info,
+XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle, const char *field, const bst_float *info,
                                   xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, xgboost::DataType::kFloat32, len);
+  auto const& p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, info, xgboost::DataType::kFloat32, len);
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
-                                          char const* field,
-                                          char const* interface_c_str) {
+XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle, char const *field,
+                                          char const *interface_c_str) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, interface_c_str);
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, interface_c_str);
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
-                                 const char* field,
-                                 const unsigned* info,
+XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle, const char *field, const unsigned *info,
                                  xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, xgboost::DataType::kUInt32, len);
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo(field, info, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
@@ -528,25 +542,22 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
-                                  void const *data, xgboost::bst_ulong size,
-                                  int type) {
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,
+                                  xgboost::bst_ulong size, int type) {
   API_BEGIN();
   CHECK_HANDLE();
-  auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   CHECK(type >= 1 && type <= 4);
-  info.SetInfo(field, data, static_cast<DataType>(type), size);
+  p_fmat->SetInfo(field, data, static_cast<DataType>(type), size);
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
-                              const unsigned* group,
-                              xgboost::bst_ulong len) {
+XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle, const unsigned *group, xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   LOG(WARNING) << "XGDMatrixSetGroup is deprecated, use `XGDMatrixSetUIntInfo` instead.";
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo("group", group, xgboost::DataType::kUInt32, len);
+  auto const &p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  p_fmat->SetInfo("group", group, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
@@ -740,6 +751,12 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   API_END();
 }
 
+XGB_DLL int XGBoosterTestMethod(char const* c_json_config) {
+  API_BEGIN();
+  LOG(CONSOLE) << c_json_config;
+  API_END();
+}
+
 XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         DMatrixHandle dmat,
                                         char const* c_json_config,
@@ -799,6 +816,28 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
 }
 
 template <typename T>
+void InplacePredictImplCore(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
+                            Learner *learner,
+                            xgboost::PredictionType type,
+                            float missing,
+                            size_t n_rows, size_t n_cols,
+                            size_t iteration_begin, size_t iteration_end,
+                            bool strict_shape,
+                            xgboost::bst_ulong const **out_shape,
+                            xgboost::bst_ulong *out_dim, const float **out_result) {
+  HostDeviceVector<float>* p_predt { nullptr };
+  learner->InplacePredict(x, p_m, type, missing, &p_predt, iteration_begin, iteration_end);
+  CHECK(p_predt);
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  auto chunksize = n_rows == 0 ? 0 : p_predt->Size() / n_rows;
+  CalcPredictShape(strict_shape, type, n_rows, n_cols, chunksize, learner->Groups(),
+                   learner->BoostedRounds(), &shape, out_dim);
+  *out_result = dmlc::BeginPtr(p_predt->HostVector());
+  *out_shape = dmlc::BeginPtr(shape);
+//  printf("InplacePredictImplCore shape = %u, dim = %u\n", **out_shape, *out_dim);
+}
+
+template <typename T>
 void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
                         char const *c_json_config, Learner *learner,
                         size_t n_rows, size_t n_cols,
@@ -807,22 +846,35 @@ void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
   auto config = Json::Load(StringView{c_json_config});
   CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
 
-  HostDeviceVector<float>* p_predt { nullptr };
-  auto type = PredictionType(RequiredArg<Integer>(config, "type", __func__));
+  auto type = PredictionType(get<Integer const>(config["type"]));
   float missing = GetMissing(config);
-  learner->InplacePredict(x, p_m, type, missing, &p_predt,
-                          RequiredArg<Integer>(config, "iteration_begin", __func__),
-                          RequiredArg<Integer>(config, "iteration_end", __func__));
-  CHECK(p_predt);
-  auto &shape = learner->GetThreadLocal().prediction_shape;
-  auto chunksize = n_rows == 0 ? 0 : p_predt->Size() / n_rows;
-  bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
-  CalcPredictShape(strict_shape, type, n_rows, n_cols, chunksize, learner->Groups(),
-                   learner->BoostedRounds(), &shape, out_dim);
-  *out_result = dmlc::BeginPtr(p_predt->HostVector());
-  *out_shape = dmlc::BeginPtr(shape);
+  int iteration_begin = get<Integer const>(config["iteration_begin"]);
+  int iteration_end   = get<Integer const>(config["iteration_end"]);
+  bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  InplacePredictImplCore(x, p_m, learner, type, missing, n_rows, n_cols,
+                         iteration_begin, iteration_end, strict_shape, out_shape, out_dim, out_result);
 }
 
+XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
+                                    const float *data,
+                                    size_t num_rows,
+                                    size_t num_features,
+                                    float missing,
+                                    int option_mask,
+                                    int ntree_limit,
+                                    const xgboost::bst_ulong **len,
+                                    const bst_float **out_result) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  xgboost::bst_ulong out_dim;
+  std::shared_ptr<xgboost::data::DenseAdapter> x{new xgboost::data::DenseAdapter(data, num_rows, num_features)};
+  auto *learner = static_cast<xgboost::Learner *>(handle);
+  auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
+  InplacePredictImplCore(x, nullptr, learner, (xgboost::PredictionType)0, missing, num_rows, num_features,
+                         0, iteration_end, true, len, &out_dim, out_result);
+//  printf("XGBoosterInplacePredict len = %u, dim = %u\n", **len, out_dim);
+  API_END();
+}
 // A hidden API as cache id is not being supported yet.
 XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
                                       char const *array_interface,

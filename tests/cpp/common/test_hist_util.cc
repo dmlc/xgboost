@@ -149,8 +149,7 @@ TEST(CutsBuilder, SearchGroupInd) {
   group[2] = 7;
   group[3] = 5;
 
-  p_mat->Info().SetInfo(
-      "group", group.data(), DataType::kUInt32, kNumGroups);
+  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups);
 
   HistogramCuts hmat;
 
@@ -299,15 +298,15 @@ TEST(HistUtil, IndexBinBound) {
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-    GHistIndexMatrix hmat(p_fmat.get(), max_bin, false, common::OmpGetNumThreads(0));
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin, 0.5, false, common::OmpGetNumThreads(0));
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
 }
 
 template <typename T>
-void CheckIndexData(T* data_ptr, uint32_t* offsets,
-                    const GHistIndexMatrix& hmat, size_t n_cols) {
+void CheckIndexData(T const* data_ptr, uint32_t const* offsets, const GHistIndexMatrix& hmat,
+                    size_t n_cols) {
   for (size_t i = 0; i < hmat.index.Size(); ++i) {
     EXPECT_EQ(data_ptr[i] + offsets[i % n_cols], hmat.index[i]);
   }
@@ -322,8 +321,8 @@ TEST(HistUtil, IndexBinData) {
 
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-    GHistIndexMatrix hmat(p_fmat.get(), max_bin, false, common::OmpGetNumThreads(0));
-    uint32_t* offsets = hmat.index.Offset();
+    GHistIndexMatrix hmat(p_fmat.get(), max_bin, 0.5, false, common::OmpGetNumThreads(0));
+    uint32_t const* offsets = hmat.index.Offset();
     EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {
       case kBinSizes[0]:
@@ -350,6 +349,7 @@ void TestSketchFromWeights(bool with_group) {
   common::HistogramCuts cuts = SketchOnDMatrix(m.get(), kBins, common::OmpGetNumThreads(0));
 
   MetaInfo info;
+  Context ctx;
   auto& h_weights = info.weights_.HostVector();
   if (with_group) {
     h_weights.resize(kGroups);
@@ -363,7 +363,7 @@ void TestSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < kGroups; ++i) {
       groups[i] = kRows / kGroups;
     }
-    info.SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+    info.SetInfo(ctx, "group", groups.data(), DataType::kUInt32, kGroups);
   }
 
   info.num_row_ = kRows;
@@ -371,16 +371,17 @@ void TestSketchFromWeights(bool with_group) {
 
   // Assign weights.
   if (with_group) {
-    m->Info().SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+    m->SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
   }
 
-  m->Info().SetInfo("weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+  m->SetInfo("weight", h_weights.data(), DataType::kFloat32, h_weights.size());
   m->Info().num_col_ = kCols;
   m->Info().num_row_ = kRows;
   ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
   ValidateCuts(cuts, m.get(), kBins);
 
   if (with_group) {
+    m->Info().weights_ = decltype(m->Info().weights_)();  // remove weight
     HistogramCuts non_weighted = SketchOnDMatrix(m.get(), kBins, common::OmpGetNumThreads(0));
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
@@ -391,6 +392,17 @@ void TestSketchFromWeights(bool with_group) {
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
     }
+  }
+
+  if (with_group) {
+    auto& h_weights = info.weights_.HostVector();
+    h_weights.resize(kGroups);
+    // Generate different weight.
+    for (size_t i = 0; i < h_weights.size(); ++i) {
+      h_weights[i] = static_cast<float>(i + 1) / static_cast<float>(kGroups);
+    }
+    HistogramCuts weighted = SketchOnDMatrix(m.get(), kBins, common::OmpGetNumThreads(0));
+    ValidateCuts(weighted, m.get(), kBins);
   }
 }
 

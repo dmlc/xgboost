@@ -30,7 +30,7 @@ def train_result(param, dmat, num_rounds):
 class TestGPULinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_gpu_coordinate(self, param, num_rounds, dataset):
         assume(len(dataset.y) > 0)
         param['updater'] = 'gpu_coord_descent'
@@ -45,7 +45,7 @@ class TestGPULinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, strategies.floats(1e-5, 1.0),
            strategies.floats(1e-5, 1.0))
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_gpu_coordinate_regularised(self, param, num_rounds, dataset, alpha, lambd):
         assume(len(dataset.y) > 0)
         param['updater'] = 'gpu_coord_descent'

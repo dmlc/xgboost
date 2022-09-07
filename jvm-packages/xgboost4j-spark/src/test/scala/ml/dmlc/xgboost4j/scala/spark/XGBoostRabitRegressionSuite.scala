@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{Rabit, XGBoostError}
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import org.apache.spark.TaskFailedListener
-import org.apache.spark.SparkException
+import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.scala.Booster
 import scala.collection.JavaConverters._
+
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
+
+import org.apache.spark.SparkException
 
 class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
   val predictionErrorMin = 0.00001f
@@ -32,15 +33,6 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     .config("spark.kryo.classesToRegister", classOf[Booster].getName)
     .master(s"local[${numWorkers},${maxFailure}]")
-
-  private def waitAndCheckSparkShutdown(waitMiliSec: Int): Boolean = {
-    var totalWaitedTime = 0L
-    while (!ss.sparkContext.isStopped && totalWaitedTime <= waitMiliSec) {
-      Thread.sleep(10)
-      totalWaitedTime += 10
-    }
-    return ss.sparkContext.isStopped
-  }
 
   test("test classification prediction parity w/o ring reduce") {
     val training = buildDataFrame(Classification.train)
@@ -91,14 +83,11 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
   }
 
   test("test rabit timeout fail handle") {
-    // disable spark kill listener to verify if rabit_timeout take effect and kill tasks
-    TaskFailedListener.killerStarted = true
-
     val training = buildDataFrame(Classification.train)
     // mock rank 0 failure during 8th allreduce synchronization
     Rabit.mockList = Array("0,8,0,0").toList.asJava
 
-    try {
+    intercept[SparkException] {
       new XGBoostClassifier(Map(
         "eta" -> "0.1",
         "max_depth" -> "10",
@@ -108,37 +97,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
         "num_workers" -> numWorkers,
         "rabit_timeout" -> 0))
         .fit(training)
-    } catch {
-      case e: Throwable => // swallow anything
-    } finally {
-      // assume all tasks throw exception almost same time
-      // 100ms should be enough to exhaust all retries
-      assert(waitAndCheckSparkShutdown(100) == true)
-      TaskFailedListener.killerStarted = false
     }
   }
 
-  test("test SparkContext should not be killed ") {
-    val training = buildDataFrame(Classification.train)
-    // mock rank 0 failure during 8th allreduce synchronization
-    Rabit.mockList = Array("0,8,0,0").toList.asJava
-
-    try {
-      new XGBoostClassifier(Map(
-        "eta" -> "0.1",
-        "max_depth" -> "10",
-        "verbosity" -> "1",
-        "objective" -> "binary:logistic",
-        "num_round" -> 5,
-        "num_workers" -> numWorkers,
-        "kill_spark_context_on_worker_failure" -> false,
-        "rabit_timeout" -> 0))
-        .fit(training)
-    } catch {
-      case e: Throwable => // swallow anything
-    } finally {
-      // wait 3s to check if SparkContext is killed
-      assert(waitAndCheckSparkShutdown(3000) == false)
-    }
-  }
 }

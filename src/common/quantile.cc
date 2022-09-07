@@ -122,27 +122,6 @@ std::vector<float> MergeWeights(MetaInfo const &info, Span<float const> hessian,
   }
   return results;
 }
-
-std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
-  std::vector<float> const &group_weights = info.weights_.HostVector();
-  if (group_weights.empty()) {
-    return group_weights;
-  }
-
-  size_t n_samples = info.num_row_;
-  auto const &group_ptr = info.group_ptr_;
-  std::vector<float> results(n_samples);
-  CHECK_GE(group_ptr.size(), 2);
-  CHECK_EQ(group_ptr.back(), n_samples);
-  size_t cur_group = 0;
-  for (size_t i = 0; i < n_samples; ++i) {
-    results[i] = group_weights[cur_group];
-    if (i == group_ptr[cur_group + 1]) {
-      cur_group++;
-    }
-  }
-  return results;
-}
 }  // anonymous namespace
 
 template <typename WQSketch>
@@ -156,12 +135,10 @@ void SketchContainerImpl<WQSketch>::PushRowPage(SparsePage const &page, MetaInfo
 
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =
-      hessian.empty()
-          ? (use_group_ind_ ? UnrollGroupWeights(info)     // use group weight
-                            : info.weights_.HostVector())  // use sample weight
-          : MergeWeights(
-                info, hessian, use_group_ind_,
-                n_threads_);  // use hessian merged with group/sample weights
+      hessian.empty() ? (use_group_ind_ ? detail::UnrollGroupWeights(info)  // use group weight
+                                        : info.weights_.HostVector())       // use sample weight
+                      : MergeWeights(info, hessian, use_group_ind_,
+                                     n_threads_);  // use hessian merged with group/sample weights
   if (!weights.empty()) {
     CHECK_EQ(weights.size(), info.num_row_);
   }
@@ -272,7 +249,7 @@ void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_thread
 
   // move all categories into a flatten vector to prepare for allreduce
   size_t total = feature_ptr.back();
-  std::vector<bst_cat_t> flatten(total, 0);
+  std::vector<float> flatten(total, 0);
   auto cursor{flatten.begin()};
   for (auto const &feat : categories) {
     cursor = std::copy(feat.cbegin(), feat.cend(), cursor);
@@ -287,15 +264,15 @@ void AllreduceCategories(Span<FeatureType const> feature_types, int32_t n_thread
   auto gtotal = global_worker_ptr.back();
 
   // categories in all workers with all features.
-  std::vector<bst_cat_t> global_categories(gtotal, 0);
+  std::vector<float> global_categories(gtotal, 0);
   auto rank_begin = global_worker_ptr[rank];
   auto rank_size = global_worker_ptr[rank + 1] - rank_begin;
   CHECK_EQ(rank_size, total);
   std::copy(flatten.cbegin(), flatten.cend(), global_categories.begin() + rank_begin);
   // gather values from all workers.
   rabit::Allreduce<rabit::op::Sum>(global_categories.data(), global_categories.size());
-  QuantileAllreduce<bst_cat_t> allreduce_result{global_categories, global_worker_ptr,
-                                                global_feat_ptrs, categories.size()};
+  QuantileAllreduce<float> allreduce_result{global_categories, global_worker_ptr, global_feat_ptrs,
+                                            categories.size()};
   ParallelFor(categories.size(), n_threads, [&](auto fidx) {
     if (!IsCat(feature_types, fidx)) {
       return;
@@ -429,9 +406,11 @@ void SketchContainerImpl<WQSketch>::AllReduce(
   this->GatherSketchInfo(reduced, &worker_segments, &sketches_scan, &global_sketches);
 
   std::vector<typename WQSketch::SummaryContainer> final_sketches(n_columns);
-  QuantileAllreduce<typename WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
-                                                               sketches_scan, n_columns};
+
   ParallelFor(n_columns, n_threads_, [&](auto fidx) {
+    // gcc raises subobject-linkage warning if we put allreduce_result as lambda capture
+    QuantileAllreduce<typename WQSketch::Entry> allreduce_result{global_sketches, worker_segments,
+                                                                 sketches_scan, n_columns};
     int32_t intermediate_num_cuts = num_cuts[fidx];
     auto nbytes = WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
     if (IsCat(feature_types_, fidx)) {
@@ -466,11 +445,17 @@ void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_b
   }
 }
 
-void AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
-  auto &cut_values = cuts->cut_values_.HostVector();
-  for (auto const &v : categories) {
-    cut_values.push_back(AsCat(v));
+auto AddCategories(std::set<float> const &categories, HistogramCuts *cuts) {
+  if (std::any_of(categories.cbegin(), categories.cend(), InvalidCat)) {
+    InvalidCategory();
   }
+  auto &cut_values = cuts->cut_values_.HostVector();
+  auto max_cat = *std::max_element(categories.cbegin(), categories.cend());
+  CheckMaxCat(max_cat, categories.size());
+  for (bst_cat_t i = 0; i <= AsCat(max_cat); ++i) {
+    cut_values.push_back(i);
+  }
+  return max_cat;
 }
 
 template <typename WQSketch>
@@ -503,11 +488,12 @@ void SketchContainerImpl<WQSketch>::MakeCuts(HistogramCuts* cuts) {
     }
   });
 
+  float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
     size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
     typename WQSketch::SummaryContainer const& a = final_summaries[fid];
     if (IsCat(feature_types_, fid)) {
-      AddCategories(categories_.at(fid), cuts);
+      max_cat = std::max(max_cat, AddCategories(categories_.at(fid), cuts));
     } else {
       AddCutPoint<WQSketch>(a, max_num_bins, cuts);
       // push a value that is greater than anything
@@ -525,14 +511,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(HistogramCuts* cuts) {
     cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
 
-  if (has_categorical_) {
-    for (auto const &feat : categories_) {
-      if (std::any_of(feat.cbegin(), feat.cend(), InvalidCat)) {
-        InvalidCategory();
-      }
-    }
-  }
-
+  cuts->SetCategorical(this->has_categorical_, max_cat);
   monitor_.Stop(__func__);
 }
 
@@ -561,8 +540,8 @@ void SortedSketchContainer::PushColPage(SparsePage const &page, MetaInfo const &
   monitor_.Start(__func__);
   // glue these conditions using ternary operator to avoid making data copies.
   auto const &weights =
-      hessian.empty() ? (use_group_ind_ ? UnrollGroupWeights(info)     // use group weight
-                                        : info.weights_.HostVector())  // use sample weight
+      hessian.empty() ? (use_group_ind_ ? detail::UnrollGroupWeights(info)  // use group weight
+                                        : info.weights_.HostVector())       // use sample weight
                       : MergeWeights(info, hessian, use_group_ind_,
                                      n_threads_);  // use hessian merged with group/sample weights
   CHECK_EQ(weights.size(), info.num_row_);

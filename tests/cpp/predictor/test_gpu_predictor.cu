@@ -68,6 +68,7 @@ TEST(GPUPredictor, EllpackBasic) {
          .Bins(bins)
          .Device(0)
          .GenerateDeviceDMatrix(true);
+    ASSERT_FALSE(p_m->PageExists<SparsePage>());
     TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, kCols, p_m);
     TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, kCols, p_m);
   }

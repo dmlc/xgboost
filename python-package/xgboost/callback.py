@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=invalid-name, too-many-statements, no-self-use
+# pylint: disable=invalid-name, too-many-statements
 # pylint: disable=too-many-arguments
 """Callback library containing training routines.  See :doc:`Callback Functions
 </python/callbacks>` for a quick introduction.
@@ -18,6 +18,14 @@ from . import rabit
 from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
 from .compat import STRING_TYPES
 
+
+__all__ = [
+    "TrainingCallback",
+    "LearningRateScheduler",
+    "EarlyStopping",
+    "EvaluationMonitor",
+    "TrainingCheckPoint",
+]
 
 _Score = Union[float, Tuple[float, float]]
 _ScoreList = Union[List[float], List[Tuple[float, float]]]
@@ -248,7 +256,7 @@ class LearningRateScheduler(TrainingCallback):
     Parameters
     ----------
 
-    learning_rates : callable/collections.Sequence
+    learning_rates :
         If it's a callable object, then it should accept an integer parameter
         `epoch` and returns the corresponding learning rate.  Otherwise it
         should be a sequence like list or tuple with the same size of boosting

@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: ml.dmlc.xgboost4j.scala.rabit.RabitTrackerConnectionHandlerTest
+-------------------------------------------------------------------------------
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.147 sec - in ml.dmlc.xgboost4j.scala.rabit.RabitTrackerConnectionHandlerTest

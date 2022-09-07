@@ -78,6 +78,12 @@ class TestInteractionConstraints:
                                          feature_names=feature_names,
                                          interaction_constraints=constraints)
 
+        constraints = [['feature_0', 'feature_1'], ['feature_2']]
+        feature_names = ['feature_0', 'feature_1', 'feature_2']
+        self.run_interaction_constraints(tree_method='exact',
+                                         feature_names=feature_names,
+                                         interaction_constraints=constraints)
+
     @pytest.mark.skipif(**tm.no_sklearn())
     def training_accuracy(self, tree_method):
         """Test accuracy, reused by GPU tests."""

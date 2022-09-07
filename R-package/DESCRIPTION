@@ -1,12 +1,12 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 1.6.0.1
-Date: 2021-09-25
+Version: 1.6.2.1
+Date: 2022-03-29
 Authors@R: c(
   person("Tianqi", "Chen", role = c("aut"),
          email = "tianqi.tchen@gmail.com"),
-  person("Tong", "He", role = c("aut", "cre"),
+  person("Tong", "He", role = c("aut"),
          email = "hetong007@gmail.com"),
   person("Michael", "Benesty", role = c("aut"),
          email = "michael@benesty.fr"),
@@ -26,9 +26,12 @@ Authors@R: c(
   person("Min", "Lin", role = c("aut")),
   person("Yifeng", "Geng", role = c("aut")),
   person("Yutian", "Li", role = c("aut")),
+  person("Jiaming", "Yuan", role = c("aut", "cre"),
+         email = "jm.yuan@outlook.com"),
   person("XGBoost contributors", role = c("cph"),
          comment = "base XGBoost implementation")
   )
+Maintainer: Jiaming Yuan <jm.yuan@outlook.com>
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of the gradient boosting framework from Chen & Guestrin (2016) <doi:10.1145/2939672.2939785>.
     This package is its R interface. The package includes efficient linear

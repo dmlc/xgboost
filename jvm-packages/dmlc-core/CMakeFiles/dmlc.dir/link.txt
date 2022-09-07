@@ -1,0 +1,2 @@
+/Library/Developer/CommandLineTools/usr/bin/ar qc libdmlc.a CMakeFiles/dmlc.dir/src/config.cc.o CMakeFiles/dmlc.dir/src/data.cc.o CMakeFiles/dmlc.dir/src/io.cc.o CMakeFiles/dmlc.dir/src/recordio.cc.o CMakeFiles/dmlc.dir/src/io/line_split.cc.o CMakeFiles/dmlc.dir/src/io/recordio_split.cc.o CMakeFiles/dmlc.dir/src/io/indexed_recordio_split.cc.o CMakeFiles/dmlc.dir/src/io/input_split_base.cc.o CMakeFiles/dmlc.dir/src/io/filesys.cc.o CMakeFiles/dmlc.dir/src/io/local_filesys.cc.o
+/Library/Developer/CommandLineTools/usr/bin/ranlib libdmlc.a

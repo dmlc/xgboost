@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.69)
 
-AC_INIT([xgboost],[0.6-3],[],[xgboost],[])
+AC_INIT([xgboost],[1.6-0],[],[xgboost],[])
 
 # Use this line to set CC variable to a C compiler
 AC_PROG_CC
@@ -33,7 +33,7 @@ then
   ac_pkg_openmp=no
   AC_MSG_CHECKING([whether OpenMP will work in a package])
   AC_LANG_CONFTEST([AC_LANG_PROGRAM([[#include <omp.h>]], [[ return (omp_get_max_threads() <= 1); ]])])
-  ${CC} -o conftest conftest.c ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
+  ${CC} -o conftest conftest.c ${CPPFLAGS} ${LDFLAGS} ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
   AC_MSG_RESULT([${ac_pkg_openmp}])
   if test "${ac_pkg_openmp}" = no; then
     OPENMP_CXXFLAGS=''

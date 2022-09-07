@@ -14,6 +14,7 @@ from .core import Metric
 from .training import train
 from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
+from ._typing import ArrayLike
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -24,8 +25,6 @@ from .compat import (
     XGBRegressorBase,
     XGBoostLabelEncoder,
 )
-
-array_like = Any
 
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
@@ -112,6 +111,13 @@ __estimator_doc = '''
 __model_doc = f'''
     max_depth :  Optional[int]
         Maximum tree depth for base learners.
+    max_leaves :
+        Maximum number of leaves; 0 indicates no limit.
+    max_bin :
+        If using histogram-based algorithm, maximum number of bins per feature
+    grow_policy :
+        Tree growing policy. 0: favor splitting at nodes closest to the node, i.e. grow
+        depth-wise. 1: favor splitting at nodes with highest loss change.
     learning_rate : Optional[float]
         Boosting learning rate (xgb's "eta")
     verbosity : Optional[int]
@@ -132,14 +138,19 @@ __model_doc = f'''
         balance the threads.  Creating thread contention will significantly slow down both
         algorithms.
     gamma : Optional[float]
-        Minimum loss reduction required to make a further partition on a leaf
-        node of the tree.
+        (min_split_loss) Minimum loss reduction required to make a further partition on a
+        leaf node of the tree.
     min_child_weight : Optional[float]
         Minimum sum of instance weight(hessian) needed in a child.
     max_delta_step : Optional[float]
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : Optional[float]
         Subsample ratio of the training instance.
+    sampling_method :
+        Sampling method. Used only by `gpu_hist` tree method.
+          - `uniform`: select random training instances uniformly.
+          - `gradient_based` select random training instances with higher probability when
+            the gradient and hessian are larger. (cf. CatBoost)
     colsample_bytree : Optional[float]
         Subsample ratio of columns when constructing each tree.
     colsample_bylevel : Optional[float]
@@ -194,8 +205,11 @@ __model_doc = f'''
 
         .. versionadded:: 1.5.0
 
-        Experimental support for categorical data.  Do not set to true unless you are
-        interested in development. Only valid when `gpu_hist` and dataframe are used.
+        .. note:: This parameter is experimental
+
+        Experimental support for categorical data.  When enabled, cudf/pandas.DataFrame
+        should be used to specify categorical data type.  Also, JSON/UBJSON
+        serialization format is required.
 
     max_cat_to_onehot : Optional[int]
 
@@ -204,10 +218,10 @@ __model_doc = f'''
         .. note:: This parameter is experimental
 
         A threshold for deciding whether XGBoost should use one-hot encoding based split
-        for categorical data.  When number of categories is lesser than the threshold then
-        one-hot encoding is chosen, otherwise the categories will be partitioned into
-        children nodes.  Only relevant for regression and binary classification and
-        `approx` tree method.
+        for categorical data.  When number of categories is lesser than the threshold
+        then one-hot encoding is chosen, otherwise the categories will be partitioned
+        into children nodes.  Only relevant for regression and binary classification.
+        See :doc:`Categorical Data </tutorials/categorical>` for details.
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 
@@ -271,13 +285,21 @@ __model_doc = f'''
 
     callbacks : Optional[List[TrainingCallback]]
         List of callback functions that are applied at end of each iteration.
-        It is possible to use predefined callbacks by using :ref:`callback_api`.
-        Example:
+        It is possible to use predefined callbacks by using
+        :ref:`Callback API <callback_api>`.
+
+        .. note::
+
+           States in callback are not preserved during training, which means callback
+           objects can not be reused for multiple training sessions without
+           reinitialization or deepcopy.
 
         .. code-block:: python
 
-            callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                                    save_best=True)]
+            for params in parameters_grid:
+                # be sure to (re)initialize the callbacks before each run
+                callbacks = [xgb.callback.LearningRateScheduler(custom_rates)]
+                xgboost.train(params, Xy, callbacks=callbacks)
 
     kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters
@@ -464,6 +486,9 @@ class XGBModel(XGBModelBase):
     def __init__(
         self,
         max_depth: Optional[int] = None,
+        max_leaves: Optional[int] = None,
+        max_bin: Optional[int] = None,
+        grow_policy: Optional[str] = None,
         learning_rate: Optional[float] = None,
         n_estimators: int = 100,
         verbosity: Optional[int] = None,
@@ -475,6 +500,7 @@ class XGBModel(XGBModelBase):
         min_child_weight: Optional[float] = None,
         max_delta_step: Optional[float] = None,
         subsample: Optional[float] = None,
+        sampling_method: Optional[str] = None,
         colsample_bytree: Optional[float] = None,
         colsample_bylevel: Optional[float] = None,
         colsample_bynode: Optional[float] = None,
@@ -506,6 +532,9 @@ class XGBModel(XGBModelBase):
         self.objective = objective
 
         self.max_depth = max_depth
+        self.max_leaves = max_leaves
+        self.max_bin = max_bin
+        self.grow_policy = grow_policy
         self.learning_rate = learning_rate
         self.verbosity = verbosity
         self.booster = booster
@@ -514,6 +543,7 @@ class XGBModel(XGBModelBase):
         self.min_child_weight = min_child_weight
         self.max_delta_step = max_delta_step
         self.subsample = subsample
+        self.sampling_method = sampling_method
         self.colsample_bytree = colsample_bytree
         self.colsample_bylevel = colsample_bylevel
         self.colsample_bynode = colsample_bynode
@@ -815,7 +845,8 @@ class XGBModel(XGBModelBase):
         callbacks = self.callbacks if self.callbacks is not None else callbacks
 
         tree_method = params.get("tree_method", None)
-        if self.enable_categorical and tree_method not in ("gpu_hist", "approx"):
+        cat_support = {"gpu_hist", "approx", "hist"}
+        if self.enable_categorical and tree_method not in cat_support:
             raise ValueError(
                 "Experimental support for categorical data is not implemented for"
                 " current tree method yet."
@@ -830,19 +861,19 @@ class XGBModel(XGBModelBase):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, "XGBModel"]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBModel":
         # pylint: disable=invalid-name,attribute-defined-outside-init
@@ -893,8 +924,8 @@ class XGBModel(XGBModelBase):
             otherwise a `ValueError` is thrown.
 
         callbacks :
-            .. deprecated: 1.6.0
-                Use `callbacks` in :py:meth:`__init__` or :py:methd:`set_params` instead.
+            .. deprecated:: 1.6.0
+                Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
         """
         evals_result: TrainingCallback.EvalsLog = {}
         train_dmatrix, evals = _wrap_evaluation_matrices(
@@ -969,11 +1000,11 @@ class XGBModel(XGBModelBase):
 
     def predict(
         self,
-        X: array_like,
+        X: ArrayLike,
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[array_like] = None,
+        base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
@@ -1045,7 +1076,7 @@ class XGBModel(XGBModelBase):
         )
 
     def apply(
-        self, X: array_like,
+        self, X: ArrayLike,
         ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None
     ) -> np.ndarray:
@@ -1285,19 +1316,19 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
@@ -1393,11 +1424,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict(
         self,
-        X: array_like,
+        X: ArrayLike,
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[array_like] = None,
+        base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         class_probs = super().predict(
@@ -1432,10 +1463,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict_proba(
         self,
-        X: array_like,
+        X: ArrayLike,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[array_like] = None,
+        base_margin: Optional[ArrayLike] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """ Predict the probability of each `X` example being of a given class.
@@ -1526,19 +1557,19 @@ class XGBRFClassifier(XGBClassifier):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRFClassifier":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -1598,19 +1629,19 @@ class XGBRFRegressor(XGBRegressor):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRFRegressor":
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
@@ -1673,23 +1704,23 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
     @_deprecate_positional_args
     def fit(
         self,
-        X: array_like,
-        y: array_like,
+        X: ArrayLike,
+        y: ArrayLike,
         *,
-        group: Optional[array_like] = None,
-        qid: Optional[array_like] = None,
-        sample_weight: Optional[array_like] = None,
-        base_margin: Optional[array_like] = None,
-        eval_set: Optional[Sequence[Tuple[array_like, array_like]]] = None,
-        eval_group: Optional[Sequence[array_like]] = None,
-        eval_qid: Optional[Sequence[array_like]] = None,
+        group: Optional[ArrayLike] = None,
+        qid: Optional[ArrayLike] = None,
+        sample_weight: Optional[ArrayLike] = None,
+        base_margin: Optional[ArrayLike] = None,
+        eval_set: Optional[Sequence[Tuple[ArrayLike, ArrayLike]]] = None,
+        eval_group: Optional[Sequence[ArrayLike]] = None,
+        eval_qid: Optional[Sequence[ArrayLike]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Metric]] = None,
         early_stopping_rounds: Optional[int] = None,
         verbose: Optional[bool] = False,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[array_like]] = None,
-        base_margin_eval_set: Optional[Sequence[array_like]] = None,
-        feature_weights: Optional[array_like] = None,
+        sample_weight_eval_set: Optional[Sequence[ArrayLike]] = None,
+        base_margin_eval_set: Optional[Sequence[ArrayLike]] = None,
+        feature_weights: Optional[ArrayLike] = None,
         callbacks: Optional[Sequence[TrainingCallback]] = None
     ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
@@ -1768,8 +1799,8 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             otherwise a `ValueError` is thrown.
 
         callbacks :
-            .. deprecated: 1.6.0
-                Use `callbacks` in :py:meth:`__init__` or :py:methd:`set_params` instead.
+            .. deprecated:: 1.6.0
+                Use `callbacks` in :py:meth:`__init__` or :py:meth:`set_params` instead.
         """
         # check if group information is provided
         if group is None and qid is None:

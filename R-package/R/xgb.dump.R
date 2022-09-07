@@ -6,8 +6,6 @@
 #' @param fname the name of the text file where to save the model text dump.
 #'        If not provided or set to \code{NULL}, the model is returned as a \code{character} vector.
 #' @param fmap feature map file representing feature types.
-#'        Detailed description could be found at
-#'        \url{https://github.com/dmlc/xgboost/wiki/Binary-Classification#dump-model}.
 #'        See demo/ for walkthrough example in R, and
 #'        \url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
 #'        for example Format.

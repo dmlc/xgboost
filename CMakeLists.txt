@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
-project(xgboost LANGUAGES CXX C VERSION 1.6.0)
+project(xgboost LANGUAGES CXX C VERSION 1.6.2)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -200,6 +200,10 @@ endif (JVM_BINDINGS)
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 
+if (PLUGIN_RMM)
+  find_package(rmm REQUIRED)
+endif (PLUGIN_RMM)
+
 #-- library
 if (BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
@@ -304,7 +308,7 @@ write_basic_package_version_file(
   COMPATIBILITY AnyNewerVersion)
 install(
   FILES
-  ${CMAKE_BINARY_DIR}/cmake/xgboost-config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
   ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
 

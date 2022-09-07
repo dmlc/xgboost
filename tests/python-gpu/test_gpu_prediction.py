@@ -22,7 +22,7 @@ from test_predict import run_predict_leaf      # noqa
 rng = np.random.RandomState(1994)
 
 shap_parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(0, 11),
+    'max_depth': strategies.integers(1, 11),
     'max_leaves': strategies.integers(0, 256),
     'num_parallel_tree': strategies.sampled_from([1, 10]),
 }).filter(lambda x: x['max_depth'] > 0 or x['max_leaves'] > 0)
@@ -247,7 +247,7 @@ class TestGPUPredict:
 
     @given(strategies.integers(1, 10),
            tm.dataset_strategy, shap_parameter_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_shap(self, num_rounds, dataset, param):
         param.update({"predictor": "gpu_predictor", "gpu_id": 0})
         param = dataset.set_params(param)
@@ -261,7 +261,7 @@ class TestGPUPredict:
 
     @given(strategies.integers(1, 10),
            tm.dataset_strategy, shap_parameter_strategy)
-    @settings(deadline=None, max_examples=20)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shap_interactions(self, num_rounds, dataset, param):
         param.update({"predictor": "gpu_predictor", "gpu_id": 0})
         param = dataset.set_params(param)
@@ -312,14 +312,14 @@ class TestGPUPredict:
         np.testing.assert_equal(cpu_leaf, gpu_leaf)
 
     @given(predict_parameter_strategy, tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_predict_leaf_gbtree(self, param, dataset):
         param['booster'] = 'gbtree'
         param['tree_method'] = 'gpu_hist'
         self.run_predict_leaf_booster(param, 10, dataset)
 
     @given(predict_parameter_strategy, tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_predict_leaf_dart(self, param, dataset):
         param['booster'] = 'dart'
         param['tree_method'] = 'gpu_hist'
@@ -330,7 +330,7 @@ class TestGPUPredict:
     @given(df=data_frames([column('x0', elements=strategies.integers(min_value=0, max_value=3)),
                            column('x1', elements=strategies.integers(min_value=0, max_value=5))],
                           index=range_indexes(min_size=20, max_size=50)))
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_predict_categorical_split(self, df):
         from sklearn.metrics import mean_squared_error
 

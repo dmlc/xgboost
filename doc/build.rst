@@ -13,6 +13,8 @@ systems.  If the instructions do not work for you, please feel free to ask quest
 
 .. contents:: Contents
 
+.. _get_source:
+
 *************************
 Obtaining the Source Code
 *************************
@@ -79,33 +81,11 @@ Obtain ``libomp`` from `Homebrew <https://brew.sh/>`_:
 
   brew install libomp
 
+Rest is the same as building on Linux.
 
-Now clone the repository:
-
-.. code-block:: bash
-
-  git clone --recursive https://github.com/dmlc/xgboost
-
-Create the ``build/`` directory and invoke CMake. After invoking CMake, you can build XGBoost with ``make``:
-
-.. code-block:: bash
-
-  mkdir build
-  cd build
-  cmake ..
-  make -j4
-
-You may now continue to :ref:`build_python`.
 
 Building on Windows
 ===================
-You need to first clone the XGBoost repo with ``--recursive`` option, to clone the submodules.
-We recommend you use `Git for Windows <https://git-for-windows.github.io/>`_, as it comes with a standard Bash shell. This will highly ease the installation process.
-
-.. code-block:: bash
-
-  git submodule init
-  git submodule update
 
 XGBoost support compilation with Microsoft Visual Studio and MinGW.  To build with Visual
 Studio, we will need CMake. Make sure to install a recent version of CMake. Then run the
@@ -176,14 +156,6 @@ On Windows, run CMake as follows:
   cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON
 
 (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
-
-.. note:: Visual Studio 2017 Win64 Generator may not work
-
-  Choosing the Visual Studio 2017 generator may cause compilation failure. When it happens, specify the 2015 compiler by adding the ``-T`` option:
-
-  .. code-block:: bash
-
-    cmake .. -G"Visual Studio 15 2017 Win64" -T v140,cuda=8.0 -DUSE_CUDA=ON
 
 The above cmake configuration run will create an ``xgboost.sln`` solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
 
@@ -328,9 +300,9 @@ So you may want to build XGBoost with GCC own your own risk. This presents some 
 4. Don't use ``-march=native`` gcc flag. Using it causes the Python interpreter to crash if the DLL was actually used.
 5. You may need to provide the lib with the runtime libs. If ``mingw32/bin`` is not in ``PATH``, build a wheel (``python setup.py bdist_wheel``), open it with an archiver and put the needed dlls to the directory where ``xgboost.dll`` is situated. Then you can install the wheel with ``pip``.
 
-*******************************
-Building R Package From Source.
-*******************************
+******************************
+Building R Package From Source
+******************************
 
 By default, the package installed by running ``install.packages`` is built from source.
 Here we list some other options for installing development version.
@@ -341,23 +313,28 @@ Installing the development version (Linux / Mac OSX)
 Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
 sections for requirements of building C++ core).
 
-Due to the use of git-submodules, ``devtools::install_github`` can no longer be used to install the latest version of R package.
-Thus, one has to run git to check out the code first:
+Due to the use of git-submodules, ``devtools::install_github`` can no longer be used to
+install the latest version of R package. Thus, one has to run git to check out the code
+first, see :ref:`get_source` on how to initialize the git repository for XGBoost. The
+simplest way to install the R package after obtaining the source code is:
 
 .. code-block:: bash
 
-  git clone --recursive https://github.com/dmlc/xgboost
-  cd xgboost
-  git submodule init
-  git submodule update
+  cd R-package
+  R CMD INSTALL .
+
+But if you want to use CMake build for better performance (which has the logic for
+detecting available CPU instructions) or greater flexibility around compile flags, the
+above snippet can be replaced by:
+
+.. code-block:: bash
+
   mkdir build
   cd build
   cmake .. -DR_LIB=ON
   make -j$(nproc)
   make install
 
-If all fails, try `Building the shared library`_ to see whether a problem is specific to R
-package or not.  Notice that the R package is installed by CMake directly.
 
 Installing the development version with Visual Studio (Windows)
 ===============================================================

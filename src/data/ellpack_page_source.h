@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019-2021 by XGBoost Contributors
+ * Copyright 2019-2022 by XGBoost Contributors
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
@@ -25,15 +25,17 @@ class EllpackPageSource : public PageSourceIncMixIn<EllpackPage> {
   std::unique_ptr<common::HistogramCuts> cuts_;
 
  public:
-  EllpackPageSource(
-      float missing, int nthreads, bst_feature_t n_features, size_t n_batches,
-      std::shared_ptr<Cache> cache, BatchParam param,
-      std::unique_ptr<common::HistogramCuts> cuts, bool is_dense,
-      size_t row_stride, common::Span<FeatureType const> feature_types,
-      std::shared_ptr<SparsePageSource> source)
-      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache),
-        is_dense_{is_dense}, row_stride_{row_stride}, param_{std::move(param)},
-        feature_types_{feature_types}, cuts_{std::move(cuts)} {
+  EllpackPageSource(float missing, int nthreads, bst_feature_t n_features, size_t n_batches,
+                    std::shared_ptr<Cache> cache, BatchParam param,
+                    std::unique_ptr<common::HistogramCuts> cuts, bool is_dense, size_t row_stride,
+                    common::Span<FeatureType const> feature_types,
+                    std::shared_ptr<SparsePageSource> source)
+      : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, false),
+        is_dense_{is_dense},
+        row_stride_{row_stride},
+        param_{std::move(param)},
+        feature_types_{feature_types},
+        cuts_{std::move(cuts)} {
     this->source_ = source;
     this->Fetch();
   }

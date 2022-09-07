@@ -1,7 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
- * \file common.h
- * \brief Threading utilities
+ * Copyright 2019-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
@@ -238,6 +236,8 @@ inline int32_t OmpGetThreadLimit() {
   return limit;
 }
 
+int32_t GetCfsCPUCount() noexcept;
+
 inline int32_t OmpGetNumThreads(int32_t n_threads) {
   if (n_threads <= 0) {
     n_threads = std::min(omp_get_num_procs(), omp_get_max_threads());
@@ -246,6 +246,43 @@ inline int32_t OmpGetNumThreads(int32_t n_threads) {
   n_threads = std::max(n_threads, 1);
   return n_threads;
 }
+
+
+/*!
+ * \brief A C-style array with in-stack allocation. As long as the array is smaller than
+ * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
+ * heap-allocated.
+ */
+template <typename T, size_t MaxStackSize>
+class MemStackAllocator {
+ public:
+  explicit MemStackAllocator(size_t required_size) : required_size_(required_size) {
+    if (MaxStackSize >= required_size_) {
+      ptr_ = stack_mem_;
+    } else {
+      ptr_ = reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
+    }
+    if (!ptr_) {
+      throw std::bad_alloc{};
+    }
+  }
+  MemStackAllocator(size_t required_size, T init) : MemStackAllocator{required_size} {
+    std::fill_n(ptr_, required_size_, init);
+  }
+
+  ~MemStackAllocator() {
+    if (required_size_ > MaxStackSize) {
+      free(ptr_);
+    }
+  }
+  T& operator[](size_t i) { return ptr_[i]; }
+  T const& operator[](size_t i) const { return ptr_[i]; }
+
+ private:
+  T* ptr_ = nullptr;
+  size_t required_size_;
+  T stack_mem_[MaxStackSize];
+};
 }  // namespace common
 }  // namespace xgboost
 

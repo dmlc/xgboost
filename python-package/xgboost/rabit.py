@@ -1,7 +1,6 @@
-# coding: utf-8
-# pylint: disable= invalid-name
 """Distributed XGBoost Rabit related API."""
 import ctypes
+from enum import IntEnum, unique
 import pickle
 from typing import Any, TypeVar, Callable, Optional, cast, List, Union
 
@@ -98,7 +97,7 @@ def get_processor_name() -> bytes:
     return buf.value
 
 
-T = TypeVar("T")
+T = TypeVar("T")                # pylint:disable=invalid-name
 
 
 def broadcast(data: T, root: int) -> T:
@@ -152,7 +151,8 @@ DTYPE_ENUM__ = {
 }
 
 
-class Op:                     # pylint: disable=too-few-public-methods
+@unique
+class Op(IntEnum):
     '''Supported operations for rabit.'''
     MAX = 0
     MIN = 1
@@ -160,18 +160,18 @@ class Op:                     # pylint: disable=too-few-public-methods
     OR = 3
 
 
-def allreduce(
-    data: np.ndarray, op: int, prepare_fun: Optional[Callable[[np.ndarray], None]] = None
+def allreduce(                  # pylint:disable=invalid-name
+    data: np.ndarray, op: Op, prepare_fun: Optional[Callable[[np.ndarray], None]] = None
 ) -> np.ndarray:
     """Perform allreduce, return the result.
 
     Parameters
     ----------
-    data: numpy array
+    data :
         Input data.
-    op: int
+    op :
         Reduction operators, can be MIN, MAX, SUM, BITOR
-    prepare_fun: function
+    prepare_fun :
         Lazy preprocessing function, if it is not None, prepare_fun(data)
         will be called by the function before performing allreduce, to initialize the data
         If the result of Allreduce can be recovered directly,
@@ -179,7 +179,7 @@ def allreduce(
 
     Returns
     -------
-    result : array_like
+    result :
         The result of allreduce, have same shape as data
 
     Notes
@@ -196,7 +196,7 @@ def allreduce(
     if prepare_fun is None:
         _check_call(_LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
                                         buf.size, DTYPE_ENUM__[buf.dtype],
-                                        op, None, None))
+                                        int(op), None, None))
     else:
         func_ptr = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 

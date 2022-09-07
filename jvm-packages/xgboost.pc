@@ -1,0 +1,12 @@
+prefix=/usr/local
+version=1.6.2
+exec_prefix=${prefix}/bin
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: xgboost
+Description: XGBoost - Scalable and Flexible Gradient Boosting.
+Version: ${version}
+
+Cflags: -I${includedir}
+Libs: -L${libdir} -lxgboost

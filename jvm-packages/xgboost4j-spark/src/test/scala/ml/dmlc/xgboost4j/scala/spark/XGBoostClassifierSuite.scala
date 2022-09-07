@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2022 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
+
 import org.apache.spark.ml.linalg._
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
+
 import org.apache.spark.Partitioner
+import org.apache.spark.ml.feature.VectorAssembler
 
 class XGBoostClassifierSuite extends FunSuite with PerTest {
 
@@ -102,6 +105,8 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(model.getEta == 0.1)
     assert(model.getMaxDepth == 6)
     assert(model.numClasses == 6)
+    val transformedDf = model.transform(trainingDF)
+    assert(!transformedDf.columns.contains("probability"))
   }
 
   test("use base margin") {
@@ -310,6 +315,80 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     }.toDF("id", "label", "features")
     val xgb = new XGBoostClassifier(paramMap)
     xgb.fit(repartitioned)
+  }
+
+  test("featuresCols with features column can work") {
+    val spark = ss
+    import spark.implicits._
+    val xgbInput = Seq(
+      (Vectors.dense(1.0, 7.0), true, 10.1, 100.2, 0),
+      (Vectors.dense(2.0, 20.0), false, 2.1, 2.2, 1))
+      .toDF("f1", "f2", "f3", "features", "label")
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> 1)
+
+    val featuresName = Array("f1", "f2", "f3", "features")
+    val xgbClassifier = new XGBoostClassifier(paramMap)
+      .setFeaturesCol(featuresName)
+      .setLabelCol("label")
+
+    val model = xgbClassifier.fit(xgbInput)
+    assert(model.getFeaturesCols.sameElements(featuresName))
+
+    val df = model.transform(xgbInput)
+    assert(df.schema.fieldNames.contains("features_" + model.uid))
+    df.show()
+
+    val newFeatureName = "features_new"
+    // transform also can work for vectorized dataset
+    val vectorizedInput = new VectorAssembler()
+      .setInputCols(featuresName)
+      .setOutputCol(newFeatureName)
+      .transform(xgbInput)
+      .select(newFeatureName, "label")
+
+    val df1 = model
+      .setFeaturesCol(newFeatureName)
+      .transform(vectorizedInput)
+    assert(df1.schema.fieldNames.contains(newFeatureName))
+    df1.show()
+  }
+
+  test("featuresCols without features column can work") {
+    val spark = ss
+    import spark.implicits._
+    val xgbInput = Seq(
+      (Vectors.dense(1.0, 7.0), true, 10.1, 100.2, 0),
+      (Vectors.dense(2.0, 20.0), false, 2.1, 2.2, 1))
+      .toDF("f1", "f2", "f3", "f4", "label")
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> 1)
+
+    val featuresName = Array("f1", "f2", "f3", "f4")
+    val xgbClassifier = new XGBoostClassifier(paramMap)
+      .setFeaturesCol(featuresName)
+      .setLabelCol("label")
+      .setEvalSets(Map("eval" -> xgbInput))
+
+    val model = xgbClassifier.fit(xgbInput)
+    assert(model.getFeaturesCols.sameElements(featuresName))
+
+    // transform should work for the dataset which includes the feature column names.
+    val df = model.transform(xgbInput)
+    assert(df.schema.fieldNames.contains("features"))
+    df.show()
+
+    // transform also can work for vectorized dataset
+    val vectorizedInput = new VectorAssembler()
+      .setInputCols(featuresName)
+      .setOutputCol("features")
+      .transform(xgbInput)
+      .select("features", "label")
+
+    val df1 = model.transform(vectorizedInput)
+    df1.show()
   }
 
 }

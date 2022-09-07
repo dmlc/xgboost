@@ -775,13 +775,16 @@ class AllReducer {
    */
 
   void AllReduceSum(const double *sendbuff, double *recvbuff, int count) {
+    if (rabit::GetWorldSize() == 1) {
+      return;
+    }
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum, comm_, stream_));
     allreduce_bytes_ += count * sizeof(double);
     allreduce_calls_ += 1;
-#endif
+#endif  // XGBOOST_USE_NCCL
   }
 
   /**
@@ -796,9 +799,12 @@ class AllReducer {
 
   void AllGather(uint32_t const* data, size_t length,
                  dh::caching_device_vector<uint32_t>* recvbuf) {
+    size_t world = rabit::GetWorldSize();
+    if (world == 1) {
+      return;
+    }
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-    size_t world = rabit::GetWorldSize();
     recvbuf->resize(length * world);
     safe_nccl(ncclAllGather(data, recvbuf->data().get(), length, ncclUint32,
                             comm_, stream_));
@@ -813,9 +819,11 @@ class AllReducer {
    * \param recvbuff                The recvbuff.
    * \param count                   Number of elements.
    */
-
   void AllReduceSum(const float *sendbuff, float *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
+    if (rabit::GetWorldSize() == 1) {
+      return;
+    }
     CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum, comm_, stream_));
@@ -836,6 +844,9 @@ class AllReducer {
 
   void AllReduceSum(const int64_t *sendbuff, int64_t *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
+    if (rabit::GetWorldSize() == 1) {
+      return;
+    }
     CHECK(initialised_);
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
@@ -845,6 +856,9 @@ class AllReducer {
 
   void AllReduceSum(const uint32_t *sendbuff, uint32_t *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
+    if (rabit::GetWorldSize() == 1) {
+      return;
+    }
     CHECK(initialised_);
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
@@ -853,6 +867,9 @@ class AllReducer {
   }
 
   void AllReduceSum(const uint64_t *sendbuff, uint64_t *recvbuff, int count) {
+    if (rabit::GetWorldSize() == 1) {
+      return;
+    }
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
 
@@ -867,12 +884,15 @@ class AllReducer {
             std::enable_if_t<std::is_same<size_t, T>::value &&
                              !std::is_same<size_t, unsigned long long>::value>  // NOLINT
                 * = nullptr>
-  void AllReduceSum(const T *sendbuff, T *recvbuff, int count) { // NOLINT
+  void AllReduceSum(const T *sendbuff, T *recvbuff, int count) {  // NOLINT
 #ifdef XGBOOST_USE_NCCL
+    if (rabit::GetWorldSize() == 1) {
+      return;
+    }
     CHECK(initialised_);
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), ""); // NOLINT
+    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), "");  // NOLINT
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
 #endif
   }
@@ -952,22 +972,22 @@ thrust::device_ptr<T const> tcend(xgboost::HostDeviceVector<T> const& vector) { 
 }
 
 template <typename T>
-thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
   return thrust::device_ptr<T>(span.data());
 }
 
 template <typename T>
-thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tbegin(xgboost::common::Span<T> const& span) {  // NOLINT
   return thrust::device_ptr<T>(span.data());
 }
 
 template <typename T>
-thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 
 template <typename T>
-thrust::device_ptr<T> tend(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T> tend(xgboost::common::Span<T> const& span) {  // NOLINT
   return tbegin(span) + span.size();
 }
 
@@ -982,12 +1002,12 @@ XGBOOST_DEVICE auto trend(xgboost::common::Span<T> &span) {  // NOLINT
 }
 
 template <typename T>
-thrust::device_ptr<T const> tcbegin(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcbegin(xgboost::common::Span<T> const& span) {  // NOLINT
   return thrust::device_ptr<T const>(span.data());
 }
 
 template <typename T>
-thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {  // NOLINT
+XGBOOST_DEVICE thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {  // NOLINT
   return tcbegin(span) + span.size();
 }
 
@@ -1536,4 +1556,69 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
   safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
                             sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
+
+class CUDAStreamView;
+
+class CUDAEvent {
+  cudaEvent_t event_{nullptr};
+
+ public:
+  CUDAEvent() { dh::safe_cuda(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming)); }
+  ~CUDAEvent() {
+    if (event_) {
+      dh::safe_cuda(cudaEventDestroy(event_));
+    }
+  }
+
+  CUDAEvent(CUDAEvent const &that) = delete;
+  CUDAEvent &operator=(CUDAEvent const &that) = delete;
+
+  inline void Record(CUDAStreamView stream);  // NOLINT
+
+  operator cudaEvent_t() const { return event_; }  // NOLINT
+};
+
+class CUDAStreamView {
+  cudaStream_t stream_{nullptr};
+
+ public:
+  explicit CUDAStreamView(cudaStream_t s) : stream_{s} {}
+  void Wait(CUDAEvent const &e) {
+#if defined(__CUDACC_VER_MAJOR__)
+#if __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0
+    // CUDA == 11.0
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, 0));
+#else
+    // CUDA > 11.0
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
+#endif  // __CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ == 0:
+#else   // clang
+    dh::safe_cuda(cudaStreamWaitEvent(stream_, cudaEvent_t{e}, cudaEventWaitDefault));
+#endif  //  defined(__CUDACC_VER_MAJOR__)
+  }
+  operator cudaStream_t() const {  // NOLINT
+    return stream_;
+  }
+  void Sync() { dh::safe_cuda(cudaStreamSynchronize(stream_)); }
+};
+
+inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
+  dh::safe_cuda(cudaEventRecord(event_, cudaStream_t{stream}));
+}
+
+inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamLegacy}; }
+
+class CUDAStream {
+  cudaStream_t stream_;
+
+ public:
+  CUDAStream() {
+    dh::safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+  }
+  ~CUDAStream() {
+    dh::safe_cuda(cudaStreamDestroy(stream_));
+  }
+
+  CUDAStreamView View() const { return CUDAStreamView{stream_}; }
+};
 }  // namespace dh

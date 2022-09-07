@@ -1,8 +1,10 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_TASK_H_
 #define XGBOOST_TASK_H_
+
+#include <xgboost/base.h>
 
 #include <cinttypes>
 

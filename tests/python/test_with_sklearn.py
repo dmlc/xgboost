@@ -329,21 +329,27 @@ def test_select_feature():
 
 def test_num_parallel_tree():
     from sklearn.datasets import fetch_california_housing
-    reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4,
-                           tree_method='hist')
+
+    reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4, tree_method="hist")
     X, y = fetch_california_housing(return_X_y=True)
     bst = reg.fit(X=X, y=y)
-    dump = bst.get_booster().get_dump(dump_format='json')
+    dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 16
 
     reg = xgb.XGBRFRegressor(n_estimators=4)
     bst = reg.fit(X=X, y=y)
-    dump = bst.get_booster().get_dump(dump_format='json')
+    dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 4
 
     config = json.loads(bst.get_booster().save_config())
-    assert int(config['learner']['gradient_booster']['gbtree_train_param'][
-        'num_parallel_tree']) == 4
+    assert (
+        int(
+            config["learner"]["gradient_booster"]["gbtree_model_param"][
+                "num_parallel_tree"
+            ]
+        )
+        == 4
+    )
 
 
 def test_calif_housing_regression():

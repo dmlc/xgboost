@@ -16,12 +16,6 @@ This tutorial is to cover the end-to-end process to build a machine learning pip
 * Building a Machine Learning Pipeline with XGBoost4J-Spark
 * Running XGBoost4J-Spark in Production
 
-.. note::
-
-  **SparkContext will be stopped by default when XGBoost training task fails**.
-
-  XGBoost4J-Spark 1.2.0+ exposes a parameter **kill_spark_context_on_worker_failure**. Set **kill_spark_context_on_worker_failure** to **false** so that the SparkContext will not be stopping on training failure. Instead of stopping the SparkContext, XGBoost4J-Spark will throw an exception instead. Users who want to re-use the SparkContext should wrap the training code in a try-catch block.
-
 .. contents::
   :backlinks: none
   :local:
@@ -126,6 +120,11 @@ Similarly, we can use another transformer, `VectorAssembler <https://spark.apach
 Now, we have a DataFrame containing only two columns, "features" which contains vector-represented
 "sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Double-typed
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
+
+.. note::
+
+  There is no need to assemble feature columns from version 1.6.1+. Instead, users can specify an array of
+  feture column names by ``setFeaturesCol(value: Array[String])`` and XGBoost4j-Spark will do it.
 
 Dealing with missing values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

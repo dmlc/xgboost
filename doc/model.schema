@@ -168,6 +168,9 @@
         "num_trees": {
           "type": "string"
         },
+        "num_parallel_tree": {
+          "type": "string"
+        },
         "size_leaf_vector": {
           "type": "string"
         }
@@ -200,6 +203,14 @@
       "type": "object",
       "properties": {
         "scale_pos_weight": {
+          "type": "string"
+        }
+      }
+    },
+    "pseduo_huber_param": {
+      "type": "object",
+      "properties": {
+        "huber_slope": {
           "type": "string"
         }
       }

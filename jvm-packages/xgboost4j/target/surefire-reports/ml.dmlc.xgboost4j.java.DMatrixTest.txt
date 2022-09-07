@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: ml.dmlc.xgboost4j.java.DMatrixTest
+-------------------------------------------------------------------------------
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.266 sec - in ml.dmlc.xgboost4j.java.DMatrixTest

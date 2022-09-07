@@ -4,6 +4,8 @@ ARG CUDA_VERSION_ARG
 
 # Install all basic requirements
 RUN \
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/D42D0685.pub | sed '/^Version/d' \
+        > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
     yum install -y epel-release centos-release-scl && \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
@@ -32,7 +34,7 @@ RUN \
     # Python
     wget -nv -nc -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python && \
-    /opt/python/bin/python -m pip install auditwheel && \
+    /opt/python/bin/python -m pip install auditwheel awscli && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr

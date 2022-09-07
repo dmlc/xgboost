@@ -340,6 +340,16 @@ test_that("xgb.importance works with and without feature names", {
     imp
   }
   expect_equal(importance_from_dump(), importance, tolerance = 1e-6)
+
+  ## decision stump
+  m <- xgboost::xgboost(
+    data = as.matrix(data.frame(x = c(0, 1))),
+    label = c(1, 2),
+    nrounds = 1
+  )
+  df <- xgb.model.dt.tree(model = m)
+  expect_equal(df$Feature, "Leaf")
+  expect_equal(df$Cover, 2)
 })
 
 test_that("xgb.importance works with GLM model", {

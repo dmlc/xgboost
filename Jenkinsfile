@@ -7,7 +7,7 @@
 dockerRun = 'tests/ci_build/ci_build.sh'
 
 // Which CUDA version to use when building reference distribution wheel
-ref_cuda_ver = '11.0'
+ref_cuda_ver = '11.0.3'
 
 import groovy.transform.Field
 
@@ -60,9 +60,9 @@ pipeline {
             'build-cpu-rabit-mock': { BuildCPUMock() },
             // Build reference, distribution-ready Python wheel with CUDA 11.0
             // using CentOS 7 image
-            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
-            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '11.0') },
-            'build-jvm-packages-gpu-cuda11.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.1', cuda_version: '11.0') },
+            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0.3', build_rmm: true) },
+            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '11.0.3') },
+            'build-jvm-packages-gpu-cuda11.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.1', cuda_version: '11.0.3') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.1') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -77,9 +77,9 @@ pipeline {
             'test-python-cpu': { TestPythonCPU() },
             'test-python-cpu-arm64': { TestPythonCPUARM64() },
             // artifact_cuda_version doesn't apply to RMM tests; RMM tests will always match CUDA version between artifact and host env
-            'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
-            'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', multi_gpu: true, test_rmm: true) },
-            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
+            'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0.3', host_cuda_version: '11.0.3', test_rmm: true) },
+            'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0.3', host_cuda_version: '11.0.3', multi_gpu: true, test_rmm: true) },
+            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0.3', host_cuda_version: '11.0.3', test_rmm: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') }
           ])
         }
@@ -123,9 +123,9 @@ def ClangTidy() {
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
     def docker_binary = "docker"
-    def dockerArgs = "--build-arg CUDA_VERSION_ARG=10.1"
+    def dockerArgs = "--build-arg CUDA_VERSION_ARG=11.0.3"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
+    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py --cuda-archs 75
     """
     deleteDir()
   }
@@ -179,8 +179,9 @@ def BuildCPUARM64() {
     stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading Python wheel...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate aarch64_test && python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress"
+      """
     }
     stash name: 'xgboost_cli_arm64', includes: 'xgboost'
     deleteDir()
@@ -232,8 +233,9 @@ def BuildCUDA(args) {
     stash name: "xgboost_whl_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
     if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
       echo 'Uploading Python wheel...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      """
     }
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: "xgboost_cpp_tests_cuda${args.cuda_version}", includes: 'build/testxgboost'
@@ -268,8 +270,9 @@ def BuildRPackageWithCUDA(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_r_pkg_with_cuda.sh ${commit_id}
       """
       echo 'Uploading R tarball...'
-      path = "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_linux_*.tar.gz'
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python -m awscli s3 cp xgboost_r_gpu_linux_*.tar.gz s3://xgboost-nightly-builds/${BRANCH_NAME}/ --acl public-read --no-progress
+      """
     }
     deleteDir()
   }
@@ -325,7 +328,9 @@ def BuildJVMDoc() {
     """
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Uploading doc...'
-      s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} python -m awscli s3 cp jvm-packages/${BRANCH_NAME}.tar.bz2 s3://xgboost-docs/${BRANCH_NAME}.tar.bz2 --acl public-read --no-progress
+      """
     }
     deleteDir()
   }
@@ -392,7 +397,7 @@ def TestCppGPU(args) {
   node(nodeReq) {
     unstash name: "xgboost_cpp_tests_cuda${artifact_cuda_version}"
     unstash name: 'srcs'
-    echo "Test C++, CUDA ${args.host_cuda_version}"
+    echo "Test C++, CUDA ${args.host_cuda_version}, rmm: ${args.test_rmm}"
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
@@ -405,7 +410,7 @@ def TestCppGPU(args) {
       docker_binary = "nvidia-docker"
       docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool --gtest_filter=-*DeathTest.*"
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool"
       """
     }
     deleteDir()
@@ -440,7 +445,7 @@ def DeployJVMPackages(args) {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Deploying to xgboost-maven-repo S3 repo...'
       sh """
-      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=11.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=11.0.3 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
       """
     }
     deleteDir()

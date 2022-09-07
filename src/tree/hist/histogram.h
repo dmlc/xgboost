@@ -1,5 +1,5 @@
 /*!
- * Copyright 2021 by XGBoost Contributors
+ * Copyright 2021-2022 by XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_HISTOGRAM_H_
 #define XGBOOST_TREE_HIST_HISTOGRAM_H_
@@ -8,10 +8,11 @@
 #include <limits>
 #include <vector>
 
-#include "rabit/rabit.h"
-#include "xgboost/tree_model.h"
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
+#include "expand_entry.h"
+#include "rabit/rabit.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 namespace tree {
@@ -323,6 +324,25 @@ template <typename GradientSumT, typename ExpandEntry> class HistogramBuilder {
     (*sync_count) = std::max(1, n_left);
   }
 };
+
+// Construct a work space for building histogram.  Eventually we should move this
+// function into histogram builder once hist tree method supports external memory.
+template <typename Partitioner>
+common::BlockedSpace2d ConstructHistSpace(Partitioner const &partitioners,
+                                          std::vector<CPUExpandEntry> const &nodes_to_build) {
+  std::vector<size_t> partition_size(nodes_to_build.size(), 0);
+  for (auto const &partition : partitioners) {
+    size_t k = 0;
+    for (auto node : nodes_to_build) {
+      auto n_rows_in_node = partition.Partitions()[node.nid].Size();
+      partition_size[k] = std::max(partition_size[k], n_rows_in_node);
+      k++;
+    }
+  }
+  common::BlockedSpace2d space{
+      nodes_to_build.size(), [&](size_t nidx_in_set) { return partition_size[nidx_in_set]; }, 256};
+  return space;
+}
 }      // namespace tree
 }      // namespace xgboost
 #endif  // XGBOOST_TREE_HIST_HISTOGRAM_H_

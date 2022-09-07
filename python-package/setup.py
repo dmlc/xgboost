@@ -61,6 +61,7 @@ def copy_tree(src_dir: str, target_dir: str) -> None:
     src = os.path.join(src_dir, 'src')
     inc = os.path.join(src_dir, 'include')
     dmlc_core = os.path.join(src_dir, 'dmlc-core')
+    gputreeshap = os.path.join(src_dir, "gputreeshap")
     rabit = os.path.join(src_dir, 'rabit')
     cmake = os.path.join(src_dir, 'cmake')
     plugin = os.path.join(src_dir, 'plugin')
@@ -68,6 +69,7 @@ def copy_tree(src_dir: str, target_dir: str) -> None:
     clean_copy_tree(src, os.path.join(target_dir, 'src'))
     clean_copy_tree(inc, os.path.join(target_dir, 'include'))
     clean_copy_tree(dmlc_core, os.path.join(target_dir, 'dmlc-core'))
+    clean_copy_tree(gputreeshap, os.path.join(target_dir, "gputreeshap"))
     clean_copy_tree(rabit, os.path.join(target_dir, 'rabit'))
     clean_copy_tree(cmake, os.path.join(target_dir, 'cmake'))
     clean_copy_tree(plugin, os.path.join(target_dir, 'plugin'))
@@ -97,7 +99,7 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
     logger = logging.getLogger('XGBoost build_ext')
 
-    # pylint: disable=too-many-arguments,no-self-use
+    # pylint: disable=too-many-arguments
     def build(
         self,
         src_dir: str,
@@ -171,8 +173,13 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
         if system() == 'Windows':
             # Pick up from LGB, just test every possible tool chain.
-            for vs in ('-GVisual Studio 16 2019', '-GVisual Studio 15 2017',
-                       '-GVisual Studio 14 2015', '-GMinGW Makefiles'):
+            for vs in (
+                "-GVisual Studio 17 2022",
+                '-GVisual Studio 16 2019',
+                '-GVisual Studio 15 2017',
+                '-GVisual Studio 14 2015',
+                '-GMinGW Makefiles',
+            ):
                 try:
                     self.build(src_dir, build_dir, vs)
                     self.logger.info(
@@ -355,12 +362,11 @@ if __name__ == '__main__':
                        'Operating System :: OS Independent',
                        'Programming Language :: Python',
                        'Programming Language :: Python :: 3',
-                       'Programming Language :: Python :: 3.6',
                        'Programming Language :: Python :: 3.7',
                        'Programming Language :: Python :: 3.8',
                        'Programming Language :: Python :: 3.9',
                        'Programming Language :: Python :: 3.10'],
-          python_requires='>=3.6',
+          python_requires=">=3.7",
           url='https://github.com/dmlc/xgboost')
 
     clean_up()

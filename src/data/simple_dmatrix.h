@@ -31,7 +31,7 @@ class SimpleDMatrix : public DMatrix {
 
   MetaInfo& Info() override;
   const MetaInfo& Info() const override;
-  GenericParameter const* Ctx() const override { return &ctx_; }
+  Context const* Ctx() const override { return &ctx_; }
 
   bool SingleColBlock() const override { return true; }
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;
@@ -39,7 +39,7 @@ class SimpleDMatrix : public DMatrix {
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;
 
- private:
+ protected:
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
@@ -63,7 +63,7 @@ class SimpleDMatrix : public DMatrix {
   }
 
  private:
-  GenericParameter ctx_;
+  Context ctx_;
 };
 }  // namespace data
 }  // namespace xgboost

@@ -74,8 +74,8 @@ Parameters for Tree Booster
 
 * ``max_depth`` [default=6]
 
-  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguide`` growing policy when ``tree_method`` is set as ``hist`` or ``gpu_hist`` and it indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree.
-  - range: [0,∞] (0 is only accepted in ``lossguide`` growing policy when ``tree_method`` is set as ``hist`` or ``gpu_hist``)
+  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. ``exact`` tree method requires non-zero value.
+  - range: [0,∞]
 
 * ``min_child_weight`` [default=1]
 
@@ -115,10 +115,9 @@ Parameters for Tree Booster
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
     each split.
 
-    On Python interface, when using ``hist``, ``gpu_hist`` or ``exact`` tree method, one
-    can set the ``feature_weights`` for DMatrix to define the probability of each feature
-    being selected when using column sampling.  There's a similar parameter for ``fit``
-    method in sklearn interface.
+    Using the Python or the R package, one can set the ``feature_weights`` for DMatrix to
+    define the probability of each feature being selected when using column sampling.
+    There's a similar parameter for ``fit`` method in sklearn interface.
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
@@ -165,7 +164,7 @@ Parameters for Tree Booster
 
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: ``sum(negative instances) / sum(positive instances)``. See :doc:`Parameters Tuning </tutorials/param_tuning>` for more discussion. Also, see Higgs Kaggle competition demo for examples: `R <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R>`_, `py1 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-numpy.py>`_, `py2 <https://github.com/dmlc/xgboost/blob/master/demo/kaggle-higgs/higgs-cv.py>`_, `py3 <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/cross_validation.py>`_.
 
-* ``updater`` [default= ``grow_colmaker,prune``]
+* ``updater``
 
   - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updaters exist:
 
@@ -177,8 +176,6 @@ Parameters for Tree Booster
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
-
-  - In a distributed setting, the implicit updater sequence value would be adjusted to ``grow_histmaker,prune`` by default, and you can set ``tree_method`` as ``hist`` to use ``grow_histmaker``.
 
 * ``refresh_leaf`` [default=1]
 
@@ -195,7 +192,7 @@ Parameters for Tree Booster
 * ``grow_policy`` [default= ``depthwise``]
 
   - Controls a way new nodes are added to the tree.
-  - Currently supported only if ``tree_method`` is set to ``hist`` or ``gpu_hist``.
+  - Currently supported only if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
   - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
@@ -203,11 +200,11 @@ Parameters for Tree Booster
 
 * ``max_leaves`` [default=0]
 
-  - Maximum number of nodes to be added. Only relevant when ``grow_policy=lossguide`` is set.
+  - Maximum number of nodes to be added.  Not used by ``exact`` tree method.
 
 * ``max_bin``, [default=256]
 
-  - Only used if ``tree_method`` is set to ``hist`` or ``gpu_hist``.
+  - Only used if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
@@ -245,9 +242,6 @@ Additional parameters for ``hist``, ``gpu_hist`` and ``approx`` tree method
 
   - Use single precision to build histograms instead of double precision.
 
-Additional parameters for ``approx`` tree method
-================================================
-
 * ``max_cat_to_onehot``
 
   .. versionadded:: 1.6
@@ -257,7 +251,8 @@ Additional parameters for ``approx`` tree method
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
     encoding is chosen, otherwise the categories will be partitioned into children nodes.
-    Only relevant for regression and binary classification with `approx` tree method.
+    Only relevant for regression and binary classification. Also, ``exact`` tree method is
+    not supported
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
@@ -266,12 +261,12 @@ Additional parameters for Dart Booster (``booster=dart``)
 
   If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
   some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-  not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+  not the training data. To obtain correct results on test sets, set ``iteration_range`` to
   a nonzero value, e.g.
 
   .. code-block:: python
 
-    preds = bst.predict(dtest, ntree_limit=num_round)
+    preds = bst.predict(dtest, iteration_range=(0, num_round))
 
 * ``sample_type`` [default= ``uniform``]
 
@@ -343,15 +338,6 @@ Parameters for Linear Booster (``booster=gblinear``)
 
   - The number of top features to select in ``greedy`` and ``thrifty`` feature selector. The value of 0 means using all the features.
 
-Parameters for Tweedie Regression (``objective=reg:tweedie``)
-=============================================================
-* ``tweedie_variance_power`` [default=1.5]
-
-  - Parameter that controls the variance of the Tweedie distribution ``var(y) ~ E(y)^tweedie_variance_power``
-  - range: (1,2)
-  - Set closer to 2 to shift towards a gamma distribution
-  - Set closer to 1 to shift towards a Poisson distribution.
-
 ************************
 Learning Task Parameters
 ************************
@@ -361,14 +347,14 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
-  - ``reg:logistic``: logistic regression
+  - ``reg:logistic``: logistic regression.
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
   - ``count:poisson``: Poisson regression for count data, output mean of Poisson distribution.
 
-    - ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
+    + ``max_delta_step`` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 
   - ``survival:cox``: Cox regression for right censored survival time data (negative values are considered right censored).
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).
@@ -439,6 +425,20 @@ Specify the learning task and the corresponding learning objective. The objectiv
 * ``seed_per_iteration`` [default= ``false``]
 
   - Seed PRNG determnisticly via iterator number.
+
+Parameters for Tweedie Regression (``objective=reg:tweedie``)
+=============================================================
+* ``tweedie_variance_power`` [default=1.5]
+
+  - Parameter that controls the variance of the Tweedie distribution ``var(y) ~ E(y)^tweedie_variance_power``
+  - range: (1,2)
+  - Set closer to 2 to shift towards a gamma distribution
+  - Set closer to 1 to shift towards a Poisson distribution.
+
+Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
+===========================================================
+
+* ``huber_slope`` : A parameter used for Pseudo-Huber loss to define the :math:`\delta` term. [default = 1.0]
 
 ***********************
 Command Line Parameters

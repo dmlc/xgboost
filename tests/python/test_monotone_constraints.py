@@ -93,12 +93,17 @@ class TestMonotoneConstraints:
         constrained = xgb.train(params_for_constrained, training_dset)
         assert is_correctly_constrained(constrained)
 
+    def test_monotone_constraints_tuple(self) -> None:
+        params_for_constrained = {"monotone_constraints": (1, -1)}
+        constrained = xgb.train(params_for_constrained, training_dset)
+        assert is_correctly_constrained(constrained)
+
     @pytest.mark.parametrize('format', [dict, list])
     def test_monotone_constraints_feature_names(self, format):
 
         # next check monotonicity when initializing monotone_constraints by feature names
         params = {
-            'tree_method': 'hist', 'verbosity': 1,
+            'tree_method': 'hist',
             'grow_policy': 'lossguide',
             'monotone_constraints': {'feature_0': 1, 'feature_1': -1}
         }

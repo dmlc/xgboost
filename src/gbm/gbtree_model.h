@@ -31,7 +31,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   /*! \brief number of trees */
   int32_t num_trees;
   /*! \brief (Deprecated) number of roots */
-  int32_t deprecated_num_roots;
+  int32_t num_parallel_tree;
   /*! \brief number of features to be used by trees */
   int32_t deprecated_num_feature;
   /*! \brief pad this space, for backward compatibility reason.*/
@@ -50,7 +50,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
     std::memset(this, 0, sizeof(GBTreeModelParam));  // FIXME(trivialfis): Why?
     static_assert(sizeof(GBTreeModelParam) == (4 + 2 + 2 + 32) * sizeof(int32_t),
                   "64/32 bit compatibility issue");
-    deprecated_num_roots = 1;
+    num_parallel_tree = 1;
   }
 
   // declare parameters, only declare those that need to be set.
@@ -59,6 +59,12 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("Number of features used for training and prediction.");
+    DMLC_DECLARE_FIELD(num_parallel_tree)
+        .set_default(1)
+        .set_lower_bound(1)
+        .describe(
+            "Number of parallel trees constructed during each iteration."
+            " This option is used to support boosted random forest.");
     DMLC_DECLARE_FIELD(size_leaf_vector)
         .set_lower_bound(0)
         .set_default(0)
@@ -70,7 +76,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   inline GBTreeModelParam ByteSwap() const {
     GBTreeModelParam x = *this;
     dmlc::ByteSwap(&x.num_trees, sizeof(x.num_trees), 1);
-    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.num_parallel_tree, sizeof(x.num_parallel_tree), 1);
     dmlc::ByteSwap(&x.deprecated_num_feature, sizeof(x.deprecated_num_feature), 1);
     dmlc::ByteSwap(&x.pad_32bit, sizeof(x.pad_32bit), 1);
     dmlc::ByteSwap(&x.deprecated_num_pbuffer, sizeof(x.deprecated_num_pbuffer), 1);

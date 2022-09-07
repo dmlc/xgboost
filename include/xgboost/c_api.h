@@ -502,12 +502,29 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
                                      char const *indices, char const *data,
                                      bst_ulong ncol);
 
-
 /*
  * ==========================- End data callback APIs ==========================
  */
 
 
+XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array, void *ptr_schema);
+
+/*!
+ * \brief Construct DMatrix from arrow using callbacks.  Arrow related C API is not stable
+ *        and subject to change in the future.
+ *
+ * \param next Callback function for fetching arrow records.
+ * \param json_config JSON encoded configuration.  Required values are:
+ *
+ *          - missing
+ *          - nthread
+ *
+ * \param out      The created DMatrix.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+                                             DMatrixHandle *out);
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
@@ -848,6 +865,30 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *          1:output margin instead of transformed value
  *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
  *          4:output feature contributions to individual predictions
+ * \param out_len used to store length of returning result
+ * \param out_result used to set a pointer to array
+ * \return 0 when success, -1 when failure happens
+*/
+//TODO: Fix documentation above
+XGB_DLL int XGBoosterInplacePredict(BoosterHandle handle,
+                                    const float *data,
+                                    size_t num_rows,
+                                    size_t num_features,
+                                    float missing,
+                                    int option_mask,
+                                    int ntree_limit,
+                                    const bst_ulong **len,
+                                    const float **out_result);
+
+/*!
+ * \brief make prediction based on dmat (deprecated, use `XGBoosterPredictFromDMatrix` instead)
+ * \param handle handle
+ * \param dmat data matrix
+ * \param option_mask bit-mask of options taken in prediction, possible values
+ *          0:normal prediction
+ *          1:output margin instead of transformed value
+ *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
+ *          4:output feature contributions to individual predictions
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
  * \param training Whether the prediction function is used as part of a training loop.
@@ -930,8 +971,11 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         char const* c_json_config,
                                         bst_ulong const **out_shape,
                                         bst_ulong *out_dim,
-                                        float const **out_result);
-/*
+                                        const float **out_result);
+
+XGB_DLL int XGBoosterTestMethod(char const* c_json_config);
+
+/*!
  * \brief Inplace prediction from CPU dense matrix.
  *
  * \param handle        Booster handle.
@@ -958,7 +1002,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
                                       bst_ulong *out_dim,
                                       const float **out_result);
 
-/*
+/*!
  * \brief Inplace prediction from CPU CSR matrix.
  *
  * \param handle        Booster handle.
@@ -987,7 +1031,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
                                     bst_ulong *out_dim,
                                     const float **out_result);
 
-/*
+/*!
  * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
  * \param handle        Booster handle
@@ -1009,7 +1053,7 @@ XGB_DLL int XGBoosterPredictFromCudaArray(
     DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
     const float **out_result);
 
-/*
+/*!
  * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
  *
  * \param handle        Booster handle
@@ -1032,7 +1076,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(
     const float **out_result);
 
 
-/*
+/*!
  * ========================== Begin Serialization APIs =========================
  */
 /*

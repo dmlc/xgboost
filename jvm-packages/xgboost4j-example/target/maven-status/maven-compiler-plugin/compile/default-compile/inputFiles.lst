@@ -1,0 +1,11 @@
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/PredictFirstNtree.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/util/CustomEval.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/BasicWalkThrough.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/PredictLeafIndices.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/CrossValidation.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/util/DataLoader.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/GeneralizedLinearModel.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/CustomObjective.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/EarlyStopping.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/BoostFromPrediction.java
+/Users/centerco/PycharmProjects/sovrn/xgboost/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/ExternalMemory.java

@@ -323,7 +323,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
-  for (int i = 0; i < tparam_.num_parallel_tree; ++i) {
+  for (int i = 0; i < model_.param.num_parallel_tree; ++i) {
     if (tparam_.process_type == TreeProcessType::kDefault) {
       CHECK(!updaters_.front()->CanModifyTree())
           << "Updater: `" << updaters_.front()->Name() << "` "
@@ -347,7 +347,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
           << "boosting rounds can not exceed previous training rounds";
       // move an existing tree from trees_to_update
       auto t = std::move(model_.trees_to_update[model_.trees.size() +
-                                                bst_group * tparam_.num_parallel_tree + i]);
+                                                bst_group * model_.param.num_parallel_tree + i]);
       new_trees.push_back(t.get());
       ret->push_back(std::move(t));
     }
@@ -414,6 +414,10 @@ void GBTree::SaveConfig(Json* p_out) const {
   // e.g. updating a model, then saving and loading it would result in an empty
   // model
   out["gbtree_train_param"]["process_type"] = String("default");
+  // Duplicated from SaveModel so that user can get `num_parallel_tree` without parsing
+  // the model. We might remove this once we can deprecate `best_ntree_limit` so that the
+  // language binding doesn't need to know about the forest size.
+  out["gbtree_model_param"] = ToJson(model_.param);
 
   out["updater"] = Object();
 
@@ -460,6 +464,7 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   std::vector<int32_t> &out_trees_info = out_model.tree_info;
   out_trees_info.resize(layer_trees * n_layers);
   out_model.param.num_trees = out_model.trees.size();
+  out_model.param.num_parallel_tree = model_.param.num_parallel_tree;
   if (!this->model_.trees_to_update.empty()) {
     CHECK_EQ(this->model_.trees_to_update.size(), this->model_.trees.size())
         << "Not all trees are updated, "
@@ -512,8 +517,7 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
   }
 
   uint32_t tree_begin, tree_end;
-  std::tie(tree_begin, tree_end) =
-      detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+  std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
     predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
@@ -723,8 +727,7 @@ class Dart : public GBTree {
                                   model_);
     p_out_preds->version = 0;
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) =
-        detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     auto n_groups = model_.learner_model_param->num_output_group;
 
     PredictionCacheEntry predts;  // temporary storage for prediction
@@ -779,7 +782,7 @@ class Dart : public GBTree {
                       float missing, PredictionCacheEntry *out_preds,
                       uint32_t layer_begin, unsigned layer_end) const override {
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     std::vector<Predictor const *> predictors{
       cpu_predictor_.get(),
 #if defined(XGBOOST_USE_CUDA)
@@ -867,7 +870,7 @@ class Dart : public GBTree {
     DropTrees(false);
     auto &predictor = this->GetPredictor();
     uint32_t _, tree_end;
-    std::tie(_, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     predictor->PredictInstance(inst, out_preds, model_, tree_end);
   }
 
@@ -877,7 +880,7 @@ class Dart : public GBTree {
                            unsigned) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
                                         tree_end, &weight_drop_, approximate);
   }
@@ -887,9 +890,9 @@ class Dart : public GBTree {
       unsigned layer_begin, unsigned layer_end, bool approximate) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
-    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
-    cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                    tree_end, &weight_drop_, approximate);
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
+    cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_, tree_end,
+                                                    &weight_drop_, approximate);
   }
 
  protected:

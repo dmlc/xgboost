@@ -1,0 +1,16 @@
+ml/dmlc/xgboost4j/java/example/CustomObjective$EvalError.class
+ml/dmlc/xgboost4j/java/example/EarlyStopping$1.class
+ml/dmlc/xgboost4j/java/example/BoostFromPrediction.class
+ml/dmlc/xgboost4j/java/example/PredictLeafIndices.class
+ml/dmlc/xgboost4j/java/example/CustomObjective$LogRegObj.class
+ml/dmlc/xgboost4j/java/example/util/DataLoader$DenseData.class
+ml/dmlc/xgboost4j/java/example/util/DataLoader$CSRSparseData.class
+ml/dmlc/xgboost4j/java/example/BasicWalkThrough.class
+ml/dmlc/xgboost4j/java/example/util/CustomEval.class
+ml/dmlc/xgboost4j/java/example/PredictFirstNtree.class
+ml/dmlc/xgboost4j/java/example/GeneralizedLinearModel.class
+ml/dmlc/xgboost4j/java/example/EarlyStopping.class
+ml/dmlc/xgboost4j/java/example/util/DataLoader.class
+ml/dmlc/xgboost4j/java/example/ExternalMemory.class
+ml/dmlc/xgboost4j/java/example/CrossValidation.class
+ml/dmlc/xgboost4j/java/example/CustomObjective.class

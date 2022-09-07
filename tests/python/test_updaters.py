@@ -1,3 +1,5 @@
+from random import choice
+from string import ascii_lowercase
 import testing as tm
 import pytest
 import xgboost as xgb
@@ -8,10 +10,10 @@ exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(1, 4),
     'max_depth': strategies.integers(1, 11),
     'min_child_weight': strategies.floats(0.5, 2.0),
-    'alpha': strategies.floats(0.0, 2.0),
+    'alpha': strategies.floats(1e-5, 2.0),
     'lambda': strategies.floats(1e-5, 2.0),
     'eta': strategies.floats(0.01, 0.5),
-    'gamma': strategies.floats(0.0, 2.0),
+    'gamma': strategies.floats(1e-5, 2.0),
     'seed': strategies.integers(0, 10),
     # We cannot enable subsampling as the training loss can increase
     # 'subsample': strategies.floats(0.5, 1.0),
@@ -38,7 +40,7 @@ def train_result(param, dmat, num_rounds):
 class TestTreeMethod:
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_exact(self, param, num_rounds, dataset):
         param['tree_method'] = 'exact'
         param = dataset.set_params(param)
@@ -51,7 +53,7 @@ class TestTreeMethod:
         strategies.integers(1, 20),
         tm.dataset_strategy,
     )
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_approx(self, param, hist_param, num_rounds, dataset):
         param["tree_method"] = "approx"
         param = dataset.set_params(param)
@@ -86,7 +88,7 @@ class TestTreeMethod:
 
     @given(exact_parameter_strategy, hist_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     def test_hist(self, param, hist_param, num_rounds, dataset):
         param['tree_method'] = 'hist'
         param = dataset.set_params(param)
@@ -167,6 +169,30 @@ class TestTreeMethod:
 
     def test_invalid_category(self) -> None:
         self.run_invalid_category("approx")
+        self.run_invalid_category("hist")
+
+    def run_max_cat(self, tree_method: str) -> None:
+        """Test data with size smaller than number of categories."""
+        import pandas as pd
+        n_cat = 100
+        n = 5
+        X = pd.Series(
+            ["".join(choice(ascii_lowercase) for i in range(3)) for i in range(n_cat)],
+            dtype="category",
+        )[:n].to_frame()
+
+        reg = xgb.XGBRegressor(
+            enable_categorical=True,
+            tree_method=tree_method,
+            n_estimators=10,
+        )
+        y = pd.Series(range(n))
+        reg.fit(X=X, y=y, eval_set=[(X, y)])
+        assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
+
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_max_cat(self, tree_method) -> None:
+        self.run_max_cat(tree_method)
 
     def run_categorical_basic(self, rows, cols, rounds, cats, tree_method):
         onehot, label = tm.make_categorical(rows, cols, cats, True)
@@ -211,9 +237,38 @@ class TestTreeMethod:
         )
         assert tm.non_increasing(by_builtin_results["Train"]["rmse"])
 
+        by_grouping: xgb.callback.TrainingCallback.EvalsLog = {}
+        parameters["max_cat_to_onehot"] = 1
+        parameters["reg_lambda"] = 0
+        m = xgb.DMatrix(cat, label, enable_categorical=True)
+        xgb.train(
+            parameters,
+            m,
+            num_boost_round=rounds,
+            evals=[(m, "Train")],
+            evals_result=by_grouping,
+        )
+        rmse_oh = by_builtin_results["Train"]["rmse"]
+        rmse_group = by_grouping["Train"]["rmse"]
+        # always better or equal to onehot when there's no regularization.
+        for a, b in zip(rmse_oh, rmse_group):
+            assert a >= b
+
+        parameters["reg_lambda"] = 1.0
+        by_grouping = {}
+        xgb.train(
+            parameters,
+            m,
+            num_boost_round=32,
+            evals=[(m, "Train")],
+            evals_result=by_grouping,
+        )
+        assert tm.non_increasing(by_grouping["Train"]["rmse"]), by_grouping
+
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
-    @settings(deadline=None)
+    @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self, rows, cols, rounds, cats):
         self.run_categorical_basic(rows, cols, rounds, cats, "approx")
+        self.run_categorical_basic(rows, cols, rounds, cats, "hist")

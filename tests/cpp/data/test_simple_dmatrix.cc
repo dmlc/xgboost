@@ -194,7 +194,8 @@ TEST(SimpleDMatrix, FromCSC) {
 }
 
 TEST(SimpleDMatrix, FromFile) {
-  std::string filename = "test.libsvm";
+  dmlc::TemporaryDirectory tempdir;
+  std::string filename = tempdir.path + "test.libsvm";
   CreateBigTestData(filename, 3 * 5);
   // Add an empty row at the end of the matrix
   {

@@ -1,0 +1,91 @@
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /Library/Developer/CommandLineTools/usr/bin/c++ 
+Build flags: 
+Id flags:  
+
+The output was:
+1
+ld: library not found for -lc++
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" failed.
+Compiler: /Library/Developer/CommandLineTools/usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+1
+ld: library not found for -lSystem
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+
+
+Determining if the function clock_gettime exists in the rt failed with the following output:
+Change Dir: /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_28ae3/fast && /Library/Developer/CommandLineTools/usr/bin/make  -f CMakeFiles/cmTC_28ae3.dir/build.make CMakeFiles/cmTC_28ae3.dir/build
+Building C object CMakeFiles/cmTC_28ae3.dir/CheckFunctionExists.c.o
+/Library/Developer/CommandLineTools/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=clock_gettime -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.1.sdk -MD -MT CMakeFiles/cmTC_28ae3.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_28ae3.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_28ae3.dir/CheckFunctionExists.c.o -c /usr/local/Cellar/cmake/3.24.1/share/cmake/Modules/CheckFunctionExists.c
+Linking C executable cmTC_28ae3
+/usr/local/Cellar/cmake/3.24.1/bin/cmake -E cmake_link_script CMakeFiles/cmTC_28ae3.dir/link.txt --verbose=1
+/Library/Developer/CommandLineTools/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=clock_gettime -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.1.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/cmTC_28ae3.dir/CheckFunctionExists.c.o -o cmTC_28ae3   -L/Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/time.h  -Wl,-rpath,/Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/time.h -lrt 
+ld: warning: directory not found for option '-L/Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/time.h'
+ld: library not found for -lrt
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+make[1]: *** [cmTC_28ae3] Error 1
+make: *** [cmTC_28ae3/fast] Error 2
+
+
+
+Determining if the fopen64 exist failed with the following output:
+Change Dir: /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_46684/fast && /Library/Developer/CommandLineTools/usr/bin/make  -f CMakeFiles/cmTC_46684.dir/build.make CMakeFiles/cmTC_46684.dir/build
+Building C object CMakeFiles/cmTC_46684.dir/CheckSymbolExists.c.o
+/Library/Developer/CommandLineTools/usr/bin/cc   -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.1.sdk -MD -MT CMakeFiles/cmTC_46684.dir/CheckSymbolExists.c.o -MF CMakeFiles/cmTC_46684.dir/CheckSymbolExists.c.o.d -o CMakeFiles/cmTC_46684.dir/CheckSymbolExists.c.o -c /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+/Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8:19: error: use of undeclared identifier 'fopen64'; did you mean 'fopen'?
+  return ((int*)(&fopen64))[argc];
+                  ^~~~~~~
+                  fopen
+/Library/Developer/CommandLineTools/SDKs/MacOSX11.1.sdk/usr/include/stdio.h:153:7: note: 'fopen' declared here
+FILE    *fopen(const char * __restrict __filename, const char * __restrict __mode) __DARWIN_ALIAS_STARTING(__MAC_10_6, __IPHONE_2_0, __DARWIN_ALIAS(fopen));
+         ^
+1 error generated.
+make[1]: *** [CMakeFiles/cmTC_46684.dir/CheckSymbolExists.c.o] Error 1
+make: *** [cmTC_46684/fast] Error 2
+
+
+File /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <stdio.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef fopen64
+  return ((int*)(&fopen64))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Performing C SOURCE FILE Test JNI_INCLUDE_PATH2_OPTIONAL failed with the following output:
+Change Dir: /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_dee46/fast && /Library/Developer/CommandLineTools/usr/bin/make  -f CMakeFiles/cmTC_dee46.dir/build.make CMakeFiles/cmTC_dee46.dir/build
+Building C object CMakeFiles/cmTC_dee46.dir/src.c.o
+/Library/Developer/CommandLineTools/usr/bin/cc -DJNI_INCLUDE_PATH2_OPTIONAL -I/Library/Java/JavaVirtualMachines/jdk1.8.0_241.jdk/Contents/Home/include -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX11.1.sdk -MD -MT CMakeFiles/cmTC_dee46.dir/src.c.o -MF CMakeFiles/cmTC_dee46.dir/src.c.o.d -o CMakeFiles/cmTC_dee46.dir/src.c.o -c /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/src.c
+In file included from /Users/centerco/PycharmProjects/sovrn/xgboost_orig/jvm-packages/CMakeFiles/CMakeTmp/src.c:2:
+/Library/Java/JavaVirtualMachines/jdk1.8.0_241.jdk/Contents/Home/include/jni.h:45:10: fatal error: 'jni_md.h' file not found
+#include "jni_md.h"
+         ^~~~~~~~~~
+1 error generated.
+make[1]: *** [CMakeFiles/cmTC_dee46.dir/src.c.o] Error 1
+make: *** [cmTC_dee46/fast] Error 2
+
+
+Source file was:
+
+#include <jni.h>
+int main(void) { return 0; }
+
