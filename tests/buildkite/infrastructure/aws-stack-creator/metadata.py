@@ -1,28 +1,22 @@
 AMI_ID = {
     # Managed by XGBoost team
     "linux-amd64-gpu": {
-        "us-east-2": "ami-0d3719bde86b92cec",
         "us-west-2": "ami-00ed92bd37f77bc33",
     },
     "linux-amd64-mgpu": {
-        "us-east-2": "ami-0d3719bde86b92cec",
         "us-west-2": "ami-00ed92bd37f77bc33",
     },
     "windows-gpu": {
-        "us-east-2": "ami-01ff825c3ec5cc672",
         "us-west-2": "ami-0a1a2ea551a07ad5f",
     },
     # Managed by BuildKite
     "linux-amd64-cpu": {
-        "us-east-2": "ami-00f6d034cc4ccc18b",
         "us-west-2": "ami-075d4c25d5f0c17c1",
     },
     "pipeline-loader": {
-        "us-east-2": "ami-00f6d034cc4ccc18b",
         "us-west-2": "ami-075d4c25d5f0c17c1",
     },
     "linux-arm64-cpu": {
-        "us-east-2": "ami-0e2269f2c64400c76",
         "us-west-2": "ami-0952c6fb6db9a9891",
     },
 }
