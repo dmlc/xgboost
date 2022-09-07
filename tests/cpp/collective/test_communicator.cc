@@ -15,9 +15,6 @@ TEST(CommunicatorFactory, TypeFromEnv) {
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "rabit");
   EXPECT_EQ(CommunicatorType::kRabit, Communicator::GetTypeFromEnv());
 
-  dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "MPI");
-  EXPECT_EQ(CommunicatorType::kMPI, Communicator::GetTypeFromEnv());
-
   dmlc::SetEnv<std::string>("XGBOOST_COMMUNICATOR", "Federated");
   EXPECT_EQ(CommunicatorType::kFederated, Communicator::GetTypeFromEnv());
 
@@ -32,9 +29,6 @@ TEST(CommunicatorFactory, TypeFromArgs) {
   config["xgboost_communicator"] = String("rabit");
   EXPECT_EQ(CommunicatorType::kRabit, Communicator::GetTypeFromConfig(config));
 
-  config["xgboost_communicator"] = String("MPI");
-  EXPECT_EQ(CommunicatorType::kMPI, Communicator::GetTypeFromConfig(config));
-
   config["xgboost_communicator"] = String("federated");
   EXPECT_EQ(CommunicatorType::kFederated, Communicator::GetTypeFromConfig(config));
 
@@ -48,9 +42,6 @@ TEST(CommunicatorFactory, TypeFromArgsUpperCase) {
 
   config["XGBOOST_COMMUNICATOR"] = String("rabit");
   EXPECT_EQ(CommunicatorType::kRabit, Communicator::GetTypeFromConfig(config));
-
-  config["XGBOOST_COMMUNICATOR"] = String("MPI");
-  EXPECT_EQ(CommunicatorType::kMPI, Communicator::GetTypeFromConfig(config));
 
   config["XGBOOST_COMMUNICATOR"] = String("federated");
   EXPECT_EQ(CommunicatorType::kFederated, Communicator::GetTypeFromConfig(config));
