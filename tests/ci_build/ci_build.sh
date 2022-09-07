@@ -148,15 +148,15 @@ then
     $(aws ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})
     # Pull pre-build container from Docker build cache,
     # if one exists for the particular branch or pull request
-    echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
-    if docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    if docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     then
       CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     else
       # If the build cache is empty of the particular branch or pull request,
       # use the build cache associated with the master branch
-      echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
-      docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master" || true
+      echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
+      docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master" || true
       CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
     fi
 else
@@ -191,8 +191,8 @@ then
     echo "aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true"
     aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true
 
-    echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
-    docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    echo "docker push --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    docker push --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     if [[ $? != "0" ]]; then
         echo "ERROR: could not update Docker cache ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
         exit 1
