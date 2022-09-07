@@ -42,7 +42,7 @@ a glue code to call CMake and a C++ compiler to build the native library on the 
 Elastic CI Stack with BuildKite
 *******************************
 
-`BuildKite <https://buildkite.com/home>` is a SaaS (Software as a Service) platform that orchestrates
+`BuildKite <https://buildkite.com/home>`_ is a SaaS (Software as a Service) platform that orchestrates
 cloud machines to host CI pipelines. The BuildKite platform allows us to define cloud resources in
 a declarative fashion. Every configuration step is now documented explicitly as code.
 
