@@ -66,7 +66,7 @@ def init(**args: Any) -> None:
 
 
 def finalize() -> None:
-    """Finalize the process, notify tracker everything is done."""
+    """Finalize the communicator."""
     _check_call(_LIB.XGCommunicatorFinalize())
 
 

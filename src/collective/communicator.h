@@ -23,6 +23,7 @@ enum class DataType {
   kDouble = 7
 };
 
+/** @brief Get the size of the data type. */
 inline std::size_t GetTypeSize(DataType data_type) {
   std::size_t size{0};
   switch (data_type) {
@@ -63,7 +64,7 @@ class DeviceCommunicator;
 
 enum class CommunicatorType { kUnknown, kRabit, kMPI, kFederated };
 
-/* \brief Case-insensitive string comparison */
+/** \brief Case-insensitive string comparison. */
 inline int CompareStringsCaseInsensitive(const char *s1, const char *s2) {
 #ifdef _MSC_VER
   return _stricmp(s1, s2);

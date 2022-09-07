@@ -12,10 +12,15 @@ namespace xgboost {
 namespace collective {
 
 /**
- * @brief A federated learning communicator class that handles collective communication.
+ * @brief A Federated Learning communicator class that handles collective communication.
  */
 class FederatedCommunicator : public Communicator {
  public:
+  /**
+   * @brief Create a new communicator based on JSON configuration.
+   * @param config JSON configuration.
+   * @return Communicator as specified by the JSON configuration.
+   */
   static Communicator *Create(Json const &config) {
     std::string server_address{};
     int world_size{0};
@@ -92,8 +97,12 @@ class FederatedCommunicator : public Communicator {
   /**
    * @brief Construct a new federated communicator.
    *
-   * @param world_size Total number of processes.
-   * @param rank       Rank of the current process.
+   * @param world_size       Total number of processes.
+   * @param rank             Rank of the current process.
+   * @param server_address   Address of the federated server (host:port).
+   * @param server_cert_path Path to the server cert file.
+   * @param client_key_path  Path to the client key file.
+   * @param client_cert_path Path to the client cert file.
    */
   FederatedCommunicator(int world_size, int rank, std::string const &server_address,
                         std::string const &server_cert_path, std::string const &client_key_path,
@@ -108,7 +117,12 @@ class FederatedCommunicator : public Communicator {
     }
   }
 
-  /** @brief Insecure communicator for testing only. */
+  /**
+   * @brief Construct an insecure federated communicator without using SSL.
+   * @param world_size     Total number of processes.
+   * @param rank           Rank of the current process.
+   * @param server_address Address of the federated server (host:port).
+   */
   FederatedCommunicator(int world_size, int rank, std::string const &server_address)
       : Communicator{world_size, rank} {
     client_.reset(new xgboost::federated::FederatedClient(server_address, rank));
@@ -116,8 +130,19 @@ class FederatedCommunicator : public Communicator {
 
   ~FederatedCommunicator() override { client_.reset(); }
 
+  /**
+   * \brief Get if the communicator is distributed.
+   * \return True.
+   */
   bool IsDistributed() const override { return true; }
 
+  /**
+   * \brief Perform in-place allreduce.
+   * \param send_receive_buffer Buffer for both sending and receiving data.
+   * \param count Number of elements to be reduced.
+   * \param data_type Enumeration of data type.
+   * \param op Enumeration of operation type.
+   */
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {
     std::string const send_buffer(reinterpret_cast<char const *>(send_receive_buffer),
@@ -128,6 +153,12 @@ class FederatedCommunicator : public Communicator {
     received.copy(reinterpret_cast<char *>(send_receive_buffer), count * GetTypeSize(data_type));
   }
 
+  /**
+   * \brief Broadcast a memory region to all others from root.
+   * \param send_receive_buffer Pointer to the send or receive buffer.
+   * \param size Size of the data.
+   * \param root The process rank to broadcast from.
+   */
   void Broadcast(void *send_receive_buffer, std::size_t size, int root) override {
     if (GetWorldSize() == 1) return;
     if (GetRank() == root) {
@@ -139,8 +170,16 @@ class FederatedCommunicator : public Communicator {
     }
   }
 
+  /**
+   * \brief Get the name of the processor.
+   * \return Name of the processor.
+   */
   std::string GetProcessorName() override { return "rank" + std::to_string(GetRank()); }
 
+  /**
+   * \brief Print the message to the communicator.
+   * \param message The message to be printed.
+   */
   void Print(const std::string &message) override { LOG(CONSOLE) << message; }
 
  private:

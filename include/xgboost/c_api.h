@@ -1427,82 +1427,96 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
  *   - DMLC_ROLE: Role of the current task, "worker" or "server".
  *   - DMLC_NUM_ATTEMPT: Number of attempts after task failure.
  *   - DMLC_WORKER_CONNECT_RETRY: Number of retries to connect to the tracker.
- * Only applicable to the Federated communicator (these are not case-sensitive):
+ * Only applicable to the Federated communicator (use upper case for environment variables, use
+ * lower case for runtime configuration):
  *   - federated_server_address: Address of the federated server.
  *   - federated_world_size: Number of federated workers.
  *   - federated_rank: Rank of the current worker.
  *   - federated_server_cert: Server certificate file path. Only needed for the SSL mode.
  *   - federated_client_key: Client key file path. Only needed for the SSL mode.
  *   - federated_client_cert: Client certificate file path. Only needed for the SSL mode.
+ * \return 0 for success, -1 for failure.
  */
 XGB_DLL int XGCommunicatorInit(char const* json_config);
 
 /*!
- * \brief finalize the collective communicator,
- * call this function after you finished all jobs.
- * \return true if the communicator is finalized successfully otherwise false
+ * \brief Finalize the collective communicator.
+ *
+ * Call this function after you finished all jobs.
+ *
+ * \return 0 for success, -1 for failure.
  */
 XGB_DLL int XGCommunicatorFinalize(void);
 
 /*!
- * \brief get rank of current process
- * \return rank number of worker
- * */
+ * \brief Get rank of current process.
+ *
+ * \return Rank of the worker.
+ */
 XGB_DLL int XGCommunicatorGetRank(void);
 
 /*!
- * \brief get total number of process
- * \return total world size
- * */
+ * \brief Get total number of processes.
+ *
+ * \return Total world size.
+ */
 XGB_DLL int XGCommunicatorGetWorldSize(void);
 
 /*!
- * \brief get if the communicator is distributed
- * \return if the communicator is distributed
- * */
+ * \brief Get if the communicator is distributed.
+ *
+ * \return True if the communicator is distributed.
+ */
 XGB_DLL int XGCommunicatorIsDistributed(void);
 
 /*!
- * \brief print the msg to the communicator,
- *    this function can be used to communicate the information of the progress to
- *    the user who monitors the communicator
- * \param message the message to be printed
+ * \brief Print the message to the communicator.
+ *
+ * This function can be used to communicate the information of the progress to the user who monitors
+ * the communicator.
+ *
+ * \param message The message to be printed.
+ * \return 0 for success, -1 for failure.
  */
 XGB_DLL int XGCommunicatorPrint(char const *message);
 
 /*!
- * \brief get name of processor
- * \param name_str pointer to received returned processor name.
- * \return 0 for success, -1 for failure
+ * \brief Get the name of the processor.
+ *
+ * \param name_str Pointer to received returned processor name.
+ * \return 0 for success, -1 for failure.
  */
 XGB_DLL int XGCommunicatorGetProcessorName(const char** name_str);
 
 /*!
- * \brief broadcast an memory region to all others from root
+ * \brief Broadcast a memory region to all others from root.  This function is NOT thread-safe.
  *
- *     Example: int a = 1; Broadcast(&a, sizeof(a), root);
- * \param send_receive_buffer the pointer to send or receive buffer,
- * \param size the size of the data
- * \param root the root of process
+ * Example:
+ *   int a = 1;
+ *   Broadcast(&a, sizeof(a), root);
+ *
+ * \param send_receive_buffer Pointer to the send or receive buffer.
+ * \param size Size of the data.
+ * \param root The process rank to broadcast from.
+ * \return 0 for success, -1 for failure.
  */
 XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root);
 
 /*!
- * \brief perform in-place allreduce, on sendrecvbuf
- *        this function is NOT thread-safe
+ * \brief Perform in-place allreduce. This function is NOT thread-safe.
  *
  * Example Usage: the following code gives sum of the result
  *     vector<int> data(10);
  *     ...
- *     Allreduce<op::Sum>(&data[0], data.size());
+ *     Allreduce(&data[0], data.size(), DataType:kInt32, Op::kSum);
  *     ...
- * \param send_receive_buffer buffer for both sending and receiving data
- * \param count number of elements to be reduced
- * \param enum_dtype the enumeration of data type, see xgboost::collective::DataType in communicator.h
- * \param enum_op the enumeration of operation type, see xgboost::collective::Operation in communicator.h
+ * \param send_receive_buffer Buffer for both sending and receiving data.
+ * \param count Number of elements to be reduced.
+ * \param data_type Enumeration of data type, see xgboost::collective::DataType in communicator.h.
+ * \param op Enumeration of operation type, see xgboost::collective::Operation in communicator.h.
+ * \return 0 for success, -1 for failure.
  */
-XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
-                                    int enum_op);
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int data_type, int op);
 
 
 #endif  // XGBOOST_C_API_H_
