@@ -234,7 +234,7 @@ class TestTreeMethod:
     ) -> None:
         parameters: Dict[str, Any] = {"tree_method": tree_method}
         cat, label = tm.make_categorical(
-            n_samples=256, n_features=4, n_categories=8, onehot=False, sparsity=0.5
+            n_samples=rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
         )
         Xy = xgb.DMatrix(cat, label, enable_categorical=True)
 
@@ -258,9 +258,6 @@ class TestTreeMethod:
 
         # Test with OHE split
         run(self.USE_ONEHOT)
-
-        if tree_method == "gpu_hist":  # fixme: Test with GPU.
-            return
 
         # Test with partition-based split
         run(self.USE_PART)

@@ -58,7 +58,9 @@ class Value {
   virtual Json& operator[](int ind);
 
   virtual bool operator==(Value const& rhs) const = 0;
+#if !defined(__APPLE__)
   virtual Value& operator=(Value const& rhs) = delete;
+#endif  // !defined(__APPLE__)
 
   std::string TypeStr() const;
 

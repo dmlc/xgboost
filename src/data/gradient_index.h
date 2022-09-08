@@ -69,7 +69,7 @@ class GHistIndexMatrix {
         if (is_valid(elem)) {
           bst_bin_t bin_idx{-1};
           if (common::IsCat(ft, elem.column_idx)) {
-            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx);
+            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx, ptrs, values);
           } else {
             bin_idx = cut.SearchBin(elem.value, elem.column_idx, ptrs, values);
           }
@@ -77,6 +77,17 @@ class GHistIndexMatrix {
           ++hit_count_tloc_[tid * nbins + bin_idx];
           ++k;
         }
+      }
+    });
+  }
+
+  // Gather hit_count from all threads
+  void GatherHitCount(int32_t n_threads, bst_bin_t n_bins_total) {
+    CHECK_EQ(hit_count.size(), n_bins_total);
+    common::ParallelFor(n_bins_total, n_threads, [&](bst_omp_uint idx) {
+      for (int32_t tid = 0; tid < n_threads; ++tid) {
+        hit_count[idx] += hit_count_tloc_[tid * n_bins_total + idx];
+        hit_count_tloc_[tid * n_bins_total + idx] = 0;  // reset for next batch
       }
     });
   }
@@ -95,33 +106,20 @@ class GHistIndexMatrix {
     if (isDense_) {
       index.SetBinOffset(cut.Ptrs());
     }
-    uint32_t const* offsets = index.Offset();
     if (isDense_) {
-      // Inside the lambda functions, bin_idx is the index for cut value across all
-      // features. By subtracting it with starting pointer of each feature, we can reduce
-      // it to smaller value and compress it to smaller types.
       common::DispatchBinType(index.GetBinTypeSize(), [&](auto dtype) {
         using T = decltype(dtype);
         common::Span<T> index_data_span = {index.data<T>(), index.Size()};
-        SetIndexData(
-            index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
-            [offsets](auto bin_idx, auto fidx) { return static_cast<T>(bin_idx - offsets[fidx]); });
+        SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
+                     index.MakeCompressor<T>());
       });
     } else {
-      /* For sparse DMatrix we have to store index of feature for each bin
-         in index field to chose right offset. So offset is nullptr and index is
-         not reduced */
       common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
+      // no compression
       SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
                    [](auto idx, auto) { return idx; });
     }
-
-    common::ParallelFor(n_bins_total, n_threads, [&](bst_omp_uint idx) {
-      for (int32_t tid = 0; tid < n_threads; ++tid) {
-        hit_count[idx] += hit_count_tloc_[tid * n_bins_total + idx];
-        hit_count_tloc_[tid * n_bins_total + idx] = 0;  // reset for next batch
-      }
-    });
+    this->GatherHitCount(n_threads, n_bins_total);
   }
 
  public:
@@ -129,12 +127,12 @@ class GHistIndexMatrix {
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
   common::Index index;
-  /*! \brief hit count of each index */
+  /*! \brief hit count of each index, used for constructing the ColumnMatrix */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   common::HistogramCuts cut;
   /*! \brief max_bin for each feature. */
-  size_t max_num_bins;
+  bst_bin_t max_num_bins;
   /*! \brief base row index for current page (used by external memory) */
   size_t base_rowid{0};
 
@@ -149,6 +147,13 @@ class GHistIndexMatrix {
    *        for push batch.
    */
   GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts, bst_bin_t max_bin_per_feat);
+  /**
+   * \brief Constructor fro Iterative DMatrix where we might copy an existing ellpack page
+   *        to host gradient index.
+   */
+  GHistIndexMatrix(Context const* ctx, MetaInfo const& info, EllpackPage const& page,
+                   BatchParam const& p);
+
   /**
    * \brief Constructor for external memory.
    */
