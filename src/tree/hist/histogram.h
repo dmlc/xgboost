@@ -50,7 +50,7 @@ class HistogramBuilder {
   // Whether XGBoost is running in distributed environment.
   bool is_distributed_{false};
   // Addhoch colsample threshold level
-  static constexpr double colsample_th = 0.1;
+  static constexpr double kColsampleTh = 0.1;
 
  public:
   /**
@@ -91,7 +91,7 @@ class HistogramBuilder {
     const common::ColumnMatrix& column_matrix = gidx.Transpose();
     const bool column_sampling =
                            any_missing
-                      &&  (colsample_.bytree < colsample_th || colsample_.bylevel < colsample_th)
+                      &&  (colsample_.bytree < kColsampleTh || colsample_.bylevel < kColsampleTh)
                       && !(column_matrix.AnySparseColumn())
                       &&  (colsample_.bynode == 1);
 

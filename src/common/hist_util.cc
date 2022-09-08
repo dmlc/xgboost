@@ -139,7 +139,7 @@ struct Prefetch {
 
 constexpr size_t Prefetch::kNoPrefetchSize;
 
-template <bool _column_sampling, bool _read_by_column>
+template <bool column_sampling, bool read_by_column>
 struct GHistBuildingManager {
   GHistBuildingManager(std::shared_ptr<common::ColumnSampler> column_sampler, int depth) {
     if (column_sampling && read_by_column) {
@@ -152,8 +152,8 @@ struct GHistBuildingManager {
   }
 
   std::vector<int> fids;
-  constexpr static bool column_sampling = _column_sampling;
-  constexpr static bool read_by_column = _read_by_column;
+  constexpr static bool kColumnSampling = column_sampling;
+  constexpr static bool kReadByColumn = read_by_column;
 };
 
 template <bool do_prefetch, typename BinIdxType, bool first_page, bool any_missing = true>
@@ -241,14 +241,14 @@ void ColsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
   };
 
   const size_t n_features = gmat.cut.Ptrs().size() - 1;
-  const size_t n_columns = GHistBuildingManager::column_sampling ? hbm.fids.size() : n_features;
+  const size_t n_columns = GHistBuildingManager::kColumnSampling ? hbm.fids.size() : n_features;
   auto hist_data = reinterpret_cast<double *>(hist.data());
   const uint32_t two{2};  // Each element from 'gpair' and 'hist' contains
                           // 2 FP values: gradient and hessian.
                           // So we need to multiply each row-index/bin-index by 2
                           // to work with gradient pairs as a singe row FP array
   for (size_t cid = 0; cid < n_columns; ++cid) {
-    const size_t local_cid = GHistBuildingManager::column_sampling ? hbm.fids[cid] : cid;
+    const size_t local_cid = GHistBuildingManager::kColumnSampling ? hbm.fids[cid] : cid;
     for (size_t i = 0; i < size; ++i) {
       const size_t row_id = rid[i];
       const size_t icol_start =
@@ -273,7 +273,7 @@ template <bool do_prefetch, typename BinIdxType, bool first_page,
 void BuildHistKernel(const std::vector<GradientPair> &gpair,
                      const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
                      GHistRow hist, const GHistBuildingManager& hbm) {
-  if (GHistBuildingManager::read_by_column) {
+  if (GHistBuildingManager::kReadByColumn) {
     ColsWiseBuildHistKernel<BinIdxType, first_page, any_missing>
                            (gpair, row_indices, gmat, hist, hbm);
   } else {
