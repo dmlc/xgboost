@@ -20,7 +20,9 @@ from pyspark.ml.param.shared import (
     HasWeightCol,
 )
 from pyspark.ml.util import MLReadable, MLWritable
-from pyspark.sql.functions import col, countDistinct, pandas_udf, struct
+from pyspark.sql.functions import (
+    col, countDistinct, pandas_udf, struct, monotonically_increasing_id
+)
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
@@ -268,15 +270,6 @@ class _SparkXGBParams(
             raise ValueError(
                 f"Number of workers was {self.getOrDefault(self.num_workers)}."
                 f"It cannot be less than 1 [Default is 1]"
-            )
-
-        if (
-            self.getOrDefault(self.force_repartition)
-            and self.getOrDefault(self.num_workers) == 1
-        ):
-            get_logger(self.__class__.__name__).warning(
-                "You set force_repartition to true when there is no need for a repartition."
-                "Therefore, that parameter will be ignored."
             )
 
         if self.getOrDefault(self.features_cols):
@@ -691,7 +684,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
 
         if self._repartition_needed(dataset):
-            dataset = dataset.repartition(num_workers)
+            # Repartition on `monotonically_increasing_id` column to avoid repartition
+            # result unbalance. Directly using `.repartition(N)` might result in some
+            # empty partitions.
+            dataset = dataset.repartition(num_workers, monotonically_increasing_id())
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
