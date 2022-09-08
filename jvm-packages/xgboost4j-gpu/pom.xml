@@ -14,9 +14,9 @@
 
     <dependencies>
         <dependency>
-          <groupId>ai.rapids</groupId>
-          <artifactId>cudf</artifactId>
-          <version>${cudf.version}</version>
+          <groupId>com.nvidia</groupId>
+          <artifactId>spark-rapids-jni</artifactId>
+          <version>${rapids.version}</version>
           <classifier>${cudf.classifier}</classifier>
           <scope>provided</scope>
         </dependency>

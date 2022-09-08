@@ -20,14 +20,13 @@ import java.nio.file.{Files, Path}
 import java.sql.{Date, Timestamp}
 import java.util.{Locale, TimeZone}
 
-import com.nvidia.spark.rapids.RapidsConf
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Row, SparkSession}
-import org.apache.spark.sql.rapids.execution.TrampolineUtil
+import org.apache.spark.sql.rapids.execution.UnshimmedTrampolineUtil
 
 trait GpuTestSuite extends FunSuite with TmpFolderSuite {
   import SparkSessionHolder.withSparkSession
@@ -233,7 +232,7 @@ object SparkSessionHolder extends Logging {
   }
 
   private def createSparkSession(): SparkSession = {
-    TrampolineUtil.cleanupAnyExistingSession()
+    UnshimmedTrampolineUtil.cleanupAnyExistingSession()
 
     // Timezone is fixed to UTC to allow timestamps to work by default
     TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
