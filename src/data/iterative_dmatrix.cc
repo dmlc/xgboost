@@ -33,15 +33,6 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
     CHECK_EQ(d, batch_param_.gpu_id) << msg;
   }
 
-  int32_t max_device{d};
-  rabit::Allreduce<rabit::op::Max>(&max_device, 1);
-  if (max_device != d) {
-    CHECK_EQ(MakeProxy(proxy_)->Info().num_row_, 0)
-        << "max device:" << max_device << " device:" << d;
-    CHECK_NE(d, Context::kCpuId) << msg;
-    d = max_device;
-  }
-
   batch_param_ = BatchParam{d, max_bin};
   batch_param_.sparse_thresh = 0.2;  // default from TrainParam
 
