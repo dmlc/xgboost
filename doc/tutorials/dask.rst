@@ -510,10 +510,10 @@ IPv6 Support
 
 .. versionadded:: 2.0.0
 
-XGBoost has initial IPv6 support for the dask interface. Due to most of the cluster
-support for IPv6 is partial (duo stack instead of IPv6 only), we require additional user
-configuration similar to :ref:`tracker-ip` to help XGBoost obtain the correct address
-information:
+XGBoost has initial IPv6 support for the dask interface on Linux. Due to most of the
+cluster support for IPv6 is partial (duo stack instead of IPv6 only), we require
+additional user configuration similar to :ref:`tracker-ip` to help XGBoost obtain the
+correct address information:
 
 .. code-block:: python
 
