@@ -36,7 +36,8 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   int32_t max_device{d};
   rabit::Allreduce<rabit::op::Max>(&max_device, 1);
   if (max_device != d) {
-    CHECK_EQ(MakeProxy(proxy_)->Info().num_row_, 0);
+    CHECK_EQ(MakeProxy(proxy_)->Info().num_row_, 0)
+        << "max device:" << max_device << " device:" << d;
     CHECK_NE(d, Context::kCpuId) << msg;
     d = max_device;
   }
