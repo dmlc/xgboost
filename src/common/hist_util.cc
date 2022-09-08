@@ -347,7 +347,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair> &gpair,
                              const GHistIndexMatrix &gmat,
                              GHistRow hist, std::shared_ptr<ColumnSampler> column_sampler,
                              int depth, bool column_sampling) const {
-  constexpr double adhoc_l2_size = 1024 * 1024 * 0.8;
+  constexpr double kAdhocL2Size = 1024 * 1024 * 0.8;
   const bool hist_fit_to_l2 = adhoc_l2_size > 2*sizeof(float)*gmat.cut.Ptrs().back();
   bool read_by_column = column_sampling ? true : !hist_fit_to_l2 && !any_missing;
 
