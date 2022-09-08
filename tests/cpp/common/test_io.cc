@@ -2,12 +2,12 @@
  * Copyright (c) by XGBoost Contributors 2019
  */
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
 
 #include <fstream>
 
-#include "../helpers.h"
 #include "../../../src/common/io.h"
+#include "../helpers.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 
 namespace xgboost {
 namespace common {

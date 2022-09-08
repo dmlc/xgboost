@@ -1,5 +1,4 @@
 // Copyright by Contributors
-#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 #include "../../../src/data/simple_dmatrix.h"
 

@@ -4,25 +4,24 @@
 #ifndef XGBOOST_TESTS_CPP_HELPERS_H_
 #define XGBOOST_TESTS_CPP_HELPERS_H_
 
-#include <iostream>
-#include <fstream>
-#include <cstdio>
-#include <string>
-#include <memory>
-#include <vector>
+#include <gtest/gtest.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include <gtest/gtest.h>
-
-#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
-#include <xgboost/json.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/json.h>
+
+#include <cstdio>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "../../src/common/common.h"
-#include "../../src/gbm/gbtree_model.h"
 #include "../../src/data/array_interface.h"
+#include "../../src/gbm/gbtree_model.h"
+#include "filesystem.h"  // dmlc::TemporaryDirectory
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
