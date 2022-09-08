@@ -10,7 +10,7 @@ RUN \
     yum update -y && \
     yum install -y devtoolset-7 && \
     # Python
-    wget --no-verbose -O conda.sh https://github.com/conda-forge/miniforge/releases/download/4.8.2-1/Miniforge3-4.8.2-1-Linux-aarch64.sh && \
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/4.8.2-1/Miniforge3-4.8.2-1-Linux-aarch64.sh && \
     bash conda.sh -b -p /opt/miniforge-python
 
 ENV PATH=/opt/miniforge-python/bin:$PATH
@@ -25,7 +25,7 @@ RUN conda env create -n aarch64_test --file=/scripts/aarch64_test.yml
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
-    wget --no-verbose -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-arm64" && \
+    wget -nv -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-arm64" && \
     chmod +x /usr/local/bin/gosu && \
     gosu nobody true
 

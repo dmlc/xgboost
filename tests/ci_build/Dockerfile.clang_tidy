@@ -11,7 +11,7 @@ RUN \
     apt-get update && \
     apt-get install -y tar unzip wget git build-essential python3 python3-pip software-properties-common \
                        apt-transport-https ca-certificates gnupg-agent && \
-    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository -u 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main' && \
     apt-get update && \
     apt-get install -y llvm-11 clang-tidy-11 clang-11 && \
@@ -31,7 +31,7 @@ ENV GOSU_VERSION 1.10
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
-    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    wget -nv -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
     chmod +x /usr/local/bin/gosu && \
     gosu nobody true
 
