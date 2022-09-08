@@ -713,6 +713,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         is_local = _is_local(_get_spark_session().sparkContext)
 
+        # Remove the parameters whose value is None
+        booster_params = {k: v for k, v in booster_params.items() if v is not None}
+        train_call_kwargs_params = {
+            k: v for k, v in train_call_kwargs_params.items() if v is not None
+        }
+        dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
+
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
             going through the Rabit Ring protocol
@@ -737,6 +744,15 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             _rabit_args = ""
             if context.partitionId() == 0:
+                get_logger("XGBoostPySpark").info(
+                    "booster params: %s\n"
+                    "train_call_kwargs_params: %s\n"
+                    "dmatrix_kwargs: %s",
+                    booster_params,
+                    train_call_kwargs_params,
+                    dmatrix_kwargs,
+                )
+
                 _rabit_args = str(_get_rabit_args(context, num_workers))
 
             messages = context.allGather(message=str(_rabit_args))
@@ -754,7 +770,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     dval = [(dtrain, "training"), (dvalid, "validation")]
                 else:
                     dval = None
-
                 booster = worker_train(
                     params=booster_params,
                     dtrain=dtrain,
