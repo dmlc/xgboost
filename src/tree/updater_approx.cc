@@ -3,7 +3,6 @@
  *
  * \brief Implementation for the approx tree method.
  */
-
 #include <algorithm>
 #include <memory>
 #include <vector>
