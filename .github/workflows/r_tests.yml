@@ -85,15 +85,20 @@ jobs:
 
     - name: Install dependencies
       shell: Rscript {0}
+      if: matrix.config.os != 'windows-latest'
       run: |
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
-    - name: Install igraph on Windows
+
+    - name: Install binary dependencies
       shell: Rscript {0}
       if: matrix.config.os == 'windows-latest'
       run: |
-        install.packages('igraph', type='binary', dependencies = c('Depends', 'Imports', 'LinkingTo'))
+        install.packages(${{ env.R_PACKAGES }},
+                         type = 'binary',
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
 
     - uses: actions/setup-python@v2
       with:
