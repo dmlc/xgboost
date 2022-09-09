@@ -19,8 +19,8 @@ def stack_series(series: pd.Series) -> np.ndarray:
 
 # Global constant for defining column alias shared between estimator and data
 # processing procedures.
-Alias = namedtuple("Alias", ("data", "label", "weight", "margin", "valid"))
-alias = Alias("values", "label", "weight", "baseMargin", "validationIndicator")
+Alias = namedtuple("Alias", ("data", "label", "weight", "margin", "valid", "qid"))
+alias = Alias("values", "label", "weight", "baseMargin", "validationIndicator", "qid")
 
 
 def concat_or_none(seq: Optional[Sequence[np.ndarray]]) -> Optional[np.ndarray]:
@@ -41,6 +41,7 @@ def cache_partitions(
         append(part, alias.label, is_valid)
         append(part, alias.weight, is_valid)
         append(part, alias.margin, is_valid)
+        append(part, alias.qid, is_valid)
 
     has_validation: Optional[bool] = None
 
@@ -94,6 +95,7 @@ class PartIter(DataIter):
             label=self._fetch(self._data.get(alias.label, None)),
             weight=self._fetch(self._data.get(alias.weight, None)),
             base_margin=self._fetch(self._data.get(alias.margin, None)),
+            qid=self._fetch(self._data.get(alias.qid, None)),
         )
         self._iter += 1
         return 1
@@ -226,9 +228,9 @@ def create_dmatrix_from_partitions(
         label = concat_or_none(values.get(alias.label, None))
         weight = concat_or_none(values.get(alias.weight, None))
         margin = concat_or_none(values.get(alias.margin, None))
-
+        qid = concat_or_none(values.get(alias.qid, None))
         return DMatrix(
-            data=data, label=label, weight=weight, base_margin=margin, **kwargs
+            data=data, label=label, weight=weight, base_margin=margin, qid=qid, **kwargs
         )
 
     is_dmatrix = feature_cols is None

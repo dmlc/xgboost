@@ -205,12 +205,11 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
 
 BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(BatchParam const& param) {
   CheckParam(param);
-  CHECK(ghist_) << R"(`QuantileDMatrix` is not initialized with CPU data but used for CPU training.
-Possible solutions:
-- Use `DMatrix` instead.
-- Use CPU input for `QuantileDMatrix`.
-- Run training on GPU.
-)";
+  if (!ghist_) {
+    CHECK(ellpack_);
+    ghist_ = std::make_shared<GHistIndexMatrix>(&ctx_, Info(), *ellpack_, param);
+  }
+
   auto begin_iter =
       BatchIterator<GHistIndexMatrix>(new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_));
   return BatchSet<GHistIndexMatrix>(begin_iter);

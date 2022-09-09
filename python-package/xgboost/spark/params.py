@@ -36,7 +36,7 @@ class HasBaseMarginCol(Params):
 
 class HasFeaturesCols(Params):
     """
-    Mixin for param featuresCols: a list of feature column names.
+    Mixin for param features_cols: a list of feature column names.
     This parameter is taken effect only when use_gpu is enabled.
     """
 
@@ -72,3 +72,16 @@ class HasEnableSparseDataOptim(Params):
     def __init__(self):
         super().__init__()
         self._setDefault(enable_sparse_data_optim=False)
+
+
+class HasQueryIdCol(Params):
+    """
+    Mixin for param qid_col: query id column name.
+    """
+
+    qid_col = Param(
+        Params._dummy(),
+        "qid_col",
+        "query id column name",
+        typeConverter=TypeConverters.toString,
+    )

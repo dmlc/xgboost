@@ -37,7 +37,7 @@ TEST(QuantileHist, Partitioner) {
     GHistIndexMatrix gmat(page, {}, cuts, 64, true, 0.5, ctx.Threads());
     bst_feature_t const split_ind = 0;
     common::ColumnMatrix column_indices;
-    column_indices.Init(page, gmat, 0.5, ctx.Threads());
+    column_indices.InitFromSparse(page, gmat, 0.5, ctx.Threads());
     {
       auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree;
