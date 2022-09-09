@@ -543,6 +543,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         query_plan = dataset._sc._jvm.PythonSQLUtils.explainString(
             dataset._jdf.queryExecution(), "extended"
         )
+        get_logger(self.__class__.__name__).warning(
+            f"debug-repartition: \n{query_plan}\n"
+        )
         start = query_plan.index("== Optimized Logical Plan ==")
         start += len("== Optimized Logical Plan ==") + 1
         num_workers = self.getOrDefault(self.num_workers)
@@ -683,11 +686,23 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 num_workers,
             )
 
+        def log_partition_rows(df, msg):
+
+            def count_partition_rows(iter):
+                yield len(list(iter))
+
+            result = df.rdd.mapPartitions(count_partition_rows).collect()
+            get_logger(self.__class__.__name__).warning(
+                f"debug-repartition: {msg}: {str(list(result))}\n"
+            )
+
+        log_partition_rows(dataset, "before-repartition")
         if self._repartition_needed(dataset):
             # Repartition on `monotonically_increasing_id` column to avoid repartition
             # result unbalance. Directly using `.repartition(N)` might result in some
             # empty partitions.
             dataset = dataset.repartition(num_workers, monotonically_increasing_id())
+            log_partition_rows(dataset, "after-repartition")
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
