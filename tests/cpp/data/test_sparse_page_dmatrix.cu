@@ -1,10 +1,10 @@
 // Copyright by Contributors
 
-#include <dmlc/filesystem.h>
-#include "../helpers.h"
 #include "../../../src/common/compressed_iterator.h"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/sparse_page_dmatrix.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../helpers.h"
 
 namespace xgboost {
 

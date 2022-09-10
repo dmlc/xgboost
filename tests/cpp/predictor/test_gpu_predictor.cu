@@ -1,7 +1,6 @@
 /*!
  * Copyright 2017-2020 XGBoost contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
 #include <xgboost/learner.h>
