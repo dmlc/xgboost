@@ -185,6 +185,11 @@ class Communicator {
     }
   }
 
+  /**
+   * @brief Shuts down the communicator.
+   */
+  virtual void Shutdown() = 0;
+
  private:
   static CommunicatorType StringToType(char const *str) {
     CommunicatorType result = CommunicatorType::kUnknown;

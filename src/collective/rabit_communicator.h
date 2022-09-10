@@ -43,13 +43,13 @@ class RabitCommunicator : public Communicator {
     for (auto &key_value : args_str) {
       args.push_back(&key_value[0]);
     }
-    rabit::Init(static_cast<int>(args.size()), &args[0]);
+    if (!rabit::Init(static_cast<int>(args.size()), &args[0])) {
+      LOG(FATAL) << "Failed to initialize Rabit";
+    }
     return new RabitCommunicator(rabit::GetWorldSize(), rabit::GetRank());
   }
 
   RabitCommunicator(int world_size, int rank) : Communicator(world_size, rank) {}
-
-  ~RabitCommunicator() override { rabit::Finalize(); }
 
   bool IsDistributed() const override { return rabit::IsDistributed(); }
 
@@ -92,6 +92,11 @@ class RabitCommunicator : public Communicator {
   std::string GetProcessorName() override { return rabit::GetProcessorName(); }
 
   void Print(const std::string &message) override { rabit::TrackerPrint(message); }
+
+ protected:
+  void Shutdown() override {
+    rabit::Finalize();
+  }
 
  private:
   template <typename DType>

@@ -15,9 +15,10 @@ thread_local int Communicator::device_ordinal_{-1};
 thread_local std::unique_ptr<DeviceCommunicator> Communicator::device_communicator_{};
 
 void Communicator::Finalize() {
-  communicator_.reset();
+  communicator_->Shutdown();
+  communicator_.reset(nullptr);
   device_ordinal_ = -1;
-  device_communicator_.reset();
+  device_communicator_.reset(nullptr);
 }
 
 DeviceCommunicator* Communicator::GetDevice(int device_ordinal) {

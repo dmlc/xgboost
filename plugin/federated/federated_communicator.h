@@ -182,6 +182,9 @@ class FederatedCommunicator : public Communicator {
    */
   void Print(const std::string &message) override { LOG(CONSOLE) << message; }
 
+ protected:
+  void Shutdown() override {}
+
  private:
   std::unique_ptr<xgboost::federated::FederatedClient> client_{};
 };
