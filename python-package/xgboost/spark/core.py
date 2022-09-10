@@ -20,9 +20,7 @@ from pyspark.ml.param.shared import (
     HasWeightCol,
 )
 from pyspark.ml.util import MLReadable, MLWritable
-from pyspark.sql.functions import (
-    col, countDistinct, pandas_udf, struct, monotonically_increasing_id
-)
+from pyspark.sql.functions import col, countDistinct, pandas_udf, struct, rand
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
@@ -687,7 +685,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
 
         def log_partition_rows(df, msg):
-
             def count_partition_rows(iter):
                 yield len(list(iter))
 
@@ -697,11 +694,18 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
 
         log_partition_rows(dataset, "before-repartition")
-        if self._repartition_needed(dataset):
-            # Repartition on `monotonically_increasing_id` column to avoid repartition
+        if self._repartition_needed(dataset) or (
+            self.isDefined(self.validationIndicatorCol)
+            and self.getOrDefault(self.validationIndicatorCol)
+        ):
+            # If validationIndicatorCol defined, we always repartition dataset
+            # to balance data, because user might unionise train and validation dataset,
+            # without shuffling data then some partitions might contain only train or validation
+            # dataset.
+            # Repartition on `rand` column to avoid repartition
             # result unbalance. Directly using `.repartition(N)` might result in some
             # empty partitions.
-            dataset = dataset.repartition(num_workers, monotonically_increasing_id())
+            dataset = dataset.repartition(num_workers, rand(1))
             log_partition_rows(dataset, "after-repartition")
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
