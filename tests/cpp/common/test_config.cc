@@ -1,11 +1,13 @@
 /*!
  * Copyright 2019 by Contributors
  */
+#include <gtest/gtest.h>
+
 #include <fstream>
 #include <string>
-#include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
+
 #include "../../../src/common/config.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost {

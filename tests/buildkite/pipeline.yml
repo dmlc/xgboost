@@ -1,0 +1,94 @@
+env:
+  DOCKER_CACHE_ECR_ID: "492475357299"
+  DOCKER_CACHE_ECR_REGION: "us-west-2"
+steps:
+  - block: ":rocket: Run this test job"
+    if: build.pull_request.repository.fork == true
+  #### -------- BUILD --------
+  - label: ":console: Run clang-tidy"
+    command: "tests/buildkite/run-clang-tidy.sh"
+    key: run-clang-tidy
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Build CPU"
+    command: "tests/buildkite/build-cpu.sh"
+    key: build-cpu
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Build CPU ARM64"
+    command: "tests/buildkite/build-cpu-arm64.sh"
+    key: build-cpu-arm64
+    agents:
+      queue: linux-arm64-cpu
+  - label: ":console: Build CUDA"
+    command: "tests/buildkite/build-cuda.sh"
+    key: build-cuda
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Build CUDA with RMM"
+    command: "tests/buildkite/build-cuda-with-rmm.sh"
+    key: build-cuda-with-rmm
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Build R package with CUDA"
+    command: "tests/buildkite/build-gpu-rpkg.sh"
+    key: build-gpu-rpkg
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Build JVM packages"
+    command: "tests/buildkite/build-jvm-packages.sh"
+    key: build-jvm-packages
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Build JVM packages with CUDA"
+    command: "tests/buildkite/build-jvm-packages-gpu.sh"
+    key: build-jvm-packages-gpu
+    agents:
+      queue: linux-amd64-mgpu
+  - label: ":console: Build JVM package doc"
+    command: "tests/buildkite/build-jvm-doc.sh"
+    key: build-jvm-doc
+    agents:
+      queue: linux-amd64-cpu
+
+  - wait
+
+  #### -------- TEST --------
+  - label: ":console: Test Python package, CPU"
+    command: "tests/buildkite/test-python-cpu.sh"
+    key: test-python-cpu
+    agents:
+      queue: linux-amd64-cpu
+  - label: ":console: Test Python package, CPU ARM64"
+    command: "tests/buildkite/test-python-cpu-arm64.sh"
+    key: test-python-cpu-arm64
+    agents:
+      queue: linux-arm64-cpu
+  - label: ":console: Test Python package, single GPU"
+    command: "tests/buildkite/test-python-gpu.sh gpu"
+    key: test-python-gpu
+    agents:
+      queue: linux-amd64-gpu
+  - label: ":console: Test Python package, 4 GPUs"
+    command: "tests/buildkite/test-python-gpu.sh mgpu"
+    key: test-python-mgpu
+    agents:
+      queue: linux-amd64-mgpu
+  - label: ":console: Run Google Tests, 4 GPUs"
+    command: "tests/buildkite/test-cpp-gpu.sh"
+    key: test-cpp-gpu
+    agents:
+      queue: linux-amd64-mgpu
+  - label: ":console: Run integration tests with JVM packages"
+    command: "tests/buildkite/test-integration-jvm-packages.sh"
+    key: test-integration-jvm-packages
+    agents:
+      queue: linux-amd64-cpu
+
+  - wait
+
+  - label: ":console: Deploy JVM packages"
+    command: "tests/buildkite/deploy-jvm-packages.sh"
+    key: deploy-jvm-packages
+    agents:
+      queue: linux-amd64-cpu
