@@ -3,7 +3,6 @@
  */
 #include "helpers.h"
 
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
@@ -21,6 +20,7 @@
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/c_api.h"
 #include "xgboost/predictor.h"
 

@@ -1,12 +1,13 @@
 // Copyright by Contributors
-#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 
 #include <array>
-#include "xgboost/base.h"
-#include "../../../src/data/simple_dmatrix.h"
+
 #include "../../../src/data/adapter.h"
+#include "../../../src/data/simple_dmatrix.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
+#include "xgboost/base.h"
 
 using namespace xgboost;  // NOLINT
 
