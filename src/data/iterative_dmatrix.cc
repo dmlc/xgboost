@@ -7,6 +7,7 @@
 
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"
+#include "../tree/param.h"  // FIXME(jiamingy): Find a better way to share this parameter.
 #include "gradient_index.h"
 #include "proxy_dmatrix.h"
 #include "simple_batch_iterator.h"
@@ -34,7 +35,8 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   }
 
   batch_param_ = BatchParam{d, max_bin};
-  batch_param_.sparse_thresh = 0.2;  // default from TrainParam
+  // hardcoded parameter.
+  batch_param_.sparse_thresh = tree::TrainParam::DftSparseThreshold();
 
   ctx_.UpdateAllowUnknown(
       Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
@@ -242,6 +244,10 @@ BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(BatchParam const& 
     ghist_ = std::make_shared<GHistIndexMatrix>(&ctx_, Info(), *ellpack_, param);
   }
 
+  if (param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {
+    LOG(WARNING) << "`sparse_threshold` can not be changed when `QuantileDMatrix` is used instead "
+                    "of `DMatrix`.";
+  }
   auto begin_iter =
       BatchIterator<GHistIndexMatrix>(new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_));
   return BatchSet<GHistIndexMatrix>(begin_iter);
