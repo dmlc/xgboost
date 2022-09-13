@@ -1302,7 +1302,8 @@ class LearnerImpl : public LearnerIO {
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
     this->Configure();
-    this->InitBaseScore(train.get());
+    // Should have been set to default in the first prediction.
+    CHECK(!std::isnan(mparam_.base_score));
 
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
