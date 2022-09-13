@@ -12,6 +12,7 @@ from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 import pytest
 import gc
 import xgboost as xgb
+from xgboost.core import ArrayLike
 import numpy as np
 from scipy import sparse
 import platform
@@ -212,7 +213,7 @@ class IteratorForTest(xgb.core.DataIter):
 
     def as_arrays(
         self,
-    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], np.ndarray, np.ndarray]:
+    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], ArrayLike, ArrayLike]:
         if isinstance(self.X[0], sparse.csr_matrix):
             X = sparse.vstack(self.X, format="csr")
         else:
