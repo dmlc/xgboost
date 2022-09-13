@@ -2,11 +2,14 @@
  * Copyright 2022 by XGBoost Contributors
  */
 
-#include "common.h"
-#include "stats.cuh"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/linalg.h"
+#include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
+
+#include "common.h"            // common::OptionalWeights
+#include "device_helpers.cuh"  // dh::MakeTransformIterator, tcbegin, tcend
+#include "stats.cuh"           // common::SegmentedQuantile, common::SegmentedWeightedQuantile
+#include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/host_device_vector.h"  // HostDeviceVector
+#include "xgboost/linalg.h"              // linalg::TensorView, UnravelIndex, Apply
 
 namespace xgboost {
 namespace common {

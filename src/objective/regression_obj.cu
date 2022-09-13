@@ -711,13 +711,8 @@ class MeanAbsoluteError : public ObjFunction {
     if (info.num_row_ == 0) {
       out(0) = 0;
       invalid++;
-    } else if (ctx_->IsCPU()) {
-      out(0) = common::Median(ctx_, info.labels.HostView(),
-                              common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
-      info.weights_.SetDevice(ctx_->gpu_id);
-      out(0) = common::Median(ctx_, info.labels.View(ctx_->gpu_id),
-                              common::OptionalWeights{info.weights_.DeviceSpan()});
+      out(0) = common::Median(ctx_, info.labels, info.weights_);
     }
 
     auto world = static_cast<float>(rabit::GetWorldSize());
