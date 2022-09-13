@@ -99,12 +99,13 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     static_assert(sizeof(LearnerModelParamLegacy) == 136,
                   "Do not change the size of this struct, as it will break binary IO.");
   }
+
   // Skip other legacy fields.
   Json ToJson() const {
     Object obj;
     char floats[NumericLimits<float>::kToCharsSize];
     auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
-    CHECK(ret.ec == std::errc());
+    CHECK(ret.ec == std::errc{});
     obj["base_score"] = std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
 
     char integers[NumericLimits<int64_t>::kToCharsSize];
@@ -493,7 +494,7 @@ class LearnerConfiguration : public Learner {
   }
 
   void CheckModelInitialized() const {
-    CHECK(learner_model_param_.Initialized()) << "Model not fit.";
+    CHECK(learner_model_param_.Initialized()) << "Model not yet initialized.";
     CHECK_NE(learner_model_param_.BaseScore(this->Ctx()).Size(), 0);
   }
 
