@@ -32,9 +32,9 @@ def concat_or_none(seq: Optional[Sequence[np.ndarray]]) -> Optional[np.ndarray]:
 
 def cache_partitions(
     iterator: Iterator[pd.DataFrame], append: Callable[[pd.DataFrame, str, bool], None]
-) -> Optional[bool]:
+) -> None:
     """Extract partitions from pyspark iterator. `append` is a user defined function for
-    accepting new partition. Return a bool to indicate if there is validation"""
+    accepting new partition."""
 
     def make_blob(part: pd.DataFrame, is_valid: bool) -> None:
         append(part, alias.data, is_valid)
