@@ -401,11 +401,15 @@ class LearnerConfiguration : public Learner {
     // - model is configured second time due to change of parameter
     CHECK(obj_);
     if (!mparam_.base_score_estimated) {
-      // We estimate it from input data.
-      obj_->InitEstimation(p_fmat->Info(), &base_score);
+      if (p_fmat) {
+        // We estimate it from input data.
+        obj_->InitEstimation(p_fmat->Info(), &base_score);
+        mparam_.base_score = base_score(0);
+        CHECK(!std::isnan(mparam_.base_score));
+      } else {
+        mparam_.base_score = ObjFunction::DefaultBaseScore();
+      }
       mparam_.base_score_estimated = true;
-      mparam_.base_score = base_score(0);
-      CHECK(!std::isnan(mparam_.base_score));
       // Update the shared model parameter
       this->ConfigureModelParam();
     }
@@ -1372,6 +1376,7 @@ class LearnerImpl : public LearnerIO {
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
+    this->InitBaseScore(nullptr);
     this->CheckModelInitialized();
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
@@ -1416,6 +1421,7 @@ class LearnerImpl : public LearnerIO {
                       HostDeviceVector<bst_float>** out_preds, uint32_t iteration_begin,
                       uint32_t iteration_end) override {
     this->Configure();
+    this->InitBaseScore(nullptr);
     this->CheckModelInitialized();
 
     auto& out_predictions = this->GetThreadLocal().prediction_entry;

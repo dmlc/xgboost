@@ -474,16 +474,23 @@ TEST(Learner, InitEstimation) {
         std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
     // No base score is estimated yet.
     ASSERT_EQ(base_score, ObjFunction::DefaultBaseScore());
+  }
 
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->SetParam("objective", "reg:absoluteerror");
     learner->UpdateOneIter(0, Xy);
+
+    HostDeviceVector<float> predt;
     learner->Predict(Xy, false, &predt, 0, 0);
-    h_predt = predt.ConstHostSpan();
+    auto h_predt = predt.ConstHostSpan();
     for (auto v : h_predt) {
       ASSERT_NE(v, ObjFunction::DefaultBaseScore());
     }
 
+    Json config{Object{}};
     learner->SaveConfig(&config);
-    base_score =
+    auto base_score =
         std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
     ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
 
