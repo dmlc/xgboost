@@ -218,7 +218,10 @@ class IteratorForTest(xgb.core.DataIter):
         else:
             X = np.concatenate(self.X, axis=0)
         y = np.concatenate(self.y, axis=0)
-        w = np.concatenate(self.w, axis=0)
+        if self.w:
+            w = np.concatenate(self.w, axis=0)
+        else:
+            w = None
         return X, y, w
 
 
