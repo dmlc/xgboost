@@ -85,7 +85,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*!
    * \brief Configure Learner based on set parameters.
    */
-  virtual void Configure(DMatrix const* p_fmat = nullptr) = 0;
+  virtual void Configure() = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.

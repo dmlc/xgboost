@@ -401,6 +401,7 @@ class LearnerConfiguration : public Learner {
     learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
     CHECK(learner_model_param_.Initialized());
     CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
+    CHECK(!std::isnan(mparam_.base_score));
   }
 
  public:
@@ -420,7 +421,7 @@ class LearnerConfiguration : public Learner {
   }
 
   // Configuration before data is known.
-  void Configure(DMatrix const* p_fmat = nullptr) override {
+  void Configure() override {
     // Varient of double checked lock
     if (!this->need_configuration_) {
       return;
@@ -464,7 +465,6 @@ class LearnerConfiguration : public Learner {
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
     ctx_.ConfigureGpuId(this->gbm_->UseGPU());
-    this->ConfigureLearnerParam(p_fmat);
 
     this->ConfigureMetrics(args);
 
@@ -1242,7 +1242,9 @@ class LearnerImpl : public LearnerIO {
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->Configure(train.get());
+    this->Configure();
+    this->ConfigureLearnerParam(train.get());
+
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
@@ -1270,7 +1272,8 @@ class LearnerImpl : public LearnerIO {
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
-    this->Configure(train.get());
+    this->Configure();
+    this->ConfigureLearnerParam(train.get());
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
