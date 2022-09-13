@@ -726,10 +726,9 @@ def _create_quantile_dmatrix(
     if parts is None:
         msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
-        import cupy
 
         d = QuantileDMatrix(
-            cupy.zeros((0, 0)),
+            numpy.empty((0, 0)),
             feature_names=feature_names,
             feature_types=feature_types,
             max_bin=max_bin,
@@ -1544,15 +1543,21 @@ def inplace_predict(  # pylint: disable=unused-argument
 
 
 async def _async_wrap_evaluation_matrices(
-    client: Optional["distributed.Client"], **kwargs: Any
+    client: Optional["distributed.Client"],
+    tree_method: Optional[str],
+    max_bin: Optional[int],
+    **kwargs: Any,
 ) -> Tuple[DaskDMatrix, Optional[List[Tuple[DaskDMatrix, str]]]]:
     """A switch function for async environment."""
 
-    def _inner(**kwargs: Any) -> DaskDMatrix:
-        m = DaskDMatrix(client=client, **kwargs)
-        return m
+    def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
+        if tree_method in ("hist", "gpu_hist"):
+            return DaskQuantileDMatrix(
+                client=client, ref=ref, max_bin=max_bin, **kwargs
+            )
+        return DaskDMatrix(client=client, **kwargs)
 
-    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_inner, **kwargs)
+    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_dispatch, **kwargs)
     train_dmatrix = await train_dmatrix
     if evals is None:
         return train_dmatrix, evals
@@ -1756,6 +1761,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,
@@ -1851,6 +1858,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,
@@ -2057,6 +2066,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,

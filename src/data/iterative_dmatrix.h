@@ -75,30 +75,7 @@ class IterativeDMatrix : public DMatrix {
   explicit IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
-                            bst_bin_t max_bin)
-      : proxy_{proxy}, reset_{reset}, next_{next} {
-    // fetch the first batch
-    auto iter =
-        DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
-    iter.Reset();
-    bool valid = iter.Next();
-    CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
-
-    auto d = MakeProxy(proxy_)->DeviceIdx();
-    if (batch_param_.gpu_id != Context::kCpuId) {
-      CHECK_EQ(d, batch_param_.gpu_id) << "All batch should be on the same device.";
-    }
-    batch_param_ = BatchParam{d, max_bin};
-    batch_param_.sparse_thresh = 0.2;  // default from TrainParam
-
-    ctx_.UpdateAllowUnknown(
-        Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
-    if (ctx_.IsCPU()) {
-      this->InitFromCPU(iter_handle, missing, ref);
-    } else {
-      this->InitFromCUDA(iter_handle, missing, ref);
-    }
-  }
+                            bst_bin_t max_bin);
   ~IterativeDMatrix() override = default;
 
   bool EllpackExists() const override { return static_cast<bool>(ellpack_); }
