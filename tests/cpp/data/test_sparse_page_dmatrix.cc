@@ -1,14 +1,16 @@
 // Copyright by Contributors
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
-#include <thread>
+
 #include <future>
+#include <thread>
+
 #include "../../../src/common/io.h"
 #include "../../../src/data/adapter.h"
+#include "../../../src/data/file_iterator.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
-#include "../../../src/data/file_iterator.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 using namespace xgboost;  // NOLINT

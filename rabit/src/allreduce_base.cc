@@ -5,7 +5,10 @@
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
+#if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
+#endif  // !defined(NOMINMAX)
+
 #include "rabit/base.h"
 #include "rabit/internal/rabit-inl.h"
 #include "allreduce_base.h"

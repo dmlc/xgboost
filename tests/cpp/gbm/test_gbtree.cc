@@ -1,13 +1,13 @@
 /*!
  * Copyright 2019-2022 XGBoost contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/generic_parameters.h>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
 #include "xgboost/host_device_vector.h"

@@ -1,18 +1,16 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
-#include <gtest/gtest.h>
-
-#include <dmlc/filesystem.h>
 #include <dmlc/io.h>
-
-#include <xgboost/version_config.h>
-#include <xgboost/json.h>
+#include <gtest/gtest.h>
 #include <xgboost/base.h>
+#include <xgboost/json.h>
+#include <xgboost/version_config.h>
 
 #include <string>
 
 #include "../../../src/common/version.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 
 namespace xgboost {
 TEST(Version, Basic) {

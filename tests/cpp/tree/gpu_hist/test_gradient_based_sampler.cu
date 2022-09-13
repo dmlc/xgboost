@@ -6,8 +6,8 @@
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
 #include "../../../../src/tree/param.h"
+#include "../../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../../helpers.h"
-#include "dmlc/filesystem.h"
 
 namespace xgboost {
 namespace tree {

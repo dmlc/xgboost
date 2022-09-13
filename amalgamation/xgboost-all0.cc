@@ -71,6 +71,9 @@
 #include "../src/logging.cc"
 #include "../src/global_config.cc"
 
+// collective
+#include "../src/collective/communicator.cc"
+
 // common
 #include "../src/common/common.cc"
 #include "../src/common/column_matrix.cc"

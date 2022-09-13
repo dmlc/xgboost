@@ -62,7 +62,7 @@ class FederatedServerTest : public ::testing::Test {
   static void CheckAllreduce(federated::FederatedClient& client) {
     int data[] = {1, 2, 3, 4, 5};
     std::string send_buffer(reinterpret_cast<char const*>(data), sizeof(data));
-    auto reply = client.Allreduce(send_buffer, federated::INT, federated::SUM);
+    auto reply = client.Allreduce(send_buffer, federated::INT32, federated::SUM);
     auto const* result = reinterpret_cast<int const*>(reply.data());
     int expected[] = {3, 6, 9, 12, 15};
     for (auto i = 0; i < 5; i++) {
