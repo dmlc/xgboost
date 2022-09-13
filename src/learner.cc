@@ -477,6 +477,10 @@ class LearnerConfiguration : public Learner {
     monitor_.Stop("Configure");
   }
 
+  void CheckModelInitialized() const {
+    CHECK(learner_model_param_.Initialized()) << "Model not fit.";
+  }
+
   virtual PredictionContainer* GetPredictionCache() const {
     return &((*ThreadLocalPredictionCache::Get())[this]);
   }
@@ -871,6 +875,7 @@ class LearnerIO : public LearnerConfiguration {
 
   void SaveModel(Json* p_out) const override {
     CHECK(!this->need_configuration_) << "Call Configure before saving model.";
+    this->CheckModelInitialized();
 
     Version::Save(p_out);
     Json& out { *p_out };
@@ -1056,6 +1061,8 @@ class LearnerIO : public LearnerConfiguration {
   // Save model into binary format.  The code is about to be deprecated by more robust
   // JSON serialization format.
   void SaveModel(dmlc::Stream* fo) const override {
+    this->CheckModelInitialized();
+
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     mparam.contain_extra_attrs = 1;
@@ -1110,6 +1117,8 @@ class LearnerIO : public LearnerConfiguration {
   }
 
   void Save(dmlc::Stream* fo) const override {
+    this->CheckModelInitialized();
+
     Json memory_snapshot{Object()};
     memory_snapshot["Model"] = Object();
     auto& model = memory_snapshot["Model"];
@@ -1196,16 +1205,19 @@ class LearnerImpl : public LearnerIO {
     }
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap,
-                                     bool with_stats,
+  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) override {
     this->Configure();
+    this->CheckModelInitialized();
+
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
   Learner* Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
                  bool* out_of_bound) override {
     this->Configure();
+    this->CheckModelInitialized();
+
     CHECK_NE(this->learner_model_param_.num_feature, 0);
     CHECK_GE(begin_layer, 0);
     auto* out_impl = new LearnerImpl({});
@@ -1274,6 +1286,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("BoostOneIter");
     this->Configure();
     this->ConfigureLearnerParam(train.get());
+
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
     }
@@ -1293,6 +1306,7 @@ class LearnerImpl : public LearnerIO {
                           const std::vector<std::string>& data_names) override {
     monitor_.Start("EvalOneIter");
     this->Configure();
+    this->CheckModelInitialized();
 
     std::ostringstream os;
     os.precision(std::numeric_limits<double>::max_digits10);
@@ -1332,6 +1346,7 @@ class LearnerImpl : public LearnerIO {
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
     this->Configure();
+    this->CheckModelInitialized();
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
@@ -1360,8 +1375,10 @@ class LearnerImpl : public LearnerIO {
     CHECK(!this->need_configuration_);
     return this->gbm_->BoostedRounds();
   }
+
   uint32_t Groups() const override {
     CHECK(!this->need_configuration_);
+    this->CheckModelInitialized();
     return this->learner_model_param_.num_output_group;
   }
 
@@ -1373,6 +1390,8 @@ class LearnerImpl : public LearnerIO {
                       HostDeviceVector<bst_float>** out_preds, uint32_t iteration_begin,
                       uint32_t iteration_end) override {
     this->Configure();
+    this->CheckModelInitialized();
+
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
     this->gbm_->InplacePredict(p_m, missing, &out_predictions, iteration_begin, iteration_end);
     if (type == PredictionType::kValue) {
@@ -1388,6 +1407,8 @@ class LearnerImpl : public LearnerIO {
   void CalcFeatureScore(std::string const& importance_type, common::Span<int32_t const> trees,
                         std::vector<bst_feature_t>* features, std::vector<float>* scores) override {
     this->Configure();
+    this->CheckModelInitialized();
+
     gbm_->FeatureScore(importance_type, trees, features, scores);
   }
 
@@ -1407,6 +1428,7 @@ class LearnerImpl : public LearnerIO {
   void PredictRaw(DMatrix *data, PredictionCacheEntry *out_preds, bool training,
                   unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
+    this->CheckModelInitialized();
     this->ValidateDMatrix(data, false);
     gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
