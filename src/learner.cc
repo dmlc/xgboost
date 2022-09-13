@@ -374,7 +374,6 @@ class LearnerConfiguration : public Learner {
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
     CHECK(obj_);
-    float world = rabit::GetWorldSize();
     if (!std::isnan(mparam_.base_score)) {
       // if base_score is set by user, use it.
       base_score.Reshape(1);
@@ -389,17 +388,16 @@ class LearnerConfiguration : public Learner {
     }
 
     auto task = obj_->Task();
-    auto in = base_score.HostView();
-    rabit::Allreduce<rabit::op::Sum>(in.Values().data(), in.Values().size());
-    std::transform(linalg::cbegin(in), linalg::cend(in), linalg::begin(in),
-                   [world](float v) { return v / world; });
     mparam_.base_score = base_score(0);
 
+    // transform to margin
     linalg::Tensor<float, 1> copy(base_score.Shape(), ctx_.gpu_id);
+    auto in = base_score.HostView();
     auto out = copy.HostView();
     std::transform(linalg::cbegin(in), linalg::cend(in), linalg::begin(out),
                    [&](float v) { return obj_->ProbToMargin(v); });
 
+    // move it to model param, which is shared with all other components.
     learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
     CHECK(learner_model_param_.Initialized());
     CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);

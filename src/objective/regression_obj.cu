@@ -706,20 +706,28 @@ class MeanAbsoluteError : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
     CheckInitInputs(info);
     base_margin->Reshape(1);
-    auto h_base_margin = base_margin->HostView();
+    auto out = base_margin->HostView();
+    std::int32_t invalid{0};
     if (info.num_row_ == 0) {
-      h_base_margin(0) = DefaultBaseScore();
-      return;
-    }
-
-    if (ctx_->IsCPU()) {
-      h_base_margin(0) = common::Median(ctx_, info.labels.HostView(),
-                                        common::OptionalWeights{info.weights_.ConstHostSpan()});
+      out(0) = 0;
+      invalid++;
+    } else if (ctx_->IsCPU()) {
+      out(0) = common::Median(ctx_, info.labels.HostView(),
+                              common::OptionalWeights{info.weights_.ConstHostSpan()});
     } else {
       info.weights_.SetDevice(ctx_->gpu_id);
-      h_base_margin(0) = common::Median(ctx_, info.labels.View(ctx_->gpu_id),
-                                        common::OptionalWeights{info.weights_.DeviceSpan()});
+      out(0) = common::Median(ctx_, info.labels.View(ctx_->gpu_id),
+                              common::OptionalWeights{info.weights_.DeviceSpan()});
     }
+
+    auto world = static_cast<float>(rabit::GetWorldSize());
+    rabit::Allreduce<rabit::op::Sum>(&invalid, 1);  // number of empty workers
+    world -= static_cast<float>(invalid);           // number of non-empty workers
+
+    // average base score across all valid workers
+    rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
+    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
+                   [world](float v) { return v / world; });
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

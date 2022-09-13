@@ -300,7 +300,10 @@ struct LearnerModelParamLegacy;
  */
 struct LearnerModelParam {
  private:
-  /* \brief global bias */
+  /**
+   * \brief Global bias, this is just a scalar value but can be extended to vector when we
+   *        support multi-class and multi-target.
+   */
   linalg::Tensor<float, 1> base_score_;
 
  public:
