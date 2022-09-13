@@ -456,33 +456,63 @@ TEST(Learner, MultiTarget) {
 TEST(Learner, InitEstimation) {
   size_t constexpr kCols = 10;
   auto Xy = RandomDataGenerator{10, kCols, 0}.GenerateDMatrix(true);
-  std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  learner->SetParam("objective", "reg:absoluteerror");
-  learner->Configure();
-  HostDeviceVector<float> predt;
-  learner->Predict(Xy, false, &predt, 0, 0);
 
-  auto h_predt = predt.ConstHostSpan();
-  for (auto v : h_predt) {
-    ASSERT_EQ(v, ObjFunction::DefaultBaseScore());
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure();
+    HostDeviceVector<float> predt;
+    learner->Predict(Xy, false, &predt, 0, 0);
+
+    auto h_predt = predt.ConstHostSpan();
+    for (auto v : h_predt) {
+      ASSERT_EQ(v, ObjFunction::DefaultBaseScore());
+    }
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score =
+        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    // No base score is estimated yet.
+    ASSERT_EQ(base_score, ObjFunction::DefaultBaseScore());
+
+    learner->UpdateOneIter(0, Xy);
+    learner->Predict(Xy, false, &predt, 0, 0);
+    h_predt = predt.ConstHostSpan();
+    for (auto v : h_predt) {
+      ASSERT_NE(v, ObjFunction::DefaultBaseScore());
+    }
+
+    learner->SaveConfig(&config);
+    base_score =
+        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+
+    ASSERT_THROW(
+        {
+          learner->SetParam("base_score_estimated", "1");
+          learner->Configure();
+        },
+        dmlc::Error);
   }
-  Json config{Object{}};
-  learner->SaveConfig(&config);
-  auto base_score =
-      std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-  // No base score is estimated yet.
-  ASSERT_TRUE(std::isnan(base_score));
 
-  learner->UpdateOneIter(0, Xy);
-  learner->Predict(Xy, false, &predt, 0, 0);
-  h_predt = predt.ConstHostSpan();
-  for (auto v : h_predt) {
-    ASSERT_NE(v, ObjFunction::DefaultBaseScore());
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->SetParam("objective", "reg:absoluteerror");
+    learner->SetParam("base_score", "1.3");
+    learner->Configure();
+    HostDeviceVector<float> predt;
+    learner->Predict(Xy, false, &predt, 0, 0);
+    auto h_predt = predt.ConstHostSpan();
+    for (auto v : h_predt) {
+      ASSERT_FLOAT_EQ(v, 1.3);
+    }
+    learner->UpdateOneIter(0, Xy);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score =
+        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    // no change
+    ASSERT_FLOAT_EQ(base_score, 1.3);
   }
-
-  learner->SaveConfig(&config);
-  base_score = std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-  ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
-  std::cout << base_score << std::endl;
 }
 }  // namespace xgboost

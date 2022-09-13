@@ -86,16 +86,18 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   uint32_t minor_version;
 
   uint32_t num_target{1};
+
+  int32_t base_score_estimated{0};
   /*! \brief reserved field */
-  int reserved[26];
+  int reserved[25];
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
-    // use nan to flag this is uninitialized.
-    base_score = std::numeric_limits<float>::quiet_NaN();
+    base_score = ObjFunction::DefaultBaseScore();
     num_target = 1;
     major_version = std::get<0>(Version::Self());
     minor_version = std::get<1>(Version::Self());
+    base_score_estimated = 0;
     static_assert(sizeof(LearnerModelParamLegacy) == 136,
                   "Do not change the size of this struct, as it will break binary IO.");
   }
@@ -141,9 +143,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
+    // It can only be estimated during the first training, we consider it estimated afterward
+    base_score_estimated = 1;
   }
 
-  inline LearnerModelParamLegacy ByteSwap() const {
+  LearnerModelParamLegacy ByteSwap() const {
     LearnerModelParamLegacy x = *this;
     dmlc::ByteSwap(&x.base_score, sizeof(x.base_score), 1);
     dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
@@ -153,8 +157,24 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
     dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
     dmlc::ByteSwap(&x.num_target, sizeof(x.num_target), 1);
+    dmlc::ByteSwap(&x.base_score_estimated, sizeof(x.base_score_estimated), 1);
     dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
+  }
+
+  template <typename Container>
+  Args UpdateAllowUnknown(Container const& kwargs) {
+    // Detect whether user has made their own base score.
+    if (std::find_if(kwargs.cbegin(), kwargs.cend(),
+                     [](auto const& kv) { return kv.first == "base_score"; }) != kwargs.cend()) {
+      base_score_estimated = true;
+    }
+    if (std::find_if(kwargs.cbegin(), kwargs.cend(), [](auto const& kv) {
+          return kv.first == "base_score_estimated";
+        }) != kwargs.cend()) {
+      LOG(FATAL) << "`base_score_estimated` cannot be specified as hyper-parameter.";
+    }
+    return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
 
   // declare parameters
@@ -174,6 +194,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
         .set_default(1)
         .set_lower_bound(1)
         .describe("Number of target for multi-target regression.");
+    DMLC_DECLARE_FIELD(base_score_estimated).set_default(0);
   }
 };
 
@@ -379,44 +400,32 @@ class LearnerConfiguration : public Learner {
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
     CHECK(obj_);
-    if (!std::isnan(mparam_.base_score)) {
-      // if base_score is set by user, use it.
-      base_score.Reshape(1);
-      base_score(0) = mparam_.base_score;
-    } else if (p_fmat) {
-      // otherwise, we estimate it from input data.
+    if (!mparam_.base_score_estimated) {
+      // We estimate it from input data.
       obj_->InitEstimation(p_fmat->Info(), &base_score);
-    } else {
-      // lastly, if data is not available (prediction for custom objective), use default.
-      base_score.Reshape(1);
-      base_score(0) = ObjFunction::DefaultBaseScore();
+      mparam_.base_score_estimated = true;
+      mparam_.base_score = base_score(0);
+      CHECK(!std::isnan(mparam_.base_score));
+      // Update the shared model parameter
+      this->ConfigureModelParam();
     }
-
-    mparam_.base_score = base_score(0);
-    CHECK(!std::isnan(mparam_.base_score));
-    // Update the shared model parameter
-    this->ConfigureModelParam();
   }
 
   // Convert mparam to learner_model_param
   void ConfigureModelParam() {
+    this->ConfigureTargets();
+
     CHECK(obj_);
     auto task = obj_->Task();
-    linalg::Tensor<float, 1> copy({1}, ctx_.gpu_id);
-    auto out = copy.HostView();
+    linalg::Tensor<float, 1> base_score({1}, ctx_.gpu_id);
+    auto h_base_score = base_score.HostView();
 
-    if (!std::isnan(mparam_.base_score)) {
-      // transform to margin
-      out(0) = obj_->ProbToMargin(mparam_.base_score);
-      // move it to model param, which is shared with all other components.
-      learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
-      CHECK(learner_model_param_.Initialized());
-      CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
-    } else {
-      // Model is not yet fitted, use default base score.
-      out(0) = ObjFunction::DefaultBaseScore();
-      learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(copy), task);
-    }
+    // transform to margin
+    h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
+    // move it to model param, which is shared with all other components.
+    learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(base_score), task);
+    CHECK(learner_model_param_.Initialized());
+    CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
   }
 
  public:
@@ -475,12 +484,11 @@ class LearnerConfiguration : public Learner {
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
-    this->ConfigureTargets();
+    this->ConfigureModelParam();
 
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
     ctx_.ConfigureGpuId(this->gbm_->UseGPU());
-    this->ConfigureModelParam();
 
     this->ConfigureMetrics(args);
 
