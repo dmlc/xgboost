@@ -6,8 +6,6 @@ import uuid
 import numpy as np
 import pytest
 import testing as tm
-from pyspark.ml.feature import VectorAssembler
-from pyspark.sql.functions import rand, when
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
@@ -19,6 +17,7 @@ from pyspark.ml.evaluation import (
     BinaryClassificationEvaluator,
     MulticlassClassificationEvaluator,
 )
+from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
@@ -1110,7 +1109,7 @@ class XgboostLocalTest(SparkTestCase):
         # there is no any data in reducer partition 1, reducer partition 2
         # see https://github.com/dmlc/xgboost/issues/8221
         raw_df = self.session.range(0, 100, 1, 50).withColumn(
-            "label", when(rand(1) > 0.5, 1).otherwise(0)
+            "label", spark_sql_func.when(spark_sql_func.rand(1) > 0.5, 1).otherwise(0)
         )
         vector_assembler = (
             VectorAssembler().setInputCols(["id"]).setOutputCol("features")
