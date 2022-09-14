@@ -218,6 +218,7 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
   if (!ctx->IsCPU()) {
     common::AsConst(base_score_).View(ctx->gpu_id);
   }
+  CHECK(common::AsConst(base_score_).Data()->HostCanRead());
 }
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
@@ -386,7 +387,6 @@ class LearnerConfiguration : public Learner {
    * \param p_fmat The training DMatrix used to estimate the base score.
    */
   void InitBaseScore(DMatrix const* p_fmat) {
-    linalg::Tensor<float, 1> base_score;
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
     // keep the stability, we initialize it in binary LoadModel instead of configuration.
@@ -403,6 +403,7 @@ class LearnerConfiguration : public Learner {
     if (!mparam_.base_score_estimated) {
       if (p_fmat) {
         // We estimate it from input data.
+        linalg::Tensor<float, 1> base_score;
         obj_->InitEstimation(p_fmat->Info(), &base_score);
         mparam_.base_score = base_score(0);
         CHECK(!std::isnan(mparam_.base_score));
@@ -488,11 +489,10 @@ class LearnerConfiguration : public Learner {
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
 
-    this->ConfigureModelParam();
-
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
     ctx_.ConfigureGpuId(this->gbm_->UseGPU());
+    this->ConfigureModelParam();
 
     this->ConfigureMetrics(args);
 
