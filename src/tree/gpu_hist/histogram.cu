@@ -125,8 +125,9 @@ class HistogramAgent {
   const GradientQuantizer& rounding_;
 
  public:
-  __device__ HistogramAgent(GradientPairInt64* smem_arr, GradientPairInt64* __restrict__ d_node_hist,
-                            const FeatureGroup& group, const EllpackDeviceAccessor& matrix,
+  __device__ HistogramAgent(GradientPairInt64* smem_arr,
+                            GradientPairInt64* __restrict__ d_node_hist, const FeatureGroup& group,
+                            const EllpackDeviceAccessor& matrix,
                             common::Span<const RowPartitioner::RowIndexT> d_ridx,
                             const GradientQuantizer& rounding, const GradientPair* d_gpair)
       : smem_arr_(smem_arr),

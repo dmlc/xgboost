@@ -260,8 +260,9 @@ using GradientPair = detail::GradientPairInternal<float>;
 /*! \brief High precision gradient statistics pair */
 using GradientPairPrecise = detail::GradientPairInternal<double>;
 
-/*! \brief Fixed point representation for high precision gradient pair. Has different interface so we don't accidentally use it in gain calculations.*/
-class GradientPairInt64{
+/*! \brief Fixed point representation for high precision gradient pair. Has a different interface so
+ * we don't accidentally use it in gain calculations.*/
+class GradientPairInt64 {
   using T = int64_t;
   T grad_;
   T hess_;
