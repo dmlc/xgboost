@@ -1315,7 +1315,7 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("BoostOneIter");
     this->Configure();
     // Should have been set to default in the first prediction.
-    CHECK(!std::isnan(mparam_.base_score));
+    CHECK(mparam_.base_score_estimated);
 
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
