@@ -19,7 +19,7 @@ def test_gpu_single_batch() -> None:
 @given(
     strategies.integers(0, 1024),
     strategies.integers(1, 7),
-    strategies.integers(0, 13),
+    strategies.integers(0, 8),
     strategies.booleans(),
 )
 @settings(deadline=None, print_blob=True)
