@@ -6,6 +6,7 @@
  */
 #include "xgboost/learner.h"
 
+#include <dmlc/any.h>
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
@@ -13,7 +14,7 @@
 #include <algorithm>
 #include <atomic>
 #include <iomanip>
-#include <limits>
+#include <limits>  // std::numeric_limits
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -31,7 +32,6 @@
 #include "common/threading_utils.h"
 #include "common/timer.h"
 #include "common/version.h"
-#include "dmlc/any.h"
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
@@ -180,7 +180,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
     DMLC_DECLARE_FIELD(base_score)
-        .set_default(std::numeric_limits<float>::quiet_NaN())
+        .set_default(ObjFunction::DefaultBaseScore())
         .describe("Global bias of the model.");
     DMLC_DECLARE_FIELD(num_feature)
         .set_default(0)
@@ -252,7 +252,8 @@ void LearnerModelParam::Copy(LearnerModelParam const& that) {
   CHECK(base_score_.Data()->HostCanRead());
 
   num_feature = that.num_feature;
-  num_output_group = that.num_output_group, task = that.task;
+  num_output_group = that.num_output_group;
+  task = that.task;
 }
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
@@ -422,15 +423,15 @@ class LearnerConfiguration : public Learner {
 
     CHECK(obj_);
     auto task = obj_->Task();
-    linalg::Tensor<float, 1> base_score({1}, ctx_.gpu_id);
+    linalg::Tensor<float, 1> base_score({1}, Ctx()->gpu_id);
     auto h_base_score = base_score.HostView();
 
     // transform to margin
     h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
     // move it to model param, which is shared with all other components.
-    learner_model_param_ = LearnerModelParam(&ctx_, mparam_, std::move(base_score), task);
+    learner_model_param_ = LearnerModelParam(Ctx(), mparam_, std::move(base_score), task);
     CHECK(learner_model_param_.Initialized());
-    CHECK_NE(learner_model_param_.BaseScore(&ctx_).Size(), 0);
+    CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
   }
 
  public:
@@ -665,7 +666,7 @@ class LearnerConfiguration : public Learner {
     return cfg_;
   }
 
-  GenericParameter const* Ctx() const override { return &ctx_; }
+  Context const* Ctx() const override { return &ctx_; }
 
  private:
   void ValidateParameters() {

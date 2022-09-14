@@ -8,16 +8,14 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <dmlc/any.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/generic_parameters.h>  // Context
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
 #include <xgboost/predictor.h>
 #include <xgboost/task.h>
 
-#include <limits>  // std::numeric_limit
 #include <map>
 #include <memory>
 #include <string>
@@ -275,7 +273,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /**
    * \brief Return the context object of this Booster.
    */
-  virtual GenericParameter const* Ctx() const = 0;
+  virtual Context const* Ctx() const = 0;
   /*!
    * \brief Get configuration arguments currently stored by the learner
    * \return Key-value pairs representing configuration arguments
