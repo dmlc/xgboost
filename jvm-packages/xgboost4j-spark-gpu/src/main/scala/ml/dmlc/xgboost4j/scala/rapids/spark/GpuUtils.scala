@@ -32,7 +32,7 @@ private[spark] object GpuUtils {
   def extractBatchToHost(table: Table, types: Array[DataType]): Array[ColumnVector] = {
     // spark-rapids has shimmed the GpuColumnVector from 22.10
     try {
-      val clazz = Utils.classForName("com.nvidia.spark.rapids.UnshimmedGpuColumnVector")
+      val clazz = Utils.classForName("com.nvidia.spark.rapids.GpuColumnVectorUtils")
       clazz.getDeclaredMethod("extractHostColumns", classOf[Table], classOf[Array[DataType]])
         .invoke(null, table, types).asInstanceOf[Array[ColumnVector]]
     } catch {
