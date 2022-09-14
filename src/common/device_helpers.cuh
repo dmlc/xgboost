@@ -1534,20 +1534,11 @@ XGBOOST_DEV_INLINE void
 AtomicAddGpair(xgboost::GradientPairInt64 *dest,
                xgboost::GradientPairInt64 const &gpair) {
   auto dst_ptr = reinterpret_cast<int64_t *>(dest);
-  auto g = gpair.GetGrad();
-  auto h = gpair.GetHess();
+  auto g = gpair.GetQuantisedGrad();
+  auto h = gpair.GetQuantisedHess();
 
   AtomicAdd64As32(dst_ptr, g);
   AtomicAdd64As32(dst_ptr + 1, h);
-}
-
-XGBOOST_DEV_INLINE void
-AtomicAddGpair(xgboost::GradientPairInt32 *dest,
-               xgboost::GradientPairInt32 const &gpair) {
-  auto dst_ptr = reinterpret_cast<typename xgboost::GradientPairInt32::ValueT*>(dest);
-
-  ::atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
-  ::atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
 }
 
 // Thrust version of this function causes error on Windows

@@ -58,7 +58,8 @@ class EvaluateSplitAgent {
   const uint32_t gidx_begin;  // beginning bin
   const uint32_t gidx_end;    // end bin for i^th feature
   const dh::LDGIterator<float> feature_values;
-  const GradientPairPrecise *node_histogram;
+  const GradientPairInt64 *node_histogram;
+  const GradientQuantizer &rounding;
   const GradientPairPrecise parent_sum;
   const GradientPairPrecise missing;
   const GPUTrainingParam &param;
@@ -79,6 +80,7 @@ class EvaluateSplitAgent {
         gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
         feature_values(shared_inputs.feature_values.data()),
         node_histogram(inputs.gradient_histogram.data()),
+        rounding(shared_inputs.rounding),
         parent_sum(dh::LDGIterator<GradientPairPrecise>(&inputs.parent_sum)[0]),
         param(shared_inputs.param),
         evaluator(evaluator),
@@ -98,11 +100,12 @@ class EvaluateSplitAgent {
   }
 
   // Load using efficient 128 vector load instruction
-  __device__ __forceinline__ GradientPairPrecise LoadGpair(const GradientPairPrecise *ptr) {
-    static_assert(sizeof(GradientPairPrecise) == sizeof(float4),
-                  "Vector type size does not match gradient pair size.");
+  __device__ __forceinline__ GradientPairPrecise LoadGpair(const GradientPairInt64 *ptr) {
     float4 tmp = *reinterpret_cast<const float4 *>(ptr);
-    return *reinterpret_cast<const GradientPairPrecise *>(&tmp);
+    auto gpair_int = *reinterpret_cast<const GradientPairInt64 *>(&tmp);
+    static_assert(sizeof(decltype(gpair_int)) == sizeof(float4),
+                  "Vector type size does not match gradient pair size.");
+    return rounding.ToFloatingPoint(gpair_int);
   }
 
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *__restrict__ best_split) {
