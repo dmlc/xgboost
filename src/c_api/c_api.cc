@@ -22,6 +22,7 @@
 
 #include "c_api_error.h"
 #include "c_api_utils.h"
+#include "../collective/communicator.h"
 #include "../common/io.h"
 #include "../common/charconv.h"
 #include "../data/adapter.h"
@@ -1367,6 +1368,62 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
   *out_shape = dmlc::BeginPtr(shape);
   *out_scores = scores.data();
   *out_features = dmlc::BeginPtr(feature_names_c);
+  API_END();
+}
+
+using xgboost::collective::Communicator;
+
+XGB_DLL int XGCommunicatorInit(char const* json_config) {
+  API_BEGIN();
+  Json config { Json::Load(StringView{json_config}) };
+  Communicator::Init(config);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorFinalize(void) {
+  API_BEGIN();
+  Communicator::Finalize();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetRank(void) {
+  return Communicator::Get()->GetRank();
+}
+
+XGB_DLL int XGCommunicatorGetWorldSize(void) {
+  return Communicator::Get()->GetWorldSize();
+}
+
+XGB_DLL int XGCommunicatorIsDistributed(void) {
+  return Communicator::Get()->IsDistributed();
+}
+
+XGB_DLL int XGCommunicatorPrint(char const *message) {
+  API_BEGIN();
+  Communicator::Get()->Print(message);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetProcessorName(char const **name_str) {
+  API_BEGIN();
+  auto& local = *GlobalConfigAPIThreadLocalStore::Get();
+  local.ret_str = Communicator::Get()->GetProcessorName();
+  *name_str = local.ret_str.c_str();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root) {
+  API_BEGIN();
+  Communicator::Get()->Broadcast(send_receive_buffer, size, root);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
+                                    int enum_op) {
+  API_BEGIN();
+  Communicator::Get()->AllReduce(
+      send_receive_buffer, count, static_cast<xgboost::collective::DataType>(enum_dtype),
+      static_cast<xgboost::collective::Operation>(enum_op));
   API_END();
 }
 

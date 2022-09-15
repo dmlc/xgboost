@@ -22,6 +22,7 @@
 #include "row_set.h"
 #include "threading_utils.h"
 #include "timer.h"
+#include "algorithm.h"  // SegmentId
 
 namespace xgboost {
 class GHistIndexMatrix;
@@ -130,18 +131,22 @@ class HistogramCuts {
   /**
    * \brief Search the bin index for categorical feature.
    */
-  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
-    auto const &ptrs = this->Ptrs();
-    auto const &vals = this->Values();
+  bst_bin_t SearchCatBin(float value, bst_feature_t fidx, std::vector<uint32_t> const& ptrs,
+                         std::vector<float> const& vals) const {
     auto end = ptrs.at(fidx + 1) + vals.cbegin();
     auto beg = ptrs[fidx] + vals.cbegin();
     // Truncates the value in case it's not perfectly rounded.
-    auto v  = static_cast<float>(common::AsCat(value));
+    auto v = static_cast<float>(common::AsCat(value));
     auto bin_idx = std::lower_bound(beg, end, v) - vals.cbegin();
     if (bin_idx == ptrs.at(fidx + 1)) {
       bin_idx -= 1;
     }
     return bin_idx;
+  }
+  bst_bin_t SearchCatBin(float value, bst_feature_t fidx) const {
+    auto const& ptrs = this->Ptrs();
+    auto const& vals = this->Values();
+    return this->SearchCatBin(value, fidx, ptrs, vals);
   }
   bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
 };
@@ -189,6 +194,28 @@ auto DispatchBinType(BinTypeSize type, Fn&& fn) {
  *   storage class.
  */
 struct Index {
+  // Inside the compressor, bin_idx is the index for cut value across all features. By
+  // subtracting it with starting pointer of each feature, we can reduce it to smaller
+  // value and store it with smaller types. Usable only with dense data.
+  //
+  // For sparse input we have to store an addition feature index (similar to sparse matrix
+  // formats like CSR) for each bin in index field to choose the right offset.
+  template <typename T>
+  struct CompressBin {
+    uint32_t const* offsets;
+
+    template <typename Bin, typename Feat>
+    auto operator()(Bin bin_idx, Feat fidx) const {
+      return static_cast<T>(bin_idx - offsets[fidx]);
+    }
+  };
+
+  template <typename T>
+  CompressBin<T> MakeCompressor() const {
+    uint32_t const* offsets = this->Offset();
+    return CompressBin<T>{offsets};
+  }
+
   Index() { SetBinTypeSize(binTypeSize_); }
   Index(const Index& i) = delete;
   Index& operator=(Index i) = delete;

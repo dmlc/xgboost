@@ -1,7 +1,6 @@
 /*!
  * Copyright 2018-2022 by XGBoost Contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 
 #include "../../../src/common/column_matrix.h"
@@ -23,7 +22,7 @@ TEST(DenseColumn, Test) {
                           common::OmpGetNumThreads(0)};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.Init(page, gmat, sparse_thresh, common::OmpGetNumThreads(0));
+      column_matrix.InitFromSparse(page, gmat, sparse_thresh, common::OmpGetNumThreads(0));
     }
     ASSERT_GE(column_matrix.GetTypeSize(), last);
     ASSERT_LE(column_matrix.GetTypeSize(), kUint32BinsTypeSize);
@@ -69,7 +68,7 @@ TEST(SparseColumn, Test) {
     GHistIndexMatrix gmat{dmat.get(), max_num_bin, 0.5f, false, common::OmpGetNumThreads(0)};
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.Init(page, gmat, 1.0, common::OmpGetNumThreads(0));
+      column_matrix.InitFromSparse(page, gmat, 1.0, common::OmpGetNumThreads(0));
     }
     common::DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
       using T = decltype(dtype);
@@ -97,7 +96,7 @@ TEST(DenseColumnWithMissing, Test) {
     GHistIndexMatrix gmat(dmat.get(), max_num_bin, 0.2, false, common::OmpGetNumThreads(0));
     ColumnMatrix column_matrix;
     for (auto const& page : dmat->GetBatches<SparsePage>()) {
-      column_matrix.Init(page, gmat, 0.2, common::OmpGetNumThreads(0));
+      column_matrix.InitFromSparse(page, gmat, 0.2, common::OmpGetNumThreads(0));
     }
     ASSERT_TRUE(column_matrix.AnyMissing());
     DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {

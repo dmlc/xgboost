@@ -547,4 +547,15 @@ EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
                                                NumSymbols()),
           feature_types};
 }
+EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
+    common::Span<FeatureType const> feature_types) const {
+  return {Context::kCpuId,
+          cuts_,
+          is_dense,
+          row_stride,
+          base_rowid,
+          n_rows,
+          common::CompressedIterator<uint32_t>(gidx_buffer.ConstHostPointer(), NumSymbols()),
+          feature_types};
+}
 }  // namespace xgboost

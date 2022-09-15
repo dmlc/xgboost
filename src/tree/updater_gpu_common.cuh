@@ -29,6 +29,7 @@ struct GPUTrainingParam {
   float max_delta_step;
   float learning_rate;
   uint32_t max_cat_to_onehot;
+  bst_bin_t max_cat_threshold;
 
   GPUTrainingParam() = default;
 
@@ -38,7 +39,8 @@ struct GPUTrainingParam {
         reg_alpha(param.reg_alpha),
         max_delta_step(param.max_delta_step),
         learning_rate{param.learning_rate},
-        max_cat_to_onehot{param.max_cat_to_onehot} {}
+        max_cat_to_onehot{param.max_cat_to_onehot},
+        max_cat_threshold{param.max_cat_threshold} {}
 };
 
 /**
@@ -57,6 +59,9 @@ struct DeviceSplitCandidate {
   DefaultDirection dir {kLeftDir};
   int findex {-1};
   float fvalue {0};
+  // categorical split, either it's the split category for OHE or the threshold for partition-based
+  // split.
+  bst_cat_t thresh{-1};
 
   common::CatBitField split_cats;
   bool is_cat { false };
@@ -74,22 +79,6 @@ struct DeviceSplitCandidate {
         other.right_sum.GetHess() >= param.min_child_weight) {
       *this = other;
     }
-  }
-  /**
-   * \brief The largest encoded category in the split bitset
-   */
-  bst_cat_t MaxCat() const {
-    // Reuse the fvalue for categorical values.
-    return static_cast<bst_cat_t>(fvalue);
-  }
-  /**
-   * \brief Return the best threshold for cat split, reset the value after return.
-   */
-  XGBOOST_DEVICE size_t PopBestThresh() {
-    // fvalue is also being used for storing the threshold for categorical split
-    auto best_thresh = static_cast<size_t>(this->fvalue);
-    this->fvalue = 0;
-    return best_thresh;
   }
 
   template <typename T>
@@ -116,6 +105,26 @@ struct DeviceSplitCandidate {
       findex = findex_in;
     }
   }
+
+  /**
+   * \brief Update for partition-based splits.
+   */
+  XGBOOST_DEVICE void UpdateCat(float loss_chg_in, DefaultDirection dir_in, bst_cat_t thresh_in,
+                                bst_feature_t findex_in, GradientPairPrecise left_sum_in,
+                                GradientPairPrecise right_sum_in, GPUTrainingParam const& param) {
+    if (loss_chg_in > loss_chg && left_sum_in.GetHess() >= param.min_child_weight &&
+        right_sum_in.GetHess() >= param.min_child_weight) {
+      loss_chg = loss_chg_in;
+      dir = dir_in;
+      fvalue = std::numeric_limits<float>::quiet_NaN();
+      thresh = thresh_in;
+      is_cat = true;
+      left_sum = left_sum_in;
+      right_sum = right_sum_in;
+      findex = findex_in;
+    }
+  }
+
   XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 
   friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
@@ -123,6 +132,7 @@ struct DeviceSplitCandidate {
        << "dir: " << c.dir << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
+       << "thresh: " << c.thresh << ", "
        << "is_cat: " << c.is_cat << ", "
        << "left sum: " << c.left_sum << ", "
        << "right sum: " << c.right_sum << std::endl;

@@ -36,7 +36,7 @@ class HasBaseMarginCol(Params):
 
 class HasFeaturesCols(Params):
     """
-    Mixin for param featuresCols: a list of feature column names.
+    Mixin for param features_cols: a list of feature column names.
     This parameter is taken effect only when use_gpu is enabled.
     """
 
@@ -76,8 +76,7 @@ class HasEnableSparseDataOptim(Params):
 
 class HasQueryIdCol(Params):
     """
-    Mixin for param featuresCols: a list of feature column names.
-    This parameter is taken effect only when use_gpu is enabled.
+    Mixin for param qid_col: query id column name.
     """
 
     qid_col = Param(

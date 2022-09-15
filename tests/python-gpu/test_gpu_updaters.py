@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import numpy as np
 import sys
 import gc
@@ -76,6 +77,48 @@ class TestGPUUpdaters:
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(self, rows, cols, rounds, cats):
         self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
+
+    @given(
+        tm.categorical_dataset_strategy,
+        test_up.exact_parameter_strategy,
+        test_up.hist_parameter_strategy,
+        test_up.cat_parameter_strategy,
+        strategies.integers(4, 32),
+    )
+    @settings(deadline=None, print_blob=True)
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical(
+        self,
+        dataset: tm.TestDataset,
+        exact_parameters: Dict[str, Any],
+        hist_parameters: Dict[str, Any],
+        cat_parameters: Dict[str, Any],
+        n_rounds: int,
+    ) -> None:
+        cat_parameters.update(exact_parameters)
+        cat_parameters.update(hist_parameters)
+        cat_parameters["tree_method"] = "gpu_hist"
+
+        results = train_result(cat_parameters, dataset.get_dmat(), n_rounds)
+        tm.non_increasing(results["train"]["rmse"])
+
+    @given(
+        test_up.hist_parameter_strategy,
+        test_up.cat_parameter_strategy,
+    )
+    @settings(deadline=None, print_blob=True)
+    def test_categorical_ames_housing(
+        self,
+        hist_parameters: Dict[str, Any],
+        cat_parameters: Dict[str, Any],
+    ) -> None:
+        cat_parameters.update(hist_parameters)
+        dataset = tm.TestDataset(
+            "ames_housing", tm.get_ames_housing, "reg:squarederror", "rmse"
+        )
+        cat_parameters["tree_method"] = "gpu_hist"
+        results = train_result(cat_parameters, dataset.get_dmat(), 16)
+        tm.non_increasing(results["train"]["rmse"])
 
     @given(
         strategies.integers(10, 400),

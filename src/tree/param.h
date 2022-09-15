@@ -78,7 +78,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // ------ From CPU quantile histogram -------.
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
-  double sparse_threshold;
+  static constexpr double DftSparseThreshold() { return 0.2; }
+
+  double sparse_threshold{DftSparseThreshold()};
 
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
@@ -182,7 +184,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
                   "See tutorial for more information");
 
     // ------ From cpu quantile histogram -------.
-    DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
+    DMLC_DECLARE_FIELD(sparse_threshold)
+        .set_range(0, 1.0)
+        .set_default(DftSparseThreshold())
         .describe("percentage threshold for treating a feature as sparse");
 
     // add alias of parameters

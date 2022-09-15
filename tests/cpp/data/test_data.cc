@@ -2,13 +2,14 @@
  * Copyright 2019-2022 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
+
 #include <fstream>
 #include <memory>
 #include <vector>
 
-#include "xgboost/data.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 TEST(SparsePage, PushCSC) {

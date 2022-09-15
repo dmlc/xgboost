@@ -1,11 +1,12 @@
 // Copyright by Contributors
 #include <gtest/gtest.h>
-#include "../helpers.h"
-#include "dmlc/filesystem.h"
-#include "xgboost/json_io.h"
-#include "xgboost/tree_model.h"
+
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
+#include "../filesystem.h"
+#include "../helpers.h"
+#include "xgboost/json_io.h"
+#include "xgboost/tree_model.h"
 
 namespace xgboost {
 TEST(Tree, ModelShape) {

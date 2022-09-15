@@ -53,7 +53,7 @@ GHistIndexMatrix::GHistIndexMatrix(DMatrix *p_fmat, bst_bin_t max_bins_per_feat,
     // hist
     CHECK(!sorted_sketch);
     for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-      this->columns_->Init(page, *this, sparse_thresh, n_threads);
+      this->columns_->InitFromSparse(page, *this, sparse_thresh, n_threads);
     }
   }
 }
@@ -66,6 +66,12 @@ GHistIndexMatrix::GHistIndexMatrix(MetaInfo const &info, common::HistogramCuts &
       max_num_bins(max_bin_per_feat),
       isDense_{info.num_col_ * info.num_row_ == info.num_nonzero_} {}
 
+#if !defined(XGBOOST_USE_CUDA)
+GHistIndexMatrix::GHistIndexMatrix(Context const *, MetaInfo const &, EllpackPage const &,
+                                   BatchParam const &) {
+  common::AssertGPUSupport();
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 
 GHistIndexMatrix::~GHistIndexMatrix() = default;
 
@@ -99,7 +105,7 @@ GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<Feature
   this->PushBatch(batch, ft, n_threads);
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
-    this->columns_->Init(batch, *this, sparse_thresh, n_threads);
+    this->columns_->InitFromSparse(batch, *this, sparse_thresh, n_threads);
   }
 }
 
