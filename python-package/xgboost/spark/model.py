@@ -21,22 +21,6 @@ def _get_or_create_tmp_dir():
     return xgb_tmp_dir
 
 
-def save_model_to_json_file(model) -> str:
-    """
-    Save the input model to a local file in driver side and return the path.
-
-    Parameters
-    ----------
-    model:
-        an xgboost.XGBModel instance, such as
-        xgboost.XGBClassifier or xgboost.XGBRegressor instance
-    """
-    # Save the model to json format
-    tmp_file_name = os.path.join(_get_or_create_tmp_dir(), f"{uuid.uuid4()}.json")
-    model.save_model(tmp_file_name)
-    return tmp_file_name
-
-
 def deserialize_xgb_model(model_string, xgb_model_creator):
     """
     Deserialize an xgboost.XGBModel instance from the input model_string.
@@ -217,10 +201,10 @@ class SparkXGBModelWriter(MLWriter):
         xgb_model = self.instance._xgb_sklearn_model
         _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
         model_save_path = os.path.join(path, "model")
-        xgb_model_file = save_model_to_json_file(xgb_model)
-        # The json file written by Spark base on `booster.save_raw("json").decode("utf-8")`
-        # can't be loaded by XGBoost directly.
-        _get_spark_session().read.text(xgb_model_file).write.text(model_save_path)
+        booster = xgb_model.get_booster().save_raw("json").decode("utf-8")
+        _get_spark_session().sparkContext.parallelize([booster], 1).saveAsTextFile(
+            model_save_path
+        )
 
 
 class SparkXGBModelReader(MLReader):
@@ -248,7 +232,9 @@ class SparkXGBModelReader(MLReader):
         )
         model_load_path = os.path.join(path, "model")
 
-        ser_xgb_model = _get_spark_session().read.text(model_load_path).collect()[0][0]
+        ser_xgb_model = (
+            _get_spark_session().sparkContext.textFile(model_load_path).collect()[0]
+        )
 
         def create_xgb_model():
             return self.cls._xgb_cls()(**xgb_sklearn_params)

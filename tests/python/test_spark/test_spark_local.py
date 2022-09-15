@@ -437,10 +437,8 @@ class XgboostLocalTest(SparkTestCase):
 
     def assert_model_compatible(self, model: XGBModel, model_path: str):
         bst = xgb.Booster()
-        path = glob.glob(f"{model_path}/**/*.txt", recursive=True)[0]
+        path = glob.glob(f"{model_path}/**/model/part-00000", recursive=True)[0]
         bst.load_model(path)
-        # The model is saved by XGBModel which will add an extra scikit_learn attribute
-        bst.set_attr(scikit_learn=None)
         self.assertEqual(model.get_booster().save_raw("json"), bst.save_raw("json"))
 
     def test_regressor_params_basic(self):
