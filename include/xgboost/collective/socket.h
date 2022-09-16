@@ -15,7 +15,9 @@
 #include <string>   // std::string
 #include <utility>  // std::swap
 
-#define IS_MINGW() defined(__MINGW32__)
+#if !defined(xgboost_IS_MINGW)
+#define xgboost_IS_MINGW() defined(__MINGW32__)
+#endif  // xgboost_IS_MINGW
 
 #if defined(_WIN32)
 
@@ -28,9 +30,9 @@ using in_port_t = std::uint16_t;
 #pragma comment(lib, "Ws2_32.lib")
 #endif  // _MSC_VER
 
-#if !IS_MINGW()
+#if !xgboost_IS_MINGW()
 using ssize_t = int;
-#endif  // !IS_MINGW()
+#endif  // !xgboost_IS_MINGW()
 
 #else  // UNIX
 
@@ -39,7 +41,7 @@ using ssize_t = int;
 #include <netinet/in.h>   // sockaddr_in6, sockaddr_in, in_port_t, INET6_ADDRSTRLEN, INET_ADDRSTRLEN
 #include <netinet/in.h>   // IPPROTO_TCP
 #include <netinet/tcp.h>  // TCP_NODELAY
-#include <sys/socket.h>   // socket, SOL_SOCKET, SO_ERROR
+#include <sys/socket.h>   // socket, SOL_SOCKET, SO_ERROR, recv, send
 #include <unistd.h>       // close
 
 #if defined(__sun) || defined(sun)
@@ -58,10 +60,10 @@ using ssize_t = int;
 
 namespace xgboost {
 
-#if IS_MINGW()
+#if xgboost_IS_MINGW()
 // see the dummy implementation of `poll` in rabit for more info.
 inline void MingWError() { LOG(FATAL) << "Distributed training on mingw is not supported."; }
-#endif  // IS_MINGW()
+#endif  // xgboost_IS_MINGW()
 
 namespace system {
 inline std::int32_t LastError() {
@@ -95,12 +97,14 @@ using SocketT = SOCKET;
 using SocketT = int;
 #endif  // defined(_WIN32)
 
+#if !defined(xgboost_CHECK_SYS_CALL)
 #define xgboost_CHECK_SYS_CALL(exp, expected)         \
   do {                                                \
     if (XGBOOST_EXPECT((exp) != (expected), false)) { \
       ::xgboost::system::ThrowAtError(#exp);          \
     }                                                 \
   } while (false)
+#endif  // !defined(xgboost_CHECK_SYS_CALL)
 
 inline std::int32_t CloseSocket(SocketT fd) {
 #if defined(_WIN32)
@@ -138,7 +142,7 @@ inline void SocketFinalize() {
 #endif  // defined(_WIN32)
 }
 
-#if defined(_WIN32) && IS_MINGW()
+#if defined(_WIN32) && xgboost_IS_MINGW()
 // dummy definition for old mysys32.
 inline const char *inet_ntop(int, const void *, char *, socklen_t) {  // NOLINT
   MingWError();
@@ -469,29 +473,13 @@ class TCPSocket {
     return recv(handle_, _buf, len, flags);
   }
   /**
-   * \brief Send string
+   * \brief Send string, format is matched with the Python socket wrapper in RABIT.
    */
-  auto Send(StringView str) {
-    CHECK(!this->IsClosed());
-    CHECK_LT(str.size(), std::numeric_limits<std::int32_t>::max());
-    std::int32_t len = static_cast<std::int32_t>(str.size());
-    CHECK_EQ(this->SendAll(&len, sizeof(len)), sizeof(len)) << "Failed to send string length.";
-    auto bytes = this->SendAll(str.c_str(), str.size());
-    CHECK_EQ(bytes, str.size()) << "Failed to send string.";
-    return bytes;
-  }
+  auto Send(StringView str);
   /**
-   * \brief Receive string
+   * \brief Receive string, format is matched with the Python socket wrapper in RABIT.
    */
-  auto Recv(std::string *p_str) {
-    CHECK(!this->IsClosed());
-    std::int32_t len;
-    CHECK_EQ(this->RecvAll(&len, sizeof(len)), sizeof(len)) << "Failed to recv string length.";
-    p_str->resize(len);
-    auto bytes = this->RecvAll(&(*p_str)[0], len);
-    CHECK_EQ(bytes, len) << "Failed to recv string.";
-    return bytes;
-  }
+  auto Recv(std::string *p_str);
   /**
    * \brief Close the socket, called automatically in destructor if the socket is not closed.
    */
@@ -509,7 +497,7 @@ class TCPSocket {
     domain_ = domain;
 #endif  // defined(__APPLE__)
 
-#if IS_MINGW()
+#if xgboost_IS_MINGW()
     MingWError();
     return {};
 #else
@@ -519,7 +507,7 @@ class TCPSocket {
     }
     TCPSocket socket{fd};
     return socket;
-#endif  // IS_MINGW()
+#endif  // xgboost_IS_MINGW()
   }
 };
 
@@ -541,4 +529,4 @@ inline std::string GetHostName() {
 }  // namespace xgboost
 
 #undef xgboost_CHECK_SYS_CALL
-#undef IS_MINGW
+#undef xgboost_IS_MINGW

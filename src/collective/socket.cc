@@ -3,6 +3,8 @@
  */
 #include "xgboost/collective/socket.h"
 
+#include <cstdint>  // std::int32_t
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>  // getaddrinfo
 #endif              // defined(__unix__) || defined(__APPLE__)
@@ -45,6 +47,26 @@ SockAddrV4 SockAddrV4::InaddrAny() { return MakeSockAddress("0.0.0.0", 0).V4(); 
 
 SockAddrV6 SockAddrV6::Loopback() { return MakeSockAddress("::1", 0).V6(); }
 SockAddrV6 SockAddrV6::InaddrAny() { return MakeSockAddress("::", 0).V6(); }
+
+auto TCPSocket::Send(StringView str) {
+  CHECK(!this->IsClosed());
+  CHECK_LT(str.size(), std::numeric_limits<std::int32_t>::max());
+  std::int32_t len = static_cast<std::int32_t>(str.size());
+  CHECK_EQ(this->SendAll(&len, sizeof(len)), sizeof(len)) << "Failed to send string length.";
+  auto bytes = this->SendAll(str.c_str(), str.size());
+  CHECK_EQ(bytes, str.size()) << "Failed to send string.";
+  return bytes;
+}
+
+auto TCPSocket::Recv(std::string *p_str) {
+  CHECK(!this->IsClosed());
+  std::int32_t len;
+  CHECK_EQ(this->RecvAll(&len, sizeof(len)), sizeof(len)) << "Failed to recv string length.";
+  p_str->resize(len);
+  auto bytes = this->RecvAll(&(*p_str)[0], len);
+  CHECK_EQ(bytes, len) << "Failed to recv string.";
+  return bytes;
+}
 
 std::error_code Connect(SockAddress const &addr, TCPSocket *out) {
   sockaddr const *addr_handle{nullptr};
