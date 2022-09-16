@@ -7,7 +7,7 @@
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
 
-#include <cerrno>   // errno
+#include <cerrno>   // errno, EINTR, EBADF
 #include <climits>  // HOST_NAME_MAX
 #include <cstdint>  // std::int32_t, std::uint16_t
 #include <cstring>  // strerror, memset, memcpy
@@ -240,6 +240,11 @@ class TCPSocket {
 
  private:
   HandleT handle_{InvalidSocket()};
+  // There's reliable no way to extract domain from a socket without first binding that
+  // socket on macos.
+#if defined(__APPLE__)
+  SockDomain domain_ {SockDomain::kV4};
+#endif
 
   constexpr static HandleT InvalidSocket() { return -1; }
 
@@ -272,12 +277,7 @@ class TCPSocket {
         0);
     return ret_iafamily(info.iAddressFamily);
 #elif defined(__APPLE__)
-    // This should only be applied to a bound socket. But so far test seems to suggest
-    // that if we are just getting the domain it should be fine.
-    sockaddr info;
-    socklen_t len = sizeof(info);
-    xgboost_CHECK_SYS_CALL(getsockname(handle_, &info, &len), 0);
-    return ret_iafamily(info.sa_family);
+    return domain_;
 #elif defined(__unix__)
     std::int32_t domain;
     socklen_t len = sizeof(domain);
@@ -505,6 +505,10 @@ class TCPSocket {
    * \brief Create a TCP socket on specified domain.
    */
   static TCPSocket Create(SockDomain domain) {
+#if defined(__APPLE__)
+    domain_ = domain;
+#endif  // defined(__APPLE__)
+
 #if IS_MINGW()
     MingWError();
     return {};
