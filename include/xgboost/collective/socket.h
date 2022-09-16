@@ -41,7 +41,7 @@ using ssize_t = int;
 #include <netinet/in.h>   // sockaddr_in6, sockaddr_in, in_port_t, INET6_ADDRSTRLEN, INET_ADDRSTRLEN
 #include <netinet/in.h>   // IPPROTO_TCP
 #include <netinet/tcp.h>  // TCP_NODELAY
-#include <sys/socket.h>   // socket, SOL_SOCKET, SO_ERROR, recv, send
+#include <sys/socket.h>   // socket, SOL_SOCKET, SO_ERROR, MSG_WAITALL, recv, send
 #include <unistd.h>       // close
 
 #if defined(__sun) || defined(sun)
@@ -168,7 +168,7 @@ class SockAddrV6 {
 
  public:
   explicit SockAddrV6(sockaddr_in6 addr) : addr_{addr} {}
-  SockAddrV6() { memset(&addr_, '\0', sizeof(addr_)); }
+  SockAddrV6() { std::memset(&addr_, '\0', sizeof(addr_)); }
 
   static SockAddrV6 Loopback();
   static SockAddrV6 InaddrAny();
@@ -192,7 +192,7 @@ class SockAddrV4 {
 
  public:
   explicit SockAddrV4(sockaddr_in addr) : addr_{addr} {}
-  SockAddrV4() { memset(&addr_, '\0', sizeof(addr_)); }
+  SockAddrV4() { std::memset(&addr_, '\0', sizeof(addr_)); }
 
   static SockAddrV4 Loopback();
   static SockAddrV4 InaddrAny();
