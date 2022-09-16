@@ -222,14 +222,14 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
 }
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
-  // multi-class is not supported yet.
+  // multi-class is not yet supported.
   CHECK_EQ(base_score_.Size(), 1);
   if (device == Context::kCpuId) {
-    // Make sure that we won't run it race condition.
+    // Make sure that we won't run into race condition.
     CHECK(base_score_.Data()->HostCanRead());
     return base_score_.HostView();
   }
-  // Make sure that we won't run it race condition.
+  // Make sure that we won't run into race condition.
   CHECK(base_score_.Data()->DeviceCanRead());
   auto v = base_score_.View(device);
   CHECK(base_score_.Data()->HostCanRead());  // make sure read access is not removed.
