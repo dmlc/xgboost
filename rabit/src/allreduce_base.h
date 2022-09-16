@@ -202,7 +202,7 @@ class AllreduceBase : public IEngine {
   };
   /*! \brief translate errno to return type */
   static ReturnType Errno2Return() {
-    int errsv = errno;
+    int errsv = xgboost::system::LastError();
     if (errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == 0) return kSuccess;
 #ifdef _WIN32
     if (errsv == WSAEWOULDBLOCK) return kSuccess;
