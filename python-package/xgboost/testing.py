@@ -1,7 +1,6 @@
 """Utilities for defining Python tests."""
 
 import socket
-from platform import system
 from typing import TypedDict
 
 PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
@@ -9,10 +8,6 @@ PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
 def has_ipv6() -> bool:
     """Check whether IPv6 is enabled on this host."""
-    # connection error in macos, still need some fixes.
-    if system() not in ("Linux", "Windows"):
-        return False
-
     if socket.has_ipv6:
         try:
             with socket.socket(
@@ -36,6 +31,6 @@ def has_ipv6() -> bool:
     return False
 
 
-def no_ipv6() -> PytestSkip:
+def skip_ipv6() -> PytestSkip:
     """PyTest skip mark for IPv6."""
     return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}

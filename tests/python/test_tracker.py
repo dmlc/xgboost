@@ -65,7 +65,7 @@ def test_rabit_ops():
             run_rabit_ops(client, n_workers)
 
 
-@pytest.mark.skipif(**testing.no_ipv6())
+@pytest.mark.skipif(**testing.skip_ipv6())
 @pytest.mark.skipif(**tm.no_dask())
 def test_rabit_ops_ipv6():
     import dask
