@@ -9,6 +9,9 @@ import java.util.Map;
 
 /**
  * Collective communicator global class for synchronization.
+ *
+ * Currently the communicator API is experimental, function signatures may change in the future
+ * without notice.
  */
 public class Communicator {
 
