@@ -292,9 +292,11 @@ void BuildHistDispatch(const std::vector<GradientPair> &gpair,
                        GHistRow hist, bool read_by_column) {
   auto first_page = gmat.base_rowid == 0;
   if (first_page) {
-    BuildHistDispatch<do_prefetch, true, any_missing>(gpair, row_indices, gmat, hist, read_by_column);
+    BuildHistDispatch<do_prefetch, true, any_missing>(gpair, row_indices, gmat,
+                                                      hist, read_by_column);
   } else {
-    BuildHistDispatch<do_prefetch, false, any_missing>(gpair, row_indices, gmat, hist, read_by_column);
+    BuildHistDispatch<do_prefetch, false, any_missing>(gpair, row_indices, gmat,
+                                                       hist, read_by_column);
   }
 }
 
@@ -340,7 +342,7 @@ template void GHistBuilder::BuildHist<true>(const std::vector<GradientPair> &gpa
                                             const GHistIndexMatrix &gmat, GHistRow hist) const;
 
 template void GHistBuilder::BuildHist<false>(const std::vector<GradientPair> &gpair,
-                                            const RowSetCollection::Elem row_indices,
-                                            const GHistIndexMatrix &gmat, GHistRow hist) const;
+                                             const RowSetCollection::Elem row_indices,
+                                             const GHistIndexMatrix &gmat, GHistRow hist) const;
 }  // namespace common
 }  // namespace xgboost

@@ -46,7 +46,8 @@ void TestAddHistRows(bool is_distributed) {
   nodes_for_subtraction_trick_.emplace_back(6, tree.GetDepth(6), 0.0f);
 
   HistogramBuilder<CPUExpandEntry> histogram_builder;
-  histogram_builder.Reset(gmat.cut.TotalBins(), {kMaxBins, 0.5}, omp_get_max_threads(), 1, is_distributed);
+  histogram_builder.Reset(gmat.cut.TotalBins(), {kMaxBins, 0.5}, omp_get_max_threads(), 1,
+                          is_distributed);
   histogram_builder.AddHistRows(&starting_index, &sync_count,
                                 nodes_for_explicit_hist_build_,
                                 nodes_for_subtraction_trick_, &tree);

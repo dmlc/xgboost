@@ -74,7 +74,7 @@ class GloablApproxBuilder {
     }
 
     histogram_builder_.Reset(n_total_bins, BatchSpec(param_, hess), ctx_->Threads(), n_batches_,
-                              rabit::IsDistributed());
+                             rabit::IsDistributed());
     monitor_->Stop(__func__);
   }
 

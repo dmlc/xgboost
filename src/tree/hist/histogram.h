@@ -16,7 +16,6 @@
 
 namespace xgboost {
 namespace tree {
-
 template <typename ExpandEntry>
 class HistogramBuilder {
   /*! \brief culmulative histogram of gradients. */
@@ -27,7 +26,6 @@ class HistogramBuilder {
   common::ParallelGHistBuilder buffer_;
   BatchParam param_;
   int32_t n_threads_{-1};
-
   size_t n_batches_{0};
   // Whether XGBoost is running in distributed environment.
   bool is_distributed_{false};
@@ -41,7 +39,8 @@ class HistogramBuilder {
    * \param is_distributed   Mostly used for testing to allow injecting parameters instead
    *                         of using global rabit variable.
    */
-  void Reset(uint32_t total_bins, BatchParam p, int32_t n_threads, size_t n_batches, bool is_distributed) {
+  void Reset(uint32_t total_bins, BatchParam p, int32_t n_threads, size_t n_batches,
+             bool is_distributed) {
     CHECK_GE(n_threads, 1);
     n_threads_ = n_threads;
     n_batches_ = n_batches;
