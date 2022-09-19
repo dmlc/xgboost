@@ -75,7 +75,6 @@
 #include "../src/collective/communicator.cc"
 
 // common
-#include "../src/common/algorithm.cc"
 #include "../src/common/charconv.cc"
 #include "../src/common/column_matrix.cc"
 #include "../src/common/common.cc"
@@ -83,6 +82,7 @@
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/io.cc"
 #include "../src/common/json.cc"
+#include "../src/common/numeric.cc"
 #include "../src/common/pseudo_huber.cc"
 #include "../src/common/quantile.cc"
 #include "../src/common/random.cc"

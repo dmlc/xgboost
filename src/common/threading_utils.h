@@ -8,6 +8,7 @@
 #include <dmlc/omp.h>
 
 #include <algorithm>
+#include <cstdint>  // std::int32_t
 #include <limits>
 #include <type_traits>  // std::is_signed
 #include <vector>
@@ -253,7 +254,7 @@ inline int32_t OmpGetNumThreads(int32_t n_threads) {
  * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
  * heap-allocated.
  */
-template <typename T, size_t MaxStackSize>
+template <typename T, std::size_t MaxStackSize>
 class MemStackAllocator {
  public:
   explicit MemStackAllocator(size_t required_size) : required_size_(required_size) {
@@ -290,6 +291,11 @@ class MemStackAllocator {
   size_t required_size_;
   T stack_mem_[MaxStackSize];
 };
+
+/**
+ * \brief Constant that can be used for initializing static thread local memory.
+ */
+std::int32_t constexpr DefaultMaxThreads() { return 128; }
 }  // namespace common
 }  // namespace xgboost
 

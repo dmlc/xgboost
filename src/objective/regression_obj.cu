@@ -13,9 +13,9 @@
 #include <memory>
 #include <vector>
 
-#include "../common/algorithm.h"  // reduce
 #include "../common/common.h"
 #include "../common/linalg_op.h"
+#include "../common/numeric.h"  // Reduce
 #include "../common/pseudo_huber.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
