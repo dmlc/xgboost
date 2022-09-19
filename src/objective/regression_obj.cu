@@ -716,7 +716,7 @@ class MeanAbsoluteError : public ObjFunction {
       w = common::Reduce(ctx_, info.weights_);
     }
 
-    if (info.num_row_) {
+    if (info.num_row_ == 0) {
       out(0) = 0;
     } else {
       // weighted avg
