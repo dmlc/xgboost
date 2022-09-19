@@ -34,19 +34,19 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
 class GradientQuantizer {
 private:
   /* Convert gradient to fixed point representation. */
-  GradientPairPrecise to_fixed_point;
+  GradientPairPrecise to_fixed_point_;
   /* Convert fixed point representation back to floating point. */
-  GradientPairPrecise to_floating_point;
+  GradientPairPrecise to_floating_point_;
 public:
-  GradientQuantizer(common::Span<GradientPair const> gpair);
+  explicit GradientQuantizer(common::Span<GradientPair const> gpair);
   XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
-    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point.GetGrad(),
-                               gpair.GetHess() * to_fixed_point.GetHess());
+    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
+                               gpair.GetHess() * to_fixed_point_.GetHess());
     return adjusted;
   }
   XGBOOST_DEVICE GradientPairPrecise ToFloatingPoint(const GradientPairInt64&gpair) const {
-    auto g = gpair.GetQuantisedGrad() * to_floating_point.GetGrad();
-    auto h = gpair.GetQuantisedHess() * to_floating_point.GetHess();
+    auto g = gpair.GetQuantisedGrad() * to_floating_point_.GetGrad();
+    auto h = gpair.GetQuantisedHess() * to_floating_point_.GetHess();
     return {g,h};
   }
 };

@@ -156,10 +156,10 @@ HistogramCutsWrapper GetHostCutMatrix () {
   return cmat;
 }
 
-inline GradientQuantizer DummyRoundingFactor(){
-    thrust::device_vector<GradientPair> gpair(1);
-    gpair[0] = {1000.f,1000.f}; // Tests should not exceed sum of 1000 
-    return GradientQuantizer(dh::ToSpan(gpair));
+inline GradientQuantizer DummyRoundingFactor() {
+  thrust::device_vector<GradientPair> gpair(1);
+  gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
+  return GradientQuantizer(dh::ToSpan(gpair));
 }
 
 // TODO(trivialfis): This test is over simplified.

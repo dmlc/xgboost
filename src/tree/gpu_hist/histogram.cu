@@ -95,7 +95,7 @@ GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
   /**
    * Factor for converting gradients from fixed-point to floating-point.
    */
-  to_floating_point =
+  to_floating_point_ =
       histogram_rounding /
       T(IntT(1) << (sizeof(typename GradientSumT::ValueT) * 8 - 2));  // keep 1 for sign bit
   /**
@@ -107,8 +107,8 @@ GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
    * rounding is calcuated as exp(m), see the rounding factor calcuation for
    * details.
    */
-  to_fixed_point =
-      GradientSumT(T(1) / to_floating_point.GetGrad(), T(1) / to_floating_point.GetHess());
+  to_fixed_point_ =
+      GradientSumT(T(1) / to_floating_point_.GetGrad(), T(1) / to_floating_point_.GetHess());
 }
 
 
