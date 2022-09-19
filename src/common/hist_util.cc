@@ -264,40 +264,21 @@ void BuildHistKernel(const std::vector<GradientPair> &gpair,
   }
 }
 
-template <bool do_prefetch, bool first_page, bool any_missing>
-void BuildHistDispatch(const std::vector<GradientPair> &gpair,
-                       const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                       GHistRow hist, bool read_by_column) {
-  switch (gmat.index.GetBinTypeSize()) {
-  case kUint8BinsTypeSize:
-    BuildHistKernel<do_prefetch, uint8_t, first_page, any_missing>
-                   (gpair, row_indices, gmat, hist, read_by_column);
-    break;
-  case kUint16BinsTypeSize:
-    BuildHistKernel<do_prefetch, uint16_t, first_page, any_missing>
-                   (gpair, row_indices, gmat, hist, read_by_column);
-    break;
-  case kUint32BinsTypeSize:
-    BuildHistKernel<do_prefetch, uint32_t, first_page, any_missing>
-                   (gpair, row_indices, gmat, hist, read_by_column);
-    break;
-  default:
-    CHECK(false);  // no default behavior
-  }
-}
-
 template <bool do_prefetch, bool any_missing>
 void BuildHistDispatch(const std::vector<GradientPair> &gpair,
                        const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
                        GHistRow hist, bool read_by_column) {
   auto first_page = gmat.base_rowid == 0;
-  if (first_page) {
-    BuildHistDispatch<do_prefetch, true, any_missing>(gpair, row_indices, gmat,
-                                                      hist, read_by_column);
-  } else {
-    BuildHistDispatch<do_prefetch, false, any_missing>(gpair, row_indices, gmat,
-                                                       hist, read_by_column);
-  }
+  DispatchBinType(gmat.index.GetBinTypeSize(), [&](auto t) {
+    using BinIdxType = decltype(t);
+    if (first_page) {
+      BuildHistKernel<do_prefetch, BinIdxType, true, any_missing>
+                     (gpair, row_indices, gmat, hist, read_by_column);
+    } else {
+      BuildHistKernel<do_prefetch, BinIdxType, false, any_missing>
+                     (gpair, row_indices, gmat, hist, read_by_column);
+    }
+  });
 }
 
 template <bool any_missing>
