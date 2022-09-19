@@ -17,7 +17,7 @@ double Reduce(Context const* ctx, HostDeviceVector<float> const& values) {
     auto const& h_values = values.ConstHostVector();
     MemStackAllocator<double, DefaultMaxThreads()> result_tloc(ctx->Threads(), 0);
     ParallelFor(h_values.size(), ctx->Threads(),
-                [&](auto i) { result_tloc[omp_get_thread_num()] = h_values[i]; });
+                [&](auto i) { result_tloc[omp_get_thread_num()] += h_values[i]; });
     auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cend(), 0.0);
     static_assert(std::is_same<decltype(result), double>::value, "");
     return result;
