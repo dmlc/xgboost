@@ -16,7 +16,6 @@
 #include <utility>
 #include <map>
 
-#include "random.h"
 #include "categorical.h"
 #include "common.h"
 #include "quantile.h"
@@ -625,9 +624,7 @@ class GHistBuilder {
   template <bool any_missing>
   void BuildHist(const std::vector<GradientPair> &gpair,
                  const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix &gmat, GHistRow hist,
-                 std::shared_ptr<ColumnSampler> column_sampler,
-                 int depth, bool column_sampling) const;
+                 const GHistIndexMatrix &gmat, GHistRow hist) const;
 
   uint32_t GetNumBins() const {
       return nbins_;
@@ -637,7 +634,6 @@ class GHistBuilder {
   /*! \brief number of all bins over all features */
   uint32_t nbins_ { 0 };
 };
-
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_H_

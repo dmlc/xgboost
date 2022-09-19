@@ -139,23 +139,6 @@ struct Prefetch {
 
 constexpr size_t Prefetch::kNoPrefetchSize;
 
-template <bool column_sampling, bool read_by_column>
-struct GHistBuildingManager {
-  GHistBuildingManager(std::shared_ptr<common::ColumnSampler> column_sampler, int depth) {
-    if (column_sampling && read_by_column) {
-      const size_t n_sampled_features = column_sampler->GetFeatureSet(depth)->Size();
-      fids.resize(n_sampled_features);
-      for (size_t i = 0; i < n_sampled_features; ++i) {
-        fids[i] = column_sampler->GetFeatureSet(depth)->ConstHostVector()[i];
-      }
-    }
-  }
-
-  std::vector<int> fids;
-  constexpr static bool kColumnSampling = column_sampling;
-  constexpr static bool kReadByColumn = read_by_column;
-};
-
 template <bool do_prefetch, typename BinIdxType, bool first_page, bool any_missing = true>
 void RowsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
                             const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
@@ -221,10 +204,10 @@ void RowsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
   }
 }
 
-template <typename BinIdxType, bool first_page, bool any_missing, class GHistBuildingManager>
+template <typename BinIdxType, bool first_page, bool any_missing>
 void ColsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
                             const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                            GHistRow hist, const GHistBuildingManager& hbm) {
+                            GHistRow hist) {
   const size_t size = row_indices.Size();
   const size_t *rid = row_indices.begin;
   auto const *pgh = reinterpret_cast<const float *>(gpair.data());
@@ -241,22 +224,21 @@ void ColsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
   };
 
   const size_t n_features = gmat.cut.Ptrs().size() - 1;
-  const size_t n_columns = GHistBuildingManager::kColumnSampling ? hbm.fids.size() : n_features;
+  const size_t n_columns = n_features;
   auto hist_data = reinterpret_cast<double *>(hist.data());
   const uint32_t two{2};  // Each element from 'gpair' and 'hist' contains
                           // 2 FP values: gradient and hessian.
                           // So we need to multiply each row-index/bin-index by 2
                           // to work with gradient pairs as a singe row FP array
   for (size_t cid = 0; cid < n_columns; ++cid) {
-    const size_t local_cid = GHistBuildingManager::kColumnSampling ? hbm.fids[cid] : cid;
+    const uint32_t offset = any_missing ? 0 : offsets[cid];
     for (size_t i = 0; i < size; ++i) {
       const size_t row_id = rid[i];
       const size_t icol_start =
           any_missing ? get_row_ptr(row_id) : get_rid(row_id) * n_features;
 
       const BinIdxType *gr_index_local = gradient_index + icol_start;
-      const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[local_cid]) +
-                                      (any_missing ? 0 : offsets[local_cid]));
+      const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[cid]) + offset);
       auto hist_local = hist_data + idx_bin;
 
       const size_t idx_gh = two * row_id;
@@ -269,57 +251,57 @@ void ColsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
 }
 
 template <bool do_prefetch, typename BinIdxType, bool first_page,
-          bool any_missing, class GHistBuildingManager>
+          bool any_missing>
 void BuildHistKernel(const std::vector<GradientPair> &gpair,
                      const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                     GHistRow hist, const GHistBuildingManager& hbm) {
-  if (GHistBuildingManager::kReadByColumn) {
+                     GHistRow hist, bool read_by_column) {
+  if (read_by_column) {
     ColsWiseBuildHistKernel<BinIdxType, first_page, any_missing>
-                           (gpair, row_indices, gmat, hist, hbm);
+                           (gpair, row_indices, gmat, hist);
   } else {
     RowsWiseBuildHistKernel<do_prefetch, BinIdxType, first_page, any_missing>
                            (gpair, row_indices, gmat, hist);
   }
 }
 
-template <bool do_prefetch, bool first_page, bool any_missing, class GHistBuildingManager>
+template <bool do_prefetch, bool first_page, bool any_missing>
 void BuildHistDispatch(const std::vector<GradientPair> &gpair,
                        const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                       GHistRow hist, const GHistBuildingManager& hbm) {
+                       GHistRow hist, bool read_by_column) {
   switch (gmat.index.GetBinTypeSize()) {
   case kUint8BinsTypeSize:
     BuildHistKernel<do_prefetch, uint8_t, first_page, any_missing>
-                   (gpair, row_indices, gmat, hist, hbm);
+                   (gpair, row_indices, gmat, hist, read_by_column);
     break;
   case kUint16BinsTypeSize:
     BuildHistKernel<do_prefetch, uint16_t, first_page, any_missing>
-                   (gpair, row_indices, gmat, hist, hbm);
+                   (gpair, row_indices, gmat, hist, read_by_column);
     break;
   case kUint32BinsTypeSize:
     BuildHistKernel<do_prefetch, uint32_t, first_page, any_missing>
-                   (gpair, row_indices, gmat, hist, hbm);
+                   (gpair, row_indices, gmat, hist, read_by_column);
     break;
   default:
     CHECK(false);  // no default behavior
   }
 }
 
-template <bool do_prefetch, bool any_missing, class GHistBuildingManager>
+template <bool do_prefetch, bool any_missing>
 void BuildHistDispatch(const std::vector<GradientPair> &gpair,
                        const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                       GHistRow hist, const GHistBuildingManager& hbm) {
+                       GHistRow hist, bool read_by_column) {
   auto first_page = gmat.base_rowid == 0;
   if (first_page) {
-    BuildHistDispatch<do_prefetch, true, any_missing>(gpair, row_indices, gmat, hist, hbm);
+    BuildHistDispatch<do_prefetch, true, any_missing>(gpair, row_indices, gmat, hist, read_by_column);
   } else {
-    BuildHistDispatch<do_prefetch, false, any_missing>(gpair, row_indices, gmat, hist, hbm);
+    BuildHistDispatch<do_prefetch, false, any_missing>(gpair, row_indices, gmat, hist, read_by_column);
   }
 }
 
-template <bool any_missing, class GHistBuildingManager>
+template <bool any_missing>
 void BuildHistDispatch(const std::vector<GradientPair> &gpair,
                        const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
-                       GHistRow hist, const GHistBuildingManager& hbm) {
+                       GHistRow hist, bool read_by_column) {
   const size_t nrows = row_indices.Size();
   const size_t no_prefetch_size = Prefetch::NoPrefetchSize(nrows);
   // if need to work with all rows from bin-matrix (e.g. root node)
@@ -328,16 +310,16 @@ void BuildHistDispatch(const std::vector<GradientPair> &gpair,
 
   if (contiguousBlock) {
     // contiguous memory access, built-in HW prefetching is enough
-    BuildHistDispatch<false, any_missing>(gpair, row_indices, gmat, hist, hbm);
+    BuildHistDispatch<false, any_missing>(gpair, row_indices, gmat, hist, read_by_column);
   } else {
     const RowSetCollection::Elem span1(row_indices.begin,
                                        row_indices.end - no_prefetch_size);
     const RowSetCollection::Elem span2(row_indices.end - no_prefetch_size,
                                        row_indices.end);
 
-    BuildHistDispatch<true, any_missing>(gpair, span1, gmat, hist, hbm);
+    BuildHistDispatch<true, any_missing>(gpair, span1, gmat, hist, read_by_column);
     // no prefetching to avoid loading extra memory
-    BuildHistDispatch<false, any_missing>(gpair, span2, gmat, hist, hbm);
+    BuildHistDispatch<false, any_missing>(gpair, span2, gmat, hist, read_by_column);
   }
 }
 
@@ -345,37 +327,20 @@ template <bool any_missing>
 void GHistBuilder::BuildHist(const std::vector<GradientPair> &gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix &gmat,
-                             GHistRow hist, std::shared_ptr<ColumnSampler> column_sampler,
-                             int depth, bool column_sampling) const {
+                             GHistRow hist) const {
   constexpr double kAdhocL2Size = 1024 * 1024 * 0.8;
   const bool hist_fit_to_l2 = kAdhocL2Size > 2*sizeof(float)*gmat.cut.Ptrs().back();
-  bool read_by_column = column_sampling ? true : !hist_fit_to_l2 && !any_missing;
+  bool read_by_column = !hist_fit_to_l2 && !any_missing;
 
-  if (read_by_column) {
-    if (column_sampling) {
-      GHistBuildingManager<true, true> hbm(column_sampler, depth);
-      BuildHistDispatch<any_missing>(gpair, row_indices, gmat, hist, hbm);
-    } else {
-      GHistBuildingManager<false, true> hbm(column_sampler, depth);
-      BuildHistDispatch<any_missing>(gpair, row_indices, gmat, hist, hbm);
-    }
-  } else {
-    // column_sampling doesn't matter in this case
-    GHistBuildingManager<false, false> hbm(column_sampler, depth);
-    BuildHistDispatch<any_missing>(gpair, row_indices, gmat, hist, hbm);
-  }
+  BuildHistDispatch<any_missing>(gpair, row_indices, gmat, hist, read_by_column);
 }
 
 template void GHistBuilder::BuildHist<true>(const std::vector<GradientPair> &gpair,
                                             const RowSetCollection::Elem row_indices,
-                                            const GHistIndexMatrix &gmat, GHistRow hist,
-                                            std::shared_ptr<ColumnSampler> column_sampler,
-                                            int depth, bool column_sampling) const;
+                                            const GHistIndexMatrix &gmat, GHistRow hist) const;
 
 template void GHistBuilder::BuildHist<false>(const std::vector<GradientPair> &gpair,
                                             const RowSetCollection::Elem row_indices,
-                                            const GHistIndexMatrix &gmat, GHistRow hist,
-                                            std::shared_ptr<ColumnSampler> column_sampler,
-                                            int depth, bool column_sampling) const;
+                                            const GHistIndexMatrix &gmat, GHistRow hist) const;
 }  // namespace common
 }  // namespace xgboost

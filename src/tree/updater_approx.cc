@@ -73,8 +73,7 @@ class GloablApproxBuilder {
       n_batches_++;
     }
 
-    histogram_builder_.Reset(n_total_bins, BatchSpec(param_, hess), ColSample(param_),
-                              col_sampler_, ctx_->Threads(), n_batches_,
+    histogram_builder_.Reset(n_total_bins, BatchSpec(param_, hess), ctx_->Threads(), n_batches_,
                               rabit::IsDistributed());
     monitor_->Stop(__func__);
   }
@@ -92,11 +91,10 @@ class GloablApproxBuilder {
     rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double *>(&root_sum), 2);
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
-    int depth = 0;
     auto space = ConstructHistSpace(partitioner_, nodes);
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(), nodes,
-                                   {}, gpair, depth);
+                                   {}, gpair);
       i++;
     }
 
@@ -124,7 +122,7 @@ class GloablApproxBuilder {
 
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
                       std::vector<CPUExpandEntry> const &valid_candidates,
-                      std::vector<GradientPair> const &gpair, common::Span<float> hess, int depth) {
+                      std::vector<GradientPair> const &gpair, common::Span<float> hess) {
     monitor_->Start(__func__);
     std::vector<CPUExpandEntry> nodes_to_build;
     std::vector<CPUExpandEntry> nodes_to_sub;
@@ -147,7 +145,7 @@ class GloablApproxBuilder {
     auto space = ConstructHistSpace(partitioner_, nodes_to_build);
     for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(BatchSpec(param_, hess))) {
       histogram_builder_.BuildHist(i, space, page, p_tree, partitioner_.at(i).Partitions(),
-                                   nodes_to_build, nodes_to_sub, gpair, depth);
+                                   nodes_to_build, nodes_to_sub, gpair);
       i++;
     }
     monitor_->Stop(__func__);
@@ -197,7 +195,6 @@ class GloablApproxBuilder {
      */
 
     while (!expand_set.empty()) {
-      int32_t depth = expand_set.front().depth + 1;
       // candidates that can be further splited.
       std::vector<CPUExpandEntry> valid_candidates;
       // candidates that can be applied.
@@ -220,7 +217,7 @@ class GloablApproxBuilder {
 
       std::vector<CPUExpandEntry> best_splits;
       if (!valid_candidates.empty()) {
-        this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair, hess, depth);
+        this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair, hess);
         for (auto const &candidate : valid_candidates) {
           int left_child_nidx = tree[candidate.nid].LeftChild();
           int right_child_nidx = tree[candidate.nid].RightChild();
