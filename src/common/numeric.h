@@ -8,6 +8,7 @@
 #include <iterator>   // std::iterator_traits
 #include <vector>
 
+#include "common.h"                      // AssertGPUSupport
 #include "threading_utils.h"             // MemStackAllocator, DefaultMaxThreads
 #include "xgboost/generic_parameters.h"  // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
@@ -94,7 +95,13 @@ void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
 
 namespace cuda {
 double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
+#if !defined(XGBOOST_USE_CUDA)
+inline double Reduce(Context const*, HostDeviceVector<float> const&) {
+  AssertGPUSupport();
+  return 0;
 }
+#endif  // !defined(XGBOOST_USE_CUDA)
+}  // namespace cuda
 /**
  * \brief Reduction with summation.
  */

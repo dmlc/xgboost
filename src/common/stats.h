@@ -8,7 +8,7 @@
 #include <limits>
 #include <vector>
 
-#include "common.h"
+#include "common.h"  // AssertGPUSupport
 #include "xgboost/generic_parameters.h"
 #include "xgboost/linalg.h"
 
@@ -97,7 +97,7 @@ float Median(Context const* ctx, linalg::TensorView<float const, 2> t,
              common::OptionalWeights weights);
 #if !defined(XGBOOST_USE_CUDA)
 inline float Median(Context const*, linalg::TensorView<float const, 2>, common::OptionalWeights) {
-  common::AssertGPUSupport();
+  AssertGPUSupport();
   return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
