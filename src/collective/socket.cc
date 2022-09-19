@@ -3,33 +3,36 @@
  */
 #include "xgboost/collective/socket.h"
 
-#include <cstdint>  // std::int32_t
+#include <cstddef>       // std::size_t
+#include <cstdint>       // std::int32_t
+#include <cstring>       // std::memcpy, std::memset
+#include <system_error>  // std::error_code, std::system_category
 
 #if defined(__unix__) || defined(__APPLE__)
-#include <netdb.h>  // getaddrinfo
+#include <netdb.h>  // getaddrinfo, freeaddrinfo
 #endif              // defined(__unix__) || defined(__APPLE__)
 
 namespace xgboost {
 namespace collective {
 SockAddress MakeSockAddress(StringView host, in_port_t port) {
   struct addrinfo hints;
-  memset(&hints, 0, sizeof(hints));
+  std::memset(&hints, 0, sizeof(hints));
   hints.ai_protocol = SOCK_STREAM;
   struct addrinfo *res = nullptr;
   int sig = getaddrinfo(host.c_str(), nullptr, &hints, &res);
   if (sig != 0) {
     return {};
   }
-  if (res->ai_family == AF_INET) {
+  if (res->ai_family == static_cast<std::int32_t>(SockDomain::kV4)) {
     sockaddr_in addr;
-    memcpy(&addr, res->ai_addr, res->ai_addrlen);
+    std::memcpy(&addr, res->ai_addr, res->ai_addrlen);
     addr.sin_port = htons(port);
     auto v = SockAddrV4{addr};
     freeaddrinfo(res);
     return SockAddress{v};
-  } else if (res->ai_family == AF_INET6) {
+  } else if (res->ai_family == static_cast<std::int32_t>(SockDomain::kV6)) {
     sockaddr_in6 addr;
-    memcpy(&addr, res->ai_addr, res->ai_addrlen);
+    std::memcpy(&addr, res->ai_addr, res->ai_addrlen);
 
     addr.sin6_port = htons(port);
     auto v = SockAddrV6{addr};

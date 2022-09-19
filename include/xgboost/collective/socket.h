@@ -7,13 +7,15 @@
 #define NOMINMAX
 #endif  // !defined(NOMINMAX)
 
-#include <cerrno>   // errno, EINTR, EBADF
-#include <climits>  // HOST_NAME_MAX
-#include <cstdint>  // std::int32_t, std::uint16_t
-#include <cstring>  // strerror, memset, memcpy
-#include <limits>   // std::numeric_limits
-#include <string>   // std::string
-#include <utility>  // std::swap
+#include <cerrno>        // errno, EINTR, EBADF
+#include <climits>       // HOST_NAME_MAX
+#include <cstddef>       // std::size_t
+#include <cstdint>       // std::int32_t, std::uint16_t
+#include <cstring>       // memset
+#include <limits>        // std::numeric_limits
+#include <string>        // std::string
+#include <system_error>  // std::error_code, std::system_category
+#include <utility>       // std::swap
 
 #if !defined(xgboost_IS_MINGW)
 #define xgboost_IS_MINGW() defined(__MINGW32__)
@@ -41,8 +43,8 @@ using ssize_t = int;
 #include <netinet/in.h>   // sockaddr_in6, sockaddr_in, in_port_t, INET6_ADDRSTRLEN, INET_ADDRSTRLEN
 #include <netinet/in.h>   // IPPROTO_TCP
 #include <netinet/tcp.h>  // TCP_NODELAY
-#include <sys/socket.h>   // socket, SOL_SOCKET, SO_ERROR, MSG_WAITALL, recv, send
-#include <unistd.h>       // close
+#include <sys/socket.h>  // socket, SOL_SOCKET, SO_ERROR, MSG_WAITALL, recv, send, AF_INET6, AF_INET
+#include <unistd.h>      // close
 
 #if defined(__sun) || defined(sun)
 #include <sys/sockio.h>
@@ -157,6 +159,8 @@ using ::inet_ntop;
 namespace collective {
 class SockAddress;
 
+enum class SockDomain : std::int32_t { kV4 = AF_INET, kV6 = AF_INET6 };
+
 /**
  * \brief Parse host address and return a SockAddress instance. Supports IPv4 and IPv6
  *        host.
@@ -177,7 +181,8 @@ class SockAddrV6 {
 
   std::string Addr() const {
     char buf[INET6_ADDRSTRLEN];
-    auto const *s = system::inet_ntop(AF_INET6, &addr_.sin6_addr, buf, INET6_ADDRSTRLEN);
+    auto const *s = system::inet_ntop(static_cast<std::int32_t>(SockDomain::kV6), &addr_.sin6_addr,
+                                      buf, INET6_ADDRSTRLEN);
     if (s == nullptr) {
       system::ThrowAtError("inet_ntop");
     }
@@ -201,7 +206,8 @@ class SockAddrV4 {
 
   std::string Addr() const {
     char buf[INET_ADDRSTRLEN];
-    auto const *s = system::inet_ntop(AF_INET, &addr_.sin_addr, buf, INET_ADDRSTRLEN);
+    auto const *s = system::inet_ntop(static_cast<std::int32_t>(SockDomain::kV4), &addr_.sin_addr,
+                                      buf, INET_ADDRSTRLEN);
     if (s == nullptr) {
       system::ThrowAtError("inet_ntop");
     }
@@ -209,8 +215,6 @@ class SockAddrV4 {
   }
   sockaddr_in const &Handle() const { return addr_; }
 };
-
-enum class SockDomain : std::int32_t { kV4 = AF_INET, kV6 = AF_INET6 };
 
 /**
  * \brief Address for TCP socket, can be either IPv4 or IPv6.
@@ -247,7 +251,7 @@ class TCPSocket {
   // There's reliable no way to extract domain from a socket without first binding that
   // socket on macos.
 #if defined(__APPLE__)
-  SockDomain domain_ {SockDomain::kV4};
+  SockDomain domain_{SockDomain::kV4};
 #endif
 
   constexpr static HandleT InvalidSocket() { return -1; }
