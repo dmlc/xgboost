@@ -48,7 +48,7 @@ SockAddrV4 SockAddrV4::InaddrAny() { return MakeSockAddress("0.0.0.0", 0).V4(); 
 SockAddrV6 SockAddrV6::Loopback() { return MakeSockAddress("::1", 0).V6(); }
 SockAddrV6 SockAddrV6::InaddrAny() { return MakeSockAddress("::", 0).V6(); }
 
-auto TCPSocket::Send(StringView str) {
+std::size_t TCPSocket::Send(StringView str) {
   CHECK(!this->IsClosed());
   CHECK_LT(str.size(), std::numeric_limits<std::int32_t>::max());
   std::int32_t len = static_cast<std::int32_t>(str.size());
@@ -58,7 +58,7 @@ auto TCPSocket::Send(StringView str) {
   return bytes;
 }
 
-auto TCPSocket::Recv(std::string *p_str) {
+std::size_t TCPSocket::Recv(std::string *p_str) {
   CHECK(!this->IsClosed());
   std::int32_t len;
   CHECK_EQ(this->RecvAll(&len, sizeof(len)), sizeof(len)) << "Failed to recv string length.";

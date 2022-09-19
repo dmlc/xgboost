@@ -475,11 +475,11 @@ class TCPSocket {
   /**
    * \brief Send string, format is matched with the Python socket wrapper in RABIT.
    */
-  auto Send(StringView str);
+  std::size_t Send(StringView str);
   /**
    * \brief Receive string, format is matched with the Python socket wrapper in RABIT.
    */
-  auto Recv(std::string *p_str);
+  std::size_t Recv(std::string *p_str);
   /**
    * \brief Close the socket, called automatically in destructor if the socket is not closed.
    */
@@ -493,10 +493,6 @@ class TCPSocket {
    * \brief Create a TCP socket on specified domain.
    */
   static TCPSocket Create(SockDomain domain) {
-#if defined(__APPLE__)
-    domain_ = domain;
-#endif  // defined(__APPLE__)
-
 #if xgboost_IS_MINGW()
     MingWError();
     return {};
@@ -505,7 +501,11 @@ class TCPSocket {
     if (fd == InvalidSocket()) {
       system::ThrowAtError("socket");
     }
+
     TCPSocket socket{fd};
+#if defined(__APPLE__)
+    socket.domain_ = domain;
+#endif  // defined(__APPLE__)
     return socket;
 #endif  // xgboost_IS_MINGW()
   }
