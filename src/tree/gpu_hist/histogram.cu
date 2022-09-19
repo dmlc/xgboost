@@ -111,6 +111,32 @@ GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
       GradientSumT(T(1) / to_floating_point.GetGrad(), T(1) / to_floating_point.GetHess());
 }
 
+
+XGBOOST_DEV_INLINE void
+AtomicAddGpairShared(xgboost::GradientPairInt64 *dest,
+               xgboost::GradientPairInt64 const &gpair) {
+  auto dst_ptr = reinterpret_cast<int64_t *>(dest);
+  auto g = gpair.GetQuantisedGrad();
+  auto h = gpair.GetQuantisedHess();
+
+  AtomicAdd64As32(dst_ptr, g);
+  AtomicAdd64As32(dst_ptr + 1, h);
+}
+
+// Global 64 bit integer atomics at the time of writing do not benefit from being separated into two
+// 32 bit atomics
+XGBOOST_DEV_INLINE void AtomicAddGpairGlobal(xgboost::GradientPairInt64* dest,
+                                             xgboost::GradientPairInt64 const& gpair) {
+  auto dst_ptr = reinterpret_cast<uint64_t*>(dest);
+  auto g = gpair.GetQuantisedGrad();
+  auto h = gpair.GetQuantisedHess();
+
+  atomicAdd(dst_ptr,
+            *reinterpret_cast<uint64_t*>(&g));
+  atomicAdd(dst_ptr + 1,
+            *reinterpret_cast<uint64_t*>(&h));
+}
+
 template <int kBlockThreads, int kItemsPerThread,
           int kItemsPerTile = kBlockThreads* kItemsPerThread>
 class HistogramAgent {
@@ -149,7 +175,7 @@ class HistogramAgent {
           group_.start_bin;
       if (matrix_.is_dense || gidx != matrix_.NumBins()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
-        dh::AtomicAddGpair(smem_arr_ + gidx, adjusted);
+        AtomicAddGpairShared(smem_arr_ + gidx, adjusted);
       }
     }
   }
@@ -179,7 +205,7 @@ class HistogramAgent {
     for (int i = 0; i < kItemsPerThread; i++) {
       if ((matrix_.is_dense || gidx[i] != matrix_.NumBins())) {
         auto adjusted = rounding_.ToFixedPoint(gpair[i]);
-        dh::AtomicAddGpair(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
+        AtomicAddGpairShared(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
     }
   }
@@ -197,7 +223,7 @@ class HistogramAgent {
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group_.num_bins)) {
-      dh::AtomicAddGpair(d_node_hist_ + group_.start_bin + i, smem_arr_[i]);
+      AtomicAddGpairGlobal(d_node_hist_ + group_.start_bin + i, smem_arr_[i]);
     }
   }
 
@@ -209,7 +235,7 @@ class HistogramAgent {
               .gidx_iter[ridx * matrix_.row_stride + group_.start_feature + idx % feature_stride_];
       if (matrix_.is_dense || gidx != matrix_.NumBins()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
-        dh::AtomicAddGpair(d_node_hist_ + gidx, adjusted);
+        AtomicAddGpairGlobal(d_node_hist_ + gidx, adjusted);
       }
     }
   }
