@@ -80,14 +80,15 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_fl
   if (ctx_->gpu_id >= 0) {
     out_preds->SetDevice(ctx_->gpu_id);
   }
-  if (base_margin->Size() != 0) {
+  if (!base_margin->Empty()) {
     out_preds->Resize(n);
     ValidateBaseMarginShape(info.base_margin_, info.num_row_, n_classes);
     out_preds->Copy(*base_margin);
   } else {
-    out_preds->Resize(n);
     // cannot rely on the Resize to fill as it might skip if the size is already correct.
-    out_preds->Fill(model.learner_model_param->base_score);
+    out_preds->Resize(n);
+    auto base_score = model.learner_model_param->BaseScore(Context::kCpuId)(0);
+    out_preds->Fill(base_score);
   }
 }
 }  // namespace xgboost

@@ -54,5 +54,20 @@ TEST(Stats, WeightedQuantile) {
   q = WeightedQuantile(1.0, beg, end, w);
   ASSERT_EQ(q, 5);
 }
+
+TEST(Stats, Median) {
+  linalg::Tensor<float, 2> values{{.0f, .0f, 1.f, 2.f}, {4}, Context::kCpuId};
+  Context ctx;
+  HostDeviceVector<float> weights;
+  auto m = Median(&ctx, values, weights);
+  ASSERT_EQ(m, .5f);
+
+#if defined(XGBOOST_USE_CUDA)
+  ctx.gpu_id = 0;
+  ASSERT_FALSE(ctx.IsCPU());
+  m = Median(&ctx, values, weights);
+  ASSERT_EQ(m, .5f);
+#endif  // defined(XGBOOST_USE_CUDA)
+}
 }  // namespace common
 }  // namespace xgboost

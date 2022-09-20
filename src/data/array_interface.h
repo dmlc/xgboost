@@ -345,8 +345,8 @@ struct ToDType<int64_t> {
 };
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void ArrayInterfaceHandler::SyncCudaStream(int64_t stream) { common::AssertGPUSupport(); }
-inline bool ArrayInterfaceHandler::IsCudaPtr(void const *ptr) { return false; }
+inline void ArrayInterfaceHandler::SyncCudaStream(int64_t) { common::AssertGPUSupport(); }
+inline bool ArrayInterfaceHandler::IsCudaPtr(void const *) { return false; }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 /**
