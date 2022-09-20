@@ -29,5 +29,15 @@ TEST(Numeric, PartialSum) {
     ASSERT_EQ(sol, result);
   }
 }
+
+TEST(Numeric, Reduce) {
+  Context ctx;
+  ASSERT_TRUE(ctx.IsCPU());
+  HostDeviceVector<float> values(20);
+  auto& h_values = values.HostVector();
+  std::iota(h_values.begin(), h_values.end(), 0.0f);
+  auto sum = Reduce(&ctx, values);
+  ASSERT_EQ(sum, (values.Size() - 1) * values.Size() / 2);
+}
 }  // namespace common
 }  // namespace xgboost

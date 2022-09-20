@@ -15,6 +15,7 @@
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"
+#include "../common/numeric.h"  // Reduce
 #include "../common/pseudo_huber.h"
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
@@ -718,22 +719,27 @@ class MeanAbsoluteError : public ObjFunction {
     CheckInitInputs(info);
     base_margin->Reshape(1);
     auto out = base_margin->HostView();
-    std::int32_t invalid{0};
-    if (info.num_row_ == 0) {
-      out(0) = 0;
-      invalid++;
+
+    double w{0.0};
+    if (info.weights_.Empty()) {
+      w = static_cast<double>(info.num_row_);
     } else {
-      out(0) = common::Median(ctx_, info.labels, info.weights_);
+      w = common::Reduce(ctx_, info.weights_);
     }
 
-    auto world = static_cast<float>(rabit::GetWorldSize());
-    rabit::Allreduce<rabit::op::Sum>(&invalid, 1);  // number of empty workers
-    world -= static_cast<float>(invalid);           // number of non-empty workers
+    if (info.num_row_ == 0) {
+      out(0) = 0;
+    } else {
+      // weighted avg
+      out(0) = common::Median(ctx_, info.labels, info.weights_) * w;
+    }
 
-    // average base score across all valid workers
+    // Weighted average base score across all workers
     rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
+    rabit::Allreduce<rabit::op::Sum>(&w, 1);
+
     std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
-                   [world](float v) { return v / world; });
+                   [w](float v) { return v / w; });
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

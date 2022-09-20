@@ -8,8 +8,7 @@
 #include <limits>
 #include <vector>
 
-#include "common.h"
-#include "linalg_op.h"
+#include "common.h"  // AssertGPUSupport
 #include "xgboost/generic_parameters.h"
 #include "xgboost/linalg.h"
 
@@ -109,7 +108,7 @@ float Mean(Context const* ctx, linalg::TensorView<float const, 2> t,
 #if !defined(XGBOOST_USE_CUDA)
 inline float Mean(Context const*, linalg::TensorView<float const, 2>, common::OptionalWeights,
                   size_t n) {
-  common::AssertGPUSupport();
+  AssertGPUSupport();
   return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
