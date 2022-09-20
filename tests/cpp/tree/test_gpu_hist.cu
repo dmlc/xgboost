@@ -211,7 +211,7 @@ TEST(GpuHist, EvaluateRootSplit) {
   maker.histogram_rounding.reset(new GradientQuantizer(DummyRoundingFactor()));
   std::vector<int64_t> hist;
   for (auto pair : hist_gpair) {
-    auto grad = maker.histogram_rounding->ToFixedPoint({float(pair.GetGrad()),float(pair.GetHess())});
+    auto grad = maker.histogram_rounding->ToFixedPoint(pair);
     hist.push_back(grad.GetQuantisedGrad());
     hist.push_back(grad.GetQuantisedHess());
   }
@@ -229,7 +229,7 @@ TEST(GpuHist, EvaluateRootSplit) {
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f}).split;
+  DeviceSplitCandidate res = maker.EvaluateRootSplit(maker.histogram_rounding->ToFixedPoint(GradientPairPrecise{6.4f, 12.8f})).split;
 
   ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);

@@ -23,7 +23,7 @@ namespace tree {
 struct EvaluateSplitInputs {
   int nidx;
   int depth;
-  GradientPairPrecise parent_sum;
+  GradientPairInt64 parent_sum;
   common::Span<const bst_feature_t> feature_set;
   common::Span<const GradientPairInt64> gradient_histogram;
 };

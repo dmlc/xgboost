@@ -268,7 +268,7 @@ struct GPUHistMakerDevice {
     hist.Reset();
   }
 
-  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum) {
+  GPUExpandEntry EvaluateRootSplit(GradientPairInt64 root_sum) {
     int nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
@@ -548,7 +548,7 @@ struct GPUHistMakerDevice {
     for (auto& e : candidates) {
       // Decide whether to build the left histogram or right histogram
       // Use sum of Hessian as a heuristic to select node with fewest training instances
-      bool fewer_right = e.split.right_sum.GetHess() < e.split.left_sum.GetHess();
+      bool fewer_right = e.split.right_sum.GetQuantisedHess() < e.split.left_sum.GetQuantisedHess();
       if (fewer_right) {
         hist_nidx.emplace_back(tree[e.nid].RightChild());
         subtraction_nidx.emplace_back(tree[e.nid].LeftChild());
@@ -594,10 +594,12 @@ struct GPUHistMakerDevice {
           << "No training instances in this leaf!";
     }
 
-    auto parent_sum = candidate.split.left_sum + candidate.split.right_sum;
     auto base_weight = candidate.base_weight;
     auto left_weight = candidate.left_weight * param.learning_rate;
     auto right_weight = candidate.right_weight * param.learning_rate;
+    auto parent_hess = histogram_rounding->ToFloatingPoint( candidate.split.left_sum+  candidate.split.right_sum).GetHess();
+    auto left_hess = histogram_rounding->ToFloatingPoint( candidate.split.left_sum).GetHess();
+    auto right_hess = histogram_rounding->ToFloatingPoint( candidate.split.right_sum).GetHess();
 
     auto is_cat = candidate.split.is_cat;
     if (is_cat) {
@@ -614,14 +616,14 @@ struct GPUHistMakerDevice {
 
       tree.ExpandCategorical(
           candidate.nid, candidate.split.findex, split_cats, candidate.split.dir == kLeftDir,
-          base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_sum.GetHess(),
-          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+          base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_hess,
+          left_hess, right_hess);
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
       tree.ExpandNode(candidate.nid, candidate.split.findex, candidate.split.fvalue,
                       candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                      candidate.split.loss_chg, parent_sum.GetHess(),
-                      candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+                      candidate.split.loss_chg, parent_hess,
+          left_hess, right_hess);
     }
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
@@ -655,7 +657,7 @@ struct GPUHistMakerDevice {
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
     // Generate first split
-    auto root_entry = this->EvaluateRootSplit(root_sum);
+    auto root_entry = this->EvaluateRootSplit(root_sum_quantised);
     return root_entry;
   }
 

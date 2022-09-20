@@ -60,7 +60,7 @@ class EvaluateSplitAgent {
   const dh::LDGIterator<float> feature_values;
   const GradientPairInt64 *node_histogram;
   const GradientQuantizer &rounding;
-  const GradientPairPrecise parent_sum;
+  const GradientPairInt64 parent_sum;
   const GradientPairPrecise missing;
   const GPUTrainingParam &param;
   const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator;
@@ -81,10 +81,10 @@ class EvaluateSplitAgent {
         feature_values(shared_inputs.feature_values.data()),
         node_histogram(inputs.gradient_histogram.data()),
         rounding(shared_inputs.rounding),
-        parent_sum(dh::LDGIterator<GradientPairPrecise>(&inputs.parent_sum)[0]),
+        parent_sum(dh::LDGIterator<GradientPairInt64>(&inputs.parent_sum)[0]),
         param(shared_inputs.param),
         evaluator(evaluator),
-        missing(parent_sum - ReduceFeature()) {
+        missing(rounding.ToFloatingPoint(parent_sum) - ReduceFeature()) {
     static_assert(kBlockSize == 32,
                   "This kernel relies on the assumption block_size == warp_size");
   }
@@ -116,7 +116,7 @@ class EvaluateSplitAgent {
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
+      float gain = thread_active ? LossChangeMissing(bin, missing, rounding.ToFloatingPoint(parent_sum), param, nidx, fidx,
                                                      evaluator, missing_left)
                                  : kNullGain;
 
@@ -133,9 +133,9 @@ class EvaluateSplitAgent {
         float fvalue =
             split_gidx < static_cast<int>(gidx_begin) ? min_fvalue : feature_values[split_gidx];
         GradientPairPrecise left = missing_left ? bin + missing : bin;
-        GradientPairPrecise right = parent_sum - left;
-        best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
-                           false, param);
+        GradientPairPrecise right = rounding.ToFloatingPoint(parent_sum) - left;
+        best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, rounding.ToFixedPoint(left), rounding.ToFixedPoint(right),
+                           false, param, rounding);
       }
     }
   }
@@ -146,10 +146,10 @@ class EvaluateSplitAgent {
 
       auto rest = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
                                 : GradientPairPrecise();
-      GradientPairPrecise bin = parent_sum - rest - missing;
+      GradientPairPrecise bin = rounding.ToFloatingPoint(parent_sum) - rest - missing;
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
+      float gain = thread_active ? LossChangeMissing(bin, missing, rounding.ToFloatingPoint(parent_sum), param, nidx, fidx,
                                                      evaluator, missing_left)
                                  : kNullGain;
 
@@ -163,9 +163,9 @@ class EvaluateSplitAgent {
         int32_t split_gidx = (scan_begin + threadIdx.x);
         float fvalue = feature_values[split_gidx];
         GradientPairPrecise left = missing_left ? bin + missing : bin;
-        GradientPairPrecise right = parent_sum - left;
+        GradientPairPrecise right = rounding.ToFloatingPoint(parent_sum) - left;
         best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir,
-                              static_cast<bst_cat_t>(fvalue), fidx, left, right, param);
+                              static_cast<bst_cat_t>(fvalue), fidx, rounding.ToFixedPoint(left), rounding.ToFixedPoint(right), param, rounding);
       }
     }
   }
@@ -190,8 +190,8 @@ class EvaluateSplitAgent {
       assert(thread_active);
       // index of best threshold inside a feature.
       auto best_thresh = it - gidx_begin;
-      best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left_sum,
-                            right_sum, param);
+      best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, rounding.ToFixedPoint(left_sum),
+                            rounding.ToFixedPoint(right_sum), param, rounding);
     }
   }
   /**
@@ -216,7 +216,7 @@ class EvaluateSplitAgent {
                                      : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
-      GradientPairPrecise left_sum = parent_sum - right_sum;
+      GradientPairPrecise left_sum = rounding.ToFloatingPoint(parent_sum) - right_sum;
 
       PartitionUpdate(scan_begin, thread_active, true, it, left_sum, right_sum, best_split);
     }
@@ -234,7 +234,7 @@ class EvaluateSplitAgent {
                                     : GradientPairPrecise();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, prefix_op);
-      GradientPairPrecise right_sum = parent_sum - left_sum;
+      GradientPairPrecise right_sum = rounding.ToFloatingPoint(parent_sum) - left_sum;
 
       PartitionUpdate(scan_begin, thread_active, false, it, left_sum, right_sum, best_split);
     }
@@ -400,7 +400,7 @@ void GPUHistEvaluator::EvaluateSplits(
     auto &split = out_splits[i];
     // Subtract parent gain here
     // As it is constant, this is more efficient than doing it during every split evaluation
-    float parent_gain = CalcGain(shared_inputs.param, input.parent_sum);
+    float parent_gain = CalcGain(shared_inputs.param,shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
     split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
 
@@ -410,11 +410,11 @@ void GPUHistEvaluator::EvaluateSplits(
     }
 
     float base_weight = evaluator.CalcWeight(input.nidx, shared_inputs.param,
-                                             GradStats{split.left_sum + split.right_sum});
+                                             shared_inputs.rounding.ToFloatingPoint(split.left_sum + split.right_sum));
     float left_weight =
-        evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.left_sum});
+        evaluator.CalcWeight(input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(split.left_sum));
     float right_weight =
-        evaluator.CalcWeight(input.nidx, shared_inputs.param, GradStats{split.right_sum});
+        evaluator.CalcWeight(input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(split.right_sum));
 
     d_entries[i] = GPUExpandEntry{input.nidx,  input.depth, out_splits[i],
                                   base_weight, left_weight, right_weight};
