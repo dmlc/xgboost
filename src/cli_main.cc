@@ -6,7 +6,11 @@
  */
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
+
+#if !defined(NOMINMAX) && defined(_WIN32)
 #define NOMINMAX
+#endif  // !defined(NOMINMAX)
+
 #include <dmlc/timer.h>
 
 #include <xgboost/learner.h>

@@ -1,7 +1,6 @@
 /*!
  * Copyright 2017-2022 XGBoost contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
@@ -9,6 +8,7 @@
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "test_predictor.h"
 

@@ -658,12 +658,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 col(self.getOrDefault(self.weightCol)).alias(alias.weight)
             )
 
+        has_validation_col = False
         if self.isDefined(self.validationIndicatorCol) and self.getOrDefault(
             self.validationIndicatorCol
         ):
             select_cols.append(
                 col(self.getOrDefault(self.validationIndicatorCol)).alias(alias.valid)
             )
+            # In some cases, see https://issues.apache.org/jira/browse/SPARK-40407,
+            # the df.repartition can result in some reducer partitions without data,
+            # which will cause exception or hanging issue when creating DMatrix.
+            has_validation_col = True
 
         if self.isDefined(self.base_margin_col) and self.getOrDefault(
             self.base_margin_col
@@ -765,6 +770,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     gpu_id,
                     dmatrix_kwargs,
                     enable_sparse_data_optim=enable_sparse_data_optim,
+                    has_validation_col=has_validation_col,
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]

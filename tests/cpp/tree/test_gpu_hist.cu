@@ -4,22 +4,22 @@
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
-#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
+
 #include <random>
 #include <string>
 #include <vector>
 
+#include "../../../src/common/common.h"
+#include "../../../src/data/sparse_page_source.h"
+#include "../../../src/tree/constraints.cuh"
+#include "../../../src/tree/updater_gpu_common.cuh"
+#include "../../../src/tree/updater_gpu_hist.cu"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "../histogram_helpers.h"
-
 #include "xgboost/generic_parameters.h"
 #include "xgboost/json.h"
-#include "../../../src/data/sparse_page_source.h"
-#include "../../../src/tree/updater_gpu_hist.cu"
-#include "../../../src/tree/updater_gpu_common.cuh"
-#include "../../../src/common/common.h"
-#include "../../../src/tree/constraints.cuh"
 
 namespace xgboost {
 namespace tree {

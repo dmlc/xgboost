@@ -2,12 +2,13 @@
 #include "test_metainfo.h"
 
 #include <dmlc/io.h>
-#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
-#include <string>
-#include <memory>
-#include "../../../src/common/version.h"
 
+#include <memory>
+#include <string>
+
+#include "../../../src/common/version.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
 

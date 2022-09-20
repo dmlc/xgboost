@@ -97,8 +97,11 @@ metastore_db
 R-package/src/Makevars
 *.lib
 
-# Visual Studio Code
-/.vscode/
+# Visual Studio
+.vs/
+CMakeSettings.json
+*.ilk
+*.pdb
 
 # IntelliJ/CLion
 .idea

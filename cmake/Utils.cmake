@@ -244,7 +244,7 @@ macro(xgboost_target_properties target)
       $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
       -D_CRT_SECURE_NO_WARNINGS
       -D_CRT_SECURE_NO_DEPRECATE
-      )
+    )
   endif (MSVC)
 
   if (WIN32 AND MINGW)
@@ -314,4 +314,8 @@ macro(xgboost_target_link_libraries target)
   if (RABIT_BUILD_MPI)
     target_link_libraries(${target} PRIVATE MPI::MPI_CXX)
   endif (RABIT_BUILD_MPI)
+
+  if (MINGW)
+    target_link_libraries(${target} PRIVATE wsock32 ws2_32)
+  endif (MINGW)
 endmacro(xgboost_target_link_libraries)
