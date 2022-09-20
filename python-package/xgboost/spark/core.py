@@ -20,7 +20,7 @@ from pyspark.ml.param.shared import (
     HasWeightCol,
 )
 from pyspark.ml.util import MLReadable, MLWritable
-from pyspark.sql.functions import col, countDistinct, pandas_udf, struct, rand
+from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
@@ -168,7 +168,7 @@ class _SparkXGBParams(
         Params._dummy(),
         "repartition_random_shuffle",
         "A boolean variable. Set repartition_random_shuffle=true if you want to random shuffle "
-        "dataset when repartitioning is required. By default is True."
+        "dataset when repartitioning is required. By default is True.",
     )
     feature_names = Param(
         Params._dummy(), "feature_names", "A list of str to specify feature names."
