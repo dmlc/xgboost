@@ -634,18 +634,21 @@ struct GPUHistMakerDevice {
   GPUExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
-    auto gpair_it = dh::MakeTransformIterator<GradientPairPrecise>(
-        dh::tbegin(gpair), [] __device__(auto const& gpair) { return GradientPairPrecise{gpair}; });
-    GradientPairPrecise root_sum =
+    auto quantiser = *this->histogram_rounding;
+    auto gpair_it = dh::MakeTransformIterator<GradientPairInt64>(
+     dh::tbegin(gpair), [=] __device__(auto const& gpair) { return quantiser.ToFixedPoint(gpair); });
+    GradientPairInt64 root_sum_quantised =
         dh::Reduce(thrust::cuda::par(alloc), gpair_it, gpair_it + gpair.size(),
-                   GradientPairPrecise{}, thrust::plus<GradientPairPrecise>{});
-    rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double*>(&root_sum), 2);
+                   GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
+    using ReduceT = typename decltype(root_sum_quantised)::ValueT;
+    rabit::Allreduce<rabit::op::Sum, ReduceT>(reinterpret_cast<ReduceT*>(&root_sum_quantised), 2);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
     this->AllReduceHist(kRootNIdx, reducer, 1);
 
     // Remember root stats
+    auto root_sum = quantiser.ToFloatingPoint(root_sum_quantised);
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;
