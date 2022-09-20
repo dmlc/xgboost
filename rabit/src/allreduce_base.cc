@@ -239,7 +239,7 @@ xgboost::collective::TCPSocket AllreduceBase::ConnectTracker() const {
       if (++retry >= connect_retry) {
         LOG(FATAL) << "Connecting to (failed): [" << tracker_uri << "]\n" << rc.message();
       } else {
-        LOG(WARNING) << rc.message() << "\nRetry connecting to IP(retry time" << retry << "): ["
+        LOG(WARNING) << rc.message() << "\nRetry connecting to IP(retry time: " << retry << "): ["
                      << tracker_uri << "]";
 #if defined(_MSC_VER) || defined(__MINGW32__)
         Sleep(retry << 1);
