@@ -521,10 +521,9 @@ correct address information:
     from distributed import Client
     from xgboost import dask as dxgb
     # let xgboost know the scheduler address, use the same bracket format as dask.
-    with dask.config.set({"xgboost.scheduler_address": "[::1]"}):
-        with LocalCluster(host="[::1]", n_workers=2) as cluster:
-            with Client(cluster) as client:
-                reg = dxgb.DaskXGBRegressor(tree_method="hist")
+    with dask.config.set({"xgboost.scheduler_address": "[fd20:b6f:f759:9800::]"}):
+        with Client("[fd20:b6f:f759:9800::]") as client:
+            reg = dxgb.DaskXGBRegressor(tree_method="hist")
 
 
 When GPU is used, XGBoost employs `NCCL <https://developer.nvidia.com/nccl>`_ as the
