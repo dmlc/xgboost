@@ -75,18 +75,5 @@ class StatsGPU : public ::testing::Test {
 
 TEST_F(StatsGPU, Quantile) { this->NonWeighted(); }
 TEST_F(StatsGPU, WeightedQuantile) { this->Weighted(); }
-
-TEST(Stats, GPUMean) {
-  Context ctx;
-  ctx.gpu_id = 0;
-  linalg::Tensor<float, 2> arr({1.f, 2.f, 3.f, 4.f}, {2, 2}, Context::kCpuId);
-  HostDeviceVector<float> weights;
-  auto mean = Mean(&ctx, arr, weights);
-  ASSERT_EQ(mean, 2.5);
-
-  weights.Resize(2, 1.0f);
-  mean = Mean(&ctx, arr, weights);
-  ASSERT_EQ(mean, 2.5);
-}
 }  // namespace common
 }  // namespace xgboost
