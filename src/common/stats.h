@@ -8,9 +8,10 @@
 #include <limits>
 #include <vector>
 
-#include "common.h"  // AssertGPUSupport
-#include "xgboost/generic_parameters.h"
+#include "common.h"                      // AssertGPUSupport, OptionalWeights
+#include "xgboost/generic_parameters.h"  // Context
 #include "xgboost/linalg.h"
+#include "xgboost/logging.h"  // CHECK_GE
 
 namespace xgboost {
 namespace common {
@@ -96,18 +97,16 @@ namespace cuda {
 float Median(Context const* ctx, linalg::TensorView<float const, 2> t,
              common::OptionalWeights weights);
 #if !defined(XGBOOST_USE_CUDA)
-inline float Median(Context const*, linalg::TensorView<float const, 2>, common::OptionalWeights) {
+inline float Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights) {
   common::AssertGPUSupport();
   return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-float Mean(Context const* ctx, linalg::TensorView<float const, 2> t,
-           common::OptionalWeights weights, size_t n);
+float Mean(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWeights weights);
 
 #if !defined(XGBOOST_USE_CUDA)
-inline float Mean(Context const*, linalg::TensorView<float const, 2>, common::OptionalWeights,
-                  size_t n) {
+inline float Mean(Context const*, linalg::TensorView<float const, 2>, OptionalWeights) {
   AssertGPUSupport();
   return 0;
 }
@@ -143,38 +142,11 @@ inline float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
 }
 
 /**
- * \brief Calculate mean or partial mean. When n is specified to be non-zero, we use n as
- *        the total number of elements instead of the size of t.
+ * \brief Calculate mean or partial mean. Weight is per-sample, which means if weight is
+ *        not empty then it should contain 1 element for each row in t.
  */
-inline float Mean(Context const* ctx, linalg::Tensor<float, 2> const& t,
-                  HostDeviceVector<float> const& weights, size_t n = 0) {
-  if (!weights.Empty()) {
-    CHECK_EQ(weights.Size(), t.Shape(0)) << "Weight is assigned for each row.";
-  }
-  if (!ctx->IsCPU()) {
-    weights.SetDevice(ctx->gpu_id);
-    auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
-    auto t_v = t.View(ctx->gpu_id);
-    cuda::Mean(ctx, t_v, opt_weights, n);
-  }
-
-  auto opt_weights = OptionalWeights(weights.ConstHostSpan());
-  auto t_v = t.HostView();
-
-  MemStackAllocator<float, 128> mean_tloc(ctx->Threads(), 0.0f);
-  auto iter = common::MakeIndexTransformIter(
-      [&](size_t i) { return linalg::detail::Apply(t_v, linalg::UnravelIndex(i, t_v.Shape())); });
-
-  double size = n == 0 ? t_v.Size() : n;
-  CHECK_NE(size, 0);
-  ParallelFor(t_v.Size(), ctx->Threads(), [&](auto i) {
-    auto tidx = omp_get_thread_num();
-    auto ridx = std::get<0>(linalg::UnravelIndex(i, t_v.Shape()));
-    mean_tloc[tidx] += iter[i] * opt_weights[ridx] / size;
-  });
-  auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0f);
-  return mean;
-}
+float Mean(Context const* ctx, linalg::Tensor<float, 2> const& t,
+           HostDeviceVector<float> const& weights);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_H_

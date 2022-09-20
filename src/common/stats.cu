@@ -44,9 +44,9 @@ float Median(Context const* ctx, linalg::TensorView<float const, 2> t,
 }
 
 float Mean(Context const* ctx, linalg::TensorView<float const, 2> t,
-           common::OptionalWeights weights, size_t n) {
+           common::OptionalWeights weights) {
   dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
-  double size = n == 0 ? t.Size() : n;
+  double size = t.Shape(0);
   CHECK_NE(size, 0);
   auto val_it = dh::MakeTransformIterator<float>(
       thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {

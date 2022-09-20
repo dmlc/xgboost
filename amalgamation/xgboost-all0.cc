@@ -86,6 +86,7 @@
 #include "../src/common/pseudo_huber.cc"
 #include "../src/common/quantile.cc"
 #include "../src/common/random.cc"
+#include "../src/common/stats.cc"
 #include "../src/common/survival_util.cc"
 #include "../src/common/threading_utils.cc"
 #include "../src/common/timer.cc"
