@@ -189,9 +189,6 @@ struct GPUHistMakerDevice {
   dh::device_vector<int> monotone_constraints;
   dh::device_vector<float> update_predictions;
 
-  /*! \brief Sum gradient for each node. */
-  std::vector<GradientPairPrecise> node_sum_gradients;
-
   TrainParam param;
 
   std::unique_ptr<GradientQuantizer> histogram_rounding;
@@ -226,7 +223,6 @@ struct GPUHistMakerDevice {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
     }
-    node_sum_gradients.resize(256);
 
     // Init histogram
     hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
@@ -254,7 +250,6 @@ struct GPUHistMakerDevice {
                            ctx_->gpu_id);
 
     this->interaction_constraints.Reset();
-    std::fill(node_sum_gradients.begin(), node_sum_gradients.end(), GradientPairPrecise{});
 
     if (d_gpair.size() != dh_gpair->Size()) {
       d_gpair.resize(dh_gpair->Size());
@@ -632,13 +627,6 @@ struct GPUHistMakerDevice {
 
     const auto& parent = tree[candidate.nid];
     std::size_t max_nidx = std::max(parent.LeftChild(), parent.RightChild());
-    // Grow as needed
-    if (node_sum_gradients.size() <= max_nidx) {
-      node_sum_gradients.resize(max_nidx * 2 + 1);
-    }
-    node_sum_gradients[parent.LeftChild()] = candidate.split.left_sum;
-    node_sum_gradients[parent.RightChild()] = candidate.split.right_sum;
-
     interaction_constraints.Split(candidate.nid, parent.SplitIndex(), parent.LeftChild(),
                                   parent.RightChild());
   }
@@ -658,7 +646,6 @@ struct GPUHistMakerDevice {
     this->AllReduceHist(kRootNIdx, reducer, 1);
 
     // Remember root stats
-    node_sum_gradients[kRootNIdx] = root_sum;
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;

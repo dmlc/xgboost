@@ -194,8 +194,6 @@ TEST(GpuHist, EvaluateRootSplit) {
   Context ctx{CreateEmptyGenericParam(0)};
   GPUHistMakerDevice<GradientPairPrecise> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
                                                 batch_param);
-  // Initialize GPUHistMakerDevice::node_sum_gradients
-  maker.node_sum_gradients = {};
 
   // Initialize GPUHistMakerDevice::cut
   auto cmat = GetHostCutMatrix();
