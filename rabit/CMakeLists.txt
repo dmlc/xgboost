@@ -6,9 +6,7 @@ set(RABIT_SOURCES
   ${CMAKE_CURRENT_LIST_DIR}/src/allreduce_base.cc
   ${CMAKE_CURRENT_LIST_DIR}/src/rabit_c_api.cc)
 
-if (PLUGIN_FEDERATED)
-  # Skip the engine if the Federated Learning plugin is enabled.
-elseif (RABIT_BUILD_MPI)
+if (RABIT_BUILD_MPI)
   list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine_mpi.cc)
 elseif (RABIT_MOCK)
   list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine_mock.cc)

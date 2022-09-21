@@ -15,6 +15,7 @@
 #include "xgboost/span.h"
 #include "xgboost/data.h"
 #include "auc.h"
+#include "../collective/device_communicator.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/ranking_utils.cuh"
 
@@ -46,7 +47,7 @@ struct DeviceAUCCache {
   dh::device_vector<size_t> unique_idx;
   // p^T: transposed prediction matrix, used by MultiClassAUC
   dh::device_vector<float> predts_t;
-  std::unique_ptr<dh::AllReducer> reducer;
+  collective::DeviceCommunicator* communicator;
 
   void Init(common::Span<float const> predts, bool is_multi, int32_t device) {
     if (sorted_idx.size() != predts.size()) {
@@ -58,9 +59,8 @@ struct DeviceAUCCache {
         predts_t.resize(sorted_idx.size());
       }
     }
-    if (is_multi && !reducer) {
-      reducer.reset(new dh::AllReducer);
-      reducer->Init(device);
+    if (is_multi && !communicator) {
+      communicator = collective::Communicator::GetDevice(device);
     }
   }
 };
@@ -205,9 +205,9 @@ double ScaleClasses(common::Span<double> results, common::Span<double> local_are
                     common::Span<double> tp, common::Span<double> auc,
                     std::shared_ptr<DeviceAUCCache> cache, size_t n_classes) {
   dh::XGBDeviceAllocator<char> alloc;
-  if (rabit::IsDistributed()) {
+  if (collective::IsDistributed()) {
     CHECK_EQ(dh::CudaGetPointerDevice(results.data()), dh::CurrentDevice());
-    cache->reducer->AllReduceSum(results.data(), results.data(), results.size());
+    cache->communicator->AllReduceSum(results.data(), results.size());
   }
   auto reduce_in = dh::MakeTransformIterator<Pair>(
       thrust::make_counting_iterator(0), [=] XGBOOST_DEVICE(size_t i) {

@@ -24,6 +24,10 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     int32_t const rank = communicator_->GetRank();
     int32_t const world = communicator_->GetWorldSize();
 
+    if (world == 1) {
+      return;
+    }
+
     std::vector<uint64_t> uuids(world * kUuidLength, 0);
     auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};
     auto s_this_uuid = s_uuid.subspan(rank * kUuidLength, kUuidLength);
@@ -52,6 +56,9 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   }
 
   ~NcclDeviceCommunicator() override {
+    if (communicator_->GetWorldSize() == 1) {
+      return;
+    }
     dh::safe_cuda(cudaStreamDestroy(cuda_stream_));
     ncclCommDestroy(nccl_comm_);
     if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
@@ -61,16 +68,24 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     }
   }
 
-  void AllReduceSum(double *send_receive_buffer, int count) override {
-    dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(send_receive_buffer, send_receive_buffer, count, ncclDouble,
-                                ncclSum, nccl_comm_, cuda_stream_));
-    allreduce_bytes_ += count * sizeof(double);
-    allreduce_calls_ += 1;
+  void AllReduceSum(float *send_receive_buffer, size_t count) override {
+    DoAllReduceSum<ncclFloat>(send_receive_buffer, count);
+  }
+
+  void AllReduceSum(double *send_receive_buffer, size_t count) override {
+    DoAllReduceSum<ncclDouble>(send_receive_buffer, count);
+  }
+
+  void AllReduceSum(uint64_t *send_receive_buffer, size_t count) override {
+    DoAllReduceSum<ncclUint64>(send_receive_buffer, count);
   }
 
   void AllGatherV(void const *send_buffer, size_t length_bytes, std::vector<std::size_t> *segments,
                   dh::caching_device_vector<char> *receive_buffer) override {
+    if (communicator_->GetWorldSize() == 1) {
+      return;
+    }
+
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     int const world_size = communicator_->GetWorldSize();
     int const rank = communicator_->GetRank();
@@ -95,6 +110,9 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
   }
 
   void Synchronize() override {
+    if (communicator_->GetWorldSize() == 1) {
+      return;
+    }
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
     dh::safe_cuda(cudaStreamSynchronize(cuda_stream_));
   }
@@ -134,6 +152,19 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     communicator_->Broadcast(static_cast<void *>(&id), sizeof(ncclUniqueId),
                              static_cast<int>(kRootRank));
     return id;
+  }
+
+  template <ncclDataType_t data_type, typename T>
+  void DoAllReduceSum(T *send_receive_buffer, size_t count) {
+    if (communicator_->GetWorldSize() == 1) {
+      return;
+    }
+
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    dh::safe_nccl(ncclAllReduce(send_receive_buffer, send_receive_buffer, count, data_type, ncclSum,
+                                nccl_comm_, cuda_stream_));
+    allreduce_bytes_ += count * sizeof(T);
+    allreduce_calls_ += 1;
   }
 
   int const device_ordinal_;

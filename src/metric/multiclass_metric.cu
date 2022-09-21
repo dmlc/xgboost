@@ -185,7 +185,7 @@ struct EvalMClassBase : public Metric {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    collective::Allreduce<collective::Operation::kSum>(dat, 2);
     return Derived::GetFinal(dat[0], dat[1]);
   }
   /*!

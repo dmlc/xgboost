@@ -2,7 +2,7 @@
 import xgboost as xgb
 import numpy as np
 
-with xgb.rabit.RabitContext():
+with xgb.rabit.CommunicatorContext():
     X = [
       [15.00,28.90,29.00,3143.70,0.00,0.10,69.90,90.00,13726.07,0.00,2299.70,0.00,0.05,
        4327.03,0.00,24.00,0.18,3.00,0.41,3.77,0.00,0.00,4.00,0.00,150.92,0.00,2.00,0.00,

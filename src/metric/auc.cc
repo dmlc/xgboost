@@ -1,27 +1,27 @@
 /*!
  * Copyright 2021 by XGBoost Contributors
  */
+#include "auc.h"
+
+#include <algorithm>
 #include <array>
 #include <atomic>
-#include <algorithm>
 #include <functional>
 #include <limits>
 #include <memory>
 #include <numeric>
-#include <utility>
 #include <tuple>
+#include <utility>
 #include <vector>
 
-#include "rabit/rabit.h"
-#include "xgboost/linalg.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/metric.h"
-
-#include "auc.h"
-
+#include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
+#include "rabit/rabit.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/linalg.h"
+#include "xgboost/metric.h"
 
 namespace xgboost {
 namespace metric {
@@ -117,7 +117,8 @@ double MultiClassOVR(common::Span<float const> predts, MetaInfo const &info,
 
   // we have 2 averages going in here, first is among workers, second is among
   // classes. allreduce sums up fp/tp auc for each class.
-  rabit::Allreduce<rabit::op::Sum>(results.Values().data(), results.Values().size());
+  collective::Allreduce<collective::Operation::kSum>(results.Values().data(),
+                                                     results.Values().size());
   double auc_sum{0};
   double tp_sum{0};
   for (size_t c = 0; c < n_classes; ++c) {
@@ -265,7 +266,7 @@ class EvalAUC : public Metric {
     }
     //  We use the global size to handle empty dataset.
     std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
-    rabit::Allreduce<rabit::op::Max>(meta.data(), meta.size());
+    collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.
       auc = std::numeric_limits<double>::quiet_NaN();
@@ -287,7 +288,7 @@ class EvalAUC : public Metric {
       }
 
       std::array<double, 2> results{auc, static_cast<double>(valid_groups)};
-      rabit::Allreduce<rabit::op::Sum>(results.data(), results.size());
+      collective::Allreduce<collective::Operation::kSum>(results.data(), results.size());
       auc = results[0];
       valid_groups = static_cast<uint32_t>(results[1]);
 
@@ -316,7 +317,7 @@ class EvalAUC : public Metric {
       }
       double local_area = fp * tp;
       std::array<double, 2> result{auc, local_area};
-      rabit::Allreduce<rabit::op::Sum>(result.data(), result.size());
+      collective::Allreduce<collective::Operation::kSum>(result.data(), result.size());
       std::tie(auc, local_area) = common::UnpackArr(std::move(result));
       if (local_area <= 0) {
         // the dataset across all workers have only positive or negative sample

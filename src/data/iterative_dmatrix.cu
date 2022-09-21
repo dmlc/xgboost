@@ -62,7 +62,7 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
     dh::safe_cuda(cudaSetDevice(get_device()));
     if (cols == 0) {
       cols = num_cols();
-      rabit::Allreduce<rabit::op::Max>(&cols, 1);
+      collective::Allreduce<collective::Operation::kMax>(&cols, 1);
       this->info_.num_col_ = cols;
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
@@ -163,7 +163,7 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
 
   iter.Reset();
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
 }
 
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(BatchParam const& param) {

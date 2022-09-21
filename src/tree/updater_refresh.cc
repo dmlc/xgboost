@@ -7,14 +7,15 @@
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
-#include <vector>
 #include <limits>
+#include <vector>
 
-#include "xgboost/json.h"
-#include "./param.h"
+#include "../collective/communicator-inl.h"
 #include "../common/io.h"
 #include "../common/threading_utils.h"
 #include "../predictor/predict_fn.h"
+#include "./param.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 namespace tree {
@@ -100,8 +101,9 @@ class TreeRefresher : public TreeUpdater {
         }
       });
     };
-    rabit::Allreduce<rabit::op::Sum>(&dmlc::BeginPtr(stemp[0])->sum_grad, stemp[0].size() * 2,
-                                     lazy_get_stats);
+    lazy_get_stats();
+    collective::Allreduce<collective::Operation::kSum>(&dmlc::BeginPtr(stemp[0])->sum_grad,
+                                                       stemp[0].size() * 2);
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();

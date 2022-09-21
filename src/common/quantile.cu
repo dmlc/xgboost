@@ -500,19 +500,18 @@ void SketchContainer::FixError() {
 
 void SketchContainer::AllReduce() {
   dh::safe_cuda(cudaSetDevice(device_));
-  auto world = rabit::GetWorldSize();
+  auto world = collective::GetWorldSize();
   if (world == 1) {
     return;
   }
 
   timer_.Start(__func__);
-  if (!reducer_) {
-    reducer_ = std::make_unique<dh::AllReducer>();
-    reducer_->Init(device_);
+  if (!communicator_) {
+    communicator_ = collective::Communicator::GetDevice(device_);
   }
   // Reduce the overhead on syncing.
   size_t global_sum_rows = num_rows_;
-  rabit::Allreduce<rabit::op::Sum>(&global_sum_rows, 1);
+  collective::Allreduce<collective::Operation::kSum>(&global_sum_rows, 1);
   size_t intermediate_num_cuts =
       std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
   this->Prune(intermediate_num_cuts);
@@ -520,26 +519,24 @@ void SketchContainer::AllReduce() {
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
-  rabit::Allreduce<rabit::op::Max>(&n, 1);
+  collective::Allreduce<collective::Operation::kMax>(&n, 1);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
   // Get the columns ptr from all workers
   dh::device_vector<SketchContainer::OffsetT> gathered_ptrs;
   gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
-  size_t rank = rabit::GetRank();
+  size_t rank = collective::GetRank();
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(),
-                         gathered_ptrs.size());
+  communicator_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.size());
 
   // Get the data from all workers.
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
-  reducer_->AllGather(this->Current().data().get(),
-                      dh::ToSpan(this->Current()).size_bytes(), &recv_lengths,
-                      &recvbuf);
-  reducer_->Synchronize();
+  communicator_->AllGatherV(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
+                            &recv_lengths, &recvbuf);
+  communicator_->Synchronize();
 
   // Segment the received data.
   auto s_recvbuf = dh::ToSpan(recvbuf);

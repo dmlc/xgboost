@@ -103,7 +103,7 @@ CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
       for (auto const &grad : gpair_h) {
         grad_stat.Add(grad.GetGrad(), grad.GetHess());
       }
-      rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double *>(&grad_stat), 2);
+      collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&grad_stat), 2);
     }
 
     auto weight = evaluator_->InitRoot(GradStats{grad_stat});
@@ -320,7 +320,7 @@ void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
       ++page_id;
     }
     histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
-                              rabit::IsDistributed());
+                              collective::IsDistributed());
 
     if (param_.subsample < 1.0f) {
       CHECK_EQ(param_.sampling_method, TrainParam::kUniform)

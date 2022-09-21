@@ -58,7 +58,7 @@ from typing import (
 
 import numpy
 
-from . import config, rabit
+from . import collective, config
 from ._typing import _T, FeatureNames, FeatureTypes
 from .callback import TrainingCallback
 from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
@@ -117,7 +117,7 @@ except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
 __all__ = [
-    "RabitContext",
+    "CommunicatorContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
     "DaskXGBRegressor",
@@ -163,7 +163,7 @@ def _try_start_tracker(
         if isinstance(addrs[0], tuple):
             host_ip = addrs[0][0]
             port = addrs[0][1]
-            rabit_context = RabitTracker(
+            rabit_tracker = RabitTracker(
                 host_ip=get_host_ip(host_ip),
                 n_workers=n_workers,
                 port=port,
@@ -173,12 +173,12 @@ def _try_start_tracker(
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
             host_ip = get_host_ip(addr)
-            rabit_context = RabitTracker(
+            rabit_tracker = RabitTracker(
                 host_ip=host_ip, n_workers=n_workers, use_logger=False, sortby="task"
             )
-        env.update(rabit_context.worker_envs())
-        rabit_context.start(n_workers)
-        thread = Thread(target=rabit_context.join)
+        env.update(rabit_tracker.worker_envs())
+        rabit_tracker.start(n_workers)
+        thread = Thread(target=rabit_tracker.join)
         thread.daemon = True
         thread.start()
     except socket.error as e:
@@ -218,11 +218,11 @@ def _assert_dask_support() -> None:
         LOGGER.warning(msg)
 
 
-class RabitContext(rabit.RabitContext):
-    """A context controlling rabit initialization and finalization."""
+class CommunicatorContext(collective.CommunicatorContext):
+    """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, args: List[bytes]) -> None:
-        super().__init__(args)
+    def __init__(self, **args) -> None:
+        super().__init__(**args)
         worker = distributed.get_worker()
         with distributed.worker_client() as client:
             info = client.scheduler_info()
@@ -232,9 +232,7 @@ class RabitContext(rabit.RabitContext):
         # not the same as task ID is string and "10" is sorted before "2") with dask
         # worker ID. This outsources the rank assignment to dask and prevents
         # non-deterministic issue.
-        self.args.append(
-            (f"DMLC_TASK_ID=[xgboost.dask-{wid}]:" + str(worker.address)).encode()
-        )
+        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{wid}]:" + str(worker.address)
 
 
 def dconcat(value: Sequence[_T]) -> _T:
@@ -816,7 +814,7 @@ def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
 
 async def _get_rabit_args(
     n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
-) -> List[bytes]:
+) -> Dict[str, Union[str, int]]:
     """Get rabit context arguments from data distribution in DaskDMatrix."""
     # There are 3 possible different addresses:
     # 1. Provided by user via dask.config
@@ -855,9 +853,7 @@ async def _get_rabit_args(
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )
-
-    rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
-    return rabit_args
+    return env
 
 
 def _get_dask_config() -> Optional[Dict[str, Any]]:
@@ -912,7 +908,7 @@ async def _train_async(
 
     def dispatched_train(
         parameters: Dict,
-        rabit_args: List[bytes],
+        rabit_args: Dict[str, Union[str, int]],
         train_id: int,
         evals_name: List[str],
         evals_id: List[int],
@@ -936,7 +932,7 @@ async def _train_async(
             n_threads = dwnt
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
         local_history: TrainingCallback.EvalsLog = {}
-        with RabitContext(rabit_args), config.config_context(**global_config):
+        with CommunicatorContext(**rabit_args), config.config_context(**global_config):
             Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
             evals: List[Tuple[DMatrix, str]] = []
             for i, ref in enumerate(refs):

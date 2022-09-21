@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "collective/communicator-inl.h"
 #include "common/charconv.h"
 #include "common/common.h"
 #include "common/io.h"
@@ -476,7 +477,7 @@ class LearnerConfiguration : public Learner {
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
-    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+    if (tparam_.dsplit == DataSplitMode::kAuto && collective::IsDistributed()) {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
@@ -755,7 +756,7 @@ class LearnerConfiguration : public Learner {
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
       }
 
-      rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
+      collective::Allreduce<collective::Operation::kMax>(&num_feature, 1);
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }
@@ -1081,7 +1082,7 @@ class LearnerIO : public LearnerConfiguration {
     cfg_.insert(n.cbegin(), n.cend());
 
     // copy dsplit from config since it will not run again during restore
-    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+    if (tparam_.dsplit == DataSplitMode::kAuto && collective::IsDistributed()) {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
@@ -1226,7 +1227,7 @@ class LearnerImpl : public LearnerIO {
   }
   // Configuration before data is known.
   void CheckDataSplitMode() {
-    if (rabit::IsDistributed()) {
+    if (collective::IsDistributed()) {
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
@@ -1486,7 +1487,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     if (p_fmat->Info().num_row_ == 0) {
-      LOG(WARNING) << "Empty dataset at worker: " << rabit::GetRank();
+      LOG(WARNING) << "Empty dataset at worker: " << collective::GetRank();
     }
   }
 

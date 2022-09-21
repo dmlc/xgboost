@@ -22,7 +22,7 @@
 
 #include "c_api_error.h"
 #include "c_api_utils.h"
-#include "../collective/communicator.h"
+#include "../collective/communicator-inl.h"
 #include "../common/io.h"
 #include "../common/charconv.h"
 #include "../data/adapter.h"
@@ -210,7 +210,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
 #if defined(XGBOOST_USE_FEDERATED)
   LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
 #else
-  if (rabit::IsDistributed()) {
+  if (collective::IsDistributed()) {
     LOG(CONSOLE) << "XGBoost distributed mode detected, "
                  << "will split data among workers";
     load_row_split = true;
@@ -1371,59 +1371,54 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
   API_END();
 }
 
-using xgboost::collective::Communicator;
-
 XGB_DLL int XGCommunicatorInit(char const* json_config) {
   API_BEGIN();
-  Json config { Json::Load(StringView{json_config}) };
-  Communicator::Init(config);
+  collective::Init(json_config);
   API_END();
 }
 
 XGB_DLL int XGCommunicatorFinalize(void) {
   API_BEGIN();
-  Communicator::Finalize();
+  collective::Finalize();
   API_END();
 }
 
 XGB_DLL int XGCommunicatorGetRank(void) {
-  return Communicator::Get()->GetRank();
+  return collective::GetRank();
 }
 
 XGB_DLL int XGCommunicatorGetWorldSize(void) {
-  return Communicator::Get()->GetWorldSize();
+  return collective::GetWorldSize();
 }
 
 XGB_DLL int XGCommunicatorIsDistributed(void) {
-  return Communicator::Get()->IsDistributed();
+  return collective::IsDistributed();
 }
 
 XGB_DLL int XGCommunicatorPrint(char const *message) {
   API_BEGIN();
-  Communicator::Get()->Print(message);
+  collective::Print(message);
   API_END();
 }
 
 XGB_DLL int XGCommunicatorGetProcessorName(char const **name_str) {
   API_BEGIN();
   auto& local = *GlobalConfigAPIThreadLocalStore::Get();
-  local.ret_str = Communicator::Get()->GetProcessorName();
+  local.ret_str = collective::GetProcessorName();
   *name_str = local.ret_str.c_str();
   API_END();
 }
 
 XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root) {
   API_BEGIN();
-  Communicator::Get()->Broadcast(send_receive_buffer, size, root);
+  collective::Broadcast(send_receive_buffer, size, root);
   API_END();
 }
 
 XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
                                     int enum_op) {
   API_BEGIN();
-  Communicator::Get()->AllReduce(
-      send_receive_buffer, count, static_cast<xgboost::collective::DataType>(enum_dtype),
-      static_cast<xgboost::collective::Operation>(enum_op));
+  collective::Allreduce(send_receive_buffer, count, enum_dtype, enum_op);
   API_END();
 }
 

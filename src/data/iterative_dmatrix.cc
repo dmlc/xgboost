@@ -5,6 +5,7 @@
 
 #include <rabit/rabit.h>
 
+#include "../collective/communicator-inl.h"
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"
 #include "../tree/param.h"  // FIXME(jiamingy): Find a better way to share this parameter.
@@ -138,7 +139,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
     // We use do while here as the first batch is fetched in ctor
     if (n_features == 0) {
       n_features = num_cols();
-      rabit::Allreduce<rabit::op::Max>(&n_features, 1);
+      collective::Allreduce<collective::Operation::kMax>(&n_features, 1);
       column_sizes.resize(n_features);
       info_.num_col_ = n_features;
     } else {
@@ -156,7 +157,7 @@ void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
   // From here on Info() has the correct data shape
   Info().num_row_ = accumulated_rows;
   Info().num_nonzero_ = nnz;
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
   CHECK(std::none_of(column_sizes.cbegin(), column_sizes.cend(), [&](auto f) {
     return f > accumulated_rows;
   })) << "Something went wrong during iteration.";

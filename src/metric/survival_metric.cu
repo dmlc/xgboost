@@ -214,7 +214,7 @@ template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
                                   info.labels_upper_bound_, preds);
 
     double dat[2]{result.Residue(), result.Weights()};
-    rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    collective::Allreduce<collective::Operation::kSum>(dat, 2);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 

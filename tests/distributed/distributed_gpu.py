@@ -8,9 +8,9 @@ import numpy as np
 def run_test(name, params_fun):
     """Runs a distributed GPU test."""
     # Always call this before using distributed module
-    with xgb.rabit.RabitContext():
-        rank = xgb.rabit.get_rank()
-        world = xgb.rabit.get_world_size()
+    with xgb.collective.CommunicatorContext():
+        rank = xgb.collective.get_rank()
+        world = xgb.collective.get_world_size()
 
         # Load file, file will be automatically sharded in distributed mode.
         dtrain = xgb.DMatrix('../../demo/data/agaricus.txt.train')
@@ -28,8 +28,8 @@ def run_test(name, params_fun):
         # Have each worker save its model
         model_name = "test.model.%s.%d" % (name, rank)
         bst.dump_model(model_name, with_stats=True)
-        xgb.rabit.allreduce(np.ones((1, 1)), xgb.rabit.Op.MAX)  # sync
-        xgb.rabit.tracker_print("Finished training\n")
+        xgb.collective.allreduce(np.ones((1, 1)), xgb.collective.Op.MAX)  # sync
+        xgb.collective.communicator_print("Finished training\n")
 
         if (rank == 0):
             for i in range(0, world):

@@ -35,7 +35,7 @@ def run_worker(port: int, world_size: int, rank: int, with_ssl: bool, with_gpu: 
         ]
 
     # Always call this before using distributed module
-    with xgb.rabit.RabitContext([e.encode() for e in rabit_env]):
+    with xgb.collective.CommunicatorContext([e.encode() for e in rabit_env]):
         # Load file, file will not be sharded in federated mode.
         dtrain = xgb.DMatrix('agaricus.txt.train-%02d' % rank)
         dtest = xgb.DMatrix('agaricus.txt.test-%02d' % rank)

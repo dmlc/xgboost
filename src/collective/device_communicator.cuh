@@ -21,7 +21,21 @@ class DeviceCommunicator {
    * @param send_receive_buffer Buffer storing the data.
    * @param count               Number of elements in the buffer.
    */
-  virtual void AllReduceSum(double *send_receive_buffer, int count) = 0;
+  virtual void AllReduceSum(float *send_receive_buffer, size_t count) = 0;
+
+  /**
+   * @brief Sum values from all processes and distribute the result back to all processes.
+   * @param send_receive_buffer Buffer storing the data.
+   * @param count               Number of elements in the buffer.
+   */
+  virtual void AllReduceSum(double *send_receive_buffer, size_t count) = 0;
+
+  /**
+   * @brief Sum values from all processes and distribute the result back to all processes.
+   * @param send_receive_buffer Buffer storing the data.
+   * @param count               Number of elements in the buffer.
+   */
+  virtual void AllReduceSum(uint64_t *send_receive_buffer, size_t count) = 0;
 
   /**
    * @brief Gather variable-length values from all processes.

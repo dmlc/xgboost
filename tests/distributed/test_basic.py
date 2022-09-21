@@ -2,7 +2,7 @@
 import xgboost as xgb
 
 # Always call this before using distributed module
-with xgb.rabit.RabitContext():
+with xgb.collective.CommunicatorContext():
     # Load file, file will be automatically sharded in distributed mode.
     dtrain = xgb.DMatrix('../../demo/data/agaricus.txt.train')
     dtest = xgb.DMatrix('../../demo/data/agaricus.txt.test')
@@ -19,6 +19,6 @@ with xgb.rabit.RabitContext():
     bst = xgb.train(param, dtrain, num_round, watchlist, early_stopping_rounds=2)
 
     # Save the model, only ask process 0 to save the model.
-    if xgb.rabit.get_rank() == 0:
+    if xgb.collective.get_rank() == 0:
         bst.save_model("test.model")
-        xgb.rabit.tracker_print("Finished training\n")
+        xgb.collective.tracker_print("Finished training\n")

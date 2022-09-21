@@ -13,6 +13,8 @@
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
 
+#include "collective/communicator-inl.h"
+
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 // Override logging mechanism for non-R interfaces
 void dmlc::CustomLogMessage::Log(const std::string& msg) {
@@ -32,7 +34,7 @@ ConsoleLogger::~ConsoleLogger() {
 
 TrackerLogger::~TrackerLogger() {
   log_stream_ << '\n';
-  rabit::TrackerPrint(log_stream_.str());
+  collective::Print(log_stream_.str());
 }
 
 }  // namespace xgboost
