@@ -1,36 +1,39 @@
-from xgboost import RabitTracker
-import xgboost as xgb
+import re
+import sys
+
+import numpy as np
 import pytest
 import testing as tm
-import numpy as np
-import sys
-import re
+
+import xgboost as xgb
+from xgboost import RabitTracker, testing
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 
 def test_rabit_tracker():
-    tracker = RabitTracker(host_ip='127.0.0.1', n_workers=1)
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=1)
     tracker.start(1)
     with xgb.collective.CommunicatorContext(**tracker.worker_envs()):
-        ret = xgb.collective.broadcast('test1234', 0)
-        assert str(ret) == 'test1234'
+        ret = xgb.collective.broadcast("test1234", 0)
+        assert str(ret) == "test1234"
 
 
 def run_rabit_ops(client, n_workers):
     from test_with_dask import _get_client_workers
-    from xgboost.dask import RabitContext, _get_rabit_args
+    from xgboost.dask import CommunicatorContext, _get_dask_config, _get_rabit_args
+
     from xgboost import collective
 
     workers = _get_client_workers(client)
-    rabit_args = client.sync(_get_rabit_args, len(workers), None, client)
+    rabit_args = client.sync(_get_rabit_args, len(workers), _get_dask_config(), client)
     assert not collective.is_distributed()
     n_workers_from_dask = len(workers)
     assert n_workers == n_workers_from_dask
 
     def local_test(worker_id):
-        with RabitContext(rabit_args):
+        with CommunicatorContext(**rabit_args):
             a = 1
             assert collective.is_distributed()
             a = np.array([a])
@@ -51,10 +54,24 @@ def run_rabit_ops(client, n_workers):
 @pytest.mark.skipif(**tm.no_dask())
 def test_rabit_ops():
     from distributed import Client, LocalCluster
+
     n_workers = 3
     with LocalCluster(n_workers=n_workers) as cluster:
         with Client(cluster) as client:
             run_rabit_ops(client, n_workers)
+
+
+@pytest.mark.skipif(**testing.skip_ipv6())
+@pytest.mark.skipif(**tm.no_dask())
+def test_rabit_ops_ipv6():
+    import dask
+    from distributed import Client, LocalCluster
+
+    n_workers = 3
+    with dask.config.set({"xgboost.scheduler_address": "[::1]"}):
+        with LocalCluster(n_workers=n_workers, host="[::1]") as cluster:
+            with Client(cluster) as client:
+                run_rabit_ops(client, n_workers)
 
 
 def test_rank_assignment() -> None:

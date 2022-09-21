@@ -201,8 +201,8 @@ class AllreduceBase : public IEngine {
     }
   };
   /*! \brief translate errno to return type */
-  inline static ReturnType Errno2Return() {
-    int errsv = utils::Socket::GetLastError();
+  static ReturnType Errno2Return() {
+    int errsv = xgboost::system::LastError();
     if (errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == 0) return kSuccess;
 #ifdef _WIN32
     if (errsv == WSAEWOULDBLOCK) return kSuccess;
@@ -215,7 +215,7 @@ class AllreduceBase : public IEngine {
   struct LinkRecord {
    public:
     // socket to get data from/to link
-    utils::TCPSocket sock;
+    xgboost::collective::TCPSocket sock;
     // rank of the node in this link
     int rank;
     // size of data readed from link
@@ -329,7 +329,7 @@ class AllreduceBase : public IEngine {
    * \brief initialize connection to the tracker
    * \return a socket that initializes the connection
    */
-  utils::TCPSocket ConnectTracker() const;
+  xgboost::collective::TCPSocket ConnectTracker() const;
   /*!
    * \brief connect to the tracker to fix the the missing links
    *   this function is also used when the engine start up
@@ -473,8 +473,6 @@ class AllreduceBase : public IEngine {
   std::string dmlc_role;  // NOLINT
   // port of tracker address
   int tracker_port;  // NOLINT
-  // port of slave process
-  int slave_port, nport_trial;  // NOLINT
   // reduce buffer size
   size_t reduce_buffer_size;  // NOLINT
   // reduction method
