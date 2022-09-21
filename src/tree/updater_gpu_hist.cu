@@ -284,6 +284,7 @@ struct GPUHistMakerDevice {
         matrix.feature_segments,
         matrix.gidx_fvalue_map,
         matrix.min_fvalue,
+        matrix.is_dense
     };
     auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
     return split;
@@ -300,6 +301,7 @@ struct GPUHistMakerDevice {
     EvaluateSplitSharedInputs shared_inputs{
         GPUTrainingParam{param}, *histogram_rounding, feature_types,     matrix.feature_segments,
         matrix.gidx_fvalue_map,  matrix.min_fvalue,
+        matrix.is_dense
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     for (size_t i = 0; i < candidates.size(); i++) {

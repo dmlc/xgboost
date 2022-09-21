@@ -57,7 +57,7 @@ TEST_F(TestCategoricalSplitWithMissing, GPUHistEvaluator) {
       d_feature_types,
       cuts_.cut_ptrs_.ConstDeviceSpan(),
       cuts_.cut_values_.ConstDeviceSpan(),
-      cuts_.min_vals_.ConstDeviceSpan(),
+      cuts_.min_vals_.ConstDeviceSpan(), false
   };
 
   GPUHistEvaluator evaluator{param_, static_cast<bst_feature_t>(feature_set.size()), 0};

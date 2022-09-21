@@ -86,6 +86,9 @@ class EvaluateSplitAgent {
         evaluator(evaluator),missing(parent_sum - ReduceFeature()) {
     static_assert(kBlockSize == 32,
                   "This kernel relies on the assumption block_size == warp_size");
+      // There should be no missing value gradients for a dense matrix
+      KERNEL_CHECK(!shared_inputs.is_dense || missing.GetQuantisedHess() == 0);
+    
   }
   __device__ GradientPairInt64 ReduceFeature() {
     GradientPairInt64 local_sum;
