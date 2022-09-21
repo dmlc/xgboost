@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2015 by Contributors
+ *  Copyright (c) 2015-2022 by Contributors
  * \file c_api_error.h
  * \brief Error handling for C API.
  */

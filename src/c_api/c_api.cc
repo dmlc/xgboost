@@ -1294,8 +1294,8 @@ XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
                                  const char*** out_models) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(fmap);
 
+  xgboost_CHECK_C_ARG_PTR(fmap);
   std::string uri{fmap};
   FeatureMap featmap = LoadFeatureMap(uri);
   XGBoostDumpModelImpl(handle, &featmap, with_stats, format, len, out_models);
@@ -1400,8 +1400,10 @@ XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
   std::vector<std::string> feature_info;
-  for (size_t i = 0; i < size; ++i) {
+  if (size > 0) {
     xgboost_CHECK_C_ARG_PTR(features);
+  }
+  for (size_t i = 0; i < size; ++i) {
     feature_info.emplace_back(features[i]);
   }
 
