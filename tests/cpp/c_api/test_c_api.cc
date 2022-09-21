@@ -316,4 +316,6 @@ TEST(CAPI, BuildInfo) {
   ASSERT_TRUE(get<Object const>(loaded).find("USE_CUDA") != get<Object const>(loaded).cend());
   ASSERT_TRUE(get<Object const>(loaded).find("USE_NCCL") != get<Object const>(loaded).cend());
 }
+
+TEST(CAPI, NullPtr) { ASSERT_EQ(XGBSetGlobalConfig(nullptr), -1); }
 }  // namespace xgboost
