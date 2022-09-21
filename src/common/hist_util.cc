@@ -142,7 +142,7 @@ constexpr size_t Prefetch::kNoPrefetchSize;
 struct RuntimeFlags {
   const bool first_page;
   const bool read_by_column;
-  const size_t bin_type_size;
+  const BinTypeSize bin_type_size;
 };
 
 template <bool _any_missing,
@@ -189,8 +189,9 @@ class GHistBuildingManager {
     } else if (flags.bin_type_size != sizeof(BinIdxType)) {
       DispatchBinType(flags.bin_type_size, [&](auto t) {
         using NewBinIdxType = decltype(t);
-        set_bin_idx_type<NewBinIdxType>::type::DispatchAndExecute(flags, std::forward<Fn>(fn));
-      }
+        using NewBuildingManager = typename type::set_bin_idx_type<NewBinIdxType>::type;
+        NewBuildingManager::DispatchAndExecute(flags, std::forward<Fn>(fn));
+      });
     } else {
       fn(type());
     }
