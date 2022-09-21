@@ -15,17 +15,17 @@ namespace xgboost {
 namespace tree {
 
 // With constraints
-XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
-                                       const GradientPairPrecise &missing,
-                                       const GradientPairPrecise &parent_sum,
+XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
+                                       const GradientPairInt64 &missing,
+                                       const GradientPairInt64 &parent_sum,
                                        const GPUTrainingParam &param, bst_node_t nidx,
                                        bst_feature_t fidx,
                                        TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-                                       bool &missing_left_out) {  // NOLINT
+                                       bool &missing_left_out, const GradientQuantizer& quantiser) {  // NOLINT
   const auto left_sum = scan + missing;
   float missing_left_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, left_sum, parent_sum - left_sum);
-  float missing_right_gain = evaluator.CalcSplitGain(param, nidx, fidx, scan, parent_sum - scan);
+      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum), quantiser.ToFloatingPoint(parent_sum - left_sum));
+  float missing_right_gain = evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan), quantiser.ToFloatingPoint(parent_sum - scan));
 
   missing_left_out = missing_left_gain > missing_right_gain;
   return missing_left_out?missing_left_gain:missing_right_gain;
@@ -42,9 +42,9 @@ template <int kBlockSize>
 class EvaluateSplitAgent {
  public:
   using ArgMaxT = cub::KeyValuePair<int, float>;
-  using BlockScanT = cub::BlockScan<GradientPairPrecise, kBlockSize>;
+  using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
-  using SumReduceT = cub::WarpReduce<GradientPairPrecise>;
+  using SumReduceT = cub::WarpReduce<GradientPairInt64>;
 
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
@@ -61,11 +61,11 @@ class EvaluateSplitAgent {
   const GradientPairInt64 *node_histogram;
   const GradientQuantizer &rounding;
   const GradientPairInt64 parent_sum;
-  const GradientPairPrecise missing;
+  const GradientPairInt64 missing;
   const GPUTrainingParam &param;
   const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator;
   TempStorage *temp_storage;
-  SumCallbackOp<GradientPairPrecise> prefix_op;
+  SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
   __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
@@ -83,43 +83,41 @@ class EvaluateSplitAgent {
         rounding(shared_inputs.rounding),
         parent_sum(dh::LDGIterator<GradientPairInt64>(&inputs.parent_sum)[0]),
         param(shared_inputs.param),
-        evaluator(evaluator),
-        missing(rounding.ToFloatingPoint(parent_sum) - ReduceFeature()) {
+        evaluator(evaluator),missing(parent_sum - ReduceFeature()) {
     static_assert(kBlockSize == 32,
                   "This kernel relies on the assumption block_size == warp_size");
   }
-  __device__ GradientPairPrecise ReduceFeature() {
-    GradientPairPrecise local_sum;
+  __device__ GradientPairInt64 ReduceFeature() {
+    GradientPairInt64 local_sum;
     for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += kBlockSize) {
-      local_sum += LoadGpair(node_histogram + idx);
+      local_sum +=LoadGpair(node_histogram + idx); 
     }
     local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);
     // Broadcast result from thread 0
-    return {__shfl_sync(0xffffffff, local_sum.GetGrad(), 0),
-            __shfl_sync(0xffffffff, local_sum.GetHess(), 0)};
+    return {__shfl_sync(0xffffffff, local_sum.GetQuantisedGrad(), 0),
+            __shfl_sync(0xffffffff, local_sum.GetQuantisedHess(), 0)};
   }
 
   // Load using efficient 128 vector load instruction
-  __device__ __forceinline__ GradientPairPrecise LoadGpair(const GradientPairInt64 *ptr) {
+  __device__ __forceinline__ GradientPairInt64 LoadGpair(const GradientPairInt64 *ptr) {
     float4 tmp = *reinterpret_cast<const float4 *>(ptr);
-    auto gpair_int = *reinterpret_cast<const GradientPairInt64 *>(&tmp);
-    static_assert(sizeof(decltype(gpair_int)) == sizeof(float4),
+    auto gpair = *reinterpret_cast<const GradientPairInt64 *>(&tmp);
+    static_assert(sizeof(decltype(gpair)) == sizeof(float4),
                   "Vector type size does not match gradient pair size.");
-    return rounding.ToFloatingPoint(gpair_int);
+    return gpair;
   }
 
   __device__ __forceinline__ void Numerical(DeviceSplitCandidate *__restrict__ best_split) {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
-      GradientPairPrecise bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
-                                              : GradientPairPrecise();
+      GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
+                                              : GradientPairInt64();
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, rounding.ToFloatingPoint(parent_sum), param, nidx, fidx,
-                                                     evaluator, missing_left)
+      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
+                                                     evaluator, missing_left, rounding)
                                  : kNullGain;
-
       // Find thread with best gain
       auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
       // This reduce result is only valid in thread 0
@@ -132,9 +130,9 @@ class EvaluateSplitAgent {
         int split_gidx = (scan_begin + threadIdx.x) - 1;
         float fvalue =
             split_gidx < static_cast<int>(gidx_begin) ? min_fvalue : feature_values[split_gidx];
-        GradientPairPrecise left = missing_left ? bin + missing : bin;
-        GradientPairPrecise right = rounding.ToFloatingPoint(parent_sum) - left;
-        best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, rounding.ToFixedPoint(left), rounding.ToFixedPoint(right),
+        GradientPairInt64 left = missing_left ? bin + missing : bin;
+        GradientPairInt64 right = parent_sum - left;
+        best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
                            false, param, rounding);
       }
     }
@@ -145,12 +143,12 @@ class EvaluateSplitAgent {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
       auto rest = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
-                                : GradientPairPrecise();
-      GradientPairPrecise bin = rounding.ToFloatingPoint(parent_sum) - rest - missing;
+                                : GradientPairInt64();
+      GradientPairInt64 bin = parent_sum - rest - missing;
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
-      float gain = thread_active ? LossChangeMissing(bin, missing, rounding.ToFloatingPoint(parent_sum), param, nidx, fidx,
-                                                     evaluator, missing_left)
+      float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,
+                                                     evaluator, missing_left, rounding)
                                  : kNullGain;
 
       // Find thread with best gain
@@ -162,10 +160,10 @@ class EvaluateSplitAgent {
       if (threadIdx.x == best_thread) {
         int32_t split_gidx = (scan_begin + threadIdx.x);
         float fvalue = feature_values[split_gidx];
-        GradientPairPrecise left = missing_left ? bin + missing : bin;
-        GradientPairPrecise right = rounding.ToFloatingPoint(parent_sum) - left;
+        GradientPairInt64 left = missing_left ? bin + missing : bin;
+        GradientPairInt64 right = parent_sum - left;
         best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir,
-                              static_cast<bst_cat_t>(fvalue), fidx, rounding.ToFixedPoint(left), rounding.ToFixedPoint(right), param, rounding);
+                              static_cast<bst_cat_t>(fvalue), fidx, left, right, param, rounding);
       }
     }
   }
@@ -174,11 +172,13 @@ class EvaluateSplitAgent {
    */
   __device__ __forceinline__ void PartitionUpdate(bst_bin_t scan_begin, bool thread_active,
                                                   bool missing_left, bst_bin_t it,
-                                                  GradientPairPrecise const &left_sum,
-                                                  GradientPairPrecise const &right_sum,
+                                                  GradientPairInt64 const &left_sum,
+                                                  GradientPairInt64 const &right_sum,
                                                   DeviceSplitCandidate *__restrict__ best_split) {
-    auto gain =
-        thread_active ? evaluator.CalcSplitGain(param, nidx, fidx, left_sum, right_sum) : kNullGain;
+    auto gain = thread_active
+                    ? evaluator.CalcSplitGain(param, nidx, fidx, rounding.ToFloatingPoint(left_sum),
+                                              rounding.ToFloatingPoint(right_sum))
+                    : kNullGain;
 
     // Find thread with best gain
     auto best = MaxReduceT(temp_storage->max_reduce).Reduce({threadIdx.x, gain}, cub::ArgMax());
@@ -190,8 +190,8 @@ class EvaluateSplitAgent {
       assert(thread_active);
       // index of best threshold inside a feature.
       auto best_thresh = it - gidx_begin;
-      best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, rounding.ToFixedPoint(left_sum),
-                            rounding.ToFixedPoint(right_sum), param, rounding);
+      best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left_sum,
+                            right_sum, param, rounding);
     }
   }
   /**
@@ -213,10 +213,10 @@ class EvaluateSplitAgent {
       bool thread_active = it < it_end;
 
       auto right_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - node_offset)
-                                     : GradientPairPrecise();
+                                     : GradientPairInt64();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(right_sum, right_sum, prefix_op);
-      GradientPairPrecise left_sum = rounding.ToFloatingPoint(parent_sum) - right_sum;
+      GradientPairInt64 left_sum = parent_sum - right_sum;
 
       PartitionUpdate(scan_begin, thread_active, true, it, left_sum, right_sum, best_split);
     }
@@ -224,17 +224,17 @@ class EvaluateSplitAgent {
     // backward
     it_begin = gidx_end - 1;
     it_end = it_begin - n_bins + 1;
-    prefix_op = SumCallbackOp<GradientPairPrecise>{};  // reset
+    prefix_op = SumCallbackOp<GradientPairInt64>{};  // reset
 
     for (bst_bin_t scan_begin = it_begin; scan_begin > it_end; scan_begin -= kBlockSize) {
       auto it = scan_begin - static_cast<bst_bin_t>(threadIdx.x);
       bool thread_active = it > it_end;
 
       auto left_sum = thread_active ? LoadGpair(node_histogram + sorted_idx[it] - node_offset)
-                                    : GradientPairPrecise();
+                                    : GradientPairInt64();
       // No min value for cat feature, use inclusive scan.
       BlockScanT(temp_storage->scan).InclusiveSum(left_sum, left_sum, prefix_op);
-      GradientPairPrecise right_sum = rounding.ToFloatingPoint(parent_sum) - left_sum;
+      GradientPairInt64 right_sum = parent_sum - left_sum;
 
       PartitionUpdate(scan_begin, thread_active, false, it, left_sum, right_sum, best_split);
     }
