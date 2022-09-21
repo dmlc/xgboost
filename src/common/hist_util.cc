@@ -236,16 +236,20 @@ void ColsWiseBuildHistKernel(const std::vector<GradientPair> &gpair,
       const size_t row_id = rid[i];
       const size_t icol_start =
           any_missing ? get_row_ptr(row_id) : get_rid(row_id) * n_features;
+      const size_t icol_end =
+        any_missing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
 
-      const BinIdxType *gr_index_local = gradient_index + icol_start;
-      const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[cid]) + offset);
-      auto hist_local = hist_data + idx_bin;
+      if (cid < icol_end - icol_start) {
+        const BinIdxType *gr_index_local = gradient_index + icol_start;
+        const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[cid]) + offset);
+        auto hist_local = hist_data + idx_bin;
 
-      const size_t idx_gh = two * row_id;
-      // The trick with pgh_t buffer helps the compiler to generate faster binary.
-      const float pgh_t[] = {pgh[idx_gh], pgh[idx_gh + 1]};
-      *(hist_local)     += pgh_t[0];
-      *(hist_local + 1) += pgh_t[1];
+        const size_t idx_gh = two * row_id;
+        // The trick with pgh_t buffer helps the compiler to generate faster binary.
+        const float pgh_t[] = {pgh[idx_gh], pgh[idx_gh + 1]};
+        *(hist_local)     += pgh_t[0];
+        *(hist_local + 1) += pgh_t[1];
+      }
     }
   }
 }
@@ -310,20 +314,26 @@ template <bool any_missing>
 void GHistBuilder::BuildHist(const std::vector<GradientPair> &gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix &gmat,
-                             GHistRow hist) const {
+                             GHistRow hist, bool force_read_by_column) const {
+  /* force_read_by_column is used for testing the columnwise building of histograms.
+   * default force_read_by_column = false
+   */
   constexpr double kAdhocL2Size = 1024 * 1024 * 0.8;
   const bool hist_fit_to_l2 = kAdhocL2Size > 2*sizeof(float)*gmat.cut.Ptrs().back();
-  bool read_by_column = !hist_fit_to_l2 && !any_missing;
+  const bool read_by_column = !hist_fit_to_l2 && !any_missing;
 
-  BuildHistDispatch<any_missing>(gpair, row_indices, gmat, hist, read_by_column);
+  BuildHistDispatch<any_missing>(gpair, row_indices, gmat, hist, read_by_column ||
+                                                                 force_read_by_column);
 }
 
 template void GHistBuilder::BuildHist<true>(const std::vector<GradientPair> &gpair,
                                             const RowSetCollection::Elem row_indices,
-                                            const GHistIndexMatrix &gmat, GHistRow hist) const;
+                                            const GHistIndexMatrix &gmat, GHistRow hist,
+                                            bool force_read_by_column) const;
 
 template void GHistBuilder::BuildHist<false>(const std::vector<GradientPair> &gpair,
                                              const RowSetCollection::Elem row_indices,
-                                             const GHistIndexMatrix &gmat, GHistRow hist) const;
+                                             const GHistIndexMatrix &gmat, GHistRow hist,
+                                             bool force_read_by_column) const;
 }  // namespace common
 }  // namespace xgboost
