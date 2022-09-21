@@ -181,7 +181,7 @@ class GHistBuildingManager {
    *  and forward the call there.
    */
   template <typename Fn>
-  void static DispatchAndExecute(const RuntimeFlags& flags, Fn&& fn) {
+  static void DispatchAndExecute(const RuntimeFlags& flags, Fn&& fn) {
     if (flags.first_page != kFirstPage) {
       set_first_page<true>::type::DispatchAndExecute(flags, std::forward<Fn>(fn));
     } else if (flags.read_by_column != kReadByColumn) {
@@ -189,8 +189,7 @@ class GHistBuildingManager {
     } else if (flags.bin_type_size != sizeof(BinIdxType)) {
       DispatchBinType(flags.bin_type_size, [&](auto t) {
         using NewBinIdxType = decltype(t);
-        using NewBuildingManager = typename type::set_bin_idx_type<NewBinIdxType>::type;
-        NewBuildingManager::DispatchAndExecute(flags, std::forward<Fn>(fn));
+        set_bin_idx_type<NewBinIdxType>::type::DispatchAndExecute(flags, std::forward<Fn>(fn));
       });
     } else {
       fn(type());
