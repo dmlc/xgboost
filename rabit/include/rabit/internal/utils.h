@@ -8,15 +8,17 @@
 #define RABIT_INTERNAL_UTILS_H_
 
 #include <rabit/base.h>
-#include <cstring>
+
+#include <cstdarg>
 #include <cstdio>
-#include <string>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
+#include <string>
 #include <vector>
+
 #include "dmlc/io.h"
 #include "xgboost/logging.h"
-#include <cstdarg>
 
 #if !defined(__GNUC__) || defined(__FreeBSD__)
 #define fopen64 std::fopen
