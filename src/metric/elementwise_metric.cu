@@ -12,6 +12,7 @@
 
 #include <cmath>
 
+#include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/pseudo_huber.h"

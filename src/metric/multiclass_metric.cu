@@ -11,6 +11,7 @@
 #include <cmath>
 
 #include "metric_common.h"
+#include "../collective/communicator-inl.h"
 #include "../common/math.h"
 #include "../common/common.h"
 #include "../common/threading_utils.h"
