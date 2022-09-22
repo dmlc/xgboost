@@ -16,6 +16,7 @@
 #include "xgboost/host_device_vector.h"
 
 #include "metric_common.h"
+#include "../collective/communicator-inl.h"
 #include "../common/math.h"
 #include "../common/survival_util.h"
 #include  "../common/threading_utils.h"
