@@ -531,11 +531,10 @@ struct GPUHistMakerDevice {
   void AllReduceHist(int nidx, dh::AllReducer* reducer, int num_histograms) {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
-    reducer->AllReduceSum(reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-                          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-                          page->Cuts().TotalBins() *
-                              (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)) *
-                              num_histograms);
+    using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
+    reducer->AllReduceSum(reinterpret_cast<ReduceT*>(d_node_hist),
+                          reinterpret_cast<ReduceT*>(d_node_hist),
+                          page->Cuts().TotalBins() * 2 * num_histograms);
 
     monitor.Stop("AllReduce");
   }

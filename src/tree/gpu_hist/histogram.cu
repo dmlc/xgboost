@@ -66,7 +66,7 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
     auto ph = Pclip(x.GetHess());
 
     auto ng = Nclip(x.GetGrad());
-    auto nh = Nclip(x.GetHess());
+    auto nh = Pclip(x.GetHess());
 
     return {GradientPair{pg, ph}, GradientPair{ng, nh}};
   }
@@ -78,17 +78,22 @@ GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
   dh::XGBCachingDeviceAllocator<char> alloc;
 
   thrust::device_ptr<GradientPair const> gpair_beg{gpair.data()};
-  thrust::device_ptr<GradientPair const> gpair_end{gpair.data() + gpair.size()};
   auto beg = thrust::make_transform_iterator(gpair_beg, Clip());
-  auto end = thrust::make_transform_iterator(gpair_end, Clip());
-  Pair p = dh::Reduce(thrust::cuda::par(alloc), beg, end, Pair{}, thrust::plus<Pair>{});
+  Pair p =
+      dh::Reduce(thrust::cuda::par(alloc), beg, beg + gpair.size(), Pair{}, thrust::plus<Pair>{});
+  // Treat pair as array of 4 primitive types to allreduce
+  using ReduceT = typename decltype(p.first)::ValueT;
+  static_assert(sizeof(Pair) == sizeof(ReduceT) * 4);
+  rabit::Allreduce<rabit::op::Sum, ReduceT>(reinterpret_cast<ReduceT*>(&p), 4);
   GradientPair positive_sum{p.first}, negative_sum{p.second};
 
-  auto histogram_rounding =
-      GradientSumT{CreateRoundingFactor<T>(std::max(positive_sum.GetGrad(), negative_sum.GetGrad()),
-                                           gpair.size()),
-                   CreateRoundingFactor<T>(std::max(positive_sum.GetHess(), negative_sum.GetHess()),
-                                           gpair.size())};
+  std::size_t total_rows = gpair.size();
+  rabit::Allreduce<rabit::op::Sum>(&total_rows, 1);
+
+  auto histogram_rounding = GradientSumT{
+      CreateRoundingFactor<T>(std::max(positive_sum.GetGrad(), negative_sum.GetGrad()), total_rows),
+      CreateRoundingFactor<T>(std::max(positive_sum.GetHess(), negative_sum.GetHess()),
+                              total_rows)};
 
   using IntT = typename GradientPairInt64::ValueT;
 
