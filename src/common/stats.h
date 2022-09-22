@@ -93,7 +93,7 @@ float WeightedQuantile(double alpha, Iter begin, Iter end, WeightIter weights) {
   return val(idx);
 }
 
-namespace cuda {
+namespace cuda_impl {
 float Median(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWeights weights);
 #if !defined(XGBOOST_USE_CUDA)
 inline float Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights) {
@@ -101,26 +101,10 @@ inline float Median(Context const*, linalg::TensorView<float const, 2>, Optional
   return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
-
-float Mean(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWeights weights);
-
-#if !defined(XGBOOST_USE_CUDA)
-inline float Mean(Context const*, linalg::TensorView<float const, 2>, OptionalWeights) {
-  AssertGPUSupport();
-  return 0;
-}
-#endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace cuda
+}  // namespace cuda_impl
 
 float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
              HostDeviceVector<float> const& weights);
-
-/**
- * \brief Calculate mean or partial mean. Weight is per-sample, which means if weight is
- *        not empty then it should contain 1 element for each row in t.
- */
-float Mean(Context const* ctx, linalg::Tensor<float, 2> const& t,
-           HostDeviceVector<float> const& weights);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_H_

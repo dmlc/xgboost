@@ -13,7 +13,7 @@
 
 namespace xgboost {
 namespace common {
-namespace cuda {
+namespace cuda_impl {
 float Median(Context const* ctx, linalg::TensorView<float const, 2> t,
              common::OptionalWeights weights) {
   HostDeviceVector<size_t> segments{0, t.Size()};
@@ -58,6 +58,6 @@ float Mean(Context const* ctx, linalg::TensorView<float const, 2> t,
   auto mean = thrust::reduce(thrust::cuda::par(alloc), val_it, val_it + t.Size(), 0.0f);
   return mean;
 }
-}  // namespace cuda
+}  // namespace cuda_impl
 }  // namespace common
 }  // namespace xgboost

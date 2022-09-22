@@ -69,24 +69,5 @@ TEST(Stats, Median) {
   ASSERT_EQ(m, .5f);
 #endif  // defined(XGBOOST_USE_CUDA)
 }
-
-
-TEST(Stats, Mean) {
-  Context ctx;
-  linalg::Tensor<float, 2> arr({1.f, 2.f, 3.f, 4.f}, {2, 2}, Context::kCpuId);
-  HostDeviceVector<float> weights;
-  auto mean = Mean(&ctx, arr, weights);
-  ASSERT_EQ(mean, 2.5);
-
-  weights.Resize(2, 1.0f);
-  mean = Mean(&ctx, arr, weights);
-  ASSERT_EQ(mean, 2.5);
-
-#if defined(XGBOOST_USE_CUDA)
-  ctx.gpu_id = 0;
-  mean = Mean(&ctx, arr, weights);
-  ASSERT_EQ(mean, 2.5);
-#endif  // defined(XGBOOST_USE_CUDA)
-}
 }  // namespace common
 }  // namespace xgboost
