@@ -2,10 +2,10 @@
  * Copyright 2021 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 
 #include "../../../src/data/sparse_page_source.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost {

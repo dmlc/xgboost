@@ -1,0 +1,2 @@
+boto3
+cfn_tools

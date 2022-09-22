@@ -1,0 +1,26 @@
+name: BuildKiteLinuxAMD64GPUBootstrap
+description: Set up worker image for linux-amd64-gpu pipeline
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: SetupStep
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              yum groupinstall -y "Development tools"
+              yum install -y kernel-devel-$(uname -r)
+              aws s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+              chmod +x NVIDIA-Linux-x86_64*.run
+              CC=/usr/bin/gcc10-cc ./NVIDIA-Linux-x86_64*.run --silent
+
+              amazon-linux-extras install docker
+              systemctl --now enable docker
+              distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
+                 && curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.repo \
+                  | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+              yum clean expire-cache
+              yum install -y nvidia-docker2
+              systemctl restart docker

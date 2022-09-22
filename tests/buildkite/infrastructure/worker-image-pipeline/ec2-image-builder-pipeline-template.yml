@@ -1,0 +1,108 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "EC2 Image Builder pipelines to build workers"
+
+Parameters:
+  BaseImageId:
+    Type: String
+    Description: Base AMI to build a new image on top of.
+
+  BootstrapScript:
+    Type: String
+    Description: Content of AMI customization script
+
+  InstanceType:
+    Type: String
+    Description: Instance type for the Image Builder instances.
+
+  InstanceOperatingSystem:
+    Type: String
+    Description: The operating system to run on the instance
+    AllowedValues:
+      - Linux
+      - Windows
+    Default: "Linux"
+
+  VolumeSize:
+    Type: Number
+    Description: Size of EBS volume, in GiBs
+
+Conditions:
+  IsInstanceWindows:
+    !Equals [ !Ref InstanceOperatingSystem, "Windows" ]
+
+Resources:
+  # IAM role for the image builder instance
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  # Component that runs the bootstrap script
+  BootstrapComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub "${AWS::StackName}-bootstrap-component"
+      Platform: !Ref InstanceOperatingSystem
+      Version: "1.0.0"
+      Description: Execute a bootstrap script.
+      Data: !Ref BootstrapScript
+
+  Recipe:
+    Type: AWS::ImageBuilder::ImageRecipe
+    Properties:
+      Name: !Sub "${AWS::StackName}-image"
+      Components:
+        - ComponentArn: !Ref BootstrapComponent
+      ParentImage: !Ref BaseImageId
+      BlockDeviceMappings:
+      - DeviceName: !If [IsInstanceWindows, "/dev/sda1", "/dev/xvda"]
+        Ebs:
+          DeleteOnTermination: true
+          Encrypted: false
+          VolumeSize: !Ref VolumeSize
+          VolumeType: gp2
+      Version: "1.0.0"
+
+  Infrastructure:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: !Sub "${AWS::StackName}-image-pipeline-infrastructure"
+      InstanceProfileName: !Ref InstanceProfile
+      InstanceTypes:
+        - !Ref InstanceType
+      TerminateInstanceOnFailure: true
+
+  # Copy to this region only
+  Distribution:
+    Type: AWS::ImageBuilder::DistributionConfiguration
+    Properties:
+      Name: !Sub "${AWS::StackName}-image-pipeline-distribution-config"
+      Distributions:
+        - Region: !Ref AWS::Region
+          AmiDistributionConfiguration: {}
+
+  # Composition of the above elements
+  Pipeline:
+    Type: AWS::ImageBuilder::ImagePipeline
+    Properties:
+      Name: !Sub "${AWS::StackName}-image-pipeline"
+      DistributionConfigurationArn: !Ref Distribution
+      ImageRecipeArn: !Ref Recipe
+      InfrastructureConfigurationArn: !Ref Infrastructure

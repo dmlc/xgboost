@@ -38,6 +38,7 @@ from .core import (
     Booster,
     DMatrix,
     Metric,
+    QuantileDMatrix,
     XGBoostError,
     _convert_ntree_limit,
     _deprecate_positional_args,
@@ -430,7 +431,8 @@ def _wrap_evaluation_matrices(
     enable_categorical: bool,
     feature_types: Optional[FeatureTypes],
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
-    """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way."""
+    """Convert array_like evaluation matrices into DMatrix.  Perform validation on the
+    way."""
     train_dmatrix = create_dmatrix(
         data=X,
         label=y,
@@ -442,6 +444,7 @@ def _wrap_evaluation_matrices(
         missing=missing,
         enable_categorical=enable_categorical,
         feature_types=feature_types,
+        ref=None,
     )
 
     n_validation = 0 if eval_set is None else len(eval_set)
@@ -491,6 +494,7 @@ def _wrap_evaluation_matrices(
                     missing=missing,
                     enable_categorical=enable_categorical,
                     feature_types=feature_types,
+                    ref=train_dmatrix,
                 )
                 evals.append(m)
         nevals = len(evals)
@@ -904,6 +908,17 @@ class XGBModel(XGBModelBase):
 
         return model, metric, params, early_stopping_rounds, callbacks
 
+    def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
+        # Use `QuantileDMatrix` to save memory.
+        if self.tree_method in ("hist", "gpu_hist"):
+            try:
+                return QuantileDMatrix(
+                    **kwargs, ref=ref, nthread=self.n_jobs, max_bin=self.max_bin
+                )
+            except TypeError:  # `QuantileDMatrix` supports lesser types than DMatrix
+                pass
+        return DMatrix(**kwargs, nthread=self.n_jobs)
+
     def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
         if evals_result:
             self.evals_result_ = cast(Dict[str, Dict[str, List[float]]], evals_result)
@@ -996,7 +1011,7 @@ class XGBModel(XGBModelBase):
                 base_margin_eval_set=base_margin_eval_set,
                 eval_group=None,
                 eval_qid=None,
-                create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+                create_dmatrix=self._create_dmatrix,
                 enable_categorical=self.enable_categorical,
                 feature_types=self.feature_types,
             )
@@ -1479,7 +1494,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 base_margin_eval_set=base_margin_eval_set,
                 eval_group=None,
                 eval_qid=None,
-                create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+                create_dmatrix=self._create_dmatrix,
                 enable_categorical=self.enable_categorical,
                 feature_types=self.feature_types,
             )
@@ -1930,7 +1945,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 base_margin_eval_set=base_margin_eval_set,
                 eval_group=eval_group,
                 eval_qid=eval_qid,
-                create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+                create_dmatrix=self._create_dmatrix,
                 enable_categorical=self.enable_categorical,
                 feature_types=self.feature_types,
             )

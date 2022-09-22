@@ -1,3 +1,6 @@
+#ifndef XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
+#define XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
+
 #include <rabit/rabit.h>
 #include <algorithm>
 #include <string>
@@ -62,3 +65,5 @@ template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
 }
 }  // namespace common
 }  // namespace xgboost
+
+#endif  // XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_

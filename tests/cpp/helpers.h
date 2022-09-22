@@ -4,25 +4,24 @@
 #ifndef XGBOOST_TESTS_CPP_HELPERS_H_
 #define XGBOOST_TESTS_CPP_HELPERS_H_
 
-#include <iostream>
-#include <fstream>
-#include <cstdio>
-#include <string>
-#include <memory>
-#include <vector>
+#include <gtest/gtest.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include <gtest/gtest.h>
-
-#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
-#include <xgboost/json.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/json.h>
+
+#include <cstdio>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "../../src/common/common.h"
-#include "../../src/gbm/gbtree_model.h"
 #include "../../src/data/array_interface.h"
+#include "../../src/gbm/gbtree_model.h"
+#include "filesystem.h"  // dmlc::TemporaryDirectory
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
@@ -451,6 +450,17 @@ inline int Next(DataIterHandle self) {
 class RMMAllocator;
 using RMMAllocatorPtr = std::unique_ptr<RMMAllocator, void(*)(RMMAllocator*)>;
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
+
+/*
+ * \brief Make learner model param
+ */
+inline LearnerModelParam MakeMP(bst_feature_t n_features, float base_score, uint32_t n_groups,
+                                int32_t device = Context::kCpuId) {
+  size_t shape[1]{1};
+  LearnerModelParam mparam(n_features, linalg::Tensor<float, 1>{{base_score}, shape, device},
+                           n_groups);
+  return mparam;
+}
 
 }  // namespace xgboost
 #endif

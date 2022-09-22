@@ -39,24 +39,58 @@ task of cross-compiling a Python wheel. (Note that ``cibuildwheel`` will call
 a glue code to call CMake and a C++ compiler to build the native library on the fly.)
 
 *******************************
-Reproducing errors from Jenkins
+Elastic CI Stack with BuildKite
 *******************************
 
-It is often useful to reproduce the particular testing environment from our Jenkins server for
-the purpose of troubleshooting a failing test. We use Docker containers heavily to package
-the testing environment, so you can use Docker to reproduce it on your own machine.
+`BuildKite <https://buildkite.com/home>`_ is a SaaS (Software as a Service) platform that orchestrates
+cloud machines to host CI pipelines. The BuildKite platform allows us to define cloud resources in
+a declarative fashion. Every configuration step is now documented explicitly as code.
 
-1. Install Docker: https://docs.docker.com/engine/install/ubuntu/
-2. Install NVIDIA Docker runtime: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#installing-on-ubuntu-and-debian
-   The runtime lets you access NVIDIA GPUs inside a Docker container.
-3. In a build log, all tests are invoked via the wrapper script ``tests/ci_build/ci_build.sh``.
-   Identify the test you'd like to reproduce locally, and note how the wrapper script was invoked for that test.
-   The invocation should look like this:
+**Prerequisite**: You should have some knowledge of `CloudFormation <https://aws.amazon.com/cloudformation/>`_.
+CloudFormation lets us define a stack of cloud resources (EC2 machines, Lambda functions, S3 etc) using
+a single YAML file.
 
-.. code-block:: bash
+**Prerequisite**: Gain access to the XGBoost project's AWS account (``admin@xgboost-ci.net``), and then
+set up a credential pair in order to provision resources on AWS. See
+`Creating an IAM user in your AWS account <https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html>`_.
 
-  CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g' tests/ci_build/ci_build.sh gpu nvidia-docker \
-    --build-arg CUDA_VERSION_ARG=11.0 tests/ci_build/test_python.sh mgpu --use-rmm-pool
+* Option 1. Give full admin privileges to your IAM user. This is the simplest option.
+* Option 2. Give limited set of permissions to your IAM user, to reduce the possibility of messing up other resources.
+  For this, use the script ``tests/buildkite/infrastructure/service-user/create_service_user.py``.
 
-4. You can now run the same command on your own machine. The wrapper script will automatically download and
-   set up the correct Docker container(s).
+=====================
+Worker Image Pipeline
+=====================
+Building images for worker machines used to be a chore: you'd provision an EC2 machine, SSH into it, and
+manually install the necessary packages. This process is not only laborous but also error-prone. You may
+forget to install a package or change a system configuration.
+
+No more. Now we have an automated pipeline for building images for worker machines.
+
+* Run ``tests/buildkite/infrastructure/worker-image-pipeline/create_worker_image_pipelines.py`` in order to provision
+  CloudFormation stacks named ``buildkite-linux-amd64-gpu-worker`` and ``buildkite-windows-gpu-worker``. They are
+  pipelines that create AMIs (Amazon Machine Images) for Linux and Windows workers, respectively.
+* Navigate to the CloudFormation web console to verify that the image builder pipelines have been provisioned. It may
+  take some time.
+* Once they pipelines have been fully provisioned, run the script
+  ``tests/buildkite/infrastructure/worker-image-pipeline/run_pipelines.py`` to execute the pipelines. New AMIs will be
+  uploaded to the EC2 service. You can locate them in the EC2 console.
+* Make sure to modify ``tests/buildkite/infrastructure/aws-stack-creator/metadata.py`` to use the correct AMI IDs.
+  (For ``linux-amd64-cpu`` and ``linux-arm64-cpu``, use the AMIs provided by BuildKite. Consult the ``AWSRegion2AMI``
+  section of https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml.)
+
+======================
+EC2 Autoscaling Groups
+======================
+In EC2, you can create auto-scaling groups, where you can dynamically adjust the number of worker instances according to
+workload. When a pull request is submitted, the following steps take place:
+
+1. GitHub sends a signal to the registered webhook, which connects to the BuildKite server.
+2. BuildKite sends a signal to a `Lambda <https://aws.amazon.com/lambda/>`_ function named ``Autoscaling``.
+3. The Lambda function sends a signal to the auto-scaling group. The group scales up and adds additional worker instances.
+4. New worker instances run the test jobs. Test results are reported back to BuildKite.
+5. When the test jobs complete, BuildKite sends a signal to ``Autoscaling``, which in turn requests the autoscaling group
+   to scale down. Idle worker instances are shut down.
+
+To set up the auto-scaling group, run the script ``tests/buildkite/infrastructure/aws-stack-creator/create_stack.py``.
+Check the CloudFormation web console to verify successful provision of auto-scaling groups.

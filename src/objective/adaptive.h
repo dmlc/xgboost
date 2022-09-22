@@ -7,6 +7,7 @@
 #include <limits>
 #include <vector>
 
+#include "../common/common.h"
 #include "rabit/rabit.h"
 #include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"

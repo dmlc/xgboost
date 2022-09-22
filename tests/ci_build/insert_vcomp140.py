@@ -14,5 +14,6 @@ for wheel_path in sorted(glob.glob(sys.argv[1])):
     assert m, f'wheel_path = {wheel_path}'
     version = m.group(1)
 
+    print(f"Inserting vcomp140.dll into {wheel_path}...")
     with zipfile.ZipFile(wheel_path, 'a') as f:
         f.write(vcomp140_path, 'xgboost-{}.data/data/xgboost/vcomp140.dll'.format(version))

@@ -1,13 +1,13 @@
 /*!
  * Copyright 2019-2022 XGBoost contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/generic_parameters.h>
 
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
 #include "../../../src/gbm/gbtree.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/base.h"
 #include "xgboost/host_device_vector.h"
@@ -18,15 +18,11 @@ namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {
   size_t constexpr kCols = 10;
 
-  GenericParameter generic_param;
-  generic_param.UpdateAllowUnknown(Args{});
-  LearnerModelParam mparam;
-  mparam.base_score = 0.5;
-  mparam.num_feature = kCols;
-  mparam.num_output_group = 1;
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &generic_param, &mparam)};
+    GradientBooster::Create("gbtree", &ctx, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
 
   // Test if `tree_method` can be set
@@ -45,7 +41,7 @@ TEST(GBTree, SelectTreeMethod) {
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
 
 #ifdef XGBOOST_USE_CUDA
-  generic_param.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   gbtree.Configure({{"tree_method", "gpu_hist"}});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
   gbtree.Configure({{"booster", "dart"}, {"tree_method", "gpu_hist"}});
@@ -55,15 +51,11 @@ TEST(GBTree, SelectTreeMethod) {
 
 TEST(GBTree, PredictionCache) {
   size_t constexpr kRows = 100, kCols = 10;
-  GenericParameter generic_param;
-  generic_param.UpdateAllowUnknown(Args{});
-  LearnerModelParam mparam;
-  mparam.base_score = 0.5;
-  mparam.num_feature = kCols;
-  mparam.num_output_group = 1;
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &generic_param, &mparam)};
+    GradientBooster::Create("gbtree", &ctx, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
 
   gbtree.Configure({{"tree_method", "hist"}});
@@ -176,16 +168,11 @@ TEST(GBTree, ChoosePredictor) {
 TEST(GBTree, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
-  LearnerModelParam mparam;
-  mparam.num_feature = kCols;
-  mparam.num_output_group = 1;
-  mparam.base_score = 0.5;
-
-  GenericParameter gparam;
-  gparam.Init(Args{});
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm {
-    CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &gparam) };
+    CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &ctx) };
 
   Json model {Object()};
   model["model"] = Object();
@@ -215,16 +202,11 @@ TEST(GBTree, JsonIO) {
 TEST(Dart, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
-  LearnerModelParam mparam;
-  mparam.num_feature = kCols;
-  mparam.base_score = 0.5;
-  mparam.num_output_group = 1;
+  Context ctx;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
-  GenericParameter gparam;
-  gparam.Init(Args{});
-
-  std::unique_ptr<GradientBooster> gbm {
-    CreateTrainedGBM("dart", Args{}, kRows, kCols, &mparam, &gparam) };
+  std::unique_ptr<GradientBooster> gbm{
+      CreateTrainedGBM("dart", Args{}, kRows, kCols, &mparam, &ctx)};
 
   Json model {Object()};
   model["model"] = Object();

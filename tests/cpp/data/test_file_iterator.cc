@@ -2,13 +2,13 @@
  * Copyright 2021 XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
 
 #include <memory>
 
+#include "../../../src/data/adapter.h"
 #include "../../../src/data/file_iterator.h"
 #include "../../../src/data/proxy_dmatrix.h"
-#include "../../../src/data/adapter.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost {

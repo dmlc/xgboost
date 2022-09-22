@@ -1,10 +1,10 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2022 by Contributors
  * \file objective.cc
  * \brief Registry of all objective functions.
  */
-#include <xgboost/objective.h>
 #include <dmlc/registry.h>
+#include <xgboost/objective.h>
 
 #include <sstream>
 
@@ -31,6 +31,11 @@ ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const
   return pobj;
 }
 
+void ObjFunction::InitEstimation(MetaInfo const&, linalg::Tensor<float, 1>* base_score) const {
+  CHECK(base_score);
+  base_score->Reshape(1);
+  (*base_score)(0) = DefaultBaseScore();
+}
 }  // namespace xgboost
 
 namespace xgboost {

@@ -1,0 +1,349 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Buildkite Elastic CI Stack CloudFormation service user"
+
+Parameters:
+  UserName:
+    Type: String
+    Default: buildkite-elastic-ci-stack-user
+    Description: Name of user to create
+
+Outputs:
+  UserNameOutput:
+    Value: !Ref CloudFormationServiceUser
+  UserArnOutput:
+    Value: !GetAtt CloudFormationServiceUser.Arn
+
+Resources:
+  CloudFormationServiceUser:
+    Type: AWS::IAM::User
+    Properties:
+      ManagedPolicyArns:
+        - !Ref SubstackCrudPolicy
+        - !Ref CrudPolicy
+        - !Ref ImageBuilderPolicy
+      UserName: !Ref UserName
+
+  SubstackCrudPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "cloudformation:*",
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "serverlessrepo:GetApplication",
+                "serverlessrepo:GetCloudFormationTemplate",
+                "serverlessrepo:CreateCloudFormationTemplate"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+
+  CrudPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:DescribeAccountAttributes",
+                "ec2:DescribeAvailabilityZones",
+                "ec2:DescribeInstances",
+                "ec2:DescribeInternetGateways",
+                "ec2:DescribeLaunchTemplateVersions",
+                "ec2:DescribeLaunchTemplates",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DescribeRouteTables",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeVpcs",
+                "ec2:CreateTags"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:CreateInternetGateway",
+                "ec2:AttachInternetGateway",
+                "ec2:DetachInternetGateway",
+                "ec2:DeleteInternetGateway"
+              ],
+              "Resource": "arn:aws:ec2:*:*:internet-gateway/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:CreateLaunchTemplate",
+                "ec2:CreateLaunchTemplateVersion",
+                "ec2:DeleteLaunchTemplate"
+              ],
+              "Resource": "arn:aws:ec2:*:*:launch-template/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:AssociateRouteTable",
+                "ec2:DisassociateRouteTable",
+                "ec2:CreateRoute",
+                "ec2:CreateRouteTable",
+                "ec2:DeleteRoute",
+                "ec2:DeleteRouteTable"
+              ],
+              "Resource": "arn:aws:ec2:*:*:route-table/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:RevokeSecurityGroupIngress",
+                "ec2:CreateSecurityGroup",
+                "ec2:DeleteSecurityGroup"
+              ],
+              "Resource": "arn:aws:ec2:*:*:security-group/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": "ec2:RunInstances",
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:CreateSubnet",
+                "ec2:DeleteSubnet",
+                "ec2:AssociateRouteTable",
+                "ec2:DisassociateRouteTable"
+              ],
+              "Resource": "arn:aws:ec2:*:*:subnet/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:CreateVpc",
+                "ec2:CreateSecurityGroup",
+                "ec2:ModifyVpcAttribute",
+                "ec2:AttachInternetGateway",
+                "ec2:DetachInternetGateway",
+                "ec2:CreateSubnet",
+                "ec2:CreateRouteTable",
+                "ec2:DeleteVpc"
+              ],
+              "Resource": "arn:aws:ec2:*:*:vpc/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:CreateDefaultVpc",
+                "ec2:CreateDefaultSubnet"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "iam:CreateInstanceProfile",
+                "iam:GetInstanceProfile",
+                "iam:AddRoleToInstanceProfile",
+                "iam:RemoveRoleFromInstanceProfile",
+                "iam:DeleteInstanceProfile"
+              ],
+              "Resource": "arn:aws:iam::*:instance-profile/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "kms:DescribeKey",
+                "kms:CreateGrant",
+                "kms:Decrypt",
+                "kms:Encrypt"
+              ],
+              "Resource": "arn:aws:kms:*:*:key/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "lambda:CreateFunction",
+                "lambda:GetFunction",
+                "lambda:GetFunctionCodeSigningConfig",
+                "lambda:AddPermission",
+                "lambda:RemovePermission",
+                "lambda:DeleteFunction",
+                "lambda:InvokeFunction",
+                "lambda:TagResource"
+              ],
+              "Resource": "arn:aws:lambda:*:*:function:*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:PutRetentionPolicy",
+                "logs:DeleteLogGroup"
+              ],
+              "Resource": "arn:aws:logs:*:*:log-group:*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject",
+                "s3:CreateBucket",
+                "s3:PutBucketAcl",
+                "s3:PutBucketLogging",
+                "s3:PutBucketTagging",
+                "s3:PutBucketVersioning"
+              ],
+              "Resource": "arn:aws:s3:::*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ssm:GetParameter",
+                "ssm:PutParameter",
+                "ssm:DeleteParameter"
+              ],
+              "Resource": "arn:aws:ssm:*:*:parameter/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "iam:ListPolicies",
+                "iam:ListInstanceProfiles",
+                "iam:ListRoles",
+                "iam:ListPolicyVersions",
+                "iam:ListRolePolicies",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListInstanceProfileTags",
+                "iam:ListRoleTags",
+                "iam:ListInstanceProfilesForRole",
+                "iam:GetPolicyVersion",
+                "iam:GetPolicy",
+                "iam:GetInstanceProfile",
+                "iam:GetRole",
+                "iam:GetRolePolicy",
+                "iam:TagPolicy",
+                "iam:UntagPolicy",
+                "iam:TagInstanceProfile",
+                "iam:UntagInstanceProfile",
+                "iam:TagRole",
+                "iam:UntagRole",
+                "iam:CreateRole",
+                "iam:PassRole",
+                "iam:DeleteRole",
+                "iam:UpdateRoleDescription",
+                "iam:UpdateRole",
+                "iam:AddRoleToInstanceProfile",
+                "iam:RemoveRoleFromInstanceProfile",
+                "iam:CreateInstanceProfile",
+                "iam:DeleteInstanceProfile",
+                "iam:DetachRolePolicy",
+                "iam:SetDefaultPolicyVersion",
+                "iam:AttachRolePolicy",
+                "iam:UpdateAssumeRolePolicy",
+                "iam:PutRolePermissionsBoundary",
+                "iam:DeleteRolePermissionsBoundary",
+                "iam:CreatePolicy",
+                "iam:DeletePolicyVersion",
+                "iam:DeletePolicy",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "autoscaling:DescribeLifecycleHookTypes",
+                "autoscaling:DescribeTerminationPolicyTypes",
+                "autoscaling:DescribePolicies",
+                "autoscaling:DescribeWarmPool",
+                "autoscaling:DescribeScalingActivities",
+                "autoscaling:DescribeScalingProcessTypes",
+                "autoscaling:DescribeScheduledActions",
+                "autoscaling:DescribeAutoScalingGroups",
+                "autoscaling:DescribeAutoScalingInstances",
+                "autoscaling:DescribeLifecycleHooks",
+                "autoscaling:SetDesiredCapacity",
+                "autoscaling:PutLifecycleHook",
+                "autoscaling:DeleteLifecycleHook",
+                "autoscaling:SetInstanceProtection",
+                "autoscaling:CreateAutoScalingGroup",
+                "autoscaling:EnableMetricsCollection",
+                "autoscaling:UpdateAutoScalingGroup",
+                "autoscaling:DeleteAutoScalingGroup",
+                "autoscaling:PutScalingPolicy",
+                "autoscaling:DeletePolicy",
+                "autoscaling:BatchPutScheduledUpdateGroupAction",
+                "autoscaling:PutScheduledUpdateGroupAction",
+                "autoscaling:DeleteScheduledAction",
+                "autoscaling:PutWarmPool",
+                "autoscaling:DeleteWarmPool",
+                "autoscaling:TerminateInstanceInAutoScalingGroup",
+                "autoscaling:AttachInstances"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "events:DescribeRule",
+                "events:PutRule",
+                "events:PutTargets",
+                "events:RemoveTargets",
+                "events:DeleteRule"
+              ],
+              "Resource": "arn:aws:events:*:*:rule/*"
+            }
+          ]
+        }
+
+  ImageBuilderPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "imagebuilder:CreateComponent",
+                "imagebuilder:GetComponent",
+                "imagebuilder:DeleteComponent",
+                "imagebuilder:CreateImageRecipe",
+                "imagebuilder:GetImageRecipe",
+                "imagebuilder:DeleteImageRecipe",
+                "imagebuilder:CreateImagePipeline",
+                "imagebuilder:GetImagePipeline",
+                "imagebuilder:DeleteImagePipeline",
+                "imagebuilder:CreateInfrastructureConfiguration",
+                "imagebuilder:GetInfrastructureConfiguration",
+                "imagebuilder:DeleteInfrastructureConfiguration",
+                "imagebuilder:CreateDistributionConfiguration",
+                "imagebuilder:GetDistributionConfiguration",
+                "imagebuilder:DeleteDistributionConfiguration",
+                "imagebuilder:TagResource",
+                "imagebuilder:StartImagePipelineExecution",
+                "ec2:DescribeImages",
+                "ec2:DescribeSnapshots",
+                "ec2:DescribeRegions",
+                "ec2:DescribeVolumes",
+                "ec2:DescribeKeyPairs",
+                "ec2:DescribeInstanceTypeOfferings"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }

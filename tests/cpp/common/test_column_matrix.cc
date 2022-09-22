@@ -1,7 +1,6 @@
 /*!
  * Copyright 2018-2022 by XGBoost Contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 
 #include "../../../src/common/column_matrix.h"

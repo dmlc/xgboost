@@ -4,6 +4,7 @@
 #ifndef XGBOOST_COMMON_LINALG_OP_H_
 #define XGBOOST_COMMON_LINALG_OP_H_
 #include <type_traits>
+#include <cstdint>  // std::int32_t
 
 #include "common.h"
 #include "threading_utils.h"
@@ -59,6 +60,31 @@ void ElementWiseKernel(GenericParameter const* ctx, linalg::TensorView<T, D> t, 
   ElementWiseKernelHost(t, ctx->Threads(), fn);
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+template <typename T, std::int32_t kDim>
+auto cbegin(TensorView<T, kDim> v) {  // NOLINT
+  auto it = common::MakeIndexTransformIter([&](size_t i) -> std::remove_cv_t<T> const& {
+    return linalg::detail::Apply(v, linalg::UnravelIndex(i, v.Shape()));
+  });
+  return it;
+}
+
+template <typename T, std::int32_t kDim>
+auto cend(TensorView<T, kDim> v) {  // NOLINT
+  return cbegin(v) + v.Size();
+}
+
+template <typename T, std::int32_t kDim>
+auto begin(TensorView<T, kDim> v) {  // NOLINT
+  auto it = common::MakeIndexTransformIter(
+      [&](size_t i) -> T& { return linalg::detail::Apply(v, linalg::UnravelIndex(i, v.Shape())); });
+  return it;
+}
+
+template <typename T, std::int32_t kDim>
+auto end(TensorView<T, kDim> v) {  // NOLINT
+  return begin(v) + v.Size();
+}
 }  // namespace linalg
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_LINALG_OP_H_
