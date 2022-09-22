@@ -234,14 +234,12 @@ _pandas_dtype_mapper = {
     "Float32": "float",
     "Float64": "float",
     "boolean": "i",
-
-    "category": "int",
 }
 
 
 _ENABLE_CAT_ERR = (
-    "When categorical type is supplied, DMatrix parameter `enable_categorical` must "
-    "be set to `True`."
+    "When categorical type is supplied, The experimental DMatrix parameter"
+    "`enable_categorical` must be set to `True`."
 )
 
 
@@ -364,7 +362,7 @@ def _transform_pandas_df(
     if not all(
         dtype.name in _pandas_dtype_mapper
         or is_sparse(dtype)
-        or is_nullable_dtype(dtype)
+        or (is_nullable_dtype(dtype) and not is_categorical_dtype(dtype))
         or (is_categorical_dtype(dtype) and enable_categorical)
         for dtype in data.dtypes
     ):

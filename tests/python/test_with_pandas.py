@@ -355,7 +355,7 @@ class TestPandas:
             arr = pd.DataFrame(data, dtype=dtype)
             if dtype is None:
                 arr = arr.astype("category")
-            Xy = xgb.DMatrix(arr, y)
+            Xy = xgb.DMatrix(arr, y, enable_categorical=True)
             Xy.feature_types = None
             return to_bytes(Xy)
 
