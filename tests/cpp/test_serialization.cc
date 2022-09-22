@@ -418,6 +418,45 @@ TEST_F(SerializationTest, GPUCoordDescent) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
+class L1SerializationTest : public SerializationTest {};
+
+TEST_F(L1SerializationTest, Exact) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "exact"}},
+                           fmap_, p_dmat_);
+}
+
+TEST_F(L1SerializationTest, Approx) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "approx"}},
+                           fmap_, p_dmat_);
+}
+
+TEST_F(L1SerializationTest, Hist) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "hist"}},
+                           fmap_, p_dmat_);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(L1SerializationTest, GpuHist) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "gpu_hist"}},
+                           fmap_, p_dmat_);
+}
+#endif  //  defined(XGBOOST_USE_CUDA)
 
 class LogitSerializationTest : public SerializationTest {
  protected:

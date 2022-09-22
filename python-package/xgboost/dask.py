@@ -52,6 +52,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    TypedDict,
     TypeVar,
     Union,
 )
@@ -102,19 +103,13 @@ else:
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
 _DataT = Union["da.Array", "dd.DataFrame"]  # do not use series as predictor
-
-try:
-    from mypy_extensions import TypedDict
-
-    TrainReturnT = TypedDict(
-        "TrainReturnT",
-        {
-            "booster": Booster,
-            "history": Dict,
-        },
-    )
-except ImportError:
-    TrainReturnT = Dict[str, Any]  # type:ignore
+TrainReturnT = TypedDict(
+    "TrainReturnT",
+    {
+        "booster": Booster,
+        "history": Dict,
+    },
+)
 
 __all__ = [
     "RabitContext",
@@ -726,10 +721,9 @@ def _create_quantile_dmatrix(
     if parts is None:
         msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
-        import cupy
 
         d = QuantileDMatrix(
-            cupy.zeros((0, 0)),
+            numpy.empty((0, 0)),
             feature_names=feature_names,
             feature_types=feature_types,
             max_bin=max_bin,
@@ -833,11 +827,15 @@ async def _get_rabit_args(
             if k not in valid_config:
                 raise ValueError(f"Unknown configuration: {k}")
         host_ip = dconfig.get("scheduler_address", None)
+        if host_ip is not None and host_ip.startswith("[") and host_ip.endswith("]"):
+            # convert dask bracket format to proper IPv6 address.
+            host_ip = host_ip[1:-1]
         if host_ip is not None:
             try:
                 host_ip, port = distributed.comm.get_address_host_port(host_ip)
             except ValueError:
                 pass
+
     if host_ip is not None:
         user_addr = (host_ip, port)
     else:
@@ -1544,15 +1542,21 @@ def inplace_predict(  # pylint: disable=unused-argument
 
 
 async def _async_wrap_evaluation_matrices(
-    client: Optional["distributed.Client"], **kwargs: Any
+    client: Optional["distributed.Client"],
+    tree_method: Optional[str],
+    max_bin: Optional[int],
+    **kwargs: Any,
 ) -> Tuple[DaskDMatrix, Optional[List[Tuple[DaskDMatrix, str]]]]:
     """A switch function for async environment."""
 
-    def _inner(**kwargs: Any) -> DaskDMatrix:
-        m = DaskDMatrix(client=client, **kwargs)
-        return m
+    def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
+        if tree_method in ("hist", "gpu_hist"):
+            return DaskQuantileDMatrix(
+                client=client, ref=ref, max_bin=max_bin, **kwargs
+            )
+        return DaskDMatrix(client=client, **kwargs)
 
-    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_inner, **kwargs)
+    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_dispatch, **kwargs)
     train_dmatrix = await train_dmatrix
     if evals is None:
         return train_dmatrix, evals
@@ -1756,6 +1760,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,
@@ -1851,6 +1857,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,
@@ -2057,6 +2065,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,

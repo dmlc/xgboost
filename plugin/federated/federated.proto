@@ -12,16 +12,14 @@ service Federated {
 }
 
 enum DataType {
-  CHAR = 0;
-  UCHAR = 1;
-  INT = 2;
-  UINT = 3;
-  LONG = 4;
-  ULONG = 5;
+  INT8 = 0;
+  UINT8 = 1;
+  INT32 = 2;
+  UINT32 = 3;
+  INT64 = 4;
+  UINT64 = 5;
   FLOAT = 6;
   DOUBLE = 7;
-  LONGLONG = 8;
-  ULONGLONG = 9;
 }
 
 enum ReduceOperation {

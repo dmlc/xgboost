@@ -22,7 +22,7 @@ if (PLUGIN_FEDERATED)
   target_include_directories(testxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/federated)
   target_link_libraries(testxgboost PRIVATE federated_client)
 else (PLUGIN_FEDERATED)
-  file(GLOB_RECURSE FEDERATED_TEST_SOURCES "plugin/*_federated_*.cc")
+  file(GLOB_RECURSE FEDERATED_TEST_SOURCES "plugin/*_federated_*.*")
   list(REMOVE_ITEM TEST_SOURCES ${FEDERATED_TEST_SOURCES})
 endif (PLUGIN_FEDERATED)
 
