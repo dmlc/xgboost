@@ -2,6 +2,8 @@
  * Copyright 2022 XGBoost contributors
  */
 #pragma once
+#include <string>
+
 #include "communicator.h"
 
 namespace xgboost {

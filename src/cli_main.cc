@@ -475,7 +475,7 @@ class CLI {
 
     // Initialize the collective communicator.
     Json json{JsonObject()};
-    for (auto& kv: cfg) {
+    for (auto& kv : cfg) {
       json[kv.first] = String(kv.second);
     }
     std::string json_str;

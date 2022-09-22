@@ -216,7 +216,7 @@ def _assert_dask_support() -> None:
 class CommunicatorContext(collective.CommunicatorContext):
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args) -> None:
+    def __init__(self, **args: Any) -> None:
         super().__init__(**args)
         worker = distributed.get_worker()
         with distributed.worker_client() as client:
