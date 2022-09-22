@@ -93,7 +93,7 @@ void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
   exc.Rethrow();
 }
 
-namespace cuda {
+namespace cuda_impl {
 double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
 #if !defined(XGBOOST_USE_CUDA)
 inline double Reduce(Context const*, HostDeviceVector<float> const&) {
@@ -101,11 +101,27 @@ inline double Reduce(Context const*, HostDeviceVector<float> const&) {
   return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace cuda
+}  // namespace cuda_impl
+
 /**
- * \brief Reduction with summation.
+ * \brief Reduction.
  */
 double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
+
+/**
+ * \brief Reduction with iterator.
+ */
+namespace cpu_impl {
+template <typename It, typename V = typename It::value_type>
+double Reduce(Context const* ctx, It first, It second, V const& init) {
+  size_t n = std::distance(first, second);
+  common::MemStackAllocator<double, common::DefaultMaxThreads()> result_tloc(ctx->Threads(), init);
+  common::ParallelFor(n, ctx->Threads(),
+                      [&](auto i) { result_tloc[omp_get_thread_num()] += first[i]; });
+  auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cend(), init);
+  return result;
+}
+}  // namespace cpu_impl
 }  // namespace common
 }  // namespace xgboost
 

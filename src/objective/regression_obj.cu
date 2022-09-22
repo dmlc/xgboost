@@ -22,6 +22,7 @@
 #include "../common/transform.h"
 #include "./regression_loss.h"
 #include "adaptive.h"
+#include "init_estimation.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
@@ -172,11 +173,7 @@ class RegLossObj : public ObjFunction {
     CheckInitInputs(info);
     base_margin->Reshape(1);
     auto out = base_margin->HostView();
-    std::uint64_t n_samples = info.num_row_;
-    rabit::Allreduce<rabit::op::Sum>(&n_samples, 1);
-    auto mean = common::Mean(ctx_, info.labels, info.weights_, n_samples);
-    rabit::Allreduce<rabit::op::Sum>(&mean, 1);
-    out(0) = mean;
+    out(0) = WeightedMean(ctx_, info);
   }
 
   void SaveConfig(Json* p_out) const override {
