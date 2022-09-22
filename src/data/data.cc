@@ -514,6 +514,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
 
 void MetaInfo::SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype,
                        size_t num) {
+  CHECK(key);
   auto proc = [&](auto cast_d_ptr) {
     using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
     auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, Context::kCpuId);
@@ -588,8 +589,8 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
   if (size != 0 && this->num_col_ != 0) {
-    CHECK_EQ(size, this->num_col_)
-        << "Length of " << key << " must be equal to number of columns.";
+    CHECK_EQ(size, this->num_col_) << "Length of " << key << " must be equal to number of columns.";
+    CHECK(info);
   }
   if (!std::strcmp(key, "feature_type")) {
     feature_type_names.clear();
