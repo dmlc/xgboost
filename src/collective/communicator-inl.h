@@ -184,9 +184,10 @@ inline void Allreduce(uint64_t *send_receive_buffer, size_t count) {
   Communicator::Get()->AllReduce(send_receive_buffer, count, DataType::kUInt64, op);
 }
 
-// Specialize on size_t for platforms where size_t != uint64_t.
-template <Operation op, typename T = size_t,
-          std::enable_if_t<std::is_same<size_t, T>::value && !std::is_same<uint64_t, T>::value> >
+// Specialization for size_t, which is implementation defined, so it might or might not
+// be one of uint64_t/uint32_t/unsigned long long/unsigned long.
+template <Operation op, typename T,
+          typename = std::enable_if_t<std::is_same<size_t, T>{} && !std::is_same<uint64_t, T>{}> >
 inline void Allreduce(T *send_receive_buffer, size_t count) {
   static_assert(sizeof(T) == sizeof(uint64_t), "");
   Communicator::Get()->AllReduce(send_receive_buffer, count, DataType::kUInt64, op);
