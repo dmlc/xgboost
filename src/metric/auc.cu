@@ -11,12 +11,10 @@
 #include <utility>
 #include <tuple>
 
-#include "rabit/rabit.h"
 #include "xgboost/span.h"
 #include "xgboost/data.h"
 #include "auc.h"
 #include "../collective/device_communicator.cuh"
-#include "../common/device_helpers.cuh"
 #include "../common/ranking_utils.cuh"
 
 namespace xgboost {

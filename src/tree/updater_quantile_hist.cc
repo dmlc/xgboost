@@ -6,19 +6,12 @@
  */
 #include "./updater_quantile_hist.h"
 
-#include <rabit/rabit.h>
-
 #include <algorithm>
 #include <memory>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "../common/column_matrix.h"
-#include "../common/hist_util.h"
-#include "../common/random.h"
-#include "../common/threading_utils.h"
 #include "constraints.h"
 #include "hist/evaluate_splits.h"
 #include "param.h"

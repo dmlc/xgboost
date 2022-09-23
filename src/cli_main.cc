@@ -478,9 +478,7 @@ class CLI {
     for (auto& kv : cfg) {
       json[kv.first] = String(kv.second);
     }
-    std::string json_str;
-    Json::Dump(json, &json_str);
-    collective::Init(json_str.c_str());
+    collective::Init(json);
 
     param_.Configure(cfg);
   }

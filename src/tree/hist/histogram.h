@@ -12,7 +12,6 @@
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
 #include "expand_entry.h"
-#include "rabit/rabit.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {

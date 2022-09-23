@@ -3,13 +3,8 @@
  */
 #include "timer.h"
 
-#include <rabit/rabit.h>
-
-#include <algorithm>
 #include <sstream>
-#include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "../collective/communicator-inl.h"
 

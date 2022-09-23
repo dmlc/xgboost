@@ -7,7 +7,6 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
-#include <rabit/rabit.h>
 #include <xgboost/logging.h>
 
 #include <algorithm>

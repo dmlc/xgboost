@@ -342,8 +342,8 @@ TEST(GPUQuantile, AllReduceBasic) {
   // This test is supposed to run by a python test that setups the environment.
   std::string msg {"Skipping AllReduce test"};
   auto n_gpus = AllVisibleGPUs();
-  InitRabitContext(msg, n_gpus);
-  auto world = rabit::GetWorldSize();
+  InitCommunicatorContext(msg, n_gpus);
+  auto world = collective::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
   } else {
@@ -383,7 +383,7 @@ TEST(GPUQuantile, AllReduceBasic) {
 
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
-    auto rank = rabit::GetRank();
+    auto rank = collective::GetRank();
     SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
@@ -420,14 +420,14 @@ TEST(GPUQuantile, AllReduceBasic) {
       ASSERT_NEAR(single_node_data[i].wmin, distributed_data[i].wmin, Eps);
     }
   });
-  rabit::Finalize();
+  collective::Finalize();
 }
 
 TEST(GPUQuantile, SameOnAllWorkers) {
   std::string msg {"Skipping SameOnAllWorkers test"};
   auto n_gpus = AllVisibleGPUs();
-  InitRabitContext(msg, n_gpus);
-  auto world = rabit::GetWorldSize();
+  InitCommunicatorContext(msg, n_gpus);
+  auto world = collective::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
   } else {
@@ -437,7 +437,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
-    auto rank = rabit::GetRank();
+    auto rank = collective::GetRank();
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage;
@@ -455,7 +455,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
-    rabit::Allreduce<rabit::op::Max>(&n_data, 1);
+    collective::Allreduce<collective::Operation::kMax>(&n_data, 1);
     ASSERT_EQ(n_data, sketch_distributed.Data().size());
     size_t size_as_float =
         sketch_distributed.Data().size_bytes() / sizeof(float);

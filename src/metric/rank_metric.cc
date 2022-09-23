@@ -21,7 +21,6 @@
 //   This precludes the CPU and GPU logic to coexist inside a .cu file
 
 #include <dmlc/registry.h>
-#include <rabit/rabit.h>
 #include <xgboost/metric.h>
 
 #include <cmath>

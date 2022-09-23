@@ -56,8 +56,7 @@ namespace collective {
  *   - federated_client_key: Client key file path. Only needed for the SSL mode.
  *   - federated_client_cert: Client certificate file path. Only needed for the SSL mode.
  */
-inline void Init(char const *json_config) {
-  Json config{Json::Load(StringView{json_config})};
+inline void Init(Json const& config) {
   Communicator::Init(config);
 }
 

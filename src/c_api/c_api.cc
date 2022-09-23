@@ -1,11 +1,8 @@
 // Copyright (c) 2014-2022 by Contributors
-#include <rabit/rabit.h>
 #include <rabit/c_api.h>
 
-#include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <algorithm>
 #include <vector>
 #include <string>
 #include <memory>
@@ -27,7 +24,6 @@
 #include "../common/charconv.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
-#include "../data/proxy_dmatrix.h"
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_server.h"
@@ -1525,7 +1521,8 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
 XGB_DLL int XGCommunicatorInit(char const* json_config) {
   API_BEGIN();
   xgboost_CHECK_C_ARG_PTR(json_config);
-  collective::Init(json_config);
+  Json config{Json::Load(StringView{json_config})};
+  collective::Init(config);
   API_END();
 }
 

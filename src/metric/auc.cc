@@ -14,11 +14,7 @@
 #include <utility>
 #include <vector>
 
-#include "../collective/communicator-inl.h"
-#include "../common/common.h"
 #include "../common/math.h"
-#include "../common/threading_utils.h"
-#include "rabit/rabit.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/linalg.h"
 #include "xgboost/metric.h"

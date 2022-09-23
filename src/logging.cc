@@ -4,14 +4,10 @@
  * \brief Implementation of loggers.
  * \author Tianqi Chen
  */
-#include <rabit/rabit.h>
-
 #include <iostream>
-#include <map>
 
 #include "xgboost/parameter.h"
 #include "xgboost/logging.h"
-#include "xgboost/json.h"
 
 #include "collective/communicator-inl.h"
 

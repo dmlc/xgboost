@@ -13,7 +13,6 @@
 #include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "../common/threading_utils.h"
-#include "rabit/rabit.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/metric.h"

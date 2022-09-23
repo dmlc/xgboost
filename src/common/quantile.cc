@@ -10,7 +10,6 @@
 #include "../data/adapter.h"
 #include "categorical.h"
 #include "hist_util.h"
-#include "rabit/rabit.h"
 
 namespace xgboost {
 namespace common {

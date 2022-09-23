@@ -5,7 +5,6 @@
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <rabit/rabit.h>
 #include <dmlc/registry.h>
 
 #include <memory>

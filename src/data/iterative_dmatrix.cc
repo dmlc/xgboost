@@ -3,11 +3,8 @@
  */
 #include "iterative_dmatrix.h"
 
-#include <rabit/rabit.h>
-
 #include "../collective/communicator-inl.h"
 #include "../common/column_matrix.h"
-#include "../common/hist_util.h"
 #include "../tree/param.h"  // FIXME(jiamingy): Find a better way to share this parameter.
 #include "gradient_index.h"
 #include "proxy_dmatrix.h"

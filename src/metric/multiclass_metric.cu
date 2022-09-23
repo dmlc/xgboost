@@ -4,7 +4,6 @@
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <rabit/rabit.h>
 #include <xgboost/metric.h>
 
 #include <atomic>
@@ -13,7 +12,6 @@
 #include "metric_common.h"
 #include "../collective/communicator-inl.h"
 #include "../common/math.h"
-#include "../common/common.h"
 #include "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)

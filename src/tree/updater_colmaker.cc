@@ -4,8 +4,6 @@
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
  */
-#include <rabit/rabit.h>
-#include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
