@@ -297,7 +297,8 @@ class _SparkXGBParams(
 
         if self.getOrDefault(self.early_stopping_rounds) is not None:
             if not (
-                self.isDefined(self.validationIndicatorCol) and self.getOrDefault(self.validationIndicatorCol)
+                self.isDefined(self.validationIndicatorCol)
+                and self.getOrDefault(self.validationIndicatorCol)
             ):
                 raise ValueError(
                     "If 'early_stopping_rounds' param is set, you need to set "
