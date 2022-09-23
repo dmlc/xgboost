@@ -79,12 +79,8 @@ def test_rank_assignment() -> None:
     from test_with_dask import _get_client_workers
 
     def local_test(worker_id):
-        with xgb.dask.CommunicatorContext(**args):
-            for val in args:
-                sval = val.decode("utf-8")
-                if sval.startswith("DMLC_TASK_ID"):
-                    task_id = sval
-                    break
+        with xgb.dask.CommunicatorContext(**args) as ctx:
+            task_id = ctx["DMLC_TASK_ID"]
             matched = re.search(".*-([0-9]).*", task_id)
             rank = xgb.collective.get_rank()
             # As long as the number of workers is lesser than 10, rank and worker id

@@ -2,8 +2,8 @@
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=too-few-public-methods, too-many-lines
-from typing import Iterator, Optional, Tuple
 import json
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import pandas as pd
