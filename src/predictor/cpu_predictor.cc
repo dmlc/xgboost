@@ -274,13 +274,23 @@ float FillNodeMeanValues(RegTree const *tree, bst_node_t nidx, std::vector<float
   return result;
 }
 
-void FillNodeMeanValues(RegTree const* tree, std::vector<float>* mean_values) {
+void FillNodeMeanValues(RegTree const* tree, std::vector<float>* mean_values, bool approximate) {
   size_t num_nodes = tree->param.num_nodes;
   if (mean_values->size() == num_nodes) {
     return;
   }
   mean_values->resize(num_nodes);
-  FillNodeMeanValues(tree, 0, mean_values);
+
+  if (approximate) {
+    // prediction value as if the node is a leaf
+    auto &node_mean_values = *mean_values;
+    for (bst_node_t nidx = 0; nidx < num_nodes; ++nidx) {
+      node_mean_values[nidx] = tree->Stat(nidx).base_weight;
+    }
+  } else {
+    // average of leaf values under the node
+    FillNodeMeanValues(tree, 0, mean_values);
+  }
 }
 
 class CPUPredictor : public Predictor {
@@ -503,7 +513,7 @@ class CPUPredictor : public Predictor {
     // initialize tree node mean values
     std::vector<std::vector<float>> mean_values(ntree_limit);
     common::ParallelFor(ntree_limit, n_threads, [&](bst_omp_uint i) {
-      FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]));
+      FillNodeMeanValues(model.trees[i].get(), &(mean_values[i]), approximate);
     });
     auto base_margin = info.base_margin_.View(Context::kCpuId);
     auto base_score = model.learner_model_param->BaseScore(Context::kCpuId)(0);
