@@ -1276,7 +1276,7 @@ class TestWithDask:
                 Xy.save_binary(path)
 
         def load_dmatrix(rabit_args: Dict[str, Union[int,str]], tmpdir: str) -> None:
-            with xgb.dask.CommunicatorContext(rabit_args):
+            with xgb.dask.CommunicatorContext(**rabit_args):
                 rank = xgb.collective.get_rank()
                 path = os.path.join(tmpdir, f"{rank}.bin")
                 Xy = xgb.DMatrix(path)
