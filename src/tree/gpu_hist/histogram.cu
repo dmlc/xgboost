@@ -83,7 +83,7 @@ GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
       dh::Reduce(thrust::cuda::par(alloc), beg, beg + gpair.size(), Pair{}, thrust::plus<Pair>{});
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
-  static_assert(sizeof(Pair) == sizeof(ReduceT) * 4);
+  static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");
   rabit::Allreduce<rabit::op::Sum, ReduceT>(reinterpret_cast<ReduceT*>(&p), 4);
   GradientPair positive_sum{p.first}, negative_sum{p.second};
 
