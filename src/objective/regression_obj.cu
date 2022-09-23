@@ -15,7 +15,9 @@
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"
+#include "../common/numeric.h"  // Reduce
 #include "../common/pseudo_huber.h"
+#include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
 #include "./regression_loss.h"
@@ -37,13 +39,17 @@
 namespace xgboost {
 namespace obj {
 namespace {
-void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+void CheckInitInputs(MetaInfo const& info) {
   CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
-  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
   if (!info.weights_.Empty()) {
     CHECK_EQ(info.weights_.Size(), info.num_row_)
         << "Number of weights should be equal to number of data points.";
   }
+}
+
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+  CheckInitInputs(info);
+  CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
 }  // anonymous namespace
 
@@ -696,6 +702,33 @@ class MeanAbsoluteError : public ObjFunction {
       auto hess = weight[sample_id];
       gpair(i) = GradientPair{grad, hess};
     });
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
+    CheckInitInputs(info);
+    base_margin->Reshape(1);
+    auto out = base_margin->HostView();
+
+    double w{0.0};
+    if (info.weights_.Empty()) {
+      w = static_cast<double>(info.num_row_);
+    } else {
+      w = common::Reduce(ctx_, info.weights_);
+    }
+
+    if (info.num_row_ == 0) {
+      out(0) = 0;
+    } else {
+      // weighted avg
+      out(0) = common::Median(ctx_, info.labels, info.weights_) * w;
+    }
+
+    // Weighted average base score across all workers
+    rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
+    rabit::Allreduce<rabit::op::Sum>(&w, 1);
+
+    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
+                   [w](float v) { return v / w; });
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

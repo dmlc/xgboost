@@ -148,6 +148,17 @@ class XGBoostJNI {
   final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
                                                 int enum_dtype, int enum_op);
 
+  // communicator functions
+  public final static native int CommunicatorInit(String[] args);
+  public final static native int CommunicatorFinalize();
+  public final static native int CommunicatorPrint(String msg);
+  public final static native int CommunicatorGetRank(int[] out);
+  public final static native int CommunicatorGetWorldSize(int[] out);
+
+  // Perform Allreduce operation on data in sendrecvbuf.
+  final static native int CommunicatorAllreduce(ByteBuffer sendrecvbuf, int count,
+    int enum_dtype, int enum_op);
+
   public final static native int XGDMatrixSetInfoFromInterface(
     long handle, String field, String json);
 

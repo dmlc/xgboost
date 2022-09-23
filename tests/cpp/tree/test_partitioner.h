@@ -1,8 +1,12 @@
 /*!
  * Copyright 2021-2022, XGBoost contributors.
  */
+#ifndef XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
+#define XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_
 #include <xgboost/tree_model.h>
+
 #include <vector>
+
 #include "../../../src/tree/hist/expand_entry.h"
 
 namespace xgboost {
@@ -19,3 +23,4 @@ inline void GetSplit(RegTree *tree, float split_value, std::vector<CPUExpandEntr
 }
 }  // namespace tree
 }  // namespace xgboost
+#endif  // XGBOOST_TESTS_CPP_TREE_TEST_PARTITIONER_H_

@@ -8,6 +8,7 @@
 
 #include <dmlc/endian.h>
 #include <xgboost/base.h>
+#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/json.h>
 #include <xgboost/span.h>
@@ -16,6 +17,7 @@
 #include <cassert>
 #include <limits>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -213,6 +215,22 @@ LINALG_HD decltype(auto) constexpr Apply(Fn &&f, Tup &&t) {
   constexpr auto kSize = std::tuple_size<Tup>::value;
   return Apply(std::forward<Fn>(f), std::forward<Tup>(t), std::make_index_sequence<kSize>{});
 }
+
+/**
+ * C++ 17 conjunction
+ */
+template <class...>
+struct Conjunction : std::true_type {};
+template <class B1>
+struct Conjunction<B1> : B1 {};
+template <class B1, class... Bn>
+struct Conjunction<B1, Bn...> : std::conditional_t<bool(B1::value), Conjunction<Bn...>, B1> {};
+
+template <typename... Index>
+using IsAllIntegral = Conjunction<std::is_integral<std::remove_reference_t<Index>>...>;
+
+template <typename... Index>
+using EnableIfIntegral = std::enable_if_t<IsAllIntegral<Index...>::value>;
 }  // namespace detail
 
 /**
@@ -406,7 +424,7 @@ class TensorView {
    *
    * \endcode
    */
-  template <typename... Index>
+  template <typename... Index, detail::EnableIfIntegral<Index...> * = nullptr>
   LINALG_HD T &operator()(Index &&...index) {
     static_assert(sizeof...(index) <= kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
@@ -416,7 +434,7 @@ class TensorView {
   /**
    * \brief Index the tensor to obtain a scalar value.
    */
-  template <typename... Index>
+  template <typename... Index, detail::EnableIfIntegral<Index...> * = nullptr>
   LINALG_HD T const &operator()(Index &&...index) const {
     static_assert(sizeof...(index) <= kDim, "Invalid index.");
     size_t offset = detail::Offset<0ul>(stride_, 0ul, std::forward<Index>(index)...);
@@ -656,7 +674,7 @@ class Tensor {
     }
     if (device >= 0) {
       data_.SetDevice(device);
-      data_.DevicePointer();  // Pull to device;
+      data_.ConstDevicePointer();  // Pull to device;
     }
     CHECK_EQ(data_.Size(), detail::CalcSize(shape_));
   }
@@ -702,11 +720,28 @@ class Tensor {
   }
 
   template <typename I, int32_t D>
-  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D], int32_t device) {
+  explicit Tensor(std::initializer_list<T> data, I const (&shape)[D],
+                  int32_t device = Context::kCpuId) {
     auto &h_vec = data_.HostVector();
     h_vec = data;
     // shape
     this->Initialize(shape, device);
+  }
+  /**
+   * \brief Index operator. Not thread safe, should not be used in performance critical
+   *        region. For more efficient indexing, consider getting a view first.
+   */
+  template <typename... Index>
+  T &operator()(Index &&...idx) {
+    return this->HostView()(std::forward<Index>(idx)...);
+  }
+  /**
+   * \brief Index operator. Not thread safe, should not be used in performance critical
+   *        region. For more efficient indexing, consider getting a view first.
+   */
+  template <typename... Index>
+  T const &operator()(Index &&...idx) const {
+    return this->HostView()(std::forward<Index>(idx)...);
   }
 
   /**
@@ -761,7 +796,7 @@ class Tensor {
    *
    *    If the total size is changed, then data in this tensor is no longer valid.
    */
-  template <typename... S>
+  template <typename... S, detail::EnableIfIntegral<S...> * = nullptr>
   void Reshape(S &&...s) {
     static_assert(sizeof...(S) <= kDim, "Invalid shape.");
     detail::ReshapeImpl<0>(shape_, std::forward<S>(s)...);
@@ -777,13 +812,18 @@ class Tensor {
    *
    *    If the total size is changed, then data in this tensor is no longer valid.
    */
-  template <int32_t D>
-  void Reshape(size_t (&shape)[D]) {
+  template <size_t D>
+  void Reshape(common::Span<size_t const, D> shape) {
     static_assert(D <= kDim, "Invalid shape.");
-    std::copy(shape, shape + D, this->shape_);
+    std::copy(shape.data(), shape.data() + D, this->shape_);
     std::fill(shape_ + D, shape_ + kDim, 1);
     auto n = detail::CalcSize(shape_);
     data_.Resize(n);
+  }
+
+  template <size_t D>
+  void Reshape(size_t (&shape)[D]) {
+    this->Reshape(common::Span<size_t const, D>{shape});
   }
 
   /**
