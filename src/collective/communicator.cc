@@ -48,7 +48,7 @@ void Communicator::Init(Json const& config) {
 #ifndef XGBOOST_USE_CUDA
 void Communicator::Finalize() {
   communicator_->Shutdown();
-  communicator_.reset(nullptr);
+  communicator_.reset(new NoOpCommunicator());
 }
 #endif
 
