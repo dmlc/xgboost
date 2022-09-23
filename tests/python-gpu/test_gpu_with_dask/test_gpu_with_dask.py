@@ -500,7 +500,7 @@ class TestDistributedGPU:
             # setup environment for running the c++ part.
             env = os.environ.copy()
             env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])
-            env["DMLC_TRACKER_URI"] = rabit_args["DMLC_TRACKER_URI"]
+            env["DMLC_TRACKER_URI"] = str(rabit_args["DMLC_TRACKER_URI"])
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
         with Client(local_cuda_cluster) as client:
