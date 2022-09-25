@@ -761,6 +761,39 @@ XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
                             bst_ulong *out);
+
+
+/*!
+ * \brief Get number of valid values from DMatrix.
+ *
+ * \param handle the handle to the DMatrix
+ * \param out The output of number of non-missing values
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
+
+/*!
+ * \brief Get the predictors from DMatrix as CSR matrix.  If this is a quantized DMatrix,
+ *        histogram index is returned instead
+ *
+ * Unlike most of XGBoost C functions, caller of `XGDMatrixGetDataAsCSR` is required to
+ * allocate the memory for return buffer instead of using thread local memory from
+ * XGBoost. This is to avoid allocating a huge memory buffer that can not be freed until
+ * exiting the thread.
+ *
+ * \param handle the handle to the DMatrix
+ * \param config Json configuration string. At the moment it should be empty, preserved
+ *               for future use.
+ * \param out_indptr  indptr of output CSR matrix.
+ * \param out_indices Column index of output CSR matrix.
+ * \param out_data    Data value of CSR matrix.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
+                                  bst_ulong *out_indptr, unsigned *out_indices, float *out_data);
+
 // --- start XGBoost class
 /*!
  * \brief create xgboost learner

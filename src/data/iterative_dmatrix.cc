@@ -5,6 +5,8 @@
 
 #include <rabit/rabit.h>
 
+#include <algorithm>  // std::copy
+
 #include "../common/column_matrix.h"
 #include "../common/hist_util.h"
 #include "../tree/param.h"  // FIXME(jiamingy): Find a better way to share this parameter.
@@ -244,13 +246,43 @@ BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(BatchParam const& 
     ghist_ = std::make_shared<GHistIndexMatrix>(&ctx_, Info(), *ellpack_, param);
   }
 
-  if (param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {
+  if (!std::isnan(param.sparse_thresh) &&
+      param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {
     LOG(WARNING) << "`sparse_threshold` can not be changed when `QuantileDMatrix` is used instead "
                     "of `DMatrix`.";
   }
+
   auto begin_iter =
       BatchIterator<GHistIndexMatrix>(new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_));
   return BatchSet<GHistIndexMatrix>(begin_iter);
+}
+
+BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(BatchParam const& param) {
+  for (auto const& page : this->GetGradientIndex(param)) {
+    auto p_out = std::make_shared<SparsePage>();
+    p_out->data.Resize(this->Info().num_nonzero_);
+    p_out->offset.Resize(this->Info().num_row_ + 1);
+
+    auto& h_offset = p_out->offset.HostVector();
+    CHECK_EQ(page.row_ptr.size(), h_offset.size());
+    std::copy(page.row_ptr.cbegin(), page.row_ptr.cend(), h_offset.begin());
+
+    auto& h_data = p_out->data.HostVector();
+
+    AssignColumnBinIndex(page, [&](auto bin_idx, std::size_t idx, std::size_t, bst_feature_t fidx) {
+      auto e = Entry{fidx, static_cast<float>(bin_idx)};
+      h_data[idx] = e;
+    });
+
+    auto p_ext_out = std::make_shared<ExtSparsePage>(p_out);
+    auto begin_iter =
+        BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(p_ext_out));
+    return BatchSet<ExtSparsePage>(begin_iter);
+  }
+  LOG(FATAL) << "Unreachable";
+  auto begin_iter =
+      BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
+  return BatchSet<ExtSparsePage>(begin_iter);
 }
 }  // namespace data
 }  // namespace xgboost
