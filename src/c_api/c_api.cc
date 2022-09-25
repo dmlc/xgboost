@@ -731,7 +731,7 @@ XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config
     auto const &h_offset = page.page->offset.ConstHostVector();
     std::copy(h_offset.cbegin(), h_offset.cend(), out_indptr);
     auto pv = page.page->GetView();
-    common::ParallelFor(page.page->data.Size(), p_m->Ctx()->Threads(), [&](auto i) {
+    common::ParallelFor(page.page->data.Size(), p_m->Ctx()->Threads(), [&](std::size_t i) {
       auto fvalue = pv.data[i].fvalue;
       auto findex = pv.data[i].index;
       out_data[i] = fvalue;
