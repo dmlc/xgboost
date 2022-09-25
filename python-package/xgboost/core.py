@@ -993,7 +993,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return np.diff(group_ptr)
 
     def get_data(self) -> scipy.sparse.csr_matrix:
-        """Get the predictors from DMatrix as CSR."""
+        """Get the predictors from DMatrix as CSR. This getter is mostly for testing
+        purpose.
+
+            .. versionadded:: 2.0.0
+        """
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
         indices = np.empty(self.num_nonmissing(), dtype=np.uint32)
         data = np.empty(self.num_nonmissing(), dtype=np.float32)
