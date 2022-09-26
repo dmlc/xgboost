@@ -66,7 +66,7 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
     auto ph = Pclip(x.GetHess());
 
     auto ng = Nclip(x.GetGrad());
-    auto nh = Pclip(x.GetHess());
+    auto nh = Nclip(x.GetHess());
 
     return {GradientPair{pg, ph}, GradientPair{ng, nh}};
   }
