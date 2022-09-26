@@ -1511,44 +1511,6 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
             static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
-/**
- * \brief An atomicAdd designed for gradient pair with better performance.  For general
- *        int64_t atomicAdd, one can simply cast it to unsigned long long.
- */
-XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t *dst, int64_t src) {
-  uint32_t* y_low = reinterpret_cast<uint32_t *>(dst);
-  uint32_t *y_high = y_low + 1;
-
-  auto cast_src = reinterpret_cast<uint64_t *>(&src);
-
-  uint32_t const x_low = static_cast<uint32_t>(src);
-  uint32_t const x_high = (*cast_src) >> 32;
-
-  auto const old = atomicAdd(y_low, x_low);
-  uint32_t const carry = old > (std::numeric_limits<uint32_t>::max() - x_low) ? 1 : 0;
-  uint32_t const sig = x_high + carry;
-  atomicAdd(y_high, sig);
-}
-
-XGBOOST_DEV_INLINE void
-AtomicAddGpair(xgboost::GradientPairInt64 *dest,
-               xgboost::GradientPairInt64 const &gpair) {
-  auto dst_ptr = reinterpret_cast<int64_t *>(dest);
-  auto g = gpair.GetGrad();
-  auto h = gpair.GetHess();
-
-  AtomicAdd64As32(dst_ptr, g);
-  AtomicAdd64As32(dst_ptr + 1, h);
-}
-
-XGBOOST_DEV_INLINE void
-AtomicAddGpair(xgboost::GradientPairInt32 *dest,
-               xgboost::GradientPairInt32 const &gpair) {
-  auto dst_ptr = reinterpret_cast<typename xgboost::GradientPairInt32::ValueT*>(dest);
-
-  ::atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
-  ::atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
-}
 
 // Thrust version of this function causes error on Windows
 template <typename ReturnT, typename IterT, typename FuncT>

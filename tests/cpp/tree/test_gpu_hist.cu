@@ -29,7 +29,7 @@ TEST(GpuHist, DeviceHistogram) {
   constexpr size_t kNBins = 128;
   constexpr int kNNodes = 4;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
-  DeviceHistogramStorage<GradientPairPrecise, kStopGrowing> histogram;
+  DeviceHistogramStorage<kStopGrowing> histogram;
   histogram.Init(0, kNBins);
   for (int i = 0; i < kNNodes; ++i) {
     histogram.AllocateHistograms({i});
@@ -107,32 +107,27 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistograms({0});
   maker.gpair = gpair.DeviceSpan();
-  maker.histogram_rounding = CreateRoundingFactor<GradientSumT>(maker.gpair);
+  maker.histogram_rounding.reset(new GradientQuantizer(maker.gpair));
 
   BuildGradientHistogram(
       page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
       gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
-      maker.hist.GetNodeHistogram(0), maker.histogram_rounding,
+      maker.hist.GetNodeHistogram(0), *maker.histogram_rounding,
       !use_shared_memory_histograms);
 
-  DeviceHistogramStorage<GradientSumT>& d_hist = maker.hist;
+  DeviceHistogramStorage<>& d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
-  thrust::host_vector<GradientSumT> h_result (d_hist.Data().size() / 2);
-  size_t data_size =
-      sizeof(GradientSumT) /
-      (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT));
-  data_size *= d_hist.Data().size();
-  dh::safe_cuda(cudaMemcpy(h_result.data(), node_histogram.data(), data_size,
+  thrust::host_vector<GradientPairInt64> h_result (node_histogram.size());
+  dh::safe_cuda(cudaMemcpy(h_result.data(), node_histogram.data(), node_histogram.size_bytes(),
                            cudaMemcpyDeviceToHost));
 
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
-  std::cout << std::fixed;
   for (size_t i = 0; i < h_result.size(); ++i) {
-    ASSERT_FALSE(std::isnan(h_result[i].GetGrad()));
-    EXPECT_NEAR(h_result[i].GetGrad(), solution[i].GetGrad(), 0.01f);
-    EXPECT_NEAR(h_result[i].GetHess(), solution[i].GetHess(), 0.01f);
+    auto result = maker.histogram_rounding->ToFloatingPoint(h_result[i]);
+    EXPECT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
+    EXPECT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
   }
 }
 
@@ -159,6 +154,12 @@ HistogramCutsWrapper GetHostCutMatrix () {
               0.26f, 0.74f, 1.98f,
               0.26f, 0.71f, 1.83f});
   return cmat;
+}
+
+inline GradientQuantizer DummyRoundingFactor() {
+  thrust::device_vector<GradientPair> gpair(1);
+  gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
+  return GradientQuantizer(dh::ToSpan(gpair));
 }
 
 // TODO(trivialfis): This test is over simplified.
@@ -209,10 +210,12 @@ TEST(GpuHist, EvaluateRootSplit) {
   // Each row of hist_gpair represents gpairs for one feature.
   // Each entry represents a bin.
   std::vector<GradientPairPrecise> hist_gpair = GetHostHistGpair();
-  std::vector<bst_float> hist;
+  maker.histogram_rounding.reset(new GradientQuantizer(DummyRoundingFactor()));
+  std::vector<int64_t> hist;
   for (auto pair : hist_gpair) {
-    hist.push_back(pair.GetGrad());
-    hist.push_back(pair.GetHess());
+    auto grad = maker.histogram_rounding->ToFixedPoint({float(pair.GetGrad()),float(pair.GetHess())});
+    hist.push_back(grad.GetQuantisedGrad());
+    hist.push_back(grad.GetQuantisedHess());
   }
 
   ASSERT_EQ(maker.hist.Data().size(), hist.size());
