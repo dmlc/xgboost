@@ -18,14 +18,13 @@
 #include "../src/metric/survival_metric.cc"
 
 // objectives
-#include "../src/objective/adaptive.cc"
-#include "../src/objective/aft_obj.cc"
-#include "../src/objective/hinge.cc"
-#include "../src/objective/init_estimation.cc"
-#include "../src/objective/multiclass_obj.cc"
 #include "../src/objective/objective.cc"
-#include "../src/objective/rank_obj.cc"
 #include "../src/objective/regression_obj.cc"
+#include "../src/objective/multiclass_obj.cc"
+#include "../src/objective/rank_obj.cc"
+#include "../src/objective/hinge.cc"
+#include "../src/objective/aft_obj.cc"
+#include "../src/objective/adaptive.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"
