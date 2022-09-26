@@ -3,11 +3,12 @@
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_H_
 #define XGBOOST_COMMON_LINALG_OP_H_
-#include <type_traits>
 #include <cstdint>  // std::int32_t
+#include <type_traits>
 
 #include "common.h"
 #include "threading_utils.h"
+#include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/generic_parameters.h"
 #include "xgboost/linalg.h"
 

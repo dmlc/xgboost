@@ -5,6 +5,7 @@
 #include <xgboost/generic_parameters.h>
 
 #include "../../../src/common/stats.h"
+#include "../../../src/common/transform_iterator.h"  // common::MakeIndexTransformIter
 
 namespace xgboost {
 namespace common {

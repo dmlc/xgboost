@@ -2,8 +2,9 @@
 
 #include <numeric>  // std::accumulate
 
-#include "common.h"                      // OptionalWeights, MakeIndexTransformIter
+#include "common.h"                      // OptionalWeights
 #include "threading_utils.h"             // ParallelFor, MemStackAllocator
+#include "transform_iterator.h"          // MakeIndexTransformIter
 #include "xgboost/generic_parameters.h"  // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // Tensor, UnravelIndex, Apply

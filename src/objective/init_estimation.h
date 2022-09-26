@@ -5,10 +5,12 @@
 #ifndef XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 #define XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 
-#include "../common/common.h"   // OptionalWeights, MakeIndexTransformIter
-#include "../common/numeric.h"  // cpu_impl::Reduce
+#include "../common/common.h"              // OptionalWeights
+#include "../common/numeric.h"             // cpu_impl::Reduce
+#include "../common/transform_iterator.h"  // MakeIndexTransformIter
 #include "rabit/rabit.h"
-#include "xgboost/data.h"  // MetaInfo
+#include "xgboost/data.h"    // MetaInfo
+#include "xgboost/linalg.h"  // UnravelIndex
 
 namespace xgboost {
 namespace obj {
