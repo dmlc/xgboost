@@ -1018,29 +1018,19 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return ret
 
     def num_row(self) -> int:
-        """Get the number of rows in the DMatrix.
-
-        Returns
-        -------
-        number of rows : int
-        """
+        """Get the number of rows in the DMatrix."""
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumRow(self.handle, ctypes.byref(ret)))
         return ret.value
 
     def num_col(self) -> int:
-        """Get the number of columns (features) in the DMatrix.
-
-        Returns
-        -------
-        number of columns
-        """
+        """Get the number of columns (features) in the DMatrix."""
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumCol(self.handle, ctypes.byref(ret)))
         return ret.value
 
     def num_nonmissing(self) -> int:
-        """Return number of non-missing values."""
+        """Get the number of non-missing values in the DMatrix."""
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
