@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2015 by Contributors
+ *  Copyright (c) 2015-2022 by Contributors
  * \file c_api_error.h
  * \brief Error handling for C API.
  */
@@ -52,4 +52,12 @@ inline int XGBAPIHandleException(const dmlc::Error &e) {
   XGBAPISetLastError(e.what());
   return -1;
 }
+
+#define xgboost_CHECK_C_ARG_PTR(out_ptr)                      \
+  do {                                                        \
+    if (XGBOOST_EXPECT(!(out_ptr), false)) {                  \
+      LOG(FATAL) << "Invalid pointer argument: " << #out_ptr; \
+    }                                                         \
+  } while (0)
+
 #endif  // XGBOOST_C_API_C_API_ERROR_H_

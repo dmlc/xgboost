@@ -13,15 +13,11 @@ TEST(Linear, GPUCoordinate) {
   size_t constexpr kCols = 10;
 
   auto mat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  auto ctx = CreateEmptyGenericParam(GPUIDX);
 
-  LearnerModelParam mparam;
-  mparam.num_feature = kCols;
-  mparam.num_output_group = 1;
-  mparam.base_score = 0.5;
-
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-      xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
+      xgboost::LinearUpdater::Create("gpu_coord_descent", &ctx));
   updater->Configure({{"eta", "1."}});
   xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
       mat->Info().num_row_, xgboost::GradientPair(-5, 1.0));

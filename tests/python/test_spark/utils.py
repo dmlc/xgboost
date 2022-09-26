@@ -102,7 +102,7 @@ class SparkTestCase(TestSparkContext, TestTempDir, unittest.TestCase):
     def setUpClass(cls):
         cls.setup_env(
             {
-                "spark.master": "local[2]",
+                "spark.master": "local[4]",
                 "spark.python.worker.reuse": "false",
                 "spark.driver.host": "127.0.0.1",
                 "spark.task.maxFailures": "1",
