@@ -1,10 +1,11 @@
-import xgboost as xgb
-import testing as tm
-import numpy as np
-import pytest
 import os
 import tempfile
 
+import numpy as np
+import pytest
+import testing as tm
+
+import xgboost as xgb
 
 rng = np.random.RandomState(1337)
 
@@ -15,6 +16,7 @@ class TestTrainingContinuation:
     def generate_parameters(self):
         xgb_params_01_binary = {
             'nthread': 1,
+            "objective": "binary:logistic",
         }
 
         xgb_params_02_binary = {

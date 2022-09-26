@@ -126,6 +126,7 @@ if __name__ == "__main__":
                 "tests/python/test_config.py",
                 "tests/python/test_spark/",
                 "tests/python-gpu/test_gpu_spark/",
+                "tests/python/test_tree_regularization.py",
                 "tests/ci_build/lint_python.py",
                 # demo
                 "demo/guide-python/cat_in_the_dat.py",
