@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2022 by XGBoost Contributors
+ */
 #include "stats.h"
 
 #include <numeric>  // std::accumulate

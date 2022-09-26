@@ -104,11 +104,6 @@ inline double Reduce(Context const*, HostDeviceVector<float> const&) {
 }  // namespace cuda_impl
 
 /**
- * \brief Reduction.
- */
-double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
-
-/**
  * \brief Reduction with iterator. init must be additive identity. (0 for primitive types)
  */
 namespace cpu_impl {
@@ -122,6 +117,11 @@ V Reduce(Context const* ctx, It first, It second, V const& init) {
   return result;
 }
 }  // namespace cpu_impl
+
+/**
+ * \brief Reduction on host device vector.
+ */
+double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
 }  // namespace common
 }  // namespace xgboost
 
