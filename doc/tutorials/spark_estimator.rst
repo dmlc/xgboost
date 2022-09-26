@@ -61,6 +61,7 @@ SparkXGBClassifier
 pyspark classifier specific params, e.g. `raw_prediction_col` and `probability_col` parameters.
 Correspondingly, by default, `SparkXGBClassifierModel` transforming test dataset will
 generate result dataset with 3 new columns:
- - "prediction": represents the predicted label.
- - "raw_prediction": represents the output margin values.
- - "probability": represents the prediction probability on each label.
+
+- "prediction": represents the predicted label.
+- "raw_prediction": represents the output margin values.
+- "probability": represents the prediction probability on each label.
