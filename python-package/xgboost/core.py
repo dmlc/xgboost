@@ -36,7 +36,7 @@ from ._typing import (
     FeatureNames,
     _T,
     CupyT,
-    BoosterParam
+    BoosterParam,
 )
 
 
@@ -993,10 +993,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return np.diff(group_ptr)
 
     def get_data(self) -> scipy.sparse.csr_matrix:
-        """Get the predictors from DMatrix as CSR. This getter is mostly for testing
-        purpose.
+        """Get the predictors from DMatrix as a CSR matrix. This getter is mostly for
+        testing purposes. If this is a quantized DMatrix then histogram index is
+        returned instead of input values.
 
             .. versionadded:: 2.0.0
+
         """
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
         indices = np.empty(self.num_nonmissing(), dtype=np.uint32)
@@ -1023,8 +1025,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         number of rows : int
         """
         ret = c_bst_ulong()
-        _check_call(_LIB.XGDMatrixNumRow(self.handle,
-                                         ctypes.byref(ret)))
+        _check_call(_LIB.XGDMatrixNumRow(self.handle, ctypes.byref(ret)))
         return ret.value
 
     def num_col(self) -> int:

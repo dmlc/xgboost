@@ -262,6 +262,9 @@ auto const &OptionalArg(Json const &in, std::string const &key, T const &dft) {
   return dft;
 }
 
+/**
+ * \brief Get shared ptr from DMatrix C handle with additional checks.
+ */
 inline std::shared_ptr<DMatrix> CastDMatrixHandle(DMatrixHandle const handle) {
   auto pp_m = static_cast<std::shared_ptr<DMatrix> *>(handle);
   StringView msg{"Invalid DMatrix handle"};

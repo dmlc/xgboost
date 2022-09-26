@@ -783,8 +783,8 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
  * exiting the thread.
  *
  * \param handle the handle to the DMatrix
- * \param config Json configuration string. At the moment it should be empty, preserved
- *               for future use.
+ * \param config Json configuration string. At the moment it should be an empty document,
+ *               preserved for future use.
  * \param out_indptr  indptr of output CSR matrix.
  * \param out_indices Column index of output CSR matrix.
  * \param out_data    Data value of CSR matrix.

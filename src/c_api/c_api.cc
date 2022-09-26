@@ -700,6 +700,7 @@ XGB_DLL int XGDMatrixNumCol(const DMatrixHandle handle,
   API_END();
 }
 
+// We name the function non-missing instead of non-zero since zero is perfectly valid for XGBoost.
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle const handle, xgboost::bst_ulong *out) {
   API_BEGIN();
   CHECK_HANDLE();
