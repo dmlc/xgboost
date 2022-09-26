@@ -20,7 +20,7 @@ from pyspark.ml.param.shared import (
     HasWeightCol,
 )
 from pyspark.ml.util import MLReadable, MLWritable
-from pyspark.sql.functions import col, countDistinct, pandas_udf, struct
+from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
@@ -164,6 +164,12 @@ class _SparkXGBParams(
         + "Note: The auto repartitioning judgement is not fully accurate, so it is recommended"
         + "to have force_repartition be True.",
     )
+    repartition_random_shuffle = Param(
+        Params._dummy(),
+        "repartition_random_shuffle",
+        "A boolean variable. Set repartition_random_shuffle=true if you want to random shuffle "
+        "dataset when repartitioning is required. By default is True.",
+    )
     feature_names = Param(
         Params._dummy(), "feature_names", "A list of str to specify feature names."
     )
@@ -268,15 +274,6 @@ class _SparkXGBParams(
             raise ValueError(
                 f"Number of workers was {self.getOrDefault(self.num_workers)}."
                 f"It cannot be less than 1 [Default is 1]"
-            )
-
-        if (
-            self.getOrDefault(self.force_repartition)
-            and self.getOrDefault(self.num_workers) == 1
-        ):
-            get_logger(self.__class__.__name__).warning(
-                "You set force_repartition to true when there is no need for a repartition."
-                "Therefore, that parameter will be ignored."
             )
 
         if self.getOrDefault(self.features_cols):
@@ -470,6 +467,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             num_workers=1,
             use_gpu=False,
             force_repartition=False,
+            repartition_random_shuffle=True,
             feature_names=None,
             feature_types=None,
             arbitrary_params_dict={},
@@ -695,8 +693,21 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 num_workers,
             )
 
-        if self._repartition_needed(dataset):
-            dataset = dataset.repartition(num_workers)
+        if self._repartition_needed(dataset) or (
+            self.isDefined(self.validationIndicatorCol)
+            and self.getOrDefault(self.validationIndicatorCol)
+        ):
+            # If validationIndicatorCol defined, we always repartition dataset
+            # to balance data, because user might unionise train and validation dataset,
+            # without shuffling data then some partitions might contain only train or validation
+            # dataset.
+            if self.getOrDefault(self.repartition_random_shuffle):
+                # In some cases, spark round-robin repartition might cause data skew
+                # use random shuffle can address it.
+                dataset = dataset.repartition(num_workers, rand(1))
+            else:
+                dataset = dataset.repartition(num_workers)
+
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params

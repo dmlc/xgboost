@@ -20,7 +20,6 @@ import java.nio.file.{Files, Path}
 import java.sql.{Date, Timestamp}
 import java.util.{Locale, TimeZone}
 
-import com.nvidia.spark.rapids.RapidsConf
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 import org.apache.spark.SparkConf

@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark.util
 import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, TypeHints}
 
 // based on org.apache.spark.util copy /paste
-private[spark] object Utils {
+object Utils {
 
   def getSparkClassLoader: ClassLoader = getClass.getClassLoader
 
