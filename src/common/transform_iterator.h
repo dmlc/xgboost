@@ -1,9 +1,13 @@
+/**
+ * Copyright 2022 by XGBoost Contributors
+ */
 #ifndef XGBOOST_COMMON_TRANSFORM_ITERATOR_H_
 #define XGBOOST_COMMON_TRANSFORM_ITERATOR_H_
 
 #include <cstddef>      // std::size_t
 #include <iterator>     // std::random_access_iterator_tag
 #include <type_traits>  // std::result_of_t, std::add_pointer_t, std::add_lvalue_reference_t
+#include <utility>      // std::forward
 
 #include "xgboost/span.h"  // ptrdiff_t
 
