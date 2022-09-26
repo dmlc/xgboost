@@ -3,6 +3,7 @@
  */
 #ifndef XGBOOST_COMMON_NUMERIC_CUH_
 #define XGBOOST_COMMON_NUMERIC_CUH_
+#include <thrust/functional.h>           // thrust:plus
 #include <xgboost/generic_parameters.h>  // Context
 
 #include "device_helpers.cuh"  // Reduce
@@ -20,4 +21,4 @@ V Reduce(Context const* /*ctx unused*/, It first, It second, V const& init) {
 }  // namespace cuda_impl
 }  // namespace common
 }  // namespace xgboost
-#endif
+#endif  // XGBOOST_COMMON_NUMERIC_CUH_

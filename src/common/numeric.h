@@ -109,16 +109,16 @@ inline double Reduce(Context const*, HostDeviceVector<float> const&) {
 double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
 
 /**
- * \brief Reduction with iterator.
+ * \brief Reduction with iterator. init must be additive identity. (0 for primitive types)
  */
 namespace cpu_impl {
 template <typename It, typename V = typename It::value_type>
-double Reduce(Context const* ctx, It first, It second, V const& init) {
+V Reduce(Context const* ctx, It first, It second, V const& init) {
   size_t n = std::distance(first, second);
-  common::MemStackAllocator<double, common::DefaultMaxThreads()> result_tloc(ctx->Threads(), init);
+  common::MemStackAllocator<V, common::DefaultMaxThreads()> result_tloc(ctx->Threads(), init);
   common::ParallelFor(n, ctx->Threads(),
                       [&](auto i) { result_tloc[omp_get_thread_num()] += first[i]; });
-  auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cend(), init);
+  auto result = std::accumulate(result_tloc.cbegin(), result_tloc.cbegin() + ctx->Threads(), init);
   return result;
 }
 }  // namespace cpu_impl

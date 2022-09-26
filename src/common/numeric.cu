@@ -2,10 +2,8 @@
  * Copyright 2022 by XGBoost Contributors
  */
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>  // thrust:plus
 
-#include "device_helpers.cuh"  // dh::Reduce, safe_cuda, dh::XGBCachingDeviceAllocator
-#include "numeric.cuh"
+#include "numeric.cuh"         // Reduce
 #include "numeric.h"
 #include "xgboost/generic_parameters.h"  // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
