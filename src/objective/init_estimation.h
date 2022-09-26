@@ -7,6 +7,7 @@
 #ifndef XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 #define XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 
+#include "../common/common.h"            // AssertGPUSupport
 #include "xgboost/data.h"                // MetaInfo
 #include "xgboost/generic_parameters.h"  // Context
 
@@ -18,6 +19,12 @@ double WeightedMean(Context const* ctx, MetaInfo const& info);
 
 namespace cuda_impl {
 double WeightedMean(Context const* ctx, MetaInfo const& info);
+#if !defined(XGBOOST_USE_CUDA)
+inline double WeightedMean(Context const*, MetaInfo const&) {
+  common::AssertGPUSupport();
+  return 0.0;
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
 /**
