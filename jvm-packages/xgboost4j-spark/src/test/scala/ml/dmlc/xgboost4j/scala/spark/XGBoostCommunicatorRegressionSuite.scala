@@ -98,6 +98,8 @@ class XGBoostCommunicatorRegressionSuite extends FunSuite with PerTest {
         "rabit_timeout" -> 0))
         .fit(training)
     }
+
+    Communicator.mockList = Array.empty.toList.asJava
   }
 
 }
