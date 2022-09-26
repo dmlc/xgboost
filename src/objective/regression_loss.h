@@ -5,14 +5,27 @@
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 
 #include <dmlc/omp.h>
+#include <xgboost/data.h>                // MetaInfo
+#include <xgboost/generic_parameters.h>  // Context
+#include <xgboost/linalg.h>              // Tensor
 #include <xgboost/logging.h>
+
 #include <algorithm>
 
-#include "xgboost/task.h"
 #include "../common/math.h"
+#include "init_estimation.h"  // WeightedMean
+#include "xgboost/task.h"
 
 namespace xgboost {
 namespace obj {
+
+inline void CheckInitInputs(MetaInfo const& info) {
+  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
+  if (!info.weights_.Empty()) {
+    CHECK_EQ(info.weights_.Size(), info.num_row_)
+        << "Number of weights should be equal to number of data points.";
+  }
+}
 
 // common regressions
 // linear regression
@@ -39,6 +52,15 @@ struct LinearSquareLoss {
 
   static const char* Name() { return "reg:squarederror"; }
   static ObjInfo Info() { return {ObjInfo::kRegression, true, false}; }
+
+  static bool InitEstimation(Context const* ctx, MetaInfo const& info,
+                             linalg::Tensor<float, 1>* base_margin) {
+    CheckInitInputs(info);
+    base_margin->Reshape(1);
+    auto out = base_margin->HostView();
+    out(0) = WeightedMean(ctx, info);
+    return true;
+  }
 };
 
 struct SquaredLogError {
@@ -66,6 +88,10 @@ struct SquaredLogError {
   static const char* Name() { return "reg:squaredlogerror"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
+
+  static bool InitEstimation(Context const*, MetaInfo const&, linalg::Tensor<float, 1>*) {
+    return false;
+  }
 };
 
 // logistic loss for probability regression task
@@ -103,6 +129,10 @@ struct LogisticRegression {
   static const char* Name() { return "reg:logistic"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
+
+  static bool InitEstimation(Context const*, MetaInfo const&, linalg::Tensor<float, 1>*) {
+    return false;
+  }
 };
 
 // logistic loss for binary classification task
@@ -147,6 +177,10 @@ struct LogisticRaw : public LogisticRegression {
   static const char* Name() { return "binary:logitraw"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
+
+  static bool InitEstimation(Context const*, MetaInfo const&, linalg::Tensor<float, 1>*) {
+    return false;
+  }
 };
 
 }  // namespace obj

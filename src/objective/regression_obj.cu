@@ -22,7 +22,6 @@
 #include "../common/transform.h"
 #include "./regression_loss.h"
 #include "adaptive.h"
-#include "init_estimation.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
@@ -40,14 +39,6 @@
 namespace xgboost {
 namespace obj {
 namespace {
-void CheckInitInputs(MetaInfo const& info) {
-  CHECK_EQ(info.labels.Shape(0), info.num_row_) << "Invalid shape of labels.";
-  if (!info.weights_.Empty()) {
-    CHECK_EQ(info.weights_.Size(), info.num_row_)
-        << "Number of weights should be equal to number of data points.";
-  }
-}
-
 void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
@@ -170,10 +161,7 @@ class RegLossObj : public ObjFunction {
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
-    CheckInitInputs(info);
-    base_margin->Reshape(1);
-    auto out = base_margin->HostView();
-    out(0) = WeightedMean(ctx_, info);
+    Loss::InitEstimation(ctx_, info, base_margin);
   }
 
   void SaveConfig(Json* p_out) const override {

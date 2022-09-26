@@ -1,8 +1,18 @@
+/**
+ * Copyright 2022 by XGBoost Contributors
+ *
+ * \brief Utilities for estimating initial score.
+ */
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
+
+#include <cinttypes>  // std::uint64_t
 
 #include "../common/device_helpers.cuh"  // dh::MakeTransformIterator
 #include "../common/numeric.cuh"         // Reduce
 #include "init_estimation.h"
+#include "rabit/rabit.h"
+#include "xgboost/data.h"                // MetaInfo
+#include "xgboost/generic_parameters.h"  // Context
 
 namespace xgboost {
 namespace obj {
