@@ -7,7 +7,8 @@
 #ifndef XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 #define XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 
-#include "xgboost/data.h"  // MetaInfo
+#include "xgboost/data.h"                // MetaInfo
+#include "xgboost/generic_parameters.h"  // Context
 
 namespace xgboost {
 namespace obj {
