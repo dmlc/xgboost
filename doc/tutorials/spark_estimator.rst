@@ -70,9 +70,9 @@ SparkXGBClassifier
 pyspark classifier specific params, e.g. `raw_prediction_col` and `probability_col` parameters.
 Correspondingly, by default, `SparkXGBClassifierModel` transforming test dataset will
 generate result dataset with 3 new columns:
- - "prediction": represents the predicted label.
- - "raw_prediction": represents the output margin values.
- - "probability": represents the prediction probability on each label.
+- "prediction": represents the predicted label.
+- "raw_prediction": represents the output margin values.
+- "probability": represents the prediction probability on each label.
 
 
 ***************************
@@ -200,3 +200,4 @@ You only need to add some configurations to enable RAPIDS plugin when submitting
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --archives xgboost-env.tar.gz#environment \
     xgboost_app.py
+
