@@ -244,7 +244,8 @@ BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(BatchParam const& 
     ghist_ = std::make_shared<GHistIndexMatrix>(&ctx_, Info(), *ellpack_, param);
   }
 
-  if (param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {
+  if (!std::isnan(param.sparse_thresh) &&
+      param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {
     LOG(WARNING) << "`sparse_threshold` can not be changed when `QuantileDMatrix` is used instead "
                     "of `DMatrix`.";
   }
