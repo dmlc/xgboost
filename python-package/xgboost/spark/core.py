@@ -293,6 +293,16 @@ class _SparkXGBParams(
             if not isinstance(self.getOrDefault(self.eval_metric), str):
                 raise ValueError("Only string type 'eval_metric' param is allowed.")
 
+        if self.getOrDefault(self.early_stopping_rounds) is not None:
+            if not (
+                self.isDefined(self.validationIndicatorCol)
+                and self.getOrDefault(self.validationIndicatorCol)
+            ):
+                raise ValueError(
+                    "If 'early_stopping_rounds' param is set, you need to set "
+                    "'validation_indicator_col' param as well."
+                )
+
         if self.getOrDefault(self.enable_sparse_data_optim):
             if self.getOrDefault(self.missing) != 0.0:
                 # If DMatrix is constructed from csr / csc matrix, then inactive elements

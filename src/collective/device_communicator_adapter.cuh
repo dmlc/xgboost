@@ -31,6 +31,10 @@ class DeviceCommunicatorAdapter : public DeviceCommunicator {
     DoAllReduceSum<collective::DataType::kDouble>(send_receive_buffer, count);
   }
 
+  void AllReduceSum(int64_t *send_receive_buffer, size_t count) override {
+    DoAllReduceSum<collective::DataType::kInt64>(send_receive_buffer, count);
+  }
+
   void AllReduceSum(uint64_t *send_receive_buffer, size_t count) override {
     DoAllReduceSum<collective::DataType::kUInt64>(send_receive_buffer, count);
   }

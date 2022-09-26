@@ -12,56 +12,51 @@
 namespace xgboost {
 namespace tree {
 
-template <typename T, typename U>
-XGBOOST_DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, U const x) {
-  static_assert(sizeof(T) >= sizeof(U), "Rounding must have higher or equal precision.");
-  return (rounding_factor + static_cast<T>(x)) - rounding_factor;
+/**
+ * \brief An atomicAdd designed for gradient pair with better performance.  For general
+ *        int64_t atomicAdd, one can simply cast it to unsigned long long. Exposed for testing.
+ */
+XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
+  uint32_t* y_low = reinterpret_cast<uint32_t*>(dst);
+  uint32_t* y_high = y_low + 1;
+
+  auto cast_src = reinterpret_cast<uint64_t *>(&src);
+
+  uint32_t const x_low = static_cast<uint32_t>(src);
+  uint32_t const x_high = (*cast_src) >> 32;
+
+  auto const old = atomicAdd(y_low, x_low);
+  uint32_t const carry = old > (std::numeric_limits<uint32_t>::max() - x_low) ? 1 : 0;
+  uint32_t const sig = x_high + carry;
+  atomicAdd(y_high, sig);
 }
 
-/**
- * Truncation factor for gradient, see comments in `CreateRoundingFactor()` for details.
- */
-template <typename GradientSumT>
-struct HistRounding {
-  /* Factor to truncate the gradient before building histogram for deterministic result. */
-  GradientSumT rounding;
+class GradientQuantizer {
+private:
   /* Convert gradient to fixed point representation. */
-  GradientSumT to_fixed_point;
+  GradientPairPrecise to_fixed_point_;
   /* Convert fixed point representation back to floating point. */
-  GradientSumT to_floating_point;
-
-  /* Type used in shared memory. */
-  using SharedSumT = std::conditional_t<
-      std::is_same<typename GradientSumT::ValueT, float>::value,
-      GradientPairInt32, GradientPairInt64>;
-  using T = typename GradientSumT::ValueT;
-
-  XGBOOST_DEV_INLINE SharedSumT ToFixedPoint(GradientPair const& gpair) const {
-    auto adjusted = SharedSumT(T(gpair.GetGrad() * to_fixed_point.GetGrad()),
-                               T(gpair.GetHess() * to_fixed_point.GetHess()));
+  GradientPairPrecise to_floating_point_;
+public:
+  explicit GradientQuantizer(common::Span<GradientPair const> gpair);
+  XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
+    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
+                               gpair.GetHess() * to_fixed_point_.GetHess());
     return adjusted;
   }
-  XGBOOST_DEV_INLINE GradientSumT ToFloatingPoint(SharedSumT const &gpair) const {
-    auto g = gpair.GetGrad() * to_floating_point.GetGrad();
-    auto h = gpair.GetHess() * to_floating_point.GetHess();
-    GradientSumT truncated{
-        TruncateWithRoundingFactor<T>(rounding.GetGrad(), g),
-        TruncateWithRoundingFactor<T>(rounding.GetHess(), h),
-    };
-    return truncated;
+  XGBOOST_DEVICE GradientPairPrecise ToFloatingPoint(const GradientPairInt64&gpair) const {
+    auto g = gpair.GetQuantisedGrad() * to_floating_point_.GetGrad();
+    auto h = gpair.GetQuantisedHess() * to_floating_point_.GetHess();
+    return {g,h};
   }
 };
 
-template <typename GradientSumT>
-HistRounding<GradientSumT> CreateRoundingFactor(common::Span<GradientPair const> gpair);
-
-template <typename GradientSumT>
 void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             FeatureGroupsAccessor const& feature_groups,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
-                            common::Span<GradientSumT> histogram,
-                            HistRounding<GradientSumT> rounding,
+                            common::Span<GradientPairInt64> histogram,
+                            GradientQuantizer rounding,
                             bool force_global_memory = false);
 }  // namespace tree
 }  // namespace xgboost
