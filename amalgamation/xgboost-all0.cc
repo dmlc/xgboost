@@ -25,6 +25,7 @@
 #include "../src/objective/hinge.cc"
 #include "../src/objective/aft_obj.cc"
 #include "../src/objective/adaptive.cc"
+#include "../src/objective/init_estimation.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"
