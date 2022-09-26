@@ -96,8 +96,6 @@ struct SquaredLogError {
 
 // logistic loss for probability regression task
 struct LogisticRegression {
-  // duplication is necessary, as __device__ specifier
-  // cannot be made conditional on template parameter
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
   XGBOOST_DEVICE static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
@@ -108,22 +106,15 @@ struct LogisticRegression {
     return fmaxf(predt * (1.0f - predt), eps);
   }
   template <typename T>
-  static T PredTransform(T x) { return common::Sigmoid(x); }
-  template <typename T>
-  static T FirstOrderGradient(T predt, T label) { return predt - label; }
-  template <typename T>
-  static T SecondOrderGradient(T predt, T label) {
-    const T eps = T(1e-16f);
-    return std::max(predt * (T(1.0f) - predt), eps);
+  static T PredTransform(T x) {
+    return common::Sigmoid(x);
   }
   static bst_float ProbToMargin(bst_float base_score) {
     CHECK(base_score > 0.0f && base_score < 1.0f)
         << "base_score must be in (0,1) for logistic loss, got: " << base_score;
     return -logf(1.0f / base_score - 1.0f);
   }
-  static const char* LabelErrorMsg() {
-    return "label must be in [0,1] for logistic regression";
-  }
+  static const char* LabelErrorMsg() { return "label must be in [0,1] for logistic regression"; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
   static const char* Name() { return "reg:logistic"; }
