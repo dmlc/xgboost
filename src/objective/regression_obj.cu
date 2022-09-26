@@ -161,7 +161,9 @@ class RegLossObj : public ObjFunction {
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
-    Loss::InitEstimation(ctx_, info, base_margin);
+    if (!Loss::InitEstimation(ctx_, info, base_margin)) {
+      ObjFunction::InitEstimation(info, base_margin);
+    }
   }
 
   void SaveConfig(Json* p_out) const override {
