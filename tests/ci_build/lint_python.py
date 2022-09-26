@@ -131,6 +131,7 @@ if __name__ == "__main__":
                 # demo
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
+                "demo/guide-python/feature_weights.py",
                 "demo/guide-python/spark_estimator_examples.py",
             ]
         ):
@@ -143,6 +144,7 @@ if __name__ == "__main__":
                 "python-package/xgboost/",
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
+                "demo/guide-python/feature_weights.py",
                 "tests/python/test_data_iterator.py",
                 "tests/python/test_spark/test_data.py",
                 "tests/python-gpu/test_gpu_with_dask/test_gpu_with_dask.py",
