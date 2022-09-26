@@ -14,7 +14,7 @@ namespace xgboost {
 namespace common {
 float Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
              HostDeviceVector<float> const& weights) {
-  CHECK_EQ(t.Shape(1), 0) << "Matrix is not yet supported.";
+  CHECK_LE(t.Shape(1), 1) << "Matrix is not yet supported.";
   if (!ctx->IsCPU()) {
     weights.SetDevice(ctx->gpu_id);
     auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
