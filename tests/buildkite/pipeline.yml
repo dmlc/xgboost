@@ -78,7 +78,7 @@ steps:
     command: "tests/buildkite/test-cpp-gpu.sh"
     key: test-cpp-gpu
     agents:
-      queue: linux-amd64-mgpu
+      queue: linux-amd64-gpu
   - label: ":console: Run integration tests with JVM packages"
     command: "tests/buildkite/test-integration-jvm-packages.sh"
     key: test-integration-jvm-packages
