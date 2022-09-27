@@ -212,6 +212,7 @@ class TestGPUPredict:
         self.run_inplace_predict_cupy(0)
 
     @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.mgpu
     def test_inplace_predict_cupy_specified_device(self):
         import cupy as cp
         n_devices = cp.cuda.runtime.getDeviceCount()
