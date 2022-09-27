@@ -84,29 +84,3 @@ TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
   TestMultiClassLogLoss(GPUIDX);
   xgboost::CheckDeterministicMetricMultiClass(xgboost::StringView{"mlogloss"}, GPUIDX);
 }
-
-#if defined(__CUDACC__)
-namespace xgboost {
-namespace common {
-TEST(Metric, MGPU_MultiClassError) {
-  if (AllVisibleGPUs() < 2) {
-    LOG(WARNING) << "Not testing in multi-gpu environment.";
-    return;
-  }
-
-  {
-    TestMultiClassError(0);
-  }
-  {
-    TestMultiClassError(1);
-  }
-  {
-    TestMultiClassLogLoss(0);
-  }
-  {
-    TestMultiClassLogLoss(1);
-  }
-}
-}  // namespace common
-}  // namespace xgboost
-#endif  // defined(__CUDACC__)

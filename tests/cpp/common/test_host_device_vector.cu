@@ -182,16 +182,5 @@ TEST(HostDeviceVector, Empty) {
   ASSERT_FALSE(another.Empty());
   ASSERT_TRUE(vec.Empty());
 }
-
-TEST(HostDeviceVector, MGPU_Basic) {  // NOLINT
-  if (AllVisibleGPUs() < 2) {
-    LOG(WARNING) << "Not testing in multi-gpu environment.";
-    return;
-  }
-
-  size_t n = 1001;
-  int device = 1;
-  TestHostDeviceVector(n, device);
-}
 }  // namespace common
 }  // namespace xgboost
