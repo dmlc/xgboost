@@ -107,12 +107,12 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistograms({0});
   maker.gpair = gpair.DeviceSpan();
-  maker.histogram_rounding.reset(new GradientQuantizer(maker.gpair));
+  maker.quantiser.reset(new GradientQuantiser(maker.gpair));
 
   BuildGradientHistogram(
       page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
       gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
-      maker.hist.GetNodeHistogram(0), *maker.histogram_rounding,
+      maker.hist.GetNodeHistogram(0), *maker.quantiser,
       !use_shared_memory_histograms);
 
   DeviceHistogramStorage<>& d_hist = maker.hist;
@@ -125,7 +125,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   for (size_t i = 0; i < h_result.size(); ++i) {
-    auto result = maker.histogram_rounding->ToFloatingPoint(h_result[i]);
+    auto result = maker.quantiser->ToFloatingPoint(h_result[i]);
     EXPECT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
     EXPECT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
   }
@@ -156,10 +156,10 @@ HistogramCutsWrapper GetHostCutMatrix () {
   return cmat;
 }
 
-inline GradientQuantizer DummyRoundingFactor() {
+inline GradientQuantiser DummyRoundingFactor() {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return GradientQuantizer(dh::ToSpan(gpair));
+  return GradientQuantiser(dh::ToSpan(gpair));
 }
 
 void TestHistogramIndexImpl() {

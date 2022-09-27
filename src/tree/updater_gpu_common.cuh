@@ -81,7 +81,7 @@ struct DeviceSplitCandidate {
   XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in, float fvalue_in,
                              int findex_in, GradientPairInt64 left_sum_in,
                              GradientPairInt64 right_sum_in, bool cat,
-                             const GPUTrainingParam& param, const GradientQuantizer& quantiser) {
+                             const GPUTrainingParam& param, const GradientQuantiser& quantiser) {
     if (loss_chg_in > loss_chg &&
         quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
         quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
@@ -100,7 +100,7 @@ struct DeviceSplitCandidate {
    */
   XGBOOST_DEVICE void UpdateCat(float loss_chg_in, DefaultDirection dir_in, bst_cat_t thresh_in,
                                 bst_feature_t findex_in, GradientPairInt64 left_sum_in,
-                                GradientPairInt64 right_sum_in, GPUTrainingParam const& param, const GradientQuantizer& quantiser) {
+                                GradientPairInt64 right_sum_in, GPUTrainingParam const& param, const GradientQuantiser& quantiser) {
     if (loss_chg_in > loss_chg &&
         quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
         quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {

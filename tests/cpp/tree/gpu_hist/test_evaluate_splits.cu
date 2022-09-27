@@ -22,10 +22,10 @@ auto ZeroParam() {
 
 }  // anonymous namespace
 
-inline GradientQuantizer DummyRoundingFactor() {
+inline GradientQuantiser DummyRoundingFactor() {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return GradientQuantizer(dh::ToSpan(gpair));
+  return GradientQuantiser(dh::ToSpan(gpair));
 }
 
 thrust::device_vector<GradientPairInt64> ConvertToInteger(std::vector<GradientPairPrecise> x) {
@@ -539,18 +539,18 @@ TEST_F(TestPartitionBasedSplit, GpuHist) {
   evaluator.Reset(cuts_, dh::ToSpan(ft), info_.num_col_, param_, 0);
 
   // Convert the sample histogram to fixed point
-  auto rounding = DummyRoundingFactor();
+  auto quantiser = DummyRoundingFactor();
   thrust::host_vector<GradientPairInt64> h_hist;
   for(auto e: hist_[0]){
-    h_hist.push_back(rounding.ToFixedPoint(e));
+    h_hist.push_back(quantiser.ToFixedPoint(e));
   }
   dh::device_vector<GradientPairInt64> d_hist = h_hist;
   dh::device_vector<bst_feature_t> feature_set{std::vector<bst_feature_t>{0}};
 
-  EvaluateSplitInputs input{0, 0, rounding.ToFixedPoint(total_gpair_), dh::ToSpan(feature_set), dh::ToSpan(d_hist)};
+  EvaluateSplitInputs input{0, 0, quantiser.ToFixedPoint(total_gpair_), dh::ToSpan(feature_set), dh::ToSpan(d_hist)};
   EvaluateSplitSharedInputs shared_inputs{
       GPUTrainingParam{param_},
-      rounding,
+      quantiser,
       dh::ToSpan(ft),
       cuts_.cut_ptrs_.ConstDeviceSpan(),
       cuts_.cut_values_.ConstDeviceSpan(),

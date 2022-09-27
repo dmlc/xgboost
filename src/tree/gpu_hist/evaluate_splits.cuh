@@ -31,7 +31,7 @@ struct EvaluateSplitInputs {
 // Inputs necessary for all nodes
 struct EvaluateSplitSharedInputs {
   GPUTrainingParam param;
-  GradientQuantizer rounding;
+  GradientQuantiser rounding;
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;

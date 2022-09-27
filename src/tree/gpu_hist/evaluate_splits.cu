@@ -21,11 +21,14 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
                                        const GPUTrainingParam &param, bst_node_t nidx,
                                        bst_feature_t fidx,
                                        TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-                                       bool &missing_left_out, const GradientQuantizer& quantiser) {  // NOLINT
+                                       bool &missing_left_out, const GradientQuantiser& quantiser) {  // NOLINT
   const auto left_sum = scan + missing;
-  float missing_left_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(left_sum), quantiser.ToFloatingPoint(parent_sum - left_sum));
-  float missing_right_gain = evaluator.CalcSplitGain(param, nidx, fidx, quantiser.ToFloatingPoint(scan), quantiser.ToFloatingPoint(parent_sum - scan));
+  float missing_left_gain = evaluator.CalcSplitGain(
+      param, nidx, fidx, quantiser.ToFloatingPoint(left_sum),
+      quantiser.ToFloatingPoint(parent_sum - left_sum));
+  float missing_right_gain = evaluator.CalcSplitGain(
+      param, nidx, fidx, quantiser.ToFloatingPoint(scan),
+      quantiser.ToFloatingPoint(parent_sum - scan));
 
   missing_left_out = missing_left_gain > missing_right_gain;
   return missing_left_out?missing_left_gain:missing_right_gain;
@@ -59,7 +62,7 @@ class EvaluateSplitAgent {
   const uint32_t gidx_end;    // end bin for i^th feature
   const dh::LDGIterator<float> feature_values;
   const GradientPairInt64 *node_histogram;
-  const GradientQuantizer &rounding;
+  const GradientQuantiser &rounding;
   const GradientPairInt64 parent_sum;
   const GradientPairInt64 missing;
   const GPUTrainingParam &param;
@@ -68,13 +71,11 @@ class EvaluateSplitAgent {
   SumCallbackOp<GradientPairInt64> prefix_op;
   static float constexpr kNullGain = -std::numeric_limits<bst_float>::infinity();
 
-  __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
-                                const EvaluateSplitInputs &inputs,
-                                const EvaluateSplitSharedInputs &shared_inputs,
-                                const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator)
-      : temp_storage(temp_storage),
-        nidx(inputs.nidx),
-        fidx(fidx),
+  __device__ EvaluateSplitAgent(
+      TempStorage *temp_storage, int fidx, const EvaluateSplitInputs &inputs,
+      const EvaluateSplitSharedInputs &shared_inputs,
+      const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator)
+      : temp_storage(temp_storage), nidx(inputs.nidx), fidx(fidx),
         min_fvalue(__ldg(shared_inputs.min_fvalue.data() + fidx)),
         gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
         gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
@@ -82,18 +83,19 @@ class EvaluateSplitAgent {
         node_histogram(inputs.gradient_histogram.data()),
         rounding(shared_inputs.rounding),
         parent_sum(dh::LDGIterator<GradientPairInt64>(&inputs.parent_sum)[0]),
-        param(shared_inputs.param),
-        evaluator(evaluator),missing(parent_sum - ReduceFeature()) {
-    static_assert(kBlockSize == 32,
-                  "This kernel relies on the assumption block_size == warp_size");
-      // There should be no missing value gradients for a dense matrix
-      KERNEL_CHECK(!shared_inputs.is_dense || missing.GetQuantisedHess() == 0);
-    
+        param(shared_inputs.param), evaluator(evaluator),
+        missing(parent_sum - ReduceFeature()) {
+    static_assert(
+        kBlockSize == 32,
+        "This kernel relies on the assumption block_size == warp_size");
+    // There should be no missing value gradients for a dense matrix
+    KERNEL_CHECK(!shared_inputs.is_dense || missing.GetQuantisedHess() == 0);
   }
   __device__ GradientPairInt64 ReduceFeature() {
     GradientPairInt64 local_sum;
-    for (int idx = gidx_begin + threadIdx.x; idx < gidx_end; idx += kBlockSize) {
-      local_sum +=LoadGpair(node_histogram + idx); 
+    for (int idx = gidx_begin + threadIdx.x; idx < gidx_end;
+         idx += kBlockSize) {
+      local_sum += LoadGpair(node_histogram + idx);
     }
     local_sum = SumReduceT(temp_storage->sum_reduce).Sum(local_sum);
     // Broadcast result from thread 0
@@ -402,22 +404,30 @@ void GPUHistEvaluator::EvaluateSplits(
     auto const input = d_inputs[i];
     auto &split = out_splits[i];
     // Subtract parent gain here
-    // As it is constant, this is more efficient than doing it during every split evaluation
-    float parent_gain = CalcGain(shared_inputs.param,shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
+    // As it is constant, this is more efficient than doing it during every
+    // split evaluation
+    float parent_gain =
+        CalcGain(shared_inputs.param,
+                 shared_inputs.rounding.ToFloatingPoint(input.parent_sum));
     split.loss_chg -= parent_gain;
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat) {
       SetCategoricalSplit(shared_inputs, d_sorted_idx, fidx, i,
-                          device_cats_accessor.GetNodeCatStorage(input.nidx), &out_splits[i]);
+                          device_cats_accessor.GetNodeCatStorage(input.nidx),
+                          &out_splits[i]);
     }
 
-    float base_weight = evaluator.CalcWeight(input.nidx, shared_inputs.param,
-                                             shared_inputs.rounding.ToFloatingPoint(split.left_sum + split.right_sum));
-    float left_weight =
-        evaluator.CalcWeight(input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(split.left_sum));
-    float right_weight =
-        evaluator.CalcWeight(input.nidx, shared_inputs.param, shared_inputs.rounding.ToFloatingPoint(split.right_sum));
+    float base_weight =
+        evaluator.CalcWeight(input.nidx, shared_inputs.param,
+                             shared_inputs.rounding.ToFloatingPoint(
+                                 split.left_sum + split.right_sum));
+    float left_weight = evaluator.CalcWeight(
+        input.nidx, shared_inputs.param,
+        shared_inputs.rounding.ToFloatingPoint(split.left_sum));
+    float right_weight = evaluator.CalcWeight(
+        input.nidx, shared_inputs.param,
+        shared_inputs.rounding.ToFloatingPoint(split.right_sum));
 
     d_entries[i] = GPUExpandEntry{input.nidx,  input.depth, out_splits[i],
                                   base_weight, left_weight, right_weight};

@@ -191,7 +191,7 @@ struct GPUHistMakerDevice {
 
   TrainParam param;
 
-  std::unique_ptr<GradientQuantizer> histogram_rounding;
+  std::unique_ptr<GradientQuantiser> quantiser;
 
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
@@ -261,7 +261,7 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
-    histogram_rounding.reset(new GradientQuantizer(this->gpair));
+    quantiser.reset(new GradientQuantiser(this->gpair));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(ctx_->gpu_id,  sample.sample_rows));
@@ -279,7 +279,7 @@ struct GPUHistMakerDevice {
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
         gpu_param,
-        *histogram_rounding,
+        *quantiser,
         feature_types,
         matrix.feature_segments,
         matrix.gidx_fvalue_map,
@@ -299,7 +299,7 @@ struct GPUHistMakerDevice {
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, *histogram_rounding, feature_types,     matrix.feature_segments,
+        GPUTrainingParam{param}, *quantiser, feature_types,     matrix.feature_segments,
         matrix.gidx_fvalue_map,  matrix.min_fvalue,
         matrix.is_dense
     };
@@ -346,7 +346,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(ctx_->gpu_id),
                            feature_groups->DeviceAccessor(ctx_->gpu_id), gpair,
-                           d_ridx, d_node_hist, *histogram_rounding);
+                           d_ridx, d_node_hist, *quantiser);
   }
 
   // Attempt to do subtraction trick
@@ -598,9 +598,14 @@ struct GPUHistMakerDevice {
     auto base_weight = candidate.base_weight;
     auto left_weight = candidate.left_weight * param.learning_rate;
     auto right_weight = candidate.right_weight * param.learning_rate;
-    auto parent_hess = histogram_rounding->ToFloatingPoint( candidate.split.left_sum+  candidate.split.right_sum).GetHess();
-    auto left_hess = histogram_rounding->ToFloatingPoint( candidate.split.left_sum).GetHess();
-    auto right_hess = histogram_rounding->ToFloatingPoint( candidate.split.right_sum).GetHess();
+    auto parent_hess = quantiser
+                           ->ToFloatingPoint(candidate.split.left_sum +
+                                             candidate.split.right_sum)
+                           .GetHess();
+    auto left_hess =
+        quantiser->ToFloatingPoint(candidate.split.left_sum).GetHess();
+    auto right_hess =
+        quantiser->ToFloatingPoint(candidate.split.right_sum).GetHess();
 
     auto is_cat = candidate.split.is_cat;
     if (is_cat) {
@@ -637,9 +642,11 @@ struct GPUHistMakerDevice {
   GPUExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
-    auto quantiser = *this->histogram_rounding;
+    auto quantiser = *this->quantiser;
     auto gpair_it = dh::MakeTransformIterator<GradientPairInt64>(
-     dh::tbegin(gpair), [=] __device__(auto const& gpair) { return quantiser.ToFixedPoint(gpair); });
+        dh::tbegin(gpair), [=] __device__(auto const &gpair) {
+          return quantiser.ToFixedPoint(gpair);
+        });
     GradientPairInt64 root_sum_quantised =
         dh::Reduce(thrust::cuda::par(alloc), gpair_it, gpair_it + gpair.size(),
                    GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
