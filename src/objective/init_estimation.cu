@@ -3,8 +3,12 @@
  *
  * \brief Utilities for estimating initial score.
  */
+#if !defined(NOMINMAX) && defined(_WIN32)
+#define NOMINMAX
+#endif                                          // !defined(NOMINMAX)
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 
+#include <algorithm>  // std::max
 #include <cinttypes>  // std::uint64_t
 #include <cstddef>    // std::size_t
 

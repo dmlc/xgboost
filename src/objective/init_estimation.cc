@@ -4,7 +4,12 @@
  * \brief Utilities for estimating initial score.
  */
 
+#if !defined(NOMINMAX) && defined(_WIN32)
+#define NOMINMAX
+#endif  // !defined(NOMINMAX)
 #include "init_estimation.h"
+
+#include <algorithm>  // std::max
 
 #include "../common/common.h"              // OptionalWeights
 #include "../common/numeric.h"             // cpu_impl::Reduce
