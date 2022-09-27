@@ -16,6 +16,7 @@ class NoOpCommunicator : public Communicator {
  public:
   NoOpCommunicator() : Communicator(1, 0) {}
   bool IsDistributed() const override { return false; }
+  bool IsFederated() const override { return false; }
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {}
   void Broadcast(void *send_receive_buffer, std::size_t size, int root) override {}

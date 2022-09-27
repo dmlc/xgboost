@@ -78,6 +78,9 @@ class Communicator {
   /** @brief Whether the communicator is running in distributed mode. */
   virtual bool IsDistributed() const = 0;
 
+  /** @brief Whether the communicator is running in federated mode. */
+  virtual bool IsFederated() const = 0;
+
   /**
    * @brief Combines values from all processes and distributes the result back to all processes.
    *

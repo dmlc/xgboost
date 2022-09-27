@@ -171,6 +171,12 @@ class FederatedCommunicator : public Communicator {
   bool IsDistributed() const override { return true; }
 
   /**
+   * \brief Get if the communicator is federated.
+   * \return True.
+   */
+  bool IsFederated() const override { return true; }
+
+  /**
    * \brief Perform in-place allreduce.
    * \param send_receive_buffer Buffer for both sending and receiving data.
    * \param count Number of elements to be reduced.
