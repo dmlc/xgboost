@@ -136,18 +136,6 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
         inplace_predictions)
 
 
-@pytest.mark.skipif(**tm.no_dask_cudf())
-def test_categorical(local_cuda_cluster: LocalCUDACluster) -> None:
-    with Client(local_cuda_cluster) as client:
-        import dask_cudf
-
-        X, y = make_categorical(client, 10000, 30, 13)
-        X = dask_cudf.from_dask_dataframe(X)
-
-        X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
-        X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
-        run_categorical(client, "gpu_hist", X, X_onehot, y)
-
 
 def to_cp(x: Any, DMatrixT: Type) -> Any:
     import cupy
@@ -213,217 +201,232 @@ def run_gpu_hist(
         assert tm.non_increasing(history)
 
 
-@pytest.mark.skipif(**tm.no_cudf())
-def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
-    import cudf
-    from sklearn.datasets import load_breast_cancer, load_digits
-    with Client(local_cuda_cluster) as client:
+def test_tree_stats() -> None:
+    with LocalCUDACluster(n_workers=1) as cluster:
+        with Client(cluster) as client:
+            local = run_tree_stats(client, "gpu_hist")
+
+    with LocalCUDACluster(n_workers=2) as cluster:
+        with Client(cluster) as client:
+            distributed = run_tree_stats(client, "gpu_hist")
+
+    assert local == distributed
+
+class TestDistributedGPU:
+    @pytest.fixture(scope="class")
+    def local_cuda_client(self):
+        return Client(LocalCUDACluster())
+
+    @pytest.mark.skipif(**tm.no_cudf())
+    def test_boost_from_prediction(self, local_cuda_client) -> None:
+        import cudf
+        from sklearn.datasets import load_breast_cancer, load_digits
+        
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction(X, y, "gpu_hist", client)
+        run_boost_from_prediction(X, y, "gpu_hist", local_cuda_client)
 
         X_, y_ = load_digits(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction_multi_class(X, y, "gpu_hist", client)
+        run_boost_from_prediction_multi_class(X, y, "gpu_hist", local_cuda_client)
 
-
-class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask_cudf())
-    def test_dask_dataframe(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        with Client(local_cuda_cluster) as client:
-            run_with_dask_dataframe(dxgb.DaskDMatrix, client)
-            run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, client)
+    def test_dask_dataframe(self, local_cuda_client) -> None:
+        
+            run_with_dask_dataframe(dxgb.DaskDMatrix, local_cuda_client)
+            run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, local_cuda_client)
+
+    @pytest.mark.skipif(**tm.no_dask_cudf())
+    def test_categorical(self, local_cuda_client) -> None:
+        import dask_cudf
+
+        X, y = make_categorical(local_cuda_client, 10000, 30, 13)
+        X = dask_cudf.from_dask_dataframe(X)
+
+        X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, True)
+        X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
+        run_categorical(local_cuda_client, "gpu_hist", X, X_onehot, y)
+
 
     @given(
         params=parameter_strategy,
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
+        dmatrix_type=strategies.sampled_from([dxgb.DaskDMatrix,dxgb.DaskDeviceQuantileDMatrix])
     )
-    @settings(deadline=duration(seconds=120), suppress_health_check=suppress, print_blob=True)
+    @settings(deadline=duration(seconds=120), max_examples=20, suppress_health_check=suppress, print_blob=True)
     @pytest.mark.skipif(**tm.no_cupy())
-    @pytest.mark.parametrize(
-        "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
-    )
     def test_gpu_hist(
         self,
         params: Dict,
         num_rounds: int,
         dataset: tm.TestDataset,
-        local_cuda_cluster: LocalCUDACluster,
+        dmatrix_type,
+        local_cuda_client,
     ) -> None:
-        with Client(local_cuda_cluster) as client:
-            run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix, client)
-            run_gpu_hist(
-                params, num_rounds, dataset, dxgb.DaskDeviceQuantileDMatrix, client
-            )
+        run_gpu_hist(params, num_rounds, dataset,dmatrix_type , local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_dask_array(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        with Client(local_cuda_cluster) as client:
-            run_with_dask_array(dxgb.DaskDMatrix, client)
-            run_with_dask_array(dxgb.DaskDeviceQuantileDMatrix, client)
+    def test_dask_array(self, local_cuda_client) -> None:
+        run_with_dask_array(dxgb.DaskDMatrix, local_cuda_client)
+        run_with_dask_array(dxgb.DaskDeviceQuantileDMatrix, local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_early_stopping(self, local_cuda_cluster: LocalCUDACluster) -> None:
+    def test_early_stopping(self, local_cuda_client) -> None:
         from sklearn.datasets import load_breast_cancer
-        with Client(local_cuda_cluster) as client:
-            X, y = load_breast_cancer(return_X_y=True)
-            X, y = da.from_array(X), da.from_array(y)
+    
+        X, y = load_breast_cancer(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
 
-            m = dxgb.DaskDMatrix(client, X, y)
+        m = dxgb.DaskDMatrix(local_cuda_client, X, y)
 
-            valid = dxgb.DaskDMatrix(client, X, y)
-            early_stopping_rounds = 5
-            booster = dxgb.train(client, {'objective': 'binary:logistic',
-                                          'eval_metric': 'error',
-                                          'tree_method': 'gpu_hist'}, m,
-                                 evals=[(valid, 'Valid')],
-                                 num_boost_round=1000,
-                                 early_stopping_rounds=early_stopping_rounds)[
-                                     'booster']
-            assert hasattr(booster, 'best_score')
-            dump = booster.get_dump(dump_format='json')
-            print(booster.best_iteration)
-            assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+        valid = dxgb.DaskDMatrix(local_cuda_client, X, y)
+        early_stopping_rounds = 5
+        booster = dxgb.train(local_cuda_client, {'objective': 'binary:logistic',
+                                        'eval_metric': 'error',
+                                        'tree_method': 'gpu_hist'}, m,
+                                evals=[(valid, 'Valid')],
+                                num_boost_round=1000,
+                                early_stopping_rounds=early_stopping_rounds)[
+                                    'booster']
+        assert hasattr(booster, 'best_score')
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-            valid_X = X
-            valid_y = y
-            cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
-                                         tree_method='gpu_hist',
-                                         eval_metric='error',
-                                                                                  n_estimators=100)
-            cls.client = client
-            cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
-                    eval_set=[(valid_X, valid_y)])
-            booster = cls.get_booster()
-            dump = booster.get_dump(dump_format='json')
-            assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+        valid_X = X
+        valid_y = y
+        cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
+                                        tree_method='gpu_hist',
+                                        eval_metric='error',
+                                                                                n_estimators=100)
+        cls.client = local_cuda_client
+        cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                eval_set=[(valid_X, valid_y)])
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
     def test_dask_classifier(
-        self, model: str, local_cuda_cluster: LocalCUDACluster
+        self, model: str, local_cuda_client
     ) -> None:
         import dask_cudf
-        with Client(local_cuda_cluster) as client:
-            X_, y_, w_ = generate_array(with_weights=True)
-            y_ = (y_ * 10).astype(np.int32)
-            X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
-            y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
-            w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
-            run_dask_classifier(X, y, w, model, "gpu_hist", client, 10)
+        X_, y_, w_ = generate_array(with_weights=True)
+        y_ = (y_ * 10).astype(np.int32)
+        X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
+        y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
+        w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
+        run_dask_classifier(X, y, w, model, "gpu_hist", local_cuda_client, 10)
 
-    def test_empty_dmatrix(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        with Client(local_cuda_cluster) as client:
-            parameters = {'tree_method': 'gpu_hist', 'debug_synchronize': True}
-            run_empty_dmatrix_reg(client, parameters)
-            run_empty_dmatrix_cls(client, parameters)
+    def test_empty_dmatrix(self, local_cuda_client) -> None:
+        parameters = {'tree_method': 'gpu_hist', 'debug_synchronize': True}
+        run_empty_dmatrix_reg(local_cuda_client, parameters)
+        run_empty_dmatrix_cls(local_cuda_client, parameters)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
-    def test_empty_partition(self, local_cuda_cluster: LocalCUDACluster) -> None:
+    def test_empty_partition(self, local_cuda_client) -> None:
         import dask_cudf
         import cudf
         import cupy
-        with Client(local_cuda_cluster) as client:
-            mult = 100
-            df = cudf.DataFrame(
-                {
-                    "a": [1, 2, 3, 4, 5.1] * mult,
-                    "b": [10, 15, 29.3, 30, 31] * mult,
-                    "y": [10, 20, 30, 40., 50] * mult,
-                }
-            )
-            parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
+        
+        mult = 100
+        df = cudf.DataFrame(
+            {
+                "a": [1, 2, 3, 4, 5.1] * mult,
+                "b": [10, 15, 29.3, 30, 31] * mult,
+                "y": [10, 20, 30, 40., 50] * mult,
+            }
+        )
+        parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
 
-            empty = df.iloc[:0]
-            ddf = dask_cudf.concat(
-                [dask_cudf.from_cudf(empty, npartitions=1)]
-                + [dask_cudf.from_cudf(df, npartitions=3)]
-                + [dask_cudf.from_cudf(df, npartitions=3)]
-            )
-            X = ddf[ddf.columns.difference(["y"])]
-            y = ddf[["y"]]
-            dtrain = dxgb.DaskDeviceQuantileDMatrix(client, X, y)
-            bst_empty = xgb.dask.train(
-                client, parameters, dtrain, evals=[(dtrain, "train")]
-            )
-            predt_empty = dxgb.predict(client, bst_empty, X).compute().values
+        empty = df.iloc[:0]
+        ddf = dask_cudf.concat(
+            [dask_cudf.from_cudf(empty, npartitions=1)]
+            + [dask_cudf.from_cudf(df, npartitions=3)]
+            + [dask_cudf.from_cudf(df, npartitions=3)]
+        )
+        X = ddf[ddf.columns.difference(["y"])]
+        y = ddf[["y"]]
+        dtrain = dxgb.DaskDeviceQuantileDMatrix(local_cuda_client, X, y)
+        bst_empty = xgb.dask.train(
+            local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
+        )
+        predt_empty = dxgb.predict(local_cuda_client, bst_empty, X).compute().values
 
-            ddf = dask_cudf.concat(
-                [dask_cudf.from_cudf(df, npartitions=3)]
-                + [dask_cudf.from_cudf(df, npartitions=3)]
-            )
-            X = ddf[ddf.columns.difference(["y"])]
-            y = ddf[["y"]]
-            dtrain = dxgb.DaskDeviceQuantileDMatrix(client, X, y)
-            bst = xgb.dask.train(client, parameters, dtrain, evals=[(dtrain, "train")])
+        ddf = dask_cudf.concat(
+            [dask_cudf.from_cudf(df, npartitions=3)]
+            + [dask_cudf.from_cudf(df, npartitions=3)]
+        )
+        X = ddf[ddf.columns.difference(["y"])]
+        y = ddf[["y"]]
+        dtrain = dxgb.DaskDeviceQuantileDMatrix(local_cuda_client, X, y)
+        bst = xgb.dask.train(local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")])
 
-            predt = dxgb.predict(client, bst, X).compute().values
-            cupy.testing.assert_allclose(predt, predt_empty)
+        predt = dxgb.predict(local_cuda_client, bst, X).compute().values
+        cupy.testing.assert_allclose(predt, predt_empty)
 
-            predt = dxgb.predict(client, bst, dtrain).compute()
-            cupy.testing.assert_allclose(predt, predt_empty)
+        predt = dxgb.predict(local_cuda_client, bst, dtrain).compute()
+        cupy.testing.assert_allclose(predt, predt_empty)
 
-            predt = dxgb.inplace_predict(client, bst, X).compute().values
-            cupy.testing.assert_allclose(predt, predt_empty)
+        predt = dxgb.inplace_predict(local_cuda_client, bst, X).compute().values
+        cupy.testing.assert_allclose(predt, predt_empty)
 
-            df = df.to_pandas()
-            empty = df.iloc[:0]
-            ddf = dd.concat(
-                [dd.from_pandas(empty, npartitions=1)]
-                + [dd.from_pandas(df, npartitions=3)]
-                + [dd.from_pandas(df, npartitions=3)]
-            )
-            X = ddf[ddf.columns.difference(["y"])]
-            y = ddf[["y"]]
+        df = df.to_pandas()
+        empty = df.iloc[:0]
+        ddf = dd.concat(
+            [dd.from_pandas(empty, npartitions=1)]
+            + [dd.from_pandas(df, npartitions=3)]
+            + [dd.from_pandas(df, npartitions=3)]
+        )
+        X = ddf[ddf.columns.difference(["y"])]
+        y = ddf[["y"]]
 
-            predt_empty = cupy.asnumpy(predt_empty)
+        predt_empty = cupy.asnumpy(predt_empty)
 
-            predt = dxgb.predict(client, bst_empty, X).compute().values
-            np.testing.assert_allclose(predt, predt_empty)
+        predt = dxgb.predict(local_cuda_client, bst_empty, X).compute().values
+        np.testing.assert_allclose(predt, predt_empty)
 
-            in_predt = dxgb.inplace_predict(client, bst_empty, X).compute().values
-            np.testing.assert_allclose(predt, in_predt)
+        in_predt = dxgb.inplace_predict(local_cuda_client, bst_empty, X).compute().values
+        np.testing.assert_allclose(predt, in_predt)
 
-    def test_empty_dmatrix_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        with Client(local_cuda_cluster) as client:
-            n_workers = len(_get_client_workers(client))
-            run_empty_dmatrix_auc(client, "gpu_hist", n_workers)
+    def test_empty_dmatrix_auc(self, local_cuda_client) -> None:
+        n_workers = len(_get_client_workers(local_cuda_client))
+        run_empty_dmatrix_auc(local_cuda_client, "gpu_hist", n_workers)
 
-    def test_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        with Client(local_cuda_cluster) as client:
-            run_auc(client, "gpu_hist")
+    def test_auc(self, local_cuda_client) -> None:
+        run_auc(local_cuda_client, "gpu_hist")
 
-    def test_data_initialization(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        with Client(local_cuda_cluster) as client:
-            X, y, _ = generate_array()
-            fw = da.random.random((random_cols, ))
-            fw = fw - fw.min()
-            m = dxgb.DaskDMatrix(client, X, y, feature_weights=fw)
+    def test_data_initialization(self, local_cuda_client) -> None:
+        
+        X, y, _ = generate_array()
+        fw = da.random.random((random_cols, ))
+        fw = fw - fw.min()
+        m = dxgb.DaskDMatrix(local_cuda_client, X, y, feature_weights=fw)
 
-            workers = _get_client_workers(client)
-            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
+        workers = _get_client_workers(local_cuda_client)
+        rabit_args = local_cuda_client.sync(dxgb._get_rabit_args, len(workers), None, local_cuda_client)
 
-            def worker_fn(worker_addr: str, data_ref: Dict) -> None:
-                with dxgb.RabitContext(rabit_args):
-                    local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref, nthread=7)
-                    fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
-                    assert fw_rows == local_dtrain.num_col()
+        def worker_fn(worker_addr: str, data_ref: Dict) -> None:
+            with dxgb.RabitContext(rabit_args):
+                local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref, nthread=7)
+                fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
+                assert fw_rows == local_dtrain.num_col()
 
-            futures = []
-            for i in range(len(workers)):
-                futures.append(
-                    client.submit(
-                        worker_fn,
-                        workers[i],
-                        m._create_fn_args(workers[i]),
-                        pure=False,
-                        workers=[workers[i]]
-                    )
+        futures = []
+        for i in range(len(workers)):
+            futures.append(
+                local_cuda_client.submit(
+                    worker_fn,
+                    workers[i],
+                    m._create_fn_args(workers[i]),
+                    pure=False,
+                    workers=[workers[i]]
                 )
-            client.gather(futures)
+            )
+        local_cuda_client.gather(futures)
 
     def test_interface_consistency(self) -> None:
         sig = OrderedDict(signature(dxgb.DaskDMatrix).parameters)
@@ -470,18 +473,8 @@ class TestDistributedGPU:
         for rn, drn in zip(ranker_names, dranker_names):
             assert rn == drn
 
-    def test_tree_stats(self) -> None:
-        with LocalCUDACluster(n_workers=1) as cluster:
-            with Client(cluster) as client:
-                local = run_tree_stats(client, "gpu_hist")
 
-        with LocalCUDACluster(n_workers=2) as cluster:
-            with Client(cluster) as client:
-                distributed = run_tree_stats(client, "gpu_hist")
-
-        assert local == distributed
-
-    def run_quantile(self, name: str, local_cuda_cluster: LocalCUDACluster) -> None:
+    def run_quantile(self, name: str, local_cuda_client) -> None:
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
 
@@ -510,29 +503,29 @@ class TestDistributedGPU:
             env[uri[0]] = uri[1]
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
-        with Client(local_cuda_cluster) as client:
-            workers = _get_client_workers(client)
-            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
-            futures = client.map(runit,
-                                 workers,
-                                 pure=False,
-                                 workers=workers,
-                                 rabit_args=rabit_args)
-            results = client.gather(futures)
-            for ret in results:
-                msg = ret.stdout.decode('utf-8')
-                assert msg.find('1 test from GPUQuantile') != -1, msg
-                assert ret.returncode == 0, msg
+        
+        workers = _get_client_workers(local_cuda_client)
+        rabit_args = local_cuda_client.sync(dxgb._get_rabit_args, len(workers), None, local_cuda_client)
+        futures = local_cuda_client.map(runit,
+                                workers,
+                                pure=False,
+                                workers=workers,
+                                rabit_args=rabit_args)
+        results = local_cuda_client.gather(futures)
+        for ret in results:
+            msg = ret.stdout.decode('utf-8')
+            assert msg.find('1 test from GPUQuantile') != -1, msg
+            assert ret.returncode == 0, msg
 
     @pytest.mark.gtest
-    def test_quantile_basic(self, local_cuda_cluster: LocalCUDACluster) -> None:
-        self.run_quantile('AllReduceBasic', local_cuda_cluster)
+    def test_quantile_basic(self, local_cuda_client) -> None:
+        self.run_quantile('AllReduceBasic', local_cuda_client)
 
     @pytest.mark.gtest
     def test_quantile_same_on_all_workers(
-        self, local_cuda_cluster: LocalCUDACluster
+        self, local_cuda_client
     ) -> None:
-        self.run_quantile('SameOnAllWorkers', local_cuda_cluster)
+        self.run_quantile('SameOnAllWorkers', local_cuda_client)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
