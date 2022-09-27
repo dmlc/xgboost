@@ -140,26 +140,10 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0);
 }
 
-TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
-  int32_t n_gpus = xgboost::common::AllVisibleGPUs();
-  if (n_gpus <= 1) {
-    LOG(WARNING) << "GPUPredictor.MGPU_InplacePredict is skipped.";
-    return;
-  }
-  size_t constexpr kRows{128}, kCols{64};
-  RandomDataGenerator gen(kRows, kCols, 0.5);
-  gen.Device(1);
-  HostDeviceVector<float> data;
-  std::string interface_str = gen.GenerateArrayInterface(&data);
-  std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
-  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCUDAArray(interface_str.c_str());
-  TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 1);
-  EXPECT_THROW(TestInplacePrediction(p_fmat, "gpu_predictor", kRows, kCols, 0), dmlc::Error);
-}
-
 TEST(GpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures("gpu_predictor");
 }
+
 // Very basic test of empty model
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);

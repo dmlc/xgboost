@@ -72,9 +72,10 @@ DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
  * \author  Rory
  * \date    28/07/2018
  */
-template <typename GradientSumT, size_t kStopGrowingSize = 1 << 28>
+template <size_t kStopGrowingSize = 1 << 28>
 class DeviceHistogramStorage {
  private:
+  using GradientSumT = GradientPairInt64;
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
   // Large buffer of zeroed memory, caches histograms
@@ -180,7 +181,7 @@ struct GPUHistMakerDevice {
   BatchParam batch_param;
 
   std::unique_ptr<RowPartitioner> row_partitioner;
-  DeviceHistogramStorage<GradientSumT> hist{};
+  DeviceHistogramStorage<> hist{};
 
   dh::device_vector<GradientPair> d_gpair;  // storage for gpair;
   common::Span<GradientPair> gpair;
@@ -193,7 +194,7 @@ struct GPUHistMakerDevice {
 
   TrainParam param;
 
-  HistRounding<GradientSumT> histogram_rounding;
+  std::unique_ptr<GradientQuantizer> histogram_rounding;
 
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
@@ -265,7 +266,7 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
-    histogram_rounding = CreateRoundingFactor<GradientSumT>(this->gpair);
+    histogram_rounding.reset(new GradientQuantizer(this->gpair));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(ctx_->gpu_id,  sample.sample_rows));
@@ -282,7 +283,11 @@ struct GPUHistMakerDevice {
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
-        gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
+        gpu_param,
+        *histogram_rounding,
+        feature_types,
+        matrix.feature_segments,
+        matrix.gidx_fvalue_map,
         matrix.min_fvalue,
     };
     auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
@@ -298,7 +303,7 @@ struct GPUHistMakerDevice {
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, feature_types,     matrix.feature_segments,
+        GPUTrainingParam{param}, *histogram_rounding, feature_types,     matrix.feature_segments,
         matrix.gidx_fvalue_map,  matrix.min_fvalue,
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
@@ -344,7 +349,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(ctx_->gpu_id),
                            feature_groups->DeviceAccessor(ctx_->gpu_id), gpair,
-                           d_ridx, d_node_hist, histogram_rounding);
+                           d_ridx, d_node_hist, *histogram_rounding);
   }
 
   // Attempt to do subtraction trick
@@ -526,11 +531,10 @@ struct GPUHistMakerDevice {
   void AllReduceHist(int nidx, dh::AllReducer* reducer, int num_histograms) {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
-    reducer->AllReduceSum(reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-                          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-                          page->Cuts().TotalBins() *
-                              (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)) *
-                              num_histograms);
+    using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
+    reducer->AllReduceSum(reinterpret_cast<ReduceT*>(d_node_hist),
+                          reinterpret_cast<ReduceT*>(d_node_hist),
+                          page->Cuts().TotalBins() * 2 * num_histograms);
 
     monitor.Stop("AllReduce");
   }

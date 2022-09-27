@@ -10,6 +10,7 @@
 [![Conda version](https://img.shields.io/conda/vn/conda-forge/py-xgboost.svg)](https://anaconda.org/conda-forge/py-xgboost)
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
 [![Twitter](https://img.shields.io/badge/@XGBoostProject--_.svg?style=social&logo=twitter)](https://twitter.com/XGBoostProject)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost/badge)](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost)
 
 [Community](https://xgboost.ai/community) |
 [Documentation](https://xgboost.readthedocs.org) |
