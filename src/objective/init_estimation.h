@@ -28,7 +28,7 @@ inline double WeightedMean(Context const*, MetaInfo const&) {
 
 double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
 #if !defined(XGBOOST_USE_CUDA)
-double FitStump(Context const*, HostDeviceVector<GradientPair> const&) {
+inline double FitStump(Context const*, HostDeviceVector<GradientPair> const&) {
   common::AssertGPUSupport();
   return 0.0;
 }
