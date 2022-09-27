@@ -170,6 +170,15 @@ class RegLossObj : public ObjFunction {
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
     CheckInitInputs(info);
+    base_margin->Reshape(1);
+    auto out = base_margin->HostView();
+
+    if (this->Targets(info) > 1) {
+      // multi-output not yet supported due to constraint in binary model format.
+      out(0) = DefaultBaseScore();
+      return;
+    }
+
     HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
     HostDeviceVector<GradientPair> gpair(info.labels.Size());
 
@@ -180,8 +189,6 @@ class RegLossObj : public ObjFunction {
     new_obj->GetGradient(dummy_predt, info, 0, &gpair);
 
     auto score = FitStump(ctx_, gpair);
-    base_margin->Reshape(1);
-    auto out = base_margin->HostView();
     score = Loss::PredTransform(score);
     out(0) = score;
   }
