@@ -226,10 +226,15 @@ class TestQuantileDMatrix:
     )
     @settings(print_blob=True)
     def test_to_csr(self, n_samples: int, n_features: int, sparsity: float):
-        csr = make_sparse_regression(n_samples, n_features, sparsity, False)[0].astype(
-            np.float32
-        )
-        m = xgb.QuantileDMatrix(data=csr)
-        ret = m.get_data()
+        csr, y = make_sparse_regression(n_samples, n_features, sparsity, False)
+        csr = csr.astype(np.float32)
+        qdm = xgb.QuantileDMatrix(data=csr, label=y)
+        ret = qdm.get_data()
         np.testing.assert_equal(csr.indptr, ret.indptr)
         np.testing.assert_equal(csr.indices, ret.indices)
+
+        booster = xgb.train({"tree_method": "hist"}, dtrain=qdm)
+
+        np.testing.assert_allclose(
+            booster.predict(qdm), booster.predict(xgb.DMatrix(qdm.get_data()))
+        )

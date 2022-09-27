@@ -107,20 +107,21 @@ class TestDeviceQuantileDMatrix:
     @settings(print_blob=True, deadline=None)
     def test_to_csr(self, n_samples, n_features, sparsity):
         import cupy as cp
-        X = tm.make_sparse_regression(
+        X, y = tm.make_sparse_regression(
             n_samples, n_features, sparsity, False
-        )[0].astype(np.float32)
+        )
+        h_X = X.astype(np.float32)
 
-        csr = X
-        X = X.toarray()
-        X[X == 0] = np.nan
+        csr = h_X
+        h_X = X.toarray()
+        h_X[h_X == 0] = np.nan
 
-        h_m = xgb.QuantileDMatrix(data=X)
+        h_m = xgb.QuantileDMatrix(data=h_X)
         h_ret = h_m.get_data()
 
-        X = cp.array(X)
+        d_X = cp.array(h_X)
 
-        d_m = xgb.QuantileDMatrix(data=X)
+        d_m = xgb.QuantileDMatrix(data=d_X, label=y)
         d_ret = d_m.get_data()
 
         np.testing.assert_equal(csr.indptr, d_ret.indptr)
@@ -128,3 +129,11 @@ class TestDeviceQuantileDMatrix:
 
         np.testing.assert_equal(h_ret.indptr, d_ret.indptr)
         np.testing.assert_equal(h_ret.indices, d_ret.indices)
+
+        booster = xgb.train({"tree_method": "gpu_hist"}, dtrain=d_m)
+
+        np.testing.assert_allclose(
+            booster.predict(d_m),
+            booster.predict(xgb.DMatrix(d_m.get_data())),
+            atol=1e-6
+        )

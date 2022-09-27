@@ -994,7 +994,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
     def get_data(self) -> scipy.sparse.csr_matrix:
         """Get the predictors from DMatrix as a CSR matrix. This getter is mostly for
-        testing purposes. If this is a quantized DMatrix then histogram index is
+        testing purposes. If this is a quantized DMatrix then quantized values are
         returned instead of input values.
 
             .. versionadded:: 2.0.0

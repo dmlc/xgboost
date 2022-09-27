@@ -774,8 +774,8 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
 XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
 
 /*!
- * \brief Get the predictors from DMatrix as CSR matrix.  If this is a quantized DMatrix,
- *        histogram index is returned instead
+ * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a
+ *        quantized DMatrix, quantized values are returned instead.
  *
  * Unlike most of XGBoost C functions, caller of `XGDMatrixGetDataAsCSR` is required to
  * allocate the memory for return buffer instead of using thread local memory from
