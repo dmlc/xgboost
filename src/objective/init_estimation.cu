@@ -46,7 +46,7 @@ double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair)
         return GradientPairPrecise{d_gpair[i]};
       });
   auto sum = common::cuda_impl::Reduce(ctx, it, it + d_gpair.size(), GradientPairPrecise{});
-  return sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
+  return -sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
 }
 }  // namespace cuda_impl
 }  // namespace obj

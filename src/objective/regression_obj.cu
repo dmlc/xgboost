@@ -207,15 +207,6 @@ class RegLossObj : public ObjFunction {
   RegLossParam param_;
 };
 
-template <>
-void RegLossObj<LinearSquareLoss>::InitEstimation(MetaInfo const& info,
-                                                  linalg::Tensor<float, 1>* base_margin) const {
-  CheckInitInputs(info);
-  base_margin->Reshape(1);
-  auto out = base_margin->HostView();
-  out(0) = WeightedMean(ctx_, info);
-}
-
 // register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
 

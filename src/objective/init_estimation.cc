@@ -42,7 +42,7 @@ double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair)
     return GradientPairPrecise{g};
   });
   auto sum = common::cpu_impl::Reduce(ctx, it, it + gpair.Size(), GradientPairPrecise{});
-  return sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
+  return -sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
 }
 }  // namespace cpu_impl
 
