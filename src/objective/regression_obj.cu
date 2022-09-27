@@ -163,13 +163,17 @@ class RegLossObj : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
     HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
     HostDeviceVector<GradientPair> gpair(info.labels.Size());
-    using Self = std::remove_cv_t<std::remove_reference_t<decltype(*this)>>;
-    Self new_obj;
-    new_obj.param_ = this->param_;
-    new_obj.GetGradient(dummy_predt, info, 0, &gpair);
+
+    std::unique_ptr<ObjFunction> new_obj{ObjFunction::Create(Loss::Name(), ctx_)};
+    Json config{Object{}};
+    this->SaveConfig(&config);
+    new_obj->LoadConfig(config);
+    new_obj->GetGradient(dummy_predt, info, 0, &gpair);
+
     auto intercept = FitStump(ctx_, gpair);
     base_margin->Reshape(1);
     auto out = base_margin->HostView();
+    intercept = Loss::PredTransform(intercept);
     out(0) = intercept;
   }
 
