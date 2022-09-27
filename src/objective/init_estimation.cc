@@ -29,6 +29,20 @@ double WeightedMean(Context const* ctx, MetaInfo const& info) {
   rabit::Allreduce<rabit::op::Sum>(&res, 1);
   return res;
 }
+
+double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair) {
+  auto const& h_gpair = gpair.ConstHostVector();
+  auto it = common::MakeIndexTransformIter([&](auto i) {
+    auto const& g = h_gpair[i];
+    return GradientPairPrecise{g};
+  });
+  auto sum = common::cpu_impl::Reduce(ctx, it, it + gpair.Size(), GradientPairPrecise{});
+  return sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
+}
 }  // namespace cpu_impl
+
+double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair) {
+  return ctx->IsCPU() ? cpu_impl::FitStump(ctx, gpair) : cuda_impl::FitStump(ctx, gpair);
+}
 }  // namespace obj
 }  // namespace xgboost

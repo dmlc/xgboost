@@ -32,6 +32,18 @@ double WeightedMean(Context const* ctx, MetaInfo const& info) {
       });
   return common::cuda_impl::Reduce(ctx, it, it + y.Size(), 0.0);
 }
+
+double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair) {
+  gpair.SetDevice(ctx->gpu_id);
+  auto const& d_gpair = gpair.ConstDeviceSpan();
+  auto it = dh::MakeTransformIterator<GradientPairPrecise>(
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(std::size_t i) -> GradientPairPrecise {
+        return GradientPairPrecise{d_gpair[i]};
+      });
+  auto sum = common::cuda_impl::Reduce(ctx, it, it + d_gpair.size(), GradientPairPrecise{});
+  return sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
+}
 }  // namespace cuda_impl
 }  // namespace obj
 }  // namespace xgboost

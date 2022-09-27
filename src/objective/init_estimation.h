@@ -25,6 +25,14 @@ inline double WeightedMean(Context const*, MetaInfo const&) {
   return 0.0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
+#if !defined(XGBOOST_USE_CUDA)
+double FitStump(Context const*, HostDeviceVector<GradientPair> const&) {
+  common::AssertGPUSupport();
+  return 0.0;
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
 /**
@@ -34,6 +42,8 @@ inline double WeightedMean(Context const*, MetaInfo const&) {
 inline double WeightedMean(Context const* ctx, MetaInfo const& info) {
   return ctx->IsCPU() ? cpu_impl::WeightedMean(ctx, info) : cuda_impl::WeightedMean(ctx, info);
 }
+
+double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
 }  // namespace obj
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_

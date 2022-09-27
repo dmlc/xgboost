@@ -52,15 +52,6 @@ struct LinearSquareLoss {
 
   static const char* Name() { return "reg:squarederror"; }
   static ObjInfo Info() { return {ObjInfo::kRegression, true, false}; }
-
-  static bool InitEstimation(Context const* ctx, MetaInfo const& info,
-                             linalg::Tensor<float, 1>* base_margin) {
-    CheckInitInputs(info);
-    base_margin->Reshape(1);
-    auto out = base_margin->HostView();
-    out(0) = WeightedMean(ctx, info);
-    return true;
-  }
 };
 
 struct SquaredLogError {
@@ -88,10 +79,6 @@ struct SquaredLogError {
   static const char* Name() { return "reg:squaredlogerror"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
-
-  static bool InitEstimation(Context const*, MetaInfo const&, linalg::Tensor<float, 1>*) {
-    return false;
-  }
 };
 
 // logistic loss for probability regression task
@@ -120,10 +107,6 @@ struct LogisticRegression {
   static const char* Name() { return "reg:logistic"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
-
-  static bool InitEstimation(Context const*, MetaInfo const&, linalg::Tensor<float, 1>*) {
-    return false;
-  }
 };
 
 // logistic loss for binary classification task
@@ -168,10 +151,6 @@ struct LogisticRaw : public LogisticRegression {
   static const char* Name() { return "binary:logitraw"; }
 
   static ObjInfo Info() { return ObjInfo::kRegression; }
-
-  static bool InitEstimation(Context const*, MetaInfo const&, linalg::Tensor<float, 1>*) {
-    return false;
-  }
 };
 
 }  // namespace obj

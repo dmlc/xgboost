@@ -161,9 +161,16 @@ class RegLossObj : public ObjFunction {
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
-    if (!Loss::InitEstimation(ctx_, info, base_margin)) {
-      ObjFunction::InitEstimation(info, base_margin);
-    }
+    HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
+    HostDeviceVector<GradientPair> gpair(info.labels.Size());
+    using Self = std::remove_cv_t<std::remove_reference_t<decltype(*this)>>;
+    Self new_obj;
+    new_obj.param_ = this->param_;
+    new_obj.GetGradient(dummy_predt, info, 0, &gpair);
+    auto intercept = FitStump(ctx_, gpair);
+    base_margin->Reshape(1);
+    auto out = base_margin->HostView();
+    out(0) = intercept;
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -179,6 +186,15 @@ class RegLossObj : public ObjFunction {
  protected:
   RegLossParam param_;
 };
+
+template <>
+void RegLossObj<SquaredLogError>::InitEstimation(MetaInfo const& info,
+                                                 linalg::Tensor<float, 1>* base_margin) const {
+  CheckInitInputs(info);
+  base_margin->Reshape(1);
+  auto out = base_margin->HostView();
+  out(0) = WeightedMean(ctx_, info);
+}
 
 // register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
