@@ -164,12 +164,11 @@ Model Persistence
 
   # save the model
   model.save("/tmp/xgboost-pyspark-model")
-
   # load the model
   model2 = SparkXGBRankerModel.load("/tmp/xgboost-pyspark-model")
 
-The above code snippet shows how to save/load xgboost pyspark model. And you can also
-load the model with xgboost python package directly without involving spark.
+The above code snippet shows how to save/load xgboost pyspark model. You can also
+load the model with xgboost python package directly without involving Spark.
 
 .. code-block:: python
 
@@ -177,6 +176,12 @@ load the model with xgboost python package directly without involving spark.
   bst = xgb.Booster()
   bst.load_model("/tmp/xgboost-pyspark-model/model/part-00000")
 
+If you don't want to save the model to disk. You still can get the Booster attribute
+from the fitted model.
+
+.. code-block:: python
+
+  bst: xgb.Booster = model.get_booster()
 
 Accelerate the whole pipeline of xgboost pyspark
 ================================================
@@ -185,7 +190,7 @@ With `RAPIDS Accelerator for Apache Spark <https://nvidia.github.io/spark-rapids
 you can accelerate the whole pipeline (ETL, Train, Transform) for xgboost pyspark
 without any code change by leveraging GPU.
 
-You only need to add some configurations to enable RAPIDS plugin when submitting.
+Below is a simple example submit command for enabling GPU acceleration:
 
 .. code-block:: bash
 
@@ -198,6 +203,7 @@ You only need to add some configurations to enable RAPIDS plugin when submitting
     --conf spark.task.resource.gpu.amount=1 \
     --packages com.nvidia:rapids-4-spark_2.12:22.08.0 \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
+    --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
     --archives xgboost-env.tar.gz#environment \
     xgboost_app.py
 
