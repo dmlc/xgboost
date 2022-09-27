@@ -1,10 +1,16 @@
 /*!
- * Copyright 2018 XGBoost contributors
+ * Copyright 2018-2022 XGBoost contributors
  */
 #include "common.h"
 
 namespace xgboost {
 namespace common {
+
+void SetDevice(std::int32_t device) {
+  if (device >= 0) {
+    dh::safe_cuda(cudaSetDevice(device));
+  }
+}
 
 int AllVisibleGPUs() {
   int n_visgpus = 0;

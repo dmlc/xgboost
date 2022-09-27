@@ -172,10 +172,10 @@ class TestGPUPredict:
         test = xgb.DMatrix(X[:10, ...], missing=missing)
         predt_from_array = booster.inplace_predict(X[:10, ...], missing=missing)
         predt_from_dmatrix = booster.predict(test)
-
         cp.testing.assert_allclose(predt_from_array, predt_from_dmatrix)
 
         def predict_dense(x):
+            cp.cuda.runtime.setDevice(device)
             inplace_predt = booster.inplace_predict(x)
             d = xgb.DMatrix(x)
             copied_predt = cp.array(booster.predict(d))
@@ -198,7 +198,9 @@ class TestGPUPredict:
 
         missing_idx = [i for i in range(0, X.shape[1], 16)]
         X[:, missing_idx] = missing
-        reg = xgb.XGBRegressor(tree_method="gpu_hist", n_estimators=8, missing=missing)
+        reg = xgb.XGBRegressor(
+            tree_method="gpu_hist", n_estimators=8, missing=missing, gpu_id=device
+        )
         reg.fit(X, y)
 
         gpu_predt = reg.predict(X)
@@ -217,7 +219,7 @@ class TestGPUPredict:
         import cupy as cp
         n_devices = cp.cuda.runtime.getDeviceCount()
         for d in range(n_devices):
-            self.run_inplace_predict_cupy(0)
+            self.run_inplace_predict_cupy(d)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_cudf())
