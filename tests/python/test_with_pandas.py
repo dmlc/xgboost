@@ -330,3 +330,35 @@ class TestPandas:
         b0 = test_bool(pd.BooleanDtype())
         b1 = test_bool(bool)
         assert b0 != b1         # None is converted to False with np.bool
+
+        data = {"f0": [1.0, 2.0, None, 3.0], "f1": [3.0, 2.0, None, 1.0]}
+
+        arr = np.array([data["f0"], data["f1"]]).T
+        Xy = xgb.DMatrix(arr, y)
+        Xy.feature_types = None
+        Xy.feature_names = None
+        from_np = to_bytes(Xy)
+
+        def test_float(dtype) -> bytes:
+            arr = pd.DataFrame(data, dtype=dtype)
+            Xy = xgb.DMatrix(arr, y)
+            Xy.feature_types = None
+            Xy.feature_names = None
+            return to_bytes(Xy)
+
+        b0 = test_float(pd.Float64Dtype())
+        b1 = test_float(float)
+        assert b0 == b1         # both are converted to NaN
+        assert b0 == from_np
+
+        def test_cat(dtype) -> bytes:
+            arr = pd.DataFrame(data, dtype=dtype)
+            if dtype is None:
+                arr = arr.astype("category")
+            Xy = xgb.DMatrix(arr, y, enable_categorical=True)
+            Xy.feature_types = None
+            return to_bytes(Xy)
+
+        b0 = test_cat(pd.CategoricalDtype())
+        b1 = test_cat(None)
+        assert b0 == b1

@@ -172,7 +172,7 @@ TEST(CpuPredictor, InplacePredict) {
     std::string arr_str;
     Json::Dump(array_interface, &arr_str);
     x->SetArrayData(arr_str.data());
-    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
+    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, Context::kCpuId);
   }
 
   {
@@ -189,7 +189,7 @@ TEST(CpuPredictor, InplacePredict) {
     Json::Dump(col_interface, &col_str);
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy};
     x->SetCSRData(rptr_str.data(), col_str.data(), data_str.data(), kCols, true);
-    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
+    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, Context::kCpuId);
   }
 }
 
