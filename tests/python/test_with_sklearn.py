@@ -275,6 +275,7 @@ def test_feature_importances_gain():
         random_state=0, tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
+        base_score=0.5,
     ).fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -297,6 +298,7 @@ def test_feature_importances_gain():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
+        base_score=0.5,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
@@ -305,6 +307,7 @@ def test_feature_importances_gain():
         tree_method="exact",
         learning_rate=0.1,
         importance_type="gain",
+        base_score=0.5,
     ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
