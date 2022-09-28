@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 from xgboost.compat import concat
 
-from xgboost import DataIter, QuantileDMatrix, DMatrix
+from xgboost import DataIter, DMatrix, QuantileDMatrix
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
@@ -167,9 +167,22 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     ----------
     iterator :
         Pyspark partition iterator.
+    feature_cols:
+        A sequence of feqture names, used only when rapids plugin is enabled.
+    gpu_id:
+        Device ordinal, used when GPU is enabled.
+    use_qdm :
+        Whether QuantileDMatrix should be used instead of DMatrix.
     kwargs :
         Metainfo for DMatrix.
+    enable_sparse_data_optim :
+        Whether sparse data should be unwrapped
+    has_validation:
+        Whether there's validation data.
 
+    Returns
+    -------
+    Training DMatrix and an optional validation DMatrix.
     """
     # pylint: disable=too-many-locals, too-many-statements
     train_data: Dict[str, List[np.ndarray]] = defaultdict(list)
