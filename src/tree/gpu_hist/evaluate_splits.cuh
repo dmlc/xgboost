@@ -10,6 +10,7 @@
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"
 #include "expand_entry.cuh"
+#include "histogram.cuh"
 
 namespace xgboost {
 namespace common {
@@ -24,12 +25,13 @@ struct EvaluateSplitInputs {
   int depth;
   GradientPairPrecise parent_sum;
   common::Span<const bst_feature_t> feature_set;
-  common::Span<const GradientPairPrecise> gradient_histogram;
+  common::Span<const GradientPairInt64> gradient_histogram;
 };
 
 // Inputs necessary for all nodes
 struct EvaluateSplitSharedInputs {
   GPUTrainingParam param;
+  GradientQuantizer rounding;
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;

@@ -83,8 +83,9 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                       auto j = i % total_bins;
                       auto fidx = d_feature_idx[j];
                       if (common::IsCat(shared_inputs.feature_types, fidx)) {
-                        auto lw = evaluator.CalcWeightCat(shared_inputs.param,
-                                                          input.gradient_histogram[j]);
+                        auto grad =
+                            shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[j]);
+                        auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
                         return thrust::make_tuple(i, lw);
                       }
                       return thrust::make_tuple(i, 0.0f);

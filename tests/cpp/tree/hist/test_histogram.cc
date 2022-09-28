@@ -291,6 +291,26 @@ TEST(CPUHistogram, BuildHist) {
 }
 
 namespace {
+template <typename GradientSumT>
+void ValidateCategoricalHistogram(size_t n_categories,
+                                  common::Span<GradientSumT> onehot,
+                                  common::Span<GradientSumT> cat) {
+  auto cat_sum = std::accumulate(cat.cbegin(), cat.cend(), GradientPairPrecise{});
+  for (size_t c = 0; c < n_categories; ++c) {
+    auto zero = onehot[c * 2];
+    auto one = onehot[c * 2 + 1];
+
+    auto chosen = cat[c];
+    auto not_chosen = cat_sum - chosen;
+
+    ASSERT_LE(RelError(zero.GetGrad(), not_chosen.GetGrad()), kRtEps);
+    ASSERT_LE(RelError(zero.GetHess(), not_chosen.GetHess()), kRtEps);
+
+    ASSERT_LE(RelError(one.GetGrad(), chosen.GetGrad()), kRtEps);
+    ASSERT_LE(RelError(one.GetHess(), chosen.GetHess()), kRtEps);
+  }
+}
+
 void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   size_t constexpr kRows = 340;
   int32_t constexpr kBins = 256;

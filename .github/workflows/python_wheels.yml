@@ -2,6 +2,9 @@ name: XGBoost-Python-Wheels
 
 on: [push, pull_request]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
 jobs:
   python-wheels:
     name: Build wheel for ${{ matrix.platform_id }}

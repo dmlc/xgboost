@@ -1249,7 +1249,7 @@ class QuantileDMatrix(DMatrix):
         reference (the training dataset) ``QuantileDMatrix`` using ``ref`` as some
         information may be lost in quantisation.
 
-    .. versionadded:: 2.0.0
+    .. versionadded:: 1.7.0
 
     Parameters
     ----------
@@ -1373,7 +1373,7 @@ class QuantileDMatrix(DMatrix):
 class DeviceQuantileDMatrix(QuantileDMatrix):
     """ Use `QuantileDMatrix` instead.
 
-    .. deprecated:: 2.0.0
+    .. deprecated:: 1.7.0
 
     .. versionadded:: 1.1.0
 

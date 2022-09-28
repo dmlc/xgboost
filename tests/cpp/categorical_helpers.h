@@ -22,23 +22,4 @@ inline std::vector<float> OneHotEncodeFeature(std::vector<float> x,
   return ret;
 }
 
-template <typename GradientSumT>
-void ValidateCategoricalHistogram(size_t n_categories,
-                                  common::Span<GradientSumT> onehot,
-                                  common::Span<GradientSumT> cat) {
-  auto cat_sum = std::accumulate(cat.cbegin(), cat.cend(), GradientPairPrecise{});
-  for (size_t c = 0; c < n_categories; ++c) {
-    auto zero = onehot[c * 2];
-    auto one = onehot[c * 2 + 1];
-
-    auto chosen = cat[c];
-    auto not_chosen = cat_sum - chosen;
-
-    ASSERT_LE(RelError(zero.GetGrad(), not_chosen.GetGrad()), kRtEps);
-    ASSERT_LE(RelError(zero.GetHess(), not_chosen.GetHess()), kRtEps);
-
-    ASSERT_LE(RelError(one.GetGrad(), chosen.GetGrad()), kRtEps);
-    ASSERT_LE(RelError(one.GetHess(), chosen.GetHess()), kRtEps);
-  }
-}
 } // namespace xgboost
