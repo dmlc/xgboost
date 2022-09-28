@@ -784,11 +784,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             messages = context.allGather(message=str(_rabit_args))
             _rabit_args = _get_args_from_message_list(messages)
             evals_result = {}
+            use_qdm = booster_params.get("tree_method") in ("hist", "gpu_hist")
+
             with RabitContext(_rabit_args, context):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     pandas_df_iter,
                     features_cols_names,
                     gpu_id,
+                    use_qdm,
                     dmatrix_kwargs,
                     enable_sparse_data_optim=enable_sparse_data_optim,
                     has_validation_col=has_validation_col,

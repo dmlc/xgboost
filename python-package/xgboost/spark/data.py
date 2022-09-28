@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 from xgboost.compat import concat
 
-from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
+from xgboost import DataIter, QuantileDMatrix, DMatrix
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
@@ -151,6 +151,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
     gpu_id: Optional[int],
+    use_qdm: bool,
     kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
     enable_sparse_data_optim: bool,
     has_validation_col: bool,
@@ -205,7 +206,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 train_data[name].append(array)
 
     def append_dqm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
-        """Preprocessing for DeviceQuantileDMatrix"""
+        """Preprocessing for QuantileDMatrix"""
         nonlocal n_features
         if name == alias.data or name in part.columns:
             if name == alias.data:
@@ -238,29 +239,39 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
             data=data, label=label, weight=weight, base_margin=margin, qid=qid, **kwargs
         )
 
-    is_dmatrix = feature_cols is None
-    if is_dmatrix:
-        if enable_sparse_data_optim:
-            append_fn = append_m_sparse
-            assert "missing" in kwargs and kwargs["missing"] == 0.0
-        else:
-            append_fn = append_m
-        cache_partitions(iterator, append_fn)
-        dtrain = make(train_data, kwargs)
+    if enable_sparse_data_optim:
+        append_fn = append_m_sparse
+        assert "missing" in kwargs and kwargs["missing"] == 0.0
     else:
+        append_fn = append_m
+
+    if feature_cols is not None:  # rapidsai plugin
+        cache_partitions(iterator, append_dqm)
+        assert gpu_id is not None
+        assert use_qdm is True
+        it = PartIter(train_data, gpu_id)
+        dtrain: DMatrix = QuantileDMatrix(it, **kwargs)
+    elif use_qdm:
         cache_partitions(iterator, append_dqm)
         it = PartIter(train_data, gpu_id)
-        dtrain = DeviceQuantileDMatrix(it, **kwargs)
+        dtrain = QuantileDMatrix(it, **kwargs)
+    else:
+        cache_partitions(iterator, append_fn)
+        dtrain = make(train_data, kwargs)
 
     # Using has_validation_col here to indicate if there is validation col
     # instead of getting it from iterator, since the iterator may be empty
     # in some special case. That is to say, we must ensure every worker
-    # construct DMatrix even there is no any data since we need to ensure every
+    # construct DMatrix even there is no data since we need to ensure every
     # worker do the AllReduce when constructing DMatrix, or else it may hang
     # forever.
-    dvalid = make(valid_data, kwargs) if has_validation_col else None
-
-    if dvalid is not None:
-        assert dvalid.num_col() == dtrain.num_col()
+    if has_validation_col:
+        if use_qdm:
+            it = PartIter(valid_data, gpu_id)
+            dvalid: Optional[DMatrix] = QuantileDMatrix(it, **kwargs, ref=dtrain)
+        else:
+            dvalid = make(valid_data, kwargs) if has_validation_col else None
+    else:
+        dvalid = None
 
     return dtrain, dvalid
