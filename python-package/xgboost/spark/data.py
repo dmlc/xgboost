@@ -9,7 +9,7 @@ from xgboost.compat import concat
 
 from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
 
-from .utils import get_logger
+from .utils import get_logger  # type: ignore
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
