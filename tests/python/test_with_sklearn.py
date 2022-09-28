@@ -197,19 +197,22 @@ def test_stacking_classification():
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
     clf.fit(X_train, y_train).score(X_test, y_test)
 
-
 @pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_weight():
     from sklearn.datasets import load_digits
 
     digits = load_digits(n_class=2)
-    y = digits['target']
-    X = digits['data']
+    y = digits["target"]
+    X = digits["data"]
 
-    xgb_model = xgb.XGBClassifier(random_state=0,
-                                  tree_method="exact",
-                                  learning_rate=0.1,
-                                  importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0,
+        tree_method="exact",
+        learning_rate=0.1,
+        importance_type="weight",
+        base_score=0.5,
+    ).fit(X, y)
+
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
                     0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
@@ -224,16 +227,22 @@ def test_feature_importances_weight():
     import pandas as pd
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
-    xgb_model = xgb.XGBClassifier(random_state=0,
-                                  tree_method="exact",
-                                  learning_rate=0.1,
-                                  importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0,
+        tree_method="exact",
+        learning_rate=0.1,
+        base_score=.5,
+        importance_type="weight"
+    ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
-    xgb_model = xgb.XGBClassifier(random_state=0,
-                                  tree_method="exact",
-                                  learning_rate=0.1,
-                                  importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0,
+        tree_method="exact",
+        learning_rate=0.1,
+        importance_type="weight",
+        base_score=.5,
+    ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     with pytest.raises(ValueError):
