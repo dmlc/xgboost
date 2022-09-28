@@ -224,7 +224,7 @@ class TestQuantileDMatrix:
         strategies.integers(1, 100),
         strategies.fractions(0, 0.99),
     )
-    @settings(print_blob=True)
+    @settings(deadline=None, print_blob=True)
     def test_to_csr(self, n_samples: int, n_features: int, sparsity: float):
         csr, y = make_sparse_regression(n_samples, n_features, sparsity, False)
         csr = csr.astype(np.float32)
