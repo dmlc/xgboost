@@ -180,7 +180,8 @@ class PartitionBuilder {
         }
       } else {
         CHECK_EQ(any_missing, true);
-        auto column = column_matrix.SparseColumn<BinIdxType>(fid, rid_span.front() - gmat.base_rowid);
+        auto column = column_matrix.SparseColumn<BinIdxType>(fid,
+                                                             rid_span.front() - gmat.base_rowid);
         if (default_left) {
           child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
                                                                 gmat.base_rowid, pred_hist);
