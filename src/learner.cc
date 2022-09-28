@@ -87,7 +87,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
   uint32_t num_target{1};
 
-  int32_t base_score_estimated{0};
+  std::int32_t base_score_estimated{0};
   /*! \brief reserved field */
   int reserved[25];
   /*! \brief constructor */
@@ -104,7 +104,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
   // Skip other legacy fields.
   Json ToJson() const {
-    Object obj;
+    Json obj{Object{}};
     char floats[NumericLimits<float>::kToCharsSize];
     auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
     CHECK(ret.ec == std::errc{});
@@ -119,15 +119,19 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                    static_cast<int64_t>(num_class));
     CHECK(ret.ec == std::errc());
-    obj["num_class"] =
-        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+    obj["num_class"] = std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                    static_cast<int64_t>(num_target));
     obj["num_target"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
-    return Json(std::move(obj));
+    ret = to_chars(integers, integers + NumericLimits<std::int64_t>::kToCharsSize,
+                   static_cast<std::int64_t>(base_score_estimated));
+    obj["base_score_estimated"] =
+        std::string{integers, static_cast<std::size_t>(std::distance(integers, ret.ptr))};
+
+    return obj;
   }
   void FromJson(Json const& obj) {
     auto const& j_param = get<Object const>(obj);
@@ -138,13 +142,15 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     if (n_targets_it != j_param.cend()) {
       m["num_target"] = get<String const>(n_targets_it->second);
     }
+    auto bse_it = j_param.find("base_score_estimated");
+    if (bse_it != j_param.cend()) {
+      m["base_score_estimated"] = get<String const>(bse_it->second);
+    }
 
     this->Init(m);
 
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
-    // It can only be estimated during the first training, we consider it estimated afterward
-    base_score_estimated = 1;
   }
 
   LearnerModelParamLegacy ByteSwap() const {
