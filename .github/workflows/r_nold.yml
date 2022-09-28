@@ -10,6 +10,9 @@ on:
 env:
   R_PACKAGES: c('XML', 'igraph', 'data.table', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
 jobs:
   test-R-noLD:
     if: github.event.comment.body == '/gha run r-nold-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)

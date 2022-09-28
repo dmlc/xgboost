@@ -1145,3 +1145,8 @@ class XgboostLocalTest(SparkTestCase):
             num_workers=4,
         )
         classifier.fit(data_trans)
+
+    def test_early_stop_param_validation(self):
+        classifier = SparkXGBClassifier(early_stopping_rounds=1)
+        with pytest.raises(ValueError, match="early_stopping_rounds"):
+            classifier.fit(self.cls_df_train)

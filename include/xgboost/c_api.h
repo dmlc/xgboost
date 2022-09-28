@@ -453,7 +453,7 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
 
 /*!
  * \brief Create a Device Quantile DMatrix with data iterator.
- * \deprecated since 2.0
+ * \deprecated since 1.7.0
  * \see XGQuantileDMatrixCreateFromCallback()
  */
 XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,

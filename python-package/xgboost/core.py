@@ -1,47 +1,70 @@
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
-from abc import ABC, abstractmethod
-from collections.abc import Mapping
 import copy
-from typing import List, Optional, Any, Union, Dict, TypeVar
-from typing import Callable, Tuple, cast, Sequence, Type, Iterable
 import ctypes
+import json
 import os
 import re
 import sys
-import json
 import warnings
+from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from functools import wraps
-from inspect import signature, Parameter
+from inspect import Parameter, signature
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 import numpy as np
 import scipy.sparse
 
-from .compat import DataFrame, py_str, PANDAS_INSTALLED
-from .libpath import find_lib_path
 from ._typing import (
-    CStrPptr,
-    c_bst_ulong,
+    _T,
+    ArrayLike,
+    BoosterParam,
+    CFloatPtr,
     CNumeric,
-    DataType,
     CNumericPtr,
+    CStrPptr,
     CStrPtr,
     CTypeT,
-    ArrayLike,
-    CFloatPtr,
-    NumpyOrCupy,
-    FeatureInfo,
-    FeatureTypes,
-    FeatureNames,
-    _T,
     CupyT,
-    BoosterParam,
+    DataType,
+    FeatureInfo,
+    FeatureNames,
+    FeatureTypes,
+    NumpyOrCupy,
+    c_bst_ulong,
 )
+from .compat import PANDAS_INSTALLED, DataFrame, py_str
+from .libpath import find_lib_path
 
 
 class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
+
+
+@overload
+def from_pystr_to_cstr(data: str) -> bytes:
+    ...
+
+
+@overload
+def from_pystr_to_cstr(data: List[str]) -> ctypes.Array:
+    ...
 
 
 def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
@@ -1269,7 +1292,7 @@ class QuantileDMatrix(DMatrix):
         reference (the training dataset) ``QuantileDMatrix`` using ``ref`` as some
         information may be lost in quantisation.
 
-    .. versionadded:: 2.0.0
+    .. versionadded:: 1.7.0
 
     Parameters
     ----------
@@ -1393,7 +1416,7 @@ class QuantileDMatrix(DMatrix):
 class DeviceQuantileDMatrix(QuantileDMatrix):
     """ Use `QuantileDMatrix` instead.
 
-    .. deprecated:: 2.0.0
+    .. deprecated:: 1.7.0
 
     .. versionadded:: 1.1.0
 
