@@ -1,8 +1,12 @@
 ################################
 Distributed XGBoost with PySpark
 ################################
+
 Starting from version 1.7.0, xgboost supports pyspark estimator APIs.
-The feature is still experimental and not yet ready for production use.
+
+.. note::
+
+   The feature is still experimental and not yet ready for production use.
 
 .. contents::
   :backlinks: none
@@ -160,28 +164,38 @@ refer to `spark standalone configuration with GPU support <https://nvidia.github
 Model Persistence
 =================
 
+Similar to standard PySpark ml estimators, one can persist and reuse the model with `save`
+and `load` methods:
+
 .. code-block:: python
 
+  regressor = SparkXGBRegressor()
+  model = regressor.fit(train_df)
   # save the model
   model.save("/tmp/xgboost-pyspark-model")
   # load the model
   model2 = SparkXGBRankerModel.load("/tmp/xgboost-pyspark-model")
 
-The above code snippet shows how to save/load xgboost pyspark model. You can also
-load the model with xgboost python package directly without involving Spark.
+To export the underlying booster model used by XGBoost:
+
+.. code-block:: python
+
+  regressor = SparkXGBRegressor()
+  model = regressor.fit(train_df)
+  # the same booster object returned by xgboost.train
+  booster: xgb.Booster = model.get_booster()
+  booster.predict(...)
+  booster.save_model("model.json")
+
+This booster is shared by other Python interfaces and can be used by other language
+bindings like the C and R packages. Lastly, one can extract a booster file directly from
+saved spark estimator without going through the getter:
 
 .. code-block:: python
 
   import xgboost as xgb
   bst = xgb.Booster()
   bst.load_model("/tmp/xgboost-pyspark-model/model/part-00000")
-
-If you don't want to save the model to disk. You still can get the Booster attribute
-from the fitted model.
-
-.. code-block:: python
-
-  bst: xgb.Booster = model.get_booster()
 
 Accelerate the whole pipeline of xgboost pyspark
 ================================================
@@ -206,4 +220,3 @@ Below is a simple example submit command for enabling GPU acceleration:
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
     --archives xgboost-env.tar.gz#environment \
     xgboost_app.py
-
