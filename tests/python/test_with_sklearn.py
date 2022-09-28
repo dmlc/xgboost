@@ -606,18 +606,21 @@ def test_split_value_histograms():
 
     digits_2class = load_digits(n_class=2)
 
-    X = digits_2class['data']
-    y = digits_2class['target']
+    X = digits_2class["data"]
+    y = digits_2class["target"]
 
     dm = xgb.DMatrix(X, label=y)
-    params = {'max_depth': 6, 'eta': 0.01, 'verbosity': 0,
-              'objective': 'binary:logistic'}
+    params = {
+        "max_depth": 6,
+        "eta": 0.01,
+        "verbosity": 0,
+        "objective": "binary:logistic",
+        "base_score": 0.5,
+    }
 
     gbdt = xgb.train(params, dm, num_boost_round=10)
-    assert gbdt.get_split_value_histogram("not_there",
-                                          as_pandas=True).shape[0] == 0
-    assert gbdt.get_split_value_histogram("not_there",
-                                          as_pandas=False).shape[0] == 0
+    assert gbdt.get_split_value_histogram("not_there", as_pandas=True).shape[0] == 0
+    assert gbdt.get_split_value_histogram("not_there", as_pandas=False).shape[0] == 0
     assert gbdt.get_split_value_histogram("f28", bins=0).shape[0] == 1
     assert gbdt.get_split_value_histogram("f28", bins=1).shape[0] == 1
     assert gbdt.get_split_value_histogram("f28", bins=2).shape[0] == 2
