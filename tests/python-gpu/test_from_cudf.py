@@ -1,6 +1,8 @@
+import json
+import sys
+
 import numpy as np
 import xgboost as xgb
-import sys
 import pytest
 
 sys.path.append("tests/python")
@@ -176,19 +178,37 @@ Arrow specification.'''
         _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_cudf_categorical(self):
+    def test_cudf_categorical(self) -> None:
         import cudf
-        _X, _y = tm.make_categorical(100, 30, 17, False)
+        n_features = 30
+        _X, _y = tm.make_categorical(100, n_features, 17, False)
         X = cudf.from_pandas(_X)
         y = cudf.from_pandas(_y)
 
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
 
         Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
+        assert Xy.feature_types is not None
         assert len(Xy.feature_types) == X.shape[1]
         assert all(t == "c" for t in Xy.feature_types)
+
+        # mixed dtypes
+        X["1"] = X["1"].astype(np.int64)
+        X["3"] = X["3"].astype(np.int64)
+        df, cat_codes, _, _ = xgb.data._transform_cudf_df(
+            X, None, None, enable_categorical=True
+        )
+        assert X.shape[1] == n_features
+        assert len(cat_codes) == X.shape[1]
+        assert not cat_codes[0]
+        assert not cat_codes[2]
+
+        interfaces_str = xgb.data._cudf_array_interfaces(df, cat_codes)
+        interfaces = json.loads(interfaces_str)
+        assert len(interfaces) == X.shape[1]
 
         # test missing value
         X = cudf.DataFrame({"f0": ["a", "b", np.NaN]})
@@ -206,7 +226,7 @@ Arrow specification.'''
         assert Xy.num_row() == 3
         assert Xy.num_col() == 1
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="enable_categorical"):
             xgb.DeviceQuantileDMatrix(X, y)
 
         Xy = xgb.DeviceQuantileDMatrix(X, y, enable_categorical=True)
