@@ -347,7 +347,7 @@ and then loading the model in another session:
 
 .. note::
 
-  Besides dumping the model to raw format, users are able to dump the model to be json or ubj format from ``version 2.0.0+``.
+  Besides dumping the model to raw format, users are able to dump the model to be json or ubj format from ``version 1.7.0+``.
 
   .. code-block:: scala
 
@@ -362,7 +362,7 @@ Interact with Other Bindings of XGBoost
 After we train a model with XGBoost4j-Spark on massive dataset, sometimes we want to do model serving
 in single machine or integrate it with other single node libraries for further processing.
 
-After saving the model, we can load this model with single node Python XGBoost directly from ``version 2.0.0+``.
+After saving the model, we can load this model with single node Python XGBoost directly from ``version 1.7.0+``.
 
 .. code-block:: scala
 
@@ -375,7 +375,7 @@ After saving the model, we can load this model with single node Python XGBoost d
   bst = xgb.Booster({'nthread': 4})
   bst.load_model("/tmp/xgbClassificationModel/data/XGBoostClassificationModel")
 
-Before ``version 2.0.0``, XGBoost4j-Spark needs to export model to local manually by:
+Before ``version 1.7.0``, XGBoost4j-Spark needs to export model to local manually by:
 
 .. code-block:: scala
 

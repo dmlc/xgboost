@@ -695,7 +695,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
 class DaskDeviceQuantileDMatrix(DaskQuantileDMatrix):
     """Use `DaskQuantileDMatrix` instead.
 
-    .. deprecated:: 2.0.0
+    .. deprecated:: 1.7.0
 
     .. versionadded:: 1.2.0
 
