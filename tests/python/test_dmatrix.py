@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import scipy.sparse
 import testing as tm
-from hypothesis import given, strategies, settings
+from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
 
 import xgboost as xgb
@@ -440,14 +440,14 @@ class TestDMatrix:
         strategies.integers(0, 100),
         strategies.fractions(0, 1),
     )
-    @settings(print_blob=True)
-    def test_to_csr(self, n_samples, n_features, sparsity):
+    @settings(deadline=None, print_blob=True)
+    def test_to_csr(self, n_samples, n_features, sparsity) -> None:
         if n_samples == 0 or n_features == 0 or sparsity == 1.0:
             csr = scipy.sparse.csr_matrix(np.empty((0, 0)))
         else:
-            csr = tm.make_sparse_regression(
-                n_samples, n_features, sparsity, False
-            )[0].astype(np.float32)
+            csr = tm.make_sparse_regression(n_samples, n_features, sparsity, False)[
+                0
+            ].astype(np.float32)
         m = xgb.DMatrix(data=csr)
         ret = m.get_data()
         np.testing.assert_equal(csr.indptr, ret.indptr)

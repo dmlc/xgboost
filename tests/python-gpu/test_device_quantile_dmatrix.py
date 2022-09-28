@@ -105,7 +105,7 @@ class TestDeviceQuantileDMatrix:
         strategies.fractions(0, 0.99),
     )
     @settings(print_blob=True, deadline=None)
-    def test_to_csr(self, n_samples, n_features, sparsity):
+    def test_to_csr(self, n_samples, n_features, sparsity) -> None:
         import cupy as cp
         X, y = tm.make_sparse_regression(
             n_samples, n_features, sparsity, False
