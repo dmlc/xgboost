@@ -171,6 +171,7 @@ class ColumnMatrix {
    */
   void InitFromSparse(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
                       int32_t n_threads) {
+    is_initialized_ = true;
     auto batch = data::SparsePageAdapterBatch{page.GetView()};
     this->InitStorage(gmat, sparse_threshold);
     // ignore base row id here as we always has one column matrix for each sparse page.
@@ -197,6 +198,10 @@ class ColumnMatrix {
     } else {
       SetIndexMixedColumns(gmat);
     }
+  }
+
+  bool IsInitialized() const {
+    return is_initialized_;
   }
 
   /**
@@ -436,6 +441,7 @@ class ColumnMatrix {
   std::vector<ByteType> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;
+  bool is_initialized_ = false;
 };
 }  // namespace common
 }  // namespace xgboost

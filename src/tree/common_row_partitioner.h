@@ -92,17 +92,27 @@ class CommonRowPartitioner {
 
   void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
-    if (gmat.cut.HasCategorical()) {
-      this->template UpdatePosition<true>(ctx, gmat, nodes, p_tree);
+    auto const& column_matrix = gmat.Transpose();
+    if (column_matrix.IsInitialized()) {
+      if (gmat.cut.HasCategorical()) {
+        this->template UpdatePosition<true>(ctx, gmat, column_matrix, nodes, p_tree);
+      } else {
+        this->template UpdatePosition<false>(ctx, gmat, column_matrix, nodes, p_tree);
+      }
     } else {
-      this->template UpdatePosition<false>(ctx, gmat, nodes, p_tree);
+      /* ColumnMatrix is not initilized.
+       * It means that we use 'approx' method.
+       * any_missing and any_cat don't metter in this case.
+       * Jump directly to the main method.
+       */
+      this->template UpdatePosition<uint8_t, false, false>(ctx, gmat, column_matrix, nodes, p_tree);
     }
   }
 
   template <bool any_cat>
   void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
+                      const common::ColumnMatrix& column_matrix,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
-    auto const& column_matrix = gmat.Transpose();
     if (column_matrix.AnyMissing()) {
       this->template UpdatePosition<true, any_cat>(ctx, gmat, column_matrix, nodes, p_tree);
     } else {
@@ -112,7 +122,7 @@ class CommonRowPartitioner {
 
   template <bool any_missing, bool any_cat>
   void UpdatePosition(GenericParameter const *ctx, GHistIndexMatrix const& gmat,
-                      common::ColumnMatrix const& column_matrix,
+                      const common::ColumnMatrix& column_matrix,
                       std::vector<CPUExpandEntry> const &nodes, RegTree const *p_tree) {
     switch (column_matrix.GetTypeSize()) {
       case common::kUint8BinsTypeSize:
@@ -135,13 +145,16 @@ class CommonRowPartitioner {
 
   template <typename BinIdxType, bool any_missing, bool any_cat>
   void UpdatePosition(GenericParameter const *ctx, GHistIndexMatrix const& gmat,
-                      common::ColumnMatrix const& column_matrix,
+                      const common::ColumnMatrix& column_matrix,
                       std::vector<CPUExpandEntry> const &nodes, RegTree const *p_tree) {
     // 1. Find split condition for each split
     size_t n_nodes = nodes.size();
 
-    std::vector<int32_t> split_conditions(n_nodes);
-    FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+    std::vector<int32_t> split_conditions;
+    if (column_matrix.IsInitialized()) {
+      split_conditions.resize(n_nodes);
+      FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+    }
 
     // 2.1 Create a blocked space of size SUM(samples in each node)
     common::BlockedSpace2d space(
@@ -169,8 +182,9 @@ class CommonRowPartitioner {
       const int32_t nid = nodes[node_in_set].nid;
       const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
       partition_builder_.AllocateForTask(task_id);
+      bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
       partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
-              node_in_set, nid, r, split_conditions[node_in_set], gmat, column_matrix, *p_tree,
+              node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
               row_set_collection_[nid].begin);
     });
 

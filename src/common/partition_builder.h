@@ -17,6 +17,7 @@
 
 #include "categorical.h"
 #include "column_matrix.h"
+#include "../tree/hist/expand_entry.h"
 #include "xgboost/generic_parameters.h"
 #include "xgboost/tree_model.h"
 
@@ -87,13 +88,35 @@ class PartitionBuilder {
     return {nleft_elems, nright_elems};
   }
 
+  template <typename Pred>
+  inline std::pair<size_t, size_t> PartitionRangeKernel(common::Span<const size_t> ridx,
+                                                        common::Span<size_t> left_part,
+                                                        common::Span<size_t> right_part,
+                                                        Pred pred) {
+    size_t* p_left_part = left_part.data();
+    size_t* p_right_part = right_part.data();
+    size_t nleft_elems = 0;
+    size_t nright_elems = 0;
+    for (auto row_id : ridx) {
+      if (pred(row_id)) {
+        p_left_part[nleft_elems++] = row_id;
+      } else {
+        p_right_part[nright_elems++] = row_id;
+      }
+    }
+    return {nleft_elems, nright_elems};
+  }
+
   template <typename BinIdxType, bool any_missing, bool any_cat>
-  void Partition(const size_t node_in_set, const size_t nid, const common::Range1d range,
+  void Partition(const size_t node_in_set, std::vector<xgboost::tree::CPUExpandEntry> const &nodes,
+                 const common::Range1d range,
                  const bst_bin_t split_cond, GHistIndexMatrix const& gmat,
-                 const ColumnMatrix& column_matrix, const RegTree& tree, const size_t* rid) {
+                 const common::ColumnMatrix& column_matrix,
+                 const RegTree& tree, const size_t* rid) {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
     common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
+    const size_t nid = nodes[node_in_set].nid;
     const bst_uint fid = tree[nid].SplitIndex();
     const bool default_left = tree[nid].DefaultLeft();
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
@@ -103,19 +126,24 @@ class PartitionBuilder {
     auto const& cut_values = gmat.cut.Values();
     auto const& cut_ptrs = gmat.cut.Ptrs();
 
-    auto pred = [&](auto ridx, auto bin_id) {
+    auto gidx_calc = [&](auto ridx) {
+      auto begin = gmat.RowIdx(ridx);
+      if (gmat.IsDense()) {
+        return static_cast<bst_bin_t>(index[begin + fid]);
+      }
+      auto end = gmat.RowIdx(ridx + 1);
+      auto f_begin = cut_ptrs[fid];
+      auto f_end = cut_ptrs[fid + 1];
+      // bypassing the column matrix as we need the cut value instead of bin idx for categorical
+      // features.
+      return BinarySearchBin(begin, end, index, f_begin, f_end);
+    };
+
+    auto pred_hist = [&](auto ridx, auto bin_id) {
       if (any_cat && is_cat) {
-        auto begin = gmat.RowIdx(ridx);
-        auto end = gmat.RowIdx(ridx + 1);
-        auto f_begin = cut_ptrs[fid];
-        auto f_end = cut_ptrs[fid + 1];
-        // bypassing the column matrix as we need the cut value instead of bin idx for categorical
-        // features.
-        auto gidx = BinarySearchBin(begin, end, index, f_begin, f_end);
-        bool go_left;
-        if (gidx == -1) {
-          go_left = default_left;
-        } else {
+        auto gidx = gidx_calc(ridx);
+        bool go_left = default_left;
+        if (gidx > -1) {
           go_left = Decision(node_cats, cut_values[gidx], default_left);
         }
         return go_left;
@@ -124,25 +152,42 @@ class PartitionBuilder {
       }
     };
 
-    std::pair<size_t, size_t> child_nodes_sizes;
-    if (column_matrix.GetColumnType(fid) == xgboost::common::kDenseColumn) {
-      auto column = column_matrix.DenseColumn<BinIdxType, any_missing>(fid);
-      if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
-                                                               gmat.base_rowid, pred);
-      } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
-                                                                gmat.base_rowid, pred);
+    auto pred_approx = [&](auto ridx) {
+      auto gidx = gidx_calc(ridx);
+      bool go_left = default_left;
+      if (gidx > -1) {
+        if (is_cat) {
+          go_left = Decision(node_cats, cut_values[gidx], default_left);
+        } else {
+          go_left = cut_values[gidx] <= nodes[node_in_set].split.split_value;
+        }
       }
+      return go_left;
+    };
+
+    std::pair<size_t, size_t> child_nodes_sizes;
+    if (!column_matrix.IsInitialized()) {
+        child_nodes_sizes = PartitionRangeKernel(rid_span, left, right, pred_approx);
     } else {
-      CHECK_EQ(any_missing, true);
-      auto column = column_matrix.SparseColumn<BinIdxType>(fid, rid_span.front() - gmat.base_rowid);
-      if (default_left) {
-        child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
-                                                               gmat.base_rowid, pred);
+      if (column_matrix.GetColumnType(fid) == xgboost::common::kDenseColumn) {
+        auto column = column_matrix.DenseColumn<BinIdxType, any_missing>(fid);
+        if (default_left) {
+          child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
+                                                                gmat.base_rowid, pred_hist);
+        } else {
+          child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
+                                                                  gmat.base_rowid, pred_hist);
+        }
       } else {
-        child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
-                                                                gmat.base_rowid, pred);
+        CHECK_EQ(any_missing, true);
+        auto column = column_matrix.SparseColumn<BinIdxType>(fid, rid_span.front() - gmat.base_rowid);
+        if (default_left) {
+          child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
+                                                                gmat.base_rowid, pred_hist);
+        } else {
+          child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
+                                                                  gmat.base_rowid, pred_hist);
+        }
       }
     }
 
