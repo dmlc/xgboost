@@ -3,24 +3,33 @@
 '''Data dispatching for DMatrix.'''
 import ctypes
 import json
-import warnings
 import os
-from typing import Any, Tuple, Callable, Optional, List, Union, Iterator, Sequence, cast
+import warnings
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 
-from .core import c_array, _LIB, _check_call, c_str
-from .core import _cuda_array_interface
-from .core import DataIter, _ProxyDMatrix, DMatrix
-from .compat import lazy_isinstance, DataFrame
 from ._typing import (
-    c_bst_ulong,
-    DataType,
-    FeatureTypes,
-    FeatureNames,
-    NumpyDType,
     CupyT,
-    FloatCompatible, PandasDType
+    DataType,
+    FeatureNames,
+    FeatureTypes,
+    FloatCompatible,
+    NumpyDType,
+    PandasDType,
+    c_bst_ulong,
+)
+from .compat import DataFrame, lazy_isinstance
+from .core import (
+    _LIB,
+    DataIter,
+    DMatrix,
+    _check_call,
+    _cuda_array_interface,
+    _ProxyDMatrix,
+    c_array,
+    c_str,
+    from_pystr_to_cstr,
 )
 
 DispatchedDataBackendReturnType = Tuple[
@@ -631,10 +640,10 @@ def _is_cudf_df(data: DataType) -> bool:
 
 
 def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
-    """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
-    data and a list of array interfaces.  The data is list of categorical codes that
-    caller can safely ignore, but have to keep their reference alive until usage of array
-    interface is finished.
+    """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list
+    of data and a list of array interfaces.  The data is list of categorical codes that
+    caller can safely ignore, but have to keep their reference alive until usage of
+    array interface is finished.
 
     """
     try:
@@ -643,14 +652,18 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
         from cudf.utils.dtypes import is_categorical_dtype
 
     interfaces = []
+
+    def append(interface: dict) -> None:
+        if "mask" in interface:
+            interface["mask"] = interface["mask"].__cuda_array_interface__
+        interfaces.append(interface)
+
     if _is_cudf_ser(data):
         if is_categorical_dtype(data.dtype):
             interface = cat_codes[0].__cuda_array_interface__
         else:
             interface = data.__cuda_array_interface__
-        if "mask" in interface:
-            interface["mask"] = interface["mask"].__cuda_array_interface__
-        interfaces.append(interface)
+        append(interface)
     else:
         for i, col in enumerate(data):
             if is_categorical_dtype(data[col].dtype):
@@ -658,10 +671,8 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
                 interface = codes.__cuda_array_interface__
             else:
                 interface = data[col].__cuda_array_interface__
-            if "mask" in interface:
-                interface["mask"] = interface["mask"].__cuda_array_interface__
-            interfaces.append(interface)
-    interfaces_str = bytes(json.dumps(interfaces, indent=2), "utf-8")
+            append(interface)
+    interfaces_str = from_pystr_to_cstr(json.dumps(interfaces))
     return interfaces_str
 
 
@@ -722,9 +733,14 @@ def _transform_cudf_df(
             cat_codes.append(codes)
     else:
         for col in data:
-            if is_categorical_dtype(data[col].dtype) and enable_categorical:
+            dtype = data[col].dtype
+            if is_categorical_dtype(dtype) and enable_categorical:
                 codes = data[col].cat.codes
                 cat_codes.append(codes)
+            elif is_categorical_dtype(dtype):
+                raise ValueError(_ENABLE_CAT_ERR)
+            else:
+                cat_codes.append([])
 
     return data, cat_codes, feature_names, feature_types
 
