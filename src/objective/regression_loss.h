@@ -5,16 +5,12 @@
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 
 #include <dmlc/omp.h>
-#include <xgboost/data.h>                // MetaInfo
-#include <xgboost/generic_parameters.h>  // Context
-#include <xgboost/linalg.h>              // Tensor
 #include <xgboost/logging.h>
 
-#include <algorithm>
+#include <cmath>
 
 #include "../common/math.h"
-#include "init_estimation.h"  // WeightedMean
-#include "xgboost/task.h"
+#include "xgboost/task.h"  // ObjInfo
 
 namespace xgboost {
 namespace obj {

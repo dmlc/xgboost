@@ -16,27 +16,11 @@
 #include "../common/numeric.cuh"         // Reduce
 #include "init_estimation.h"
 #include "rabit/rabit.h"
-#include "xgboost/data.h"                // MetaInfo
 #include "xgboost/generic_parameters.h"  // Context
-#include "xgboost/linalg.h"              // UnravelIndex
 
 namespace xgboost {
 namespace obj {
 namespace cuda_impl {
-double WeightedMean(Context const* ctx, MetaInfo const& info) {
-  std::uint64_t n_samples = info.num_row_;
-  rabit::Allreduce<rabit::op::Sum>(&n_samples, 1);
-  auto y = info.labels.View(ctx->gpu_id);
-  auto w = common::OptionalWeights{info.weights_.ConstHostSpan()};
-  auto it = dh::MakeTransformIterator<double>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) -> double {
-        auto idx = linalg::UnravelIndex(i, y.Shape());
-        std::size_t r{std::get<0>(idx)}, c{std::get<1>(idx)};
-        return y(r, c) * w[r] / static_cast<double>(n_samples);
-      });
-  return common::cuda_impl::Reduce(ctx, it, it + y.Size(), 0.0);
-}
-
 double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair) {
   gpair.SetDevice(ctx->gpu_id);
   auto const& d_gpair = gpair.ConstDeviceSpan();
