@@ -37,7 +37,7 @@ class SketchContainer {
 
  private:
   Monitor timer_;
-  std::unique_ptr<dh::AllReducer> reducer_;
+  std::shared_ptr<dh::AllReducer> reducer_;
   HostDeviceVector<FeatureType> feature_types_;
   bst_row_t num_rows_;
   bst_feature_t num_columns_;
@@ -93,13 +93,14 @@ class SketchContainer {
    * \param num_columns Total number of columns in dataset.
    * \param num_rows    Total number of rows in known dataset (typically the rows in current worker).
    * \param device      GPU ID.
+   * \param reducer     Optional initialised reducer. Useful for speeding up testing.
    */
   SketchContainer(HostDeviceVector<FeatureType> const& feature_types,
                   int32_t max_bin,
                   bst_feature_t num_columns, bst_row_t num_rows,
-                  int32_t device)
+                  int32_t device, std::shared_ptr<dh::AllReducer> reducer = nullptr)
       : num_rows_{num_rows},
-        num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
+        num_columns_{num_columns}, num_bins_{max_bin}, device_{device}, reducer_(reducer) {
     CHECK_GE(device, 0);
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device_);

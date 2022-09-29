@@ -507,7 +507,7 @@ void SketchContainer::AllReduce() {
 
   timer_.Start(__func__);
   if (!reducer_) {
-    reducer_ = std::make_unique<dh::AllReducer>();
+    reducer_ = std::make_shared<dh::AllReducer>();
     reducer_->Init(device_);
   }
   // Reduce the overhead on syncing.
@@ -516,6 +516,7 @@ void SketchContainer::AllReduce() {
   size_t intermediate_num_cuts =
       std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
   this->Prune(intermediate_num_cuts);
+
 
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
