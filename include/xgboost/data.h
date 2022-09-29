@@ -284,11 +284,16 @@ class SparsePage {
     return {offset.ConstHostSpan(), data.ConstHostSpan()};
   }
 
-
   /*! \brief constructor */
   SparsePage() {
     this->Clear();
   }
+
+  SparsePage(SparsePage const& that) = delete;
+  SparsePage(SparsePage&& that) = default;
+  SparsePage& operator=(SparsePage const& that) = delete;
+  SparsePage& operator=(SparsePage&& that) = default;
+  virtual ~SparsePage() = default;
 
   /*! \return Number of instances in the page. */
   inline size_t Size() const {
@@ -356,6 +361,16 @@ class CSCPage: public SparsePage {
  public:
   CSCPage() : SparsePage() {}
   explicit CSCPage(SparsePage page) : SparsePage(std::move(page)) {}
+};
+
+/**
+ * \brief Sparse page for exporting DMatrix. Same as SparsePage, just a different type to
+ *        prevent being used internally.
+ */
+class ExtSparsePage {
+ public:
+  std::shared_ptr<SparsePage const> page;
+  explicit ExtSparsePage(std::shared_ptr<SparsePage const> p) : page{std::move(p)} {}
 };
 
 class SortedCSCPage : public SparsePage {
@@ -610,6 +625,7 @@ class DMatrix {
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
   virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
   virtual BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) = 0;
+  virtual BatchSet<ExtSparsePage> GetExtBatches(BatchParam const& param) = 0;
 
   virtual bool EllpackExists() const = 0;
   virtual bool GHistIndexExists() const = 0;
@@ -651,9 +667,14 @@ inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
   return GetEllpackBatches(param);
 }
 
-template<>
+template <>
 inline BatchSet<GHistIndexMatrix> DMatrix::GetBatches(const BatchParam& param) {
   return GetGradientIndex(param);
+}
+
+template <>
+inline BatchSet<ExtSparsePage> DMatrix::GetBatches() {
+  return GetExtBatches(BatchParam{});
 }
 }  // namespace xgboost
 
