@@ -20,7 +20,7 @@ from pyspark.ml.param.shared import (
     HasWeightCol,
 )
 from pyspark.ml.util import MLReadable, MLWritable
-from pyspark.sql.functions import col, countDistinct, pandas_udf, struct
+from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
     ArrayType,
     DoubleType,
@@ -88,6 +88,7 @@ _pyspark_specific_params = [
     "features_cols",
     "enable_sparse_data_optim",
     "qid_col",
+    "repartition_random_shuffle",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -163,6 +164,12 @@ class _SparkXGBParams(
         + "want to force the input dataset to be repartitioned before XGBoost training."
         + "Note: The auto repartitioning judgement is not fully accurate, so it is recommended"
         + "to have force_repartition be True.",
+    )
+    repartition_random_shuffle = Param(
+        Params._dummy(),
+        "repartition_random_shuffle",
+        "A boolean variable. Set repartition_random_shuffle=true if you want to random shuffle "
+        "dataset when repartitioning is required. By default is True.",
     )
     feature_names = Param(
         Params._dummy(), "feature_names", "A list of str to specify feature names."
@@ -270,15 +277,6 @@ class _SparkXGBParams(
                 f"It cannot be less than 1 [Default is 1]"
             )
 
-        if (
-            self.getOrDefault(self.force_repartition)
-            and self.getOrDefault(self.num_workers) == 1
-        ):
-            get_logger(self.__class__.__name__).warning(
-                "You set force_repartition to true when there is no need for a repartition."
-                "Therefore, that parameter will be ignored."
-            )
-
         if self.getOrDefault(self.features_cols):
             if not self.getOrDefault(self.use_gpu):
                 raise ValueError("features_cols param requires enabling use_gpu.")
@@ -294,6 +292,16 @@ class _SparkXGBParams(
         if self.getOrDefault(self.eval_metric) is not None:
             if not isinstance(self.getOrDefault(self.eval_metric), str):
                 raise ValueError("Only string type 'eval_metric' param is allowed.")
+
+        if self.getOrDefault(self.early_stopping_rounds) is not None:
+            if not (
+                self.isDefined(self.validationIndicatorCol)
+                and self.getOrDefault(self.validationIndicatorCol)
+            ):
+                raise ValueError(
+                    "If 'early_stopping_rounds' param is set, you need to set "
+                    "'validation_indicator_col' param as well."
+                )
 
         if self.getOrDefault(self.enable_sparse_data_optim):
             if self.getOrDefault(self.missing) != 0.0:
@@ -470,6 +478,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             num_workers=1,
             use_gpu=False,
             force_repartition=False,
+            repartition_random_shuffle=False,
             feature_names=None,
             feature_types=None,
             arbitrary_params_dict={},
@@ -658,12 +667,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 col(self.getOrDefault(self.weightCol)).alias(alias.weight)
             )
 
+        has_validation_col = False
         if self.isDefined(self.validationIndicatorCol) and self.getOrDefault(
             self.validationIndicatorCol
         ):
             select_cols.append(
                 col(self.getOrDefault(self.validationIndicatorCol)).alias(alias.valid)
             )
+            # In some cases, see https://issues.apache.org/jira/browse/SPARK-40407,
+            # the df.repartition can result in some reducer partitions without data,
+            # which will cause exception or hanging issue when creating DMatrix.
+            has_validation_col = True
 
         if self.isDefined(self.base_margin_col) and self.getOrDefault(
             self.base_margin_col
@@ -690,8 +704,21 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 num_workers,
             )
 
-        if self._repartition_needed(dataset):
-            dataset = dataset.repartition(num_workers)
+        if self._repartition_needed(dataset) or (
+            self.isDefined(self.validationIndicatorCol)
+            and self.getOrDefault(self.validationIndicatorCol)
+        ):
+            # If validationIndicatorCol defined, we always repartition dataset
+            # to balance data, because user might unionise train and validation dataset,
+            # without shuffling data then some partitions might contain only train or validation
+            # dataset.
+            if self.getOrDefault(self.repartition_random_shuffle):
+                # In some cases, spark round-robin repartition might cause data skew
+                # use random shuffle can address it.
+                dataset = dataset.repartition(num_workers, rand(1))
+            else:
+                dataset = dataset.repartition(num_workers)
+
         train_params = self._get_distributed_train_params(dataset)
         booster_params, train_call_kwargs_params = self._get_xgb_train_call_args(
             train_params
@@ -765,6 +792,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     gpu_id,
                     dmatrix_kwargs,
                     enable_sparse_data_optim=enable_sparse_data_optim,
+                    has_validation_col=has_validation_col,
                 )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]

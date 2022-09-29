@@ -1,7 +1,6 @@
 /*!
  * Copyright (c) 2022 by XGBoost Contributors
  */
-
 #ifndef XGBOOST_TESTS_CPP_FILESYSTEM_H
 #define XGBOOST_TESTS_CPP_FILESYSTEM_H
 

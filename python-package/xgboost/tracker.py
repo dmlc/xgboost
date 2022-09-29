@@ -112,7 +112,7 @@ class WorkerEntry:
         """Assign the rank for current entry."""
         self.rank = rank
         nnset = set(tree_map[rank])
-        rprev, rnext = ring_map[rank]
+        rprev, next_rank = ring_map[rank]
         self.sock.sendint(rank)
         # send parent rank
         self.sock.sendint(parent_map[rank])
@@ -129,9 +129,9 @@ class WorkerEntry:
         else:
             self.sock.sendint(-1)
         # send next link
-        if rnext not in (-1, rank):
-            nnset.add(rnext)
-            self.sock.sendint(rnext)
+        if next_rank not in (-1, rank):
+            nnset.add(next_rank)
+            self.sock.sendint(next_rank)
         else:
             self.sock.sendint(-1)
 
@@ -157,6 +157,7 @@ class WorkerEntry:
                 self.sock.sendstr(wait_conn[r].host)
                 port = wait_conn[r].port
                 assert port is not None
+                # send port of this node to other workers so that they can call connect
                 self.sock.sendint(port)
                 self.sock.sendint(r)
             nerr = self.sock.recvint()

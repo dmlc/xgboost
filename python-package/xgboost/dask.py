@@ -52,6 +52,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    TypedDict,
     TypeVar,
     Union,
 )
@@ -102,19 +103,13 @@ else:
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
 _DataT = Union["da.Array", "dd.DataFrame"]  # do not use series as predictor
-
-try:
-    from mypy_extensions import TypedDict
-
-    TrainReturnT = TypedDict(
-        "TrainReturnT",
-        {
-            "booster": Booster,
-            "history": Dict,
-        },
-    )
-except ImportError:
-    TrainReturnT = Dict[str, Any]  # type:ignore
+TrainReturnT = TypedDict(
+    "TrainReturnT",
+    {
+        "booster": Booster,
+        "history": Dict,
+    },
+)
 
 __all__ = [
     "RabitContext",
@@ -700,7 +695,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
 class DaskDeviceQuantileDMatrix(DaskQuantileDMatrix):
     """Use `DaskQuantileDMatrix` instead.
 
-    .. deprecated:: 2.0.0
+    .. deprecated:: 1.7.0
 
     .. versionadded:: 1.2.0
 
@@ -832,11 +827,15 @@ async def _get_rabit_args(
             if k not in valid_config:
                 raise ValueError(f"Unknown configuration: {k}")
         host_ip = dconfig.get("scheduler_address", None)
+        if host_ip is not None and host_ip.startswith("[") and host_ip.endswith("]"):
+            # convert dask bracket format to proper IPv6 address.
+            host_ip = host_ip[1:-1]
         if host_ip is not None:
             try:
                 host_ip, port = distributed.comm.get_address_host_port(host_ip)
             except ValueError:
                 pass
+
     if host_ip is not None:
         user_addr = (host_ip, port)
     else:

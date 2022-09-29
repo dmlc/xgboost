@@ -1,4 +1,4 @@
-sphinx>=4.4.0
+sphinx>=5.2.1
 mock
 sphinx_rtd_theme>=1.0.0
 breathe

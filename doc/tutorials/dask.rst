@@ -474,7 +474,6 @@ interface, including callback functions, custom evaluation metric and objective:
         callbacks=[early_stop],
     )
 
-
 .. _tracker-ip:
 
 ***************
@@ -502,6 +501,35 @@ dask config is used:
     # or we can specify the port too
     with dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"}):
         reg = dxgb.DaskXGBRegressor()
+
+
+
+************
+IPv6 Support
+************
+
+.. versionadded:: 1.7.0
+
+XGBoost has initial IPv6 support for the dask interface on Linux. Due to most of the
+cluster support for IPv6 is partial (dual stack instead of IPv6 only), we require
+additional user configuration similar to :ref:`tracker-ip` to help XGBoost obtain the
+correct address information:
+
+.. code-block:: python
+
+    import dask
+    from distributed import Client
+    from xgboost import dask as dxgb
+    # let xgboost know the scheduler address, use the same bracket format as dask.
+    with dask.config.set({"xgboost.scheduler_address": "[fd20:b6f:f759:9800::]"}):
+        with Client("[fd20:b6f:f759:9800::]") as client:
+            reg = dxgb.DaskXGBRegressor(tree_method="hist")
+
+
+When GPU is used, XGBoost employs `NCCL <https://developer.nvidia.com/nccl>`_ as the
+underlying communication framework, which may require some additional configuration via
+environment variable depending on the setting of the cluster. Please note that IPv6
+support is Unix only.
 
 
 *****************************************************************************
