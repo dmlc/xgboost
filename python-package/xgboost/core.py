@@ -82,6 +82,11 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     return res
 
 
+def make_jcargs(**kwargs: Any) -> bytes:
+    "Make JSON arguments for C functions."
+    return from_pystr_to_cstr(json.dumps(kwargs))
+
+
 IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
 
 
@@ -1369,12 +1374,9 @@ class QuantileDMatrix(DMatrix):
                 "in iterator to fix this error."
             )
 
-        args = {
-            "nthread": self.nthread,
-            "missing": self.missing,
-            "max_bin": self.max_bin,
-        }
-        config = from_pystr_to_cstr(json.dumps(args))
+        config = make_jcargs(
+            nthread=self.nthread, missing=self.missing, max_bin=self.max_bin
+        )
         ret = _LIB.XGQuantileDMatrixCreateFromCallback(
             None,
             it.proxy.handle,
@@ -2339,7 +2341,7 @@ class Booster:
         """
         length = c_bst_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
-        config = from_pystr_to_cstr(json.dumps({"format": raw_format}))
+        config = make_jcargs(format=raw_format)
         _check_call(
             _LIB.XGBoosterSaveModelToBuffer(
                 self.handle, config, ctypes.byref(length), ctypes.byref(cptr)
@@ -2534,9 +2536,6 @@ class Booster:
         `n_classes`, otherwise they're scalars.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
-        args = from_pystr_to_cstr(
-            json.dumps({"importance_type": importance_type, "feature_map": fmap})
-        )
         features = ctypes.POINTER(ctypes.c_char_p)()
         scores = ctypes.POINTER(ctypes.c_float)()
         n_out_features = c_bst_ulong()
@@ -2546,7 +2545,7 @@ class Booster:
         _check_call(
             _LIB.XGBoosterFeatureScore(
                 self.handle,
-                args,
+                make_jcargs(importance_type=importance_type, feature_map=fmap),
                 ctypes.byref(n_out_features),
                 ctypes.byref(features),
                 ctypes.byref(out_dim),
