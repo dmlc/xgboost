@@ -263,6 +263,8 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
         append_fn = append_m
 
     def split_params() -> Tuple[Dict[str, Any], Dict[str, Union[int, float, bool]]]:
+        # FIXME(jiamingy): we really need a better way to bridge distributed frameworks
+        # to XGBoost native interface and prevent scattering parameters like this.
         non_data_keys = (
             "max_bin",
             "missing",
@@ -271,24 +273,24 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
             "enable_categorical",
         )
         non_data_params = {}
+        meta = {}
         for k, v in kwargs.items():
             if k in non_data_keys:
                 non_data_params[k] = v
-        for k in non_data_keys:
-            if k in kwargs:
-                kwargs.pop(k)
-        return kwargs, non_data_params
+            else:
+                meta[k] = v
+        return meta, non_data_params
+
+    meta, params = split_params()
 
     if feature_cols is not None:  # rapidsai plugin
         cache_partitions(iterator, append_dqm)
         assert gpu_id is not None
         assert use_qdm is True
-        meta, params = split_params()
         it = PartIter(train_data, gpu_id, **meta)
         dtrain: DMatrix = QuantileDMatrix(it, **params)
     elif use_qdm:
         cache_partitions(iterator, append_dqm)
-        meta, params = split_params()
         it = PartIter(train_data, gpu_id, **meta)
         dtrain = QuantileDMatrix(it, **params)
     else:
@@ -303,8 +305,8 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     # forever.
     if has_validation_col:
         if use_qdm:
-            it = PartIter(valid_data, gpu_id, **kwargs)
-            dvalid: Optional[DMatrix] = QuantileDMatrix(it, **kwargs, ref=dtrain)
+            it = PartIter(valid_data, gpu_id, **meta)
+            dvalid: Optional[DMatrix] = QuantileDMatrix(it, **params, ref=dtrain)
         else:
             dvalid = make(valid_data, kwargs) if has_validation_col else None
     else:
