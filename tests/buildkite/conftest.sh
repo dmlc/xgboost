@@ -12,9 +12,14 @@ else
   export BRANCH_NAME=$BUILDKITE_BRANCH
 fi
 
-if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
+if [[ -z $DISABLE_RELEASE ]]
 then
-  is_release_branch=1
+  if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
+  then
+    is_release_branch=1
+  else
+    is_release_branch=0
+  fi
 else
   is_release_branch=0
 fi
