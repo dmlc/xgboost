@@ -789,7 +789,6 @@ class GPUHistMaker : public TreeUpdater {
   void InitDataOnce(DMatrix* dmat) {
     CHECK_GE(ctx_->gpu_id, 0) << "Must have at least one device";
     info_ = &dmat->Info();
-    communicator_ = collective::Communicator::GetDevice(ctx_->gpu_id);
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
@@ -841,7 +840,8 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Stop("InitData");
 
     gpair->SetDevice(ctx_->gpu_id);
-    maker->UpdateTree(gpair, p_fmat, task_, p_tree, communicator_, p_out_position);
+    auto* communicator = collective::Communicator::GetDevice(ctx_->gpu_id);
+    maker->UpdateTree(gpair, p_fmat, task_, p_tree, communicator, p_out_position);
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
@@ -866,8 +866,6 @@ class GPUHistMaker : public TreeUpdater {
   bool initialised_{false};
 
   GPUHistMakerTrainParam hist_maker_param_;
-
-  collective::DeviceCommunicator* communicator_;
 
   DMatrix* p_last_fmat_{nullptr};
   RegTree const* p_last_tree_{nullptr};

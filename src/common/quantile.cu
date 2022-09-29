@@ -11,6 +11,8 @@
 #include <memory>
 #include <utility>
 
+#include "../collective/communicator.h"
+#include "../collective/device_communicator.cuh"
 #include "categorical.h"
 #include "common.h"
 #include "device_helpers.cuh"
@@ -506,9 +508,7 @@ void SketchContainer::AllReduce() {
   }
 
   timer_.Start(__func__);
-  if (!communicator_) {
-    communicator_ = collective::Communicator::GetDevice(device_);
-  }
+  auto* communicator = collective::Communicator::GetDevice(device_);
   // Reduce the overhead on syncing.
   size_t global_sum_rows = num_rows_;
   collective::Allreduce<collective::Operation::kSum>(&global_sum_rows, 1);
@@ -529,14 +529,14 @@ void SketchContainer::AllReduce() {
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  communicator_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.size());
+  communicator->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.size());
 
   // Get the data from all workers.
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
-  communicator_->AllGatherV(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
+  communicator->AllGatherV(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
                             &recv_lengths, &recvbuf);
-  communicator_->Synchronize();
+  communicator->Synchronize();
 
   // Segment the received data.
   auto s_recvbuf = dh::ToSpan(recvbuf);

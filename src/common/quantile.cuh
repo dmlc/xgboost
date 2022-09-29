@@ -5,7 +5,6 @@
 
 #include "xgboost/span.h"
 #include "xgboost/data.h"
-#include "../collective/device_communicator.cuh"
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "timer.h"
@@ -38,7 +37,6 @@ class SketchContainer {
 
  private:
   Monitor timer_;
-  collective::DeviceCommunicator* communicator_;
   HostDeviceVector<FeatureType> feature_types_;
   bst_row_t num_rows_;
   bst_feature_t num_columns_;
