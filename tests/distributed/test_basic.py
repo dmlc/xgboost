@@ -21,4 +21,4 @@ with xgb.collective.CommunicatorContext():
     # Save the model, only ask process 0 to save the model.
     if xgb.collective.get_rank() == 0:
         bst.save_model("test.model")
-        xgb.collective.tracker_print("Finished training\n")
+        xgb.collective.communicator_print("Finished training\n")

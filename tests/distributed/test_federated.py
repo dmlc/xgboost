@@ -24,8 +24,8 @@ def run_worker(port: int, world_size: int, rank: int, with_ssl: bool, with_gpu: 
     communicator_env = {
         'xgboost_communicator': 'federated',
         'federated_server_address': f'localhost:{port}',
-        'federated_world_size': f'{world_size}',
-        'federated_rank': f'{rank}'
+        'federated_world_size': world_size,
+        'federated_rank': rank
     }
     if with_ssl:
         communicator_env['federated_server_cert'] = SERVER_CERT
