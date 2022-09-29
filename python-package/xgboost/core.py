@@ -1301,6 +1301,26 @@ class QuantileDMatrix(DMatrix):
                 "Only one of the eval_qid or eval_group for each evaluation "
                 "dataset should be provided."
             )
+        if isinstance(data, DataIter):
+            if any(
+                info is not None
+                for info in (
+                    label,
+                    weight,
+                    base_margin,
+                    feature_names,
+                    feature_types,
+                    group,
+                    qid,
+                    label_lower_bound,
+                    label_upper_bound,
+                    feature_weights,
+                )
+            ):
+                raise ValueError(
+                    "If data iterator is used as input, data like label should be "
+                    "specified as batch argument."
+                )
 
         self._init(
             data,
