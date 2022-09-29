@@ -45,7 +45,7 @@ try:
     import xgboost as xgb
     from dask.distributed import Client
     from dask import array as da
-    from dask_cuda import LocalCUDACluster
+    from dask_cuda import LocalCUDACluster, utils
     import cudf
 except ImportError:
     pass
@@ -215,21 +215,23 @@ def test_tree_stats() -> None:
 class TestDistributedGPU:
     @pytest.fixture(scope="class")
     def local_cuda_client(self):
-        return Client(LocalCUDACluster())
+        # Dont use more than 4 gpus for testing
+        # Some tests become slow on large clusters
+        available_gpus = utils.get_n_gpus()
+        return Client(LocalCUDACluster(n_workers=min(available_gpus, 4)))
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_boost_from_prediction(self, local_cuda_client) -> None:
         import cudf
-        from sklearn.datasets import load_breast_cancer, load_digits
-        
+        from sklearn.datasets import load_breast_cancer, load_iris
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
         run_boost_from_prediction(X, y, "gpu_hist", local_cuda_client)
 
-        X_, y_ = load_digits(return_X_y=True)
-        X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
-        y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
+        X_, y_ = load_iris(return_X_y=True)
+        X = dd.from_array(X_, chunksize=50).map_partitions(cudf.from_pandas)
+        y = dd.from_array(y_, chunksize=50).map_partitions(cudf.from_pandas)
         run_boost_from_prediction_multi_class(X, y, "gpu_hist", local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
