@@ -9,6 +9,8 @@ from xgboost.compat import concat
 
 from xgboost import DataIter, DMatrix, QuantileDMatrix
 
+from .utils import get_logger  # type: ignore
+
 
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
@@ -295,6 +297,11 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
         dtrain = QuantileDMatrix(it, **params)
     else:
         cache_partitions(iterator, append_fn)
+        if len(train_data) == 0:
+            get_logger("XGBoostPySpark").warning(
+                "Detected an empty partition in the training data. "
+                "Consider to enable repartition_random_shuffle"
+            )
         dtrain = make(train_data, kwargs)
 
     # Using has_validation_col here to indicate if there is validation col
