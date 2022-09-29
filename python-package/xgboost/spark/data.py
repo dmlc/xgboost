@@ -1,6 +1,6 @@
 """Utilities for processing spark partitions."""
 from collections import defaultdict, namedtuple
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -262,16 +262,35 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     else:
         append_fn = append_m
 
+    def split_params() -> Tuple[Dict[str, Any], Dict[str, Union[int, float, bool]]]:
+        non_data_keys = (
+            "max_bin",
+            "missing",
+            "silent",
+            "nthread",
+            "enable_categorical",
+        )
+        non_data_params = {}
+        for k, v in kwargs.items():
+            if k in non_data_keys:
+                non_data_params[k] = v
+        for k in non_data_keys:
+            if k in kwargs:
+                kwargs.pop(k)
+        return kwargs, non_data_params
+
     if feature_cols is not None:  # rapidsai plugin
         cache_partitions(iterator, append_dqm)
         assert gpu_id is not None
         assert use_qdm is True
-        it = PartIter(train_data, gpu_id, **kwargs)
-        dtrain: DMatrix = QuantileDMatrix(it, **kwargs)
+        meta, params = split_params()
+        it = PartIter(train_data, gpu_id, **meta)
+        dtrain: DMatrix = QuantileDMatrix(it, **params)
     elif use_qdm:
         cache_partitions(iterator, append_dqm)
-        it = PartIter(train_data, gpu_id, **kwargs)
-        dtrain = QuantileDMatrix(it, **kwargs)
+        meta, params = split_params()
+        it = PartIter(train_data, gpu_id, **meta)
+        dtrain = QuantileDMatrix(it, **params)
     else:
         cache_partitions(iterator, append_fn)
         dtrain = make(train_data, kwargs)
