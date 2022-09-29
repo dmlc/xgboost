@@ -89,6 +89,7 @@ _pyspark_specific_params = [
     "features_cols",
     "enable_sparse_data_optim",
     "qid_col",
+    "repartition_random_shuffle",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -478,7 +479,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             num_workers=1,
             use_gpu=False,
             force_repartition=False,
-            repartition_random_shuffle=True,
+            repartition_random_shuffle=False,
             feature_names=None,
             feature_types=None,
             arbitrary_params_dict={},

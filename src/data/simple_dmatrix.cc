@@ -114,6 +114,14 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(const BatchParam& par
   return BatchSet<GHistIndexMatrix>(begin_iter);
 }
 
+BatchSet<ExtSparsePage> SimpleDMatrix::GetExtBatches(BatchParam const&) {
+  auto casted = std::make_shared<ExtSparsePage>(sparse_page_);
+  CHECK(casted);
+  auto begin_iter =
+      BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(casted));
+  return BatchSet<ExtSparsePage>(begin_iter);
+}
+
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   this->ctx_.nthread = nthread;

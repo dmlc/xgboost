@@ -114,6 +114,10 @@ class SparsePageDMatrix : public DMatrix {
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
   BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam&) override;
+  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const &) override {
+    LOG(FATAL) << "Can not obtain a single CSR page for external memory DMatrix";
+    return BatchSet<ExtSparsePage>(BatchIterator<ExtSparsePage>(nullptr));
+  }
 
   // source data pointers.
   std::shared_ptr<SparsePageSource> sparse_page_source_;
