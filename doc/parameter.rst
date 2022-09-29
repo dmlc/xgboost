@@ -237,7 +237,7 @@ These parameters are only used for training with categorical data. See
 
   .. versionadded:: 1.6
 
-  .. note:: This parameter is experimental. ``exact`` tree method is not supported yet.
+  .. note:: This parameter is experimental. ``exact`` tree method is not yet supported.
 
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
@@ -247,10 +247,9 @@ These parameters are only used for training with categorical data. See
 
 * ``max_cat_threshold``
 
-  .. versionadded:: 2.0
+  .. versionadded:: 1.7.0
 
-  .. note:: This parameter is experimental. ``exact`` and ``gpu_hist`` tree methods are
-            not supported yet.
+  .. note:: This parameter is experimental. ``exact`` tree method is not yet supported.
 
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
