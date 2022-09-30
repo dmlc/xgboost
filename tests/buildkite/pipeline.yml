@@ -64,7 +64,7 @@ steps:
     key: test-python-gpu
     agents:
       queue: linux-amd64-gpu
-  - label: ":console: Run Google Tests, 4 GPUs"
+  - label: ":console: Run Google Tests"
     command: "tests/buildkite/test-cpp-gpu.sh"
     key: test-cpp-gpu
     agents:
