@@ -75,4 +75,4 @@ TEST(GpuHist, DriverLossGuided) {
   EXPECT_EQ(res[0].nid, 2);
 }
 }  // namespace tree
-}  // namespace xckgboost
+}  // namespace xgboost
