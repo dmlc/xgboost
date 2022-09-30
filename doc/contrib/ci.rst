@@ -42,7 +42,7 @@ a glue code to call CMake and a C++ compiler to build the native library on the 
 Reproduce CI testing environments using Docker containers
 *********************************************************
 In our CI pipelines, we use Docker containers extensively to package many software packages together.
-You can reproduce the same testing environment as the CI pipeline by running Docker locally.
+You can reproduce the same testing environment as the CI pipelines by running Docker locally.
 
 =============
 Prerequisites
@@ -54,7 +54,7 @@ Prerequisites
 ==============================================
 Building and Running Docker containers locally
 ==============================================
-For convenience, we produce the wrapper script ``tests/ci_build/ci_build.sh``. You can use it as follows:
+For your convenience, we provide the wrapper script ``tests/ci_build/ci_build.sh``. You can use it as follows:
 
 .. code-block:: bash
 
@@ -63,10 +63,10 @@ For convenience, we produce the wrapper script ``tests/ci_build/ci_build.sh``. Y
 
 where:
 
-* ``<CONTAINER_TYPE>`` is the identifier for the container definition. The wrapper script will
-  use the definition (Dockerfile) located at ``tests/ci_build/Dockerfile.<CONTAINER_TYPE>``.
-  For example, setting the container type to ``cpu`` will cause the script to load the Dockerfile
-  ``tests/ci_build/Dockerfile.cpu``.
+* ``<CONTAINER_TYPE>`` is the identifier for the container. The wrapper script will use the
+  container definition (Dockerfile) located at ``tests/ci_build/Dockerfile.<CONTAINER_TYPE>``.
+  For example, setting the container type to ``gpu`` will cause the script to load the Dockerfile
+  ``tests/ci_build/Dockerfile.gpu``.
 * ``<DOCKER_BINARY>`` must be either ``docker`` or ``nvidia-docker``. Choose ``nvidia-docker``
   as long as you need to run any GPU code.
 * ``<BUILD_ARG>`` is a build argument to be passed to Docker. Must be of form ``VAR=VALUE``.
@@ -84,6 +84,12 @@ arguments to Docker. For example:
   # Run multi-GPU test suite
   tests/ci_build/ci_build.sh gpu nvidia-docker --build-arg CUDA_VERSION_ARG=11.0 \
     tests/ci_build/test_python.sh mgpu
+
+To pass multiple extra arguments:
+
+.. code-block:: bash
+
+  export CI_DOCKER_EXTRA_PARAMS_INIT='-e VAR1=VAL1 -e VAR2=VAL2 -e VAR3=VAL3'
 
 *******************************
 Elastic CI Stack with BuildKite
