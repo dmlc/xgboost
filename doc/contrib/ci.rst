@@ -91,12 +91,27 @@ To pass multiple extra arguments:
 
   export CI_DOCKER_EXTRA_PARAMS_INIT='-e VAR1=VAL1 -e VAR2=VAL2 -e VAR3=VAL3'
 
-*******************************
-Elastic CI Stack with BuildKite
-*******************************
+********************************************
+Update pipeline definitions for BuildKite CI
+********************************************
 
 `BuildKite <https://buildkite.com/home>`_ is a SaaS (Software as a Service) platform that orchestrates
-cloud machines to host CI pipelines. The BuildKite platform allows us to define cloud resources in
+cloud machines to host CI pipelines. The BuildKite platform allows us to define CI pipelines as a
+declarative YAML file.
+
+The pipeline definitions are found in ``tests/buildkite/``:
+
+* ``tests/buildkite/pipeline-win64.yml``: This pipeline builds and tests XGBoost for the Windows platform.
+* ``tests/buildkite/pipeline-mgpu.yml``: This pipeline builds and tests XGBoost with access to multiple
+  NVIDIA GPUs.
+* ``tests/buildkite/pipeline.yml``: This pipeline builds and tests XGBoost with access to a single
+  NVIDIA GPU. Most tests are located here.
+
+****************************************
+Managing Elastic CI Stack with BuildKite
+****************************************
+
+BuildKite allows us to define cloud resources in
 a declarative fashion. Every configuration step is now documented explicitly as code.
 
 **Prerequisite**: You should have some knowledge of `CloudFormation <https://aws.amazon.com/cloudformation/>`_.
