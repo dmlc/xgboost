@@ -17,26 +17,26 @@ if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 sys.path.append("tests/python")
-import testing as tm                                  # noqa
+import testing as tm  # noqa
 
 if tm.no_dask_cuda()["condition"]:
     pytest.skip(tm.no_dask_cuda()["reason"], allow_module_level=True)
 
 
-from test_with_dask import run_empty_dmatrix_reg      # noqa
-from test_with_dask import run_empty_dmatrix_auc      # noqa
-from test_with_dask import run_auc                    # noqa
+from test_with_dask import run_empty_dmatrix_reg  # noqa
+from test_with_dask import run_empty_dmatrix_auc  # noqa
+from test_with_dask import run_auc  # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
 from test_with_dask import run_boost_from_prediction_multi_class  # noqa
-from test_with_dask import run_dask_classifier        # noqa
-from test_with_dask import run_empty_dmatrix_cls      # noqa
-from test_with_dask import _get_client_workers        # noqa
-from test_with_dask import generate_array             # noqa
-from test_with_dask import kCols as random_cols       # noqa
-from test_with_dask import suppress                   # noqa
-from test_with_dask import run_tree_stats             # noqa
-from test_with_dask import run_categorical            # noqa
-from test_with_dask import make_categorical           # noqa
+from test_with_dask import run_dask_classifier  # noqa
+from test_with_dask import run_empty_dmatrix_cls  # noqa
+from test_with_dask import _get_client_workers  # noqa
+from test_with_dask import generate_array  # noqa
+from test_with_dask import kCols as random_cols  # noqa
+from test_with_dask import suppress  # noqa
+from test_with_dask import run_tree_stats  # noqa
+from test_with_dask import run_categorical  # noqa
+from test_with_dask import make_categorical  # noqa
 
 
 try:
@@ -53,6 +53,7 @@ except ImportError:
 
 def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
+
     cp.cuda.runtime.setDevice(0)
     X, y, _ = generate_array()
 
@@ -63,14 +64,16 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     y = y.map_partitions(cudf.from_pandas)
 
     dtrain = DMatrixT(client, X, y)
-    out = dxgb.train(client, {'tree_method': 'gpu_hist',
-                              'debug_synchronize': True},
-                     dtrain=dtrain,
-                     evals=[(dtrain, 'X')],
-                     num_boost_round=4)
+    out = dxgb.train(
+        client,
+        {"tree_method": "gpu_hist", "debug_synchronize": True},
+        dtrain=dtrain,
+        evals=[(dtrain, "X")],
+        num_boost_round=4,
+    )
 
-    assert isinstance(out['booster'], dxgb.Booster)
-    assert len(out['history']['X']['rmse']) == 4
+    assert isinstance(out["booster"], dxgb.Booster)
+    assert len(out["history"]["X"]["rmse"]) == 4
 
     predictions = dxgb.predict(client, out, dtrain)
     assert isinstance(predictions.compute(), np.ndarray)
@@ -78,27 +81,23 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     series_predictions = dxgb.inplace_predict(client, out, X)
     assert isinstance(series_predictions, dd.Series)
 
-    single_node = out['booster'].predict(xgboost.DMatrix(X.compute()))
+    single_node = out["booster"].predict(xgboost.DMatrix(X.compute()))
 
     cp.testing.assert_allclose(single_node, predictions.compute())
-    np.testing.assert_allclose(single_node,
-                               series_predictions.compute().to_numpy())
+    np.testing.assert_allclose(single_node, series_predictions.compute().to_numpy())
 
     predt = dxgb.predict(client, out, X)
     assert isinstance(predt, dd.Series)
 
-    T = TypeVar('T')
+    T = TypeVar("T")
 
     def is_df(part: T) -> T:
         assert isinstance(part, cudf.DataFrame), part
         return part
 
-    predt.map_partitions(
-        is_df,
-        meta=dd.utils.make_meta({'prediction': 'f4'}))
+    predt.map_partitions(is_df, meta=dd.utils.make_meta({"prediction": "f4"}))
 
-    cp.testing.assert_allclose(
-        predt.values.compute(), single_node)
+    cp.testing.assert_allclose(predt.values.compute(), single_node)
 
     # Make sure the output can be integrated back to original dataframe
     X["predict"] = predictions
@@ -110,37 +109,35 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
 
 def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
+
     cp.cuda.runtime.setDevice(0)
     X, y, _ = generate_array()
 
     X = X.map_blocks(cp.asarray)
     y = y.map_blocks(cp.asarray)
     dtrain = DMatrixT(client, X, y)
-    out = dxgb.train(client, {'tree_method': 'gpu_hist',
-                              'debug_synchronize': True},
-                     dtrain=dtrain,
-                     evals=[(dtrain, 'X')],
-                     num_boost_round=2)
+    out = dxgb.train(
+        client,
+        {"tree_method": "gpu_hist", "debug_synchronize": True},
+        dtrain=dtrain,
+        evals=[(dtrain, "X")],
+        num_boost_round=2,
+    )
     from_dmatrix = dxgb.predict(client, out, dtrain).compute()
-    inplace_predictions = dxgb.inplace_predict(
-        client, out, X).compute()
-    single_node = out['booster'].predict(
-        xgboost.DMatrix(X.compute()))
+    inplace_predictions = dxgb.inplace_predict(client, out, X).compute()
+    single_node = out["booster"].predict(xgboost.DMatrix(X.compute()))
     np.testing.assert_allclose(single_node, from_dmatrix)
     device = cp.cuda.runtime.getDevice()
     assert device == inplace_predictions.device.id
     single_node = cp.array(single_node)
     assert device == single_node.device.id
-    cp.testing.assert_allclose(
-        single_node,
-        inplace_predictions)
-
+    cp.testing.assert_allclose(single_node, inplace_predictions)
 
 
 def to_cp(x: Any, DMatrixT: Type) -> Any:
     import cupy
-    if isinstance(x, np.ndarray) and \
-       DMatrixT is dxgb.DaskDeviceQuantileDMatrix:
+
+    if isinstance(x, np.ndarray) and DMatrixT is dxgb.DaskDeviceQuantileDMatrix:
         X = cupy.array(x)
     else:
         X = x
@@ -212,12 +209,13 @@ def test_tree_stats() -> None:
 
     assert local == distributed
 
-class TestDistributedGPU:
 
+class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cudf())
     def test_boost_from_prediction(self, local_cuda_client: Client) -> None:
         import cudf
         from sklearn.datasets import load_breast_cancer, load_iris
+
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
         y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
@@ -230,9 +228,8 @@ class TestDistributedGPU:
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:
-        
-            run_with_dask_dataframe(dxgb.DaskDMatrix, local_cuda_client)
-            run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, local_cuda_client)
+        run_with_dask_dataframe(dxgb.DaskDMatrix, local_cuda_client)
+        run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_categorical(self, local_cuda_client: Client) -> None:
@@ -245,14 +242,20 @@ class TestDistributedGPU:
         X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
         run_categorical(local_cuda_client, "gpu_hist", X, X_onehot, y)
 
-
     @given(
         params=parameter_strategy,
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
-        dmatrix_type=strategies.sampled_from([dxgb.DaskDMatrix,dxgb.DaskDeviceQuantileDMatrix])
+        dmatrix_type=strategies.sampled_from(
+            [dxgb.DaskDMatrix, dxgb.DaskDeviceQuantileDMatrix]
+        ),
     )
-    @settings(deadline=duration(seconds=120), max_examples=20, suppress_health_check=suppress, print_blob=True)
+    @settings(
+        deadline=duration(seconds=120),
+        max_examples=20,
+        suppress_health_check=suppress,
+        print_blob=True,
+    )
     @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist(
         self,
@@ -260,9 +263,9 @@ class TestDistributedGPU:
         num_rounds: int,
         dataset: tm.TestDataset,
         dmatrix_type,
-        local_cuda_client,
+        local_cuda_client: Client,
     ) -> None:
-        run_gpu_hist(params, num_rounds, dataset,dmatrix_type , local_cuda_client)
+        run_gpu_hist(params, num_rounds, dataset, dmatrix_type, local_cuda_client)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dask_array(self, local_cuda_client: Client) -> None:
@@ -272,7 +275,7 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cupy())
     def test_early_stopping(self, local_cuda_client: Client) -> None:
         from sklearn.datasets import load_breast_cancer
-    
+
         X, y = load_breast_cancer(return_X_y=True)
         X, y = da.from_array(X), da.from_array(y)
 
@@ -280,36 +283,46 @@ class TestDistributedGPU:
 
         valid = dxgb.DaskDMatrix(local_cuda_client, X, y)
         early_stopping_rounds = 5
-        booster = dxgb.train(local_cuda_client, {'objective': 'binary:logistic',
-                                        'eval_metric': 'error',
-                                        'tree_method': 'gpu_hist'}, m,
-                                evals=[(valid, 'Valid')],
-                                num_boost_round=1000,
-                                early_stopping_rounds=early_stopping_rounds)[
-                                    'booster']
-        assert hasattr(booster, 'best_score')
-        dump = booster.get_dump(dump_format='json')
+        booster = dxgb.train(
+            local_cuda_client,
+            {
+                "objective": "binary:logistic",
+                "eval_metric": "error",
+                "tree_method": "gpu_hist",
+            },
+            m,
+            evals=[(valid, "Valid")],
+            num_boost_round=1000,
+            early_stopping_rounds=early_stopping_rounds,
+        )["booster"]
+        assert hasattr(booster, "best_score")
+        dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
         valid_X = X
         valid_y = y
-        cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
-                                        tree_method='gpu_hist',
-                                        eval_metric='error',
-                                                                                n_estimators=100)
+        cls = dxgb.DaskXGBClassifier(
+            objective="binary:logistic",
+            tree_method="gpu_hist",
+            eval_metric="error",
+            n_estimators=100,
+        )
         cls.client = local_cuda_client
-        cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
-                eval_set=[(valid_X, valid_y)])
+        cls.fit(
+            X,
+            y,
+            early_stopping_rounds=early_stopping_rounds,
+            eval_set=[(valid_X, valid_y)],
+        )
         booster = cls.get_booster()
-        dump = booster.get_dump(dump_format='json')
+        dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
-    def test_dask_classifier(
-        self, model: str, local_cuda_client
-    ) -> None:
+    def test_dask_classifier(self, model: str, local_cuda_client: Client) -> None:
         import dask_cudf
+
         X_, y_, w_ = generate_array(with_weights=True)
         y_ = (y_ * 10).astype(np.int32)
         X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
@@ -318,7 +331,7 @@ class TestDistributedGPU:
         run_dask_classifier(X, y, w, model, "gpu_hist", local_cuda_client, 10)
 
     def test_empty_dmatrix(self, local_cuda_client: Client) -> None:
-        parameters = {'tree_method': 'gpu_hist', 'debug_synchronize': True}
+        parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
         run_empty_dmatrix_reg(local_cuda_client, parameters)
         run_empty_dmatrix_cls(local_cuda_client, parameters)
 
@@ -327,13 +340,13 @@ class TestDistributedGPU:
         import dask_cudf
         import cudf
         import cupy
-        
+
         mult = 100
         df = cudf.DataFrame(
             {
                 "a": [1, 2, 3, 4, 5.1] * mult,
                 "b": [10, 15, 29.3, 30, 31] * mult,
-                "y": [10, 20, 30, 40., 50] * mult,
+                "y": [10, 20, 30, 40.0, 50] * mult,
             }
         )
         parameters = {"tree_method": "gpu_hist", "debug_synchronize": True}
@@ -359,7 +372,9 @@ class TestDistributedGPU:
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
         dtrain = dxgb.DaskDeviceQuantileDMatrix(local_cuda_client, X, y)
-        bst = xgb.dask.train(local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")])
+        bst = xgb.dask.train(
+            local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
+        )
 
         predt = dxgb.predict(local_cuda_client, bst, X).compute().values
         cupy.testing.assert_allclose(predt, predt_empty)
@@ -385,7 +400,9 @@ class TestDistributedGPU:
         predt = dxgb.predict(local_cuda_client, bst_empty, X).compute().values
         np.testing.assert_allclose(predt, predt_empty)
 
-        in_predt = dxgb.inplace_predict(local_cuda_client, bst_empty, X).compute().values
+        in_predt = (
+            dxgb.inplace_predict(local_cuda_client, bst_empty, X).compute().values
+        )
         np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
@@ -396,14 +413,16 @@ class TestDistributedGPU:
         run_auc(local_cuda_client, "gpu_hist")
 
     def test_data_initialization(self, local_cuda_client: Client) -> None:
-        
+
         X, y, _ = generate_array()
-        fw = da.random.random((random_cols, ))
+        fw = da.random.random((random_cols,))
         fw = fw - fw.min()
         m = dxgb.DaskDMatrix(local_cuda_client, X, y, feature_weights=fw)
 
         workers = _get_client_workers(local_cuda_client)
-        rabit_args = local_cuda_client.sync(dxgb._get_rabit_args, len(workers), None, local_cuda_client)
+        rabit_args = local_cuda_client.sync(
+            dxgb._get_rabit_args, len(workers), None, local_cuda_client
+        )
 
         def worker_fn(worker_addr: str, data_ref: Dict) -> None:
             with dxgb.RabitContext(rabit_args):
@@ -419,7 +438,7 @@ class TestDistributedGPU:
                     workers[i],
                     m._create_fn_args(workers[i]),
                     pure=False,
-                    workers=[workers[i]]
+                    workers=[workers[i]],
                 )
             )
         local_cuda_client.gather(futures)
@@ -440,7 +459,7 @@ class TestDistributedGPU:
             assert ddm_names[i] == ddqdm_names[i]
 
         sig = OrderedDict(signature(xgb.DMatrix).parameters)
-        del sig["nthread"]      # no nthread in dask
+        del sig["nthread"]  # no nthread in dask
         dm_names = list(sig.keys())
         sig = OrderedDict(signature(xgb.QuantileDMatrix).parameters)
         del sig["nthread"]
@@ -469,78 +488,79 @@ class TestDistributedGPU:
         for rn, drn in zip(ranker_names, dranker_names):
             assert rn == drn
 
-
     def run_quantile(self, name: str, local_cuda_client: Client) -> None:
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
 
         exe = None
-        for possible_path in {'./testxgboost', './build/testxgboost',
-                              '../build/testxgboost', '../gpu-build/testxgboost'}:
+        for possible_path in {
+            "./testxgboost",
+            "./build/testxgboost",
+            "../build/testxgboost",
+            "../gpu-build/testxgboost",
+        }:
             if os.path.exists(possible_path):
                 exe = possible_path
-        assert exe, 'No testxgboost executable found.'
+        assert exe, "No testxgboost executable found."
         test = "--gtest_filter=GPUQuantile." + name
 
         def runit(
             worker_addr: str, rabit_args: List[bytes]
         ) -> subprocess.CompletedProcess:
-            port_env = ''
+            port_env = ""
             # setup environment for running the c++ part.
             for arg in rabit_args:
-                if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
-                    port_env = arg.decode('utf-8')
+                if arg.decode("utf-8").startswith("DMLC_TRACKER_PORT"):
+                    port_env = arg.decode("utf-8")
                 if arg.decode("utf-8").startswith("DMLC_TRACKER_URI"):
                     uri_env = arg.decode("utf-8")
-            port = port_env.split('=')
+            port = port_env.split("=")
             env = os.environ.copy()
             env[port[0]] = port[1]
             uri = uri_env.split("=")
             env[uri[0]] = uri[1]
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
-        
         workers = _get_client_workers(local_cuda_client)
-        rabit_args = local_cuda_client.sync(dxgb._get_rabit_args, len(workers), None, local_cuda_client)
-        futures = local_cuda_client.map(runit,
-                                workers,
-                                pure=False,
-                                workers=workers,
-                                rabit_args=rabit_args)
+        rabit_args = local_cuda_client.sync(
+            dxgb._get_rabit_args, len(workers), None, local_cuda_client
+        )
+        futures = local_cuda_client.map(
+            runit, workers, pure=False, workers=workers, rabit_args=rabit_args
+        )
         results = local_cuda_client.gather(futures)
         for ret in results:
-            msg = ret.stdout.decode('utf-8')
-            assert msg.find('1 test from GPUQuantile') != -1, msg
+            msg = ret.stdout.decode("utf-8")
+            assert msg.find("1 test from GPUQuantile") != -1, msg
             assert ret.returncode == 0, msg
 
     @pytest.mark.gtest
     def test_quantile_basic(self, local_cuda_client: Client) -> None:
-        self.run_quantile('AllReduceBasic', local_cuda_client)
+        self.run_quantile("AllReduceBasic", local_cuda_client)
 
     @pytest.mark.gtest
-    def test_quantile_same_on_all_workers(
-        self, local_cuda_client
-    ) -> None:
-        self.run_quantile('SameOnAllWorkers', local_cuda_client)
+    def test_quantile_same_on_all_workers(self, local_cuda_client: Client) -> None:
+        self.run_quantile("SameOnAllWorkers", local_cuda_client)
 
-    @pytest.mark.skipif(**tm.no_cupy())
-    def test_with_asyncio(local_cuda_client: Client) -> None:
-        address = local_cuda_client.scheduler.address
-        output = asyncio.run(run_from_dask_array_asyncio(address))
-        assert isinstance(output['booster'], xgboost.Booster)
-        assert isinstance(output['history'], dict)
+
+@pytest.mark.skipif(**tm.no_cupy())
+def test_with_asyncio(local_cuda_client: Client) -> None:
+    address = local_cuda_client.scheduler.address
+    output = asyncio.run(run_from_dask_array_asyncio(address))
+    assert isinstance(output["booster"], xgboost.Booster)
+    assert isinstance(output["history"], dict)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
     async with Client(scheduler_address, asynchronous=True) as client:
         import cupy as cp
+
         X, y, _ = generate_array()
         X = X.map_blocks(cp.array)
         y = y.map_blocks(cp.array)
 
         m = await xgboost.dask.DaskDeviceQuantileDMatrix(client, X, y)
-        output = await xgboost.dask.train(client, {'tree_method': 'gpu_hist'},
-                                          dtrain=m)
+        output = await xgboost.dask.train(client, {"tree_method": "gpu_hist"}, dtrain=m)
 
         with_m = await xgboost.dask.predict(client, output, m)
         with_X = await xgboost.dask.predict(client, output, X)
@@ -549,11 +569,12 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         assert isinstance(with_X, da.Array)
         assert isinstance(inplace, da.Array)
 
-        cp.testing.assert_allclose(await client.compute(with_m),
-                                   await client.compute(with_X))
-        cp.testing.assert_allclose(await client.compute(with_m),
-                                   await client.compute(inplace))
+        cp.testing.assert_allclose(
+            await client.compute(with_m), await client.compute(with_X)
+        )
+        cp.testing.assert_allclose(
+            await client.compute(with_m), await client.compute(inplace)
+        )
 
         client.shutdown()
         return output
-
