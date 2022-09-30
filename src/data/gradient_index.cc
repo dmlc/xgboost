@@ -106,8 +106,6 @@ GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<Feature
   this->columns_ = std::make_unique<common::ColumnMatrix>();
   if (!std::isnan(sparse_thresh)) {
     this->columns_->InitFromSparse(batch, *this, sparse_thresh, n_threads);
-  } else {
-    this->columns_->InitFromSparse(batch, *this, 1, n_threads);
   }
 }
 
