@@ -59,8 +59,12 @@ class NcclDeviceCommunicator : public DeviceCommunicator {
     if (communicator_->GetWorldSize() == 1) {
       return;
     }
-    dh::safe_cuda(cudaStreamDestroy(cuda_stream_));
-    ncclCommDestroy(nccl_comm_);
+    if (cuda_stream_) {
+      dh::safe_cuda(cudaStreamDestroy(cuda_stream_));
+    }
+    if (nccl_comm_) {
+      dh::safe_nccl(ncclCommDestroy(nccl_comm_));
+    }
     if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       LOG(CONSOLE) << "======== NCCL Statistics========";
       LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
