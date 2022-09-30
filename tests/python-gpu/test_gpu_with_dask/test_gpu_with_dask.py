@@ -213,12 +213,6 @@ def test_tree_stats() -> None:
     assert local == distributed
 
 class TestDistributedGPU:
-    @pytest.fixture(scope="class")
-    def local_cuda_client(self):
-        # Dont use more than 4 gpus for testing
-        # Some tests become slow on large clusters
-        available_gpus = utils.get_n_gpus()
-        return Client(LocalCUDACluster(n_workers=min(available_gpus, 4)))
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_boost_from_prediction(self, local_cuda_client) -> None:
@@ -529,6 +523,13 @@ class TestDistributedGPU:
     ) -> None:
         self.run_quantile('SameOnAllWorkers', local_cuda_client)
 
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_with_asyncio(local_cuda_client) -> None:
+        address = local_cuda_client.scheduler.address
+        output = asyncio.run(run_from_dask_array_asyncio(address))
+        assert isinstance(output['booster'], xgboost.Booster)
+        assert isinstance(output['history'], dict)
+
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
     async with Client(scheduler_address, asynchronous=True) as client:
@@ -556,11 +557,3 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         client.shutdown()
         return output
 
-
-@pytest.mark.skipif(**tm.no_cupy())
-def test_with_asyncio(local_cuda_cluster: LocalCUDACluster) -> None:
-    with Client(local_cuda_cluster) as client:
-        address = client.scheduler.address
-        output = asyncio.run(run_from_dask_array_asyncio(address))
-        assert isinstance(output['booster'], xgboost.Booster)
-        assert isinstance(output['history'], dict)
