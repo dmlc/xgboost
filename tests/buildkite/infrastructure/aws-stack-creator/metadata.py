@@ -105,7 +105,7 @@ COMMON_STACK_PARAMS = {
     "EnableCostAllocationTags": "true",
     "CostAllocationTagName": "CreatedBy",
     "ECRAccessPolicy": "full",
-    "ManagedPolicyARN": "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+    "ManagedPolicyARN": "arn:aws:iam::aws:policy/AmazonS3FullAccess,arn:aws:iam::aws:policy/service-role/AWSLambdaRole",
     "EnableSecretsPlugin": "false",
     "EnableECRPlugin": "false",
     "EnableDockerLoginPlugin": "false",
