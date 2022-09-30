@@ -262,7 +262,7 @@ class TestDistributedGPU:
         params: Dict,
         num_rounds: int,
         dataset: tm.TestDataset,
-        dmatrix_type,
+        dmatrix_type: type,
         local_cuda_client: Client,
     ) -> None:
         run_gpu_hist(params, num_rounds, dataset, dmatrix_type, local_cuda_client)
