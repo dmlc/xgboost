@@ -246,6 +246,16 @@ inline void AssertOneAPISupport() {
 #endif  // XGBOOST_USE_ONEAPI
 }
 
+void SetDevice(std::int32_t device);
+
+#if !defined(XGBOOST_USE_CUDA)
+inline void SetDevice(std::int32_t device) {
+  if (device >= 0) {
+    AssertGPUSupport();
+  }
+}
+#endif
+
 template <typename Idx, typename Container,
           typename V = typename Container::value_type,
           typename Comp = std::less<V>>

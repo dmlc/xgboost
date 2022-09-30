@@ -11,13 +11,14 @@
 
 namespace xgboost {
 namespace common {
-
-void SetDevice(int device) {
+namespace {
+void SetDeviceForTest(int device) {
   int n_devices;
   dh::safe_cuda(cudaGetDeviceCount(&n_devices));
   device %= n_devices;
   dh::safe_cuda(cudaSetDevice(device));
 }
+}  // namespace
 
 struct HostDeviceVectorSetDeviceHandler {
   template <typename Functor>
@@ -57,7 +58,7 @@ void InitHostDeviceVector(size_t n, int device, HostDeviceVector<int> *v) {
 
 void PlusOne(HostDeviceVector<int> *v) {
   int device = v->DeviceIdx();
-  SetDevice(device);
+  SetDeviceForTest(device);
   thrust::transform(dh::tcbegin(*v), dh::tcend(*v), dh::tbegin(*v),
                     [=]__device__(unsigned int a){ return a + 1; });
   ASSERT_TRUE(v->DeviceCanWrite());
@@ -68,7 +69,7 @@ void CheckDevice(HostDeviceVector<int>* v,
                  unsigned int first,
                  GPUAccess access) {
   ASSERT_EQ(v->Size(), size);
-  SetDevice(v->DeviceIdx());
+  SetDeviceForTest(v->DeviceIdx());
 
   ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v),
                             thrust::make_counting_iterator(first)));
@@ -181,17 +182,6 @@ TEST(HostDeviceVector, Empty) {
   HostDeviceVector<float> another { std::move(vec) };
   ASSERT_FALSE(another.Empty());
   ASSERT_TRUE(vec.Empty());
-}
-
-TEST(HostDeviceVector, MGPU_Basic) {  // NOLINT
-  if (AllVisibleGPUs() < 2) {
-    LOG(WARNING) << "Not testing in multi-gpu environment.";
-    return;
-  }
-
-  size_t n = 1001;
-  int device = 1;
-  TestHostDeviceVector(n, device);
 }
 }  // namespace common
 }  // namespace xgboost

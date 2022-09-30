@@ -2,6 +2,9 @@ name: XGBoost-Python-Tests
 
 on: [push, pull_request]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
 jobs:
   python-mypy-lint:
     runs-on: ubuntu-latest

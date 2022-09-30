@@ -2,6 +2,9 @@ name: XGBoost-JVM-Tests
 
 on: [push, pull_request]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
 jobs:
   test-with-jvm:
     name: Test JVM on OS ${{ matrix.os }}

@@ -235,7 +235,7 @@ __model_doc = f"""
 
     feature_types : FeatureTypes
 
-        .. versionadded:: 2.0.0
+        .. versionadded:: 1.7.0
 
         Used for specifying feature types without constructing a dataframe. See
         :py:class:`DMatrix` for details.
@@ -1402,9 +1402,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         # must match the parameters for `get_params`
         self.use_label_encoder = use_label_encoder
         if use_label_encoder is True:
-            raise ValueError("Label encoder was removed in 1.6.")
+            raise ValueError("Label encoder was removed in 1.6.0.")
         if use_label_encoder is not None:
-            warnings.warn("`use_label_encoder` is deprecated in 2.0.0.")
+            warnings.warn("`use_label_encoder` is deprecated in 1.7.0.")
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
