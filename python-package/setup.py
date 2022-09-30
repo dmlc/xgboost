@@ -27,6 +27,7 @@ USER_OPTIONS = {
     'use-azure':  (None, 'Build with AZURE support.', 0),
     'use-s3':     (None, 'Build with S3 support', 0),
     'plugin-dense-parser': (None, 'Build dense parser plugin.', 0),
+    'plugin-federated': (None, 'Build with federated learning support.', 0),
     # Python specific
     'use-system-libxgboost': (None, 'Use libxgboost.so in system path.', 0)
 }
