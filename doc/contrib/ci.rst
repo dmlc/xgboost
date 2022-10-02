@@ -38,12 +38,80 @@ task of cross-compiling a Python wheel. (Note that ``cibuildwheel`` will call
 ``setup.py bdist_wheel``. Since XGBoost has a native library component, ``setup.py`` contains
 a glue code to call CMake and a C++ compiler to build the native library on the fly.)
 
-*******************************
-Elastic CI Stack with BuildKite
-*******************************
+*********************************************************
+Reproduce CI testing environments using Docker containers
+*********************************************************
+In our CI pipelines, we use Docker containers extensively to package many software packages together.
+You can reproduce the same testing environment as the CI pipelines by running Docker locally.
+
+=============
+Prerequisites
+=============
+1. Install Docker: https://docs.docker.com/engine/install/ubuntu/
+2. Install NVIDIA Docker runtime: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#installing-on-ubuntu-and-debian
+   The runtime lets you access NVIDIA GPUs inside a Docker container.
+
+==============================================
+Building and Running Docker containers locally
+==============================================
+For your convenience, we provide the wrapper script ``tests/ci_build/ci_build.sh``. You can use it as follows:
+
+.. code-block:: bash
+
+  tests/ci_build/ci_build.sh <CONTAINER_TYPE> <DOCKER_BINARY> --build-arg <BUILD_ARG> \
+    <COMMAND> ...
+
+where:
+
+* ``<CONTAINER_TYPE>`` is the identifier for the container. The wrapper script will use the
+  container definition (Dockerfile) located at ``tests/ci_build/Dockerfile.<CONTAINER_TYPE>``.
+  For example, setting the container type to ``gpu`` will cause the script to load the Dockerfile
+  ``tests/ci_build/Dockerfile.gpu``.
+* ``<DOCKER_BINARY>`` must be either ``docker`` or ``nvidia-docker``. Choose ``nvidia-docker``
+  as long as you need to run any GPU code.
+* ``<BUILD_ARG>`` is a build argument to be passed to Docker. Must be of form ``VAR=VALUE``.
+  Example: ``--build-arg CUDA_VERSION_ARG=11.0``. You can pass multiple ``--build-arg``.
+* ``<COMMAND>`` is the command to run inside the Docker container. This can be more than one argument.
+  Example: ``tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON``.
+
+Optionally, you can set the environment variable ``CI_DOCKER_EXTRA_PARAMS_INIT`` to pass extra
+arguments to Docker. For example:
+
+.. code-block:: bash
+
+  # Allocate extra space in /dev/shm to enable NCCL
+  export CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'
+  # Run multi-GPU test suite
+  tests/ci_build/ci_build.sh gpu nvidia-docker --build-arg CUDA_VERSION_ARG=11.0 \
+    tests/ci_build/test_python.sh mgpu
+
+To pass multiple extra arguments:
+
+.. code-block:: bash
+
+  export CI_DOCKER_EXTRA_PARAMS_INIT='-e VAR1=VAL1 -e VAR2=VAL2 -e VAR3=VAL3'
+
+********************************************
+Update pipeline definitions for BuildKite CI
+********************************************
 
 `BuildKite <https://buildkite.com/home>`_ is a SaaS (Software as a Service) platform that orchestrates
-cloud machines to host CI pipelines. The BuildKite platform allows us to define cloud resources in
+cloud machines to host CI pipelines. The BuildKite platform allows us to define CI pipelines as a
+declarative YAML file.
+
+The pipeline definitions are found in ``tests/buildkite/``:
+
+* ``tests/buildkite/pipeline-win64.yml``: This pipeline builds and tests XGBoost for the Windows platform.
+* ``tests/buildkite/pipeline-mgpu.yml``: This pipeline builds and tests XGBoost with access to multiple
+  NVIDIA GPUs.
+* ``tests/buildkite/pipeline.yml``: This pipeline builds and tests XGBoost with access to a single
+  NVIDIA GPU. Most tests are located here.
+
+****************************************
+Managing Elastic CI Stack with BuildKite
+****************************************
+
+BuildKite allows us to define cloud resources in
 a declarative fashion. Every configuration step is now documented explicitly as code.
 
 **Prerequisite**: You should have some knowledge of `CloudFormation <https://aws.amazon.com/cloudformation/>`_.
