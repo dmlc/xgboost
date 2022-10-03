@@ -3,6 +3,13 @@
 set -euo pipefail
 set -x
 
+if [[ -z ${BUILDKITE:-} ]]
+then
+  echo "$0 is not meant to run locally; it should run inside BuildKite."
+  echo "Please inspect the content of $0 and locate the desired command manually."
+  exit 1
+fi
+
 if [[ -n $BUILDKITE_PULL_REQUEST && $BUILDKITE_PULL_REQUEST != "false" ]]
 then
   is_pull_request=1
