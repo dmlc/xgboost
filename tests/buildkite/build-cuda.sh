@@ -4,9 +4,9 @@ set -euo pipefail
 
 WHEEL_TAG=manylinux2014_x86_64
 
-echo "--- Build with CUDA ${CUDA_VERSION}"
-
 source tests/buildkite/conftest.sh
+
+echo "--- Build with CUDA ${CUDA_VERSION}"
 
 if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
 then
