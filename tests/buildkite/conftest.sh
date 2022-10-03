@@ -3,6 +3,11 @@
 set -euo pipefail
 set -x
 
+CUDA_VERSION=11.0.3
+RAPIDS_VERSION=22.10
+SPARK_VERSION=3.0.1
+JDK_VERSION=8
+
 if [[ -n $BUILDKITE_PULL_REQUEST && $BUILDKITE_PULL_REQUEST != "false" ]]
 then
   is_pull_request=1

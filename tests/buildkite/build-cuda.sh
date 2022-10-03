@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-CUDA_VERSION=11.0.3
 WHEEL_TAG=manylinux2014_x86_64
 
 echo "--- Build with CUDA ${CUDA_VERSION}"
