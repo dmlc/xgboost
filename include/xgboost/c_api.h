@@ -433,7 +433,7 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  * Short note for how to use second set of callback for external memory data support:
  *
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
- * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * - Step 1: Create a DMatrix proxy by \ref XGProxyDMatrixCreate and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
  *           `XGDMatrixCreateFromCallback`, along with other parameters encoded as a JSON object.
  * - Step 3: Call appropriate data setters in `next` functions.
@@ -441,7 +441,7 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  * For example usage see demo/c-api/external-memory
  *
  * \param iter           A handle to external data iterator.
- * \param proxy          A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param proxy          A DMatrix proxy handle created by \ref XGProxyDMatrixCreate.
  * \param reset          Callback function resetting the iterator state.
  * \param next           Callback function yielding the next batch of data.
  * \param c_json_config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
@@ -464,7 +464,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * Short note for how to use the second set of callback for (GPU)Hist tree method:
  *
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
- * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * - Step 1: Create a DMatrix proxy by \ref XGProxyDMatrixCreate and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
  *           `XGQuantileDMatrixCreateFromCallback`.
  * - Step 3: Call appropriate data setters in `next` functions.
@@ -472,7 +472,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * See test_iterative_dmatrix.cu or Python interface for examples.
  *
  * \param iter     A handle to external data iterator.
- * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param proxy    A DMatrix proxy handle created by \ref XGProxyDMatrixCreate.
  * \param ref      Reference DMatrix for providing quantile information.
  * \param reset    Callback function resetting the iterator state.
  * \param next     Callback function yielding the next batch of data.
@@ -502,7 +502,7 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param c_interface_str Null terminated JSON document string representation of CUDA
  *                        array interface.
  *
@@ -515,7 +515,7 @@ XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param c_interface_str Null terminated JSON document string representation of CUDA
  *                        array interface, with an array of columns.
  *
@@ -527,7 +527,7 @@ XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param c_interface_str Null terminated JSON document string representation of array
  *                        interface.
  *
@@ -539,7 +539,7 @@ XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle        A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle        A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
  * \param indices       JSON encoded __array_interface__ to column indices in CSR.
  * \param data          JSON encoded __array_interface__ to values in CSR..
@@ -1226,7 +1226,10 @@ XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *json_co
                                        bst_ulong *out_len, char const **out_dptr);
 
 /*!
- * \brief Deprecated, use `XGBoosterSaveModelToBuffer` instead.
+ * \brief Save booster to a buffer with in binary format.
+ *
+ * \deprecated since 1.6.0
+ * \see XGBoosterSaveModelToBuffer()
  */
 XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, bst_ulong *out_len,
                                  const char **out_dptr);
@@ -1244,7 +1247,7 @@ XGB_DLL int XGBoosterSerializeToBuffer(BoosterHandle handle, bst_ulong *out_len,
                                        const char **out_dptr);
 /*!
  * \brief Memory snapshot based serialization method.  Loads the buffer returned
- *        from `XGBoosterSerializeToBuffer'.
+ *        from \ref XGBoosterSerializeToBuffer.
  *
  * \param handle handle
  * \param buf pointer to the buffer
@@ -1592,8 +1595,10 @@ XGB_DLL int XGCommunicatorGetProcessorName(const char** name_str);
  * \brief Broadcast a memory region to all others from root.  This function is NOT thread-safe.
  *
  * Example:
+ * \code
  *   int a = 1;
  *   Broadcast(&a, sizeof(a), root);
+ * \endcode
  *
  * \param send_receive_buffer Pointer to the send or receive buffer.
  * \param size Size of the data.
@@ -1606,10 +1611,13 @@ XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int 
  * \brief Perform in-place allreduce. This function is NOT thread-safe.
  *
  * Example Usage: the following code gives sum of the result
+ * \code
  *     vector<int> data(10);
  *     ...
  *     Allreduce(&data[0], data.size(), DataType:kInt32, Op::kSum);
  *     ...
+ * \endcode
+
  * \param send_receive_buffer Buffer for both sending and receiving data.
  * \param count Number of elements to be reduced.
  * \param data_type Enumeration of data type, see xgboost::collective::DataType in communicator.h.
