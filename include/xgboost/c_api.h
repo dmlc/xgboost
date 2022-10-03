@@ -551,7 +551,7 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
                                      char const *indices, char const *data,
                                      bst_ulong ncol);
 
-/** @} */ // End of Streaming
+/** @} */  // End of Streaming
 
 XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array, void *ptr_schema);
 
@@ -1300,7 +1300,7 @@ XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle, bst_ulong *out_len,
  */
 XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle,
                                     char const *json_parameters);
-/**@}*/ // End of Serialization
+/**@}*/  // End of Serialization
 
 /*!
  * \brief dump model, return array of strings representing model dump
