@@ -12,6 +12,10 @@ build:
     python: "3.8"
   apt_packages:
     - graphviz
+    - cmake
+    - g++
+    - doxygen
+    - ninja-build
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:

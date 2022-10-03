@@ -28,6 +28,24 @@
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
 
+/**
+ * @mainpage
+ *
+ * \brief XGBoost C API reference.
+ *
+ * For official document page see:
+ * <a href="https://xgboost.readthedocs.io/en/stable/c.html">XGBoost C Package</a>.
+ */
+
+/**
+ * @defgroup Library
+ *
+ * These functions are used to obtain general information about XGBoost including version,
+ * build info and current global configuration.
+ *
+ * @{
+ */
+
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;  // NOLINT(*)
 /*! \brief handle to Booster */
@@ -91,6 +109,21 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str);
  */
 XGB_DLL int XGBGetGlobalConfig(const char** json_str);
 
+/**@}*/
+
+/**
+ * @defgroup DMatrix
+ *
+ * @brief DMatrix is the baisc data storage for XGBoost used by all XGBoost algorithms
+ *        including both training, prediction and explanation. There are a few variants of
+ *        `DMatrix` including normal `DMatrix`, which is a CSR matrix, `QuantileDMatrix`,
+ *        which is used by histogram-based tree methods for saving memory, and lastly the
+ *        experimental external-memory-based DMatrix, which reads data in batches during
+ *        training. For the last two variants, see the @ref Streaming group.
+ *
+ * @{
+ */
+
 /*!
  * \brief load a data matrix
  * \param fname the name of the file
@@ -126,7 +159,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
  * \param indptr  JSON encoded __array_interface__ to row pointers in CSR.
  * \param indices JSON encoded __array_interface__ to column indices in CSR.
  * \param data    JSON encoded __array_interface__ to values in CSR.
- * \param num_col Number of columns.
+ * \param ncol    Number of columns.
  * \param json_config JSON encoded configuration.  Required values are:
  *
  *          - missing
@@ -252,9 +285,11 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
                                                   DMatrixHandle *out);
 
 /**
- * ========================== Begin data callback APIs =========================
+ * @defgroup Streaming
+ * @ingroup DMatrix
  *
- * Short notes for data callback
+ * @brief Quantile DMatrix and external memory DMatrix can be created from batches of
+ *        data.
  *
  * There are 2 sets of data callbacks for DMatrix.  The first one is currently exclusively
  * used by JVM packages.  It uses `XGBoostBatchCSR` to accept batches for CSR formated
@@ -266,20 +301,20 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
  *
  * Another set is used by external data iterator. It accept foreign data iterators as
  * callbacks.  There are 2 different senarios where users might want to pass in callbacks
- * instead of raw data.  First it's the Quantile DMatrix used by GPU Hist. For this case,
- * the data is first compressed by quantile sketching then merged.  This is particular
- * useful for distributed setting as it eliminates 2 copies of data.  1 by a `concat` from
- * external library to make the data into a blob for normal DMatrix initialization,
- * another by the internal CSR copy of DMatrix.  The second use case is external memory
- * support where users can pass a custom data iterator into XGBoost for loading data in
- * batches.  There are short notes on each of the use case in respected DMatrix factory
- * function.
+ * instead of raw data.  First it's the Quantile DMatrix used by hist and GPU Hist. For
+ * this case, the data is first compressed by quantile sketching then merged.  This is
+ * particular useful for distributed setting as it eliminates 2 copies of data.  1 by a
+ * `concat` from external library to make the data into a blob for normal DMatrix
+ * initialization, another by the internal CSR copy of DMatrix.  The second use case is
+ * external memory support where users can pass a custom data iterator into XGBoost for
+ * loading data in batches.  There are short notes on each of the use cases in respected
+ * DMatrix factory function.
  *
  * Related functions are:
  *
  * # Factory functions
  * - \ref XGDMatrixCreateFromCallback for external memory
- * - \ref XGDeviceQuantileDMatrixCreateFromCallback for quantile DMatrix
+ * - \ref XGQuantileDMatrixCreateFromCallback for quantile DMatrix
  *
  * # Proxy that callers can use to pass data to XGBoost
  * - \ref XGProxyDMatrixCreate
@@ -290,6 +325,8 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
  * - \ref XGProxyDMatrixSetDataDense
  * - \ref XGProxyDMatrixSetDataCSR
  * - ... (data setters)
+ *
+ * @{
  */
 
 /*  ==== First set of callback functions, used exclusively by JVM packages. ==== */
@@ -439,9 +476,10 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * \param ref      Reference DMatrix for providing quantile information.
  * \param reset    Callback function resetting the iterator state.
  * \param next     Callback function yielding the next batch of data.
- * \param missing  Which value to represent missing value
- * \param nthread  Number of threads to use, 0 for default.
- * \param max_bin  Maximum number of bins for building histogram.
+ * \param config   JSON encoded parameters for DMatrix construction.  Accepted fields are:
+ *   - missing:      Which value to represent missing value
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - max_bin  Maximum number of bins for building histogram.
  * \param out      The created Device Quantile DMatrix
  *
  * \return 0 when success, -1 when failure happens
@@ -504,7 +542,8 @@ XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
  * \param handle        A DMatrix proxy created by XGProxyDMatrixCreate
  * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
  * \param indices       JSON encoded __array_interface__ to column indices in CSR.
- * \param values        JSON encoded __array_interface__ to values in CSR..
+ * \param data          JSON encoded __array_interface__ to values in CSR..
+ * \param ncol          The number of columns of input CSR matrix.
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -512,10 +551,7 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
                                      char const *indices, char const *data,
                                      bst_ulong ncol);
 
-/*
- * ==========================- End data callback APIs ==========================
- */
-
+/** @} */ // End of Streaming
 
 XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array, void *ptr_schema);
 
@@ -762,7 +798,6 @@ XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
                             bst_ulong *out);
 
-
 /*!
  * \brief Get number of valid values from DMatrix.
  *
@@ -794,7 +829,15 @@ XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
 XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
                                   bst_ulong *out_indptr, unsigned *out_indices, float *out_data);
 
-// --- start XGBoost class
+/** @} */  // End of DMatrix
+
+/**
+ * @defgroup Booster
+ *
+ * @brief The `Booster` class is the gradient-boosted model for XGBoost.
+ * @{
+ */
+
 /*!
  * \brief create xgboost learner
  * \param dmats matrices that are set to be cached
@@ -851,11 +894,11 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
 
 /*!
  * \brief get number of features
+ * \param handle Handle to booster.
  * \param out number of features
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
-                                   bst_ulong *out);
+XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle, bst_ulong *out);
 
 /*!
  * \brief update the model in one round using dtrain
@@ -898,6 +941,15 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
                                  const char *evnames[],
                                  bst_ulong len,
                                  const char **out_result);
+
+/**
+ * @defgroup Prediction
+ * @ingroup Booster
+ *
+ * @brief These functions are used for running prediction and explanation algorithms.
+ *
+ * @{
+ */
 
 /*!
  * \brief make prediction based on dmat (deprecated, use `XGBoosterPredictFromDMatrix` instead)
@@ -991,12 +1043,12 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         bst_ulong const **out_shape,
                                         bst_ulong *out_dim,
                                         float const **out_result);
-/*
+/**
  * \brief Inplace prediction from CPU dense matrix.
  *
  * \param handle        Booster handle.
  * \param values        JSON encoded __array_interface__ to values.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *
  *   Additional fields for inplace prediction are:
  *     "missing": float
@@ -1004,9 +1056,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  *
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -1018,7 +1070,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
                                       bst_ulong *out_dim,
                                       const float **out_result);
 
-/*
+/**
  * \brief Inplace prediction from CPU CSR matrix.
  *
  * \param handle        Booster handle.
@@ -1026,16 +1078,16 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
  * \param indices       JSON encoded __array_interface__ to column indices in CSR.
  * \param values        JSON encoded __array_interface__ to values in CSR..
  * \param ncol          Number of features in data.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
  *     "missing": float
  *
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  *
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -1047,20 +1099,20 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
                                     bst_ulong *out_dim,
                                     const float **out_result);
 
-/*
+/**
  * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
  * \param handle        Booster handle
  * \param values        JSON encoded __cuda_array_interface__ to values.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
  *     "missing": float
  *
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -1069,20 +1121,20 @@ XGB_DLL int XGBoosterPredictFromCudaArray(
     DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
     const float **out_result);
 
-/*
+/**
  * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
  *
  * \param handle        Booster handle
  * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
  *     "missing": float
  *
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -1091,11 +1143,15 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(
     DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
     const float **out_result);
 
+/**@}*/  // End of Prediction
 
-/*
- * ========================== Begin Serialization APIs =========================
- */
-/*
+
+/**
+ * @defgroup Serialization
+ * @ingroup Booster
+ *
+ * @brief There are multiple ways to serialize a Booster object depending on the use case.
+ *
  * Short note for serialization APIs.  There are 3 different sets of serialization API.
  *
  * - Functions with the term "Model" handles saving/loading XGBoost model like trees or
@@ -1113,18 +1169,22 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(
  *   situations like check-pointing, or continuing training task in distributed
  *   environment.  In these cases the task must be carried out without any user
  *   intervention.
+ *
+ * @{
  */
 
 /*!
  * \brief Load model from existing file
+ *
  * \param handle handle
  * \param fname File URI or file name.
-* \return 0 when success, -1 when failure happens
+ * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
                                const char *fname);
 /*!
  * \brief Save model into existing file
+ *
  * \param handle handle
  * \param fname File URI or file name.
  * \return 0 when success, -1 when failure happens
@@ -1133,6 +1193,7 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle,
                                const char *fname);
 /*!
  * \brief load model from in memory buffer
+ *
  * \param handle handle
  * \param buf pointer to the buffer
  * \param len the length of the buffer
@@ -1236,10 +1297,7 @@ XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle, bst_ulong *out_len,
  */
 XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle,
                                     char const *json_parameters);
-/*
- * =========================== End Serialization APIs ==========================
- */
-
+/**@}*/ // End of Serialization
 
 /*!
  * \brief dump model, return array of strings representing model dump
@@ -1380,7 +1438,7 @@ XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
  *
  * \param handle       An instance of Booster
  * \param field        Field name
- * \param size         Size of output pointer `features` (number of strings returned).
+ * \param len          Size of output pointer `features` (number of strings returned).
  * \param out_features Address of a pointer to array of strings. Result is stored in
  *        thread local memory.
  *
@@ -1421,6 +1479,15 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
                                   bst_ulong *out_dim,
                                   bst_ulong const **out_shape,
                                   float const **out_scores);
+/**@}*/  // End of Booster
+
+/**
+ * @defgroup Collective
+ *
+ * @brief Experimental support for exposing internal communicator in XGBoost.
+ *
+ * @{
+ */
 
 /*!
  * \brief Initialize the collective communicator.
@@ -1551,5 +1618,5 @@ XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int 
  */
 XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int data_type, int op);
 
-
+/**@}*/  // End of Collective
 #endif  // XGBOOST_C_API_H_
