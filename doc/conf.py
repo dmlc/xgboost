@@ -57,10 +57,11 @@ except HTTPError:
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-libpath = os.path.join(curr_path, '../python-package/')
+CURR_PATH = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
+libpath = os.path.join(PROJECT_ROOT, "python-package/")
 sys.path.insert(0, libpath)
-sys.path.insert(0, curr_path)
+sys.path.insert(0, CURR_PATH)
 
 # -- General configuration ------------------------------------------------
 
@@ -106,10 +107,9 @@ plot_html_show_source_link = False
 plot_html_show_formats = False
 
 # Breathe extension variables
-CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir))
+DOX_DIR = "doxygen"
 breathe_projects = {
-    "xgboost": os.path.join(PROJECT_ROOT, "doxygen/doc_doxygen/xml")
+    "xgboost": os.path.join(PROJECT_ROOT, DOX_DIR, "doc_doxygen/xml")
 }
 breathe_default_project = "xgboost"
 
@@ -223,15 +223,18 @@ intersphinx_mapping = {
 # hook for doxygen
 def run_doxygen():
     """Run the doxygen make command in the designated folder."""
+    curdir = os.path.normpath(os.path.abspath(os.path.curdir))
     try:
         os.chdir(PROJECT_ROOT)
-        if not os.path.exists("doxygen"):
-            subprocess.check_call(["mkdir", "doxygen"])
-        os.chdir(os.path.join(PROJECT_ROOT, "doxygen"))
+        if not os.path.exists(DOX_DIR):
+            os.mkdir(DOX_DIR)
+        os.chdir(os.path.join(PROJECT_ROOT, DOX_DIR))
         subprocess.check_call(["cmake", "..", "-DBUILD_C_DOC=ON", "-GNinja"])
         subprocess.check_call(["ninja", "doc_doxygen"])
     except OSError as e:
         sys.stderr.write("doxygen execution failed: %s" % e)
+    finally:
+        os.chdir(curdir)
 
 
 def generate_doxygen_xml(app):
