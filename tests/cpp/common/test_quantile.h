@@ -37,12 +37,12 @@ inline void InitRabitContext(std::string msg, int32_t n_workers) {
 }
 
 template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
-  std::vector<int32_t> seeds(4);
+  std::vector<int32_t> seeds(2);
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist(3, 1000);
   std::generate(seeds.begin(), seeds.end(), [&](){ return dist(&lcg); });
 
-  std::vector<size_t> bins(8);
+  std::vector<size_t> bins(2);
   for (size_t i = 0; i < bins.size() - 1; ++i) {
     bins[i] = i * 35 + 2;
   }

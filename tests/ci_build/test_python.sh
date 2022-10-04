@@ -67,9 +67,6 @@ case "$suite" in
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
     unset_pyspark_envs
-
-    cd tests/distributed
-    ./runtests-gpu.sh
     uninstall_xgboost
     ;;
 
@@ -80,8 +77,6 @@ case "$suite" in
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python
     unset_pyspark_envs
-    cd tests/distributed
-    ./runtests.sh
     uninstall_xgboost
     ;;
 

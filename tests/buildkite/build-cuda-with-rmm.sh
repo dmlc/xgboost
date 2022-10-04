@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-CUDA_VERSION=11.0.3
-
 source tests/buildkite/conftest.sh
 
 echo "--- Build with CUDA ${CUDA_VERSION}, RMM enabled"
@@ -16,7 +14,8 @@ else
 fi
 
 command_wrapper="tests/ci_build/ci_build.sh rmm docker --build-arg "`
-                `"CUDA_VERSION_ARG=$CUDA_VERSION"
+                `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
+                `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh --conda-env=gpu_test -DUSE_CUDA=ON \
