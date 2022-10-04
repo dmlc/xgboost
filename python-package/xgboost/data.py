@@ -619,12 +619,16 @@ def _from_arrow(
     if enable_categorical:
         raise ValueError("categorical data in arrow is not supported yet.")
 
-    rb_iter = iter(data.to_batches())
+    batches = data.to_batches()
+    rb_iter = iter(batches)
     it = record_batch_data_iter(rb_iter)
     next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(it)
     handle = ctypes.c_void_p()
 
-    config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
+    config = bytes(
+        json.dumps({"missing": missing, "nthread": nthread, "nbatch": len(batches)}),
+        "utf-8",
+    )
     _check_call(
         _LIB.XGDMatrixCreateFromArrowCallback(
             next_callback,

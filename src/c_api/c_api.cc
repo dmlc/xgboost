@@ -498,14 +498,16 @@ XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *config,
                                              DMatrixHandle *out) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(json_config);
-  auto config = Json::Load(StringView{json_config});
-  auto missing = GetMissing(config);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
-  data::RecordBatchesIterAdapter adapter(next, n_threads);
+  xgboost_CHECK_C_ARG_PTR(config);
+  auto jconfig = Json::Load(StringView{config});
+  auto missing = GetMissing(jconfig);
+  auto n_batches = RequiredArg<Integer>(jconfig, "nbatch", __func__);
+  auto n_threads =
+      OptionalArg<Integer, std::int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
+  data::RecordBatchesIterAdapter adapter(next, n_batches);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
@@ -1050,20 +1052,18 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-XGB_DLL int XGBoosterPredictFromCUDAArray(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
-    DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
-    const float **out_result) {
+XGB_DLL int XGBoosterPredictFromCUDAArray(BoosterHandle handle, char const *, char const *,
+                                          DMatrixHandle, xgboost::bst_ulong const **,
+                                          xgboost::bst_ulong *, const float **) {
   API_BEGIN();
   CHECK_HANDLE();
   common::AssertGPUSupport();
   API_END();
 }
 
-XGB_DLL int XGBoosterPredictFromCUDAColumnar(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
-    DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
-    const float **out_result) {
+XGB_DLL int XGBoosterPredictFromCUDAColumnar(BoosterHandle handle, char const *, char const *,
+                                             DMatrixHandle, xgboost::bst_ulong const **,
+                                             xgboost::bst_ulong *, const float **) {
   API_BEGIN();
   CHECK_HANDLE();
   common::AssertGPUSupport();

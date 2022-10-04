@@ -546,6 +546,7 @@ XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array
  * \param next   Callback function for fetching arrow records.
  * \param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
+ *   - nbatch: Number of batches in arrow table.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out      The created DMatrix.
  *
