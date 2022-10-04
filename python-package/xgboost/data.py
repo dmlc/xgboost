@@ -624,10 +624,8 @@ def _from_arrow(
     it = record_batch_data_iter(rb_iter)
     next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(it)
     handle = ctypes.c_void_p()
-
-    config = bytes(
-        json.dumps({"missing": missing, "nthread": nthread, "nbatch": len(batches)}),
-        "utf-8",
+    config = from_pystr_to_cstr(
+        json.dumps({"missing": missing, "nthread": nthread, "nbatch": len(batches)})
     )
     _check_call(
         _LIB.XGDMatrixCreateFromArrowCallback(
