@@ -379,7 +379,7 @@ TEST(GPUQuantile, AllReduceBasic) {
     }
     sketch_on_single_node.Unique();
     TestQuantileElemRank(0, sketch_on_single_node.Data(),
-                         sketch_on_single_node.ColumnsPtr());
+                         sketch_on_single_node.ColumnsPtr(), true);
 
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
@@ -403,7 +403,7 @@ TEST(GPUQuantile, AllReduceBasic) {
               sketch_on_single_node.Data().size());
 
     TestQuantileElemRank(0, sketch_distributed.Data(),
-                         sketch_distributed.ColumnsPtr());
+                         sketch_distributed.ColumnsPtr(), true);
 
     std::vector<SketchEntry> single_node_data(
         sketch_on_single_node.Data().size());
@@ -451,7 +451,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
                         &sketch_distributed);
     sketch_distributed.AllReduce();
     sketch_distributed.Unique();
-    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
+    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
