@@ -161,10 +161,8 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
  * \param data    JSON encoded __array_interface__ to values in CSR.
  * \param ncol    Number of columns.
  * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -179,10 +177,8 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
  * \brief Create a matrix from dense array.
  * \param data  JSON encoded __array_interface__ to array values.
  * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -258,10 +254,8 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * \brief Create DMatrix from CUDA columnar format. (cuDF)
  * \param data Array of JSON encoded __cuda_array_interface__ for each column.
  * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -273,10 +267,8 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
  * \brief Create DMatrix from CUDA array.
  * \param data JSON encoded __cuda_array_interface__ for array data.
  * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -477,7 +469,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * \param config   JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - max_bin  Maximum number of bins for building histogram.
+ *   - max_bin (optional):  Maximum number of bins for building histogram.
  * \param out      The created Device Quantile DMatrix
  *
  * \return 0 when success, -1 when failure happens
@@ -559,10 +551,8 @@ XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array
  *
  * \param next Callback function for fetching arrow records.
  * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out      The created DMatrix.
  *
  * \return 0 when success, -1 when failure happens

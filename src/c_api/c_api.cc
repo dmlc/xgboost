@@ -504,8 +504,7 @@ XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char c
   xgboost_CHECK_C_ARG_PTR(json_config);
   auto config = Json::Load(StringView{json_config});
   auto missing = GetMissing(config);
-  int32_t n_threads = get<Integer const>(config["nthread"]);
-  n_threads = common::OmpGetNumThreads(n_threads);
+  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
   data::RecordBatchesIterAdapter adapter(next, n_threads);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
