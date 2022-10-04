@@ -2,6 +2,11 @@ env:
   DOCKER_CACHE_ECR_ID: "492475357299"
   DOCKER_CACHE_ECR_REGION: "us-west-2"
 steps:
+  - label: ":moneybag: Enforce daily budget"
+    command: "tests/buildkite/enforce_daily_budget.sh"
+    key: enforce-daily-budget
+    agents:
+      queue: pipeline-loader
   - block: ":rocket: Run this test job"
     if: build.pull_request.repository.fork == true
   #### -------- BUILD --------
@@ -64,7 +69,7 @@ steps:
     key: test-python-gpu
     agents:
       queue: linux-amd64-gpu
-  - label: ":console: Run Google Tests, 4 GPUs"
+  - label: ":console: Run Google Tests"
     command: "tests/buildkite/test-cpp-gpu.sh"
     key: test-cpp-gpu
     agents:
