@@ -57,6 +57,7 @@ class DMatrixProxy : public DMatrix {
 
   void SetCUDAArray(char const* c_interface) {
     common::AssertGPUSupport();
+    CHECK(c_interface);
 #if defined(XGBOOST_USE_CUDA)
     StringView interface_str{c_interface};
     Json json_array_interface = Json::Load(interface_str);
@@ -106,7 +107,10 @@ class DMatrixProxy : public DMatrix {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<GHistIndexMatrix>(BatchIterator<GHistIndexMatrix>(nullptr));
   }
-
+  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const&) override {
+    LOG(FATAL) << "Not implemented.";
+    return BatchSet<ExtSparsePage>(BatchIterator<ExtSparsePage>(nullptr));
+  }
   dmlc::any Adapter() const {
     return batch_;
   }

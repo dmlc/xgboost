@@ -88,6 +88,9 @@ void IterativeDMatrix::InitFromCUDA(DataIterHandle iter_handle, float missing,
   } while (iter.Next());
   iter.Reset();
 
+  auto n_features = cols;
+  CHECK_GE(n_features, 1) << "Data must has at least 1 column.";
+
   dh::safe_cuda(cudaSetDevice(get_device()));
   if (!ref) {
     HostDeviceVector<FeatureType> ft;

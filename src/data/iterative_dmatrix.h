@@ -97,6 +97,7 @@ class IterativeDMatrix : public DMatrix {
   BatchSet<GHistIndexMatrix> GetGradientIndex(BatchParam const &param) override;
 
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam &param) override;
+  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const& param) override;
 
   bool SingleColBlock() const override { return true; }
 
@@ -117,15 +118,14 @@ void GetCutsFromRef(std::shared_ptr<DMatrix> ref_, bst_feature_t n_features, Bat
 void GetCutsFromEllpack(EllpackPage const &page, common::HistogramCuts *cuts);
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDMatrix::InitFromCUDA(DataIterHandle iter, float missing,
-                                           std::shared_ptr<DMatrix> ref) {
+inline void IterativeDMatrix::InitFromCUDA(DataIterHandle, float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.
   (void)(proxy_);
   (void)(reset_);
   (void)(next_);
   common::AssertGPUSupport();
 }
-inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam &param) {
+inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam &) {
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));

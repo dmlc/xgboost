@@ -125,6 +125,7 @@ if __name__ == "__main__":
                 # tests
                 "tests/python/test_config.py",
                 "tests/python/test_spark/",
+                "tests/python/test_quantile_dmatrix.py",
                 "tests/python-gpu/test_gpu_spark/",
                 "tests/ci_build/lint_python.py",
                 # demo

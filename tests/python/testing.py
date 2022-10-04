@@ -577,6 +577,8 @@ def make_sparse_regression(
 
     if as_dense:
         arr = csr.toarray()
+        assert arr.shape[0] == n_samples
+        assert arr.shape[1] == n_features
         arr[arr == 0] = np.nan
         return arr, y
 

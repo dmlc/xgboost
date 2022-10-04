@@ -188,8 +188,31 @@ then
     echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
 
-    echo "aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true"
-    aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true
+    # Attempt to create Docker repository; it will fail if the repository already exists
+    echo "aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION}"
+    if aws ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION}
+    then
+      # Repository was created. Now set expiration policy
+      echo "aws ecr put-lifecycle-policy --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} --lifecycle-policy-text file:///dev/stdin"
+      cat <<EOF | aws ecr put-lifecycle-policy --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} --lifecycle-policy-text file:///dev/stdin
+{
+   "rules": [
+       {
+           "rulePriority": 1,
+           "selection": {
+               "tagStatus": "any",
+               "countType": "sinceImagePushed",
+               "countUnit": "days",
+               "countNumber": 30
+           },
+           "action": {
+               "type": "expire"
+           }
+       }
+   ]
+}
+EOF
+    fi
 
     echo "docker push --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker push --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
