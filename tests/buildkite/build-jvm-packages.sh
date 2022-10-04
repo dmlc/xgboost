@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-SPARK_VERSION=3.0.1
-
 source tests/buildkite/conftest.sh
 
 echo "--- Build XGBoost JVM packages"

@@ -1,6 +1,7 @@
 ARG CUDA_VERSION_ARG
 FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu18.04
 ARG CUDA_VERSION_ARG
+ARG RAPIDS_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -27,7 +28,7 @@ ENV PATH=/opt/python/bin:$PATH
 # Create new Conda environment with RMM
 RUN \
     conda create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.9 rmm=22.04* cudatoolkit=$CUDA_VERSION_ARG cmake
+        python=3.9 rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG cmake
 
 ENV GOSU_VERSION 1.10
 
