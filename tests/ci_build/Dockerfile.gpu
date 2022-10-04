@@ -1,6 +1,7 @@
 ARG CUDA_VERSION_ARG
 FROM nvidia/cuda:$CUDA_VERSION_ARG-runtime-ubuntu18.04
 ARG CUDA_VERSION_ARG
+ARG RAPIDS_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -21,7 +22,8 @@ ENV PATH=/opt/python/bin:$PATH
 RUN \
     conda install -c conda-forge mamba && \
     mamba create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.8 cudf=22.04* rmm=22.04* cudatoolkit=$CUDA_VERSION_ARG dask dask-cuda=22.04* dask-cudf=22.04* cupy \
+        python=3.9 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
+        dask dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
         numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
         pyspark cloudpickle cuda-python=11.7.0
 
