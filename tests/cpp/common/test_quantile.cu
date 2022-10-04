@@ -349,6 +349,9 @@ TEST(GPUQuantile, AllReduceBasic) {
     return;
   }
 
+  auto reducer = std::make_shared<dh::AllReducer>();
+  reducer->Init(0);
+
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     // Set up single node version;
@@ -378,12 +381,12 @@ TEST(GPUQuantile, AllReduceBasic) {
     }
     sketch_on_single_node.Unique();
     TestQuantileElemRank(0, sketch_on_single_node.Data(),
-                         sketch_on_single_node.ColumnsPtr());
+                         sketch_on_single_node.ColumnsPtr(), true);
 
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
     auto rank = rabit::GetRank();
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
+    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0, reducer);
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
                                     .Device(0)
@@ -402,7 +405,7 @@ TEST(GPUQuantile, AllReduceBasic) {
               sketch_on_single_node.Data().size());
 
     TestQuantileElemRank(0, sketch_distributed.Data(),
-                         sketch_distributed.ColumnsPtr());
+                         sketch_distributed.ColumnsPtr(), true);
 
     std::vector<SketchEntry> single_node_data(
         sketch_on_single_node.Data().size());
@@ -432,13 +435,15 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   } else {
     return;
   }
+  auto reducer = std::make_shared<dh::AllReducer>();
+  reducer->Init(0);
 
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
     auto rank = rabit::GetRank();
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
+    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0, reducer);
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
                                     .Device(0)
@@ -450,7 +455,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
                         &sketch_distributed);
     sketch_distributed.AllReduce();
     sketch_distributed.Unique();
-    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
+    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
@@ -467,12 +472,9 @@ TEST(GPUQuantile, SameOnAllWorkers) {
     thrust::copy(thrust::device, local_data.data(),
                  local_data.data() + local_data.size(),
                  all_workers.begin() + local_data.size() * rank);
-    dh::AllReducer reducer;
-    reducer.Init(0);
-
-    reducer.AllReduceSum(all_workers.data().get(), all_workers.data().get(),
+    reducer->AllReduceSum(all_workers.data().get(), all_workers.data().get(),
                          all_workers.size());
-    reducer.Synchronize();
+    reducer->Synchronize();
 
     auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
     std::vector<float> h_base_line(base_line.size());
