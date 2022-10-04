@@ -6,14 +6,16 @@
 
 #include <algorithm>
 #include <functional>
-#include <vector>
-#include <memory>
+#include <memory>  // std::shared_ptr
 #include <string>
+#include <vector>
 
-#include "xgboost/logging.h"
+#include "xgboost/c_api.h"
+#include "xgboost/data.h"  // DMatrix
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
-#include "xgboost/c_api.h"
+#include "xgboost/logging.h"
+#include "xgboost/string_view.h"  // StringView
 
 namespace xgboost {
 /* \brief Determine the output shape of prediction.
@@ -258,6 +260,18 @@ auto const &OptionalArg(Json const &in, std::string const &key, T const &dft) {
     return get<std::remove_const_t<JT> const>(it->second);
   }
   return dft;
+}
+
+/**
+ * \brief Get shared ptr from DMatrix C handle with additional checks.
+ */
+inline std::shared_ptr<DMatrix> CastDMatrixHandle(DMatrixHandle const handle) {
+  auto pp_m = static_cast<std::shared_ptr<DMatrix> *>(handle);
+  StringView msg{"Invalid DMatrix handle"};
+  CHECK(pp_m) << msg;
+  auto p_m = *pp_m;
+  CHECK(p_m) << msg;
+  return p_m;
 }
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_

@@ -2,9 +2,6 @@
 
 set -euo pipefail
 
-SPARK_VERSION=3.0.1
-CUDA_VERSION=11.0.3
-
 source tests/buildkite/conftest.sh
 
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]

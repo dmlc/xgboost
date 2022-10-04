@@ -1,9 +1,16 @@
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import numpy as np
 import pytest
+from hypothesis import given, settings, strategies
 from scipy import sparse
-from testing import IteratorForTest, make_batches, make_batches_sparse, make_categorical
+from testing import (
+    IteratorForTest,
+    make_batches,
+    make_batches_sparse,
+    make_categorical,
+    make_sparse_regression,
+)
 
 import xgboost as xgb
 
@@ -102,6 +109,7 @@ class TestQuantileDMatrix:
             )
             if tree_method == "gpu_hist":
                 import cudf
+
                 X = cudf.from_pandas(X)
                 y = cudf.from_pandas(y)
         else:
@@ -154,6 +162,7 @@ class TestQuantileDMatrix:
             X, y = make_categorical(n_samples, n_features, 13, onehot=False)
             if tree_method == "gpu_hist":
                 import cudf
+
                 X = cudf.from_pandas(X)
                 y = cudf.from_pandas(y)
         else:
@@ -198,9 +207,7 @@ class TestQuantileDMatrix:
 
     def test_predict(self) -> None:
         n_samples, n_features = 16, 2
-        X, y = make_categorical(
-            n_samples, n_features, n_categories=13, onehot=False
-        )
+        X, y = make_categorical(n_samples, n_features, n_categories=13, onehot=False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
 
         booster = xgb.train({"tree_method": "hist"}, Xy)
@@ -210,3 +217,24 @@ class TestQuantileDMatrix:
         qXy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
         b = booster.predict(qXy)
         np.testing.assert_allclose(a, b)
+
+    # we don't test empty Quantile DMatrix in single node construction.
+    @given(
+        strategies.integers(1, 1000),
+        strategies.integers(1, 100),
+        strategies.fractions(0, 0.99),
+    )
+    @settings(deadline=None, print_blob=True)
+    def test_to_csr(self, n_samples: int, n_features: int, sparsity: float) -> None:
+        csr, y = make_sparse_regression(n_samples, n_features, sparsity, False)
+        csr = csr.astype(np.float32)
+        qdm = xgb.QuantileDMatrix(data=csr, label=y)
+        ret = qdm.get_data()
+        np.testing.assert_equal(csr.indptr, ret.indptr)
+        np.testing.assert_equal(csr.indices, ret.indices)
+
+        booster = xgb.train({"tree_method": "hist"}, dtrain=qdm)
+
+        np.testing.assert_allclose(
+            booster.predict(qdm), booster.predict(xgb.DMatrix(qdm.get_data()))
+        )
