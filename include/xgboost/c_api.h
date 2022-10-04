@@ -723,12 +723,10 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
  *               of bytes.)
  * \param type   Indicator of data type.  This is defined in xgboost::DataType enum class.
- *
- *    float    = 1
- *    double   = 2
- *    uint32_t = 3
- *    uint64_t = 4
- *
+ *    - float    = 1
+ *    - double   = 2
+ *    - uint32_t = 3
+ *    - uint64_t = 4
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
@@ -1443,7 +1441,7 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
  * equal to out_n_scores and has multiple definitions of importance type.
  *
  * \param handle          An instance of Booster
- * \param json_config     Parameters for computing scores.  Accepted JSON keys are:
+ * \param config          Parameters for computing scores encoded as JSON.  Accepted JSON keys are:
  *   - importance_type: A JSON string with following possible values:
  *       * 'weight': the number of times a feature is used to split the data across all trees.
  *       * 'gain': the average gain across all splits the feature is used in.
@@ -1461,11 +1459,9 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
-                                  bst_ulong *out_n_features,
-                                  char const ***out_features,
-                                  bst_ulong *out_dim,
-                                  bst_ulong const **out_shape,
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
+                                  bst_ulong *out_n_features, char const ***out_features,
+                                  bst_ulong *out_dim, bst_ulong const **out_shape,
                                   float const **out_scores);
 /**@}*/  // End of Booster
 

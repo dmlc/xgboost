@@ -1485,30 +1485,30 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *config,
                                   xgboost::bst_ulong *out_n_features, char const ***out_features,
                                   bst_ulong *out_dim, bst_ulong const **out_shape,
                                   float const **out_scores) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
-  xgboost_CHECK_C_ARG_PTR(json_config);
-  auto config = Json::Load(StringView{json_config});
+  xgboost_CHECK_C_ARG_PTR(config);
+  auto jconfig = Json::Load(StringView{config});
 
-  auto importance = RequiredArg<String>(config, "importance_type", __func__);
+  auto importance = RequiredArg<String>(jconfig, "importance_type", __func__);
   std::string feature_map_uri;
-  if (!IsA<Null>(config["feature_map"])) {
-    feature_map_uri = get<String const>(config["feature_map"]);
+  if (!IsA<Null>(jconfig["feature_map"])) {
+    feature_map_uri = get<String const>(jconfig["feature_map"]);
   }
   FeatureMap feature_map = LoadFeatureMap(feature_map_uri);
   std::vector<Json> custom_feature_names;
-  if (!IsA<Null>(config["feature_names"])) {
-    custom_feature_names = get<Array const>(config["feature_names"]);
+  if (!IsA<Null>(jconfig["feature_names"])) {
+    custom_feature_names = get<Array const>(jconfig["feature_names"]);
   }
 
   std::vector<int32_t> tree_idx;
-  if (!IsA<Null>(config["tree_idx"])) {
-    auto j_tree_idx = get<Array const>(config["tree_idx"]);
+  if (!IsA<Null>(jconfig["tree_idx"])) {
+    auto j_tree_idx = get<Array const>(jconfig["tree_idx"]);
     for (auto const &idx : j_tree_idx) {
       tree_idx.push_back(get<Integer const>(idx));
     }
