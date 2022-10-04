@@ -251,17 +251,13 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
 }
 
 #ifndef XGBOOST_USE_CUDA
-XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
-                                            char const* c_json_config,
-                                            DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *, char const *, DMatrixHandle *) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
-                                                  char const* c_json_config,
-                                                  DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *, char const *, DMatrixHandle *) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();
@@ -272,14 +268,14 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
 // Create from data iterator
 XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
                                         DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
-                                        char const *c_json_config, DMatrixHandle *out) {
+                                        char const *config, DMatrixHandle *out) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(c_json_config);
+  xgboost_CHECK_C_ARG_PTR(config);
 
-  auto config = Json::Load(StringView{c_json_config});
-  auto missing = GetMissing(config);
-  std::string cache = RequiredArg<String>(config, "cache_prefix", __func__);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
+  auto jconfig = Json::Load(StringView{config});
+  auto missing = GetMissing(jconfig);
+  std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
+  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);

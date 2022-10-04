@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015~2021 by Contributors
+ * Copyright (c) 2015~2022 by XGBoost Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -33,7 +33,7 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
  *
  * \brief XGBoost C API reference.
  *
- * For official document page see:
+ * For the official document page see:
  * <a href="https://xgboost.readthedocs.io/en/stable/c.html">XGBoost C Package</a>.
  */
 
@@ -440,23 +440,21 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  *
  * For example usage see demo/c-api/external-memory
  *
- * \param iter           A handle to external data iterator.
- * \param proxy          A DMatrix proxy handle created by \ref XGProxyDMatrixCreate.
- * \param reset          Callback function resetting the iterator state.
- * \param next           Callback function yielding the next batch of data.
- * \param c_json_config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
- *
+ * \param iter    A handle to external data iterator.
+ * \param proxy   A DMatrix proxy handle created by \ref XGProxyDMatrixCreate.
+ * \param reset   Callback function resetting the iterator state.
+ * \param next    Callback function yielding the next batch of data.
+ * \param config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
  *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *
  * \param[out] out      The created external memory DMatrix
  *
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
                                         DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
-                                        char const *c_json_config, DMatrixHandle *out);
+                                        char const *config, DMatrixHandle *out);
 
 /*!
  * \brief Create a Quantile DMatrix with data iterator.
@@ -1024,10 +1022,10 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *   \code
  *      {
  *         "type": 0,
- *         "training": False,
+ *         "training": false,
  *         "iteration_begin": 0,
  *         "iteration_end": 0,
- *         "strict_shape": true,
+ *         "strict_shape": true
  *     }
  *   \endcode
  *
@@ -1049,10 +1047,8 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
  * \param handle        Booster handle.
  * \param values        JSON encoded __array_interface__ to values.
  * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
- *
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  *
@@ -1080,8 +1076,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
  * \param ncol          Number of features in data.
  * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  *
@@ -1106,8 +1101,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
  * \param values        JSON encoded __cuda_array_interface__ to values.
  * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
@@ -1128,8 +1122,7 @@ XGB_DLL int XGBoosterPredictFromCudaArray(
  * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.
  * \param c_json_config See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
