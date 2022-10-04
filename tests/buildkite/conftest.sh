@@ -34,6 +34,7 @@ else
 fi
 
 if [[ -n ${DISABLE_RELEASE:-} ]]
+then
   is_release_branch=0
 fi
 
