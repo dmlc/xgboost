@@ -1020,7 +1020,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         testing purposes. If this is a quantized DMatrix then quantized values are
         returned instead of input values.
 
-            .. versionadded:: 2.0.0
+            .. versionadded:: 1.7.0
 
         """
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
