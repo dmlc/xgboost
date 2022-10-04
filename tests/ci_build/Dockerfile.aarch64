@@ -19,6 +19,16 @@ ENV CXX=/opt/rh/devtoolset-7/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-7/root/usr/bin/cpp
 ENV GOSU_VERSION 1.10
 
+# Install gRPC for Federated Learning
+RUN \
+    git clone -b v1.49.1 https://github.com/grpc/grpc.git && \
+    pushd grpc && \
+    git submodule update --init && \
+    cmake -S . -B build -GNinja && \
+    cmake --build build --target install && \
+    popd && \
+    rm -fr grpc
+
 # Create new Conda environment
 COPY conda_env/aarch64_test.yml /scripts/
 RUN conda env create -n aarch64_test --file=/scripts/aarch64_test.yml

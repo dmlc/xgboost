@@ -14,6 +14,14 @@ RUN \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    # Install gRPC for Federated Learning
+    git clone -b v1.49.1 https://github.com/grpc/grpc.git && \
+    pushd grpc && \
+    git submodule update --init && \
+    cmake -S . -B build -GNinja && \
+    cmake --build build --target install && \
+    popd && \
+    rm -fr grpc && \
     # Python
     wget -nv https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
     bash Mambaforge-Linux-x86_64.sh -b -p /opt/python

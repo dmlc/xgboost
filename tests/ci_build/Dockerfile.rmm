@@ -11,6 +11,14 @@ RUN \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
     apt-get update && \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential ninja-build git && \
+    # Install gRPC for Federated Learning
+    git clone -b v1.49.1 https://github.com/grpc/grpc.git && \
+    pushd grpc && \
+    git submodule update --init && \
+    cmake -S . -B build -GNinja && \
+    cmake --build build --target install && \
+    popd && \
+    rm -fr grpc && \
     # Python
     wget -nv -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python
