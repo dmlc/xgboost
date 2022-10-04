@@ -941,6 +941,8 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
 
 /*!
  * \brief make prediction based on dmat (deprecated, use `XGBoosterPredictFromDMatrix` instead)
+ * \deprecated
+ *
  * \param handle handle
  * \param dmat data matrix
  * \param option_mask bit-mask of options taken in prediction, possible values
