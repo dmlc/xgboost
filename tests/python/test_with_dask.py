@@ -481,14 +481,16 @@ def run_boost_from_prediction(
     X, y, margin = deterministic_repartition(client, X, y, margin)
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
-    cls_2 = xgb.dask.DaskXGBClassifier(
+    model_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3, n_estimators=8, tree_method=tree_method, max_bin=512
     )
     X, y, _ = deterministic_repartition(client, X, y, None)
-    cls_2.fit(X=X, y=y)
-    predictions_2: dd.Series = cls_2.predict(X)
+    model_2.fit(X=X, y=y)
+    predictions_2: dd.Series = model_2.predict(X)
 
-    assert np.all(predictions_1.compute() == predictions_2.compute())
+    predt_1 = predictions_1.compute()
+    predt_2 = predictions_2.compute()
+    np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
     X, y, margin = deterministic_repartition(client, X, y, margin)

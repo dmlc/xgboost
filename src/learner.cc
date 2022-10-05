@@ -26,7 +26,6 @@
 #include "common/charconv.h"
 #include "common/common.h"
 #include "common/io.h"
-#include "common/linalg_op.h"
 #include "common/observer.h"
 #include "common/random.h"
 #include "common/threading_utils.h"
@@ -410,6 +409,7 @@ class LearnerConfiguration : public Learner {
     // - model is configured second time due to change of parameter
     CHECK(obj_);
     if (!mparam_.base_score_estimated) {
+      std::lock_guard<std::mutex> guard(config_lock_);
       if (p_fmat) {
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
@@ -422,6 +422,9 @@ class LearnerConfiguration : public Learner {
       mparam_.base_score_estimated = true;
       // Update the shared model parameter
       this->ConfigureModelParam();
+      auto sync_score = mparam_.base_score;
+      rabit::Broadcast(&sync_score, sizeof(sync_score), 0);
+      CHECK_EQ(sync_score, mparam_.base_score);
     }
   }
 
