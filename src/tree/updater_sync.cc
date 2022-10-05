@@ -4,12 +4,14 @@
  * \brief synchronize the tree in all distributed nodes
  */
 #include <xgboost/tree_updater.h>
-#include <vector>
-#include <string>
-#include <limits>
 
-#include "xgboost/json.h"
+#include <limits>
+#include <string>
+#include <vector>
+
+#include "../collective/communicator-inl.h"
 #include "../common/io.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 namespace tree {
@@ -35,17 +37,17 @@ class TreeSyncher : public TreeUpdater {
   void Update(HostDeviceVector<GradientPair>*, DMatrix*,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree*>& trees) override {
-    if (rabit::GetWorldSize() == 1) return;
+    if (collective::GetWorldSize() == 1) return;
     std::string s_model;
     common::MemoryBufferStream fs(&s_model);
-    int rank = rabit::GetRank();
+    int rank = collective::GetRank();
     if (rank == 0) {
       for (auto tree : trees) {
         tree->Save(&fs);
       }
     }
     fs.Seek(0);
-    rabit::Broadcast(&s_model, 0);
+    collective::Broadcast(&s_model, 0);
     for (auto tree : trees) {
       tree->Load(&fs);
     }

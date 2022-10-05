@@ -4,15 +4,12 @@
  * \brief prediction rank based metrics.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <rabit/rabit.h>
 #include <dmlc/registry.h>
 
 #include <xgboost/metric.h>
 #include <xgboost/host_device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
 
-#include <cmath>
-#include <array>
 #include <vector>
 
 #include "metric_common.h"

@@ -281,62 +281,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFea
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitInit
- * Signature: ([Ljava/lang/String;)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
-  (JNIEnv *, jclass, jobjectArray);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitFinalize
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitFinalize
-  (JNIEnv *, jclass);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitTrackerPrint
- * Signature: (Ljava/lang/String;)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitTrackerPrint
-  (JNIEnv *, jclass, jstring);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitGetRank
- * Signature: ([I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetRank
-  (JNIEnv *, jclass, jintArray);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitGetWorldSize
- * Signature: ([I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetWorldSize
-  (JNIEnv *, jclass, jintArray);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitVersionNumber
- * Signature: ([I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitVersionNumber
-  (JNIEnv *, jclass, jintArray);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitAllreduce
- * Signature: (Ljava/nio/ByteBuffer;III)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
-  (JNIEnv *, jclass, jobject, jint, jint, jint);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    CommunicatorInit
  * Signature: ([Ljava/lang/String;)I
  */

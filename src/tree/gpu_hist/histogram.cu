@@ -84,11 +84,11 @@ GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
   static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");
-  rabit::Allreduce<rabit::op::Sum, ReduceT>(reinterpret_cast<ReduceT*>(&p), 4);
+  collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<ReduceT*>(&p), 4);
   GradientPair positive_sum{p.first}, negative_sum{p.second};
 
   std::size_t total_rows = gpair.size();
-  rabit::Allreduce<rabit::op::Sum>(&total_rows, 1);
+  collective::Allreduce<collective::Operation::kSum>(&total_rows, 1);
 
   auto histogram_rounding = GradientSumT{
       CreateRoundingFactor<T>(std::max(positive_sum.GetGrad(), negative_sum.GetGrad()), total_rows),
