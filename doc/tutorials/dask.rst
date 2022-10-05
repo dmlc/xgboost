@@ -508,7 +508,7 @@ dask config is used:
 IPv6 Support
 ************
 
-.. versionadded:: 2.0.0
+.. versionadded:: 1.7.0
 
 XGBoost has initial IPv6 support for the dask interface on Linux. Due to most of the
 cluster support for IPv6 is partial (dual stack instead of IPv6 only), we require

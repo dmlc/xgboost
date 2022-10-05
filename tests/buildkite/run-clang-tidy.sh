@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-CUDA_VERSION=11.0.3
-
 echo "--- Run clang-tidy"
 
 source tests/buildkite/conftest.sh

@@ -1078,10 +1078,8 @@ class ArrowColumnarBatch {
 using ArrowColumnarBatchVec = std::vector<std::unique_ptr<ArrowColumnarBatch>>;
 class RecordBatchesIterAdapter: public dmlc::DataIter<ArrowColumnarBatchVec> {
  public:
-  RecordBatchesIterAdapter(XGDMatrixCallbackNext *next_callback,
-                          int nthread)
-    : next_callback_{next_callback},
-      nbatches_{nthread} {}
+  RecordBatchesIterAdapter(XGDMatrixCallbackNext* next_callback, int nbatch)
+      : next_callback_{next_callback}, nbatches_{nbatch} {}
 
   void BeforeFirst() override {
     CHECK(at_first_) << "Cannot reset RecordBatchesIterAdapter";

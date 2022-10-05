@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015~2021 by Contributors
+ * Copyright (c) 2015~2022 by XGBoost Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -27,6 +27,24 @@
 
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
+
+/**
+ * @mainpage
+ *
+ * \brief XGBoost C API reference.
+ *
+ * For the official document page see:
+ * <a href="https://xgboost.readthedocs.io/en/stable/c.html">XGBoost C Package</a>.
+ */
+
+/**
+ * @defgroup Library
+ *
+ * These functions are used to obtain general information about XGBoost including version,
+ * build info and current global configuration.
+ *
+ * @{
+ */
 
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;  // NOLINT(*)
@@ -63,7 +81,7 @@ XGB_DLL int XGBuildInfo(char const **out);
  *  this function is thread safe and can be called by different thread
  * \return const char* error information
  */
-XGB_DLL const char *XGBGetLastError(void);
+XGB_DLL const char *XGBGetLastError();
 
 /*!
  * \brief register callback function for LOG(INFO) messages -- helpful messages
@@ -78,18 +96,33 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
  * \brief Set global configuration (collection of parameters that apply globally). This function
  *        accepts the list of key-value pairs representing the global-scope parameters to be
  *        configured. The list of key-value pairs are passed in as a JSON string.
- * \param json_str a JSON string representing the list of key-value pairs. The JSON object shall
+ * \param config a JSON string representing the list of key-value pairs. The JSON object shall
  *                 be flat: no value can be a JSON object or an array.
  * \return 0 for success, -1 for failure
  */
-XGB_DLL int XGBSetGlobalConfig(const char* json_str);
+XGB_DLL int XGBSetGlobalConfig(char const *config);
 
 /*!
  * \brief Get current global configuration (collection of parameters that apply globally).
- * \param json_str pointer to received returned global configuration, represented as a JSON string.
+ * \param out_config pointer to received returned global configuration, represented as a JSON string.
  * \return 0 for success, -1 for failure
  */
-XGB_DLL int XGBGetGlobalConfig(const char** json_str);
+XGB_DLL int XGBGetGlobalConfig(char const **out_config);
+
+/**@}*/
+
+/**
+ * @defgroup DMatrix
+ *
+ * @brief DMatrix is the baisc data storage for XGBoost used by all XGBoost algorithms
+ *        including both training, prediction and explanation. There are a few variants of
+ *        `DMatrix` including normal `DMatrix`, which is a CSR matrix, `QuantileDMatrix`,
+ *        which is used by histogram-based tree methods for saving memory, and lastly the
+ *        experimental external-memory-based DMatrix, which reads data in batches during
+ *        training. For the last two variants, see the @ref Streaming group.
+ *
+ * @{
+ */
 
 /*!
  * \brief load a data matrix
@@ -98,9 +131,10 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str);
  * \param out a loaded data matrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
-                                    int silent,
-                                    DMatrixHandle *out);
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out);
+/**
+ * @example c-api-demo.c
+ */
 
 /*!
  * \brief create a matrix content from CSR format
@@ -126,36 +160,26 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
  * \param indptr  JSON encoded __array_interface__ to row pointers in CSR.
  * \param indices JSON encoded __array_interface__ to column indices in CSR.
  * \param data    JSON encoded __array_interface__ to values in CSR.
- * \param num_col Number of columns.
- * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ * \param ncol    Number of columns.
+ * \param config  JSON encoded configuration.  Required values are:
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
-                                   char const *indices, char const *data,
-                                   bst_ulong ncol,
-                                   char const* json_config,
-                                   DMatrixHandle* out);
-
+XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char const *data,
+                                   bst_ulong ncol, char const *config, DMatrixHandle *out);
 
 /*!
  * \brief Create a matrix from dense array.
- * \param data  JSON encoded __array_interface__ to array values.
- * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ * \param data   JSON encoded __array_interface__ to array values.
+ * \param config JSON encoded configuration.  Required values are:
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromDense(char const *data,
-                                     char const *json_config,
-                                     DMatrixHandle *out);
+XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *config, DMatrixHandle *out);
 
 /*!
  * \brief create a matrix content from CSC format
@@ -224,37 +248,33 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
 /*!
  * \brief Create DMatrix from CUDA columnar format. (cuDF)
  * \param data Array of JSON encoded __cuda_array_interface__ for each column.
- * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ * \param config JSON encoded configuration.  Required values are:
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
-                                            char const* json_config,
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *config,
                                             DMatrixHandle *out);
 
 /*!
  * \brief Create DMatrix from CUDA array.
  * \param data JSON encoded __cuda_array_interface__ for array data.
- * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ * \param config JSON encoded configuration.  Required values are:
+ *   - missing: Which value to represent missing value.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
-                                                  char const* json_config,
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *config,
                                                   DMatrixHandle *out);
 
 /**
- * ========================== Begin data callback APIs =========================
+ * @defgroup Streaming
+ * @ingroup DMatrix
  *
- * Short notes for data callback
+ * @brief Quantile DMatrix and external memory DMatrix can be created from batches of
+ *        data.
  *
  * There are 2 sets of data callbacks for DMatrix.  The first one is currently exclusively
  * used by JVM packages.  It uses `XGBoostBatchCSR` to accept batches for CSR formated
@@ -266,20 +286,20 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
  *
  * Another set is used by external data iterator. It accept foreign data iterators as
  * callbacks.  There are 2 different senarios where users might want to pass in callbacks
- * instead of raw data.  First it's the Quantile DMatrix used by GPU Hist. For this case,
- * the data is first compressed by quantile sketching then merged.  This is particular
- * useful for distributed setting as it eliminates 2 copies of data.  1 by a `concat` from
- * external library to make the data into a blob for normal DMatrix initialization,
- * another by the internal CSR copy of DMatrix.  The second use case is external memory
- * support where users can pass a custom data iterator into XGBoost for loading data in
- * batches.  There are short notes on each of the use case in respected DMatrix factory
- * function.
+ * instead of raw data.  First it's the Quantile DMatrix used by hist and GPU Hist. For
+ * this case, the data is first compressed by quantile sketching then merged.  This is
+ * particular useful for distributed setting as it eliminates 2 copies of data.  1 by a
+ * `concat` from external library to make the data into a blob for normal DMatrix
+ * initialization, another by the internal CSR copy of DMatrix.  The second use case is
+ * external memory support where users can pass a custom data iterator into XGBoost for
+ * loading data in batches.  There are short notes on each of the use cases in respected
+ * DMatrix factory function.
  *
  * Related functions are:
  *
  * # Factory functions
  * - \ref XGDMatrixCreateFromCallback for external memory
- * - \ref XGDeviceQuantileDMatrixCreateFromCallback for quantile DMatrix
+ * - \ref XGQuantileDMatrixCreateFromCallback for quantile DMatrix
  *
  * # Proxy that callers can use to pass data to XGBoost
  * - \ref XGProxyDMatrixCreate
@@ -290,6 +310,8 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
  * - \ref XGProxyDMatrixSetDataDense
  * - \ref XGProxyDMatrixSetDataCSR
  * - ... (data setters)
+ *
+ * @{
  */
 
 /*  ==== First set of callback functions, used exclusively by JVM packages. ==== */
@@ -396,30 +418,29 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  * Short note for how to use second set of callback for external memory data support:
  *
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
- * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * - Step 1: Create a DMatrix proxy by \ref XGProxyDMatrixCreate and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
  *           `XGDMatrixCreateFromCallback`, along with other parameters encoded as a JSON object.
  * - Step 3: Call appropriate data setters in `next` functions.
  *
- * For example usage see demo/c-api/external-memory
- *
- * \param iter           A handle to external data iterator.
- * \param proxy          A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
- * \param reset          Callback function resetting the iterator state.
- * \param next           Callback function yielding the next batch of data.
- * \param c_json_config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
- *
+ * \param iter    A handle to external data iterator.
+ * \param proxy   A DMatrix proxy handle created by \ref XGProxyDMatrixCreate.
+ * \param reset   Callback function resetting the iterator state.
+ * \param next    Callback function yielding the next batch of data.
+ * \param config  JSON encoded parameters for DMatrix construction.  Accepted fields are:
  *   - missing:      Which value to represent missing value
  *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
- *
  * \param[out] out      The created external memory DMatrix
  *
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
                                         DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
-                                        char const *c_json_config, DMatrixHandle *out);
+                                        char const *config, DMatrixHandle *out);
+/**
+ * @example external_memory.c
+ */
 
 /*!
  * \brief Create a Quantile DMatrix with data iterator.
@@ -427,7 +448,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * Short note for how to use the second set of callback for (GPU)Hist tree method:
  *
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
- * - Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * - Step 1: Create a DMatrix proxy by \ref XGProxyDMatrixCreate and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
  *           `XGQuantileDMatrixCreateFromCallback`.
  * - Step 3: Call appropriate data setters in `next` functions.
@@ -435,13 +456,14 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * See test_iterative_dmatrix.cu or Python interface for examples.
  *
  * \param iter     A handle to external data iterator.
- * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param proxy    A DMatrix proxy handle created by \ref XGProxyDMatrixCreate.
  * \param ref      Reference DMatrix for providing quantile information.
  * \param reset    Callback function resetting the iterator state.
  * \param next     Callback function yielding the next batch of data.
- * \param missing  Which value to represent missing value
- * \param nthread  Number of threads to use, 0 for default.
- * \param max_bin  Maximum number of bins for building histogram.
+ * \param config   JSON encoded parameters for DMatrix construction.  Accepted fields are:
+ *   - missing:      Which value to represent missing value
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
+ *   - max_bin (optional):  Maximum number of bins for building histogram.
  * \param out      The created Device Quantile DMatrix
  *
  * \return 0 when success, -1 when failure happens
@@ -453,7 +475,7 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
 
 /*!
  * \brief Create a Device Quantile DMatrix with data iterator.
- * \deprecated since 2.0
+ * \deprecated since 1.7.0
  * \see XGQuantileDMatrixCreateFromCallback()
  */
 XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
@@ -464,7 +486,7 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param c_interface_str Null terminated JSON document string representation of CUDA
  *                        array interface.
  *
@@ -477,7 +499,7 @@ XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param c_interface_str Null terminated JSON document string representation of CUDA
  *                        array interface, with an array of columns.
  *
@@ -489,7 +511,7 @@ XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param c_interface_str Null terminated JSON document string representation of array
  *                        interface.
  *
@@ -501,10 +523,11 @@ XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
 /*!
  * \brief Set data on a DMatrix proxy.
  *
- * \param handle        A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param handle        A DMatrix proxy created by \ref XGProxyDMatrixCreate
  * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
  * \param indices       JSON encoded __array_interface__ to column indices in CSR.
- * \param values        JSON encoded __array_interface__ to values in CSR..
+ * \param data          JSON encoded __array_interface__ to values in CSR..
+ * \param ncol          The number of columns of input CSR matrix.
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -512,10 +535,7 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr,
                                      char const *indices, char const *data,
                                      bst_ulong ncol);
 
-/*
- * ==========================- End data callback APIs ==========================
- */
-
+/** @} */  // End of Streaming
 
 XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array, void *ptr_schema);
 
@@ -523,17 +543,16 @@ XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array
  * \brief Construct DMatrix from arrow using callbacks.  Arrow related C API is not stable
  *        and subject to change in the future.
  *
- * \param next Callback function for fetching arrow records.
- * \param json_config JSON encoded configuration.  Required values are:
- *
- *          - missing
- *          - nthread
- *
+ * \param next   Callback function for fetching arrow records.
+ * \param config JSON encoded configuration.  Required values are:
+ *   - missing: Which value to represent missing value.
+ *   - nbatch: Number of batches in arrow table.
+ *   - nthread (optional): Number of threads used for initializing DMatrix.
  * \param out      The created DMatrix.
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *config,
                                              DMatrixHandle *out);
 
 /*!
@@ -567,6 +586,10 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixFree(DMatrixHandle handle);
+/**
+ * @example c-api-demo.c inference.c external_memory.c
+ */
+
 /*!
  * \brief load a data matrix into binary file
  * \param handle a instance of data matrix
@@ -699,12 +722,10 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
  *               of bytes.)
  * \param type   Indicator of data type.  This is defined in xgboost::DataType enum class.
- *
- *    float    = 1
- *    double   = 2
- *    uint32_t = 3
- *    uint64_t = 4
- *
+ *    - float    = 1
+ *    - double   = 2
+ *    - uint32_t = 3
+ *    - uint64_t = 4
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
@@ -729,10 +750,12 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
  * \param out_dptr pointer to the result
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
-                                  const char *field,
-                                  bst_ulong* out_len,
+XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle, const char *field, bst_ulong *out_len,
                                   const float **out_dptr);
+/**
+ * @example c-api-demo.c
+ */
+
 /*!
  * \brief get uint32 info vector from matrix
  * \param handle a instance of data matrix
@@ -761,7 +784,47 @@ XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
                             bst_ulong *out);
-// --- start XGBoost class
+
+/*!
+ * \brief Get number of valid values from DMatrix.
+ *
+ * \param handle the handle to the DMatrix
+ * \param out The output of number of non-missing values
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixNumNonMissing(DMatrixHandle handle, bst_ulong *out);
+
+/*!
+ * \brief Get the predictors from DMatrix as CSR matrix for testing.  If this is a
+ *        quantized DMatrix, quantized values are returned instead.
+ *
+ * Unlike most of XGBoost C functions, caller of `XGDMatrixGetDataAsCSR` is required to
+ * allocate the memory for return buffer instead of using thread local memory from
+ * XGBoost. This is to avoid allocating a huge memory buffer that can not be freed until
+ * exiting the thread.
+ *
+ * \param handle the handle to the DMatrix
+ * \param config Json configuration string. At the moment it should be an empty document,
+ *               preserved for future use.
+ * \param out_indptr  indptr of output CSR matrix.
+ * \param out_indices Column index of output CSR matrix.
+ * \param out_data    Data value of CSR matrix.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixGetDataAsCSR(DMatrixHandle const handle, char const *config,
+                                  bst_ulong *out_indptr, unsigned *out_indices, float *out_data);
+
+/** @} */  // End of DMatrix
+
+/**
+ * @defgroup Booster
+ *
+ * @brief The `Booster` class is the gradient-boosted model for XGBoost.
+ * @{
+ */
+
 /*!
  * \brief create xgboost learner
  * \param dmats matrices that are set to be cached
@@ -769,15 +832,20 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
  * \param out handle to the result booster
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
-                            bst_ulong len,
-                            BoosterHandle *out);
+XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[], bst_ulong len, BoosterHandle *out);
+/**
+ * @example c-api-demo.c
+ */
+
 /*!
  * \brief free obj in handle
  * \param handle handle to be freed
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterFree(BoosterHandle handle);
+/**
+ * @example c-api-demo.c inference.c external_memory.c
+ */
 
 /*!
  * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
@@ -815,14 +883,20 @@ XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int* out);
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *name,
                               const char *value);
+/**
+ * @example c-api-demo.c
+ */
 
 /*!
  * \brief get number of features
+ * \param handle Handle to booster.
  * \param out number of features
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
-                                   bst_ulong *out);
+XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle, bst_ulong *out);
+/**
+ * @example c-api-demo.c
+ */
 
 /*!
  * \brief update the model in one round using dtrain
@@ -831,9 +905,11 @@ XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
  * \param dtrain training data
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle,
-                                   int iter,
-                                   DMatrixHandle dtrain);
+XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle, int iter, DMatrixHandle dtrain);
+/**
+ * @example c-api-demo.c
+ */
+
 /*!
  * \brief update the model, by directly specify gradient and second order gradient,
  *        this can be used to replace UpdateOneIter, to support customized loss function
@@ -859,15 +935,26 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
  * \param out_result the string containing evaluation statistics
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
-                                 int iter,
-                                 DMatrixHandle dmats[],
-                                 const char *evnames[],
-                                 bst_ulong len,
-                                 const char **out_result);
+XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle, int iter, DMatrixHandle dmats[],
+                                 const char *evnames[], bst_ulong len, const char **out_result);
+/**
+ * @example c-api-demo.c
+ */
+
+/**
+ * @defgroup Prediction
+ * @ingroup Booster
+ *
+ * @brief These functions are used for running prediction and explanation algorithms.
+ *
+ * @{
+ */
 
 /*!
- * \brief make prediction based on dmat (deprecated, use `XGBoosterPredictFromDMatrix` instead)
+ * \brief make prediction based on dmat (deprecated, use \ref XGBoosterPredictFromDMatrix instead)
+ * \deprecated
+ * \see XGBoosterPredictFromDMatrix()
+ *
  * \param handle handle
  * \param dmat data matrix
  * \param option_mask bit-mask of options taken in prediction, possible values
@@ -896,13 +983,14 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              int training,
                              bst_ulong *out_len,
                              const float **out_result);
+
 /*!
- * \brief Make prediction from DMatrix, replacing `XGBoosterPredict`.
+ * \brief Make prediction from DMatrix, replacing \ref XGBoosterPredict.
  *
  * \param handle Booster handle
  * \param dmat   DMatrix handle
- * \param c_json_config String encoded predict configuration in JSON format, with
- *                      following available fields in the JSON object:
+ * \param config String encoded predict configuration in JSON format, with following
+ *                      available fields in the JSON object:
  *
  *    "type": [0, 6]
  *      - 0: normal prediction
@@ -939,10 +1027,10 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *   \code
  *      {
  *         "type": 0,
- *         "training": False,
+ *         "training": false,
  *         "iteration_begin": 0,
  *         "iteration_end": 0,
- *         "strict_shape": true,
+ *         "strict_shape": true
  *     }
  *   \endcode
  *
@@ -951,41 +1039,41 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  * \param out_result Buffer storing prediction value (copy before use).
  *
  * \return 0 when success, -1 when failure happens
+ *
+ * \see XGBoosterPredictFromDense XGBoosterPredictFromCSR XGBoosterPredictFromCudaArray XGBoosterPredictFromCudaColumnar
  */
-XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
-                                        DMatrixHandle dmat,
-                                        char const* c_json_config,
-                                        bst_ulong const **out_shape,
-                                        bst_ulong *out_dim,
-                                        float const **out_result);
-/*
+XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat,
+                                        char const *config, bst_ulong const **out_shape,
+                                        bst_ulong *out_dim, float const **out_result);
+/**
+ * @example inference.c
+ */
+
+/**
  * \brief Inplace prediction from CPU dense matrix.
  *
  * \param handle        Booster handle.
  * \param values        JSON encoded __array_interface__ to values.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
- *
+ * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  *
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
-                                      char const *values,
-                                      char const *c_json_config,
-                                      DMatrixHandle m,
-                                      bst_ulong const **out_shape,
-                                      bst_ulong *out_dim,
-                                      const float **out_result);
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *values, char const *config,
+                                      DMatrixHandle m, bst_ulong const **out_shape,
+                                      bst_ulong *out_dim, const float **out_result);
+/**
+ * @example inference.c
+ */
 
-/*
+/**
  * \brief Inplace prediction from CPU CSR matrix.
  *
  * \param handle        Booster handle.
@@ -993,76 +1081,74 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
  * \param indices       JSON encoded __array_interface__ to column indices in CSR.
  * \param values        JSON encoded __array_interface__ to values in CSR..
  * \param ncol          Number of features in data.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
  *
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
-                                    char const *indices, char const *values,
-                                    bst_ulong ncol,
-                                    char const *c_json_config, DMatrixHandle m,
-                                    bst_ulong const **out_shape,
-                                    bst_ulong *out_dim,
-                                    const float **out_result);
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, char const *indices,
+                                    char const *values, bst_ulong ncol, char const *config,
+                                    DMatrixHandle m, bst_ulong const **out_shape,
+                                    bst_ulong *out_dim, const float **out_result);
 
-/*
+/**
  * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
  * \param handle        Booster handle
  * \param values        JSON encoded __cuda_array_interface__ to values.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromCudaArray(
-    BoosterHandle handle, char const *values, char const *c_json_config,
-    DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
-    const float **out_result);
+XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *values,
+                                          char const *config, DMatrixHandle m,
+                                          bst_ulong const **out_shape, bst_ulong *out_dim,
+                                          const float **out_result);
 
-/*
+/**
  * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
  *
  * \param handle        Booster handle
  * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.
- * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
- *     "missing": float
- *
+ *     - "missing": float
  * \param m             An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
- * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
- * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
+ * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromCudaColumnar(
-    BoosterHandle handle, char const *values, char const *c_json_config,
-    DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
-    const float **out_result);
+XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *values,
+                                             char const *config, DMatrixHandle m,
+                                             bst_ulong const **out_shape, bst_ulong *out_dim,
+                                             const float **out_result);
+
+/**@}*/  // End of Prediction
 
 
-/*
- * ========================== Begin Serialization APIs =========================
- */
-/*
+/**
+ * @defgroup Serialization
+ * @ingroup Booster
+ *
+ * @brief There are multiple ways to serialize a Booster object depending on the use case.
+ *
  * Short note for serialization APIs.  There are 3 different sets of serialization API.
  *
  * - Functions with the term "Model" handles saving/loading XGBoost model like trees or
@@ -1080,18 +1166,22 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(
  *   situations like check-pointing, or continuing training task in distributed
  *   environment.  In these cases the task must be carried out without any user
  *   intervention.
+ *
+ * @{
  */
 
 /*!
  * \brief Load model from existing file
+ *
  * \param handle handle
  * \param fname File URI or file name.
-* \return 0 when success, -1 when failure happens
+ * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
                                const char *fname);
 /*!
  * \brief Save model into existing file
+ *
  * \param handle handle
  * \param fname File URI or file name.
  * \return 0 when success, -1 when failure happens
@@ -1100,6 +1190,7 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle,
                                const char *fname);
 /*!
  * \brief load model from in memory buffer
+ *
  * \param handle handle
  * \param buf pointer to the buffer
  * \param len the length of the buffer
@@ -1114,8 +1205,8 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
  *        result out, before next xgboost call
  *
  * \param handle handle
- * \param json_config JSON encoded string storing parameters for the function.  Following
- *                    keys are expected in the JSON document:
+ * \param config JSON encoded string storing parameters for the function.  Following
+ *               keys are expected in the JSON document:
  *
  *     "format": str
  *       - json: Output booster will be encoded as JSON.
@@ -1128,11 +1219,14 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *json_config,
-                                       bst_ulong *out_len, char const **out_dptr);
+XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *config, bst_ulong *out_len,
+                                       char const **out_dptr);
 
 /*!
- * \brief Deprecated, use `XGBoosterSaveModelToBuffer` instead.
+ * \brief Save booster to a buffer with in binary format.
+ *
+ * \deprecated since 1.6.0
+ * \see XGBoosterSaveModelToBuffer()
  */
 XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, bst_ulong *out_len,
                                  const char **out_dptr);
@@ -1150,7 +1244,7 @@ XGB_DLL int XGBoosterSerializeToBuffer(BoosterHandle handle, bst_ulong *out_len,
                                        const char **out_dptr);
 /*!
  * \brief Memory snapshot based serialization method.  Loads the buffer returned
- *        from `XGBoosterSerializeToBuffer'.
+ *        from \ref XGBoosterSerializeToBuffer.
  *
  * \param handle handle
  * \param buf pointer to the buffer
@@ -1198,15 +1292,11 @@ XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle, bst_ulong *out_len,
  *        notice.
  *
  * \param handle handle to Booster object.
- * \param json_parameters string representation of a JSON document.
+ * \param config string representation of a JSON document.
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle,
-                                    char const *json_parameters);
-/*
- * =========================== End Serialization APIs ==========================
- */
-
+XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle, char const *config);
+/**@}*/  // End of Serialization
 
 /*!
  * \brief dump model, return array of strings representing model dump
@@ -1347,7 +1437,7 @@ XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
  *
  * \param handle       An instance of Booster
  * \param field        Field name
- * \param size         Size of output pointer `features` (number of strings returned).
+ * \param len          Size of output pointer `features` (number of strings returned).
  * \param out_features Address of a pointer to array of strings. Result is stored in
  *        thread local memory.
  *
@@ -1364,7 +1454,7 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
  * equal to out_n_scores and has multiple definitions of importance type.
  *
  * \param handle          An instance of Booster
- * \param json_config     Parameters for computing scores.  Accepted JSON keys are:
+ * \param config          Parameters for computing scores encoded as JSON.  Accepted JSON keys are:
  *   - importance_type: A JSON string with following possible values:
  *       * 'weight': the number of times a feature is used to split the data across all trees.
  *       * 'gain': the average gain across all splits the feature is used in.
@@ -1382,12 +1472,19 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
-                                  bst_ulong *out_n_features,
-                                  char const ***out_features,
-                                  bst_ulong *out_dim,
-                                  bst_ulong const **out_shape,
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *config,
+                                  bst_ulong *out_n_features, char const ***out_features,
+                                  bst_ulong *out_dim, bst_ulong const **out_shape,
                                   float const **out_scores);
+/**@}*/  // End of Booster
+
+/**
+ * @defgroup Collective
+ *
+ * @brief Experimental support for exposing internal communicator in XGBoost.
+ *
+ * @{
+ */
 
 /*!
  * \brief Initialize the collective communicator.
@@ -1400,7 +1497,7 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
  *  The additional configuration is not required. Usually the communicator will detect settings
  *  from environment variables.
  *
- * \param json_config JSON encoded configuration. Accepted JSON keys are:
+ * \param config JSON encoded configuration. Accepted JSON keys are:
  *   - xgboost_communicator: The type of the communicator. Can be set as an environment variable.
  *     * rabit: Use Rabit. This is the default if the type is unspecified.
  *     * mpi: Use MPI.
@@ -1437,7 +1534,7 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, const char *json_config,
  *   - federated_client_cert: Client certificate file path. Only needed for the SSL mode.
  * \return 0 for success, -1 for failure.
  */
-XGB_DLL int XGCommunicatorInit(char const* json_config);
+XGB_DLL int XGCommunicatorInit(char const* config);
 
 /*!
  * \brief Finalize the collective communicator.
@@ -1492,8 +1589,10 @@ XGB_DLL int XGCommunicatorGetProcessorName(const char** name_str);
  * \brief Broadcast a memory region to all others from root.  This function is NOT thread-safe.
  *
  * Example:
+ * \code
  *   int a = 1;
  *   Broadcast(&a, sizeof(a), root);
+ * \endcode
  *
  * \param send_receive_buffer Pointer to the send or receive buffer.
  * \param size Size of the data.
@@ -1506,10 +1605,13 @@ XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int 
  * \brief Perform in-place allreduce. This function is NOT thread-safe.
  *
  * Example Usage: the following code gives sum of the result
+ * \code
  *     vector<int> data(10);
  *     ...
  *     Allreduce(&data[0], data.size(), DataType:kInt32, Op::kSum);
  *     ...
+ * \endcode
+
  * \param send_receive_buffer Buffer for both sending and receiving data.
  * \param count Number of elements to be reduced.
  * \param data_type Enumeration of data type, see xgboost::collective::DataType in communicator.h.
@@ -1518,5 +1620,5 @@ XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int 
  */
 XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int data_type, int op);
 
-
+/**@}*/  // End of Collective
 #endif  // XGBOOST_C_API_H_

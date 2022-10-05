@@ -2,6 +2,12 @@ env:
   DOCKER_CACHE_ECR_ID: "492475357299"
   DOCKER_CACHE_ECR_REGION: "us-west-2"
 steps:
+  - label: ":moneybag: Enforce daily budget"
+    command: "tests/buildkite/enforce_daily_budget.sh"
+    key: enforce-daily-budget
+    agents:
+      queue: pipeline-loader
+  - wait
   - block: ":rocket: Run this test job"
     if: build.pull_request.repository.fork == true
   #### -------- BUILD --------
@@ -40,11 +46,6 @@ steps:
     key: build-jvm-packages
     agents:
       queue: linux-amd64-cpu
-  - label: ":console: Build JVM packages with CUDA"
-    command: "tests/buildkite/build-jvm-packages-gpu.sh"
-    key: build-jvm-packages-gpu
-    agents:
-      queue: linux-amd64-mgpu
   - label: ":console: Build JVM package doc"
     command: "tests/buildkite/build-jvm-doc.sh"
     key: build-jvm-doc
@@ -69,12 +70,7 @@ steps:
     key: test-python-gpu
     agents:
       queue: linux-amd64-gpu
-  - label: ":console: Test Python package, 4 GPUs"
-    command: "tests/buildkite/test-python-gpu.sh mgpu"
-    key: test-python-mgpu
-    agents:
-      queue: linux-amd64-mgpu
-  - label: ":console: Run Google Tests, 4 GPUs"
+  - label: ":console: Run Google Tests"
     command: "tests/buildkite/test-cpp-gpu.sh"
     key: test-cpp-gpu
     agents:
