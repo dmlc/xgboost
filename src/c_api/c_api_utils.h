@@ -151,7 +151,13 @@ inline uint32_t GetIterationFromTreeLimit(uint32_t ntree_limit, Learner *learner
 
 inline float GetMissing(Json const &config) {
   float missing;
-  auto const& j_missing = config["missing"];
+  auto const &obj = get<Object const>(config);
+  auto it = obj.find("missing");
+  if (it == obj.cend()) {
+    LOG(FATAL) << "Argument `missing` is required.";
+  }
+
+  auto const &j_missing = it->second;
   if (IsA<Number const>(j_missing)) {
     missing = get<Number const>(j_missing);
   } else if (IsA<Integer const>(j_missing)) {

@@ -52,6 +52,8 @@ Debug
 R-package.Rproj
 *.cache*
 .mypy_cache/
+doxygen
+
 # java
 java/xgboost4j/target
 java/xgboost4j/tmp
