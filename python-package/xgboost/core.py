@@ -99,9 +99,9 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     res = []
     for i in range(length.value):
         try:
-            res.append(str(data[i].decode('ascii')))  # type: ignore
+            res.append(str(cast(bytes, data[i]).decode('ascii')))
         except UnicodeDecodeError:
-            res.append(str(data[i].decode('utf-8')))  # type: ignore
+            res.append(str(cast(bytes, data[i]).decode('utf-8')))
     return res
 
 
@@ -381,7 +381,7 @@ def ctypes2buffer(cptr: CStrPtr, length: int) -> bytearray:
         raise RuntimeError('expected char pointer')
     res = bytearray(length)
     rptr = (ctypes.c_char * length).from_buffer(res)
-    if not ctypes.memmove(rptr, cptr, length):  # type: ignore
+    if not ctypes.memmove(rptr, cptr, length):
         raise RuntimeError('memmove failed')
     return res
 
@@ -393,8 +393,8 @@ def c_str(string: str) -> ctypes.c_char_p:
 
 def c_array(
     ctype: Type[CTypeT], values: ArrayLike
-) -> Union[ctypes.Array, ctypes.pointer]:
-    """Convert a python string to c array."""
+) -> Union[ctypes.Array, ctypes._Pointer]:
+    """Convert a python array to c array."""
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return values.ctypes.data_as(ctypes.POINTER(ctype))
     return (ctype * len(values))(*values)
@@ -1020,7 +1020,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         testing purposes. If this is a quantized DMatrix then quantized values are
         returned instead of input values.
 
-            .. versionadded:: 2.0.0
+            .. versionadded:: 1.7.0
 
         """
         indptr = np.empty(self.num_row() + 1, dtype=np.uint64)

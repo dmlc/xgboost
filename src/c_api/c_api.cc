@@ -247,17 +247,13 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
 }
 
 #ifndef XGBOOST_USE_CUDA
-XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
-                                            char const* c_json_config,
-                                            DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *, char const *, DMatrixHandle *) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
-                                                  char const* c_json_config,
-                                                  DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *, char const *, DMatrixHandle *) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();
@@ -268,14 +264,14 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
 // Create from data iterator
 XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
                                         DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
-                                        char const *c_json_config, DMatrixHandle *out) {
+                                        char const *config, DMatrixHandle *out) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(c_json_config);
+  xgboost_CHECK_C_ARG_PTR(config);
 
-  auto config = Json::Load(StringView{c_json_config});
-  auto missing = GetMissing(config);
-  std::string cache = RequiredArg<String>(config, "cache_prefix", __func__);
-  auto n_threads = OptionalArg<Integer, int64_t>(config, "nthread", common::OmpGetNumThreads(0));
+  auto jconfig = Json::Load(StringView{config});
+  auto missing = GetMissing(jconfig);
+  std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
+  auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
@@ -498,15 +494,16 @@ XGB_DLL int XGImportArrowRecordBatch(DataIterHandle data_handle, void *ptr_array
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *json_config,
+XGB_DLL int XGDMatrixCreateFromArrowCallback(XGDMatrixCallbackNext *next, char const *config,
                                              DMatrixHandle *out) {
   API_BEGIN();
-  xgboost_CHECK_C_ARG_PTR(json_config);
-  auto config = Json::Load(StringView{json_config});
-  auto missing = GetMissing(config);
-  int32_t n_threads = get<Integer const>(config["nthread"]);
-  n_threads = common::OmpGetNumThreads(n_threads);
-  data::RecordBatchesIterAdapter adapter(next, n_threads);
+  xgboost_CHECK_C_ARG_PTR(config);
+  auto jconfig = Json::Load(StringView{config});
+  auto missing = GetMissing(jconfig);
+  auto n_batches = RequiredArg<Integer>(jconfig, "nbatch", __func__);
+  auto n_threads =
+      OptionalArg<Integer, std::int64_t>(jconfig, "nthread", common::OmpGetNumThreads(0));
+  data::RecordBatchesIterAdapter adapter(next, n_batches);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
@@ -1051,20 +1048,18 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-XGB_DLL int XGBoosterPredictFromCUDAArray(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
-    DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
-    const float **out_result) {
+XGB_DLL int XGBoosterPredictFromCUDAArray(BoosterHandle handle, char const *, char const *,
+                                          DMatrixHandle, xgboost::bst_ulong const **,
+                                          xgboost::bst_ulong *, const float **) {
   API_BEGIN();
   CHECK_HANDLE();
   common::AssertGPUSupport();
   API_END();
 }
 
-XGB_DLL int XGBoosterPredictFromCUDAColumnar(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
-    DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
-    const float **out_result) {
+XGB_DLL int XGBoosterPredictFromCUDAColumnar(BoosterHandle handle, char const *, char const *,
+                                             DMatrixHandle, xgboost::bst_ulong const **,
+                                             xgboost::bst_ulong *, const float **) {
   API_BEGIN();
   CHECK_HANDLE();
   common::AssertGPUSupport();
@@ -1486,30 +1481,30 @@ XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *json_config,
+XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle, char const *config,
                                   xgboost::bst_ulong *out_n_features, char const ***out_features,
                                   bst_ulong *out_dim, bst_ulong const **out_shape,
                                   float const **out_scores) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner *>(handle);
-  xgboost_CHECK_C_ARG_PTR(json_config);
-  auto config = Json::Load(StringView{json_config});
+  xgboost_CHECK_C_ARG_PTR(config);
+  auto jconfig = Json::Load(StringView{config});
 
-  auto importance = RequiredArg<String>(config, "importance_type", __func__);
+  auto importance = RequiredArg<String>(jconfig, "importance_type", __func__);
   std::string feature_map_uri;
-  if (!IsA<Null>(config["feature_map"])) {
-    feature_map_uri = get<String const>(config["feature_map"]);
+  if (!IsA<Null>(jconfig["feature_map"])) {
+    feature_map_uri = get<String const>(jconfig["feature_map"]);
   }
   FeatureMap feature_map = LoadFeatureMap(feature_map_uri);
   std::vector<Json> custom_feature_names;
-  if (!IsA<Null>(config["feature_names"])) {
-    custom_feature_names = get<Array const>(config["feature_names"]);
+  if (!IsA<Null>(jconfig["feature_names"])) {
+    custom_feature_names = get<Array const>(jconfig["feature_names"]);
   }
 
   std::vector<int32_t> tree_idx;
-  if (!IsA<Null>(config["tree_idx"])) {
-    auto j_tree_idx = get<Array const>(config["tree_idx"]);
+  if (!IsA<Null>(jconfig["tree_idx"])) {
+    auto j_tree_idx = get<Array const>(jconfig["tree_idx"]);
     for (auto const &idx : j_tree_idx) {
       tree_idx.push_back(get<Integer const>(idx));
     }

@@ -13,7 +13,7 @@ from .callback import TrainingCallback, CallbackContainer, EvaluationMonitor, Ea
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .core import Metric, Objective
 from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold, DataFrame
-from ._typing import _F, FPreProcCallable, BoosterParam
+from ._typing import Callable, FPreProcCallable, BoosterParam
 
 _CVFolds = Sequence["CVPack"]
 
@@ -205,10 +205,10 @@ class CVPack:
         self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
         self.bst = Booster(param, [dtrain, dtest])
 
-    def __getattr__(self, name: str) -> _F:
+    def __getattr__(self, name: str) -> Callable:
         def _inner(*args: Any, **kwargs: Any) -> Any:
             return getattr(self.bst, name)(*args, **kwargs)
-        return cast(_F, _inner)
+        return _inner
 
     def update(self, iteration: int, fobj: Optional[Objective]) -> None:
         """"Update the boosters for one iteration"""

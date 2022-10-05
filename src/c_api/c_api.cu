@@ -1,10 +1,12 @@
 // Copyright (c) 2019-2022 by Contributors
+#include "../common/threading_utils.h"
 #include "../data/device_adapter.cuh"
 #include "../data/proxy_dmatrix.h"
 #include "c_api_error.h"
 #include "c_api_utils.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
+#include "xgboost/json.h"
 #include "xgboost/learner.h"
 
 namespace xgboost {
@@ -70,10 +72,11 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
   auto config = Json::Load(StringView{c_json_config});
 
   float missing = GetMissing(config);
-  auto nthread = get<Integer const>(config["nthread"]);
+  auto n_threads =
+      OptionalArg<Integer, std::int64_t>(config, "nthread", common::OmpGetNumThreads(0));
   data::CudfAdapter adapter(json_str);
   *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -84,10 +87,11 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   std::string json_str{data};
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
-  auto nthread = get<Integer const>(config["nthread"]);
+  auto n_threads =
+      OptionalArg<Integer, std::int64_t>(config, "nthread", common::OmpGetNumThreads(0));
   data::CupyAdapter adapter(json_str);
   *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
