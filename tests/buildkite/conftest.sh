@@ -3,6 +3,11 @@
 set -euo pipefail
 set -x
 
+CUDA_VERSION=11.0.3
+RAPIDS_VERSION=22.10
+SPARK_VERSION=3.0.1
+JDK_VERSION=8
+
 if [[ -z ${BUILDKITE:-} ]]
 then
   echo "$0 is not meant to run locally; it should run inside BuildKite."
@@ -19,15 +24,17 @@ else
   export BRANCH_NAME=$BUILDKITE_BRANCH
 fi
 
-if [[ -z ${DISABLE_RELEASE:-} ]]
+if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
 then
-  if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
-  then
-    is_release_branch=1
-  else
-    is_release_branch=0
-  fi
+  is_release_branch=1
+  enforce_daily_budget=0
 else
+  is_release_branch=0
+  enforce_daily_budget=1
+fi
+
+if [[ -n ${DISABLE_RELEASE:-} ]]
+then
   is_release_branch=0
 fi
 

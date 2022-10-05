@@ -7,6 +7,7 @@ steps:
     key: enforce-daily-budget
     agents:
       queue: pipeline-loader
+  - wait
   - block: ":rocket: Run this test job"
     if: build.pull_request.repository.fork == true
   #### -------- BUILD --------
