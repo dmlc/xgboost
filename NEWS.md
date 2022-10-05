@@ -1055,9 +1055,9 @@ the source. See https://xgboost.readthedocs.io/en/latest/jvm/index.html#installa
 * Previously, the custom evaluation metric received a transformed prediction result when used with a classifier. Now the custom metric will receive a raw (untransformed) prediction and will need to transform the prediction itself.  See [demo/guide-python/custom\_softmax.py](https://github.com/dmlc/xgboost/blob/release_1.2.0/demo/guide-python/custom_softmax.py) for an example.
 * This change is to make the custom metric behave consistently with the custom objective, which already receives raw prediction (#5564).
 
-### Breaking: XGBoost4J-Spark now requires Spark 3.0 and Scala 2.12 (#5836, #5890)
+### Breaking: XGBoost4J-Spark now requires Spark 3.0 and Scala 2.13 (#5836, #5890)
 * Starting with version 3.0, Spark can manage GPU resources and allocate them among executors.
-* Spark 3.0 dropped support for Scala 2.11 and now only supports Scala 2.12. Thus, XGBoost4J-Spark also only supports Scala 2.12.
+* Spark 3.0 dropped support for Scala 2.11 and now only supports Scala 2.13. Thus, XGBoost4J-Spark also only supports Scala 2.13.
 
 ### Breaking: XGBoost Python package now requires Python 3.6 and later (#5715)
 * Python 3.6 has many useful features such as f-strings.
@@ -1246,7 +1246,7 @@ Upgrading to latest pip allows us to depend on newer versions of system librarie
 
 ### Deprecation notices
 * **Python 3.5**. This release is the last release to support Python 3.5. The following release (1.2.0) will require Python 3.6.
-* **Scala 2.11**. Currently XGBoost4J supports Scala 2.11. However, if a future release of XGBoost adopts Spark 3, it will not support Scala 2.11, as Spark 3 requires Scala 2.12+. We do not yet know which XGBoost release will adopt Spark 3.
+* **Scala 2.11**. Currently XGBoost4J supports Scala 2.11. However, if a future release of XGBoost adopts Spark 3, it will not support Scala 2.11, as Spark 3 requires Scala 2.13+. We do not yet know which XGBoost release will adopt Spark 3.
 
 ### Known limitations
 * (Python package) When early stopping is activated with `early_stopping_rounds` at training time, the prediction method (`xgb.predict()`) behaves in a surprising way. If XGBoost runs for M rounds and chooses iteration N (N < M) as the best iteration, then the prediction method will use M trees by default. To use the best iteration (N trees), users will need to manually take the best iteration field `bst.best_iteration` and pass it as the `ntree_limit` argument to `xgb.predict()`. See #5209 and #4052 for additional context.
@@ -1339,7 +1339,7 @@ Upgrading to latest pip allows us to depend on newer versions of system librarie
 * De-duplicate code for checking maximum number of nodes (#5497)
 * [CI] Use Ubuntu 18.04 LTS in JVM CI, because 19.04 is EOL (#5537)
 * [jvm-packages] [CI] Create a Maven repository to host SNAPSHOT JARs (#5533)
-* [jvm-packages] [CI] Publish XGBoost4J JARs with Scala 2.11 and 2.12 (#5539)
+* [jvm-packages] [CI] Publish XGBoost4J JARs with Scala 2.11 and 2.13 (#5539)
 * [CI] Use Vault repository to re-gain access to devtoolset-4 (#5589)
 
 ### Maintenance: Refactor code for legibility and maintainability
@@ -1591,7 +1591,7 @@ This release marks a major milestone for the XGBoost project.
 * Use `yaml.safe_load` instead of `yaml.load`. (#4537)
 * Ensure GCC is at least 5.x (#4538)
 * Remove all mention of `reg:linear` from tests (#4544)
-* [jvm-packages] Upgrade to Scala 2.12 (#4574)
+* [jvm-packages] Upgrade to Scala 2.13 (#4574)
 * [jvm-packages] Update kryo dependency to 2.22 (#4575)
 * [CI] Specify account ID when logging into ECR Docker registry (#4584)
 * Use Sphinx 2.1+ to compile documentation (#4609)

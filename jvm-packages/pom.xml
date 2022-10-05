@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost-jvm_2.12</artifactId>
+    <artifactId>xgboost-jvm_2.13</artifactId>
     <version>1.7.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
@@ -34,9 +34,9 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.7.2</flink.version>
-        <spark.version>3.0.1</spark.version>
-        <scala.version>2.12.8</scala.version>
-        <scala.binary.version>2.12</scala.binary.version>
+        <spark.version>3.2.1</spark.version>
+        <scala.version>2.13.5</scala.version>
+        <scala.binary.version>2.13</scala.binary.version>
         <hadoop.version>2.7.3</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
@@ -329,7 +329,12 @@
             <plugin>
               <groupId>org.scalatest</groupId>
               <artifactId>scalatest-maven-plugin</artifactId>
-              <version>1.0</version>
+              <version>2.1.0</version>
+              <configuration>
+                <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+                <junitxml>.</junitxml>
+                <filereports>WDF TestSuite.txt</filereports>
+              </configuration>
               <executions>
                 <execution>
                   <id>test</id>
@@ -392,7 +397,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.2</version>
+                <version>4.7.2</version>
                 <executions>
                     <execution>
                         <id>compile</id>
@@ -436,6 +441,7 @@
             <plugin>
                 <groupId>org.scalatest</groupId>
                 <artifactId>scalatest-maven-plugin</artifactId>
+                <version>2.1.0</version>
             </plugin>
         </plugins>
         <extensions>
@@ -455,7 +461,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.1</version>
+                <version>4.7.2</version>
                 <configuration>
                     <jvmArgs>
                         <jvmArg>-Xms64m</jvmArg>

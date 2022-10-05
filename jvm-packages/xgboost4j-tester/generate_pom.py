@@ -8,10 +8,10 @@ pom_template = """
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>ml.dmlc</groupId>
-  <artifactId>xgboost4j-tester_2.12</artifactId>
+  <artifactId>xgboost4j-tester_2.13</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>xgboost4j-tester_2.12</name>
+  <name>xgboost4j-tester_2.13</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -51,13 +51,13 @@ pom_template = """
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor_${{scala.binary.version}}</artifactId>
-      <version>2.5.23</version>
+      <version>2.6.20</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
-      <version>2.5.23</version>
+      <version>2.6.20</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -192,7 +192,7 @@ pom_template = """
         <version>2.22.1</version>
         <configuration>
           <dependenciesToScan>
-            <dependency>ml.dmlc:xgboost4j_2.12</dependency>
+            <dependency>ml.dmlc:xgboost4j_2.13</dependency>
           </dependenciesToScan>
         </configuration>
       </plugin>

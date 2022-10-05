@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ml.dmlc</groupId>
-        <artifactId>xgboost-jvm_2.12</artifactId>
+        <artifactId>xgboost-jvm_2.13</artifactId>
         <version>1.7.0-SNAPSHOT</version>
     </parent>
-    <artifactId>xgboost4j-flink_2.12</artifactId>
+    <artifactId>xgboost4j-flink_2.13</artifactId>
     <version>1.7.0-SNAPSHOT</version>
     <build>
         <plugins>

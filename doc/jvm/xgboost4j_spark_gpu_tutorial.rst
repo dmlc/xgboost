@@ -226,7 +226,7 @@ application jar is iris-1.0.0.jar
 
   spark-submit \
     --master $master \
-    --packages ai.rapids:cudf:${cudf_version},com.nvidia:rapids-4-spark_2.12:${rapids_version},ml.dmlc:xgboost4j-gpu_2.12:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.12:${xgboost_version} \
+    --packages ai.rapids:cudf:${cudf_version},com.nvidia:rapids-4-spark_2.13:${rapids_version},ml.dmlc:xgboost4j-gpu_2.13:${xgboost_version},ml.dmlc:xgboost4j-spark-gpu_2.13:${xgboost_version} \
     --conf spark.executor.cores=12 \
     --conf spark.task.cpus=1 \
     --conf spark.executor.resource.gpu.amount=1 \

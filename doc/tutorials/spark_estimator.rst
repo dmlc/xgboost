@@ -215,7 +215,7 @@ Below is a simple example submit command for enabling GPU acceleration:
     --master spark://<master-ip>:7077 \
     --conf spark.executor.resource.gpu.amount=1 \
     --conf spark.task.resource.gpu.amount=1 \
-    --packages com.nvidia:rapids-4-spark_2.12:22.08.0 \
+    --packages com.nvidia:rapids-4-spark_2.13:22.08.0 \
     --conf spark.plugins=com.nvidia.spark.SQLPlugin \
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
     --archives xgboost-env.tar.gz#environment \

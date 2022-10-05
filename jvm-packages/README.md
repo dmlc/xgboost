@@ -27,12 +27,12 @@ XGBoost4J, XGBoost4J-Spark, etc. in maven repository is compiled with g++-4.8.5.
 ```
 <dependency>
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j_2.12</artifactId>
+    <artifactId>xgboost4j_2.13</artifactId>
     <version>latest_version_num</version>
 </dependency>
 <dependency>
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j-spark_2.12</artifactId>
+    <artifactId>xgboost4j-spark_2.13</artifactId>
     <version>latest_version_num</version>
 </dependency>
 ```
@@ -47,7 +47,7 @@ libraryDependencies ++= Seq(
 
 For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
 
-To enable the GPU algorithm (`tree_method='gpu_hist'`), use artifacts `xgboost4j-gpu_2.12` and `xgboost4j-spark-gpu_2.12` instead.
+To enable the GPU algorithm (`tree_method='gpu_hist'`), use artifacts `xgboost4j-gpu_2.13` and `xgboost4j-spark-gpu_2.13` instead.
 
 ### Access SNAPSHOT version
 
@@ -76,12 +76,12 @@ Then add XGBoost4J as a dependency:
 ```
 <dependency>
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j_2.12</artifactId>
+    <artifactId>xgboost4j_2.13</artifactId>
     <version>latest_version_num-SNAPSHOT</version>
 </dependency>
 <dependency>
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j-spark_2.12</artifactId>
+    <artifactId>xgboost4j-spark_2.13</artifactId>
     <version>latest_version_num-SNAPSHOT</version>
 </dependency>
 ```
@@ -96,7 +96,7 @@ libraryDependencies ++= Seq(
 
 For the latest release version number, please check [the repository listing](https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/list.html).
 
-To enable the GPU algorithm (`tree_method='gpu_hist'`), use artifacts `xgboost4j-gpu_2.12` and `xgboost4j-spark-gpu_2.12` instead.
+To enable the GPU algorithm (`tree_method='gpu_hist'`), use artifacts `xgboost4j-gpu_2.13` and `xgboost4j-spark-gpu_2.13` instead.
 
 ## Examples
 

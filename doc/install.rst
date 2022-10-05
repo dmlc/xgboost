@@ -114,7 +114,7 @@ JVM
   <properties>
     ...
     <!-- Specify Scala version in package name -->
-    <scala.binary.version>2.12</scala.binary.version>
+    <scala.binary.version>2.13</scala.binary.version>
   </properties>
 
   <dependencies>
@@ -147,7 +147,7 @@ JVM
   <properties>
     ...
     <!-- Specify Scala version in package name -->
-    <scala.binary.version>2.12</scala.binary.version>
+    <scala.binary.version>2.13</scala.binary.version>
   </properties>
 
   <dependencies>
@@ -176,7 +176,7 @@ This will check out the latest stable version from the Maven Central.
 
 For the latest release version number, please check `release page <https://github.com/dmlc/xgboost/releases>`_.
 
-To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
+To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.13`` and ``xgboost4j-spark-gpu_2.13`` instead (note the ``gpu`` suffix).
 
 
 .. note:: Windows not supported in the JVM package
@@ -247,7 +247,7 @@ Then add XGBoost4J as a dependency:
   <properties>
     ...
     <!-- Specify Scala version in package name -->
-    <scala.binary.version>2.12</scala.binary.version>
+    <scala.binary.version>2.13</scala.binary.version>
   </properties>
 
   <dependencies>
@@ -280,7 +280,7 @@ Then add XGBoost4J as a dependency:
   <properties>
     ...
     <!-- Specify Scala version in package name -->
-    <scala.binary.version>2.12</scala.binary.version>
+    <scala.binary.version>2.13</scala.binary.version>
   </properties>
 
   <dependencies>
@@ -312,4 +312,4 @@ The SNAPSHOT JARs are hosted by the XGBoost project. Every commit in the ``maste
 
 You can browse the file listing of the Maven repository at https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/list.html.
 
-To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
+To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.13`` and ``xgboost4j-spark-gpu_2.13`` instead (note the ``gpu`` suffix).
