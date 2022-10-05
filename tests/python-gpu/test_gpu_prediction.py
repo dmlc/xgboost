@@ -32,6 +32,7 @@ predict_parameter_strategy = strategies.fixed_dictionaries({
     'num_parallel_tree': strategies.sampled_from([1, 4]),
 })
 
+pytestmark = pytest.mark.timeout(10)
 
 class TestGPUPredict:
     def test_predict(self):
@@ -264,7 +265,7 @@ class TestGPUPredict:
 
     @given(strategies.integers(1, 10),
            tm.dataset_strategy, shap_parameter_strategy)
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shap(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
@@ -333,14 +334,14 @@ class TestGPUPredict:
         np.testing.assert_equal(cpu_leaf, gpu_leaf)
 
     @given(predict_parameter_strategy, tm.dataset_strategy)
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_predict_leaf_gbtree(self, param, dataset):
         param['booster'] = 'gbtree'
         param['tree_method'] = 'gpu_hist'
         self.run_predict_leaf_booster(param, 10, dataset)
 
     @given(predict_parameter_strategy, tm.dataset_strategy)
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_predict_leaf_dart(self, param, dataset):
         param['booster'] = 'dart'
         param['tree_method'] = 'gpu_hist'
@@ -351,7 +352,7 @@ class TestGPUPredict:
     @given(df=data_frames([column('x0', elements=strategies.integers(min_value=0, max_value=3)),
                            column('x1', elements=strategies.integers(min_value=0, max_value=5))],
                           index=range_indexes(min_size=20, max_size=50)))
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_predict_categorical_split(self, df):
         from sklearn.metrics import mean_squared_error
 

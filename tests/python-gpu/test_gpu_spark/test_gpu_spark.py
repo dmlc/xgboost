@@ -7,7 +7,7 @@ import sklearn
 sys.path.append("tests/python")
 import testing as tm
 
-if tm.no_dask()["condition"]:
+if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)

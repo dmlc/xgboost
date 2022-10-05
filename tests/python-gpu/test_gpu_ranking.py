@@ -6,10 +6,12 @@ import shutil
 import urllib.request
 import zipfile
 import sys
+import pytest
 sys.path.append("tests/python")
 
 import testing as tm            # noqa
 
+pytestmark = pytest.mark.timeout(10)
 
 class TestRanking:
     @classmethod
@@ -96,7 +98,7 @@ class TestRanking:
         # specify validations set to watch performance
         watchlist = [(cls.dtest, 'eval'), (cls.dtrain, 'train')]
 
-        num_trees = 2500
+        num_trees = 100
         check_metric_improvement_rounds = 10
 
         evals_result = {}
