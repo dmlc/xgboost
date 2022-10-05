@@ -25,9 +25,9 @@ import scala.util.Random
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.functions._
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
+class PersistenceSuite extends AnyFunSuite with TmpFolderPerSuite with PerTest {
 
   test("test persistence of XGBoostClassifier and XGBoostClassificationModel") {
     val eval = new EvalError()

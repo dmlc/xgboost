@@ -275,8 +275,9 @@ private[rabit] class WorkerDependencyResolver(handler: ActorRef) extends Actor w
   private val pendingFulfillment = mutable.Map.empty[Int, Fulfillment]
 
   def awaitingWorkers(linkSet: Set[Int]): AwaitingConnections = {
-    val connSet = awaitConnWorkers.toMap
+    val connSet = awaitConnWorkers.view
       .filterKeys(k => linkSet.contains(k))
+      .toMap
     AwaitingConnections(connSet, linkSet.size - connSet.size)
   }
 

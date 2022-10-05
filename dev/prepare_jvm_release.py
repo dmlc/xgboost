@@ -130,10 +130,10 @@ def main():
 
         with tempfile.TemporaryDirectory() as tempdir:
             # libxgboost4j.so for Linux x86_64, CPU only
-            zip_path = os.path.join(tempdir, "xgboost4j_2.12.jar")
+            zip_path = os.path.join(tempdir, "xgboost4j_2.13.jar")
             extract_dir = os.path.join(tempdir, "xgboost4j")
-            retrieve(url=f"{maven_repo_prefix}/xgboost4j_2.12/{version}/"
-                         f"xgboost4j_2.12-{version}.jar",
+            retrieve(url=f"{maven_repo_prefix}/xgboost4j_2.13/{version}/"
+                         f"xgboost4j_2.13-{version}.jar",
                      filename=zip_path)
             os.mkdir(extract_dir)
             with zipfile.ZipFile(zip_path, "r") as t:
@@ -142,10 +142,10 @@ def main():
                "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so")
 
             # libxgboost4j.so for Linux x86_64, GPU support
-            zip_path = os.path.join(tempdir, "xgboost4j-gpu_2.12.jar")
+            zip_path = os.path.join(tempdir, "xgboost4j-gpu_2.13.jar")
             extract_dir = os.path.join(tempdir, "xgboost4j-gpu")
-            retrieve(url=f"{maven_repo_prefix}/xgboost4j-gpu_2.12/{version}/"
-                         f"xgboost4j-gpu_2.12-{version}.jar",
+            retrieve(url=f"{maven_repo_prefix}/xgboost4j-gpu_2.13/{version}/"
+                         f"xgboost4j-gpu_2.13-{version}.jar",
                      filename=zip_path)
             os.mkdir(extract_dir)
             with zipfile.ZipFile(zip_path, "r") as t:

@@ -18,12 +18,12 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.spark.Partitioner
 import org.apache.spark.ml.feature.VectorAssembler
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import org.apache.spark.sql.functions._
 
 import scala.util.Random
 
-class FeatureSizeValidatingSuite extends FunSuite with PerTest {
+class FeatureSizeValidatingSuite extends AnyFunSuite with PerTest {
 
   test("transform throwing exception if feature size of dataset is greater than model's") {
     val modelPath = getClass.getResource("/model/0.82/model").getPath

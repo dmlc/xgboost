@@ -182,7 +182,7 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
     // currently awaiting connections (particularly from this node.)
     case Event(future: Future[_], _) =>
       // blocks execution until all dependencies for current worker is resolved.
-      Await.result(future, 1 minute).asInstanceOf[AwaitingConnections] match {
+      Await.result(future, 1.minute).asInstanceOf[AwaitingConnections] match {
         // numNotReachable is the number of workers that currently
         // cannot be connected to (pending connection or setup). Instead, this worker will AWAIT
         // connections from those currently non-reachable nodes in the future.

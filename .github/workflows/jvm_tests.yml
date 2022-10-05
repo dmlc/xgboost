@@ -43,7 +43,7 @@ jobs:
     - name: Test XGBoost4J
       run: |
         cd jvm-packages
-        mvn test -B -pl :xgboost4j_2.12
+        mvn test -B -pl :xgboost4j_2.13
 
     - name: Extract branch name
       shell: bash

@@ -26,8 +26,9 @@ import ml.dmlc.xgboost4j.scala.rabit.handler.RabitWorkerHandler
 import ml.dmlc.xgboost4j.scala.rabit.handler.RabitWorkerHandler._
 import ml.dmlc.xgboost4j.scala.rabit.util.LinkMap
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatestplus.junit.JUnitRunner
+import org.scalatest.flatspec._
+import org.scalatest.matchers.should._
 
 import scala.concurrent.Promise
 
@@ -43,7 +44,7 @@ object RabitTrackerConnectionHandlerTest {
 @RunWith(classOf[JUnitRunner])
 class RabitTrackerConnectionHandlerTest
   extends TestKit(ActorSystem("RabitTrackerConnectionHandlerTest"))
-    with FlatSpecLike with Matchers with ImplicitSender {
+    with AnyFlatSpecLike with Matchers with ImplicitSender {
 
   import RabitTrackerConnectionHandlerTest._
 

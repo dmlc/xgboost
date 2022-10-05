@@ -19,12 +19,12 @@ package ml.dmlc.xgboost4j.scala.spark
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql.DataFrame
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import scala.util.Random
 
 import org.apache.spark.SparkException
 
-class MissingValueHandlingSuite extends FunSuite with PerTest {
+class MissingValueHandlingSuite extends AnyFunSuite with PerTest {
   test("dense vectors containing missing value") {
     def buildDenseDataFrame(): DataFrame = {
       val numRows = 100

@@ -17,13 +17,13 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.spark.ml.linalg.Vectors
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import ml.dmlc.xgboost4j.scala.spark.util.DataUtils
 import ml.dmlc.xgboost4j.scala.spark.util.DataUtils.PackedParams
 
 import org.apache.spark.sql.functions._
 
-class DeterministicPartitioningSuite extends FunSuite with TmpFolderPerSuite with PerTest {
+class DeterministicPartitioningSuite extends AnyFunSuite with TmpFolderPerSuite with PerTest {
 
   test("perform deterministic partitioning when checkpointInternal and" +
     " checkpointPath is set (Classifier)") {

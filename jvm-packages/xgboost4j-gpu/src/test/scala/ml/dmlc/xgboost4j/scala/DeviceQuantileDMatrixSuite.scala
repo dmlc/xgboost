@@ -19,10 +19,10 @@ package ml.dmlc.xgboost4j.scala
 import scala.collection.mutable.ArrayBuffer
 
 import ai.rapids.cudf.Table
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 
-class DeviceQuantileDMatrixSuite extends FunSuite {
+class DeviceQuantileDMatrixSuite extends AnyFunSuite {
 
   test("DeviceQuantileDMatrix test") {
 

@@ -70,8 +70,8 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
 
   val system = ActorSystem.create("RabitTracker")
   val handler = system.actorOf(RabitTrackerHandler.props(numWorkers), "Handler")
-  implicit val askTimeout: akka.util.Timeout = akka.util.Timeout(30 seconds)
-  private[this] val tcpBindingTimeout: Duration = 1 minute
+  implicit val askTimeout: akka.util.Timeout = akka.util.Timeout(30.seconds)
+  private[this] val tcpBindingTimeout: Duration = 1.minute
 
   var workerEnvs: Map[String, String] = Map.empty
 
@@ -106,7 +106,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
         // The success of the Future is contingent on binding to an InetSocketAddress.
         val isBound = Try(Await.ready(futurePortBound, tcpBindingTimeout)).isSuccess
         if (isBound) {
-          workerEnvs = Await.result(futurePortBound, 0 nano)
+          workerEnvs = Await.result(futurePortBound, 0.nano)
         }
         isBound
       case Failure(ex: Throwable) =>
