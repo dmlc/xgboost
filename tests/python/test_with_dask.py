@@ -383,7 +383,7 @@ def test_categorical(client: "Client") -> None:
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
-    X, y = make_classification(n_samples=1000, n_informative=5, n_classes=3)
+    X, y = make_classification(n_samples=kRows, n_informative=5, n_classes=3)
     X_ = dd.from_array(X, chunksize=100)
     y_ = dd.from_array(y, chunksize=100)
     dtrain = xgb.dask.DaskDMatrix(client, data=X_, label=y_)

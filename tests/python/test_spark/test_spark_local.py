@@ -18,7 +18,6 @@ if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import (
     BinaryClassificationEvaluator,
-    MulticlassClassificationEvaluator,
 )
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.functions import vector_to_array
