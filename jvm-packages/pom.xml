@@ -62,6 +62,17 @@
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
+            <modules> <!-- Flink is not ported to 2.13 yet and example depends on it -->
+                <module>xgboost4j</module>
+                <module>xgboost4j-spark</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>all</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <modules>
                 <module>xgboost4j</module>
                 <module>xgboost4j-spark</module>
