@@ -12,13 +12,12 @@
 #include <algorithm>  // std::max
 
 #include "../collective/communicator-inl.h"
+#include "../common/linalg_op.h"           // cbegin, cend
 #include "../common/math.h"                // CloseTo
 #include "../common/numeric.h"             // cpu_impl::Reduce
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
-#include "rabit/rabit.h"
 #include "xgboost/linalg.h"     // TensorView
 #include "xgboost/objective.h"  // ObjFunction
-#include "../common/linalg_op.h"
 
 namespace xgboost {
 namespace obj {
