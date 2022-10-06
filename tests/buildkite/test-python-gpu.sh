@@ -29,11 +29,15 @@ command_wrapper="tests/ci_build/ci_build.sh gpu nvidia-docker --build-arg "`
 # Run specified test suite
 case "$suite" in
   gpu)
+    export BUILDKITE_ANALYTICS_TOKEN=$(get_aws_secret buildkite/test_analytics/gpu)
+    set_buildkite_env_vars_in_container
     echo "--- Test XGBoost Python package, single GPU"
     $command_wrapper tests/ci_build/test_python.sh $suite
     ;;
 
   mgpu)
+    export BUILDKITE_ANALYTICS_TOKEN=$(get_aws_secret buildkite/test_analytics/mgpu)
+    set_buildkite_env_vars_in_container
     echo "--- Test XGBoost Python package, 4 GPUs"
     $command_wrapper tests/ci_build/test_python.sh $suite
     ;;
