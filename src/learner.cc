@@ -426,6 +426,8 @@ class LearnerConfiguration : public Learner {
       rabit::Broadcast(&sync_score, sizeof(sync_score), 0);
       CHECK_EQ(sync_score, mparam_.base_score);
     }
+    CHECK(!std::isnan(mparam_.base_score));
+    CHECK(!std::isinf(mparam_.base_score));
   }
 
   // Convert mparam to learner_model_param

@@ -44,12 +44,12 @@ void ElementWiseKernelHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& f
 
 #if !defined(XGBOOST_USE_CUDA)
 template <typename T, int32_t D, typename Fn>
-void ElementWiseKernelDevice(linalg::TensorView<T, D> t, Fn&& fn, void* s = nullptr) {
+void ElementWiseKernelDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr) {
   common::AssertGPUSupport();
 }
 
 template <typename T, int32_t D, typename Fn>
-void ElementWiseTransformDevice(linalg::TensorView<T, D> t, Fn&& fn, void* s = nullptr) {
+void ElementWiseTransformDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr) {
   common::AssertGPUSupport();
 }
 

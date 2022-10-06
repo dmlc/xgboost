@@ -10,6 +10,7 @@
 #include "../common/common.h"            // AssertGPUSupport
 #include "xgboost/data.h"                // MetaInfo
 #include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/linalg.h"              // TensorView
 
 namespace xgboost {
 namespace obj {
@@ -24,6 +25,11 @@ inline double FitStump(Context const*, HostDeviceVector<GradientPair> const&) {
 }  // namespace cuda_impl
 
 double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
+
+/**
+ * @brief Normalize allreduced base score by sum of weights.
+ */
+void NormalizeBaseScore(double w, linalg::TensorView<float, 1> in_out);
 }  // namespace obj
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_

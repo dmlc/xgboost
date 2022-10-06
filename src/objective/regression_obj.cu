@@ -175,7 +175,8 @@ class RegLossObj : public ObjFunction {
     auto out = base_margin->HostView();
 
     if (this->Targets(info) > 1) {
-      // multi-output not yet supported due to constraint in binary model format.
+      // multi-output not yet supported due to constraint in binary model format. (no
+      // vector in parameter)
       out(0) = DefaultBaseScore();
       return;
     }
@@ -199,10 +200,7 @@ class RegLossObj : public ObjFunction {
       w = common::Reduce(ctx_, info.weights_);
     }
     out(0) = w * score;
-    rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
-    rabit::Allreduce<rabit::op::Sum>(&w, 1);
-    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
-                   [w](float v) { return v / w; });
+    NormalizeBaseScore(w, out);
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -760,12 +758,7 @@ class MeanAbsoluteError : public ObjFunction {
       out(0) = common::Median(ctx_, info.labels, info.weights_) * w;
     }
 
-    // Weighted average base score across all workers
-    rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
-    rabit::Allreduce<rabit::op::Sum>(&w, 1);
-
-    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
-                   [w](float v) { return v / w; });
+    NormalizeBaseScore(w, out);
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
