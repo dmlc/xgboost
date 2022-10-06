@@ -13,6 +13,7 @@ AMI_ID = {
         "us-west-2": "ami-0a1a2ea551a07ad5f",
     },
     # Managed by BuildKite
+    # from https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml
     "linux-amd64-cpu": {
         "us-west-2": "ami-075d4c25d5f0c17c1",
     },
@@ -105,7 +106,6 @@ COMMON_STACK_PARAMS = {
     "EnableCostAllocationTags": "true",
     "CostAllocationTagName": "CreatedBy",
     "ECRAccessPolicy": "full",
-    "ManagedPolicyARN": "arn:aws:iam::aws:policy/AmazonS3FullAccess,arn:aws:iam::aws:policy/service-role/AWSLambdaRole",
     "EnableSecretsPlugin": "false",
     "EnableECRPlugin": "false",
     "EnableDockerLoginPlugin": "false",

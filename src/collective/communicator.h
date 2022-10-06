@@ -23,40 +23,6 @@ enum class DataType {
   kDouble = 7
 };
 
-/** @brief Get the size of the data type. */
-inline std::size_t GetTypeSize(DataType data_type) {
-  std::size_t size{0};
-  switch (data_type) {
-    case DataType::kInt8:
-      size = sizeof(std::int8_t);
-      break;
-    case DataType::kUInt8:
-      size = sizeof(std::uint8_t);
-      break;
-    case DataType::kInt32:
-      size = sizeof(std::int32_t);
-      break;
-    case DataType::kUInt32:
-      size = sizeof(std::uint32_t);
-      break;
-    case DataType::kInt64:
-      size = sizeof(std::int64_t);
-      break;
-    case DataType::kUInt64:
-      size = sizeof(std::uint64_t);
-      break;
-    case DataType::kFloat:
-      size = sizeof(float);
-      break;
-    case DataType::kDouble:
-      size = sizeof(double);
-      break;
-    default:
-      LOG(FATAL) << "Unknown data type.";
-  }
-  return size;
-}
-
 /** @brief Defines the reduction operation. */
 enum class Operation { kMax = 0, kMin = 1, kSum = 2 };
 
@@ -111,6 +77,9 @@ class Communicator {
 
   /** @brief Whether the communicator is running in distributed mode. */
   virtual bool IsDistributed() const = 0;
+
+  /** @brief Whether the communicator is running in federated mode. */
+  virtual bool IsFederated() const = 0;
 
   /**
    * @brief Combines values from all processes and distributes the result back to all processes.
