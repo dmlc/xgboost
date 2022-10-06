@@ -10,6 +10,15 @@ steps:
   - wait
   - block: ":rocket: Run this test job"
     if: build.pull_request.repository.fork == true
+  #### -------- CONTAINER BUILD --------
+  - label: ":docker: Build containers"
+    commands:
+      - "tests/buildkite/build-containers.sh gpu"
+      - "tests/buildkite/build-containers.sh rmm"
+    key: build-containers
+    agents:
+      queue: linux-amd64-cpu
+  - wait
   #### -------- BUILD --------
   - label: ":console: Run clang-tidy"
     command: "tests/buildkite/run-clang-tidy.sh"
@@ -51,9 +60,7 @@ steps:
     key: build-jvm-doc
     agents:
       queue: linux-amd64-cpu
-
   - wait
-
   #### -------- TEST --------
   - label: ":console: Test Python package, CPU"
     command: "tests/buildkite/test-python-cpu.sh"
@@ -80,9 +87,8 @@ steps:
     key: test-integration-jvm-packages
     agents:
       queue: linux-amd64-cpu
-
   - wait
-
+  #### -------- DEPLOY JVM --------
   - label: ":console: Deploy JVM packages"
     command: "tests/buildkite/deploy-jvm-packages.sh"
     key: deploy-jvm-packages
