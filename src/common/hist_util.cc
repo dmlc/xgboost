@@ -143,31 +143,31 @@ struct RuntimeFlags {
 template <bool _any_missing,
           bool _first_page = false,
           bool _read_by_column = false,
-          typename _BinIdxType = uint8_t>
+          typename BinIdxTypeName = uint8_t>
 class GHistBuildingManager {
  public:
   constexpr static bool kAnyMissing = _any_missing;
   constexpr static bool kFirstPage = _first_page;
   constexpr static bool kReadByColumn = _read_by_column;
-  using BinIdxType = _BinIdxType;
+  using BinIdxType = BinIdxTypeName;
 
  private:
-  template<bool new_first_page>
-  struct set_first_page {
-    using type = GHistBuildingManager<kAnyMissing, new_first_page, kReadByColumn, BinIdxType>;
+  template <bool new_first_page>
+  struct SetFirstPage {
+    using Type = GHistBuildingManager<kAnyMissing, new_first_page, kReadByColumn, BinIdxType>;
   };
 
-  template<bool new_read_by_column>
-  struct set_read_by_column {
-    using type = GHistBuildingManager<kAnyMissing, kFirstPage, new_read_by_column, BinIdxType>;
+  template <bool new_read_by_column>
+  struct SetReadByColumn {
+    using Type = GHistBuildingManager<kAnyMissing, kFirstPage, new_read_by_column, BinIdxType>;
   };
 
-  template<typename new_bin_idx_type>
-  struct set_bin_idx_type {
-    using type = GHistBuildingManager<kAnyMissing, kFirstPage, kReadByColumn, new_bin_idx_type>;
+  template <typename NewBinIdxType>
+  struct SetBinIdxType {
+    using Type = GHistBuildingManager<kAnyMissing, kFirstPage, kReadByColumn, NewBinIdxType>;
   };
 
-  using type = GHistBuildingManager<kAnyMissing, kFirstPage, kReadByColumn, BinIdxType>;
+  using Type = GHistBuildingManager<kAnyMissing, kFirstPage, kReadByColumn, BinIdxType>;
 
  public:
   /* Entry point to dispatcher
@@ -178,16 +178,16 @@ class GHistBuildingManager {
   template <typename Fn>
   static void DispatchAndExecute(const RuntimeFlags& flags, Fn&& fn) {
     if (flags.first_page != kFirstPage) {
-      set_first_page<true>::type::DispatchAndExecute(flags, std::forward<Fn>(fn));
+      SetFirstPage<true>::Type::DispatchAndExecute(flags, std::forward<Fn>(fn));
     } else if (flags.read_by_column != kReadByColumn) {
-      set_read_by_column<true>::type::DispatchAndExecute(flags, std::forward<Fn>(fn));
+      SetReadByColumn<true>::Type::DispatchAndExecute(flags, std::forward<Fn>(fn));
     } else if (flags.bin_type_size != sizeof(BinIdxType)) {
       DispatchBinType(flags.bin_type_size, [&](auto t) {
         using NewBinIdxType = decltype(t);
-        set_bin_idx_type<NewBinIdxType>::type::DispatchAndExecute(flags, std::forward<Fn>(fn));
+        SetBinIdxType<NewBinIdxType>::Type::DispatchAndExecute(flags, std::forward<Fn>(fn));
       });
     } else {
-      fn(type());
+      fn(Type());
     }
   }
 };
