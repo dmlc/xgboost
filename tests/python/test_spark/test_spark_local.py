@@ -25,6 +25,8 @@ from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import functions as spark_sql_func
+
+from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
@@ -34,13 +36,12 @@ from xgboost.spark import (
 )
 from xgboost.spark.core import _non_booster_params
 
-from xgboost import XGBClassifier, XGBModel, XGBRegressor
-
 from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
 
 pytestmark = pytest.mark.timeout(60)
+
 
 class XgboostLocalTest(SparkTestCase):
     def setUp(self):
@@ -712,7 +713,7 @@ class XgboostLocalTest(SparkTestCase):
             estimatorParamMaps=paramMaps,
             evaluator=BinaryClassificationEvaluator(),
             seed=1,
-            numFolds=2
+            numFolds=2,
         )
         cvBinModel = cvBin.fit(self.cls_df_train_large)
         cvBinModel.transform(self.cls_df_test)

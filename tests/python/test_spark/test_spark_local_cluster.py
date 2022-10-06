@@ -14,6 +14,7 @@ if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from pyspark.ml.linalg import Vectors
+
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from xgboost.spark.utils import _get_max_num_concurrent_tasks
 
