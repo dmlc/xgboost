@@ -89,6 +89,13 @@ inline int GetWorldSize() { return Communicator::Get()->GetWorldSize(); }
 inline bool IsDistributed() { return Communicator::Get()->IsDistributed(); }
 
 /*!
+ * \brief Get if the communicator is federated.
+ *
+ * \return True if the communicator is federated.
+ */
+inline bool IsFederated() { return Communicator::Get()->IsFederated(); }
+
+/*!
  * \brief Print the message to the communicator.
  *
  * This function can be used to communicate the information of the progress to the user who monitors
