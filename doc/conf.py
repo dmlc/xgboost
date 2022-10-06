@@ -57,22 +57,24 @@ except HTTPError:
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-libpath = os.path.join(curr_path, '../python-package/')
+CURR_PATH = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
+libpath = os.path.join(PROJECT_ROOT, "python-package/")
 sys.path.insert(0, libpath)
-sys.path.insert(0, curr_path)
+sys.path.insert(0, CURR_PATH)
 
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
-project = u'xgboost'
-author = u'%s developers' % project
-copyright = u'2021, %s' % author
-github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
+project = "xgboost"
+author = "%s developers" % project
+copyright = "2022, %s" % author
+github_doc_root = "https://github.com/dmlc/xgboost/tree/master/doc/"
 
-os.environ['XGBOOST_BUILD_DOC'] = '1'
+os.environ["XGBOOST_BUILD_DOC"] = "1"
 # Version information.
-import xgboost                  # NOQA
+import xgboost  # NOQA
+
 version = xgboost.__version__
 release = xgboost.__version__
 
@@ -105,7 +107,10 @@ plot_html_show_source_link = False
 plot_html_show_formats = False
 
 # Breathe extension variables
-breathe_projects = {"xgboost": "doxyxml/"}
+DOX_DIR = "doxygen"
+breathe_projects = {
+    "xgboost": os.path.join(PROJECT_ROOT, DOX_DIR, "doc_doxygen/xml")
+}
 breathe_default_project = "xgboost"
 
 # Add any paths that contain templates here, relative to this directory.
@@ -216,23 +221,29 @@ intersphinx_mapping = {
 
 
 # hook for doxygen
-def run_doxygen(folder):
+def run_doxygen():
     """Run the doxygen make command in the designated folder."""
+    curdir = os.path.normpath(os.path.abspath(os.path.curdir))
     try:
-        retcode = subprocess.call("cd %s; make doxygen" % folder, shell=True)
-        if retcode < 0:
-            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
+        os.chdir(PROJECT_ROOT)
+        if not os.path.exists(DOX_DIR):
+            os.mkdir(DOX_DIR)
+        os.chdir(os.path.join(PROJECT_ROOT, DOX_DIR))
+        subprocess.check_call(["cmake", "..", "-DBUILD_C_DOC=ON", "-GNinja"])
+        subprocess.check_call(["ninja", "doc_doxygen"])
     except OSError as e:
         sys.stderr.write("doxygen execution failed: %s" % e)
+    finally:
+        os.chdir(curdir)
 
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
-        run_doxygen('..')
+        run_doxygen()
 
 
-# app.add_stylesheet() is deprecated. Use app.add_css_file()
 def setup(app):
     app.add_css_file('custom.css')
+    app.connect("builder-inited", generate_doxygen_xml)

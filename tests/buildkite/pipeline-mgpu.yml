@@ -13,6 +13,15 @@ steps:
   - wait
   - block: ":rocket: Run this test job"
     if: build.pull_request.repository.fork == true
+  #### -------- CONTAINER BUILD --------
+  - label: ":docker: Build containers"
+    commands:
+      - "tests/buildkite/build-containers.sh gpu"
+      - "tests/buildkite/build-containers.sh jvm_gpu_build"
+    key: build-containers
+    agents:
+      queue: linux-amd64-cpu
+  - wait
   #### -------- BUILD --------
   - label: ":console: Build CUDA"
     command: "tests/buildkite/build-cuda.sh"
@@ -24,9 +33,7 @@ steps:
     key: build-jvm-packages-gpu
     agents:
       queue: linux-amd64-mgpu
-
   - wait
-
   #### -------- TEST --------
   - label: ":console: Test Python package, 4 GPUs"
     command: "tests/buildkite/test-python-gpu.sh mgpu"

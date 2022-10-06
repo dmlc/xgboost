@@ -8,10 +8,10 @@
 #include <limits>
 #include <vector>
 
+#include "../../collective/communicator-inl.h"
 #include "../../common/hist_util.h"
 #include "../../data/gradient_index.h"
 #include "expand_entry.h"
-#include "rabit/rabit.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
@@ -202,8 +202,9 @@ class HistogramBuilder {
           }
         });
 
-    rabit::Allreduce<rabit::op::Sum>(reinterpret_cast<double*>(this->hist_[starting_index].data()),
-                                     builder_.GetNumBins() * sync_count * 2);
+    collective::Allreduce<collective::Operation::kSum>(
+        reinterpret_cast<double *>(this->hist_[starting_index].data()),
+        builder_.GetNumBins() * sync_count * 2);
 
     ParallelSubtractionHist(space, nodes_for_explicit_hist_build,
                             nodes_for_subtraction_trick, p_tree);

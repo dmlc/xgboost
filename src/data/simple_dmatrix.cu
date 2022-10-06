@@ -35,7 +35,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int32_t /*nthread
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,
