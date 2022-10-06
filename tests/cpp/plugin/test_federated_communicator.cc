@@ -40,6 +40,9 @@ class FederatedCommunicatorTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    while (!server_) {
+      sleep(1);
+    }
     server_->Shutdown();
     server_thread_->join();
   }
@@ -94,6 +97,28 @@ TEST(FederatedCommunicatorSimpleTest, GetWorldSizeAndRank) {
 TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
   FederatedCommunicator comm{2, 1, kServerAddress};
   EXPECT_TRUE(comm.IsDistributed());
+}
+
+TEST_F(FederatedCommunicatorTest, Create) {
+  Json config{JsonObject()};
+  config["federated_server_address"] = kServerAddress;
+  config["federated_world_size"] = std::string("1");
+  config["federated_rank"] = std::string("0");
+  auto *comm = FederatedCommunicator::Create(config);
+  EXPECT_EQ(1, comm->GetWorldSize());
+  EXPECT_EQ(0, comm->GetRank());
+  delete comm;
+}
+
+TEST_F(FederatedCommunicatorTest, CreateFromIntegers) {
+  Json config{JsonObject()};
+  config["federated_server_address"] = kServerAddress;
+  config["federated_world_size"] = 1;
+  config["federated_rank"] = Integer(0);
+  auto *comm = FederatedCommunicator::Create(config);
+  EXPECT_EQ(1, comm->GetWorldSize());
+  EXPECT_EQ(0, comm->GetRank());
+  delete comm;
 }
 
 TEST_F(FederatedCommunicatorTest, Allreduce) {
