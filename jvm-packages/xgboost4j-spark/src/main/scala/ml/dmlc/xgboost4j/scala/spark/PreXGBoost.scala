@@ -22,7 +22,7 @@ import java.util.ServiceLoader
 import scala.collection.JavaConverters._
 import scala.collection.{AbstractIterator, Iterator, mutable}
 
-import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.java.Communicator
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import ml.dmlc.xgboost4j.scala.spark.util.DataUtils.PackedParams
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
@@ -266,7 +266,7 @@ object PreXGBoost extends PreXGBoostProvider {
           if (batchCnt == 0) {
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
-            Rabit.init(rabitEnv.asJava)
+            Communicator.init(rabitEnv.asJava)
           }
 
           val features = batchRow.iterator.map(row => row.getAs[Vector](featuresCol))
@@ -298,7 +298,7 @@ object PreXGBoost extends PreXGBoostProvider {
         override def next(): Row = {
           val ret = batchIterImpl.next()
           if (!batchIterImpl.hasNext) {
-            Rabit.shutdown()
+            Communicator.shutdown()
           }
           ret
         }

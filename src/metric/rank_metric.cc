@@ -20,17 +20,17 @@
 //   corresponding headers that brings in those function declaration can't be included with CUDA).
 //   This precludes the CPU and GPU logic to coexist inside a .cu file
 
-#include <rabit/rabit.h>
-#include <xgboost/metric.h>
 #include <dmlc/registry.h>
-#include <cmath>
+#include <xgboost/metric.h>
 
+#include <cmath>
 #include <vector>
 
-#include "xgboost/host_device_vector.h"
+#include "../collective/communicator-inl.h"
 #include "../common/math.h"
 #include "../common/threading_utils.h"
 #include "metric_common.h"
+#include "xgboost/host_device_vector.h"
 
 namespace {
 
@@ -103,7 +103,7 @@ struct EvalAMS : public Metric {
   }
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    CHECK(!rabit::IsDistributed()) << "metric AMS do not support distributed evaluation";
+    CHECK(!collective::IsDistributed()) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());
@@ -216,10 +216,10 @@ struct EvalRank : public Metric, public EvalRankConfig {
       exc.Rethrow();
     }
 
-    if (rabit::IsDistributed()) {
+    if (collective::IsDistributed()) {
       double dat[2]{sum_metric, static_cast<double>(ngroups)};
       // approximately estimate the metric using mean
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+      collective::Allreduce<collective::Operation::kSum>(dat, 2);
       return dat[0] / dat[1];
     } else {
       return sum_metric / ngroups;
@@ -341,7 +341,7 @@ struct EvalCox : public Metric {
  public:
   EvalCox() = default;
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    CHECK(!rabit::IsDistributed()) << "Cox metric does not support distributed evaluation";
+    CHECK(!collective::IsDistributed()) << "Cox metric does not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels.Size());

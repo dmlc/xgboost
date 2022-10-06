@@ -149,7 +149,7 @@ then
     # Pull pre-build container from Docker build cache,
     # if one exists for the particular branch or pull request
     echo "docker pull --quiet ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
-    if docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    if time docker pull --quiet "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     then
       CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     else

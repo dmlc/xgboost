@@ -300,7 +300,7 @@ public class DMatrixTest {
   public void testTrainWithDenseMatrixRef() throws XGBoostError {
     Map<String, String> rabitEnv = new HashMap<>();
     rabitEnv.put("DMLC_TASK_ID", "0");
-    Rabit.init(rabitEnv);
+    Communicator.init(rabitEnv);
     DMatrix trainMat = null;
     BigDenseMatrix data0 = null;
     try {
@@ -348,7 +348,7 @@ public class DMatrixTest {
       else if (data0 != null) {
         data0.dispose();
       }
-      Rabit.shutdown();
+      Communicator.shutdown();
     }
   }
 

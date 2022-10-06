@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include "collective/communicator-inl.h"
 #include "common/common.h"
 #include "common/config.h"
 #include "common/io.h"
@@ -156,7 +157,7 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
     if (name_pred == "stdout") {
       save_period = 0;
     }
-    if (dsplit == 0 && rabit::IsDistributed()) {
+    if (dsplit == 0 && collective::IsDistributed()) {
       dsplit = 2;
     }
   }
@@ -186,26 +187,22 @@ class CLI {
     kHelp
   } print_info_ {kNone};
 
-  int ResetLearner(std::vector<std::shared_ptr<DMatrix>> const &matrices) {
+  void ResetLearner(std::vector<std::shared_ptr<DMatrix>> const &matrices) {
     learner_.reset(Learner::Create(matrices));
-    int version = rabit::LoadCheckPoint();
-    if (version == 0) {
-      if (param_.model_in != CLIParam::kNull) {
-        this->LoadModel(param_.model_in, learner_.get());
-        learner_->SetParams(param_.cfg);
-      } else {
-        learner_->SetParams(param_.cfg);
-      }
+    if (param_.model_in != CLIParam::kNull) {
+      this->LoadModel(param_.model_in, learner_.get());
+      learner_->SetParams(param_.cfg);
+    } else {
+      learner_->SetParams(param_.cfg);
     }
     learner_->Configure();
-    return version;
   }
 
   void CLITrain() {
     const double tstart_data_load = dmlc::GetTime();
-    if (rabit::IsDistributed()) {
-      std::string pname = rabit::GetProcessorName();
-      LOG(CONSOLE) << "start " << pname << ":" << rabit::GetRank();
+    if (collective::IsDistributed()) {
+      std::string pname = collective::GetProcessorName();
+      LOG(CONSOLE) << "start " << pname << ":" << collective::GetRank();
     }
     // load in data.
     std::shared_ptr<DMatrix> dtrain(DMatrix::Load(
@@ -230,48 +227,45 @@ class CLI {
       eval_data_names.emplace_back("train");
     }
     // initialize the learner.
-    int32_t version = this->ResetLearner(cache_mats);
+    this->ResetLearner(cache_mats);
     LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load
               << " sec";
 
     // start training.
     const double start = dmlc::GetTime();
+    int32_t version = 0;
     for (int i = version / 2; i < param_.num_round; ++i) {
       double elapsed = dmlc::GetTime() - start;
       if (version % 2 == 0) {
         LOG(INFO) << "boosting round " << i << ", " << elapsed
                   << " sec elapsed";
         learner_->UpdateOneIter(i, dtrain);
-        rabit::CheckPoint();
         version += 1;
       }
-      CHECK_EQ(version, rabit::VersionNumber());
       std::string res = learner_->EvalOneIter(i, eval_datasets, eval_data_names);
-      if (rabit::IsDistributed()) {
-        if (rabit::GetRank() == 0) {
+      if (collective::IsDistributed()) {
+        if (collective::GetRank() == 0) {
           LOG(TRACKER) << res;
         }
       } else {
         LOG(CONSOLE) << res;
       }
       if (param_.save_period != 0 && (i + 1) % param_.save_period == 0 &&
-          rabit::GetRank() == 0) {
+          collective::GetRank() == 0) {
         std::ostringstream os;
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
            << i + 1 << ".model";
         this->SaveModel(os.str(), learner_.get());
       }
 
-      rabit::CheckPoint();
       version += 1;
-      CHECK_EQ(version, rabit::VersionNumber());
     }
     LOG(INFO) << "Complete Training loop time: " << dmlc::GetTime() - start
               << " sec";
     // always save final round
     if ((param_.save_period == 0 ||
          param_.num_round % param_.save_period != 0) &&
-        rabit::GetRank() == 0) {
+         collective::GetRank() == 0) {
       std::ostringstream os;
       if (param_.model_out == CLIParam::kNull) {
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
@@ -467,7 +461,6 @@ class CLI {
       return;
     }
 
-    rabit::Init(argc, argv);
     std::string config_path = argv[1];
 
     common::ConfigParser cp(config_path);
@@ -479,6 +472,13 @@ class CLI {
         cfg.emplace_back(std::string(name), std::string(val));
       }
     }
+
+    // Initialize the collective communicator.
+    Json json{JsonObject()};
+    for (auto& kv : cfg) {
+      json[kv.first] = String(kv.second);
+    }
+    collective::Init(json);
 
     param_.Configure(cfg);
   }
@@ -517,7 +517,7 @@ class CLI {
   }
 
   ~CLI() {
-    rabit::Finalize();
+    collective::Finalize();
   }
 };
 }  // namespace xgboost

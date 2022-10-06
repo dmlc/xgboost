@@ -14,7 +14,6 @@
 #include <map>
 #include <memory>
 
-#include "rabit/rabit.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 

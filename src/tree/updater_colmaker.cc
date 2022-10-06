@@ -4,8 +4,6 @@
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
  */
-#include <rabit/rabit.h>
-#include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -100,7 +98,7 @@ class ColMaker: public TreeUpdater {
   void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
-    if (rabit::IsDistributed()) {
+    if (collective::IsDistributed()) {
       LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
                     "support distributed training.";
     }

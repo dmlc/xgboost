@@ -4,6 +4,7 @@
 #include "communicator.h"
 #include "device_communicator.cuh"
 #include "device_communicator_adapter.cuh"
+#include "noop_communicator.h"
 #ifdef XGBOOST_USE_NCCL
 #include "nccl_device_communicator.cuh"
 #endif
@@ -16,7 +17,7 @@ thread_local std::unique_ptr<DeviceCommunicator> Communicator::device_communicat
 
 void Communicator::Finalize() {
   communicator_->Shutdown();
-  communicator_.reset(nullptr);
+  communicator_.reset(new NoOpCommunicator());
   device_ordinal_ = -1;
   device_communicator_.reset(nullptr);
 }
