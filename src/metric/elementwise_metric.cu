@@ -7,11 +7,11 @@
  *  The expressions like wsum == 0 ? esum : esum / wsum is used to handle empty dataset.
  */
 #include <dmlc/registry.h>
-#include <rabit/rabit.h>
 #include <xgboost/metric.h>
 
 #include <cmath>
 
+#include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/pseudo_huber.h"
@@ -196,8 +196,8 @@ class PseudoErrorLoss : public Metric {
           return std::make_tuple(v, wt);
         });
     double dat[2]{result.Residue(), result.Weights()};
-    if (rabit::IsDistributed()) {
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    if (collective::IsDistributed()) {
+      collective::Allreduce<collective::Operation::kSum>(dat, 2);
     }
     return EvalRowMAPE::GetFinal(dat[0], dat[1]);
   }
@@ -365,7 +365,7 @@ struct EvalEWiseBase : public Metric {
         });
 
     double dat[2]{result.Residue(), result.Weights()};
-    rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    collective::Allreduce<collective::Operation::kSum>(dat, 2);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 

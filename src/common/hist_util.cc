@@ -3,19 +3,14 @@
  * \file hist_util.cc
  */
 #include <dmlc/timer.h>
-#include <dmlc/omp.h>
 
-#include <rabit/rabit.h>
-#include <numeric>
 #include <vector>
 
 #include "xgboost/base.h"
 #include "../common/common.h"
 #include "hist_util.h"
-#include "random.h"
 #include "column_matrix.h"
 #include "quantile.h"
-#include "../data/gradient_index.h"
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>

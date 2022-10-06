@@ -11,6 +11,7 @@
 
 #include <algorithm>  // std::max
 
+#include "../collective/communicator-inl.h"
 #include "../common/math.h"                // CloseTo
 #include "../common/numeric.h"             // cpu_impl::Reduce
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
@@ -39,8 +40,9 @@ double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair)
 
 void NormalizeBaseScore(double w, linalg::TensorView<float, 1> in_out) {
   // Weighted average base score across all workers
-  rabit::Allreduce<rabit::op::Sum>(in_out.Values().data(), in_out.Values().size());
-  rabit::Allreduce<rabit::op::Sum>(&w, 1);
+  collective::Allreduce<collective::Operation::kSum>(in_out.Values().data(),
+                                                     in_out.Values().size());
+  collective::Allreduce<collective::Operation::kSum>(&w, 1);
 
   if (common::CloseTo(w, 0.0)) {
     // Mostly for handling empty dataset test.
