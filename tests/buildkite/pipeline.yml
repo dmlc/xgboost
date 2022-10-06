@@ -2,12 +2,6 @@ env:
   DOCKER_CACHE_ECR_ID: "492475357299"
   DOCKER_CACHE_ECR_REGION: "us-west-2"
 steps:
-  - label: ":console: Run clang-tidy"
-    command: "tests/buildkite/run-clang-tidy.sh"
-    key: run-clang-tidy
-    agents:
-      queue: linux-amd64-cpu
-  - wait
   - label: ":moneybag: Enforce daily budget"
     command: "tests/buildkite/enforce_daily_budget.sh"
     key: enforce-daily-budget
@@ -17,6 +11,12 @@ steps:
   - block: ":rocket: Run this test job"
     if: build.pull_request.repository.fork == true
   #### -------- BUILD --------
+  - label: ":console: Run clang-tidy"
+    command: "tests/buildkite/run-clang-tidy.sh"
+    key: run-clang-tidy
+    agents:
+      queue: linux-amd64-cpu
+  - wait
   - label: ":console: Build CPU"
     command: "tests/buildkite/build-cpu.sh"
     key: build-cpu
