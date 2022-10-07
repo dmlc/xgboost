@@ -49,8 +49,10 @@ class HistogramBuilder {
              int32_t n_threads, size_t n_batches, bool is_distributed) {
     CHECK_GE(n_threads, 1);
     n_threads_ = n_threads;
+    column_sampler_ = column_sampler;
     n_batches_ = n_batches;
     param_ = p;
+    train_param_ = train_param;
     hist_.Init(total_bins);
     hist_local_worker_.Init(total_bins);
     buffer_.Init(total_bins);
