@@ -17,7 +17,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
     CHECK_LE(gmat.cut.Ptrs()[fid + 1] - gmat.cut.Ptrs()[fid], max_val);
   }
 
-  bool all_dense_column = true;
+  all_dense_column_ = true;
 
   std::vector<size_t> feature_counts(nfeature, 0);
   gmat.GetFeatureCounts(feature_counts.data());
@@ -26,7 +26,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
   for (bst_feature_t fid = 0; fid < nfeature; ++fid) {
     if (static_cast<double>(feature_counts[fid]) < sparse_threshold * nrow) {
       type_[fid] = kSparseColumn;
-      all_dense_column = false;
+      all_dense_column_ = false;
     } else {
       type_[fid] = kDenseColumn;
     }
@@ -50,7 +50,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
   auto storage_size =
       feature_offsets_.back() * static_cast<std::underlying_type_t<BinTypeSize>>(bins_type_size_);
   index_.resize(storage_size, 0);
-  if (!all_dense_column) {
+  if (!all_dense_column_) {
     row_ind_.resize(feature_offsets_[nfeature]);
   }
 

@@ -12,7 +12,7 @@
 
 namespace xgboost {
 namespace tree {
-void TestEvaluateSplits(bool force_read_by_column) {
+void TestEvaluateSplits(bool force_read_by_column, bool force_column_sampling) {
   int static constexpr kRows = 8, kCols = 16;
   auto orig = omp_get_max_threads();
   int32_t n_threads = std::min(omp_get_max_threads(), 4);
@@ -43,8 +43,13 @@ void TestEvaluateSplits(bool force_read_by_column) {
   hist.Init(gmat.cut.Ptrs().back());
   hist.AddHistRow(0);
   hist.AllocateAllData();
+  std::vector<int> fids;
+  if (force_column_sampling) {
+    fids.resize(gmat.cut.Ptrs().size() - 1);
+    std::iota(fids.begin(), fids.end(), 0);
+  }
   hist_builder.template BuildHist<false>(row_gpairs, row_set_collection[0],
-                                         gmat, hist[0], force_read_by_column);
+                                         gmat, hist[0], fids, force_read_by_column);
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;
@@ -85,8 +90,9 @@ void TestEvaluateSplits(bool force_read_by_column) {
 }
 
 TEST(HistEvaluator, Evaluate) {
-  TestEvaluateSplits(false);
-  TestEvaluateSplits(true);
+  TestEvaluateSplits(false, false);
+  TestEvaluateSplits(false, true);
+  TestEvaluateSplits(true, false);
 }
 
 TEST(HistEvaluator, Apply) {
