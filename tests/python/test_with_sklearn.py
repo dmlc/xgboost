@@ -12,7 +12,7 @@ import json
 
 rng = np.random.RandomState(1994)
 
-pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), pytest.mark.timeout(10)]
+pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), pytest.mark.timeout(20)]
 
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
