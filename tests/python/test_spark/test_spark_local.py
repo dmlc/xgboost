@@ -16,16 +16,12 @@ if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from pyspark.ml import Pipeline, PipelineModel
-from pyspark.ml.evaluation import (
-    BinaryClassificationEvaluator,
-)
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import functions as spark_sql_func
-
-from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
@@ -34,6 +30,8 @@ from xgboost.spark import (
     SparkXGBRegressorModel,
 )
 from xgboost.spark.core import _non_booster_params
+
+from xgboost import XGBClassifier, XGBModel, XGBRegressor
 
 from .utils import SparkTestCase
 

@@ -15,7 +15,6 @@ if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from pyspark.sql import SparkSession, SQLContext
-
 from xgboost.spark.utils import _get_default_params_from_func
 
 
