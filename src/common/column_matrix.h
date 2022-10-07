@@ -335,8 +335,6 @@ class ColumnMatrix {
   // And this returns part of state
   bool AnyMissing() const { return any_missing_; }
 
-  bool AllDenseColumn() const {return all_dense_column_;}
-
   // IO procedures for external memory.
   bool Read(dmlc::SeekStream* fi, uint32_t const* index_base) {
     fi->Read(&index_);
@@ -418,7 +416,6 @@ class ColumnMatrix {
   std::vector<bool> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;
-  bool all_dense_column_;
 };
 }  // namespace common
 }  // namespace xgboost
