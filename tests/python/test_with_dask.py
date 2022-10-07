@@ -524,8 +524,8 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
 
 
 def test_inplace_predict(client: "Client") -> None:
-    from sklearn.datasets import load_boston
-    X_, y_ = load_boston(return_X_y=True)
+    from sklearn.datasets import load_diabetes
+    X_, y_ = load_diabetes(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=32), dd.from_array(y_, chunksize=32)
     reg = xgb.dask.DaskXGBRegressor(n_estimators=4).fit(X, y)
     booster = reg.get_booster()
@@ -1775,8 +1775,8 @@ class TestWithDask:
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
     def test_shap(self, client: "Client") -> None:
-        from sklearn.datasets import load_boston, load_iris
-        X, y = load_boston(return_X_y=True)
+        from sklearn.datasets import load_diabetes, load_iris
+        X, y = load_diabetes(return_X_y=True)
         params: Dict[str, Any] = {'objective': 'reg:squarederror'}
         self.run_shap(X, y, params, client)
 
@@ -1820,8 +1820,8 @@ class TestWithDask:
                            1e-5, 1e-5)
 
     def test_shap_interactions(self, client: "Client") -> None:
-        from sklearn.datasets import load_boston
-        X, y = load_boston(return_X_y=True)
+        from sklearn.datasets import load_diabetes
+        X, y = load_diabetes(return_X_y=True)
         params = {'objective': 'reg:squarederror'}
         self.run_shap_interactions(X, y, params, client)
 

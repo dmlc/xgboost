@@ -328,10 +328,10 @@ def test_select_feature():
 
 
 def test_num_parallel_tree():
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
 
     reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4, tree_method="hist")
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     bst = reg.fit(X=X, y=y)
     dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 16
@@ -352,12 +352,12 @@ def test_num_parallel_tree():
     )
 
 
-def test_housing_regression():
+def test_regression():
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
     from sklearn.model_selection import KFold
 
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor().fit(X[train_index], y[train_index])
@@ -383,10 +383,10 @@ def test_housing_regression():
 
 def run_housing_rf_regression(tree_method):
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
     from sklearn.model_selection import KFold
 
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRFRegressor(random_state=42, tree_method=tree_method).fit(
@@ -401,15 +401,15 @@ def run_housing_rf_regression(tree_method):
         rfreg.fit(X, y, early_stopping_rounds=10)
 
 
-def test_housing_rf_regression():
+def test_rf_regression():
     run_housing_rf_regression("hist")
 
 
 def test_parameter_tuning():
     from sklearn.model_selection import GridSearchCV
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
 
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4],
                                    'n_estimators': [50, 200]},
@@ -421,7 +421,7 @@ def test_parameter_tuning():
 
 def test_regression_with_custom_objective():
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
     from sklearn.model_selection import KFold
 
     def objective_ls(y_true, y_pred):
@@ -429,7 +429,7 @@ def test_regression_with_custom_objective():
         hess = np.ones(len(y_true))
         return grad, hess
 
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor(objective=objective_ls).fit(
@@ -840,13 +840,13 @@ def test_save_load_model():
 
 
 def test_RFECV():
-    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_diabetes
     from sklearn.datasets import load_breast_cancer
     from sklearn.datasets import load_iris
     from sklearn.feature_selection import RFECV
 
     # Regression
-    X, y = load_boston(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     bst = xgb.XGBRegressor(booster='gblinear', learning_rate=0.1,
                            n_estimators=10,
                            objective='reg:squarederror',
