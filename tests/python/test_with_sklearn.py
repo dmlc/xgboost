@@ -12,7 +12,7 @@ import json
 
 rng = np.random.RandomState(1994)
 
-pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), pytest.mark.timeout(20)]
+pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), pytest.mark.timeout(30)]
 
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
@@ -354,10 +354,10 @@ def test_num_parallel_tree():
 
 def test_regression():
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_diabetes
+    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
 
-    X, y = load_diabetes(return_X_y=True)
+    X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor().fit(X[train_index], y[train_index])
@@ -383,10 +383,10 @@ def test_regression():
 
 def run_housing_rf_regression(tree_method):
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_diabetes
+    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
 
-    X, y = load_diabetes(return_X_y=True)
+    X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRFRegressor(random_state=42, tree_method=tree_method).fit(
@@ -407,13 +407,13 @@ def test_rf_regression():
 
 def test_parameter_tuning():
     from sklearn.model_selection import GridSearchCV
-    from sklearn.datasets import load_diabetes
+    from sklearn.datasets import fetch_california_housing
 
-    X, y = load_diabetes(return_X_y=True)
+    X, y = fetch_california_housing(return_X_y=True)
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4],
                                    'n_estimators': [50, 200]},
-                       cv=3, verbose=1)
+                       cv=2, verbose=1)
     clf.fit(X, y)
     assert clf.best_score_ < 0.7
     assert clf.best_params_ == {'n_estimators': 200, 'max_depth': 4}
@@ -421,7 +421,7 @@ def test_parameter_tuning():
 
 def test_regression_with_custom_objective():
     from sklearn.metrics import mean_squared_error
-    from sklearn.datasets import load_diabetes
+    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
 
     def objective_ls(y_true, y_pred):
@@ -429,7 +429,7 @@ def test_regression_with_custom_objective():
         hess = np.ones(len(y_true))
         return grad, hess
 
-    X, y = load_diabetes(return_X_y=True)
+    X, y = fetch_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor(objective=objective_ls).fit(
