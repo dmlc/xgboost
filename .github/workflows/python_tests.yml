@@ -175,7 +175,7 @@ jobs:
         cd python-package
         python --version
         python setup.py bdist_wheel --universal
-        python ../tests/ci_build/rename_whl.py ./dist/*.whl $GITHUB_SHA $wheel_tag
+        python ../tests/ci_build/rename_whl.py ./dist/*.whl ${{ github.sha }} $wheel_tag
         pip install ./dist/*.whl
 
     - name: Test Python package
