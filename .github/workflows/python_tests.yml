@@ -63,8 +63,9 @@ jobs:
         sudo apt-get install -y --no-install-recommends ninja-build
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
+        miniforge-variant: Mambaforge
+        use-mamba: true
         activate-environment: test
     - name: Display Conda env
       shell: bash -l {0}
@@ -96,8 +97,9 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
+        miniforge-variant: Mambaforge
+        use-mamba: true
         activate-environment: win64_env
         environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
 
@@ -146,8 +148,9 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
+        miniforge-variant: Mambaforge
+        use-mamba: true
         activate-environment: macos_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
