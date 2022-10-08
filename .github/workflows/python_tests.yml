@@ -19,11 +19,9 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-        mamba-version: "*"
-        channels: conda-forge
-        channel-priority: true
+        miniforge-variant: Mambaforge
+        use-mamba: true
         activate-environment: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
     - name: Display Conda env
