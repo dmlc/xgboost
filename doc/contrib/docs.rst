@@ -11,7 +11,7 @@ Documentation and Examples
 *********
 Documents
 *********
-* Documentation is built using `Sphinx <http://www.sphinx-doc.org/en/master/>`_.
+* Python and C documentation is built using `Sphinx <http://www.sphinx-doc.org/en/master/>`_.
 * Each document is written in `reStructuredText <http://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_.
 * You can build document locally to see the effect, by running
 

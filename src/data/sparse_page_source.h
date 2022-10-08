@@ -14,7 +14,6 @@
 #include <map>
 #include <memory>
 
-#include "rabit/rabit.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
@@ -210,9 +209,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
 #if defined(XGBOOST_USE_CUDA)
 void DevicePush(DMatrixProxy* proxy, float missing, SparsePage* page);
 #else
-inline void DevicePush(DMatrixProxy* proxy, float missing, SparsePage* page) {
-  common::AssertGPUSupport();
-}
+inline void DevicePush(DMatrixProxy*, float, SparsePage*) { common::AssertGPUSupport(); }
 #endif
 
 class SparsePageSource : public SparsePageSourceImpl<SparsePage> {

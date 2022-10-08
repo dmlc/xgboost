@@ -13,7 +13,7 @@ import pickle
 from typing import Callable, List, Optional, Union, Dict, Tuple, TypeVar, cast, Sequence, Any
 import numpy
 
-from . import rabit
+from . import collective
 from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
 
 
@@ -100,7 +100,7 @@ def _allreduce_metric(score: _ART) -> _ART:
     as final result.
 
     '''
-    world = rabit.get_world_size()
+    world = collective.get_world_size()
     assert world != 0
     if world == 1:
         return score
@@ -108,7 +108,7 @@ def _allreduce_metric(score: _ART) -> _ART:
         raise ValueError(
             'xgboost.cv function should not be used in distributed environment.')
     arr = numpy.array([score])
-    arr = rabit.allreduce(arr, rabit.Op.SUM) / world
+    arr = collective.allreduce(arr, collective.Op.SUM) / world
     return arr[0]
 
 
@@ -485,7 +485,7 @@ class EvaluationMonitor(TrainingCallback):
             return False
 
         msg: str = f'[{epoch}]'
-        if rabit.get_rank() == self.printer_rank:
+        if collective.get_rank() == self.printer_rank:
             for data, metric in evals_log.items():
                 for metric_name, log in metric.items():
                     stdv: Optional[float] = None
@@ -498,7 +498,7 @@ class EvaluationMonitor(TrainingCallback):
             msg += '\n'
 
             if (epoch % self.period) == 0 or self.period == 1:
-                rabit.tracker_print(msg)
+                collective.communicator_print(msg)
                 self._latest = None
             else:
                 # There is skipped message
@@ -506,8 +506,8 @@ class EvaluationMonitor(TrainingCallback):
         return False
 
     def after_training(self, model: _Model) -> _Model:
-        if rabit.get_rank() == self.printer_rank and self._latest is not None:
-            rabit.tracker_print(self._latest)
+        if collective.get_rank() == self.printer_rank and self._latest is not None:
+            collective.communicator_print(self._latest)
         return model
 
 
@@ -552,7 +552,7 @@ class TrainingCheckPoint(TrainingCallback):
             path = os.path.join(self._path, self._name + '_' + str(epoch) +
                                 ('.pkl' if self._as_pickle else '.json'))
             self._epoch = 0
-            if rabit.get_rank() == 0:
+            if collective.get_rank() == 0:
                 if self._as_pickle:
                     with open(path, 'wb') as fd:
                         pickle.dump(model, fd)

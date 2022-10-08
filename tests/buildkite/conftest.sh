@@ -1,7 +1,38 @@
 #!/bin/bash
 
 set -euo pipefail
+
+function get_aws_secret {
+  if [[ $# -ne 1 ]]
+  then
+    echo "Usage: get_aws_secret [Name of secret]"
+    return 1
+  fi
+  aws secretsmanager get-secret-value --secret-id $1 --output text --region us-west-2 --query SecretString
+}
+
+function set_buildkite_env_vars_in_container {
+  # Pass all Buildkite-specific env vars to Docker containers.
+  # This is to be used with tests/ci_build/ci_build.sh
+  export CI_DOCKER_EXTRA_PARAMS_INIT="${CI_DOCKER_EXTRA_PARAMS_INIT:-} "`
+    `"--env BUILDKITE_ANALYTICS_TOKEN --env BUILDKITE_BUILD_ID --env BUILDKITE_BUILD_NUMBER "`
+    `"--env BUILDKITE_JOB_ID --env BUILDKITE_BRANCH --env BUILDKITE_COMMIT "`
+    `"--env BUILDKITE_MESSAGE --env BUILDKITE_BUILD_URL"
+}
+
 set -x
+
+CUDA_VERSION=11.0.3
+RAPIDS_VERSION=22.10
+SPARK_VERSION=3.0.1
+JDK_VERSION=8
+
+if [[ -z ${BUILDKITE:-} ]]
+then
+  echo "$0 is not meant to run locally; it should run inside BuildKite."
+  echo "Please inspect the content of $0 and locate the desired command manually."
+  exit 1
+fi
 
 if [[ -n $BUILDKITE_PULL_REQUEST && $BUILDKITE_PULL_REQUEST != "false" ]]
 then
@@ -12,15 +43,17 @@ else
   export BRANCH_NAME=$BUILDKITE_BRANCH
 fi
 
-if [[ -z ${DISABLE_RELEASE:-} ]]
+if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
 then
-  if [[ $BUILDKITE_BRANCH == "master" || $BUILDKITE_BRANCH == "release_"* ]]
-  then
-    is_release_branch=1
-  else
-    is_release_branch=0
-  fi
+  is_release_branch=1
+  enforce_daily_budget=0
 else
+  is_release_branch=0
+  enforce_daily_budget=1
+fi
+
+if [[ -n ${DISABLE_RELEASE:-} ]]
+then
   is_release_branch=0
 fi
 

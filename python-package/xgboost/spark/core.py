@@ -2,6 +2,7 @@
 """Xgboost pyspark integration submodule for core code."""
 # pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
 # pylint: disable=too-few-public-methods, too-many-lines
+import json
 from typing import Iterator, Optional, Tuple
 
 import numpy as np
@@ -57,7 +58,7 @@ from .params import (
     HasQueryIdCol,
 )
 from .utils import (
-    RabitContext,
+    CommunicatorContext,
     _get_args_from_message_list,
     _get_default_params_from_func,
     _get_gpu_id,
@@ -760,19 +761,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             gpu_id = None
 
-            if use_qdm:
-                # max_bin is needed for qdm
-                if (
-                    features_cols_names is not None
-                    and booster_params.get("max_bin", None) is not None
-                ):
-                    dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
+            if use_qdm and (booster_params.get("max_bin", None) is not None):
+                dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
             if use_gpu:
                 gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
                 booster_params["gpu_id"] = gpu_id
 
-            _rabit_args = ""
+            _rabit_args = {}
             if context.partitionId() == 0:
                 get_logger("XGBoostPySpark").info(
                     "booster params: %s\n"
@@ -783,13 +779,12 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     dmatrix_kwargs,
                 )
 
-                _rabit_args = str(_get_rabit_args(context, num_workers))
+                _rabit_args = _get_rabit_args(context, num_workers)
 
-            messages = context.allGather(message=str(_rabit_args))
+            messages = context.allGather(message=json.dumps(_rabit_args))
             _rabit_args = _get_args_from_message_list(messages)
             evals_result = {}
-
-            with RabitContext(_rabit_args, context):
+            with CommunicatorContext(context, **_rabit_args):
                 dtrain, dvalid = create_dmatrix_from_partitions(
                     pandas_df_iter,
                     features_cols_names,

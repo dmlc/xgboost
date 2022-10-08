@@ -254,16 +254,16 @@ public class XGBoost {
         }
         if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
           if (shouldPrint(params, iter)) {
-            Rabit.trackerPrint(String.format(
+            Communicator.communicatorPrint(String.format(
                 "early stopping after %d rounds away from the best iteration",
                 earlyStoppingRounds
             ));
           }
           break;
         }
-        if (Rabit.getRank() == 0 && shouldPrint(params, iter)) {
+        if (Communicator.getRank() == 0 && shouldPrint(params, iter)) {
           if (shouldPrint(params, iter)){
-            Rabit.trackerPrint(evalInfo + '\n');
+            Communicator.communicatorPrint(evalInfo + '\n');
           }
         }
       }

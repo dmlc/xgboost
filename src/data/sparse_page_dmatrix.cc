@@ -5,6 +5,8 @@
  * \author Tianqi Chen
  */
 #include "./sparse_page_dmatrix.h"
+
+#include "../collective/communicator-inl.h"
 #include "./simple_batch_iterator.h"
 #include "gradient_index.h"
 
@@ -46,8 +48,8 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
       cache_prefix_{std::move(cache_prefix)} {
   ctx_.nthread = nthreads;
   cache_prefix_ = cache_prefix_.empty() ? "DMatrix" : cache_prefix_;
-  if (rabit::IsDistributed()) {
-    cache_prefix_ += ("-r" + std::to_string(rabit::GetRank()));
+  if (collective::IsDistributed()) {
+    cache_prefix_ += ("-r" + std::to_string(collective::GetRank()));
   }
   DMatrixProxy *proxy = MakeProxy(proxy_);
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
@@ -94,7 +96,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   this->info_.num_col_ = n_features;
   this->info_.num_nonzero_ = nnz;
 
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
   CHECK_NE(info_.num_col_, 0);
 }
 
