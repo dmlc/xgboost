@@ -370,9 +370,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications>`_.
   - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications>`_.
 
-* ``base_score`` [default=0.5]
+* ``base_score``
 
   - The initial prediction score of all instances, global bias
+  - The parameter is automatically estimated for selected objectives before training. To
+    disable the estimation, specify a real number argument.
   - For sufficient number of iterations, changing this value will not have too much effect.
 
 * ``eval_metric`` [default according to objective]
