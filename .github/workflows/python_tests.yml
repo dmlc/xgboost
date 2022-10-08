@@ -21,6 +21,9 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
+        mamba-version: "*"
+        channels: conda-forge
+        channel-priority: true
         activate-environment: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
     - name: Display Conda env
