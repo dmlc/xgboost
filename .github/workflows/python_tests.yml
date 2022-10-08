@@ -178,9 +178,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py bdist_wheel --universal
-        python ../tests/ci_build/rename_whl.py ./dist/*.whl ${{ github.sha }} $wheel_tag
-        pip install ./dist/*.whl
+        python setup.py install
 
     - name: Test Python package
       shell: bash -l {0}
