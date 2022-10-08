@@ -80,9 +80,8 @@ jobs:
         sudo apt-get install -y --no-install-recommends ninja-build
     - uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-        miniforge-variant: Mambaforge
-        use-mamba: true
         activate-environment: test
     - name: Display Conda env
       shell: bash -l {0}

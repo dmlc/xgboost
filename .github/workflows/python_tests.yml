@@ -19,9 +19,8 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-        miniforge-variant: Mambaforge
-        use-mamba: true
         activate-environment: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
     - name: Display Conda env
@@ -63,9 +62,8 @@ jobs:
         sudo apt-get install -y --no-install-recommends ninja-build
     - uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-        miniforge-variant: Mambaforge
-        use-mamba: true
         activate-environment: test
     - name: Display Conda env
       shell: bash -l {0}
@@ -97,9 +95,8 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
-        miniforge-variant: Mambaforge
-        use-mamba: true
         activate-environment: win64_env
         environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
 
@@ -138,8 +135,6 @@ jobs:
       matrix:
         config:
           - {os: macos-11, python-version "3.8" }
-    env:
-      wheel_tag: macosx_11_0_x86_64
 
     steps:
     - uses: actions/checkout@v2
@@ -148,9 +143,8 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
-        miniforge-variant: Mambaforge
-        use-mamba: true
         activate-environment: macos_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
