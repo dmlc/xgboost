@@ -319,4 +319,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     else:
         dvalid = None
 
+    if dvalid is not None:
+        assert dvalid.num_col() == dtrain.num_col()
+
     return dtrain, dvalid
