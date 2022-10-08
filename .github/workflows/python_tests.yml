@@ -136,7 +136,7 @@ jobs:
         config:
           - {os: macos-11, python-version "3.8" }
     env:
-      MACOSX_DEPLOYMENT_TARGET: 11.0
+      wheel_tag: macosx_11_0_x86_64
 
     steps:
     - uses: actions/checkout@v2
@@ -175,6 +175,7 @@ jobs:
         cd python-package
         python --version
         python setup.py bdist_wheel --universal
+        python ../tests/ci_build/rename_whl.py ./dist/*.whl $GITHUB_SHA $wheel_tag
         pip install ./dist/*.whl
 
     - name: Test Python package
