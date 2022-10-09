@@ -1656,13 +1656,17 @@ class TestWithDask:
 
             results_custom = reg.evals_result()
 
-            reg = xgb.dask.DaskXGBRegressor(n_estimators=rounds, tree_method='hist')
+            reg = xgb.dask.DaskXGBRegressor(
+                n_estimators=rounds, tree_method="hist", base_score=0.5
+            )
             reg.fit(X, y, eval_set=[(X, y)])
             results_native = reg.evals_result()
 
-            np.testing.assert_allclose(results_custom['validation_0']['rmse'],
-                                       results_native['validation_0']['rmse'])
-            tm.non_increasing(results_native['validation_0']['rmse'])
+            np.testing.assert_allclose(
+                results_custom["validation_0"]["rmse"],
+                results_native["validation_0"]["rmse"],
+            )
+            tm.non_increasing(results_native["validation_0"]["rmse"])
 
     def test_no_duplicated_partition(self) -> None:
         '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
