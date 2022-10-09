@@ -54,7 +54,7 @@ TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(std::thread([rank] {
       FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
-      DeviceCommunicatorAdapter adapter{rank, &comm};
+      DeviceCommunicatorAdapter adapter{0, &comm};
       int const count = 3;
       thrust::device_vector<double> buffer(count, 0);
       thrust::sequence(buffer.begin(), buffer.end());
@@ -76,7 +76,7 @@ TEST_F(FederatedAdapterTest, DeviceAllGatherV) {
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(std::thread([rank] {
       FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
-      DeviceCommunicatorAdapter adapter{rank, &comm};
+      DeviceCommunicatorAdapter adapter{0, &comm};
 
       int const count = rank + 2;
       thrust::device_vector<char> buffer(count, 0);
