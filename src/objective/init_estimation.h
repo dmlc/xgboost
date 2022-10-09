@@ -8,8 +8,9 @@
 #define XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_
 
 #include "../common/common.h"            // AssertGPUSupport
-#include "xgboost/data.h"                // MetaInfo
+#include "xgboost/base.h"                // GradientPair
 #include "xgboost/generic_parameters.h"  // Context
+#include "xgboost/host_device_vector.h"  // HostDeviceVector
 #include "xgboost/linalg.h"              // TensorView
 
 namespace xgboost {
