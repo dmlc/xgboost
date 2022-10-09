@@ -1,16 +1,29 @@
 # Download and build gRPC
-include(FetchContent)
-FetchContent_Declare(
-    grpc
-    GIT_REPOSITORY  https://github.com/grpc/grpc.git
-    GIT_TAG         v1.49.1
-)
-set(FETCHCONTENT_QUIET OFF)
-FetchContent_MakeAvailable(grpc)
-set(_PROTOBUF_LIBPROTOBUF libprotobuf)
-set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
-set(_GRPC_GRPCPP grpc++)
-set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
+if (USE_GRPC_FROM_SYSTEM)
+  message(STATUS "Attempting to locate gRPC installation from the system...")
+  set(protobuf_MODULE_COMPATIBLE TRUE)
+  find_package(Protobuf CONFIG REQUIRED)
+  find_package(gRPC CONFIG REQUIRED)
+  message(STATUS "Found gRPC: ${gRPC_CONFIG}")
+  set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
+  set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
+  set(_GRPC_GRPCPP gRPC::grpc++)
+  set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
+else ()
+  message(STATUS "Downloading gRPC source from GitHub...")
+  include(FetchContent)
+  FetchContent_Declare(
+      grpc
+      GIT_REPOSITORY  https://github.com/grpc/grpc.git
+      GIT_TAG         v1.49.1
+  )
+  set(FETCHCONTENT_QUIET OFF)
+  FetchContent_MakeAvailable(grpc)
+  set(_PROTOBUF_LIBPROTOBUF libprotobuf)
+  set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
+  set(_GRPC_GRPCPP grpc++)
+  set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
+endif ()
 
 # Proto file
 get_filename_component(federated_proto "federated.proto" ABSOLUTE)
