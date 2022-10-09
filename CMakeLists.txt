@@ -128,6 +128,9 @@ if (PLUGIN_FEDERATED)
   if (R_LIB OR JVM_BINDINGS)
     message(SEND_ERROR "Cannot enable federated learning support when R or JVM packages are enabled.")
   endif ()
+  if (WIN32)
+    message(SEND_ERROR "Federated learning not supported for Windows platform")
+  endif ()
 endif ()
 
 #-- Sanitizer
