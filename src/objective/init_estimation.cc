@@ -10,14 +10,15 @@
 #include "init_estimation.h"
 
 #include <algorithm>  // std::max
+#include <cinttypes>  // std::uint64_t
 
 #include "../collective/communicator-inl.h"
 #include "../common/linalg_op.h"           // cbegin, cend
 #include "../common/math.h"                // CloseTo
 #include "../common/numeric.h"             // cpu_impl::Reduce
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
-#include "xgboost/linalg.h"     // TensorView
-#include "xgboost/objective.h"  // ObjFunction
+#include "xgboost/linalg.h"                // TensorView
+#include "xgboost/objective.h"             // ObjFunction
 
 namespace xgboost {
 namespace obj {
@@ -30,6 +31,21 @@ double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair)
   });
   auto sum = common::cpu_impl::Reduce(ctx, it, it + gpair.Size(), GradientPairPrecise{});
   return -sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
+}
+
+double WeightedMean(Context const* ctx, MetaInfo const& info) {
+  std::uint64_t n_samples = info.num_row_;
+  collective::Allreduce<collective::Operation::kSum>(&n_samples, 1);
+  auto y = info.labels.HostView();
+  auto w = common::OptionalWeights{info.weights_.ConstHostSpan()};
+  auto it = common::MakeIndexTransformIter([&](size_t i) -> double {
+    size_t r, c;
+    std::tie(r, c) = linalg::UnravelIndex(i, y.Shape());
+    return y(r, c) * w[r] / static_cast<double>(n_samples);
+  });
+  auto res = common::cpu_impl::Reduce(ctx, it, it + y.Size(), 0.0);
+  collective::Allreduce<collective::Operation::kSum>(&res, 1);
+  return res;
 }
 }  // namespace cpu_impl
 
