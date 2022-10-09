@@ -16,7 +16,7 @@ $command_wrapper rm -fv dmlc-core/include/dmlc/build_config_default.h
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh -DPLUGIN_DENSE_PARSER=ON -DPLUGIN_FEDERATED=ON
 echo "--- Run Google Test"
-$command_wrapper bash -c "cd build && ctest --extra-verbose"
+$command_wrapper bash -c "cd build && ./testxgboost"
 echo "--- Stash XGBoost CLI executable"
 buildkite-agent artifact upload ./xgboost
 
