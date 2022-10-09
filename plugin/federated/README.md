@@ -3,16 +3,8 @@ XGBoost Plugin for Federated Learning
 
 This folder contains the plugin for federated learning. Follow these steps to build and test it.
 
-Install gRPC
-------------
-```shell
-sudo apt-get install build-essential autoconf libtool pkg-config cmake ninja-build
-git clone -b v1.47.0 https://github.com/grpc/grpc
-cd grpc
-git submodule update --init
-cmake -S . -B build -GNinja -DABSL_PROPAGATE_CXX_STD=ON
-cmake --build build --target install
-```
+Note. Building XGBoost with `-DPLUGIN_FEDERATED=ON` flag will automatically download the gRPC
+source code and build it, along with its dependencies. This will increase compilation time.
 
 Build the Plugin
 ----------------

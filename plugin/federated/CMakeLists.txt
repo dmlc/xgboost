@@ -1,26 +1,51 @@
-# gRPC needs to be installed first. See README.md.
-find_package(Protobuf CONFIG REQUIRED)
-find_package(gRPC CONFIG REQUIRED)
-find_package(Threads)
+# Download and build gRPC
+include(FetchContent)
+FetchContent_Declare(
+    grpc
+    GIT_REPOSITORY  https://github.com/grpc/grpc.git
+    GIT_TAG         v1.49.1
+)
+set(FETCHCONTENT_QUIET OFF)
+FetchContent_MakeAvailable(grpc)
+set(_PROTOBUF_LIBPROTOBUF libprotobuf)
+set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
+set(_GRPC_GRPCPP grpc++)
+set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
+
+# Proto file
+get_filename_component(federated_proto "federated.proto" ABSOLUTE)
+get_filename_component(federated_proto_path "${federated_proto}" PATH)
 
 # Generated code from the protobuf definition.
-add_library(federated_proto federated.proto)
-target_link_libraries(federated_proto PUBLIC protobuf::libprotobuf gRPC::grpc gRPC::grpc++)
-target_include_directories(federated_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-set_property(TARGET federated_proto PROPERTY POSITION_INDEPENDENT_CODE ON)
+set(federated_srcs "${CMAKE_CURRENT_BINARY_DIR}/federated.pb.cc")
+set(federated_hdrs "${CMAKE_CURRENT_BINARY_DIR}/federated.pb.h")
+set(federated_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/federated.grpc.pb.cc")
+set(federated_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/federated.grpc.pb.h")
+add_custom_command(
+      OUTPUT "${federated_srcs}" "${federated_hdrs}"
+             "${federated_grpc_srcs}" "${federated_grpc_hdrs}"
+      COMMAND ${_PROTOBUF_PROTOC}
+      ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
+           --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
+           -I "${federated_proto_path}"
+           --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+           "${federated_proto}"
+      DEPENDS "${federated_proto}")
 
-get_target_property(grpc_cpp_plugin_location gRPC::grpc_cpp_plugin LOCATION)
-protobuf_generate(TARGET federated_proto LANGUAGE cpp)
-protobuf_generate(
-    TARGET federated_proto
-    LANGUAGE grpc
-    GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
-    PLUGIN "protoc-gen-grpc=${grpc_cpp_plugin_location}")
+add_library(federated_proto_lib STATIC)
+target_sources(federated_proto_lib PRIVATE
+  ${federated_srcs} ${federated_hdrs}
+  ${federated_grpc_srcs} ${federated_grpc_hdrs})
+target_link_libraries(federated_proto_lib PUBLIC
+  ${_PROTOBUF_LIBPROTOBUF} ${_GRPC_GRPCPP})
+target_include_directories(federated_proto_lib PUBLIC
+  ${CMAKE_CURRENT_BINARY_DIR})
+set_property(TARGET federated_proto_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Wrapper for the gRPC client.
 add_library(federated_client INTERFACE)
 target_sources(federated_client INTERFACE federated_client.h)
-target_link_libraries(federated_client INTERFACE federated_proto)
+target_link_libraries(federated_client INTERFACE federated_proto_lib)
 
 # Rabit engine for Federated Learning.
 target_sources(objxgboost PRIVATE federated_server.cc)
