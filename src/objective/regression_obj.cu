@@ -174,37 +174,33 @@ class RegLossObj : public ObjFunction {
     base_margin->Reshape(1);
     auto out = base_margin->HostView();
 
-    auto distributed_mean = param_.scale_pos_weight == 1.0f && collective::IsDistributed();
     if (this->Targets(info) > 1) {
       // multi-output not yet supported due to constraint in binary model format. (no
       // vector in parameter)
-      out(0) = ObjFunction::DefaultBaseScore();
-    } else if (distributed_mean) {
-      // When scale pos weight is not specified, we use the exact weighted mean.
-      auto score = WeightedMean(ctx_, info);
-      out(0) = score;
-    } else {
-      HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
-      HostDeviceVector<GradientPair> gpair(info.labels.Size());
-
-      std::unique_ptr<ObjFunction> new_obj{ObjFunction::Create(Loss::Name(), ctx_)};
-      Json config{Object{}};
-      this->SaveConfig(&config);
-      new_obj->LoadConfig(config);
-      new_obj->GetGradient(dummy_predt, info, 0, &gpair);
-
-      auto score = FitStump(ctx_, gpair);
-      score = Loss::PredTransform(score);
-
-      double w{0.0};
-      if (info.weights_.Empty()) {
-        w = static_cast<double>(info.num_row_);
-      } else {
-        w = common::Reduce(ctx_, info.weights_);
-      }
-      out(0) = w * score;
-      NormalizeBaseScore(w, out);
+      out(0) = DefaultBaseScore();
+      return;
     }
+
+    HostDeviceVector<float> dummy_predt(info.labels.Size(), 0.0f);
+    HostDeviceVector<GradientPair> gpair(info.labels.Size());
+
+    std::unique_ptr<ObjFunction> new_obj{ObjFunction::Create(Loss::Name(), ctx_)};
+    Json config{Object{}};
+    this->SaveConfig(&config);
+    new_obj->LoadConfig(config);
+    new_obj->GetGradient(dummy_predt, info, 0, &gpair);
+
+    auto score = FitStump(ctx_, gpair);
+    score = Loss::PredTransform(score);
+
+    double w{0.0};
+    if (info.weights_.Empty()) {
+      w = static_cast<double>(info.num_row_);
+    } else {
+      w = common::Reduce(ctx_, info.weights_);
+    }
+    out(0) = w * score;
+    NormalizeBaseScore(w, out);
   }
 
   void SaveConfig(Json* p_out) const override {
