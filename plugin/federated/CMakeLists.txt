@@ -16,6 +16,7 @@ else ()
       grpc
       GIT_REPOSITORY  https://github.com/grpc/grpc.git
       GIT_TAG         v1.49.1
+      GIT_SHALLOW     ON
   )
   set(FETCHCONTENT_QUIET OFF)
   FetchContent_MakeAvailable(grpc)
