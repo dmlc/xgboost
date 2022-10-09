@@ -68,8 +68,6 @@ address, leak, undefined and thread.")
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 option(PLUGIN_FEDERATED "Build with Federated Learning" OFF)
-option(USE_GRPC_FROM_SYSTEM "Use gRPC from the system; if OFF, CMake will download
-gRPC automatically. Only applicable if PLUGIN_FEDERATED=ON" OFF)
 ## TODO: 1. Add check if DPC++ compiler is used for building
 option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
