@@ -19,12 +19,13 @@ BUILD_ARGS=""
 case "${container}" in
   cpu)
     ;;
+
   gpu|rmm)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
     BUILD_ARGS="$BUILD_ARGS --build-arg RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
     ;;
 
-  jvm_gpu_build)
+  gpu_build_centos7|jvm_gpu_build)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
     ;;
 
