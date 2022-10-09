@@ -224,7 +224,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
             else:
                 train_data[name].append(array)
 
-    def append_dqm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
+    def append_qdm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         """Preprocessing for QuantileDMatrix"""
         nonlocal n_features
         if name == alias.data or name in part.columns:
@@ -267,6 +267,8 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     def split_params() -> Tuple[Dict[str, Any], Dict[str, Union[int, float, bool]]]:
         # FIXME(jiamingy): we really need a better way to bridge distributed frameworks
         # to XGBoost native interface and prevent scattering parameters like this.
+
+        # parameters that are not related to data.
         non_data_keys = (
             "max_bin",
             "missing",
@@ -286,13 +288,13 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     meta, params = split_params()
 
     if feature_cols is not None:  # rapidsai plugin
-        cache_partitions(iterator, append_dqm)
         assert gpu_id is not None
         assert use_qdm is True
+        cache_partitions(iterator, append_qdm)
         it = PartIter(train_data, gpu_id, **meta)
         dtrain: DMatrix = QuantileDMatrix(it, **params)
     elif use_qdm:
-        cache_partitions(iterator, append_dqm)
+        cache_partitions(iterator, append_qdm)
         it = PartIter(train_data, gpu_id, **meta)
         dtrain = QuantileDMatrix(it, **params)
     else:

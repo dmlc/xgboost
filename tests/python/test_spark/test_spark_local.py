@@ -1084,7 +1084,8 @@ class XgboostLocalTest(SparkTestCase):
         for row in pred_result:
             assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
 
-    def test_empty_validation_data(self):
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_empty_validation_data(self, tree_method: str) -> None:
         df_train = self.session.createDataFrame(
             [
                 (Vectors.dense(10.1, 11.2, 11.3), 0, False),
@@ -1096,6 +1097,7 @@ class XgboostLocalTest(SparkTestCase):
         )
         classifier = SparkXGBClassifier(
             num_workers=2,
+            tree_method=tree_method,
             min_child_weight=0.0,
             reg_alpha=0,
             reg_lambda=0,
@@ -1106,7 +1108,8 @@ class XgboostLocalTest(SparkTestCase):
         for row in pred_result:
             self.assertEqual(row.prediction, row.label)
 
-    def test_empty_train_data(self):
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_empty_train_data(self, tree_method: str) -> None:
         df_train = self.session.createDataFrame(
             [
                 (Vectors.dense(10.1, 11.2, 11.3), 0, True),
@@ -1121,6 +1124,7 @@ class XgboostLocalTest(SparkTestCase):
             min_child_weight=0.0,
             reg_alpha=0,
             reg_lambda=0,
+            tree_method=tree_method,
             validation_indicator_col="val_col",
         )
         model = classifier.fit(df_train)
@@ -1128,7 +1132,8 @@ class XgboostLocalTest(SparkTestCase):
         for row in pred_result:
             self.assertEqual(row.prediction, 1.0)
 
-    def test_empty_partition(self):
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_empty_partition(self, tree_method: str) -> None:
         # raw_df.repartition(4) will result int severe data skew, actually,
         # there is no any data in reducer partition 1, reducer partition 2
         # see https://github.com/dmlc/xgboost/issues/8221
@@ -1141,9 +1146,7 @@ class XgboostLocalTest(SparkTestCase):
         data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
         data_trans.show(100)
 
-        classifier = SparkXGBClassifier(
-            num_workers=4,
-        )
+        classifier = SparkXGBClassifier(num_workers=4, tree_method=tree_method)
         classifier.fit(data_trans)
 
     def test_early_stop_param_validation(self):
