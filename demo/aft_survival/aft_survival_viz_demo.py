@@ -1,9 +1,10 @@
 """
 Visual demo for survival analysis (regression) with Accelerated Failure Time (AFT) model.
+=========================================================================================
 
-This demo uses 1D toy data and visualizes how XGBoost fits a tree ensemble. The ensemble model
-starts out as a flat line and evolves into a step function in order to account for all ranged
-labels.
+This demo uses 1D toy data and visualizes how XGBoost fits a tree ensemble. The ensemble
+model starts out as a flat line and evolves into a step function in order to account for
+all ranged labels.
 """
 import numpy as np
 import xgboost as xgb
@@ -57,7 +58,7 @@ def plot_intermediate_model_callback(env):
     #              the corresponding predicted label (y_pred)
     acc = np.sum(np.logical_and(y_pred >= y_lower, y_pred <= y_upper)/len(X) * 100)
     accuracy_history.append(acc)
-    
+
     # Plot ranged labels as well as predictions by the model
     plt.subplot(5, 3, env.iteration + 1)
     plot_censored_labels(X, y_lower, y_upper)

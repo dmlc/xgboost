@@ -93,9 +93,9 @@ extensions = [
 
 sphinx_gallery_conf = {
     # path to your example scripts
-    "examples_dirs": ["../demo/guide-python", "../demo/dask"],
+    "examples_dirs": ["../demo/guide-python", "../demo/dask", "../demo/aft_survival"],
     # path to where to save gallery generated output
-    "gallery_dirs": ["python/examples", "python/dask-examples"],
+    "gallery_dirs": ["python/examples", "python/dask-examples", "python/survival-examples"],
     "matplotlib_animations": True,
 }
 

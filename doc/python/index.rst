@@ -15,3 +15,4 @@ Contents
   model
   examples/index
   dask-examples/index
+  survival-examples/index
