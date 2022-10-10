@@ -554,7 +554,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         raise NotImplementedError()
 
 
-# Notice for `_deprecate_positional_args`
+# Notice for `require_pos_args`
 # Authors: Olivier Grisel
 #          Gael Varoquaux
 #          Andreas Mueller
@@ -567,7 +567,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
-    * will issue a warning when passed as a positional argument.
+    * will issue a warning or error when passed as a positional argument.
 
     Modified from sklearn utils.validation.
 
@@ -576,12 +576,16 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     error :
         Whether to throw an error or raise a warning.
     """
+
     def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
-        """
+        """Throw error/warning if there's positional arguments after the asterisk.
+
         Parameters
         ----------
         f :
-            function to check arguments on."""
+            function to check arguments on.
+
+        """
         sig = signature(func)
         kwonly_args = []
         all_args = []
@@ -598,12 +602,11 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
             if extra_args > 0:
                 # ignore first 'self' argument for instance methods
                 args_msg = [
-                    f"{name}" for name, _ in zip(
-                        kwonly_args[:extra_args], args[-extra_args:]
-                    )
+                    f"{name}"
+                    for name, _ in zip(kwonly_args[:extra_args], args[-extra_args:])
                 ]
                 # pylint: disable=consider-using-f-string
-                msg = "Pass `{}` as keyword args.". format(", ".join(args_msg))
+                msg = "Pass `{}` as keyword args.".format(", ".join(args_msg))
                 if error:
                     raise TypeError(msg)
                 warnings.warn(msg, FutureWarning)
@@ -612,6 +615,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
             return func(**kwargs)
 
         return inner_f
+
     return throw_if
 
 
