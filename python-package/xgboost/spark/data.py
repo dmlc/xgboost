@@ -321,7 +321,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 dvalid: Optional[DMatrix] = QuantileDMatrix(np.empty((0, 0)))
             else:
                 it = PartIter(valid_data, gpu_id, **meta)
-                dvalid: Optional[DMatrix] = QuantileDMatrix(it, **params, ref=dtrain)
+                dvalid = QuantileDMatrix(it, **params, ref=dtrain)
         else:
             dvalid = make(valid_data, kwargs) if has_validation_col else None
     else:
