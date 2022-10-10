@@ -4,7 +4,7 @@ import json
 import logging
 import pickle
 from enum import IntEnum, unique
-from typing import Any, List
+from typing import Any, List, Dict
 
 import numpy as np
 
@@ -233,10 +233,11 @@ class CommunicatorContext:
     def __init__(self, **args: Any) -> None:
         self.args = args
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Dict[str, Any]:
         init(**self.args)
         assert is_distributed()
         LOGGER.debug("-------------- communicator say hello ------------------")
+        return self.args
 
     def __exit__(self, *args: List) -> None:
         finalize()

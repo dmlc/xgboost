@@ -189,7 +189,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
 
 
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT
@@ -263,6 +263,8 @@ template SimpleDMatrix::SimpleDMatrix(
 
 template <>
 SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, int nthread) {
+  ctx_.nthread = nthread;
+
   auto& offset_vec = sparse_page_->offset.HostVector();
   auto& data_vec = sparse_page_->data.HostVector();
   uint64_t total_batch_size = 0;
@@ -275,7 +277,7 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
     size_t num_elements = 0;
     size_t num_rows = 0;
     // Import Arrow RecordBatches
-#pragma omp parallel for reduction(+ : num_elements, num_rows) num_threads(nthread)
+#pragma omp parallel for reduction(+ : num_elements, num_rows) num_threads(ctx_.Threads())
     for (int i = 0; i < static_cast<int>(batches.size()); ++i) {  // NOLINT
       num_elements += batches[i]->Import(missing);
       num_rows += batches[i]->Size();
@@ -297,7 +299,7 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
     data_vec.resize(total_elements);
     offset_vec.resize(total_batch_size + 1);
     // Copy data into DMatrix
-#pragma omp parallel num_threads(nthread)
+#pragma omp parallel num_threads(ctx_.Threads())
     {
 #pragma omp for nowait
       for (int i = 0; i < static_cast<int>(batches.size()); ++i) {  // NOLINT
@@ -320,7 +322,7 @@ SimpleDMatrix::SimpleDMatrix(RecordBatchesIterAdapter* adapter, float missing, i
   }
   // Synchronise worker columns
   info_.num_col_ = adapter->NumColumns();
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&info_.num_col_, 1);
   info_.num_row_ = total_batch_size;
   info_.num_nonzero_ = data_vec.size();
   CHECK_EQ(offset_vec.back(), info_.num_nonzero_);

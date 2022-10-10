@@ -135,7 +135,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     return;
   }
 
-  if (rabit::IsDistributed()) {
+  if (collective::IsDistributed()) {
     LOG(INFO) << "Tree method is automatically selected to be 'approx' "
                  "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;

@@ -25,7 +25,9 @@ RUN \
         python=3.9 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
         dask dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
         numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
-        pyspark cloudpickle cuda-python=11.7.0
+        pyspark cloudpickle cuda-python=11.7.0 && \
+    mamba clean --all && \
+    conda run --no-capture-output -n gpu_test pip install buildkite-test-collector
 
 ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/

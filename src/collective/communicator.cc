@@ -3,6 +3,7 @@
  */
 #include "communicator.h"
 
+#include "noop_communicator.h"
 #include "rabit_communicator.h"
 
 #if defined(XGBOOST_USE_FEDERATED)
@@ -12,14 +13,10 @@
 namespace xgboost {
 namespace collective {
 
-thread_local std::unique_ptr<Communicator> Communicator::communicator_{};
+thread_local std::unique_ptr<Communicator> Communicator::communicator_{new NoOpCommunicator()};
 thread_local CommunicatorType Communicator::type_{};
 
 void Communicator::Init(Json const& config) {
-  if (communicator_) {
-    LOG(FATAL) << "Communicator can only be initialized once.";
-  }
-
   auto type = GetTypeFromEnv();
   auto const arg = GetTypeFromConfig(config);
   if (arg != CommunicatorType::kUnknown) {
@@ -51,7 +48,7 @@ void Communicator::Init(Json const& config) {
 #ifndef XGBOOST_USE_CUDA
 void Communicator::Finalize() {
   communicator_->Shutdown();
-  communicator_.reset(nullptr);
+  communicator_.reset(new NoOpCommunicator());
 }
 #endif
 

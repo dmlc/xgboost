@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.java.Communicator
 import ml.dmlc.xgboost4j.scala.Booster
 import scala.collection.JavaConverters._
 
@@ -25,7 +25,7 @@ import org.scalatest.FunSuite
 
 import org.apache.spark.SparkException
 
-class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
+class XGBoostCommunicatorRegressionSuite extends FunSuite with PerTest {
   val predictionErrorMin = 0.00001f
   val maxFailure = 2;
 
@@ -47,8 +47,8 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     val model2 = new XGBoostClassifier(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1))
       .fit(training)
 
-    assert(Rabit.rabitEnvs.asScala.size > 3)
-    Rabit.rabitEnvs.asScala.foreach( item => {
+    assert(Communicator.communicatorEnvs.asScala.size > 3)
+    Communicator.communicatorEnvs.asScala.foreach( item => {
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
     })
 
@@ -70,8 +70,8 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostRegressor(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1)
     ).fit(training)
-    assert(Rabit.rabitEnvs.asScala.size > 3)
-    Rabit.rabitEnvs.asScala.foreach( item => {
+    assert(Communicator.communicatorEnvs.asScala.size > 3)
+    Communicator.communicatorEnvs.asScala.foreach( item => {
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
     })
     // check the equality of single instance prediction
@@ -85,7 +85,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
   test("test rabit timeout fail handle") {
     val training = buildDataFrame(Classification.train)
     // mock rank 0 failure during 8th allreduce synchronization
-    Rabit.mockList = Array("0,8,0,0").toList.asJava
+    Communicator.mockList = Array("0,8,0,0").toList.asJava
 
     intercept[SparkException] {
       new XGBoostClassifier(Map(
@@ -98,6 +98,8 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
         "rabit_timeout" -> 0))
         .fit(training)
     }
+
+    Communicator.mockList = Array.empty.toList.asJava
   }
 
 }

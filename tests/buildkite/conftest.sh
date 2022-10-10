@@ -1,6 +1,25 @@
 #!/bin/bash
 
 set -euo pipefail
+
+function get_aws_secret {
+  if [[ $# -ne 1 ]]
+  then
+    echo "Usage: get_aws_secret [Name of secret]"
+    return 1
+  fi
+  aws secretsmanager get-secret-value --secret-id $1 --output text --region us-west-2 --query SecretString
+}
+
+function set_buildkite_env_vars_in_container {
+  # Pass all Buildkite-specific env vars to Docker containers.
+  # This is to be used with tests/ci_build/ci_build.sh
+  export CI_DOCKER_EXTRA_PARAMS_INIT="${CI_DOCKER_EXTRA_PARAMS_INIT:-} "`
+    `"--env BUILDKITE_ANALYTICS_TOKEN --env BUILDKITE_BUILD_ID --env BUILDKITE_BUILD_NUMBER "`
+    `"--env BUILDKITE_JOB_ID --env BUILDKITE_BRANCH --env BUILDKITE_COMMIT "`
+    `"--env BUILDKITE_MESSAGE --env BUILDKITE_BUILD_URL"
+}
+
 set -x
 
 CUDA_VERSION=11.0.3
