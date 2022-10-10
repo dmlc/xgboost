@@ -46,14 +46,14 @@ jobs:
     name: Test installing XGBoost Python source package on ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-10.15, windows-latest]
+        os: [ubuntu-latest, macos-11, windows-latest]
         python-version: ["3.8"]
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
     - name: Install osx system dependencies
-      if: matrix.os == 'macos-10.15'
+      if: matrix.os == 'macos-11'
       run: |
         brew install ninja libomp
     - name: Install Ubuntu system dependencies
@@ -134,7 +134,7 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: macos-10.15, python-version "3.8" }
+          - {os: macos-11, python-version "3.8" }
 
     steps:
     - uses: actions/checkout@v2
@@ -172,8 +172,7 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py bdist_wheel --universal
-        pip install ./dist/*.whl
+        python setup.py install
 
     - name: Test Python package
       shell: bash -l {0}

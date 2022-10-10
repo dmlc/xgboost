@@ -1,13 +1,14 @@
-import numpy as np
-import xgboost as xgb
-import pytest
 import sys
-from hypothesis import given, strategies, settings
-from scipy import sparse
+
+import numpy as np
+import pytest
+from hypothesis import given, settings, strategies
+
+import xgboost as xgb
 
 sys.path.append("tests/python")
-import testing as tm
 import test_quantile_dmatrix as tqd
+import testing as tm
 
 
 class TestDeviceQuantileDMatrix:
@@ -107,9 +108,8 @@ class TestDeviceQuantileDMatrix:
     @settings(print_blob=True, deadline=None)
     def test_to_csr(self, n_samples, n_features, sparsity) -> None:
         import cupy as cp
-        X, y = tm.make_sparse_regression(
-            n_samples, n_features, sparsity, False
-        )
+
+        X, y = tm.make_sparse_regression(n_samples, n_features, sparsity, False)
         h_X = X.astype(np.float32)
 
         csr = h_X
@@ -130,10 +130,12 @@ class TestDeviceQuantileDMatrix:
         np.testing.assert_equal(h_ret.indptr, d_ret.indptr)
         np.testing.assert_equal(h_ret.indices, d_ret.indices)
 
-        booster = xgb.train({"tree_method": "gpu_hist"}, dtrain=d_m)
+        booster = xgb.train(
+            {"tree_method": "gpu_hist", "predictor": "gpu_predictor"}, dtrain=d_m
+        )
 
         np.testing.assert_allclose(
             booster.predict(d_m),
             booster.predict(xgb.DMatrix(d_m.get_data())),
-            atol=1e-6
+            atol=1e-6,
         )
