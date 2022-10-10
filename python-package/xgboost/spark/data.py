@@ -153,6 +153,21 @@ def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame) -> csr_matrix:
     )
 
 
+def make_qdm(
+    data: Dict[str, List[np.ndarray]],
+    gpu_id: Optional[int],
+    meta: Dict[str, Any],
+    ref: Optional[DMatrix],
+    params: Dict[str, Any],
+) -> DMatrix:
+    """Handle empty partition for QuantileDMatrix."""
+    if not data:
+        return QuantileDMatrix(np.empty((0, 0)))
+    it = PartIter(data, gpu_id, **meta)
+    m = QuantileDMatrix(it, **params, ref=ref)
+    return m
+
+
 def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
@@ -162,8 +177,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     enable_sparse_data_optim: bool,
     has_validation_col: bool,
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
-    """Create DMatrix from spark data partitions. This is not particularly efficient as
-    we need to convert the pandas series format to numpy then concatenate all the data.
+    """Create DMatrix from spark data partitions.
 
     Parameters
     ----------
@@ -225,7 +239,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
                 train_data[name].append(array)
 
     def append_qdm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
-        """Preprocessing for QuantileDMatrix"""
+        """Preprocessing for QuantileDMatrix."""
         nonlocal n_features
         if name == alias.data or name in part.columns:
             if name == alias.data and feature_cols is not None:
@@ -246,6 +260,10 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
 
     def make(values: Dict[str, List[np.ndarray]], kwargs: Dict[str, Any]) -> DMatrix:
         if len(values) == 0:
+            get_logger("XGBoostPySpark").warning(
+                "Detected an empty partition in the training data. Consider to enable"
+                " repartition_random_shuffle"
+            )
             # We must construct an empty DMatrix to bypass the AllReduce
             return DMatrix(data=np.empty((0, 0)), **kwargs)
 
@@ -291,22 +309,12 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
         assert gpu_id is not None
         assert use_qdm is True
         cache_partitions(iterator, append_qdm)
-        it = PartIter(train_data, gpu_id, **meta)
-        dtrain: DMatrix = QuantileDMatrix(it, **params)
+        dtrain: DMatrix = make_qdm(train_data, gpu_id, meta, None, params)
     elif use_qdm:
         cache_partitions(iterator, append_qdm)
-        if not train_data:
-            dtrain = QuantileDMatrix(np.empty((0, 0)))
-        else:
-            it = PartIter(train_data, gpu_id, **meta)
-            dtrain = QuantileDMatrix(it, **params)
+        dtrain = make_qdm(train_data, gpu_id, meta, None, params)
     else:
         cache_partitions(iterator, append_fn)
-        if len(train_data) == 0:
-            get_logger("XGBoostPySpark").warning(
-                "Detected an empty partition in the training data. "
-                "Consider to enable repartition_random_shuffle"
-            )
         dtrain = make(train_data, kwargs)
 
     # Using has_validation_col here to indicate if there is validation col
@@ -317,11 +325,9 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     # forever.
     if has_validation_col:
         if use_qdm:
-            if not valid_data:
-                dvalid: Optional[DMatrix] = QuantileDMatrix(np.empty((0, 0)))
-            else:
-                it = PartIter(valid_data, gpu_id, **meta)
-                dvalid = QuantileDMatrix(it, **params, ref=dtrain)
+            dvalid: Optional[DMatrix] = make_qdm(
+                train_data, gpu_id, meta, dtrain, params
+            )
         else:
             dvalid = make(valid_data, kwargs) if has_validation_col else None
     else:
