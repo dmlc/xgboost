@@ -162,6 +162,7 @@ class ColumnMatrix {
 
   ColumnMatrix() = default;
   ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold) {
+    is_initialized_ = true;
     this->InitStorage(gmat, sparse_threshold);
   }
 
@@ -186,6 +187,7 @@ class ColumnMatrix {
    *    for those bins.
    */
   void InitFromGHist(Context const* ctx, GHistIndexMatrix const& gmat) {
+    is_initialized_ = true;
     auto n_threads = ctx->Threads();
     if (!any_missing_) {
       // row index is compressed, we need to dispatch it.
@@ -386,6 +388,7 @@ class ColumnMatrix {
 #endif
 
     fi->Read(&any_missing_);
+    fi->Read(&is_initialized_);
     return true;
   }
 
@@ -421,6 +424,8 @@ class ColumnMatrix {
     bytes += sizeof(bins_type_size_);
     fo->Write(any_missing_);
     bytes += sizeof(any_missing_);
+    fo->Write(is_initialized_);
+    bytes += sizeof(is_initialized_);
 
     return bytes;
   }
