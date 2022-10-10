@@ -606,7 +606,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
                 msg = "Pass `{}` as keyword args.". format(", ".join(args_msg))
                 if error:
                     raise TypeError(msg)
-                warnings.warn(msg)
+                warnings.warn(msg, FutureWarning)
             for k, arg in zip(sig.parameters, args):
                 kwargs[k] = arg
             return func(**kwargs)
