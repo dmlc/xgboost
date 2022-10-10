@@ -295,8 +295,11 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
         dtrain: DMatrix = QuantileDMatrix(it, **params)
     elif use_qdm:
         cache_partitions(iterator, append_qdm)
-        it = PartIter(train_data, gpu_id, **meta)
-        dtrain = QuantileDMatrix(it, **params)
+        if not train_data:
+            dtrain = QuantileDMatrix(np.empty((0, 0)))
+        else:
+            it = PartIter(train_data, gpu_id, **meta)
+            dtrain = QuantileDMatrix(it, **params)
     else:
         cache_partitions(iterator, append_fn)
         if len(train_data) == 0:
@@ -314,8 +317,11 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     # forever.
     if has_validation_col:
         if use_qdm:
-            it = PartIter(valid_data, gpu_id, **meta)
-            dvalid: Optional[DMatrix] = QuantileDMatrix(it, **params, ref=dtrain)
+            if not valid_data:
+                dvalid: Optional[DMatrix] = QuantileDMatrix(np.empty((0, 0)))
+            else:
+                it = PartIter(valid_data, gpu_id, **meta)
+                dvalid: Optional[DMatrix] = QuantileDMatrix(it, **params, ref=dtrain)
         else:
             dvalid = make(valid_data, kwargs) if has_validation_col else None
     else:
