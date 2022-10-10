@@ -44,7 +44,7 @@ from xgboost.dask import DaskDMatrix
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
-pytestmark = pytest.mark.timeout(20)
+pytestmark = pytest.mark.timeout(30)
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
@@ -66,7 +66,7 @@ def client(cluster):
         yield dask_client
 
 
-kRows = 300
+kRows = 1000
 kCols = 5
 kWorkers = 5
 

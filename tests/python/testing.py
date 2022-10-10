@@ -204,6 +204,7 @@ class IteratorForTest(xgb.core.DataIter):
             label=self.y[self.it].copy(),
             weight=self.w[self.it].copy() if self.w else None,
         )
+        gc.collect()  # clear up the copy, see if XGBoost access freed memory.
         self.it += 1
         return 1
 
