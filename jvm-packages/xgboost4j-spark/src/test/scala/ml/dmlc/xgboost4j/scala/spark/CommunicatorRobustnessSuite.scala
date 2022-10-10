@@ -20,20 +20,19 @@ import java.util.concurrent.LinkedBlockingDeque
 
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.java.{Rabit, RabitTracker => PyRabitTracker}
-import ml.dmlc.xgboost4j.scala.rabit.{RabitTracker => ScalaRabitTracker}
+import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.java.IRabitTracker.TrackerStatus
+import ml.dmlc.xgboost4j.scala.rabit.{RabitTracker => ScalaRabitTracker}
 import ml.dmlc.xgboost4j.scala.DMatrix
-import org.scalatest.{FunSuite}
+import org.scalatest.FunSuite
 
-class RabitRobustnessSuite extends FunSuite with PerTest {
+class CommunicatorRobustnessSuite extends FunSuite with PerTest {
 
   private def getXGBoostExecutionParams(paramMap: Map[String, Any]): XGBoostExecutionParams = {
     val classifier = new XGBoostClassifier(paramMap)
     val xgbParamsFactory = new XGBoostExecutionParamsFactory(classifier.MLlib2XGBoostParams, sc)
     xgbParamsFactory.buildXGBRuntimeParams
   }
-
 
   test("Customize host ip and python exec for Rabit tracker") {
     val hostIp = "192.168.22.111"
@@ -90,7 +89,7 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
-  test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
+  test("test Communicator allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(
       (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() }, numWorkers).cache()
@@ -109,10 +108,10 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
     }
 
     val allReduceResults = rdd.mapPartitions { iter =>
-      Rabit.init(trackerEnvs)
+      Communicator.init(trackerEnvs)
       val arr = iter.toArray
-      val results = Rabit.allReduce(arr, Rabit.OpType.MAX)
-      Rabit.shutdown()
+      val results = Communicator.allReduce(arr, Communicator.OpType.MAX)
+      Communicator.shutdown()
       Iterator(results)
     }.cache()
 
@@ -171,14 +170,14 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
        process to ensure that pending worker connections are handled.
      */
     val dummyTasks = rdd.mapPartitions { iter =>
-      Rabit.init(trackerEnvs)
+      Communicator.init(trackerEnvs)
       val index = iter.next()
       Thread.sleep(100 + index * 10)
       if (index == workerCount) {
         // kill the worker by throwing an exception
         throw new RuntimeException("Worker exception.")
       }
-      Rabit.shutdown()
+      Communicator.shutdown()
       Iterator(index)
     }.cache()
 
@@ -203,14 +202,14 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
 
     val workerCount: Int = numWorkers
     val dummyTasks = rdd.mapPartitions { iter =>
-      Rabit.init(trackerEnvs)
+      Communicator.init(trackerEnvs)
       val index = iter.next()
       Thread.sleep(100 + index * 10)
       if (index == workerCount) {
         // kill the worker by throwing an exception
         throw new RuntimeException("Worker exception.")
       }
-      Rabit.shutdown()
+      Communicator.shutdown()
       Iterator(index)
     }.cache()
 
@@ -236,9 +235,9 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
       val index = iter.next()
       // simulate that the first worker cannot connect to tracker due to network issues.
       if (index != 1) {
-        Rabit.init(trackerEnvs)
+        Communicator.init(trackerEnvs)
         Thread.sleep(1000)
-        Rabit.shutdown()
+        Communicator.shutdown()
       }
 
       Iterator(index)
@@ -256,7 +255,7 @@ class RabitRobustnessSuite extends FunSuite with PerTest {
     assert(tracker.waitFor(0L) == TrackerStatus.FAILURE.getStatusCode)
   }
 
-  test("should allow the dataframe containing rabit calls to be partially evaluated for" +
+  test("should allow the dataframe containing communicator calls to be partially evaluated for" +
     " multiple times (ISSUE-4406)") {
     val paramMap = Map(
       "eta" -> "1",

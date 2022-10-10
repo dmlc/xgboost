@@ -7,20 +7,21 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
-#include <rabit/rabit.h>
 #include <xgboost/logging.h>
+
 #include <algorithm>
 #include <functional>
-#include <vector>
 #include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
 #include <random>
 #include <utility>
+#include <vector>
 
-#include "xgboost/host_device_vector.h"
+#include "../collective/communicator-inl.h"
 #include "common.h"
+#include "xgboost/host_device_vector.h"
 
 namespace xgboost {
 namespace common {
@@ -143,7 +144,7 @@ class ColumnSampler {
   */
   ColumnSampler() {
     uint32_t seed = common::GlobalRandom()();
-    rabit::Broadcast(&seed, sizeof(seed), 0);
+    collective::Broadcast(&seed, sizeof(seed), 0);
     rng_.seed(seed);
   }
 

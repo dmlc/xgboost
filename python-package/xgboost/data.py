@@ -3,24 +3,33 @@
 '''Data dispatching for DMatrix.'''
 import ctypes
 import json
-import warnings
 import os
-from typing import Any, Tuple, Callable, Optional, List, Union, Iterator, Sequence, cast
+import warnings
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 
-from .core import c_array, _LIB, _check_call, c_str
-from .core import _cuda_array_interface
-from .core import DataIter, _ProxyDMatrix, DMatrix
-from .compat import lazy_isinstance, DataFrame
 from ._typing import (
-    c_bst_ulong,
-    DataType,
-    FeatureTypes,
-    FeatureNames,
-    NumpyDType,
     CupyT,
-    FloatCompatible, PandasDType
+    DataType,
+    FeatureNames,
+    FeatureTypes,
+    FloatCompatible,
+    NumpyDType,
+    PandasDType,
+    c_bst_ulong,
+)
+from .compat import DataFrame, lazy_isinstance
+from .core import (
+    _LIB,
+    DataIter,
+    DMatrix,
+    _check_call,
+    _cuda_array_interface,
+    _ProxyDMatrix,
+    c_array,
+    c_str,
+    from_pystr_to_cstr,
 )
 
 DispatchedDataBackendReturnType = Tuple[
@@ -231,13 +240,15 @@ _pandas_dtype_mapper = {
     "Int16": "int",
     "Int32": "int",
     "Int64": "int",
+    "Float32": "float",
+    "Float64": "float",
     "boolean": "i",
 }
 
 
 _ENABLE_CAT_ERR = (
-    "When categorical type is supplied, DMatrix parameter `enable_categorical` must "
-    "be set to `True`."
+    "When categorical type is supplied, The experimental DMatrix parameter"
+    "`enable_categorical` must be set to `True`."
 )
 
 
@@ -246,7 +257,7 @@ def _invalid_dataframe_dtype(data: DataType) -> None:
     # cudf series doesn't have `dtypes`.
     if hasattr(data, "dtypes") and hasattr(data.dtypes, "__iter__"):
         bad_fields = [
-            str(data.columns[i])
+            f"{data.columns[i]}: {dtype}"
             for i, dtype in enumerate(data.dtypes)
             if dtype.name not in _pandas_dtype_mapper
         ]
@@ -296,13 +307,20 @@ def _pandas_feature_info(
 
 def is_nullable_dtype(dtype: PandasDType) -> bool:
     """Wether dtype is a pandas nullable type."""
-    from pandas.api.types import is_integer_dtype, is_bool_dtype
+    from pandas.api.types import (
+        is_integer_dtype,
+        is_bool_dtype,
+        is_float_dtype,
+        is_categorical_dtype,
+    )
+
     # dtype: pd.core.arrays.numeric.NumericDtype
-    nullable_alias = {"Int16", "Int32", "Int64"}
+    nullable_alias = {"Int16", "Int32", "Int64", "Float32", "Float64", "category"}
     is_int = is_integer_dtype(dtype) and dtype.name in nullable_alias
     # np.bool has alias `bool`, while pd.BooleanDtype has `bzoolean`.
     is_bool = is_bool_dtype(dtype) and dtype.name == "boolean"
-    return is_int or is_bool
+    is_float = is_float_dtype(dtype) and dtype.name in nullable_alias
+    return is_int or is_bool or is_float or is_categorical_dtype(dtype)
 
 
 def _pandas_cat_null(data: DataFrame) -> DataFrame:
@@ -353,7 +371,7 @@ def _transform_pandas_df(
     if not all(
         dtype.name in _pandas_dtype_mapper
         or is_sparse(dtype)
-        or is_nullable_dtype(dtype)
+        or (is_nullable_dtype(dtype) and not is_categorical_dtype(dtype))
         or (is_categorical_dtype(dtype) and enable_categorical)
         for dtype in data.dtypes
     ):
@@ -601,12 +619,14 @@ def _from_arrow(
     if enable_categorical:
         raise ValueError("categorical data in arrow is not supported yet.")
 
-    rb_iter = iter(data.to_batches())
+    batches = data.to_batches()
+    rb_iter = iter(batches)
     it = record_batch_data_iter(rb_iter)
     next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(it)
     handle = ctypes.c_void_p()
-
-    config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
+    config = from_pystr_to_cstr(
+        json.dumps({"missing": missing, "nthread": nthread, "nbatch": len(batches)})
+    )
     _check_call(
         _LIB.XGDMatrixCreateFromArrowCallback(
             next_callback,
@@ -622,10 +642,10 @@ def _is_cudf_df(data: DataType) -> bool:
 
 
 def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
-    """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list of
-    data and a list of array interfaces.  The data is list of categorical codes that
-    caller can safely ignore, but have to keep their reference alive until usage of array
-    interface is finished.
+    """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list
+    of data and a list of array interfaces.  The data is list of categorical codes that
+    caller can safely ignore, but have to keep their reference alive until usage of
+    array interface is finished.
 
     """
     try:
@@ -634,14 +654,18 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
         from cudf.utils.dtypes import is_categorical_dtype
 
     interfaces = []
+
+    def append(interface: dict) -> None:
+        if "mask" in interface:
+            interface["mask"] = interface["mask"].__cuda_array_interface__
+        interfaces.append(interface)
+
     if _is_cudf_ser(data):
         if is_categorical_dtype(data.dtype):
             interface = cat_codes[0].__cuda_array_interface__
         else:
             interface = data.__cuda_array_interface__
-        if "mask" in interface:
-            interface["mask"] = interface["mask"].__cuda_array_interface__
-        interfaces.append(interface)
+        append(interface)
     else:
         for i, col in enumerate(data):
             if is_categorical_dtype(data[col].dtype):
@@ -649,10 +673,8 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
                 interface = codes.__cuda_array_interface__
             else:
                 interface = data[col].__cuda_array_interface__
-            if "mask" in interface:
-                interface["mask"] = interface["mask"].__cuda_array_interface__
-            interfaces.append(interface)
-    interfaces_str = bytes(json.dumps(interfaces, indent=2), "utf-8")
+            append(interface)
+    interfaces_str = from_pystr_to_cstr(json.dumps(interfaces))
     return interfaces_str
 
 
@@ -713,9 +735,14 @@ def _transform_cudf_df(
             cat_codes.append(codes)
     else:
         for col in data:
-            if is_categorical_dtype(data[col].dtype) and enable_categorical:
+            dtype = data[col].dtype
+            if is_categorical_dtype(dtype) and enable_categorical:
                 codes = data[col].cat.codes
                 cat_codes.append(codes)
+            elif is_categorical_dtype(dtype):
+                raise ValueError(_ENABLE_CAT_ERR)
+            else:
+                cat_codes.append([])
 
     return data, cat_codes, feature_names, feature_types
 

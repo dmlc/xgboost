@@ -7,7 +7,6 @@
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 
-#include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
 #include <algorithm>

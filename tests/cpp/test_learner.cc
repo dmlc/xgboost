@@ -2,17 +2,20 @@
  * Copyright 2017-2022 by XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <vector>
-#include <thread>
-#include "helpers.h"
-#include <dmlc/filesystem.h>
-
 #include <xgboost/learner.h>
+#include <xgboost/objective.h>  // ObjFunction
 #include <xgboost/version_config.h>
-#include "xgboost/json.h"
+
+#include <string>  // std::stof, std::string
+#include <thread>
+#include <vector>
+
 #include "../../src/common/io.h"
-#include "../../src/common/random.h"
 #include "../../src/common/linalg_op.h"
+#include "../../src/common/random.h"
+#include "filesystem.h"  // dmlc::TemporaryDirectory
+#include "helpers.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 TEST(Learner, Basic) {
@@ -205,8 +208,7 @@ TEST(Learner, MultiThreadedPredict) {
   p_dmat->Info().labels.Reshape(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
-  std::shared_ptr<DMatrix> p_data{
-      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  std::shared_ptr<DMatrix> p_data{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
   CHECK_NE(p_data->Info().num_col_, 0);
 
   std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
@@ -445,6 +447,79 @@ TEST(Learner, MultiTarget) {
     learner->SetParam("objective", "multi:softprob");
     // unsupported objective.
     EXPECT_THROW({ learner->Configure(); }, dmlc::Error);
+  }
+}
+
+/**
+ * Test the model initialization sequence is correctly performed.
+ */
+TEST(Learner, InitEstimation) {
+  size_t constexpr kCols = 10;
+  auto Xy = RandomDataGenerator{10, kCols, 0}.GenerateDMatrix(true);
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure();
+    HostDeviceVector<float> predt;
+    learner->Predict(Xy, false, &predt, 0, 0);
+
+    auto h_predt = predt.ConstHostSpan();
+    for (auto v : h_predt) {
+      ASSERT_EQ(v, ObjFunction::DefaultBaseScore());
+    }
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score =
+        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    // No base score is estimated yet.
+    ASSERT_EQ(base_score, ObjFunction::DefaultBaseScore());
+  }
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->SetParam("objective", "reg:absoluteerror");
+    learner->UpdateOneIter(0, Xy);
+
+    HostDeviceVector<float> predt;
+    learner->Predict(Xy, false, &predt, 0, 0);
+    auto h_predt = predt.ConstHostSpan();
+    for (auto v : h_predt) {
+      ASSERT_NE(v, ObjFunction::DefaultBaseScore());
+    }
+
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score =
+        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+
+    ASSERT_THROW(
+        {
+          learner->SetParam("base_score_estimated", "1");
+          learner->Configure();
+        },
+        dmlc::Error);
+  }
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->SetParam("objective", "reg:absoluteerror");
+    learner->SetParam("base_score", "1.3");
+    learner->Configure();
+    HostDeviceVector<float> predt;
+    learner->Predict(Xy, false, &predt, 0, 0);
+    auto h_predt = predt.ConstHostSpan();
+    for (auto v : h_predt) {
+      ASSERT_FLOAT_EQ(v, 1.3);
+    }
+    learner->UpdateOneIter(0, Xy);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score =
+        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    // no change
+    ASSERT_FLOAT_EQ(base_score, 1.3);
   }
 }
 }  // namespace xgboost

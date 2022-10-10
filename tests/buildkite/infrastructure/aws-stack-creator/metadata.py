@@ -9,7 +9,11 @@ AMI_ID = {
     "windows-gpu": {
         "us-west-2": "ami-0a1a2ea551a07ad5f",
     },
+    "windows-cpu": {
+        "us-west-2": "ami-0a1a2ea551a07ad5f",
+    },
     # Managed by BuildKite
+    # from https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml
     "linux-amd64-cpu": {
         "us-west-2": "ami-075d4c25d5f0c17c1",
     },
@@ -37,7 +41,7 @@ STACK_PARAMS = {
         "InstanceType": "g4dn.12xlarge",
         "AgentsPerInstance": "1",
         "MinSize": "0",
-        "MaxSize": "4",
+        "MaxSize": "1",
         "OnDemandPercentage": "100",
         "ScaleOutFactor": "1.0",
         "ScaleInIdlePeriod": "60",  # in seconds
@@ -50,7 +54,17 @@ STACK_PARAMS = {
         "MaxSize": "2",
         "OnDemandPercentage": "100",
         "ScaleOutFactor": "1.0",
-        "ScaleInIdlePeriod": "600",  # in seconds
+        "ScaleInIdlePeriod": "60",  # in seconds
+    },
+    "windows-cpu": {
+        "InstanceOperatingSystem": "windows",
+        "InstanceType": "c5a.2xlarge",
+        "AgentsPerInstance": "1",
+        "MinSize": "0",
+        "MaxSize": "2",
+        "OnDemandPercentage": "100",
+        "ScaleOutFactor": "1.0",
+        "ScaleInIdlePeriod": "60",  # in seconds
     },
     "linux-amd64-cpu": {
         "InstanceOperatingSystem": "linux",
@@ -92,7 +106,6 @@ COMMON_STACK_PARAMS = {
     "EnableCostAllocationTags": "true",
     "CostAllocationTagName": "CreatedBy",
     "ECRAccessPolicy": "full",
-    "ManagedPolicyARN": "arn:aws:iam::aws:policy/AmazonS3FullAccess",
     "EnableSecretsPlugin": "false",
     "EnableECRPlugin": "false",
     "EnableDockerLoginPlugin": "false",

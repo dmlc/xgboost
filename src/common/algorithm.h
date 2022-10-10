@@ -1,7 +1,8 @@
 /*!
  * Copyright 2022 by XGBoost Contributors
  */
-#pragma once
+#ifndef XGBOOST_COMMON_ALGORITHM_H_
+#define XGBOOST_COMMON_ALGORITHM_H_
 #include <algorithm>  // std::upper_bound
 #include <cinttypes>  // std::size_t
 
@@ -14,3 +15,4 @@ auto SegmentId(It first, It last, Idx idx) {
 }
 }  // namespace common
 }  // namespace xgboost
+#endif  // XGBOOST_COMMON_ALGORITHM_H_

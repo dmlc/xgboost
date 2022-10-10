@@ -8,10 +8,9 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <dmlc/any.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/generic_parameters.h>  // Context
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
 #include <xgboost/predictor.h>
@@ -274,7 +273,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /**
    * \brief Return the context object of this Booster.
    */
-  virtual GenericParameter const* Ctx() const = 0;
+  virtual Context const* Ctx() const = 0;
   /*!
    * \brief Get configuration arguments currently stored by the learner
    * \return Key-value pairs representing configuration arguments
@@ -289,7 +288,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
   /*! \brief Training parameter. */
-  GenericParameter generic_parameters_;
+  Context ctx_;
 };
 
 struct LearnerModelParamLegacy;
@@ -298,8 +297,14 @@ struct LearnerModelParamLegacy;
  * \brief Basic Model Parameters, used to describe the booster.
  */
 struct LearnerModelParam {
-  /* \brief global bias */
-  bst_float base_score { 0.5f };
+ private:
+  /**
+   * \brief Global bias, this is just a scalar value but can be extended to vector when we
+   *        support multi-class and multi-target.
+   */
+  linalg::Tensor<float, 1> base_score_;
+
+ public:
   /* \brief number of features  */
   uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
@@ -310,7 +315,18 @@ struct LearnerModelParam {
   LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin, ObjInfo t);
+  LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
+                    linalg::Tensor<float, 1> base_margin, ObjInfo t);
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t);
+  LearnerModelParam(bst_feature_t n_features, linalg::Tensor<float, 1> base_margin,
+                    uint32_t n_groups)
+      : base_score_{std::move(base_margin)}, num_feature{n_features}, num_output_group{n_groups} {}
+
+  linalg::TensorView<float const, 1> BaseScore(Context const* ctx) const;
+  linalg::TensorView<float const, 1> BaseScore(int32_t device) const;
+
+  void Copy(LearnerModelParam const& that);
+
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
   bool Initialized() const { return num_feature != 0; }
 };

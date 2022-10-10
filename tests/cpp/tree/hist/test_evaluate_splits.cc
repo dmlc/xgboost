@@ -12,7 +12,7 @@
 
 namespace xgboost {
 namespace tree {
-void TestEvaluateSplits() {
+void TestEvaluateSplits(bool force_read_by_column) {
   int static constexpr kRows = 8, kCols = 16;
   auto orig = omp_get_max_threads();
   int32_t n_threads = std::min(omp_get_max_threads(), 4);
@@ -44,7 +44,7 @@ void TestEvaluateSplits() {
   hist.AddHistRow(0);
   hist.AllocateAllData();
   hist_builder.template BuildHist<false>(row_gpairs, row_set_collection[0],
-                                         gmat, hist[0]);
+                                         gmat, hist[0], force_read_by_column);
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;
@@ -84,7 +84,10 @@ void TestEvaluateSplits() {
   omp_set_num_threads(orig);
 }
 
-TEST(HistEvaluator, Evaluate) { TestEvaluateSplits(); }
+TEST(HistEvaluator, Evaluate) {
+  TestEvaluateSplits(false);
+  TestEvaluateSplits(true);
+}
 
 TEST(HistEvaluator, Apply) {
   RegTree tree;

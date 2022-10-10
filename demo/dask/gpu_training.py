@@ -4,13 +4,12 @@ Example of training with Dask on GPU
 """
 from dask_cuda import LocalCUDACluster
 import dask_cudf
-from dask.distributed import Client, wait
+from dask.distributed import Client
 from dask import array as da
 from dask import dataframe as dd
 import xgboost as xgb
 from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
-import argparse
 
 
 def using_dask_matrix(client: Client, X, y):
@@ -51,7 +50,7 @@ def using_quantile_device_dmatrix(client: Client, X, y):
 
     # `DaskDeviceQuantileDMatrix` is used instead of `DaskDMatrix`, be careful
     # that it can not be used for anything else other than training.
-    dtrain = dxgb.DaskDeviceQuantileDMatrix(client, X, y)
+    dtrain = dxgb.DaskQuantileDMatrix(client, X, y)
     output = xgb.dask.train(client,
                             {'verbosity': 2,
                              'tree_method': 'gpu_hist'},
@@ -63,12 +62,6 @@ def using_quantile_device_dmatrix(client: Client, X, y):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--ddqdm', choices=[0, 1], type=int, default=1,
-        help='''Whether should we use `DaskDeviceQuantileDMatrix`''')
-    args = parser.parse_args()
-
     # `LocalCUDACluster` is used for assigning GPU to XGBoost processes.  Here
     # `n_workers` represents the number of GPUs since we use one GPU per worker
     # process.
@@ -77,12 +70,10 @@ if __name__ == '__main__':
             # generate some random data for demonstration
             m = 100000
             n = 100
-            X = da.random.random(size=(m, n), chunks=100)
-            y = da.random.random(size=(m, ), chunks=100)
+            X = da.random.random(size=(m, n), chunks=10000)
+            y = da.random.random(size=(m, ), chunks=10000)
 
-            if args.ddqdm == 1:
-                print('Using DaskDeviceQuantileDMatrix')
-                from_ddqdm = using_quantile_device_dmatrix(client, X, y)
-            else:
-                print('Using DMatrix')
-                from_dmatrix = using_dask_matrix(client, X, y)
+            print('Using DaskQuantileDMatrix')
+            from_ddqdm = using_quantile_device_dmatrix(client, X, y)
+            print('Using DMatrix')
+            from_dmatrix = using_dask_matrix(client, X, y)

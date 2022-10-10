@@ -12,6 +12,7 @@ from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 import pytest
 import gc
 import xgboost as xgb
+from xgboost.core import ArrayLike
 import numpy as np
 from scipy import sparse
 import platform
@@ -197,6 +198,10 @@ class IteratorForTest(xgb.core.DataIter):
     def next(self, input_data: Callable) -> int:
         if self.it == len(self.X):
             return 0
+
+        with pytest.raises(TypeError, match="keyword args"):
+            input_data(self.X[self.it], self.y[self.it], None)
+
         # Use copy to make sure the iterator doesn't hold a reference to the data.
         input_data(
             data=self.X[self.it].copy(),
@@ -212,13 +217,16 @@ class IteratorForTest(xgb.core.DataIter):
 
     def as_arrays(
         self,
-    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], np.ndarray, np.ndarray]:
+    ) -> Tuple[Union[np.ndarray, sparse.csr_matrix], ArrayLike, ArrayLike]:
         if isinstance(self.X[0], sparse.csr_matrix):
             X = sparse.vstack(self.X, format="csr")
         else:
             X = np.concatenate(self.X, axis=0)
         y = np.concatenate(self.y, axis=0)
-        w = np.concatenate(self.w, axis=0)
+        if self.w:
+            w = np.concatenate(self.w, axis=0)
+        else:
+            w = None
         return X, y, w
 
 
@@ -573,6 +581,8 @@ def make_sparse_regression(
 
     if as_dense:
         arr = csr.toarray()
+        assert arr.shape[0] == n_samples
+        assert arr.shape[1] == n_features
         arr[arr == 0] = np.nan
         return arr, y
 

@@ -71,21 +71,28 @@
 #include "../src/logging.cc"
 #include "../src/global_config.cc"
 
+// collective
+#include "../src/collective/communicator.cc"
+
 // common
-#include "../src/common/common.cc"
-#include "../src/common/column_matrix.cc"
-#include "../src/common/random.cc"
 #include "../src/common/charconv.cc"
-#include "../src/common/timer.cc"
-#include "../src/common/quantile.cc"
-#include "../src/common/host_device_vector.cc"
+#include "../src/common/column_matrix.cc"
+#include "../src/common/common.cc"
 #include "../src/common/hist_util.cc"
+#include "../src/common/host_device_vector.cc"
 #include "../src/common/io.cc"
 #include "../src/common/json.cc"
+#include "../src/common/numeric.cc"
 #include "../src/common/pseudo_huber.cc"
+#include "../src/common/quantile.cc"
+#include "../src/common/random.cc"
 #include "../src/common/survival_util.cc"
 #include "../src/common/threading_utils.cc"
+#include "../src/common/timer.cc"
 #include "../src/common/version.cc"
+
+// collective
+#include "../src/collective/socket.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"

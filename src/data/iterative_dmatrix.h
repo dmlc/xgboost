@@ -75,30 +75,7 @@ class IterativeDMatrix : public DMatrix {
   explicit IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
-                            bst_bin_t max_bin)
-      : proxy_{proxy}, reset_{reset}, next_{next} {
-    // fetch the first batch
-    auto iter =
-        DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
-    iter.Reset();
-    bool valid = iter.Next();
-    CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
-
-    auto d = MakeProxy(proxy_)->DeviceIdx();
-    if (batch_param_.gpu_id != Context::kCpuId) {
-      CHECK_EQ(d, batch_param_.gpu_id) << "All batch should be on the same device.";
-    }
-    batch_param_ = BatchParam{d, max_bin};
-    batch_param_.sparse_thresh = 0.2;  // default from TrainParam
-
-    ctx_.UpdateAllowUnknown(
-        Args{{"nthread", std::to_string(nthread)}, {"gpu_id", std::to_string(d)}});
-    if (ctx_.IsCPU()) {
-      this->InitFromCPU(iter_handle, missing, ref);
-    } else {
-      this->InitFromCUDA(iter_handle, missing, ref);
-    }
-  }
+                            bst_bin_t max_bin);
   ~IterativeDMatrix() override = default;
 
   bool EllpackExists() const override { return static_cast<bool>(ellpack_); }
@@ -120,6 +97,7 @@ class IterativeDMatrix : public DMatrix {
   BatchSet<GHistIndexMatrix> GetGradientIndex(BatchParam const &param) override;
 
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam &param) override;
+  BatchSet<ExtSparsePage> GetExtBatches(BatchParam const& param) override;
 
   bool SingleColBlock() const override { return true; }
 
@@ -140,15 +118,14 @@ void GetCutsFromRef(std::shared_ptr<DMatrix> ref_, bst_feature_t n_features, Bat
 void GetCutsFromEllpack(EllpackPage const &page, common::HistogramCuts *cuts);
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDMatrix::InitFromCUDA(DataIterHandle iter, float missing,
-                                           std::shared_ptr<DMatrix> ref) {
+inline void IterativeDMatrix::InitFromCUDA(DataIterHandle, float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.
   (void)(proxy_);
   (void)(reset_);
   (void)(next_);
   common::AssertGPUSupport();
 }
-inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam &param) {
+inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(const BatchParam &) {
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));

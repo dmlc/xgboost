@@ -52,13 +52,14 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    TypedDict,
     TypeVar,
     Union,
 )
 
 import numpy
 
-from . import config, rabit
+from . import collective, config
 from ._typing import _T, FeatureNames, FeatureTypes
 from .callback import TrainingCallback
 from .compat import DataFrame, LazyLoader, concat, lazy_isinstance
@@ -102,22 +103,16 @@ else:
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
 _DataT = Union["da.Array", "dd.DataFrame"]  # do not use series as predictor
-
-try:
-    from mypy_extensions import TypedDict
-
-    TrainReturnT = TypedDict(
-        "TrainReturnT",
-        {
-            "booster": Booster,
-            "history": Dict,
-        },
-    )
-except ImportError:
-    TrainReturnT = Dict[str, Any]  # type:ignore
+TrainReturnT = TypedDict(
+    "TrainReturnT",
+    {
+        "booster": Booster,
+        "history": Dict,
+    },
+)
 
 __all__ = [
-    "RabitContext",
+    "CommunicatorContext",
     "DaskDMatrix",
     "DaskDeviceQuantileDMatrix",
     "DaskXGBRegressor",
@@ -163,7 +158,7 @@ def _try_start_tracker(
         if isinstance(addrs[0], tuple):
             host_ip = addrs[0][0]
             port = addrs[0][1]
-            rabit_context = RabitTracker(
+            rabit_tracker = RabitTracker(
                 host_ip=get_host_ip(host_ip),
                 n_workers=n_workers,
                 port=port,
@@ -173,12 +168,12 @@ def _try_start_tracker(
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
             host_ip = get_host_ip(addr)
-            rabit_context = RabitTracker(
+            rabit_tracker = RabitTracker(
                 host_ip=host_ip, n_workers=n_workers, use_logger=False, sortby="task"
             )
-        env.update(rabit_context.worker_envs())
-        rabit_context.start(n_workers)
-        thread = Thread(target=rabit_context.join)
+        env.update(rabit_tracker.worker_envs())
+        rabit_tracker.start(n_workers)
+        thread = Thread(target=rabit_tracker.join)
         thread.daemon = True
         thread.start()
     except socket.error as e:
@@ -218,11 +213,11 @@ def _assert_dask_support() -> None:
         LOGGER.warning(msg)
 
 
-class RabitContext(rabit.RabitContext):
-    """A context controlling rabit initialization and finalization."""
+class CommunicatorContext(collective.CommunicatorContext):
+    """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, args: List[bytes]) -> None:
-        super().__init__(args)
+    def __init__(self, **args: Any) -> None:
+        super().__init__(**args)
         worker = distributed.get_worker()
         with distributed.worker_client() as client:
             info = client.scheduler_info()
@@ -232,9 +227,7 @@ class RabitContext(rabit.RabitContext):
         # not the same as task ID is string and "10" is sorted before "2") with dask
         # worker ID. This outsources the rank assignment to dask and prevents
         # non-deterministic issue.
-        self.args.append(
-            (f"DMLC_TASK_ID=[xgboost.dask-{wid}]:" + str(worker.address)).encode()
-        )
+        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{wid}]:" + str(worker.address)
 
 
 def dconcat(value: Sequence[_T]) -> _T:
@@ -700,7 +693,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
 class DaskDeviceQuantileDMatrix(DaskQuantileDMatrix):
     """Use `DaskQuantileDMatrix` instead.
 
-    .. deprecated:: 2.0.0
+    .. deprecated:: 1.7.0
 
     .. versionadded:: 1.2.0
 
@@ -726,10 +719,9 @@ def _create_quantile_dmatrix(
     if parts is None:
         msg = f"worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
-        import cupy
 
         d = QuantileDMatrix(
-            cupy.zeros((0, 0)),
+            numpy.empty((0, 0)),
             feature_names=feature_names,
             feature_types=feature_types,
             max_bin=max_bin,
@@ -817,7 +809,7 @@ def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
 
 async def _get_rabit_args(
     n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
-) -> List[bytes]:
+) -> Dict[str, Union[str, int]]:
     """Get rabit context arguments from data distribution in DaskDMatrix."""
     # There are 3 possible different addresses:
     # 1. Provided by user via dask.config
@@ -833,11 +825,15 @@ async def _get_rabit_args(
             if k not in valid_config:
                 raise ValueError(f"Unknown configuration: {k}")
         host_ip = dconfig.get("scheduler_address", None)
+        if host_ip is not None and host_ip.startswith("[") and host_ip.endswith("]"):
+            # convert dask bracket format to proper IPv6 address.
+            host_ip = host_ip[1:-1]
         if host_ip is not None:
             try:
                 host_ip, port = distributed.comm.get_address_host_port(host_ip)
             except ValueError:
                 pass
+
     if host_ip is not None:
         user_addr = (host_ip, port)
     else:
@@ -856,9 +852,7 @@ async def _get_rabit_args(
     env = await client.run_on_scheduler(
         _start_tracker, n_workers, sched_addr, user_addr
     )
-
-    rabit_args = [f"{k}={v}".encode() for k, v in env.items()]
-    return rabit_args
+    return env
 
 
 def _get_dask_config() -> Optional[Dict[str, Any]]:
@@ -913,7 +907,7 @@ async def _train_async(
 
     def dispatched_train(
         parameters: Dict,
-        rabit_args: List[bytes],
+        rabit_args: Dict[str, Union[str, int]],
         train_id: int,
         evals_name: List[str],
         evals_id: List[int],
@@ -937,7 +931,7 @@ async def _train_async(
             n_threads = dwnt
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
         local_history: TrainingCallback.EvalsLog = {}
-        with RabitContext(rabit_args), config.config_context(**global_config):
+        with CommunicatorContext(**rabit_args), config.config_context(**global_config):
             Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
             evals: List[Tuple[DMatrix, str]] = []
             for i, ref in enumerate(refs):
@@ -1544,15 +1538,21 @@ def inplace_predict(  # pylint: disable=unused-argument
 
 
 async def _async_wrap_evaluation_matrices(
-    client: Optional["distributed.Client"], **kwargs: Any
+    client: Optional["distributed.Client"],
+    tree_method: Optional[str],
+    max_bin: Optional[int],
+    **kwargs: Any,
 ) -> Tuple[DaskDMatrix, Optional[List[Tuple[DaskDMatrix, str]]]]:
     """A switch function for async environment."""
 
-    def _inner(**kwargs: Any) -> DaskDMatrix:
-        m = DaskDMatrix(client=client, **kwargs)
-        return m
+    def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
+        if tree_method in ("hist", "gpu_hist"):
+            return DaskQuantileDMatrix(
+                client=client, ref=ref, max_bin=max_bin, **kwargs
+            )
+        return DaskDMatrix(client=client, **kwargs)
 
-    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_inner, **kwargs)
+    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_dispatch, **kwargs)
     train_dmatrix = await train_dmatrix
     if evals is None:
         return train_dmatrix, evals
@@ -1756,6 +1756,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,
@@ -1851,6 +1853,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,
@@ -2057,6 +2061,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
             X=X,
             y=y,
             group=None,

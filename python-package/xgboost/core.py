@@ -1,47 +1,70 @@
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
-from abc import ABC, abstractmethod
-from collections.abc import Mapping
 import copy
-from typing import List, Optional, Any, Union, Dict, TypeVar
-from typing import Callable, Tuple, cast, Sequence, Type, Iterable
 import ctypes
+import json
 import os
 import re
 import sys
-import json
 import warnings
+from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from functools import wraps
-from inspect import signature, Parameter
+from inspect import Parameter, signature
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 import numpy as np
 import scipy.sparse
 
-from .compat import DataFrame, py_str, PANDAS_INSTALLED
-from .libpath import find_lib_path
 from ._typing import (
-    CStrPptr,
-    c_bst_ulong,
+    _T,
+    ArrayLike,
+    BoosterParam,
+    CFloatPtr,
     CNumeric,
-    DataType,
     CNumericPtr,
+    CStrPptr,
     CStrPtr,
     CTypeT,
-    ArrayLike,
-    CFloatPtr,
-    NumpyOrCupy,
-    FeatureInfo,
-    FeatureTypes,
-    FeatureNames,
-    _T,
     CupyT,
-    BoosterParam
+    DataType,
+    FeatureInfo,
+    FeatureNames,
+    FeatureTypes,
+    NumpyOrCupy,
+    c_bst_ulong,
 )
+from .compat import PANDAS_INSTALLED, DataFrame, py_str
+from .libpath import find_lib_path
 
 
 class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
+
+
+@overload
+def from_pystr_to_cstr(data: str) -> bytes:
+    ...
+
+
+@overload
+def from_pystr_to_cstr(data: List[str]) -> ctypes.Array:
+    ...
 
 
 def from_pystr_to_cstr(data: Union[str, List[str]]) -> Union[bytes, ctypes.Array]:
@@ -76,9 +99,9 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     res = []
     for i in range(length.value):
         try:
-            res.append(str(data[i].decode('ascii')))  # type: ignore
+            res.append(str(cast(bytes, data[i]).decode('ascii')))
         except UnicodeDecodeError:
-            res.append(str(data[i].decode('utf-8')))  # type: ignore
+            res.append(str(cast(bytes, data[i]).decode('utf-8')))
     return res
 
 
@@ -358,7 +381,7 @@ def ctypes2buffer(cptr: CStrPtr, length: int) -> bytearray:
         raise RuntimeError('expected char pointer')
     res = bytearray(length)
     rptr = (ctypes.c_char * length).from_buffer(res)
-    if not ctypes.memmove(rptr, cptr, length):  # type: ignore
+    if not ctypes.memmove(rptr, cptr, length):
         raise RuntimeError('memmove failed')
     return res
 
@@ -370,8 +393,8 @@ def c_str(string: str) -> ctypes.c_char_p:
 
 def c_array(
     ctype: Type[CTypeT], values: ArrayLike
-) -> Union[ctypes.Array, ctypes.pointer]:
-    """Convert a python string to c array."""
+) -> Union[ctypes.Array, ctypes._Pointer]:
+    """Convert a python array to c array."""
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return values.ctypes.data_as(ctypes.POINTER(ctype))
     return (ctype * len(values))(*values)
@@ -479,8 +502,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         pointer.
 
         """
-        @_deprecate_positional_args
-        def data_handle(
+        @require_pos_args(True)
+        def input_data(
             data: Any,
             *,
             feature_names: Optional[FeatureNames] = None,
@@ -505,7 +528,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
                 **kwargs,
             )
         # pylint: disable=not-callable
-        return self._handle_exception(lambda: self.next(data_handle), 0)
+        return self._handle_exception(lambda: self.next(input_data), 0)
 
     @abstractmethod
     def reset(self) -> None:
@@ -531,7 +554,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         raise NotImplementedError()
 
 
-# Notice for `_deprecate_positional_args`
+# Notice for `require_pos_args`
 # Authors: Olivier Grisel
 #          Gael Varoquaux
 #          Andreas Mueller
@@ -540,53 +563,66 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 #          Nicolas Tresegnie
 #          Sylvain Marie
 # License: BSD 3 clause
-def _deprecate_positional_args(f: Callable[..., _T]) -> Callable[..., _T]:
+def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
-    * will issue a warning when passed as a positional argument.
+    * will issue a warning or error when passed as a positional argument.
 
     Modified from sklearn utils.validation.
 
     Parameters
     ----------
-    f : function
-        function to check arguments on
+    error :
+        Whether to throw an error or raise a warning.
     """
-    sig = signature(f)
-    kwonly_args = []
-    all_args = []
 
-    for name, param in sig.parameters.items():
-        if param.kind == Parameter.POSITIONAL_OR_KEYWORD:
-            all_args.append(name)
-        elif param.kind == Parameter.KEYWORD_ONLY:
-            kwonly_args.append(name)
+    def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
+        """Throw error/warning if there are positional arguments after the asterisk.
 
-    @wraps(f)
-    def inner_f(*args: Any, **kwargs: Any) -> _T:
-        extra_args = len(args) - len(all_args)
-        if extra_args > 0:
-            # ignore first 'self' argument for instance methods
-            args_msg = [
-                f"{name}" for name, _ in zip(
-                    kwonly_args[:extra_args], args[-extra_args:]
-                )
-            ]
-            # pylint: disable=consider-using-f-string
-            warnings.warn(
-                "Pass `{}` as keyword args.  Passing these as positional "
-                "arguments will be considered as error in future releases.".
-                format(", ".join(args_msg)), FutureWarning
-            )
-        for k, arg in zip(sig.parameters, args):
-            kwargs[k] = arg
-        return f(**kwargs)
+        Parameters
+        ----------
+        f :
+            function to check arguments on.
 
-    return inner_f
+        """
+        sig = signature(func)
+        kwonly_args = []
+        all_args = []
+
+        for name, param in sig.parameters.items():
+            if param.kind == Parameter.POSITIONAL_OR_KEYWORD:
+                all_args.append(name)
+            elif param.kind == Parameter.KEYWORD_ONLY:
+                kwonly_args.append(name)
+
+        @wraps(func)
+        def inner_f(*args: Any, **kwargs: Any) -> _T:
+            extra_args = len(args) - len(all_args)
+            if extra_args > 0:
+                # ignore first 'self' argument for instance methods
+                args_msg = [
+                    f"{name}"
+                    for name, _ in zip(kwonly_args[:extra_args], args[-extra_args:])
+                ]
+                # pylint: disable=consider-using-f-string
+                msg = "Pass `{}` as keyword args.".format(", ".join(args_msg))
+                if error:
+                    raise TypeError(msg)
+                warnings.warn(msg, FutureWarning)
+            for k, arg in zip(sig.parameters, args):
+                kwargs[k] = arg
+            return func(**kwargs)
+
+        return inner_f
+
+    return throw_if
 
 
-class DMatrix:  # pylint: disable=too-many-instance-attributes
+_deprecate_positional_args = require_pos_args(False)
+
+
+class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """Data Matrix used in XGBoost.
 
     DMatrix is an internal data structure that is used by XGBoost,
@@ -992,27 +1028,47 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         group_ptr = self.get_uint_info("group_ptr")
         return np.diff(group_ptr)
 
-    def num_row(self) -> int:
-        """Get the number of rows in the DMatrix.
+    def get_data(self) -> scipy.sparse.csr_matrix:
+        """Get the predictors from DMatrix as a CSR matrix. This getter is mostly for
+        testing purposes. If this is a quantized DMatrix then quantized values are
+        returned instead of input values.
 
-        Returns
-        -------
-        number of rows : int
+            .. versionadded:: 1.7.0
+
         """
+        indptr = np.empty(self.num_row() + 1, dtype=np.uint64)
+        indices = np.empty(self.num_nonmissing(), dtype=np.uint32)
+        data = np.empty(self.num_nonmissing(), dtype=np.float32)
+
+        c_indptr = indptr.ctypes.data_as(ctypes.POINTER(c_bst_ulong))
+        c_indices = indices.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32))
+        c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        config = from_pystr_to_cstr(json.dumps({}))
+
+        _check_call(
+            _LIB.XGDMatrixGetDataAsCSR(self.handle, config, c_indptr, c_indices, c_data)
+        )
+        ret = scipy.sparse.csr_matrix(
+            (data, indices, indptr), shape=(self.num_row(), self.num_col())
+        )
+        return ret
+
+    def num_row(self) -> int:
+        """Get the number of rows in the DMatrix."""
         ret = c_bst_ulong()
-        _check_call(_LIB.XGDMatrixNumRow(self.handle,
-                                         ctypes.byref(ret)))
+        _check_call(_LIB.XGDMatrixNumRow(self.handle, ctypes.byref(ret)))
         return ret.value
 
     def num_col(self) -> int:
-        """Get the number of columns (features) in the DMatrix.
-
-        Returns
-        -------
-        number of columns
-        """
+        """Get the number of columns (features) in the DMatrix."""
         ret = c_bst_ulong()
         _check_call(_LIB.XGDMatrixNumCol(self.handle, ctypes.byref(ret)))
+        return ret.value
+
+    def num_nonmissing(self) -> int:
+        """Get the number of non-missing values in the DMatrix."""
+        ret = c_bst_ulong()
+        _check_call(_LIB.XGDMatrixNumNonMissing(self.handle, ctypes.byref(ret)))
         return ret.value
 
     def slice(
@@ -1249,7 +1305,7 @@ class QuantileDMatrix(DMatrix):
         reference (the training dataset) ``QuantileDMatrix`` using ``ref`` as some
         information may be lost in quantisation.
 
-    .. versionadded:: 2.0.0
+    .. versionadded:: 1.7.0
 
     Parameters
     ----------
@@ -1373,7 +1429,7 @@ class QuantileDMatrix(DMatrix):
 class DeviceQuantileDMatrix(QuantileDMatrix):
     """ Use `QuantileDMatrix` instead.
 
-    .. deprecated:: 2.0.0
+    .. deprecated:: 1.7.0
 
     .. versionadded:: 1.1.0
 

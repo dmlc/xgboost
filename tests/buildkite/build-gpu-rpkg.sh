@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-CUDA_VERSION=11.0.3
-
 source tests/buildkite/conftest.sh
 
 echo "--- Build XGBoost R package with CUDA"

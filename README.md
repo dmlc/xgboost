@@ -10,6 +10,7 @@
 [![Conda version](https://img.shields.io/conda/vn/conda-forge/py-xgboost.svg)](https://anaconda.org/conda-forge/py-xgboost)
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
 [![Twitter](https://img.shields.io/badge/@XGBoostProject--_.svg?style=social&logo=twitter)](https://twitter.com/XGBoostProject)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost/badge)](https://api.securityscorecards.dev/projects/github.com/dmlc/xgboost)
 
 [Community](https://xgboost.ai/community) |
 [Documentation](https://xgboost.readthedocs.org) |
@@ -46,24 +47,11 @@ Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Pro
 ### Sponsors
 [[Become a sponsor](https://opencollective.com/xgboost#sponsor)]
 
-<!--<a href="https://opencollective.com/xgboost/sponsor/0/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/0/avatar.svg"></a>-->
 <a href="https://www.nvidia.com/en-us/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg" alt="NVIDIA" width="72" height="72"></a>
-<a href="https://opencollective.com/xgboost/sponsor/1/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/2/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/3/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/4/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/5/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/6/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/7/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/8/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/xgboost/sponsor/9/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/9/avatar.svg"></a>
+<a href="https://www.intel.com/" target="_blank"><img src="https://images.opencollective.com/intel-corporation/2fa85c1/logo/256.png" width="72" height="72"></a>
+<a href="https://getkoffie.com/?utm_source=opencollective&utm_medium=github&utm_campaign=xgboost" target="_blank"><img src="https://images.opencollective.com/koffielabs/f391ab8/logo/256.png" width="72" height="72"></a>
 
 ### Backers
 [[Become a backer](https://opencollective.com/xgboost#backer)]
 
 <a href="https://opencollective.com/xgboost#backers" target="_blank"><img src="https://opencollective.com/xgboost/backers.svg?width=890"></a>
-
-## Other sponsors
-The sponsors in this list are donating cloud hours in lieu of cash donation.
-
-<a href="https://aws.amazon.com/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/aws.png" alt="Amazon Web Services" width="72" height="72"></a>

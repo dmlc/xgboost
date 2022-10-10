@@ -1,10 +1,12 @@
 // Copyright (c) 2019-2022 by Contributors
+#include "../common/threading_utils.h"
 #include "../data/device_adapter.cuh"
 #include "../data/proxy_dmatrix.h"
 #include "c_api_error.h"
 #include "c_api_utils.h"
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
+#include "xgboost/json.h"
 #include "xgboost/learner.h"
 
 namespace xgboost {
@@ -62,13 +64,19 @@ XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data,
                                             char const* c_json_config,
                                             DMatrixHandle *out) {
   API_BEGIN();
+
+  xgboost_CHECK_C_ARG_PTR(c_json_config);
+  xgboost_CHECK_C_ARG_PTR(data);
+
   std::string json_str{data};
   auto config = Json::Load(StringView{c_json_config});
+
   float missing = GetMissing(config);
-  auto nthread = get<Integer const>(config["nthread"]);
+  auto n_threads =
+      OptionalArg<Integer, std::int64_t>(config, "nthread", common::OmpGetNumThreads(0));
   data::CudfAdapter adapter(json_str);
   *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -79,10 +87,11 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data,
   std::string json_str{data};
   auto config = Json::Load(StringView{c_json_config});
   float missing = GetMissing(config);
-  auto nthread = get<Integer const>(config["nthread"]);
+  auto n_threads =
+      OptionalArg<Integer, std::int64_t>(config, "nthread", common::OmpGetNumThreads(0));
   data::CupyAdapter adapter(json_str);
   *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, n_threads));
   API_END();
 }
 
@@ -97,6 +106,7 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
   }
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
+
   proxy->SetCUDAArray(c_array_interface);
 
   auto config = Json::Load(StringView{c_json_config});
@@ -117,6 +127,11 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_array_interface,
   size_t n_samples = p_m->Info().num_row_;
   auto chunksize = n_samples == 0 ? 0 : p_predt->Size() / n_samples;
   bool strict_shape = RequiredArg<Boolean>(config, "strict_shape", __func__);
+
+  xgboost_CHECK_C_ARG_PTR(out_result);
+  xgboost_CHECK_C_ARG_PTR(out_shape);
+  xgboost_CHECK_C_ARG_PTR(out_dim);
+
   CalcPredictShape(strict_shape, type, n_samples, p_m->Info().num_col_, chunksize,
                    learner->Groups(), learner->BoostedRounds(), &shape, out_dim);
   *out_shape = dmlc::BeginPtr(shape);
@@ -130,6 +145,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *c
                                              xgboost::bst_ulong *out_dim,
                                              const float **out_result) {
   std::shared_ptr<DMatrix> p_m{nullptr};
+  xgboost_CHECK_C_ARG_PTR(c_json_config);
   if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
@@ -145,6 +161,7 @@ XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *c_js
   if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
+  xgboost_CHECK_C_ARG_PTR(out_result);
   return InplacePreidctCuda(handle, c_json_strs, c_json_config, p_m, out_shape, out_dim,
                             out_result);
 }

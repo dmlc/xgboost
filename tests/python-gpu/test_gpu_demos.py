@@ -32,8 +32,5 @@ def test_categorical_demo():
 @pytest.mark.mgpu
 def test_dask_training():
     script = os.path.join(tm.PROJECT_ROOT, 'demo', 'dask', 'gpu_training.py')
-    cmd = ['python', script, '--ddqdm=1']
-    subprocess.check_call(cmd)
-
-    cmd = ['python', script, '--ddqdm=0']
+    cmd = ['python', script]
     subprocess.check_call(cmd)

@@ -1,14 +1,14 @@
 /*!
  * Copyright 2017-2020 XGBoost contributors
  */
-#include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
+#include "../../../src/data/adapter.h"
+#include "../../../src/gbm/gbtree_model.h"
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "../predictor/test_predictor.h"
-#include "../../../src/gbm/gbtree_model.h"
-#include "../../../src/data/adapter.h"
 
 namespace xgboost {
 TEST(Plugin, OneAPIPredictorBasic) {

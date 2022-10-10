@@ -1267,17 +1267,17 @@ def test_dask_iteration_range(client: "Client"):
 
 class TestWithDask:
     def test_dmatrix_binary(self, client: "Client") -> None:
-        def save_dmatrix(rabit_args: List[bytes], tmpdir: str) -> None:
-            with xgb.dask.RabitContext(rabit_args):
-                rank = xgb.rabit.get_rank()
+        def save_dmatrix(rabit_args: Dict[str, Union[int, str]], tmpdir: str) -> None:
+            with xgb.dask.CommunicatorContext(**rabit_args):
+                rank = xgb.collective.get_rank()
                 X, y = tm.make_categorical(100, 4, 4, False)
                 Xy = xgb.DMatrix(X, y, enable_categorical=True)
                 path = os.path.join(tmpdir, f"{rank}.bin")
                 Xy.save_binary(path)
 
-        def load_dmatrix(rabit_args: List[bytes], tmpdir: str) -> None:
-            with xgb.dask.RabitContext(rabit_args):
-                rank = xgb.rabit.get_rank()
+        def load_dmatrix(rabit_args: Dict[str, Union[int,str]], tmpdir: str) -> None:
+            with xgb.dask.CommunicatorContext(**rabit_args):
+                rank = xgb.collective.get_rank()
                 path = os.path.join(tmpdir, f"{rank}.bin")
                 Xy = xgb.DMatrix(path)
                 assert Xy.num_row() == 100
@@ -1488,20 +1488,13 @@ class TestWithDask:
         test = "--gtest_filter=Quantile." + name
 
         def runit(
-            worker_addr: str, rabit_args: List[bytes]
+            worker_addr: str, rabit_args: Dict[str, Union[int, str]]
         ) -> subprocess.CompletedProcess:
             port_env = ''
             # setup environment for running the c++ part.
-            for arg in rabit_args:
-                if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
-                    port_env = arg.decode('utf-8')
-                if arg.decode("utf-8").startswith("DMLC_TRACKER_URI"):
-                    uri_env = arg.decode("utf-8")
-            port = port_env.split('=')
             env = os.environ.copy()
-            env[port[0]] = port[1]
-            uri = uri_env.split("=")
-            env["DMLC_TRACKER_URI"] = uri[1]
+            env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])
+            env["DMLC_TRACKER_URI"] = str(rabit_args["DMLC_TRACKER_URI"])
             return subprocess.run([str(exe), test], env=env, capture_output=True)
 
         with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
@@ -1537,13 +1530,56 @@ class TestWithDask:
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.gtest
     def test_quantile_same_on_all_workers(self) -> None:
-        self.run_quantile('SameOnAllWorkers')
+        self.run_quantile("SameOnAllWorkers")
+
+    def test_adaptive(self) -> None:
+        def get_score(config: Dict) -> float:
+            return float(config["learner"]["learner_model_param"]["base_score"])
+
+        def local_test(rabit_args: Dict[str, Union[int, str]], worker_id: int) -> bool:
+            with xgb.dask.CommunicatorContext(**rabit_args):
+                if worker_id == 0:
+                    y = np.array([0.0, 0.0, 0.0])
+                    x = np.array([[0.0]] * 3)
+                else:
+                    y = np.array([1000.0])
+                    x = np.array(
+                        [
+                            [0.0],
+                        ]
+                    )
+
+                Xy = xgb.DMatrix(x, y)
+                booster = xgb.train(
+                    {"tree_method": "hist", "objective": "reg:absoluteerror"},
+                    Xy,
+                    num_boost_round=1,
+                )
+                config = json.loads(booster.save_config())
+                base_score = get_score(config)
+                assert base_score == 250.0
+                return True
+
+        with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
+            with Client(cluster) as client:
+                workers = _get_client_workers(client)
+                rabit_args = client.sync(
+                    xgb.dask._get_rabit_args, len(workers), None, client
+                )
+                futures = []
+                for i, _ in enumerate(workers):
+                    f = client.submit(local_test, rabit_args, i)
+                    futures.append(f)
+
+                results = client.gather(futures)
+                assert all(results)
 
     def test_n_workers(self) -> None:
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 workers = _get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
+
                 X, y = load_breast_cancer(return_X_y=True)
                 dX = client.submit(da.from_array, X, workers=[workers[0]]).result()
                 dy = client.submit(da.from_array, y, workers=[workers[0]]).result()
@@ -1643,12 +1679,12 @@ class TestWithDask:
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
-                    with xgb.dask.RabitContext(rabit_args):
+                    with xgb.dask.CommunicatorContext(**rabit_args):
                         local_dtrain = xgb.dask._dmatrix_from_list_of_parts(
                             **data_ref, nthread=7
                         )
                         total = np.array([local_dtrain.num_row()])
-                        total = xgb.rabit.allreduce(total, xgb.rabit.Op.SUM)
+                        total = xgb.collective.allreduce(total, xgb.collective.Op.SUM)
                         assert total[0] == kRows
 
                 futures = []

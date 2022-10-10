@@ -52,6 +52,8 @@ Debug
 R-package.Rproj
 *.cache*
 .mypy_cache/
+doxygen
+
 # java
 java/xgboost4j/target
 java/xgboost4j/tmp
@@ -97,8 +99,11 @@ metastore_db
 R-package/src/Makevars
 *.lib
 
-# Visual Studio Code
-/.vscode/
+# Visual Studio
+.vs/
+CMakeSettings.json
+*.ilk
+*.pdb
 
 # IntelliJ/CLion
 .idea

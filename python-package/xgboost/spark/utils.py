@@ -1,6 +1,7 @@
 # type: ignore
 """Xgboost pyspark integration submodule for helper functions."""
 import inspect
+import json
 import logging
 import sys
 from threading import Thread
@@ -9,7 +10,7 @@ import pyspark
 from pyspark.sql.session import SparkSession
 from xgboost.tracker import RabitTracker
 
-from xgboost import rabit
+from xgboost import collective
 
 
 def get_class_name(cls):
@@ -36,21 +37,21 @@ def _get_default_params_from_func(func, unsupported_set):
     return filtered_params_dict
 
 
-class RabitContext:
+class CommunicatorContext:
     """
-    A context controlling rabit initialization and finalization.
+    A context controlling collective communicator initialization and finalization.
     This isn't specificially necessary (note Part 3), but it is more understandable coding-wise.
     """
 
-    def __init__(self, args, context):
+    def __init__(self, context, **args):
         self.args = args
-        self.args.append(("DMLC_TASK_ID=" + str(context.partitionId())).encode())
+        self.args["DMLC_TASK_ID"] = str(context.partitionId())
 
     def __enter__(self):
-        rabit.init(self.args)
+        collective.init(**self.args)
 
     def __exit__(self, *args):
-        rabit.finalize()
+        collective.finalize()
 
 
 def _start_tracker(context, n_workers):
@@ -74,8 +75,7 @@ def _get_rabit_args(context, n_workers):
     """
     # pylint: disable=consider-using-f-string
     env = _start_tracker(context, n_workers)
-    rabit_args = [("%s=%s" % item).encode() for item in env.items()]
-    return rabit_args
+    return env
 
 
 def _get_host_ip(context):
@@ -95,7 +95,7 @@ def _get_args_from_message_list(messages):
         if message != "":
             output = message
             break
-    return [elem.split("'")[1].encode() for elem in output.strip("][").split(", ")]
+    return json.loads(output)
 
 
 def _get_spark_session():

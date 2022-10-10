@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 if [ "$#" -lt 1 ]
 then
@@ -54,44 +53,47 @@ function uninstall_xgboost {
 case "$suite" in
   gpu)
     source activate gpu_test
+    set -x
     install_xgboost
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 -m "not mgpu" ${args} tests/python-gpu
     unset_pyspark_envs
     uninstall_xgboost
+    set +x
     ;;
 
   mgpu)
     source activate gpu_test
+    set -x
     install_xgboost
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
     unset_pyspark_envs
-
-    cd tests/distributed
-    ./runtests-gpu.sh
     uninstall_xgboost
+    set +x
     ;;
 
   cpu)
     source activate cpu_test
+    set -x
     install_xgboost
     export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python
     unset_pyspark_envs
-    cd tests/distributed
-    ./runtests.sh
     uninstall_xgboost
+    set +x
     ;;
 
   cpu-arm64)
     source activate aarch64_test
+    set -x
     install_xgboost
     setup_pyspark_envs
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python/test_basic.py tests/python/test_basic_models.py tests/python/test_model_compatibility.py
     unset_pyspark_envs
     uninstall_xgboost
+    set +x
     ;;
 
   *)

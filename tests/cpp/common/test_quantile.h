@@ -1,13 +1,16 @@
-#include <rabit/rabit.h>
+#ifndef XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
+#define XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_
+
 #include <algorithm>
 #include <string>
 #include <vector>
 
 #include "../helpers.h"
+#include "../../src/collective/communicator-inl.h"
 
 namespace xgboost {
 namespace common {
-inline void InitRabitContext(std::string msg, int32_t n_workers) {
+inline void InitCommunicatorContext(std::string msg, int32_t n_workers) {
   auto port = std::getenv("DMLC_TRACKER_PORT");
   std::string port_str;
   if (port) {
@@ -25,21 +28,20 @@ inline void InitRabitContext(std::string msg, int32_t n_workers) {
     return;
   }
 
-  std::vector<std::string> envs{
-      "DMLC_TRACKER_PORT=" + port_str,
-      "DMLC_TRACKER_URI=" + uri_str,
-      "DMLC_NUM_WORKER=" + std::to_string(n_workers)};
-  char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
-  rabit::Init(3, c_envs);
+  Json config{JsonObject()};
+  config["DMLC_TRACKER_PORT"] = port_str;
+  config["DMLC_TRACKER_URI"] = uri_str;
+  config["DMLC_NUM_WORKER"] = n_workers;
+  collective::Init(config);
 }
 
 template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
-  std::vector<int32_t> seeds(4);
+  std::vector<int32_t> seeds(2);
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist(3, 1000);
   std::generate(seeds.begin(), seeds.end(), [&](){ return dist(&lcg); });
 
-  std::vector<size_t> bins(8);
+  std::vector<size_t> bins(2);
   for (size_t i = 0; i < bins.size() - 1; ++i) {
     bins[i] = i * 35 + 2;
   }
@@ -62,3 +64,5 @@ template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
 }
 }  // namespace common
 }  // namespace xgboost
+
+#endif  // XGBOOST_TESTS_CPP_COMMON_TEST_QUANTILE_H_

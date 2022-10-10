@@ -135,18 +135,16 @@ class XGBoostJNI {
   public final static native int XGBoosterSaveRabitCheckpoint(long handle);
   public final static native int XGBoosterGetNumFeature(long handle, long[] feature);
 
-  // rabit functions
-  public final static native int RabitInit(String[] args);
-  public final static native int RabitFinalize();
-  public final static native int RabitTrackerPrint(String msg);
-  public final static native int RabitGetRank(int[] out);
-  public final static native int RabitGetWorldSize(int[] out);
-  public final static native int RabitVersionNumber(int[] out);
+  // communicator functions
+  public final static native int CommunicatorInit(String[] args);
+  public final static native int CommunicatorFinalize();
+  public final static native int CommunicatorPrint(String msg);
+  public final static native int CommunicatorGetRank(int[] out);
+  public final static native int CommunicatorGetWorldSize(int[] out);
 
   // Perform Allreduce operation on data in sendrecvbuf.
-  // This JNI function does not support the callback function for data preparation yet.
-  final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
-                                                int enum_dtype, int enum_op);
+  final static native int CommunicatorAllreduce(ByteBuffer sendrecvbuf, int count,
+    int enum_dtype, int enum_op);
 
   public final static native int XGDMatrixSetInfoFromInterface(
     long handle, String field, String json);

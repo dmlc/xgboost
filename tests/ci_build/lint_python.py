@@ -121,9 +121,11 @@ if __name__ == "__main__":
                 "python-package/xgboost/sklearn.py",
                 "python-package/xgboost/spark",
                 "python-package/xgboost/federated.py",
+                "python-package/xgboost/testing.py",
                 # tests
                 "tests/python/test_config.py",
                 "tests/python/test_spark/",
+                "tests/python/test_quantile_dmatrix.py",
                 "tests/python-gpu/test_gpu_spark/",
                 "tests/ci_build/lint_python.py",
                 # demo

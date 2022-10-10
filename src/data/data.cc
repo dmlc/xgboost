@@ -2,36 +2,36 @@
  * Copyright 2015-2022 by XGBoost Contributors
  * \file data.cc
  */
+#include "xgboost/data.h"
+
 #include <dmlc/registry.h>
+
 #include <array>
 #include <cstring>
 
-#include "dmlc/io.h"
-#include "xgboost/data.h"
-#include "xgboost/c_api.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/logging.h"
-#include "xgboost/version_config.h"
-#include "xgboost/learner.h"
-#include "xgboost/string_view.h"
-
-#include "sparse_page_writer.h"
-#include "simple_dmatrix.h"
-
+#include "../collective/communicator-inl.h"
+#include "../common/group_data.h"
 #include "../common/io.h"
 #include "../common/linalg_op.h"
 #include "../common/math.h"
 #include "../common/numeric.h"
-#include "../common/version.h"
-#include "../common/group_data.h"
 #include "../common/threading_utils.h"
+#include "../common/version.h"
 #include "../data/adapter.h"
 #include "../data/iterative_dmatrix.h"
-#include "file_iterator.h"
-
-#include "validation.h"
-#include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
+#include "./sparse_page_source.h"
+#include "dmlc/io.h"
+#include "file_iterator.h"
+#include "simple_dmatrix.h"
+#include "sparse_page_writer.h"
+#include "validation.h"
+#include "xgboost/c_api.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/learner.h"
+#include "xgboost/logging.h"
+#include "xgboost/string_view.h"
+#include "xgboost/version_config.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
@@ -514,6 +514,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
 
 void MetaInfo::SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype,
                        size_t num) {
+  CHECK(key);
   auto proc = [&](auto cast_d_ptr) {
     using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
     auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, Context::kCpuId);
@@ -588,8 +589,8 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
   if (size != 0 && this->num_col_ != 0) {
-    CHECK_EQ(size, this->num_col_)
-        << "Length of " << key << " must be equal to number of columns.";
+    CHECK_EQ(size, this->num_col_) << "Length of " << key << " must be equal to number of columns.";
+    CHECK(info);
   }
   if (!std::strcmp(key, "feature_type")) {
     feature_type_names.clear();
@@ -792,12 +793,12 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
         size_t pos = cache_shards[i].rfind('.');
         if (pos == std::string::npos) {
           os << cache_shards[i]
-             << ".r" << rabit::GetRank()
-             << "-" <<  rabit::GetWorldSize();
+             << ".r" << collective::GetRank()
+             << "-" <<  collective::GetWorldSize();
         } else {
           os << cache_shards[i].substr(0, pos)
-             << ".r" << rabit::GetRank()
-             << "-" <<  rabit::GetWorldSize()
+             << ".r" << collective::GetRank()
+             << "-" <<  collective::GetWorldSize()
              << cache_shards[i].substr(pos, cache_shards[i].length());
         }
         if (i + 1 != cache_shards.size()) {
@@ -820,8 +821,8 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
 
   int partid = 0, npart = 1;
   if (load_row_split) {
-    partid = rabit::GetRank();
-    npart = rabit::GetWorldSize();
+    partid = collective::GetRank();
+    npart = collective::GetWorldSize();
   } else {
     // test option to load in part
     npart = 1;
@@ -876,7 +877,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
   /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
-  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
+  collective::Allreduce<collective::Operation::kMax>(&dmat->Info().num_col_, 1);
   return dmat;
 }
 

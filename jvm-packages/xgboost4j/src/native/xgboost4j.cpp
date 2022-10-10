@@ -874,106 +874,84 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFea
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitInit
+ * Method:    CommunicatorInit
  * Signature: ([Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorInit
   (JNIEnv *jenv, jclass jcls, jobjectArray jargs) {
-  std::vector<std::string> args;
-  std::vector<char*> argv;
+  xgboost::Json config{xgboost::Object{}};
   bst_ulong len = (bst_ulong)jenv->GetArrayLength(jargs);
-  for (bst_ulong i = 0; i < len; ++i) {
-    jstring arg = (jstring)jenv->GetObjectArrayElement(jargs, i);
-    const char *s = jenv->GetStringUTFChars(arg, 0);
-    args.push_back(std::string(s, jenv->GetStringLength(arg)));
-    if (s != nullptr) jenv->ReleaseStringUTFChars(arg, s);
-    if (args.back().length() == 0) args.pop_back();
+  assert(len % 2 == 0);
+  for (bst_ulong i = 0; i < len / 2; ++i) {
+    jstring key = (jstring)jenv->GetObjectArrayElement(jargs, 2 * i);
+    std::string key_str(jenv->GetStringUTFChars(key, 0), jenv->GetStringLength(key));
+    jstring value = (jstring)jenv->GetObjectArrayElement(jargs, 2 * i + 1);
+    std::string value_str(jenv->GetStringUTFChars(value, 0), jenv->GetStringLength(value));
+    config[key_str] = xgboost::String(value_str);
   }
-
-  for (size_t i = 0; i < args.size(); ++i) {
-    argv.push_back(&args[i][0]);
-  }
-
-  if (RabitInit(args.size(), dmlc::BeginPtr(argv))) {
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitFinalize
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitFinalize
-  (JNIEnv *jenv, jclass jcls) {
-  if (RabitFinalize()) {
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitTrackerPrint
- * Signature: (Ljava/lang/String;)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitTrackerPrint
-  (JNIEnv *jenv, jclass jcls, jstring jmsg) {
-  std::string str(jenv->GetStringUTFChars(jmsg, 0),
-                  jenv->GetStringLength(jmsg));
-  JVM_CHECK_CALL(RabitTrackerPrint(str.c_str()));
+  std::string json_str;
+  xgboost::Json::Dump(config, &json_str);
+  JVM_CHECK_CALL(XGCommunicatorInit(json_str.c_str()));
   return 0;
 }
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitGetRank
+ * Method:    CommunicatorFinalize
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorFinalize
+  (JNIEnv *jenv, jclass jcls) {
+  JVM_CHECK_CALL(XGCommunicatorFinalize());
+  return 0;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CommunicatorPrint
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorPrint
+  (JNIEnv *jenv, jclass jcls, jstring jmsg) {
+  std::string str(jenv->GetStringUTFChars(jmsg, 0),
+                  jenv->GetStringLength(jmsg));
+  JVM_CHECK_CALL(XGCommunicatorPrint(str.c_str()));
+  return 0;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CommunicatorGetRank
  * Signature: ([I)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetRank
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorGetRank
   (JNIEnv *jenv, jclass jcls, jintArray jout) {
-  jint rank = RabitGetRank();
+  jint rank = XGCommunicatorGetRank();
   jenv->SetIntArrayRegion(jout, 0, 1, &rank);
   return 0;
 }
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitGetWorldSize
+ * Method:    CommunicatorGetWorldSize
  * Signature: ([I)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetWorldSize
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorGetWorldSize
   (JNIEnv *jenv, jclass jcls, jintArray jout) {
-  jint out = RabitGetWorldSize();
+  jint out = XGCommunicatorGetWorldSize();
   jenv->SetIntArrayRegion(jout, 0, 1, &out);
   return 0;
 }
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitVersionNumber
- * Signature: ([I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitVersionNumber
-  (JNIEnv *jenv, jclass jcls, jintArray jout) {
-  jint out = RabitVersionNumber();
-  jenv->SetIntArrayRegion(jout, 0, 1, &out);
-  return 0;
-}
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitAllreduce
+ * Method:    CommunicatorAllreduce
  * Signature: (Ljava/nio/ByteBuffer;III)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorAllreduce
   (JNIEnv *jenv, jclass jcls, jobject jsendrecvbuf, jint jcount, jint jenum_dtype, jint jenum_op) {
   void *ptr_sendrecvbuf = jenv->GetDirectBufferAddress(jsendrecvbuf);
-  JVM_CHECK_CALL(RabitAllreduce(ptr_sendrecvbuf, (size_t) jcount, jenum_dtype, jenum_op, NULL, NULL));
-
+  JVM_CHECK_CALL(XGCommunicatorAllreduce(ptr_sendrecvbuf, (size_t) jcount, jenum_dtype, jenum_op));
   return 0;
 }
 

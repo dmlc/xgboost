@@ -17,15 +17,31 @@
 package ml.dmlc.xgboost4j.scala.rapids.spark
 
 import ai.rapids.cudf.Table
-import com.nvidia.spark.rapids.ColumnarRdd
+import com.nvidia.spark.rapids.{ColumnarRdd, GpuColumnVector}
+import ml.dmlc.xgboost4j.scala.spark.util.Utils
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.ml.param.{Param, Params}
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{FloatType, NumericType, StructType}
+import org.apache.spark.sql.types.{DataType, FloatType, NumericType, StructType}
+import org.apache.spark.sql.vectorized.ColumnVector
 
 private[spark] object GpuUtils {
+
+  def extractBatchToHost(table: Table, types: Array[DataType]): Array[ColumnVector] = {
+    // spark-rapids has shimmed the GpuColumnVector from 22.10
+    try {
+      val clazz = Utils.classForName("com.nvidia.spark.rapids.GpuColumnVectorUtils")
+      clazz.getDeclaredMethod("extractHostColumns", classOf[Table], classOf[Array[DataType]])
+        .invoke(null, table, types).asInstanceOf[Array[ColumnVector]]
+    } catch {
+      case _: ClassNotFoundException =>
+        // If it's older version, use the GpuColumnVector
+        GpuColumnVector.extractColumns(table, types).map(_.copyToHost())
+      case e: Throwable => throw e
+    }
+  }
 
   def toColumnarRdd(df: DataFrame): RDD[Table] = ColumnarRdd(df)
 

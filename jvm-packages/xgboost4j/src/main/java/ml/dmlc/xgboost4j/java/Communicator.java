@@ -8,12 +8,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Rabit global class for synchronization.
+ * Collective communicator global class for synchronization.
+ *
+ * Currently the communicator API is experimental, function signatures may change in the future
+ * without notice.
  */
-public class Rabit {
+public class Communicator {
 
   public enum OpType implements Serializable {
-    MAX(0), MIN(1), SUM(2), BITWISE_OR(3);
+    MAX(0), MIN(1), SUM(2);
 
     private int op;
 
@@ -27,12 +30,11 @@ public class Rabit {
   }
 
   public enum DataType implements Serializable {
-    CHAR(0, 1), UCHAR(1, 1), INT(2, 4), UNIT(3, 4),
-    LONG(4, 8), ULONG(5, 8), FLOAT(6, 4), DOUBLE(7, 8),
-    LONGLONG(8, 8), ULONGLONG(9, 8);
+    INT8(0, 1), UINT8(1, 1), INT32(2, 4), UINT32(3, 4),
+    INT64(4, 8), UINT64(5, 8), FLOAT32(6, 4), FLOAT64(7, 8);
 
-    private int enumOp;
-    private int size;
+    private final int enumOp;
+    private final int size;
 
     public int getEnumOp() {
       return this.enumOp;
@@ -53,90 +55,85 @@ public class Rabit {
       throw new XGBoostError(XGBoostJNI.XGBGetLastError());
     }
   }
-  // used as way to test/debug passed rabit init parameters
-  public static Map<String, String> rabitEnvs;
+
+  // used as way to test/debug passed communicator init parameters
+  public static Map<String, String> communicatorEnvs;
   public static List<String> mockList = new LinkedList<>();
+
   /**
-   * Initialize the rabit library on current working thread.
-   * @param envs The additional environment variables to pass to rabit.
+   * Initialize the collective communicator on current working thread.
+   *
+   * @param envs The additional environment variables to pass to the communicator.
    * @throws XGBoostError
    */
   public static void init(Map<String, String> envs) throws XGBoostError {
-    rabitEnvs = envs;
-    String[] args = new String[envs.size() + mockList.size()];
+    communicatorEnvs = envs;
+    String[] args = new String[envs.size() * 2 + mockList.size() * 2];
     int idx = 0;
     for (java.util.Map.Entry<String, String> e : envs.entrySet()) {
-      args[idx++] = e.getKey() + '=' + e.getValue();
+      args[idx++] = e.getKey();
+      args[idx++] = e.getValue();
     }
     // pass list of rabit mock strings eg mock=0,1,0,0
-    for(String mock : mockList) {
-      args[idx++] =  "mock=" + mock;
+    for (String mock : mockList) {
+      args[idx++] = "mock";
+      args[idx++] = mock;
     }
-    checkCall(XGBoostJNI.RabitInit(args));
+    checkCall(XGBoostJNI.CommunicatorInit(args));
   }
 
   /**
-   * Shutdown the rabit engine in current working thread, equals to finalize.
+   * Shutdown the communicator in current working thread, equals to finalize.
+   *
    * @throws XGBoostError
    */
   public static void shutdown() throws XGBoostError {
-    checkCall(XGBoostJNI.RabitFinalize());
+    checkCall(XGBoostJNI.CommunicatorFinalize());
   }
 
   /**
-   * Print the message on rabit tracker.
+   * Print the message via the communicator.
+   *
    * @param msg
    * @throws XGBoostError
    */
-  public static void trackerPrint(String msg) throws XGBoostError {
-    checkCall(XGBoostJNI.RabitTrackerPrint(msg));
-  }
-
-  /**
-   * Get version number of current stored model in the thread.
-   * which means how many calls to CheckPoint we made so far.
-   * @return version Number.
-   * @throws XGBoostError
-   */
-  public static int versionNumber() throws XGBoostError {
-    int[] out = new int[1];
-    checkCall(XGBoostJNI.RabitVersionNumber(out));
-    return out[0];
+  public static void communicatorPrint(String msg) throws XGBoostError {
+    checkCall(XGBoostJNI.CommunicatorPrint(msg));
   }
 
   /**
    * get rank of current thread.
+   *
    * @return the rank.
    * @throws XGBoostError
    */
   public static int getRank() throws XGBoostError {
     int[] out = new int[1];
-    checkCall(XGBoostJNI.RabitGetRank(out));
+    checkCall(XGBoostJNI.CommunicatorGetRank(out));
     return out[0];
   }
 
   /**
    * get world size of current job.
+   *
    * @return the worldsize
    * @throws XGBoostError
    */
   public static int getWorldSize() throws XGBoostError {
     int[] out = new int[1];
-    checkCall(XGBoostJNI.RabitGetWorldSize(out));
+    checkCall(XGBoostJNI.CommunicatorGetWorldSize(out));
     return out[0];
   }
 
   /**
    * perform Allreduce on distributed float vectors using operator op.
-   * This implementation of allReduce does not support customized prepare function callback in the
-   * native code, as this function is meant for testing purposes only (to test the Rabit tracker.)
    *
    * @param elements local elements on distributed workers.
-   * @param op operator used for Allreduce.
+   * @param op       operator used for Allreduce.
    * @return All-reduced float elements according to the given operator.
-     */
+   */
   public static float[] allReduce(float[] elements, OpType op) {
-    DataType dataType = DataType.FLOAT;
+    DataType dataType = DataType.FLOAT32;
     ByteBuffer buffer = ByteBuffer.allocateDirect(dataType.getSize() * elements.length)
             .order(ByteOrder.nativeOrder());
 
@@ -145,7 +142,8 @@ public class Rabit {
     }
     buffer.flip();
 
-    XGBoostJNI.RabitAllreduce(buffer, elements.length, dataType.getEnumOp(), op.getOperand());
+    XGBoostJNI.CommunicatorAllreduce(buffer, elements.length, dataType.getEnumOp(),
+            op.getOperand());
     float[] results = new float[elements.length];
     buffer.asFloatBuffer().get(results);
 

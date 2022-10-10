@@ -149,6 +149,19 @@ class HistogramCuts {
     return this->SearchCatBin(value, fidx, ptrs, vals);
   }
   bst_bin_t SearchCatBin(Entry const& e) const { return SearchCatBin(e.fvalue, e.index); }
+
+  /**
+   * \brief Return numerical bin value given bin index.
+   */
+  static float NumericBinValue(std::vector<std::uint32_t> const& ptrs,
+                               std::vector<float> const& vals, std::vector<float> const& mins,
+                               bst_feature_t fidx, bst_bin_t bin_idx) {
+    auto lower = static_cast<bst_bin_t>(ptrs[fidx]);
+    if (bin_idx == lower) {
+      return mins[fidx];
+    }
+    return vals[bin_idx - 1];
+  }
 };
 
 /**
@@ -623,7 +636,8 @@ class GHistBuilder {
   // construct a histogram via histogram aggregation
   template <bool any_missing>
   void BuildHist(const std::vector<GradientPair>& gpair, const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix& gmat, GHistRow hist) const;
+                 const GHistIndexMatrix& gmat, GHistRow hist,
+                 bool force_read_by_column = false) const;
   uint32_t GetNumBins() const {
       return nbins_;
   }

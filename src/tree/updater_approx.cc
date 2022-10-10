@@ -73,7 +73,7 @@ class GloablApproxBuilder {
     }
 
     histogram_builder_.Reset(n_total_bins, BatchSpec(param_, hess), ctx_->Threads(), n_batches_,
-                             rabit::IsDistributed());
+                             collective::IsDistributed());
     monitor_->Stop(__func__);
   }
 
@@ -87,7 +87,7 @@ class GloablApproxBuilder {
     for (auto const &g : gpair) {
       root_sum.Add(g);
     }
-    rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double *>(&root_sum), 2);
+    collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double *>(&root_sum), 2);
     std::vector<CPUExpandEntry> nodes{best};
     size_t i = 0;
     auto space = ConstructHistSpace(partitioner_, nodes);

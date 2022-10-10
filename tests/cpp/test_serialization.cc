@@ -1,14 +1,16 @@
 // Copyright (c) 2019-2022 by Contributors
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
-#include <string>
-#include <xgboost/learner.h>
-#include <xgboost/data.h>
 #include <xgboost/base.h>
+#include <xgboost/data.h>
 #include <xgboost/json.h>
-#include "helpers.h"
+#include <xgboost/learner.h>
+
+#include <string>
+
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
+#include "filesystem.h"  // dmlc::TemporaryDirectory
+#include "helpers.h"
 
 namespace xgboost {
 template <typename Array>
@@ -416,6 +418,45 @@ TEST_F(SerializationTest, GPUCoordDescent) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
+class L1SerializationTest : public SerializationTest {};
+
+TEST_F(L1SerializationTest, Exact) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "exact"}},
+                           fmap_, p_dmat_);
+}
+
+TEST_F(L1SerializationTest, Approx) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "approx"}},
+                           fmap_, p_dmat_);
+}
+
+TEST_F(L1SerializationTest, Hist) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "hist"}},
+                           fmap_, p_dmat_);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST_F(L1SerializationTest, GpuHist) {
+  TestLearnerSerialization({{"booster", "gbtree"},
+                            {"objective", "reg:absoluteerror"},
+                            {"seed", "0"},
+                            {"max_depth", "2"},
+                            {"tree_method", "gpu_hist"}},
+                           fmap_, p_dmat_);
+}
+#endif  //  defined(XGBOOST_USE_CUDA)
 
 class LogitSerializationTest : public SerializationTest {
  protected:

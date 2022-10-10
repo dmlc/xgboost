@@ -19,6 +19,7 @@
 #include "xgboost/span.h"
 #include "xgboost/json.h"
 
+#include "../collective/device_communicator.cuh"
 #include "../common/io.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
@@ -72,9 +73,10 @@ DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
  * \author  Rory
  * \date    28/07/2018
  */
-template <typename GradientSumT, size_t kStopGrowingSize = 1 << 28>
+template <size_t kStopGrowingSize = 1 << 28>
 class DeviceHistogramStorage {
  private:
+  using GradientSumT = GradientPairInt64;
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
   // Large buffer of zeroed memory, caches histograms
@@ -180,7 +182,7 @@ struct GPUHistMakerDevice {
   BatchParam batch_param;
 
   std::unique_ptr<RowPartitioner> row_partitioner;
-  DeviceHistogramStorage<GradientSumT> hist{};
+  DeviceHistogramStorage<> hist{};
 
   dh::device_vector<GradientPair> d_gpair;  // storage for gpair;
   common::Span<GradientPair> gpair;
@@ -193,7 +195,7 @@ struct GPUHistMakerDevice {
 
   TrainParam param;
 
-  HistRounding<GradientSumT> histogram_rounding;
+  std::unique_ptr<GradientQuantizer> histogram_rounding;
 
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
@@ -265,7 +267,7 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
-    histogram_rounding = CreateRoundingFactor<GradientSumT>(this->gpair);
+    histogram_rounding.reset(new GradientQuantizer(this->gpair));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(ctx_->gpu_id,  sample.sample_rows));
@@ -282,7 +284,11 @@ struct GPUHistMakerDevice {
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
-        gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
+        gpu_param,
+        *histogram_rounding,
+        feature_types,
+        matrix.feature_segments,
+        matrix.gidx_fvalue_map,
         matrix.min_fvalue,
     };
     auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
@@ -298,7 +304,7 @@ struct GPUHistMakerDevice {
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, feature_types,     matrix.feature_segments,
+        GPUTrainingParam{param}, *histogram_rounding, feature_types,     matrix.feature_segments,
         matrix.gidx_fvalue_map,  matrix.min_fvalue,
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
@@ -344,7 +350,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(ctx_->gpu_id),
                            feature_groups->DeviceAccessor(ctx_->gpu_id), gpair,
-                           d_ridx, d_node_hist, histogram_rounding);
+                           d_ridx, d_node_hist, *histogram_rounding);
   }
 
   // Attempt to do subtraction trick
@@ -523,14 +529,12 @@ struct GPUHistMakerDevice {
   }
 
   // num histograms is the number of contiguous histograms in memory to reduce over
-  void AllReduceHist(int nidx, dh::AllReducer* reducer, int num_histograms) {
+  void AllReduceHist(int nidx, collective::DeviceCommunicator* communicator, int num_histograms) {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
-    reducer->AllReduceSum(reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-                          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-                          page->Cuts().TotalBins() *
-                              (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)) *
-                              num_histograms);
+    using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
+    communicator->AllReduceSum(reinterpret_cast<ReduceT*>(d_node_hist),
+                               page->Cuts().TotalBins() * 2 * num_histograms);
 
     monitor.Stop("AllReduce");
   }
@@ -538,8 +542,8 @@ struct GPUHistMakerDevice {
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
-  void BuildHistLeftRight(std::vector<GPUExpandEntry> const& candidates, dh::AllReducer* reducer,
-                          const RegTree& tree) {
+  void BuildHistLeftRight(std::vector<GPUExpandEntry> const& candidates,
+                          collective::DeviceCommunicator* communicator, const RegTree& tree) {
     if (candidates.empty()) return;
     // Some nodes we will manually compute histograms
     // others we will do by subtraction
@@ -570,7 +574,7 @@ struct GPUHistMakerDevice {
     // Reduce all in one go
     // This gives much better latency in a distributed setting
     // when processing a large batch
-    this->AllReduceHist(hist_nidx.at(0), reducer, hist_nidx.size());
+    this->AllReduceHist(hist_nidx.at(0), communicator, hist_nidx.size());
 
     for (size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = hist_nidx.at(i);
@@ -580,7 +584,7 @@ struct GPUHistMakerDevice {
       if (!this->SubtractionTrick(parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
         // Calculate other histogram manually
         this->BuildHist(subtraction_trick_nidx);
-        this->AllReduceHist(subtraction_trick_nidx, reducer, 1);
+        this->AllReduceHist(subtraction_trick_nidx, communicator, 1);
       }
     }
   }
@@ -589,7 +593,7 @@ struct GPUHistMakerDevice {
     RegTree& tree = *p_tree;
 
     // Sanity check - have we created a leaf with no training instances?
-    if (!rabit::IsDistributed() && row_partitioner) {
+    if (!collective::IsDistributed() && row_partitioner) {
       CHECK(row_partitioner->GetRows(candidate.nid).size() > 0)
           << "No training instances in this leaf!";
     }
@@ -638,7 +642,7 @@ struct GPUHistMakerDevice {
                                   parent.RightChild());
   }
 
-  GPUExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
+  GPUExpandEntry InitRoot(RegTree* p_tree, collective::DeviceCommunicator* communicator) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
     auto gpair_it = dh::MakeTransformIterator<GradientPairPrecise>(
@@ -646,11 +650,11 @@ struct GPUHistMakerDevice {
     GradientPairPrecise root_sum =
         dh::Reduce(thrust::cuda::par(alloc), gpair_it, gpair_it + gpair.size(),
                    GradientPairPrecise{}, thrust::plus<GradientPairPrecise>{});
-    rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double*>(&root_sum), 2);
+    collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double*>(&root_sum), 2);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
-    this->AllReduceHist(kRootNIdx, reducer, 1);
+    this->AllReduceHist(kRootNIdx, communicator, 1);
 
     // Remember root stats
     node_sum_gradients[kRootNIdx] = root_sum;
@@ -665,7 +669,7 @@ struct GPUHistMakerDevice {
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo task,
-                  RegTree* p_tree, dh::AllReducer* reducer,
+                  RegTree* p_tree, collective::DeviceCommunicator* communicator,
                   HostDeviceVector<bst_node_t>* p_out_position) {
     auto& tree = *p_tree;
     // Process maximum 32 nodes at a time
@@ -676,7 +680,7 @@ struct GPUHistMakerDevice {
     monitor.Stop("Reset");
 
     monitor.Start("InitRoot");
-    driver.Push({ this->InitRoot(p_tree, reducer) });
+    driver.Push({ this->InitRoot(p_tree, communicator) });
     monitor.Stop("InitRoot");
 
     // The set of leaves that can be expanded asynchronously
@@ -703,7 +707,7 @@ struct GPUHistMakerDevice {
       monitor.Stop("UpdatePosition");
 
       monitor.Start("BuildHist");
-      this->BuildHistLeftRight(filtered_expand_set, reducer, tree);
+      this->BuildHistLeftRight(filtered_expand_set, communicator, tree);
       monitor.Stop("BuildHist");
 
       monitor.Start("EvaluateSplits");
@@ -785,11 +789,10 @@ class GPUHistMaker : public TreeUpdater {
   void InitDataOnce(DMatrix* dmat) {
     CHECK_GE(ctx_->gpu_id, 0) << "Must have at least one device";
     info_ = &dmat->Info();
-    reducer_.Init({ctx_->gpu_id});  // NOLINT
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
-    rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
+    collective::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
     BatchParam batch_param{
       ctx_->gpu_id,
@@ -819,12 +822,12 @@ class GPUHistMaker : public TreeUpdater {
   void CheckTreesSynchronized(RegTree* local_tree) const {
     std::string s_model;
     common::MemoryBufferStream fs(&s_model);
-    int rank = rabit::GetRank();
+    int rank = collective::GetRank();
     if (rank == 0) {
       local_tree->Save(&fs);
     }
     fs.Seek(0);
-    rabit::Broadcast(&s_model, 0);
+    collective::Broadcast(&s_model, 0);
     RegTree reference_tree{};  // rank 0 tree
     reference_tree.Load(&fs);
     CHECK(*local_tree == reference_tree);
@@ -837,7 +840,8 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Stop("InitData");
 
     gpair->SetDevice(ctx_->gpu_id);
-    maker->UpdateTree(gpair, p_fmat, task_, p_tree, &reducer_, p_out_position);
+    auto* communicator = collective::Communicator::GetDevice(ctx_->gpu_id);
+    maker->UpdateTree(gpair, p_fmat, task_, p_tree, communicator, p_out_position);
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
@@ -862,8 +866,6 @@ class GPUHistMaker : public TreeUpdater {
   bool initialised_{false};
 
   GPUHistMakerTrainParam hist_maker_param_;
-
-  dh::AllReducer reducer_;
 
   DMatrix* p_last_fmat_{nullptr};
   RegTree const* p_last_tree_{nullptr};

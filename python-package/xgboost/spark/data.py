@@ -9,6 +9,8 @@ from xgboost.compat import concat
 
 from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
 
+from .utils import get_logger  # type: ignore
+
 
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
@@ -147,12 +149,13 @@ def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame) -> csr_matrix:
     )
 
 
-def create_dmatrix_from_partitions(
+def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
     gpu_id: Optional[int],
     kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
     enable_sparse_data_optim: bool,
+    has_validation_col: bool,
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
     """Create DMatrix from spark data partitions. This is not particularly efficient as
     we need to convert the pandas series format to numpy then concatenate all the data.
@@ -173,7 +176,7 @@ def create_dmatrix_from_partitions(
 
     def append_m(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         nonlocal n_features
-        if name in part.columns:
+        if name in part.columns and part[name].shape[0] > 0:
             array = part[name]
             if name == alias.data:
                 array = stack_series(array)
@@ -224,6 +227,10 @@ def create_dmatrix_from_partitions(
                 train_data[name].append(array)
 
     def make(values: Dict[str, List[np.ndarray]], kwargs: Dict[str, Any]) -> DMatrix:
+        if len(values) == 0:
+            # We must construct an empty DMatrix to bypass the AllReduce
+            return DMatrix(data=np.empty((0, 0)), **kwargs)
+
         data = concat_or_none(values[alias.data])
         label = concat_or_none(values.get(alias.label, None))
         weight = concat_or_none(values.get(alias.weight, None))
@@ -241,15 +248,25 @@ def create_dmatrix_from_partitions(
         else:
             append_fn = append_m
         cache_partitions(iterator, append_fn)
+        if len(train_data) == 0:
+            get_logger("XGBoostPySpark").warning(
+                "Detected an empty partition in the training data. "
+                "Consider to enable repartition_random_shuffle"
+            )
         dtrain = make(train_data, kwargs)
     else:
         cache_partitions(iterator, append_dqm)
         it = PartIter(train_data, gpu_id)
         dtrain = DeviceQuantileDMatrix(it, **kwargs)
 
-    dvalid = make(valid_data, kwargs) if len(valid_data) != 0 else None
+    # Using has_validation_col here to indicate if there is validation col
+    # instead of getting it from iterator, since the iterator may be empty
+    # in some special case. That is to say, we must ensure every worker
+    # construct DMatrix even there is no any data since we need to ensure every
+    # worker do the AllReduce when constructing DMatrix, or else it may hang
+    # forever.
+    dvalid = make(valid_data, kwargs) if has_validation_col else None
 
-    assert dtrain.num_col() == n_features
     if dvalid is not None:
         assert dvalid.num_col() == dtrain.num_col()
 

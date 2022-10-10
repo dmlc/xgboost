@@ -27,7 +27,10 @@ class RegTree;
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
  protected:
-  GenericParameter const* ctx_;
+  Context const* ctx_;
+
+ public:
+  static constexpr float DefaultBaseScore() { return 0.5f; }
 
  public:
   /*! \brief virtual destructor */
@@ -75,6 +78,13 @@ class ObjFunction : public Configurable {
   virtual bst_float ProbToMargin(bst_float base_score) const {
     return base_score;
   }
+  /**
+   * \brief Make initialize estimation of prediction.
+   *
+   * \param info MetaInfo that contains label.
+   * \param base_score Output estimation.
+   */
+  virtual void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const;
   /*!
    * \brief Return task of this objective.
    */
