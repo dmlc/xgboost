@@ -99,14 +99,14 @@ class FederatedCommunicator : public Communicator {
       world_size = static_cast<int>(get<Integer const>(j_world_size));
     }
     if (IsA<String const>(j_world_size)) {
-      world_size = std::stoi(get<String const>(j_world_size));
+      LOG(FATAL) << "Federated world size must be an integer.";
     }
     auto const &j_rank = config["federated_rank"];
     if (IsA<Integer const>(j_rank)) {
       rank = static_cast<int>(get<Integer const>(j_rank));
     }
     if (IsA<String const>(j_rank)) {
-      rank = std::stoi(get<String const>(j_rank));
+      LOG(FATAL) << "Federated rank must be an integer.";
     }
     auto const &j_server_cert = config["federated_server_cert"];
     if (IsA<String const>(j_server_cert)) {

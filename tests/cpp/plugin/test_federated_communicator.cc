@@ -88,6 +88,28 @@ TEST(FederatedCommunicatorSimpleTest, ThrowOnRankTooBig) {
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
+TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeNotInteger) {
+  auto construct = []() {
+    Json config{JsonObject()};
+    config["federated_server_address"] = kServerAddress;
+    config["federated_world_size"] = std::string("1");
+    config["federated_rank"] = Integer(0);
+    auto *comm = FederatedCommunicator::Create(config);
+  };
+  EXPECT_THROW(construct(), dmlc::Error);
+}
+
+TEST(FederatedCommunicatorSimpleTest, ThrowOnRankNotInteger) {
+  auto construct = []() {
+    Json config{JsonObject()};
+    config["federated_server_address"] = kServerAddress;
+    config["federated_world_size"] = 1;
+    config["federated_rank"] = std::string("0");
+    auto *comm = FederatedCommunicator::Create(config);
+  };
+  EXPECT_THROW(construct(), dmlc::Error);
+}
+
 TEST(FederatedCommunicatorSimpleTest, GetWorldSizeAndRank) {
   FederatedCommunicator comm{6, 3, kServerAddress};
   EXPECT_EQ(comm.GetWorldSize(), 6);
@@ -100,17 +122,6 @@ TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
 }
 
 TEST_F(FederatedCommunicatorTest, Create) {
-  Json config{JsonObject()};
-  config["federated_server_address"] = kServerAddress;
-  config["federated_world_size"] = std::string("1");
-  config["federated_rank"] = std::string("0");
-  auto *comm = FederatedCommunicator::Create(config);
-  EXPECT_EQ(1, comm->GetWorldSize());
-  EXPECT_EQ(0, comm->GetRank());
-  delete comm;
-}
-
-TEST_F(FederatedCommunicatorTest, CreateFromIntegers) {
   Json config{JsonObject()};
   config["federated_server_address"] = kServerAddress;
   config["federated_world_size"] = 1;
