@@ -159,9 +159,9 @@ class TestGPUUpdaters:
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
 
-    @given(parameter_strategy, strategies.integers(1, 20),
+    @given(parameter_strategy, strategies.integers(1, 3),
            tm.dataset_strategy)
-    @settings(deadline=None, max_examples=20, print_blob=True)
+    @settings(deadline=None, max_examples=10, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):
             return
