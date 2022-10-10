@@ -106,7 +106,7 @@ class TestGPUUpdaters:
         test_up.hist_parameter_strategy,
         test_up.cat_parameter_strategy,
     )
-    @settings(deadline=None, max_examples=20, print_blob=True)
+    @settings(deadline=None, max_examples=10, print_blob=True)
     def test_categorical_ames_housing(
         self,
         hist_parameters: Dict[str, Any],
