@@ -578,7 +578,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     """
 
     def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
-        """Throw error/warning if there's positional arguments after the asterisk.
+        """Throw error/warning if there are positional arguments after the asterisk.
 
         Parameters
         ----------
