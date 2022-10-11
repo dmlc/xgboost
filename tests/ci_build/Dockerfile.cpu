@@ -14,7 +14,7 @@ RUN \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.14.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
-    # Conda
+    # Python
     wget -nv https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh && \
     bash Mambaforge-Linux-x86_64.sh -b -p /opt/python
 
@@ -26,19 +26,18 @@ ENV CPP=cpp-8
 ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 
-# Create new Conda environment
-COPY conda_env/cpu_test.yml /scripts/
-RUN mamba env create -n cpu_test --file=/scripts/cpu_test.yml && \
-    mamba create -y -n build_env -c conda-forge python=3.9
-
 # Install gRPC
 RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 --shallow-submodules && \
     pushd grpc && \
-    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/python/envs/build_env && \
+    cmake -S . -B build -GNinja && \
     cmake --build build --target install && \
     popd && \
     rm -rf grpc
+
+# Create new Conda environment
+COPY conda_env/cpu_test.yml /scripts/
+RUN mamba env create -n cpu_test --file=/scripts/cpu_test.yml
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
