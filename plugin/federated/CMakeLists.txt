@@ -16,6 +16,7 @@ xgboost_target_properties(federated_proto)
 
 protobuf_generate(
     TARGET federated_proto
+    LANGUAGE cpp
     PROTOC_OUT_DIR "${PROTO_BINARY_DIR}")
 protobuf_generate(
     TARGET federated_proto
