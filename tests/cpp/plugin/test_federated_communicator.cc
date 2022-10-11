@@ -6,33 +6,41 @@
 #include <gtest/gtest.h>
 
 #include <thread>
+#include <ctime>
 
+#include "../helpers.h"
 #include "../../../plugin/federated/federated_communicator.h"
 #include "../../../plugin/federated/federated_server.h"
 
 namespace xgboost {
 namespace collective {
-
-std::string const kServerAddress{"localhost:56789"};  // NOLINT(cert-err58-cpp)
+  
+std::string GetServerAddress() {
+  SimpleLCG lcg(std::time(NULL));
+  std::uniform_int_distribution<int> dist(50000, 60000);
+  int port = dist(lcg);
+  return std::string("localhost:") + std::to_string(port);
+}
 
 class FederatedCommunicatorTest : public ::testing::Test {
  public:
-  static void VerifyAllreduce(int rank) {
-    FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
+  static void VerifyAllreduce(int rank, const std::string& server_address) {
+    FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckAllreduce(comm);
   }
 
-  static void VerifyBroadcast(int rank) {
-    FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
+  static void VerifyBroadcast(int rank, const std::string& server_address) {
+    FederatedCommunicator comm{kWorldSize, rank, server_address};
     CheckBroadcast(comm, rank);
   }
 
  protected:
   void SetUp() override {
+    server_address_ = GetServerAddress();
     server_thread_.reset(new std::thread([this] {
       grpc::ServerBuilder builder;
       federated::FederatedService service{kWorldSize};
-      builder.AddListeningPort(kServerAddress, grpc::InsecureServerCredentials());
+      builder.AddListeningPort(server_address_, grpc::InsecureServerCredentials());
       builder.RegisterService(&service);
       server_ = builder.BuildAndStart();
       server_->Wait();
@@ -66,40 +74,53 @@ class FederatedCommunicatorTest : public ::testing::Test {
   }
 
   static int const kWorldSize{3};
+  std::string server_address_;
   std::unique_ptr<std::thread> server_thread_;
   std::unique_ptr<grpc::Server> server_;
 };
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeTooSmall) {
-  auto construct = []() { FederatedCommunicator comm{0, 0, kServerAddress, "", "", ""}; };
+  std::string server_address{GetServerAddress()};
+  auto construct = [server_address]() {
+    FederatedCommunicator comm{0, 0, server_address, "", "", ""};
+  };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnRankTooSmall) {
-  auto construct = []() { FederatedCommunicator comm{1, -1, kServerAddress, "", "", ""}; };
+  std::string server_address{GetServerAddress()};
+  auto construct = [server_address]() {
+    FederatedCommunicator comm{1, -1, server_address, "", "", ""};
+  };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(FederatedCommunicatorSimpleTest, ThrowOnRankTooBig) {
-  auto construct = []() { FederatedCommunicator comm{1, 1, kServerAddress, "", "", ""}; };
+  std::string server_address{GetServerAddress()};
+  auto construct = [server_address]() {
+    FederatedCommunicator comm{1, 1, server_address, "", "", ""};
+  };
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
 TEST(FederatedCommunicatorSimpleTest, GetWorldSizeAndRank) {
-  FederatedCommunicator comm{6, 3, kServerAddress};
+  std::string server_address{GetServerAddress()};
+  FederatedCommunicator comm{6, 3, server_address};
   EXPECT_EQ(comm.GetWorldSize(), 6);
   EXPECT_EQ(comm.GetRank(), 3);
 }
 
 TEST(FederatedCommunicatorSimpleTest, IsDistributed) {
-  FederatedCommunicator comm{2, 1, kServerAddress};
+  std::string server_address{GetServerAddress()};
+  FederatedCommunicator comm{2, 1, server_address};
   EXPECT_TRUE(comm.IsDistributed());
 }
 
 TEST_F(FederatedCommunicatorTest, Allreduce) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedCommunicatorTest::VerifyAllreduce, rank));
+    threads.emplace_back(
+        std::thread(&FederatedCommunicatorTest::VerifyAllreduce, rank, server_address_));
   }
   for (auto &thread : threads) {
     thread.join();
@@ -109,7 +130,8 @@ TEST_F(FederatedCommunicatorTest, Allreduce) {
 TEST_F(FederatedCommunicatorTest, Broadcast) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedCommunicatorTest::VerifyBroadcast, rank));
+    threads.emplace_back(
+        std::thread(&FederatedCommunicatorTest::VerifyBroadcast, rank, server_address_));
   }
   for (auto &thread : threads) {
     thread.join();

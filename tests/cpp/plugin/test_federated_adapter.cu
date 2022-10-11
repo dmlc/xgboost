@@ -6,7 +6,9 @@
 #include <thrust/host_vector.h>
 
 #include <thread>
+#include <ctime>
 
+#include "../helpers.h"
 #include "../../../plugin/federated/federated_communicator.h"
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/device_communicator_adapter.cuh"
@@ -14,15 +16,20 @@
 namespace xgboost {
 namespace collective {
 
-std::string const kServerAddress{"localhost:56789"};  // NOLINT(cert-err58-cpp)
-
 class FederatedAdapterTest : public ::testing::Test {
  protected:
+  std::string GetServerAddress() {
+    SimpleLCG lcg(std::time(NULL));
+    std::uniform_int_distribution<int> dist(50000, 60000);
+    int port = dist(lcg);
+    return std::string("localhost:") + std::to_string(port);
+  }
   void SetUp() override {
+    server_address_ = GetServerAddress();
     server_thread_.reset(new std::thread([this] {
       grpc::ServerBuilder builder;
       federated::FederatedService service{kWorldSize};
-      builder.AddListeningPort(kServerAddress, grpc::InsecureServerCredentials());
+      builder.AddListeningPort(server_address_, grpc::InsecureServerCredentials());
       builder.RegisterService(&service);
       server_ = builder.BuildAndStart();
       server_->Wait();
@@ -35,6 +42,7 @@ class FederatedAdapterTest : public ::testing::Test {
   }
 
   static int const kWorldSize{2};
+  std::string server_address_;
   std::unique_ptr<std::thread> server_thread_;
   std::unique_ptr<grpc::Server> server_;
 };
@@ -52,8 +60,8 @@ TEST(FederatedAdapterSimpleTest, ThrowOnInvalidCommunicator) {
 TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread([rank] {
-      FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
+    threads.emplace_back(std::thread([rank, server_address=server_address_] {
+      FederatedCommunicator comm{kWorldSize, rank, server_address};
       DeviceCommunicatorAdapter adapter{0, &comm};
       int const count = 3;
       thrust::device_vector<double> buffer(count, 0);
@@ -74,8 +82,8 @@ TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
 TEST_F(FederatedAdapterTest, DeviceAllGatherV) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread([rank] {
-      FederatedCommunicator comm{kWorldSize, rank, kServerAddress};
+    threads.emplace_back(std::thread([rank, server_address=server_address_] {
+      FederatedCommunicator comm{kWorldSize, rank, server_address};
       DeviceCommunicatorAdapter adapter{0, &comm};
 
       int const count = rank + 2;

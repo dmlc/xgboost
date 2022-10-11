@@ -5,7 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <thread>
+#include <ctime>
 
+#include "../helpers.h"
 #include "federated_client.h"
 #include "federated_server.h"
 
@@ -13,23 +15,23 @@ namespace xgboost {
 
 class FederatedServerTest : public ::testing::Test {
  public:
-  static void VerifyAllgather(int rank) {
-    federated::FederatedClient client{kServerAddress, rank};
+  static void VerifyAllgather(int rank, const std::string& server_address) {
+    federated::FederatedClient client{server_address, rank};
     CheckAllgather(client, rank);
   }
 
-  static void VerifyAllreduce(int rank) {
-    federated::FederatedClient client{kServerAddress, rank};
+  static void VerifyAllreduce(int rank, const std::string& server_address) {
+    federated::FederatedClient client{server_address, rank};
     CheckAllreduce(client);
   }
 
-  static void VerifyBroadcast(int rank) {
-    federated::FederatedClient client{kServerAddress, rank};
+  static void VerifyBroadcast(int rank, const std::string& server_address) {
+    federated::FederatedClient client{server_address, rank};
     CheckBroadcast(client, rank);
   }
 
-  static void VerifyMixture(int rank) {
-    federated::FederatedClient client{kServerAddress, rank};
+  static void VerifyMixture(int rank, const std::string& server_address) {
+    federated::FederatedClient client{server_address, rank};
     for (auto i = 0; i < 10; i++) {
       CheckAllgather(client, rank);
       CheckAllreduce(client);
@@ -38,11 +40,18 @@ class FederatedServerTest : public ::testing::Test {
   }
 
  protected:
+  std::string GetServerAddress() {
+    SimpleLCG lcg(std::time(NULL));
+    std::uniform_int_distribution<int> dist(50000, 60000);
+    int port = dist(lcg);
+    return std::string("localhost:") + std::to_string(port);
+  }
   void SetUp() override {
+    server_address_ = GetServerAddress();
     server_thread_.reset(new std::thread([this] {
       grpc::ServerBuilder builder;
       federated::FederatedService service{kWorldSize};
-      builder.AddListeningPort(kServerAddress, grpc::InsecureServerCredentials());
+      builder.AddListeningPort(server_address_, grpc::InsecureServerCredentials());
       builder.RegisterService(&service);
       server_ = builder.BuildAndStart();
       server_->Wait();
@@ -80,17 +89,15 @@ class FederatedServerTest : public ::testing::Test {
   }
 
   static int const kWorldSize{3};
-  static std::string const kServerAddress;
+  std::string server_address_;
   std::unique_ptr<std::thread> server_thread_;
   std::unique_ptr<grpc::Server> server_;
 };
 
-std::string const FederatedServerTest::kServerAddress{"localhost:56789"};  // NOLINT(cert-err58-cpp)
-
 TEST_F(FederatedServerTest, Allgather) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedServerTest::VerifyAllgather, rank));
+    threads.emplace_back(std::thread(&FederatedServerTest::VerifyAllgather, rank, server_address_));
   }
   for (auto& thread : threads) {
     thread.join();
@@ -100,7 +107,7 @@ TEST_F(FederatedServerTest, Allgather) {
 TEST_F(FederatedServerTest, Allreduce) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedServerTest::VerifyAllreduce, rank));
+    threads.emplace_back(std::thread(&FederatedServerTest::VerifyAllreduce, rank, server_address_));
   }
   for (auto& thread : threads) {
     thread.join();
@@ -110,7 +117,7 @@ TEST_F(FederatedServerTest, Allreduce) {
 TEST_F(FederatedServerTest, Broadcast) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedServerTest::VerifyBroadcast, rank));
+    threads.emplace_back(std::thread(&FederatedServerTest::VerifyBroadcast, rank, server_address_));
   }
   for (auto& thread : threads) {
     thread.join();
@@ -120,7 +127,7 @@ TEST_F(FederatedServerTest, Broadcast) {
 TEST_F(FederatedServerTest, Mixture) {
   std::vector<std::thread> threads;
   for (auto rank = 0; rank < kWorldSize; rank++) {
-    threads.emplace_back(std::thread(&FederatedServerTest::VerifyMixture, rank));
+    threads.emplace_back(std::thread(&FederatedServerTest::VerifyMixture, rank, server_address_));
   }
   for (auto& thread : threads) {
     thread.join();
