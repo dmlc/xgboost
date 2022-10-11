@@ -30,7 +30,7 @@ ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 --shallow-submodules && \
     pushd grpc && \
-    cmake -S . -B build -GNinja && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc && \
     cmake --build build --target install && \
     popd && \
     rm -rf grpc
