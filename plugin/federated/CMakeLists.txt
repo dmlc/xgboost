@@ -4,45 +4,30 @@ set(protobuf_BUILD_SHARED_LIBS TRUE)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 message(STATUS "Found gRPC: ${gRPC_CONFIG}")
-set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
-set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
-set(_GRPC_GRPCPP gRPC::grpc++)
-set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
 
-# Proto file
-get_filename_component(federated_proto "federated.proto" ABSOLUTE)
-get_filename_component(federated_proto_path "${federated_proto}" PATH)
+# Generate code from federated.proto
+add_library(federated_proto STATIC federated.proto)
+set(PROTO_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto-gen")
+target_link_libraries(federated_proto PUBLIC
+  protobuf::libprotobuf gRPC::grpc++)
+target_include_directories(federated_proto PUBLIC
+  "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>")
+xgboost_target_properties(federated_proto)
 
-# Generated code from the protobuf definition.
-set(federated_srcs "${CMAKE_CURRENT_BINARY_DIR}/federated.pb.cc")
-set(federated_hdrs "${CMAKE_CURRENT_BINARY_DIR}/federated.pb.h")
-set(federated_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/federated.grpc.pb.cc")
-set(federated_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/federated.grpc.pb.h")
-add_custom_command(
-      OUTPUT "${federated_srcs}" "${federated_hdrs}"
-             "${federated_grpc_srcs}" "${federated_grpc_hdrs}"
-      COMMAND ${_PROTOBUF_PROTOC}
-      ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
-           --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
-           -I "${federated_proto_path}"
-           --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-           "${federated_proto}"
-      DEPENDS "${federated_proto}")
-
-add_library(federated_proto_lib STATIC)
-target_sources(federated_proto_lib PRIVATE
-  ${federated_srcs} ${federated_hdrs}
-  ${federated_grpc_srcs} ${federated_grpc_hdrs})
-target_link_libraries(federated_proto_lib PUBLIC
-  ${_PROTOBUF_LIBPROTOBUF} ${_GRPC_GRPCPP})
-target_include_directories(federated_proto_lib PUBLIC
-  ${CMAKE_CURRENT_BINARY_DIR})
-xgboost_target_properties(federated_proto_lib)
+protobuf_generate(
+    TARGET federated_proto
+    PROTOC_OUT_DIR "${PROTO_BINARY_DIR}")
+protobuf_generate(
+    TARGET federated_proto
+    LANGUAGE grpc
+    GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
+    PLUGIN "protoc-gen-grpc=\$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
+    PROTOC_OUT_DIR "${PROTO_BINARY_DIR}")
 
 # Wrapper for the gRPC client.
 add_library(federated_client INTERFACE)
 target_sources(federated_client INTERFACE federated_client.h)
-target_link_libraries(federated_client INTERFACE federated_proto_lib)
+target_link_libraries(federated_client INTERFACE federated_proto)
 
 # Rabit engine for Federated Learning.
 target_sources(objxgboost PRIVATE federated_server.cc)
