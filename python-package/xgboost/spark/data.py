@@ -326,7 +326,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     if has_validation_col:
         if use_qdm:
             dvalid: Optional[DMatrix] = make_qdm(
-                train_data, gpu_id, meta, dtrain, params
+                valid_data, gpu_id, meta, dtrain, params
             )
         else:
             dvalid = make(valid_data, kwargs) if has_validation_col else None

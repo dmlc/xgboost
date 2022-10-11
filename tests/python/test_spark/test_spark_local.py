@@ -1084,7 +1084,7 @@ class XgboostLocalTest(SparkTestCase):
         for row in pred_result:
             assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
 
-    def test_empty_validation_data(self, tree_method: str) -> None:
+    def test_empty_validation_data(self) -> None:
         for tree_method in [
             "hist",
             "approx",
@@ -1136,7 +1136,7 @@ class XgboostLocalTest(SparkTestCase):
             model = classifier.fit(df_train)
             pred_result = model.transform(df_train).collect()
             for row in pred_result:
-                self.assertEqual(row.prediction, 1.0)
+                assert row.prediction == 1.0
 
     def test_empty_partition(self):
         # raw_df.repartition(4) will result int severe data skew, actually,

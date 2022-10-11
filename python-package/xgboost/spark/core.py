@@ -770,7 +770,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             _rabit_args = {}
             if context.partitionId() == 0:
-                get_logger("XGBoostPySpark").info(
+                get_logger("XGBoostPySpark").debug(
                     "booster params: %s\n"
                     "train_call_kwargs_params: %s\n"
                     "dmatrix_kwargs: %s",
