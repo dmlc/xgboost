@@ -1,5 +1,6 @@
 # gRPC needs to be installed first. See README.md.
 set(protobuf_MODULE_COMPATIBLE TRUE)
+set(protobuf_BUILD_SHARED_LIBS TRUE)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 message(STATUS "Found gRPC: ${gRPC_CONFIG}")
@@ -36,7 +37,7 @@ target_link_libraries(federated_proto_lib PUBLIC
   ${_PROTOBUF_LIBPROTOBUF} ${_GRPC_GRPCPP})
 target_include_directories(federated_proto_lib PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR})
-set_property(TARGET federated_proto_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
+xgboost_target_properties(federated_proto_lib)
 
 # Wrapper for the gRPC client.
 add_library(federated_client INTERFACE)
