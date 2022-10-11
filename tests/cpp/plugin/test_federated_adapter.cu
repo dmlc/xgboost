@@ -67,6 +67,7 @@ TEST_F(FederatedAdapterTest, DeviceAllReduceSum) {
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(std::thread([rank, server_address=server_address_] {
       FederatedCommunicator comm{kWorldSize, rank, server_address};
+      // Assign device 0 to all workers, since we run gtest in a single-GPU machine
       DeviceCommunicatorAdapter adapter{0, &comm};
       int const count = 3;
       thrust::device_vector<double> buffer(count, 0);
@@ -89,6 +90,7 @@ TEST_F(FederatedAdapterTest, DeviceAllGatherV) {
   for (auto rank = 0; rank < kWorldSize; rank++) {
     threads.emplace_back(std::thread([rank, server_address=server_address_] {
       FederatedCommunicator comm{kWorldSize, rank, server_address};
+      // Assign device 0 to all workers, since we run gtest in a single-GPU machine
       DeviceCommunicatorAdapter adapter{0, &comm};
 
       int const count = rank + 2;
