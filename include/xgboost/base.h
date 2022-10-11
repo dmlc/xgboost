@@ -264,8 +264,8 @@ using GradientPairPrecise = detail::GradientPairInternal<double>;
  * we don't accidentally use it in gain calculations.*/
 class GradientPairInt64 {
   using T = int64_t;
-  T grad_;
-  T hess_;
+  T grad_ = 0;
+  T hess_ = 0;
 
  public:
   using ValueT = T;
