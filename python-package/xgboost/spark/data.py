@@ -162,7 +162,7 @@ def make_qdm(
 ) -> DMatrix:
     """Handle empty partition for QuantileDMatrix."""
     if not data:
-        return QuantileDMatrix(np.empty((0, 0)))
+        return QuantileDMatrix(np.empty((0, 0)), ref=ref)
     it = PartIter(data, gpu_id, **meta)
     m = QuantileDMatrix(it, **params, ref=ref)
     return m
