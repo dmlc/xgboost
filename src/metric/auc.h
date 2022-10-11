@@ -10,13 +10,13 @@
 #include <tuple>
 #include <utility>
 
-#include "rabit/rabit.h"
-#include "xgboost/base.h"
-#include "xgboost/span.h"
-#include "xgboost/data.h"
-#include "xgboost/metric.h"
+#include "../collective/communicator-inl.h"
 #include "../common/common.h"
 #include "../common/threading_utils.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/metric.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 namespace metric {
@@ -101,7 +101,7 @@ XGBOOST_DEVICE inline double CalcDeltaPRAUC(double fp_prev, double fp,
 
 inline void InvalidGroupAUC() {
   LOG(INFO) << "Invalid group with less than 3 samples is found on worker "
-            << rabit::GetRank() << ".  Calculating AUC value requires at "
+            << collective::GetRank() << ".  Calculating AUC value requires at "
             << "least 2 pairs of samples.";
 }
 

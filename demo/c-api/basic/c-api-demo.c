@@ -18,7 +18,7 @@ if (err != 0) {                                                         \
 }                                                                       \
 }
 
-int main(int argc, char** argv) {
+int main() {
   int silent = 0;
   int use_gpu = 0;  // set to 1 to use the GPU for training
 
@@ -67,10 +67,21 @@ int main(int argc, char** argv) {
 
   // predict
   bst_ulong out_len = 0;
-  const float* out_result = NULL;
   int n_print = 10;
 
-  safe_xgboost(XGBoosterPredict(booster, dtest, 0, 0, 0, &out_len, &out_result));
+  /* Run prediction with DMatrix object. */
+  char const config[] =
+      "{\"training\": false, \"type\": 0, "
+      "\"iteration_begin\": 0, \"iteration_end\": 0, \"strict_shape\": false}";
+  /* Shape of output prediction */
+  uint64_t const* out_shape;
+  /* Dimension of output prediction */
+  uint64_t out_dim;
+  /* Pointer to a thread local contigious array, assigned in prediction function. */
+  float const* out_result = NULL;
+  safe_xgboost(
+      XGBoosterPredictFromDMatrix(booster, dtest, config, &out_shape, &out_dim, &out_result));
+
   printf("y_pred: ");
   for (int i = 0; i < n_print; ++i) {
     printf("%1.4f ", out_result[i]);
@@ -98,12 +109,12 @@ int main(int argc, char** argv) {
     DMatrixHandle dmat;
     safe_xgboost(XGDMatrixCreateFromMat(values, 1, 127, 0.0, &dmat));
 
-    bst_ulong out_len = 0;
     const float* out_result = NULL;
 
-    safe_xgboost(XGBoosterPredict(booster, dmat, 0, 0, 0, &out_len,
-          &out_result));
-    assert(out_len == 1);
+    safe_xgboost(
+        XGBoosterPredictFromDMatrix(booster, dmat, config, &out_shape, &out_dim, &out_result));
+    assert(out_dim == 1);
+    assert(out_shape[0] == 1);
 
     printf("%1.4f \n", out_result[0]);
     safe_xgboost(XGDMatrixFree(dmat));
@@ -122,12 +133,12 @@ int main(int argc, char** argv) {
     safe_xgboost(XGDMatrixCreateFromCSREx(indptr, indices, data, 2, 22, 127,
       &dmat));
 
-    bst_ulong out_len = 0;
     const float* out_result = NULL;
 
-    safe_xgboost(XGBoosterPredict(booster, dmat, 0, 0, 0, &out_len,
-          &out_result));
-    assert(out_len == 1);
+    safe_xgboost(
+        XGBoosterPredictFromDMatrix(booster, dmat, config, &out_shape, &out_dim, &out_result));
+    assert(out_dim == 1);
+    assert(out_shape[0] == 1);
 
     printf("%1.4f \n", out_result[0]);
     safe_xgboost(XGDMatrixFree(dmat));
@@ -154,12 +165,12 @@ int main(int argc, char** argv) {
     safe_xgboost(XGDMatrixCreateFromCSCEx(col_ptr, indices, data, 128, 22, 1,
       &dmat));
 
-    bst_ulong out_len = 0;
     const float* out_result = NULL;
 
-    safe_xgboost(XGBoosterPredict(booster, dmat, 0, 0, 0, &out_len,
-          &out_result));
-    assert(out_len == 1);
+    safe_xgboost(
+        XGBoosterPredictFromDMatrix(booster, dmat, config, &out_shape, &out_dim, &out_result));
+    assert(out_dim == 1);
+    assert(out_shape[0] == 1);
 
     printf("%1.4f \n", out_result[0]);
     safe_xgboost(XGDMatrixFree(dmat));

@@ -53,6 +53,8 @@ class RabitCommunicator : public Communicator {
 
   bool IsDistributed() const override { return rabit::IsDistributed(); }
 
+  bool IsFederated() const override { return false; }
+
   void AllReduce(void *send_receive_buffer, std::size_t count, DataType data_type,
                  Operation op) override {
     switch (data_type) {

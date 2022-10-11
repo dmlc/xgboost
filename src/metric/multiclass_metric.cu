@@ -4,15 +4,14 @@
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <rabit/rabit.h>
 #include <xgboost/metric.h>
 
 #include <atomic>
 #include <cmath>
 
 #include "metric_common.h"
+#include "../collective/communicator-inl.h"
 #include "../common/math.h"
-#include "../common/common.h"
 #include "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)
@@ -185,7 +184,7 @@ struct EvalMClassBase : public Metric {
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }
-    rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    collective::Allreduce<collective::Operation::kSum>(dat, 2);
     return Derived::GetFinal(dat[0], dat[1]);
   }
   /*!

@@ -724,8 +724,8 @@ class MeanAbsoluteError : public ObjFunction {
     }
 
     // Weighted average base score across all workers
-    rabit::Allreduce<rabit::op::Sum>(out.Values().data(), out.Values().size());
-    rabit::Allreduce<rabit::op::Sum>(&w, 1);
+    collective::Allreduce<collective::Operation::kSum>(out.Values().data(), out.Values().size());
+    collective::Allreduce<collective::Operation::kSum>(&w, 1);
 
     std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
                    [w](float v) { return v / w; });

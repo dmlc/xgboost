@@ -22,7 +22,7 @@ import scala.collection.mutable
 import scala.util.Random
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{Communicator, IRabitTracker, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.ExternalCheckpointManager
@@ -303,7 +303,7 @@ object XGBoost extends Serializable {
     val makeCheckpoint = xgbExecutionParam.checkpointParam.isDefined && taskId.toInt == 0
 
     try {
-      Rabit.init(rabitEnv)
+      Communicator.init(rabitEnv)
 
       watches = buildWatchesAndCheck(buildWatches)
 
@@ -342,7 +342,7 @@ object XGBoost extends Serializable {
         logger.error(s"XGBooster worker $taskId has failed $attempt times due to ", xgbException)
         throw xgbException
     } finally {
-      Rabit.shutdown()
+      Communicator.shutdown()
       if (watches != null) watches.delete()
     }
   }
