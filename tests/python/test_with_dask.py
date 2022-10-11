@@ -67,7 +67,7 @@ def client(cluster):
 
 
 kRows = 1000
-kCols = 5
+kCols = 10
 kWorkers = 5
 
 

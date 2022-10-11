@@ -32,7 +32,7 @@ predict_parameter_strategy = strategies.fixed_dictionaries({
     'num_parallel_tree': strategies.sampled_from([1, 4]),
 })
 
-pytestmark = pytest.mark.timeout(10)
+pytestmark = pytest.mark.timeout(20)
 
 class TestGPUPredict:
     def test_predict(self):
@@ -281,7 +281,7 @@ class TestGPUPredict:
 
     @given(strategies.integers(1, 10),
            tm.dataset_strategy, shap_parameter_strategy)
-    @settings(deadline=None, max_examples=20, print_blob=True)
+    @settings(deadline=None, max_examples=10, print_blob=True)
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
