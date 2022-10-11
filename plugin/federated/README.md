@@ -5,21 +5,7 @@ This folder contains the plugin for federated learning. Follow these steps to bu
 
 Install gRPC
 ------------
-We highly recommend installing gRPC in a local environment, such as a Conda environment,
-by appropriately setting `CMAKE_INSTALL_PREFIX`.
-There is no easy way to uninstall gRPC after you've installed it globally.
-
-In the following example, we show how to build and install gRPC in a Conda environment.
-```shell
-sudo apt-get install build-essential autoconf libtool pkg-config cmake ninja-build
-conda activate your_env
-git clone -b v1.49.1 https://github.com/grpc/grpc \
-    --recurse-submodules --depth 1 --shallow-submodules
-cd grpc
-cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
-cmake --build build --target install
-cd ..
-```
+Refer to the [installation guide from the gRPC website](https://grpc.io/docs/languages/cpp/quickstart/).
 
 Build the Plugin
 ----------------
@@ -27,15 +13,16 @@ Build the Plugin
 # Under xgboost source tree.
 mkdir build
 cd build
-cmake .. -GNinja\
- -DPLUGIN_FEDERATED=ON\
- -DBUILD_WITH_CUDA_CUB=ON\
+cmake .. -GNinja \
+ -DPLUGIN_FEDERATED=ON \
+ -DBUILD_WITH_CUDA_CUB=ON \
  -DUSE_CUDA=ON\
  -DUSE_NCCL=ON
 ninja
 cd ../python-package
 pip install -e .  # or equivalently python setup.py develop
 ```
+If CMake fails to locate gRPC, you may need to pass `-DCMAKE_PREFIX_PATH=<grpc path>` to CMake.
 
 Test Federated XGBoost
 ----------------------
