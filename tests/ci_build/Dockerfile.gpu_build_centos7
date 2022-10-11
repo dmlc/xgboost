@@ -41,7 +41,7 @@ RUN mamba create -y -n build_env -c conda-forge python=3.9
 RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 && \
     pushd grpc && \
-    cmake -S . -B build -GNinja -DCMAKE_PREFIX_PATH=/opt/python/envs/build_env && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/python/envs/build_env && \
     cmake --build build --target install && \
     popd && \
     rm -rf grpc
