@@ -9,7 +9,7 @@ sys.path.append("tests/python")
 import testing as tm
 import test_updaters as test_up
 
-pytestmark = pytest.mark.timeout(10)
+pytestmark = pytest.mark.timeout(30)
 
 parameter_strategy = strategies.fixed_dictionaries({
     'max_depth': strategies.integers(0, 11),
