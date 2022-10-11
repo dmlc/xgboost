@@ -5,22 +5,26 @@
 #include <grpcpp/server_builder.h>
 #include <gtest/gtest.h>
 
+#include <iostream>
 #include <thread>
 #include <ctime>
 
-#include "../helpers.h"
+#include "helpers.h"
 #include "../../../plugin/federated/federated_communicator.h"
 #include "../../../plugin/federated/federated_server.h"
 
+namespace {
+
+std::string GetServerAddress() {
+  int port = GenerateRandomPort(50000, 60000);
+  std::string address = std::string("localhost:") + std::to_string(port);
+  return address;
+}
+
+}  // anonymous namespace
+
 namespace xgboost {
 namespace collective {
-  
-std::string GetServerAddress() {
-  SimpleLCG lcg(std::time(NULL));
-  std::uniform_int_distribution<int> dist(50000, 60000);
-  int port = dist(lcg);
-  return std::string("localhost:") + std::to_string(port);
-}
 
 class FederatedCommunicatorTest : public ::testing::Test {
  public:

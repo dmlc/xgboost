@@ -4,12 +4,23 @@
 #include <grpcpp/server_builder.h>
 #include <gtest/gtest.h>
 
+#include <iostream>
 #include <thread>
 #include <ctime>
 
-#include "../helpers.h"
+#include "helpers.h"
 #include "federated_client.h"
 #include "federated_server.h"
+
+namespace {
+
+std::string GetServerAddress() {
+  int port = GenerateRandomPort(50000, 60000);
+  std::string address = std::string("localhost:") + std::to_string(port);
+  return address;
+}
+
+}  // anonymous namespace
 
 namespace xgboost {
 
@@ -40,12 +51,6 @@ class FederatedServerTest : public ::testing::Test {
   }
 
  protected:
-  std::string GetServerAddress() {
-    SimpleLCG lcg(std::time(NULL));
-    std::uniform_int_distribution<int> dist(50000, 60000);
-    int port = dist(lcg);
-    return std::string("localhost:") + std::to_string(port);
-  }
   void SetUp() override {
     server_address_ = GetServerAddress();
     server_thread_.reset(new std::thread([this] {

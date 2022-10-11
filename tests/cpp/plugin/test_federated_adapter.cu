@@ -5,25 +5,30 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 
+#include <iostream>
 #include <thread>
 #include <ctime>
 
-#include "../helpers.h"
+#include "./helpers.h"
 #include "../../../plugin/federated/federated_communicator.h"
 #include "../../../plugin/federated/federated_server.h"
 #include "../../../src/collective/device_communicator_adapter.cuh"
+
+namespace {
+
+std::string GetServerAddress() {
+  int port = GenerateRandomPort(50000, 60000);
+  std::string address = std::string("localhost:") + std::to_string(port);
+  return address;
+}
+
+}  // anonymous namespace
 
 namespace xgboost {
 namespace collective {
 
 class FederatedAdapterTest : public ::testing::Test {
  protected:
-  std::string GetServerAddress() {
-    SimpleLCG lcg(std::time(NULL));
-    std::uniform_int_distribution<int> dist(50000, 60000);
-    int port = dist(lcg);
-    return std::string("localhost:") + std::to_string(port);
-  }
   void SetUp() override {
     server_address_ = GetServerAddress();
     server_thread_.reset(new std::thread([this] {
