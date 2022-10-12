@@ -13,7 +13,7 @@ from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, TypeVar
 
 import hypothesis
 import numpy as np
@@ -158,12 +158,15 @@ def deterministic_persist_per_worker(df, client):
     return df2
 
 
+Margin = TypeVar("Margin", dd.DataFrame, dd.Series, None)
+
+
 def deterministic_repartition(
     client: Client,
     X: dd.DataFrame,
     y: dd.Series,
-    m: Optional[Union[dd.DataFrame, dd.Series]],
-) -> Tuple[dd.DataFrame, dd.Series, Optional[Union[dd.DataFrame, dd.Series]]]:
+    m: Margin,
+) -> Tuple[dd.DataFrame, dd.Series, Margin]:
     # force repartition the data to avoid non-deterministic result
     if any(X.map_partitions(lambda x: _is_cudf_df(x)).compute()):
         # dask_cudf seems to be doing fine for now
@@ -490,6 +493,10 @@ def run_boost_from_prediction(
 
     predt_1 = predictions_1.compute()
     predt_2 = predictions_2.compute()
+    if hasattr(predt_1, "to_numpy"):
+        predt_1 = predt_1.to_numpy()
+    if hasattr(predt_2, "to_numpy"):
+        predt_2 = predt_2.to_numpy()
     np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
@@ -715,6 +722,7 @@ def run_dask_classifier(
 def test_dask_classifier(model: str, client: "Client") -> None:
     X, y, w = generate_array(with_weights=True)
     y = (y * 10).astype(np.int32)
+    assert w
     run_dask_classifier(X, y, w, model, None, client, 10)
 
     y_bin = y.copy()
