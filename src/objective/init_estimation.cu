@@ -9,11 +9,9 @@
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 
 #include <algorithm>  // std::max
-#include <cinttypes>  // std::uint64_t
 #include <cstddef>    // std::size_t
 
-#include "../common/device_helpers.cuh"  // dh::MakeTransformIterator
-#include "../common/numeric.cuh"         // Reduce
+#include "../common/device_helpers.cuh"  // dh::MakeTransformIterator, dh::Reduce
 #include "init_estimation.h"
 #include "rabit/rabit.h"
 #include "xgboost/generic_parameters.h"  // Context

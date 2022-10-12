@@ -3,10 +3,8 @@
  */
 #include "numeric.h"
 
-#include <numeric>      // std::accumulate
 #include <type_traits>  // std::is_same
 
-#include "threading_utils.h"             // MemStackAllocator, ParallelFor, DefaultMaxThreads
 #include "xgboost/generic_parameters.h"  // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
 
