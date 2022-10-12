@@ -1418,7 +1418,11 @@ class TestWithDask:
         else:
             assert tm.non_increasing(history)
         # Make sure that it's decreasing
-        assert history[-1] < history[0]
+        if is_stump():
+            # we might have already got the best score with base_score.
+            assert history[-1] <= history[0]
+        else:
+            assert history[-1] < history[0]
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
