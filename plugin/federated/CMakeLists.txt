@@ -7,7 +7,7 @@ find_package(Threads)
 add_library(federated_proto federated.proto)
 target_link_libraries(federated_proto PUBLIC protobuf::libprotobuf gRPC::grpc gRPC::grpc++)
 target_include_directories(federated_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-set_property(TARGET federated_proto PROPERTY POSITION_INDEPENDENT_CODE ON)
+xgboost_target_properties(federated_proto)
 
 get_target_property(grpc_cpp_plugin_location gRPC::grpc_cpp_plugin LOCATION)
 protobuf_generate(TARGET federated_proto LANGUAGE cpp)
