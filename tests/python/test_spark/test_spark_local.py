@@ -92,22 +92,18 @@ class XgboostLocalTest(SparkTestCase):
             ],
         )
 
-        # >>> X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-        # >>> y = np.array([0, 1])
-        # >>> cl1 = xgboost.XGBClassifier()
-        # >>> cl1.fit(X, y)
-        # >>> cl1.predict(X)
-        # array([0, 0])
-        # >>> cl1.predict_proba(X)
-        # array([[0.5, 0.5],
-        #        [0.5, 0.5]], dtype=float32)
-        # >>> cl2 = xgboost.XGBClassifier(max_depth=5, n_estimators=10, scale_pos_weight=4)
-        # >>> cl2.fit(X, y)
-        # >>> cl2.predict(X)
-        # array([1, 1])
-        # >>> cl2.predict_proba(X)
-        # array([[0.27574146, 0.72425854 ],
-        #        [0.27574146, 0.72425854 ]], dtype=float32)
+        X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        y = np.array([0, 1])
+        cl1 = XGBClassifier()
+        cl1.fit(X, y)
+        p1 = cl1.predict(X)
+        proba1 = cl1.predict_proba(X)
+
+        cl2 = XGBClassifier(max_depth=5, n_estimators=10, scale_pos_weight=4)
+        cl2.fit(X, y)
+        p2 = cl2.predict(X)
+        proba2 = cl2.predict_proba(X)
+
         self.cls_params = {"max_depth": 5, "n_estimators": 10, "scale_pos_weight": 4}
 
         cls_df_train_data = [
@@ -120,21 +116,22 @@ class XgboostLocalTest(SparkTestCase):
         self.cls_df_train_large = self.session.createDataFrame(
             cls_df_train_data * 100, ["features", "label"]
         )
+        print("list(proba1[1, :]):", list(proba1[1, :]), p1.shape, type(p1[0]))
         self.cls_df_test = self.session.createDataFrame(
             [
                 (
                     Vectors.dense(1.0, 2.0, 3.0),
-                    0,
-                    [0.5, 0.5],
-                    1,
-                    [0.27574146, 0.72425854],
+                    int(p1[0]),
+                    [float(p) for p in list(proba1[0, :])],
+                    int(p2[0]),
+                    [float(p) for p in list(proba2[0, :])],
                 ),
                 (
                     Vectors.sparse(3, {1: 1.0, 2: 5.5}),
-                    0,
-                    [0.5, 0.5],
-                    1,
-                    [0.27574146, 0.72425854],
+                    int(p1[1]),
+                    [float(p) for p in list(proba1[1, :])],
+                    int(p2[1]),
+                    [float(p) for p in list(proba2[1, :])],
                 ),
             ],
             [
