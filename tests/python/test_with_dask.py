@@ -1402,16 +1402,22 @@ class TestWithDask:
         else:
             w = None
 
-        m = xgb.dask.DaskDMatrix(
-            client, data=X, label=y, weight=w)
-        history = xgb.dask.train(client, params=params, dtrain=m,
-                                 num_boost_round=num_rounds,
-                                 evals=[(m, 'train')])['history']
+        m = xgb.dask.DaskDMatrix(client, data=X, label=y, weight=w)
+        history = xgb.dask.train(
+            client,
+            params=params,
+            dtrain=m,
+            num_boost_round=num_rounds,
+            evals=[(m, "train")],
+        )["history"]
         note(history)
-        history = history['train'][dataset.metric]
+        history = history["train"][dataset.metric]
 
         def is_stump():
-            return params["max_depth"] == 1 or params["max_leaves"] == 1
+            return (
+                params.get("max_depth", None) == 1
+                or params.get("max_leaves", None) == 1
+            )
 
         def minimum_bin():
             return "max_bin" in params and params["max_bin"] == 2
