@@ -24,13 +24,10 @@ inline double FitStump(Context const*, HostDeviceVector<GradientPair> const&) {
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
-
-double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
-
 /**
- * @brief Normalize allreduced base score by sum of weights.
+ * @brief Fit a tree stump as an estimation of base_score.
  */
-void NormalizeBaseScore(double w, linalg::TensorView<float, 1> in_out);
+double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair);
 }  // namespace obj
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_INIT_ESTIMATION_H_

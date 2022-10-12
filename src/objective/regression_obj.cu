@@ -192,6 +192,7 @@ class RegLossObj : public ObjFunction {
 
     auto score = FitStump(ctx_, gpair);
     score = Loss::PredTransform(score);
+    out(0) = score;
 
     double w{0.0};
     if (info.weights_.Empty()) {
@@ -200,7 +201,6 @@ class RegLossObj : public ObjFunction {
       w = common::Reduce(ctx_, info.weights_);
     }
     out(0) = w * score;
-    NormalizeBaseScore(w, out);
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -758,7 +758,17 @@ class MeanAbsoluteError : public ObjFunction {
       out(0) = common::Median(ctx_, info.labels, info.weights_) * w;
     }
 
-    NormalizeBaseScore(w, out);
+    collective::Allreduce<collective::Operation::kSum>(out.Values().data(), out.Values().size());
+    collective::Allreduce<collective::Operation::kSum>(&w, 1);
+
+    if (common::CloseTo(w, 0.0)) {
+      // Mostly for handling empty dataset test.
+      LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
+      out(0) = ObjFunction::DefaultBaseScore();
+      return;
+    }
+    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
+                   [w](float v) { return v / w; });
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,
