@@ -4,6 +4,7 @@
 #ifndef XGBOOST_STRING_VIEW_H_
 #define XGBOOST_STRING_VIEW_H_
 #include <xgboost/logging.h>
+#include <xgboost/span.h>
 
 #include <algorithm>
 #include <iterator>
@@ -19,6 +20,7 @@ struct StringView {
   size_t size_{0};
 
  public:
+  using value_type = CharT;                                        // NOLINT
   using iterator = const CharT*;                                   // NOLINT
   using const_iterator = iterator;                                 // NOLINT
   using reverse_iterator = std::reverse_iterator<const_iterator>;  // NOLINT
@@ -77,5 +79,14 @@ inline bool operator==(StringView l, StringView r) {
 }
 
 inline bool operator!=(StringView l, StringView r) { return !(l == r); }
+
+inline bool operator<(StringView l, StringView r) {
+  return common::Span<StringView::value_type const>{l.c_str(), l.size()} <
+         common::Span<StringView::value_type const>{r.c_str(), r.size()};
+}
+
+inline bool operator<(std::string const& l, StringView r) { return StringView{l} < r; }
+
+inline bool operator<(StringView l, std::string const& r) { return l < StringView{r}; }
 }  // namespace xgboost
 #endif  // XGBOOST_STRING_VIEW_H_

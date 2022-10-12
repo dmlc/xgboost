@@ -258,7 +258,7 @@ void TypeCheck(Json const &value, StringView name) {
 }
 
 template <typename JT>
-auto const &RequiredArg(Json const &in, std::string const &key, StringView func) {
+auto const &RequiredArg(Json const &in, StringView key, StringView func) {
   auto const &obj = get<Object const>(in);
   auto it = obj.find(key);
   if (it == obj.cend() || IsA<Null>(it->second)) {
@@ -269,11 +269,11 @@ auto const &RequiredArg(Json const &in, std::string const &key, StringView func)
 }
 
 template <typename JT, typename T>
-auto const &OptionalArg(Json const &in, std::string const &key, T const &dft) {
+auto const &OptionalArg(Json const &in, StringView key, T const &dft) {
   auto const &obj = get<Object const>(in);
   auto it = obj.find(key);
   if (it != obj.cend() && !IsA<Null>(it->second)) {
-    TypeCheck<JT>(it->second, StringView{key});
+    TypeCheck<JT>(it->second, key);
     return get<std::remove_const_t<JT> const>(it->second);
   }
   return dft;
