@@ -23,13 +23,15 @@ namespace obj {
 namespace cuda_impl {
 double FitStump(Context const* ctx, HostDeviceVector<GradientPair> const& gpair) {
   gpair.SetDevice(ctx->gpu_id);
-  auto const& d_gpair = gpair.ConstDeviceSpan();
+  auto d_gpair = gpair.ConstDeviceSpan();
   auto it = dh::MakeTransformIterator<GradientPairPrecise>(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) -> GradientPairPrecise {
         return GradientPairPrecise{d_gpair[i]};
       });
-  auto sum = common::cuda_impl::Reduce(ctx, it, it + d_gpair.size(), GradientPairPrecise{});
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  auto sum = dh::Reduce(thrust::cuda::par(alloc), it, it + d_gpair.size(), GradientPairPrecise{},
+                        thrust::plus<GradientPairPrecise>{});
   return -sum.GetGrad() / std::max(sum.GetHess(), 1e-6);
 }
 }  // namespace cuda_impl
