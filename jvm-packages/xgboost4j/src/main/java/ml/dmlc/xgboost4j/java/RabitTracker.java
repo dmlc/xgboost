@@ -31,6 +31,7 @@ public class RabitTracker implements IRabitTracker {
   // number of workers to be submitted.
   private int numWorkers;
   private String hostIp = "";
+  private int hostPort = 0;
   private String pythonExec = "";
   private AtomicReference<Process> trackerProcess = new AtomicReference<Process>();
 
@@ -98,6 +99,14 @@ public class RabitTracker implements IRabitTracker {
     this.pythonExec = pythonExec;
   }
 
+  public RabitTracker(int numWorkers, String hostIp, int hostPort,
+                      String pythonExec) throws XGBoostError {
+    this(numWorkers);
+    this.hostIp = hostIp;
+    this.hostPort = hostPort;
+    this.pythonExec = pythonExec;
+  }
+
   public void uncaughtException(Thread t, Throwable e) {
     logger.error("Uncaught exception thrown by worker:", e);
     try {
@@ -159,6 +168,9 @@ public class RabitTracker implements IRabitTracker {
     } else if (hostIp != null & !hostIp.isEmpty()) {
       logger.debug("Using the parametr host-ip: " + hostIp);
       sb.append(" --host-ip=" + hostIp + " ");
+    }
+    if(hostPort != 0){
+      sb.append(" --port=" + hostPort + " ");
     }
     return sb.toString();
   }

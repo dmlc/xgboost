@@ -36,6 +36,7 @@ class CommunicatorRobustnessSuite extends FunSuite with PerTest {
 
   test("Customize host ip and python exec for Rabit tracker") {
     val hostIp = "192.168.22.111"
+    val hostPort = 19000
     val pythonExec = "/usr/bin/python3"
 
     val paramMap = Map(
@@ -75,6 +76,36 @@ class CommunicatorRobustnessSuite extends FunSuite with PerTest {
         assert(cmd.startsWith(pythonExec))
         assert(cmd.contains(s" --host-ip=${hostIp}"))
       case _ => assert(false, "expected python tracker implementation")
+    }
+
+    val paramMap3 = Map(
+      "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(0L, "python", hostIp, pythonExec, Option(hostPort)))
+    val xgbExecParams3 = getXGBoostExecutionParams(paramMap2)
+    val tracker3 = XGBoost.getTracker(xgbExecParams3.numWorkers, xgbExecParams3.trackerConf)
+    tracker3 match {
+      case pyTracker: PyRabitTracker =>
+        val cmd = pyTracker.getRabitTrackerCommand
+        assert(cmd.startsWith(pythonExec))
+        assert(cmd.contains(s" --host-ip=${hostIp}"))
+        assert(cmd.contains(s" --port=${hostPort}"))
+      case _ => assert(false, "expected python tracker implementation")
+    }
+  }
+
+  test("Customize port for scala tracker") {
+    val hostPort = 19000
+    val paramMap = Map(
+      "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala", "", "", Option(hostPort)))
+    val xgbExecParams = getXGBoostExecutionParams(paramMap)
+    val tracker = XGBoost.getTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
+    tracker match {
+      case sTracker: ScalaRabitTracker => {
+        sTracker.start(0)
+        assert(Option(sTracker.getWorkerEnvs.get("DMLC_TRACKER_PORT")) == Some(hostPort.toString))
+      }
+      case _ => assert(false, "expected spark scala tracker implementation")
     }
   }
 

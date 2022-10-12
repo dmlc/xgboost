@@ -444,7 +444,8 @@ def start_rabit_tracker(args: argparse.Namespace) -> None:
     """
     envs = {"DMLC_NUM_WORKER": args.num_workers, "DMLC_NUM_SERVER": args.num_servers}
     rabit = RabitTracker(
-        host_ip=get_host_ip(args.host_ip), n_workers=args.num_workers, use_logger=True
+        host_ip=get_host_ip(args.host_ip), port=args.port, n_workers=args.num_workers,
+        use_logger=True
     )
     envs.update(rabit.worker_envs())
     rabit.start(args.num_workers)
@@ -469,6 +470,8 @@ def main() -> None:
     parser.add_argument('--host-ip', default=None, type=str,
                         help=('Host IP addressed, this is only needed ' +
                               'if the host IP cannot be automatically guessed.'))
+    parser.add_argument('--port', default=0, type=int,
+                        help='Host port of the tracker, default 0 for ramdom.')
     parser.add_argument('--log-level', default='INFO', type=str,
                         choices=['INFO', 'DEBUG'],
                         help='Logging level of the logger.')
