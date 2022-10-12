@@ -42,22 +42,6 @@ float Median(Context const* ctx, linalg::TensorView<float const, 2> t,
   CHECK_EQ(quantile.Size(), 1);
   return quantile.HostVector().front();
 }
-
-float Mean(Context const* ctx, linalg::TensorView<float const, 2> t,
-           common::OptionalWeights weights) {
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
-  double size = t.Shape(0);
-  CHECK_NE(size, 0);
-  auto val_it = dh::MakeTransformIterator<float>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-        auto idx = linalg::UnravelIndex(i, t.Shape());
-        auto ridx = std::get<0>(idx);
-        return linalg::detail::Apply(t, std::move(idx)) * weights[ridx] / size;
-      });
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  auto mean = thrust::reduce(thrust::cuda::par(alloc), val_it, val_it + t.Size(), 0.0f);
-  return mean;
-}
 }  // namespace cuda_impl
 }  // namespace common
 }  // namespace xgboost
