@@ -116,7 +116,7 @@ class XgboostLocalTest(SparkTestCase):
         self.cls_df_train_large = self.session.createDataFrame(
             cls_df_train_data * 100, ["features", "label"]
         )
-        print("list(proba1[1, :]):", list(proba1[1, :]), p1.shape, type(p1[0]))
+
         self.cls_df_test = self.session.createDataFrame(
             [
                 (
@@ -293,7 +293,7 @@ class XgboostLocalTest(SparkTestCase):
             ],
         )
         self.cls_with_eval_best_score = 0.6931
-        self.cls_with_eval_and_weight_best_score = 0.6378
+        self.cls_with_eval_and_weight_best_score = 0.63765
 
         # Test classifier with both base margin and without
         # >>> import numpy as np
@@ -916,10 +916,8 @@ class XgboostLocalTest(SparkTestCase):
                 np.allclose(row.probability, row.expected_prob_with_eval, atol=1e-3)
             )
         # with weight and eval
-        # Added scale_pos_weight because in 1.4.2, the original answer returns 0.5 which
-        # doesn't really indicate this working correctly.
         classifier_with_weight_eval = SparkXGBClassifier(
-            weight_col="weight", scale_pos_weight=4, **self.cls_params_with_eval
+            weight_col="weight", **self.cls_params_with_eval
         )
         model_with_weight_eval = classifier_with_weight_eval.fit(
             self.cls_df_train_with_eval_weight
@@ -927,13 +925,12 @@ class XgboostLocalTest(SparkTestCase):
         pred_result_with_weight_eval = model_with_weight_eval.transform(
             self.cls_df_test_with_eval_weight
         ).collect()
-        self.assertTrue(
-            np.isclose(
-                model_with_weight_eval._xgb_sklearn_model.best_score,
-                self.cls_with_eval_and_weight_best_score,
-                atol=1e-3,
-            )
+        np.testing.assert_allclose(
+            model_with_weight_eval._xgb_sklearn_model.best_score,
+            self.cls_with_eval_and_weight_best_score,
+            atol=1e-3,
         )
+
         for row in pred_result_with_weight_eval:
             self.assertTrue(
                 np.allclose(
