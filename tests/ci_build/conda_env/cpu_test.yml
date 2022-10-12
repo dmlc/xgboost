@@ -22,6 +22,7 @@ dependencies:
 - sh
 - mock
 - pytest
+- pytest-timeout
 - pytest-cov
 - python-kubernetes
 - urllib3

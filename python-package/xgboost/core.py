@@ -105,6 +105,11 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     return res
 
 
+def make_jcargs(**kwargs: Any) -> bytes:
+    "Make JSON-based arguments for C functions."
+    return from_pystr_to_cstr(json.dumps(kwargs))
+
+
 IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
 
 
@@ -502,8 +507,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         pointer.
 
         """
-        @_deprecate_positional_args
-        def data_handle(
+        @require_pos_args(True)
+        def input_data(
             data: Any,
             *,
             feature_names: Optional[FeatureNames] = None,
@@ -528,7 +533,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
                 **kwargs,
             )
         # pylint: disable=not-callable
-        return self._handle_exception(lambda: self.next(data_handle), 0)
+        return self._handle_exception(lambda: self.next(input_data), 0)
 
     @abstractmethod
     def reset(self) -> None:
@@ -554,7 +559,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         raise NotImplementedError()
 
 
-# Notice for `_deprecate_positional_args`
+# Notice for `require_pos_args`
 # Authors: Olivier Grisel
 #          Gael Varoquaux
 #          Andreas Mueller
@@ -563,50 +568,63 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 #          Nicolas Tresegnie
 #          Sylvain Marie
 # License: BSD 3 clause
-def _deprecate_positional_args(f: Callable[..., _T]) -> Callable[..., _T]:
+def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
-    * will issue a warning when passed as a positional argument.
+    * will issue a warning or error when passed as a positional argument.
 
     Modified from sklearn utils.validation.
 
     Parameters
     ----------
-    f : function
-        function to check arguments on
+    error :
+        Whether to throw an error or raise a warning.
     """
-    sig = signature(f)
-    kwonly_args = []
-    all_args = []
 
-    for name, param in sig.parameters.items():
-        if param.kind == Parameter.POSITIONAL_OR_KEYWORD:
-            all_args.append(name)
-        elif param.kind == Parameter.KEYWORD_ONLY:
-            kwonly_args.append(name)
+    def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
+        """Throw error/warning if there are positional arguments after the asterisk.
 
-    @wraps(f)
-    def inner_f(*args: Any, **kwargs: Any) -> _T:
-        extra_args = len(args) - len(all_args)
-        if extra_args > 0:
-            # ignore first 'self' argument for instance methods
-            args_msg = [
-                f"{name}" for name, _ in zip(
-                    kwonly_args[:extra_args], args[-extra_args:]
-                )
-            ]
-            # pylint: disable=consider-using-f-string
-            warnings.warn(
-                "Pass `{}` as keyword args.  Passing these as positional "
-                "arguments will be considered as error in future releases.".
-                format(", ".join(args_msg)), FutureWarning
-            )
-        for k, arg in zip(sig.parameters, args):
-            kwargs[k] = arg
-        return f(**kwargs)
+        Parameters
+        ----------
+        f :
+            function to check arguments on.
 
-    return inner_f
+        """
+        sig = signature(func)
+        kwonly_args = []
+        all_args = []
+
+        for name, param in sig.parameters.items():
+            if param.kind == Parameter.POSITIONAL_OR_KEYWORD:
+                all_args.append(name)
+            elif param.kind == Parameter.KEYWORD_ONLY:
+                kwonly_args.append(name)
+
+        @wraps(func)
+        def inner_f(*args: Any, **kwargs: Any) -> _T:
+            extra_args = len(args) - len(all_args)
+            if extra_args > 0:
+                # ignore first 'self' argument for instance methods
+                args_msg = [
+                    f"{name}"
+                    for name, _ in zip(kwonly_args[:extra_args], args[-extra_args:])
+                ]
+                # pylint: disable=consider-using-f-string
+                msg = "Pass `{}` as keyword args.".format(", ".join(args_msg))
+                if error:
+                    raise TypeError(msg)
+                warnings.warn(msg, FutureWarning)
+            for k, arg in zip(sig.parameters, args):
+                kwargs[k] = arg
+            return func(**kwargs)
+
+        return inner_f
+
+    return throw_if
+
+
+_deprecate_positional_args = require_pos_args(False)
 
 
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -1243,7 +1261,7 @@ class _ProxyDMatrix(DMatrix):
     def _set_data_from_cuda_interface(self, data: DataType) -> None:
         """Set data from CUDA array interface."""
         interface = data.__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+        interface_str = bytes(json.dumps(interface), "utf-8")
         _check_call(
             _LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, interface_str)
         )
@@ -1344,6 +1362,26 @@ class QuantileDMatrix(DMatrix):
                 "Only one of the eval_qid or eval_group for each evaluation "
                 "dataset should be provided."
             )
+        if isinstance(data, DataIter):
+            if any(
+                info is not None
+                for info in (
+                    label,
+                    weight,
+                    base_margin,
+                    feature_names,
+                    feature_types,
+                    group,
+                    qid,
+                    label_lower_bound,
+                    label_upper_bound,
+                    feature_weights,
+                )
+            ):
+                raise ValueError(
+                    "If data iterator is used as input, data like label should be "
+                    "specified as batch argument."
+                )
 
         self._init(
             data,
@@ -1392,12 +1430,9 @@ class QuantileDMatrix(DMatrix):
                 "in iterator to fix this error."
             )
 
-        args = {
-            "nthread": self.nthread,
-            "missing": self.missing,
-            "max_bin": self.max_bin,
-        }
-        config = from_pystr_to_cstr(json.dumps(args))
+        config = make_jcargs(
+            nthread=self.nthread, missing=self.missing, max_bin=self.max_bin
+        )
         ret = _LIB.XGQuantileDMatrixCreateFromCallback(
             None,
             it.proxy.handle,
@@ -2362,7 +2397,7 @@ class Booster:
         """
         length = c_bst_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
-        config = from_pystr_to_cstr(json.dumps({"format": raw_format}))
+        config = make_jcargs(format=raw_format)
         _check_call(
             _LIB.XGBoosterSaveModelToBuffer(
                 self.handle, config, ctypes.byref(length), ctypes.byref(cptr)
@@ -2557,9 +2592,6 @@ class Booster:
         `n_classes`, otherwise they're scalars.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
-        args = from_pystr_to_cstr(
-            json.dumps({"importance_type": importance_type, "feature_map": fmap})
-        )
         features = ctypes.POINTER(ctypes.c_char_p)()
         scores = ctypes.POINTER(ctypes.c_float)()
         n_out_features = c_bst_ulong()
@@ -2569,7 +2601,7 @@ class Booster:
         _check_call(
             _LIB.XGBoosterFeatureScore(
                 self.handle,
-                args,
+                make_jcargs(importance_type=importance_type, feature_map=fmap),
                 ctypes.byref(n_out_features),
                 ctypes.byref(features),
                 ctypes.byref(out_dim),

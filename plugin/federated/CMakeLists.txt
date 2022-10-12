@@ -5,13 +5,10 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 message(STATUS "Found gRPC: ${gRPC_CONFIG}")
 
-# Generate code from federated.proto
-add_library(federated_proto STATIC federated.proto)
-set(PROTO_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/proto-gen")
-target_link_libraries(federated_proto PUBLIC
-  protobuf::libprotobuf gRPC::grpc++)
-target_include_directories(federated_proto PUBLIC
-  "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>")
+# Generated code from the protobuf definition.
+add_library(federated_proto federated.proto)
+target_link_libraries(federated_proto PUBLIC protobuf::libprotobuf gRPC::grpc gRPC::grpc++)
+target_include_directories(federated_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 xgboost_target_properties(federated_proto)
 
 protobuf_generate(

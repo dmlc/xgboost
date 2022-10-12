@@ -107,12 +107,12 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistograms({0});
   maker.gpair = gpair.DeviceSpan();
-  maker.histogram_rounding.reset(new GradientQuantizer(maker.gpair));
+  maker.quantiser.reset(new GradientQuantiser(maker.gpair));
 
   BuildGradientHistogram(
       page->GetDeviceAccessor(0), maker.feature_groups->DeviceAccessor(0),
       gpair.DeviceSpan(), maker.row_partitioner->GetRows(0),
-      maker.hist.GetNodeHistogram(0), *maker.histogram_rounding,
+      maker.hist.GetNodeHistogram(0), *maker.quantiser,
       !use_shared_memory_histograms);
 
   DeviceHistogramStorage<>& d_hist = maker.hist;
@@ -125,7 +125,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   for (size_t i = 0; i < h_result.size(); ++i) {
-    auto result = maker.histogram_rounding->ToFloatingPoint(h_result[i]);
+    auto result = maker.quantiser->ToFloatingPoint(h_result[i]);
     EXPECT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
     EXPECT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
   }
@@ -156,85 +156,10 @@ HistogramCutsWrapper GetHostCutMatrix () {
   return cmat;
 }
 
-inline GradientQuantizer DummyRoundingFactor() {
+inline GradientQuantiser DummyRoundingFactor() {
   thrust::device_vector<GradientPair> gpair(1);
   gpair[0] = {1000.f, 1000.f};  // Tests should not exceed sum of 1000
-  return GradientQuantizer(dh::ToSpan(gpair));
-}
-
-// TODO(trivialfis): This test is over simplified.
-TEST(GpuHist, EvaluateRootSplit) {
-  constexpr int kNRows = 16;
-  constexpr int kNCols = 8;
-
-  TrainParam param;
-
-  std::vector<std::pair<std::string, std::string>> args{
-      {"max_depth", "1"},
-      {"max_leaves", "0"},
-
-      // Disable all other parameters.
-      {"colsample_bynode", "1"},
-      {"colsample_bylevel", "1"},
-      {"colsample_bytree", "1"},
-      {"min_child_weight", "0.01"},
-      {"reg_alpha", "0"},
-      {"reg_lambda", "0"},
-      {"max_delta_step", "0"}};
-  param.Init(args);
-  for (size_t i = 0; i < kNCols; ++i) {
-    param.monotone_constraints.emplace_back(0);
-  }
-
-  int max_bins = 4;
-
-  // Initialize GPUHistMakerDevice
-  auto page = BuildEllpackPage(kNRows, kNCols);
-  BatchParam batch_param{};
-  Context ctx{CreateEmptyGenericParam(0)};
-  GPUHistMakerDevice<GradientPairPrecise> maker(&ctx, page.get(), {}, kNRows, param, kNCols, kNCols,
-                                                batch_param);
-  // Initialize GPUHistMakerDevice::node_sum_gradients
-  maker.node_sum_gradients = {};
-
-  // Initialize GPUHistMakerDevice::cut
-  auto cmat = GetHostCutMatrix();
-
-  // Copy cut matrix to device.
-  page->Cuts() = cmat;
-  maker.monotone_constraints = param.monotone_constraints;
-
-  // Initialize GPUHistMakerDevice::hist
-  maker.hist.Init(0, (max_bins - 1) * kNCols);
-  maker.hist.AllocateHistograms({0});
-  // Each row of hist_gpair represents gpairs for one feature.
-  // Each entry represents a bin.
-  std::vector<GradientPairPrecise> hist_gpair = GetHostHistGpair();
-  maker.histogram_rounding.reset(new GradientQuantizer(DummyRoundingFactor()));
-  std::vector<int64_t> hist;
-  for (auto pair : hist_gpair) {
-    auto grad = maker.histogram_rounding->ToFixedPoint({float(pair.GetGrad()),float(pair.GetHess())});
-    hist.push_back(grad.GetQuantisedGrad());
-    hist.push_back(grad.GetQuantisedHess());
-  }
-
-  ASSERT_EQ(maker.hist.Data().size(), hist.size());
-  thrust::copy(hist.begin(), hist.end(),
-    maker.hist.Data().begin());
-  std::vector<float> feature_weights;
-
-  maker.column_sampler.Init(kNCols, feature_weights, param.colsample_bynode,
-                            param.colsample_bylevel, param.colsample_bytree);
-
-  RegTree tree;
-  MetaInfo info;
-  info.num_row_ = kNRows;
-  info.num_col_ = kNCols;
-
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f}).split;
-
-  ASSERT_EQ(res.findex, 7);
-  ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
+  return GradientQuantiser(dh::ToSpan(gpair));
 }
 
 void TestHistogramIndexImpl() {

@@ -324,4 +324,36 @@ TEST(CAPI, NullPtr) {
   ASSERT_NE(pos, std::string::npos);
   XGBAPISetLastError("");
 }
+
+TEST(CAPI, JArgs) {
+  {
+    Json args{Object{}};
+    args["key"] = String{"value"};
+    args["null"] = Null{};
+    auto value = OptionalArg<String>(args, "key", std::string{"foo"});
+    ASSERT_EQ(value, "value");
+    value = OptionalArg<String const>(args, "key", std::string{"foo"});
+    ASSERT_EQ(value, "value");
+
+    ASSERT_THROW({ OptionalArg<Number>(args, "key", 0.0f); }, dmlc::Error);
+    value = OptionalArg<String const>(args, "bar", std::string{"foo"});
+    ASSERT_EQ(value, "foo");
+    value = OptionalArg<String const>(args, "null", std::string{"foo"});
+    ASSERT_EQ(value, "foo");
+  }
+
+  {
+    Json args{Object{}};
+    args["key"] = String{"value"};
+    args["null"] = Null{};
+    auto value = RequiredArg<String>(args, "key", __func__);
+    ASSERT_EQ(value, "value");
+    value = RequiredArg<String const>(args, "key", __func__);
+    ASSERT_EQ(value, "value");
+
+    ASSERT_THROW({ RequiredArg<Integer>(args, "key", __func__); }, dmlc::Error);
+    ASSERT_THROW({ RequiredArg<String const>(args, "foo", __func__); }, dmlc::Error);
+    ASSERT_THROW({ RequiredArg<String>(args, "null", __func__); }, dmlc::Error);
+  }
+}
 }  // namespace xgboost

@@ -72,7 +72,7 @@ struct Clip : public thrust::unary_function<GradientPair, Pair> {
   }
 };
 
-GradientQuantizer::GradientQuantizer(common::Span<GradientPair const> gpair) {
+GradientQuantiser::GradientQuantiser(common::Span<GradientPair const> gpair) {
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
   dh::XGBCachingDeviceAllocator<char> alloc;
@@ -153,14 +153,14 @@ class HistogramAgent {
   const EllpackDeviceAccessor& matrix_;
   const int feature_stride_;
   const std::size_t n_elements_;
-  const GradientQuantizer& rounding_;
+  const GradientQuantiser& rounding_;
 
  public:
   __device__ HistogramAgent(GradientPairInt64* smem_arr,
                             GradientPairInt64* __restrict__ d_node_hist, const FeatureGroup& group,
                             const EllpackDeviceAccessor& matrix,
                             common::Span<const RowPartitioner::RowIndexT> d_ridx,
-                            const GradientQuantizer& rounding, const GradientPair* d_gpair)
+                            const GradientQuantiser& rounding, const GradientPair* d_gpair)
       : smem_arr_(smem_arr),
         d_node_hist_(d_node_hist),
         d_ridx_(d_ridx.data()),
@@ -254,7 +254,7 @@ __global__ void __launch_bounds__(kBlockThreads)
                         common::Span<const RowPartitioner::RowIndexT> d_ridx,
                         GradientPairInt64* __restrict__ d_node_hist,
                         const GradientPair* __restrict__ d_gpair,
-                        GradientQuantizer const rounding) {
+                        GradientQuantiser const rounding) {
   extern __shared__ char smem[];
   const FeatureGroup group = feature_groups[blockIdx.y];
   auto smem_arr = reinterpret_cast<GradientPairInt64*>(smem);
@@ -272,7 +272,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> d_ridx,
                             common::Span<GradientPairInt64> histogram,
-                            GradientQuantizer rounding, bool force_global_memory) {
+                            GradientQuantiser rounding, bool force_global_memory) {
   // decide whether to use shared memory
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));

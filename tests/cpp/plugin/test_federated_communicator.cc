@@ -107,6 +107,30 @@ TEST(FederatedCommunicatorSimpleTest, ThrowOnRankTooBig) {
   EXPECT_THROW(construct(), dmlc::Error);
 }
 
+TEST(FederatedCommunicatorSimpleTest, ThrowOnWorldSizeNotInteger) {
+  std::string server_address{GetServerAddress()};
+  auto construct = [server_address]() {
+    Json config{JsonObject()};
+    config["federated_server_address"] = server_address;
+    config["federated_world_size"] = std::string("1");
+    config["federated_rank"] = Integer(0);
+    auto *comm = FederatedCommunicator::Create(config);
+  };
+  EXPECT_THROW(construct(), dmlc::Error);
+}
+
+TEST(FederatedCommunicatorSimpleTest, ThrowOnRankNotInteger) {
+  std::string server_address{GetServerAddress()};
+  auto construct = [server_address]() {
+    Json config{JsonObject()};
+    config["federated_server_address"] = server_address;
+    config["federated_world_size"] = 1;
+    config["federated_rank"] = std::string("0");
+    auto *comm = FederatedCommunicator::Create(config);
+  };
+  EXPECT_THROW(construct(), dmlc::Error);
+}
+
 TEST(FederatedCommunicatorSimpleTest, GetWorldSizeAndRank) {
   std::string server_address{GetServerAddress()};
   FederatedCommunicator comm{6, 3, server_address};
