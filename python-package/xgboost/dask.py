@@ -573,6 +573,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         label_upper_bound: Optional[List[Any]] = None,
         feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
+        feature_weights: Optional[Any] = None,
     ) -> None:
         self._data = data
         self._label = label
@@ -583,6 +584,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         self._label_upper_bound = label_upper_bound
         self._feature_names = feature_names
         self._feature_types = feature_types
+        self._feature_weights = feature_weights
 
         assert isinstance(self._data, collections.abc.Sequence)
 
@@ -633,6 +635,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             label_upper_bound=self._get("_label_upper_bound"),
             feature_names=feature_names,
             feature_types=self._feature_types,
+            feature_weights=self._feature_weights,
         )
         self._iter += 1
         return 1
@@ -731,19 +734,21 @@ def _create_quantile_dmatrix(
         return d
 
     unzipped_dict = _get_worker_parts(parts)
-    it = DaskPartitionIter(**unzipped_dict)
+    it = DaskPartitionIter(
+        **unzipped_dict,
+        feature_types=feature_types,
+        feature_names=feature_names,
+        feature_weights=feature_weights,
+    )
 
     dmatrix = QuantileDMatrix(
         it,
         missing=missing,
-        feature_names=feature_names,
-        feature_types=feature_types,
         nthread=nthread,
         max_bin=max_bin,
         ref=ref,
         enable_categorical=enable_categorical,
     )
-    dmatrix.set_info(feature_weights=feature_weights)
     return dmatrix
 
 
