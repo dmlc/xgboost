@@ -198,6 +198,10 @@ class IteratorForTest(xgb.core.DataIter):
     def next(self, input_data: Callable) -> int:
         if self.it == len(self.X):
             return 0
+
+        with pytest.raises(TypeError, match="keyword args"):
+            input_data(self.X[self.it], self.y[self.it], None)
+
         # Use copy to make sure the iterator doesn't hold a reference to the data.
         input_data(
             data=self.X[self.it].copy(),

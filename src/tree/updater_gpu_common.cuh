@@ -11,6 +11,7 @@
 #include "../common/categorical.h"
 #include "../common/device_helpers.cuh"
 #include "../common/random.h"
+#include "gpu_hist/histogram.cuh"
 #include "param.h"
 
 namespace xgboost {
@@ -66,20 +67,10 @@ struct DeviceSplitCandidate {
   common::CatBitField split_cats;
   bool is_cat { false };
 
-  GradientPairPrecise left_sum;
-  GradientPairPrecise right_sum;
+  GradientPairInt64 left_sum;
+  GradientPairInt64 right_sum;
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
-
-  template <typename ParamT>
-  XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
-                             const ParamT& param) {
-    if (other.loss_chg > loss_chg &&
-        other.left_sum.GetHess() >= param.min_child_weight &&
-        other.right_sum.GetHess() >= param.min_child_weight) {
-      *this = other;
-    }
-  }
 
   template <typename T>
   XGBOOST_DEVICE void SetCat(T c) {
@@ -87,33 +78,32 @@ struct DeviceSplitCandidate {
     fvalue = std::max(this->fvalue, static_cast<float>(c));
   }
 
-  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
-                             float fvalue_in, int findex_in,
-                             GradientPairPrecise left_sum_in,
-                             GradientPairPrecise right_sum_in,
-                             bool cat,
-                             const GPUTrainingParam& param) {
+  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in, float fvalue_in,
+                             int findex_in, GradientPairInt64 left_sum_in,
+                             GradientPairInt64 right_sum_in, bool cat,
+                             const GPUTrainingParam& param, const GradientQuantiser& quantiser) {
     if (loss_chg_in > loss_chg &&
-        left_sum_in.GetHess() >= param.min_child_weight &&
-        right_sum_in.GetHess() >= param.min_child_weight) {
-      loss_chg = loss_chg_in;
-      dir = dir_in;
-      fvalue = fvalue_in;
-      is_cat = cat;
-      left_sum = left_sum_in;
-      right_sum = right_sum_in;
-      findex = findex_in;
-    }
+        quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
+        quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
+        loss_chg = loss_chg_in;
+        dir = dir_in;
+        fvalue = fvalue_in;
+        is_cat = cat;
+        left_sum = left_sum_in;
+        right_sum = right_sum_in;
+        findex = findex_in;
+      }
   }
 
   /**
    * \brief Update for partition-based splits.
    */
   XGBOOST_DEVICE void UpdateCat(float loss_chg_in, DefaultDirection dir_in, bst_cat_t thresh_in,
-                                bst_feature_t findex_in, GradientPairPrecise left_sum_in,
-                                GradientPairPrecise right_sum_in, GPUTrainingParam const& param) {
-    if (loss_chg_in > loss_chg && left_sum_in.GetHess() >= param.min_child_weight &&
-        right_sum_in.GetHess() >= param.min_child_weight) {
+                                bst_feature_t findex_in, GradientPairInt64 left_sum_in,
+                                GradientPairInt64 right_sum_in, GPUTrainingParam const& param, const GradientQuantiser& quantiser) {
+    if (loss_chg_in > loss_chg &&
+        quantiser.ToFloatingPoint(left_sum_in).GetHess() >= param.min_child_weight &&
+        quantiser.ToFloatingPoint(right_sum_in).GetHess() >= param.min_child_weight) {
       loss_chg = loss_chg_in;
       dir = dir_in;
       fvalue = std::numeric_limits<float>::quiet_NaN();

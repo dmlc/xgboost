@@ -27,7 +27,7 @@ struct GPUExpandEntry {
         left_weight{left}, right_weight{right} {}
   bool IsValid(const TrainParam& param, int num_leaves) const {
     if (split.loss_chg <= kRtEps) return false;
-    if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
+    if (split.left_sum.GetQuantisedHess() == 0 || split.right_sum.GetQuantisedHess() == 0) {
       return false;
     }
     if (split.loss_chg < param.min_split_loss) {

@@ -190,12 +190,9 @@ struct GPUHistMakerDevice {
   dh::device_vector<int> monotone_constraints;
   dh::device_vector<float> update_predictions;
 
-  /*! \brief Sum gradient for each node. */
-  std::vector<GradientPairPrecise> node_sum_gradients;
-
   TrainParam param;
 
-  std::unique_ptr<GradientQuantizer> histogram_rounding;
+  std::unique_ptr<GradientQuantiser> quantiser;
 
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
@@ -227,7 +224,6 @@ struct GPUHistMakerDevice {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
     }
-    node_sum_gradients.resize(256);
 
     // Init histogram
     hist.Init(ctx_->gpu_id, page->Cuts().TotalBins());
@@ -255,7 +251,6 @@ struct GPUHistMakerDevice {
                            ctx_->gpu_id);
 
     this->interaction_constraints.Reset();
-    std::fill(node_sum_gradients.begin(), node_sum_gradients.end(), GradientPairPrecise{});
 
     if (d_gpair.size() != dh_gpair->Size()) {
       d_gpair.resize(dh_gpair->Size());
@@ -267,14 +262,14 @@ struct GPUHistMakerDevice {
     page = sample.page;
     gpair = sample.gpair;
 
-    histogram_rounding.reset(new GradientQuantizer(this->gpair));
+    quantiser.reset(new GradientQuantiser(this->gpair));
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(ctx_->gpu_id,  sample.sample_rows));
     hist.Reset();
   }
 
-  GPUExpandEntry EvaluateRootSplit(GradientPairPrecise root_sum) {
+  GPUExpandEntry EvaluateRootSplit(GradientPairInt64 root_sum) {
     int nidx = RegTree::kRoot;
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
@@ -285,11 +280,12 @@ struct GPUHistMakerDevice {
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
         gpu_param,
-        *histogram_rounding,
+        *quantiser,
         feature_types,
         matrix.feature_segments,
         matrix.gidx_fvalue_map,
         matrix.min_fvalue,
+        matrix.is_dense
     };
     auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs);
     return split;
@@ -304,8 +300,9 @@ struct GPUHistMakerDevice {
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, *histogram_rounding, feature_types,     matrix.feature_segments,
+        GPUTrainingParam{param}, *quantiser, feature_types,     matrix.feature_segments,
         matrix.gidx_fvalue_map,  matrix.min_fvalue,
+        matrix.is_dense
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     for (size_t i = 0; i < candidates.size(); i++) {
@@ -350,7 +347,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(ctx_->gpu_id),
                            feature_groups->DeviceAccessor(ctx_->gpu_id), gpair,
-                           d_ridx, d_node_hist, *histogram_rounding);
+                           d_ridx, d_node_hist, *quantiser);
   }
 
   // Attempt to do subtraction trick
@@ -552,7 +549,7 @@ struct GPUHistMakerDevice {
     for (auto& e : candidates) {
       // Decide whether to build the left histogram or right histogram
       // Use sum of Hessian as a heuristic to select node with fewest training instances
-      bool fewer_right = e.split.right_sum.GetHess() < e.split.left_sum.GetHess();
+      bool fewer_right = e.split.right_sum.GetQuantisedHess() < e.split.left_sum.GetQuantisedHess();
       if (fewer_right) {
         hist_nidx.emplace_back(tree[e.nid].RightChild());
         subtraction_nidx.emplace_back(tree[e.nid].LeftChild());
@@ -598,10 +595,17 @@ struct GPUHistMakerDevice {
           << "No training instances in this leaf!";
     }
 
-    auto parent_sum = candidate.split.left_sum + candidate.split.right_sum;
     auto base_weight = candidate.base_weight;
     auto left_weight = candidate.left_weight * param.learning_rate;
     auto right_weight = candidate.right_weight * param.learning_rate;
+    auto parent_hess = quantiser
+                           ->ToFloatingPoint(candidate.split.left_sum +
+                                             candidate.split.right_sum)
+                           .GetHess();
+    auto left_hess =
+        quantiser->ToFloatingPoint(candidate.split.left_sum).GetHess();
+    auto right_hess =
+        quantiser->ToFloatingPoint(candidate.split.right_sum).GetHess();
 
     auto is_cat = candidate.split.is_cat;
     if (is_cat) {
@@ -618,26 +622,19 @@ struct GPUHistMakerDevice {
 
       tree.ExpandCategorical(
           candidate.nid, candidate.split.findex, split_cats, candidate.split.dir == kLeftDir,
-          base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_sum.GetHess(),
-          candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+          base_weight, left_weight, right_weight, candidate.split.loss_chg, parent_hess,
+          left_hess, right_hess);
     } else {
       CHECK(!common::CheckNAN(candidate.split.fvalue));
       tree.ExpandNode(candidate.nid, candidate.split.findex, candidate.split.fvalue,
                       candidate.split.dir == kLeftDir, base_weight, left_weight, right_weight,
-                      candidate.split.loss_chg, parent_sum.GetHess(),
-                      candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
+                      candidate.split.loss_chg, parent_hess,
+          left_hess, right_hess);
     }
     evaluator_.ApplyTreeSplit(candidate, p_tree);
 
     const auto& parent = tree[candidate.nid];
     std::size_t max_nidx = std::max(parent.LeftChild(), parent.RightChild());
-    // Grow as needed
-    if (node_sum_gradients.size() <= max_nidx) {
-      node_sum_gradients.resize(max_nidx * 2 + 1);
-    }
-    node_sum_gradients[parent.LeftChild()] = candidate.split.left_sum;
-    node_sum_gradients[parent.RightChild()] = candidate.split.right_sum;
-
     interaction_constraints.Split(candidate.nid, parent.SplitIndex(), parent.LeftChild(),
                                   parent.RightChild());
   }
@@ -645,26 +642,31 @@ struct GPUHistMakerDevice {
   GPUExpandEntry InitRoot(RegTree* p_tree, collective::DeviceCommunicator* communicator) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
-    auto gpair_it = dh::MakeTransformIterator<GradientPairPrecise>(
-        dh::tbegin(gpair), [] __device__(auto const& gpair) { return GradientPairPrecise{gpair}; });
-    GradientPairPrecise root_sum =
+    auto quantiser = *this->quantiser;
+    auto gpair_it = dh::MakeTransformIterator<GradientPairInt64>(
+        dh::tbegin(gpair), [=] __device__(auto const &gpair) {
+          return quantiser.ToFixedPoint(gpair);
+        });
+    GradientPairInt64 root_sum_quantised =
         dh::Reduce(thrust::cuda::par(alloc), gpair_it, gpair_it + gpair.size(),
-                   GradientPairPrecise{}, thrust::plus<GradientPairPrecise>{});
-    collective::Allreduce<collective::Operation::kSum>(reinterpret_cast<double*>(&root_sum), 2);
+                   GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
+    using ReduceT = typename decltype(root_sum_quantised)::ValueT;
+    collective::Allreduce<collective::Operation::kSum>(
+        reinterpret_cast<ReduceT *>(&root_sum_quantised), 2);
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
     this->AllReduceHist(kRootNIdx, communicator, 1);
 
     // Remember root stats
-    node_sum_gradients[kRootNIdx] = root_sum;
+    auto root_sum = quantiser.ToFloatingPoint(root_sum_quantised);
     p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
     auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
     // Generate first split
-    auto root_entry = this->EvaluateRootSplit(root_sum);
+    auto root_entry = this->EvaluateRootSplit(root_sum_quantised);
     return root_entry;
   }
 

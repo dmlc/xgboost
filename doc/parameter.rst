@@ -235,7 +235,7 @@ These parameters are only used for training with categorical data. See
 
 * ``max_cat_to_onehot``
 
-  .. versionadded:: 1.6
+  .. versionadded:: 1.6.0
 
   .. note:: This parameter is experimental. ``exact`` tree method is not yet supported.
 
