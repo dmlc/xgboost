@@ -16,10 +16,7 @@ if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
 
 from pyspark.ml import Pipeline, PipelineModel
-from pyspark.ml.evaluation import (
-    BinaryClassificationEvaluator,
-    MulticlassClassificationEvaluator,
-)
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
@@ -39,6 +36,8 @@ from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
+
+pytestmark = pytest.mark.timeout(60)
 
 
 class XgboostLocalTest(SparkTestCase):
@@ -711,17 +710,10 @@ class XgboostLocalTest(SparkTestCase):
             estimatorParamMaps=paramMaps,
             evaluator=BinaryClassificationEvaluator(),
             seed=1,
+            numFolds=2,
         )
         cvBinModel = cvBin.fit(self.cls_df_train_large)
         cvBinModel.transform(self.cls_df_test)
-        cvMulti = CrossValidator(
-            estimator=xgb_classifer,
-            estimatorParamMaps=paramMaps,
-            evaluator=MulticlassClassificationEvaluator(),
-            seed=1,
-        )
-        cvMultiModel = cvMulti.fit(self.multi_cls_df_train_large)
-        cvMultiModel.transform(self.multi_cls_df_test)
 
     def test_callbacks(self):
         from xgboost.callback import LearningRateScheduler
@@ -889,35 +881,6 @@ class XgboostLocalTest(SparkTestCase):
             )
 
     def test_classifier_with_weight_eval(self):
-        # with weight
-        classifier_with_weight = SparkXGBClassifier(weight_col="weight")
-        model_with_weight = classifier_with_weight.fit(
-            self.cls_df_train_with_eval_weight
-        )
-        pred_result_with_weight = model_with_weight.transform(
-            self.cls_df_test_with_eval_weight
-        ).collect()
-        for row in pred_result_with_weight:
-            self.assertTrue(
-                np.allclose(row.probability, row.expected_prob_with_weight, atol=1e-3)
-            )
-        # with eval
-        classifier_with_eval = SparkXGBClassifier(**self.cls_params_with_eval)
-        model_with_eval = classifier_with_eval.fit(self.cls_df_train_with_eval_weight)
-        self.assertTrue(
-            np.isclose(
-                model_with_eval._xgb_sklearn_model.best_score,
-                self.cls_with_eval_best_score,
-                atol=1e-3,
-            )
-        )
-        pred_result_with_eval = model_with_eval.transform(
-            self.cls_df_test_with_eval_weight
-        ).collect()
-        for row in pred_result_with_eval:
-            self.assertTrue(
-                np.allclose(row.probability, row.expected_prob_with_eval, atol=1e-3)
-            )
         # with weight and eval
         # Added scale_pos_weight because in 1.4.2, the original answer returns 0.5 which
         # doesn't really indicate this working correctly.
