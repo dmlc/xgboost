@@ -190,9 +190,7 @@ class RegLossObj : public ObjFunction {
     new_obj->LoadConfig(config);
     new_obj->GetGradient(dummy_predt, info, 0, &gpair);
 
-    auto score = FitStump(ctx_, gpair);
-    score = Loss::PredTransform(score);
-    out(0) = score;
+    out(0) = Loss::PredTransform(FitStump(ctx_, gpair));
   }
 
   void SaveConfig(Json* p_out) const override {
