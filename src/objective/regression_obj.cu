@@ -193,14 +193,6 @@ class RegLossObj : public ObjFunction {
     auto score = FitStump(ctx_, gpair);
     score = Loss::PredTransform(score);
     out(0) = score;
-
-    double w{0.0};
-    if (info.weights_.Empty()) {
-      w = static_cast<double>(info.num_row_);
-    } else {
-      w = common::Reduce(ctx_, info.weights_);
-    }
-    out(0) = w * score;
   }
 
   void SaveConfig(Json* p_out) const override {
