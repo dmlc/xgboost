@@ -184,7 +184,7 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     iterator :
         Pyspark partition iterator.
     feature_cols:
-        A sequence of feqture names, used only when rapids plugin is enabled.
+        A sequence of feature names, used only when rapids plugin is enabled.
     gpu_id:
         Device ordinal, used when GPU is enabled.
     use_qdm :
