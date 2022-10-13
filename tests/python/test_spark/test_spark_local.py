@@ -293,7 +293,7 @@ class XgboostLocalTest(SparkTestCase):
             ],
         )
         self.cls_with_eval_best_score = 0.6931
-        self.cls_with_eval_and_weight_best_score = 0.63765
+        self.cls_with_eval_and_weight_best_score = 0.636592
 
         # Test classifier with both base margin and without
         # >>> import numpy as np
@@ -932,10 +932,8 @@ class XgboostLocalTest(SparkTestCase):
         )
 
         for row in pred_result_with_weight_eval:
-            self.assertTrue(
-                np.allclose(
-                    row.probability, row.expected_prob_with_weight_and_eval, atol=1e-3
-                )
+            np.testing.assert_allclose(
+                row.probability, row.expected_prob_with_weight_and_eval, atol=1e-3
             )
 
     def test_num_workers_param(self):
