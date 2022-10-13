@@ -103,13 +103,7 @@ else:
 
 _DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
 _DataT = Union["da.Array", "dd.DataFrame"]  # do not use series as predictor
-TrainReturnT = TypedDict(
-    "TrainReturnT",
-    {
-        "booster": Booster,
-        "history": Dict,
-    },
-)
+TrainReturnT = TypedDict("TrainReturnT", {"booster": Booster, "history": Dict,},)
 
 __all__ = [
     "CommunicatorContext",
@@ -150,8 +144,7 @@ LOGGER = logging.getLogger("[xgboost.dask]")
 
 
 def _try_start_tracker(
-    n_workers: int,
-    addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
+    n_workers: int, addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
 ) -> Dict[str, Union[int, str]]:
     env: Dict[str, Union[int, str]] = {"DMLC_NUM_WORKER": n_workers}
     try:
@@ -1649,16 +1642,11 @@ class DaskScikitLearnBase(XGBModel):
         )
 
     async def _apply_async(
-        self,
-        X: _DataT,
-        iteration_range: Optional[Tuple[int, int]] = None,
+        self, X: _DataT, iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
         test_dmatrix = await DaskDMatrix(
-            self.client,
-            data=X,
-            missing=self.missing,
-            feature_types=self.feature_types,
+            self.client, data=X, missing=self.missing, feature_types=self.feature_types,
         )
         predts = await predict(
             self.client,
