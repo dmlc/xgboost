@@ -54,8 +54,10 @@ else:
 
 @pytest.fixture(scope="module")
 def cluster():
+    n_workers = 2
+    n_threads = len(os.sched_getaffinity(0)) // n_workers
     with LocalCluster(
-        n_workers=2, threads_per_worker=2, dashboard_address=":0"
+        n_workers=n_workers, threads_per_worker=n_threads, dashboard_address=":0"
     ) as dask_cluster:
         yield dask_cluster
 
