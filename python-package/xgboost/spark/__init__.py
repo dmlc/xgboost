@@ -6,7 +6,7 @@ try:
 except ImportError as e:
     raise ImportError("pyspark package needs to be installed to use this module") from e
 
-from .estimator import (        # type: ignore
+from .estimator import (  # type: ignore
     SparkXGBClassifier,
     SparkXGBClassifierModel,
     SparkXGBRanker,
