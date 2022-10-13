@@ -1,10 +1,13 @@
 import json
 import logging
+import os
 import subprocess
 import sys
 
 import pytest
 import sklearn
+
+from xgboost import testing
 
 sys.path.append("tests/python")
 import testing as tm
@@ -19,7 +22,9 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
-gpu_discovery_script_path = "tests/python-gpu/test_gpu_spark/discover_gpu.sh"
+gpu_discovery_script_path = os.path.join(
+    testing.PROJECT_ROOT, "tests/python-gpu/test_gpu_spark/discover_gpu.sh"
+)
 
 
 def get_devices():

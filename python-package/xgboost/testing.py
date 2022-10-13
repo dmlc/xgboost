@@ -1,8 +1,13 @@
 """Utilities for defining Python tests."""
 
+import os
 import socket
 from platform import system
 from typing import TypedDict
+
+CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
+
 
 PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
