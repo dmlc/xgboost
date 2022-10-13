@@ -2,7 +2,7 @@
 
 # This script is only made for running XGBoost tests on official CI where we have access
 # to a 4-GPU cluster, the discovery command is for running tests on a local machine where
-# the driver and the GPU worker might be the same machine.
+# the driver and the GPU worker might be the same machine for the ease of development.
 
 if ! command -v nvidia-smi &> /dev/null
 then

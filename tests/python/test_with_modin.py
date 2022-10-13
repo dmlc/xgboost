@@ -14,10 +14,6 @@ except ImportError:
 pytestmark = pytest.mark.skipif(**tm.no_modin())
 
 
-dpath = 'demo/data/'
-rng = np.random.RandomState(1994)
-
-
 class TestModin:
     @pytest.mark.xfail
     def test_modin(self):

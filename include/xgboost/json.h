@@ -187,13 +187,17 @@ using I32Array = JsonTypedArray<int32_t, Value::ValueKind::kI32Array>;
 using I64Array = JsonTypedArray<int64_t, Value::ValueKind::kI64Array>;
 
 class JsonObject : public Value {
-  std::map<std::string, Json> object_;
+ public:
+  using Map = std::map<std::string, Json, std::less<>>;
+
+ private:
+  Map object_;
 
  public:
   JsonObject() : Value(ValueKind::kObject) {}
-  JsonObject(std::map<std::string, Json>&& object) noexcept;  // NOLINT
+  JsonObject(Map&& object) noexcept;  // NOLINT
   JsonObject(JsonObject const& that) = delete;
-  JsonObject(JsonObject && that) noexcept;
+  JsonObject(JsonObject&& that) noexcept;
 
   void Save(JsonWriter* writer) const override;
 
@@ -201,15 +205,13 @@ class JsonObject : public Value {
   Json& operator[](int ind) override { return Value::operator[](ind); }
   Json& operator[](std::string const& key) override { return object_[key]; }
 
-  std::map<std::string, Json> const& GetObject() &&      { return object_; }
-  std::map<std::string, Json> const& GetObject() const & { return object_; }
-  std::map<std::string, Json> &      GetObject() &       { return object_; }
+  Map const& GetObject() && { return object_; }
+  Map const& GetObject() const& { return object_; }
+  Map& GetObject() & { return object_; }
 
   bool operator==(Value const& rhs) const override;
 
-  static bool IsClassOf(Value const* value) {
-    return value->Type() == ValueKind::kObject;
-  }
+  static bool IsClassOf(Value const* value) { return value->Type() == ValueKind::kObject; }
   ~JsonObject() override = default;
 };
 
@@ -559,16 +561,13 @@ std::vector<T> const& GetImpl(JsonTypedArray<T, kind> const& val) {
 }
 
 // Object
-template <typename T,
-          typename std::enable_if<
-            std::is_same<T, JsonObject>::value>::type* = nullptr>
-std::map<std::string, Json>& GetImpl(T& val) {  // NOLINT
+template <typename T, typename std::enable_if<std::is_same<T, JsonObject>::value>::type* = nullptr>
+JsonObject::Map& GetImpl(T& val) {  // NOLINT
   return val.GetObject();
 }
 template <typename T,
-          typename std::enable_if<
-            std::is_same<T, JsonObject const>::value>::type* = nullptr>
-std::map<std::string, Json> const& GetImpl(T& val) {  // NOLINT
+          typename std::enable_if<std::is_same<T, JsonObject const>::value>::type* = nullptr>
+JsonObject::Map const& GetImpl(T& val) {  // NOLINT
   return val.GetObject();
 }
 }  // namespace detail

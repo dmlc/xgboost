@@ -499,8 +499,7 @@ TEST(Json, WrongCasts) {
     ASSERT_ANY_THROW(get<Number>(json));
   }
   {
-    Json json = Json{ Object{std::map<std::string, Json>{
-          {"key", Json{String{"value"}}}} } };
+    Json json = Json{Object{{{"key", Json{String{"value"}}}}}};
     ASSERT_ANY_THROW(get<Number>(json));
   }
 }

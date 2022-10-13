@@ -15,6 +15,8 @@ import testing as tm
 model_path = './model.pkl'
 
 
+pytestmark = pytest.mark.timeout(30)
+
 def build_dataset():
     N = 10
     x = np.linspace(0, N*N, N*N)
@@ -65,6 +67,7 @@ class TestPickling:
         assert status == 0
         os.remove(model_path)
 
+    # TODO: This test is too slow
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_pickling(self):
         x, y = build_dataset()

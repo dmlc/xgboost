@@ -50,8 +50,8 @@ for train_index, test_index in kf.split(X):
 print("Parameter optimization")
 xgb_model = xgb.XGBRegressor(n_jobs=1)
 clf = GridSearchCV(xgb_model,
-                   {'max_depth': [2, 4, 6],
-                    'n_estimators': [50, 100, 200]}, verbose=1, n_jobs=1)
+                   {'max_depth': [2, 4],
+                    'n_estimators': [50, 100]}, verbose=1, n_jobs=1, cv=3)
 clf.fit(X, y)
 print(clf.best_score_)
 print(clf.best_params_)

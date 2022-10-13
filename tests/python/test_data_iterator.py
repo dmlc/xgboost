@@ -6,6 +6,7 @@ import pytest
 from hypothesis import given, strategies, settings
 from scipy.sparse import csr_matrix
 
+pytestmark = pytest.mark.timeout(30)
 
 def test_single_batch(tree_method: str = "approx") -> None:
     from sklearn.datasets import load_breast_cancer
@@ -134,7 +135,7 @@ def run_data_iterator(
     strategies.integers(0, 13),
     strategies.booleans(),
 )
-@settings(deadline=None, print_blob=True)
+@settings(deadline=None, max_examples=10, print_blob=True)
 def test_data_iterator(
     n_samples_per_batch: int,
     n_features: int,

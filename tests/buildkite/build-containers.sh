@@ -6,7 +6,7 @@ set -x
 if [ "$#" -lt 1 ]
 then
   echo "Usage: $0 [container to build]"
-  return 1
+  exit 1
 fi
 container=$1
 
@@ -17,18 +17,21 @@ echo "--- Build container ${container}"
 BUILD_ARGS=""
 
 case "${container}" in
+  cpu)
+    ;;
+
   gpu|rmm)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
     BUILD_ARGS="$BUILD_ARGS --build-arg RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
     ;;
 
-  jvm_gpu_build)
+  gpu_build_centos7|jvm_gpu_build)
     BUILD_ARGS="$BUILD_ARGS --build-arg CUDA_VERSION_ARG=$CUDA_VERSION"
     ;;
 
   *)
     echo "Unrecognized container ID: ${container}"
-    return 2
+    exit 2
     ;;
 esac
 

@@ -15,10 +15,7 @@ if testing.skip_spark()["condition"]:
     pytest.skip(msg=testing.skip_spark()["reason"], allow_module_level=True)
 
 from pyspark.ml import Pipeline, PipelineModel
-from pyspark.ml.evaluation import (
-    BinaryClassificationEvaluator,
-    MulticlassClassificationEvaluator,
-)
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
@@ -37,6 +34,8 @@ from xgboost.spark.core import _non_booster_params
 from xgboost import XGBClassifier, XGBModel, XGBRegressor
 
 logging.getLogger("py4j").setLevel(logging.INFO)
+
+pytestmark = pytest.mark.timeout(60)
 
 
 @pytest.fixture
@@ -898,17 +897,10 @@ class XgboostLocalTest(SparkTestCase):
             estimatorParamMaps=paramMaps,
             evaluator=BinaryClassificationEvaluator(),
             seed=1,
+            numFolds=2,
         )
         cvBinModel = cvBin.fit(self.cls_df_train_large)
         cvBinModel.transform(self.cls_df_test)
-        cvMulti = CrossValidator(
-            estimator=xgb_classifer,
-            estimatorParamMaps=paramMaps,
-            evaluator=MulticlassClassificationEvaluator(),
-            seed=1,
-        )
-        cvMultiModel = cvMulti.fit(self.multi_cls_df_train_large)
-        cvMultiModel.transform(self.multi_cls_df_test)
 
     def test_callbacks(self):
         from xgboost.callback import LearningRateScheduler
@@ -1012,6 +1004,99 @@ class XgboostLocalTest(SparkTestCase):
                 row.probability, row.expected_prob_with_base_margin, atol=1e-3
             )
 
+<<<<<<< HEAD
+=======
+    def test_regressor_with_weight_eval(self):
+        # with weight
+        regressor_with_weight = SparkXGBRegressor(weight_col="weight")
+        model_with_weight = regressor_with_weight.fit(
+            self.reg_df_train_with_eval_weight
+        )
+        pred_result_with_weight = model_with_weight.transform(
+            self.reg_df_test_with_eval_weight
+        ).collect()
+        for row in pred_result_with_weight:
+            assert np.isclose(
+                row.prediction, row.expected_prediction_with_weight, atol=1e-3
+            )
+
+        # with eval
+        regressor_with_eval = SparkXGBRegressor(**self.reg_params_with_eval)
+        model_with_eval = regressor_with_eval.fit(self.reg_df_train_with_eval_weight)
+        assert np.isclose(
+            model_with_eval._xgb_sklearn_model.best_score,
+            self.reg_with_eval_best_score,
+            atol=1e-3,
+        ), (
+            f"Expected best score: {self.reg_with_eval_best_score}, but ",
+            f"get {model_with_eval._xgb_sklearn_model.best_score}",
+        )
+
+        pred_result_with_eval = model_with_eval.transform(
+            self.reg_df_test_with_eval_weight
+        ).collect()
+        for row in pred_result_with_eval:
+            self.assertTrue(
+                np.isclose(
+                    row.prediction, row.expected_prediction_with_eval, atol=1e-3
+                ),
+                f"Expect prediction is {row.expected_prediction_with_eval},"
+                f"but get {row.prediction}",
+            )
+        # with weight and eval
+        regressor_with_weight_eval = SparkXGBRegressor(
+            weight_col="weight", **self.reg_params_with_eval
+        )
+        model_with_weight_eval = regressor_with_weight_eval.fit(
+            self.reg_df_train_with_eval_weight
+        )
+        pred_result_with_weight_eval = model_with_weight_eval.transform(
+            self.reg_df_test_with_eval_weight
+        ).collect()
+        self.assertTrue(
+            np.isclose(
+                model_with_weight_eval._xgb_sklearn_model.best_score,
+                self.reg_with_eval_and_weight_best_score,
+                atol=1e-3,
+            )
+        )
+        for row in pred_result_with_weight_eval:
+            self.assertTrue(
+                np.isclose(
+                    row.prediction,
+                    row.expected_prediction_with_weight_and_eval,
+                    atol=1e-3,
+                )
+            )
+
+    def test_classifier_with_weight_eval(self):
+        # with weight and eval
+        # Added scale_pos_weight because in 1.4.2, the original answer returns 0.5 which
+        # doesn't really indicate this working correctly.
+        classifier_with_weight_eval = SparkXGBClassifier(
+            weight_col="weight", scale_pos_weight=4, **self.cls_params_with_eval
+        )
+        model_with_weight_eval = classifier_with_weight_eval.fit(
+            self.cls_df_train_with_eval_weight
+        )
+        pred_result_with_weight_eval = model_with_weight_eval.transform(
+            self.cls_df_test_with_eval_weight
+        ).collect()
+        self.assertTrue(
+            np.isclose(
+                model_with_weight_eval._xgb_sklearn_model.best_score,
+                self.cls_with_eval_and_weight_best_score,
+                atol=1e-3,
+            )
+        )
+        for row in pred_result_with_weight_eval:
+            self.assertTrue(
+                np.allclose(
+                    row.probability, row.expected_prob_with_weight_and_eval, atol=1e-3
+                )
+            )
+
+>>>>>>> master
     def test_num_workers_param(self):
         regressor = SparkXGBRegressor(num_workers=-1)
         self.assertRaises(ValueError, regressor._validate_params)
@@ -1152,67 +1237,79 @@ class XgboostLocalTest(SparkTestCase):
         for row in pred_result:
             assert np.isclose(row.prediction, row.expected_prediction, rtol=1e-3)
 
-    def test_empty_validation_data(self):
-        df_train = self.session.createDataFrame(
-            [
-                (Vectors.dense(10.1, 11.2, 11.3), 0, False),
-                (Vectors.dense(1, 1.2, 1.3), 1, False),
-                (Vectors.dense(14.0, 15.0, 16.0), 0, False),
-                (Vectors.dense(1.1, 1.2, 1.3), 1, True),
-            ],
-            ["features", "label", "val_col"],
-        )
-        classifier = SparkXGBClassifier(
-            num_workers=2,
-            min_child_weight=0.0,
-            reg_alpha=0,
-            reg_lambda=0,
-            validation_indicator_col="val_col",
-        )
-        model = classifier.fit(df_train)
-        pred_result = model.transform(df_train).collect()
-        for row in pred_result:
-            self.assertEqual(row.prediction, row.label)
+    def test_empty_validation_data(self) -> None:
+        for tree_method in [
+            "hist",
+            "approx",
+        ]:  # pytest.mark conflict with python unittest
+            df_train = self.session.createDataFrame(
+                [
+                    (Vectors.dense(10.1, 11.2, 11.3), 0, False),
+                    (Vectors.dense(1, 1.2, 1.3), 1, False),
+                    (Vectors.dense(14.0, 15.0, 16.0), 0, False),
+                    (Vectors.dense(1.1, 1.2, 1.3), 1, True),
+                ],
+                ["features", "label", "val_col"],
+            )
+            classifier = SparkXGBClassifier(
+                num_workers=2,
+                tree_method=tree_method,
+                min_child_weight=0.0,
+                reg_alpha=0,
+                reg_lambda=0,
+                validation_indicator_col="val_col",
+            )
+            model = classifier.fit(df_train)
+            pred_result = model.transform(df_train).collect()
+            for row in pred_result:
+                self.assertEqual(row.prediction, row.label)
 
-    def test_empty_train_data(self):
-        df_train = self.session.createDataFrame(
-            [
-                (Vectors.dense(10.1, 11.2, 11.3), 0, True),
-                (Vectors.dense(1, 1.2, 1.3), 1, True),
-                (Vectors.dense(14.0, 15.0, 16.0), 0, True),
-                (Vectors.dense(1.1, 1.2, 1.3), 1, False),
-            ],
-            ["features", "label", "val_col"],
-        )
-        classifier = SparkXGBClassifier(
-            num_workers=2,
-            min_child_weight=0.0,
-            reg_alpha=0,
-            reg_lambda=0,
-            validation_indicator_col="val_col",
-        )
-        model = classifier.fit(df_train)
-        pred_result = model.transform(df_train).collect()
-        for row in pred_result:
-            self.assertEqual(row.prediction, 1.0)
+    def test_empty_train_data(self) -> None:
+        for tree_method in [
+            "hist",
+            "approx",
+        ]:  # pytest.mark conflict with python unittest
+            df_train = self.session.createDataFrame(
+                [
+                    (Vectors.dense(10.1, 11.2, 11.3), 0, True),
+                    (Vectors.dense(1, 1.2, 1.3), 1, True),
+                    (Vectors.dense(14.0, 15.0, 16.0), 0, True),
+                    (Vectors.dense(1.1, 1.2, 1.3), 1, False),
+                ],
+                ["features", "label", "val_col"],
+            )
+            classifier = SparkXGBClassifier(
+                num_workers=2,
+                min_child_weight=0.0,
+                reg_alpha=0,
+                reg_lambda=0,
+                tree_method=tree_method,
+                validation_indicator_col="val_col",
+            )
+            model = classifier.fit(df_train)
+            pred_result = model.transform(df_train).collect()
+            for row in pred_result:
+                assert row.prediction == 1.0
 
     def test_empty_partition(self):
         # raw_df.repartition(4) will result int severe data skew, actually,
         # there is no any data in reducer partition 1, reducer partition 2
         # see https://github.com/dmlc/xgboost/issues/8221
-        raw_df = self.session.range(0, 100, 1, 50).withColumn(
-            "label", spark_sql_func.when(spark_sql_func.rand(1) > 0.5, 1).otherwise(0)
-        )
-        vector_assembler = (
-            VectorAssembler().setInputCols(["id"]).setOutputCol("features")
-        )
-        data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
-        data_trans.show(100)
+        for tree_method in [
+            "hist",
+            "approx",
+        ]:  # pytest.mark conflict with python unittest
+            raw_df = self.session.range(0, 100, 1, 50).withColumn(
+                "label",
+                spark_sql_func.when(spark_sql_func.rand(1) > 0.5, 1).otherwise(0),
+            )
+            vector_assembler = (
+                VectorAssembler().setInputCols(["id"]).setOutputCol("features")
+            )
+            data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
 
-        classifier = SparkXGBClassifier(
-            num_workers=4,
-        )
-        classifier.fit(data_trans)
+            classifier = SparkXGBClassifier(num_workers=4, tree_method=tree_method)
+            classifier.fit(data_trans)
 
     def test_early_stop_param_validation(self):
         classifier = SparkXGBClassifier(early_stopping_rounds=1)

@@ -99,7 +99,7 @@ class ArrayInterfaceHandler {
   enum Type : std::int8_t { kF4, kF8, kF16, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
 
   template <typename PtrType>
-  static PtrType GetPtrFromArrayData(std::map<std::string, Json> const &obj) {
+  static PtrType GetPtrFromArrayData(Object::Map const &obj) {
     auto data_it = obj.find("data");
     if (data_it == obj.cend()) {
       LOG(FATAL) << "Empty data passed in.";
@@ -109,7 +109,7 @@ class ArrayInterfaceHandler {
     return p_data;
   }
 
-  static void Validate(std::map<std::string, Json> const &array) {
+  static void Validate(Object::Map const &array) {
     auto version_it = array.find("version");
     if (version_it == array.cend()) {
       LOG(FATAL) << "Missing `version' field for array interface";
@@ -136,7 +136,7 @@ class ArrayInterfaceHandler {
 
   // Find null mask (validity mask) field
   // Mask object is also an array interface, but with different requirements.
-  static size_t ExtractMask(std::map<std::string, Json> const &column,
+  static size_t ExtractMask(Object::Map const &column,
                             common::Span<RBitField8::value_type> *p_out) {
     auto &s_mask = *p_out;
     if (column.find("mask") != column.cend()) {
@@ -208,7 +208,7 @@ class ArrayInterfaceHandler {
   }
 
   template <int32_t D>
-  static void ExtractShape(std::map<std::string, Json> const &array, size_t (&out_shape)[D]) {
+  static void ExtractShape(Object::Map const &array, size_t (&out_shape)[D]) {
     auto const &j_shape = get<Array const>(array.at("shape"));
     std::vector<size_t> shape_arr(j_shape.size(), 0);
     std::transform(j_shape.cbegin(), j_shape.cend(), shape_arr.begin(),
@@ -229,7 +229,7 @@ class ArrayInterfaceHandler {
    * \brief Extracts the optiona `strides' field and returns whether the array is c-contiguous.
    */
   template <int32_t D>
-  static bool ExtractStride(std::map<std::string, Json> const &array, size_t itemsize,
+  static bool ExtractStride(Object::Map const &array, size_t itemsize,
                             size_t (&shape)[D], size_t (&stride)[D]) {
     auto strides_it = array.find("strides");
     // No stride is provided
@@ -272,7 +272,7 @@ class ArrayInterfaceHandler {
     return std::equal(stride_tmp, stride_tmp + D, stride);
   }
 
-  static void *ExtractData(std::map<std::string, Json> const &array, size_t size) {
+  static void *ExtractData(Object::Map const &array, size_t size) {
     Validate(array);
     void *p_data = ArrayInterfaceHandler::GetPtrFromArrayData<void *>(array);
     if (!p_data) {
@@ -378,7 +378,7 @@ class ArrayInterface {
    *   to a vector of size n_samples.  For for inputs like weights, this should be a 1
    *   dimension column vector even though user might provide a matrix.
    */
-  void Initialize(std::map<std::string, Json> const &array) {
+  void Initialize(Object::Map const &array) {
     ArrayInterfaceHandler::Validate(array);
 
     auto typestr = get<String const>(array.at("typestr"));
@@ -413,7 +413,7 @@ class ArrayInterface {
 
  public:
   ArrayInterface() = default;
-  explicit ArrayInterface(std::map<std::string, Json> const &array) { this->Initialize(array); }
+  explicit ArrayInterface(Object::Map const &array) { this->Initialize(array); }
 
   explicit ArrayInterface(Json const &array) {
     if (IsA<Object>(array)) {
