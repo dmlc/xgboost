@@ -1,5 +1,5 @@
 """Utilities for defining Python tests."""
-
+# pylint: disable=unused-import
 import os
 import socket
 from platform import system
@@ -57,7 +57,7 @@ def skip_spark() -> PytestSkip:
         # just in case there's a pyspark stub created by some other libraries
         from pyspark.ml import Pipeline  # noqa
 
-        SPARK_INSTALLED = True
+        spark_installed = True
     except ImportError:
-        SPARK_INSTALLED = False
-    return {"condition": not SPARK_INSTALLED, "reason": "Spark is not installed"}
+        spark_installed = False
+    return {"condition": not spark_installed, "reason": "Spark is not installed"}
