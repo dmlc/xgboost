@@ -33,6 +33,8 @@ from xgboost.spark.core import _non_booster_params
 
 from xgboost import XGBClassifier, XGBModel, XGBRegressor
 
+from .utils import SparkTestCase
+
 logging.getLogger("py4j").setLevel(logging.INFO)
 
 pytestmark = pytest.mark.timeout(60)
