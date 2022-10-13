@@ -1,5 +1,6 @@
 name: macos_test
 channels:
+- defaults
 - conda-forge
 dependencies:
 - python=3.8
@@ -14,14 +15,13 @@ dependencies:
 - scikit-learn
 - pandas
 - matplotlib
-- dask
-- distributed
-- graphviz
+- dask>=2022.6
+- distributed>=2022.6
 - python-graphviz
-- hypothesis
+- hypothesis>=6.46
 - astroid
-- sphinx
 - sh
+- sphinx
 - recommonmark
 - mock
 - breathe
@@ -35,8 +35,7 @@ dependencies:
 - py-ubjson
 - cffi
 - pyarrow
-- pyspark
-- cloudpickle
+- shap
 - pip:
   - sphinx_rtd_theme
   - datatable

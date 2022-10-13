@@ -20,7 +20,10 @@ dependencies:
 - hypothesis>=6.46
 - astroid
 - sh
+- sphinx
+- recommonmark
 - mock
+- breathe
 - pytest
 - pytest-cov
 - python-kubernetes
