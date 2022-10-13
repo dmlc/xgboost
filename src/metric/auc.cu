@@ -60,8 +60,7 @@ struct DeviceAUCCache {
 };
 
 template <bool is_multi>
-void InitCacheOnce(common::Span<float const> predts, int32_t device,
-                   std::shared_ptr<DeviceAUCCache>* p_cache) {
+void InitCacheOnce(common::Span<float const> predts, std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto& cache = *p_cache;
   if (!cache) {
     cache.reset(new DeviceAUCCache);
@@ -167,7 +166,7 @@ std::tuple<double, double, double>
 GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
                 int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto &cache = *p_cache;
-  InitCacheOnce<false>(predts, device, p_cache);
+  InitCacheOnce<false>(predts, p_cache);
 
   /**
    * Create sorted index for each class
@@ -196,8 +195,7 @@ void Transpose(common::Span<float const> in, common::Span<float> out, size_t m,
 }
 
 double ScaleClasses(common::Span<double> results, common::Span<double> local_area,
-                    common::Span<double> tp, common::Span<double> auc,
-                    std::shared_ptr<DeviceAUCCache> cache, size_t n_classes) {
+                    common::Span<double> tp, common::Span<double> auc, size_t n_classes) {
   dh::XGBDeviceAllocator<char> alloc;
   if (collective::IsDistributed()) {
     int32_t device = dh::CurrentDevice();
@@ -330,7 +328,7 @@ double GPUMultiClassAUCOVR(MetaInfo const &info, int32_t device, common::Span<ui
     auto local_area = d_results.subspan(0, n_classes);
     auto tp = d_results.subspan(2 * n_classes, n_classes);
     auto auc = d_results.subspan(3 * n_classes, n_classes);
-    return ScaleClasses(d_results, local_area, tp, auc, cache, n_classes);
+    return ScaleClasses(d_results, local_area, tp, auc, n_classes);
   }
 
   /**
@@ -434,7 +432,7 @@ double GPUMultiClassAUCOVR(MetaInfo const &info, int32_t device, common::Span<ui
       tp[c] = 1.0f;
     }
   });
-  return ScaleClasses(d_results, local_area, tp, auc, cache, n_classes);
+  return ScaleClasses(d_results, local_area, tp, auc, n_classes);
 }
 
 void MultiClassSortedIdx(common::Span<float const> predts,
@@ -458,7 +456,7 @@ double GPUMultiClassROCAUC(common::Span<float const> predts,
                            std::shared_ptr<DeviceAUCCache> *p_cache,
                            size_t n_classes) {
   auto& cache = *p_cache;
-  InitCacheOnce<true>(predts, device, p_cache);
+  InitCacheOnce<true>(predts, p_cache);
 
   /**
    * Create sorted index for each class
@@ -486,7 +484,7 @@ std::pair<double, uint32_t>
 GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
               int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto& cache = *p_cache;
-  InitCacheOnce<false>(predts, device, p_cache);
+  InitCacheOnce<false>(predts, p_cache);
 
   dh::caching_device_vector<bst_group_t> group_ptr(info.group_ptr_);
   dh::XGBCachingDeviceAllocator<char> alloc;
@@ -606,7 +604,7 @@ std::tuple<double, double, double>
 GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache) {
   auto& cache = *p_cache;
-  InitCacheOnce<false>(predts, device, p_cache);
+  InitCacheOnce<false>(predts, p_cache);
 
   /**
    * Create sorted index for each class
@@ -647,7 +645,7 @@ double GPUMultiClassPRAUC(common::Span<float const> predts,
                           std::shared_ptr<DeviceAUCCache> *p_cache,
                           size_t n_classes) {
   auto& cache = *p_cache;
-  InitCacheOnce<true>(predts, device, p_cache);
+  InitCacheOnce<true>(predts, p_cache);
 
   /**
    * Create sorted index for each class
@@ -827,7 +825,7 @@ GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
   }
 
   auto &cache = *p_cache;
-  InitCacheOnce<false>(predts, device, p_cache);
+  InitCacheOnce<false>(predts, p_cache);
 
   dh::device_vector<bst_group_t> group_ptr(info.group_ptr_.size());
   thrust::copy(info.group_ptr_.begin(), info.group_ptr_.end(), group_ptr.begin());

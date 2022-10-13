@@ -199,8 +199,8 @@ JsonObject::JsonObject(JsonObject&& that) noexcept : Value(ValueKind::kObject) {
   std::swap(that.object_, this->object_);
 }
 
-JsonObject::JsonObject(std::map<std::string, Json>&& object) noexcept
-    : Value(ValueKind::kObject), object_{std::forward<std::map<std::string, Json>>(object)} {}
+JsonObject::JsonObject(Map&& object) noexcept
+    : Value(ValueKind::kObject), object_{std::forward<Map>(object)} {}
 
 bool JsonObject::operator==(Value const& rhs) const {
   if (!IsA<JsonObject>(&rhs)) {
@@ -502,7 +502,7 @@ Json JsonReader::ParseArray() {
 Json JsonReader::ParseObject() {
   GetConsecutiveChar('{');
 
-  std::map<std::string, Json> data;
+  Object::Map data;
   SkipSpaces();
   char ch = PeekNextChar();
 
@@ -777,7 +777,7 @@ std::string UBJReader::DecodeStr() {
 
 Json UBJReader::ParseObject() {
   auto marker = PeekNextChar();
-  std::map<std::string, Json> results;
+  Object::Map results;
 
   while (marker != '}') {
     auto str = this->DecodeStr();
