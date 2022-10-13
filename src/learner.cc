@@ -412,9 +412,11 @@ class LearnerConfiguration : public Learner {
     if (!mparam_.base_score_estimated) {
       std::lock_guard<std::mutex> guard(config_lock_);
       if (p_fmat) {
+        auto const& info = p_fmat->Info();
+        info.Validate(Ctx()->gpu_id);
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
-        obj_->InitEstimation(p_fmat->Info(), &base_score);
+        obj_->InitEstimation(info, &base_score);
         mparam_.base_score = base_score(0);
         CHECK(!std::isnan(mparam_.base_score));
       } else {
