@@ -125,7 +125,7 @@ jobs:
     - name: Test Python package
       shell: bash -l {0}
       run: |
-        pytest -s -v ./tests/python
+        pytest -s -v -rxXs --durations=0 ./tests/python
 
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
@@ -177,7 +177,7 @@ jobs:
     - name: Test Python package
       shell: bash -l {0}
       run: |
-        pytest -s -v ./tests/python
+        pytest -s -v -rxXs --durations=0 ./tests/python
 
   python-tests-on-ubuntu:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
@@ -197,7 +197,7 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
-        activate-environment: macos_test
+        activate-environment: cpu_test
         environment-file: tests/ci_build/conda_env/cpu_test.yml
 
     - name: Display Conda env
@@ -226,4 +226,4 @@ jobs:
     - name: Test Python package
       shell: bash -l {0}
       run: |
-        pytest -s -v ./tests/python
+        pytest -s -v -rxXs --durations=0 ./tests/python
