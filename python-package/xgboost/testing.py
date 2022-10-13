@@ -1,8 +1,13 @@
 """Utilities for defining Python tests."""
-
+# pylint: disable=unused-import
+import os
 import socket
 from platform import system
 from typing import TypedDict
+
+CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
+
 
 PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
@@ -39,3 +44,20 @@ def has_ipv6() -> bool:
 def skip_ipv6() -> PytestSkip:
     """PyTest skip mark for IPv6."""
     return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}
+
+
+def skip_spark() -> PytestSkip:
+    """Pytest skip mark for PySpark tests."""
+    if system() != "Linux":
+        return {"condition": True, "reason": "Unsupported platform."}
+
+    try:
+        import pyspark  # noqa
+
+        # just in case there's a pyspark stub created by some other libraries
+        from pyspark.ml import Pipeline  # noqa
+
+        spark_installed = True
+    except ImportError:
+        spark_installed = False
+    return {"condition": not spark_installed, "reason": "Spark is not installed"}

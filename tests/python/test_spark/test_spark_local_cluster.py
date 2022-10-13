@@ -1,17 +1,15 @@
 import json
 import os
 import random
-import sys
 import uuid
 
 import numpy as np
 import pytest
-import testing as tm
 
-if tm.no_spark()["condition"]:
-    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
-    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
+from xgboost import testing
+
+if testing.skip_spark()["condition"]:
+    pytest.skip(msg=testing.skip_spark()["reason"], allow_module_level=True)
 
 from pyspark.ml.linalg import Vectors
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
@@ -218,7 +216,7 @@ class XgboostLocalClusterTestCase(SparkLocalClusterTestCase):
             ],
         )
         self.reg_best_score_eval = 5.239e-05
-        self.reg_best_score_weight_and_eval = 4.810e-05
+        self.reg_best_score_weight_and_eval = 4.850e-05
 
     def test_regressor_basic_with_params(self):
         regressor = SparkXGBRegressor(**self.reg_params)
