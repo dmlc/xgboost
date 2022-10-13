@@ -52,7 +52,11 @@ def skip_spark() -> PytestSkip:
         return {"condition": True, "reason": "Unsupported platform."}
 
     try:
-        import pyspark          # noqa
+        import pyspark  # noqa
+
+        # just in case there's a pyspark stub created by some other libraries
+        from pyspark.ml import Pipeline  # noqa
+
         SPARK_INSTALLED = True
     except ImportError:
         SPARK_INSTALLED = False
