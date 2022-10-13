@@ -1,6 +1,10 @@
 """
-Demo for survival analysis (regression) using Accelerated Failure Time (AFT) model
+Demo for survival analysis (regression).
+========================================
+
+Demo for survival analysis (regression). using Accelerated Failure Time (AFT) model.
 """
+
 import os
 from sklearn.model_selection import ShuffleSplit
 import pandas as pd
