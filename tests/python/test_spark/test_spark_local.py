@@ -2,6 +2,8 @@ import glob
 import logging
 import random
 import uuid
+from collections import namedtuple
+from typing import Generator
 
 import numpy as np
 import pytest
@@ -21,6 +23,7 @@ from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.functions import vector_to_array
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+from pyspark.sql import SparkSession
 from pyspark.sql import functions as spark_sql_func
 from xgboost.spark import (
     SparkXGBClassifier,
@@ -36,6 +39,187 @@ from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
+
+
+@pytest.fixture
+def pyspark_test_session():
+    config = {
+        "spark.master": "local[4]",
+        "spark.python.worker.reuse": "false",
+        "spark.driver.host": "127.0.0.1",
+        "spark.task.maxFailures": "1",
+        "spark.sql.execution.pyspark.udf.simplifiedTraceback.enabled": "false",
+        "spark.sql.pyspark.jvmStacktrace.enabled": "true",
+    }
+
+    builder = SparkSession.builder.appName("XGBoost PySpark Python API Tests")
+    for k, v in config.items():
+        builder.config(k, v)
+    spark = builder.getOrCreate()
+    logging.getLogger("pyspark").setLevel(logging.INFO)
+
+    return spark
+
+
+RegWithWeight = namedtuple(
+    "RegWithWeight",
+    (
+        "reg_params_with_eval",
+        "reg_df_train_with_eval_weight",
+        "reg_df_test_with_eval_weight",
+        "reg_with_eval_best_score",
+        "reg_with_eval_and_weight_best_score",
+    ),
+)
+
+
+@pytest.fixture
+def reg_with_weight(
+    pyspark_test_session: SparkSession,
+) -> Generator[RegWithWeight, SparkSession, None]:
+    reg_params_with_eval = {
+        "validation_indicator_col": "isVal",
+        "early_stopping_rounds": 1,
+        "eval_metric": "rmse",
+    }
+
+    X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
+    w = np.array([1.0, 2.0, 1.0, 2.0])
+    y = np.array([0, 1, 2, 3])
+
+    reg1 = XGBRegressor()
+    reg1.fit(X, y, sample_weight=w)
+    predt1 = reg1.predict(X)
+
+    X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+    X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
+    y_train = np.array([0, 1])
+    y_val = np.array([2, 3])
+    w_train = np.array([1.0, 2.0])
+    w_val = np.array([1.0, 2.0])
+
+    reg2 = XGBRegressor()
+    reg2.fit(
+        X_train,
+        y_train,
+        eval_set=[(X_val, y_val)],
+        early_stopping_rounds=1,
+        eval_metric="rmse",
+    )
+    predt2 = reg2.predict(X)
+    best_score2 = reg2.best_score
+
+    reg3 = XGBRegressor()
+    reg3.fit(
+        X_train,
+        y_train,
+        sample_weight=w_train,
+        eval_set=[(X_val, y_val)],
+        sample_weight_eval_set=[w_val],
+        early_stopping_rounds=1,
+        eval_metric="rmse",
+    )
+    predt3 = reg3.predict(X)
+    best_score3 = reg3.best_score
+
+    reg_df_train_with_eval_weight = pyspark_test_session.createDataFrame(
+        [
+            (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
+            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
+            (Vectors.dense(4.0, 5.0, 6.0), 2, True, 1.0),
+            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 3, True, 2.0),
+        ],
+        ["features", "label", "isVal", "weight"],
+    )
+
+    reg_df_test_with_eval_weight = pyspark_test_session.createDataFrame(
+        [
+            (
+                Vectors.dense(1.0, 2.0, 3.0),
+                float(predt1[0]),
+                float(predt2[0]),
+                float(predt3[0]),
+            ),
+            (
+                Vectors.sparse(3, {1: 1.0, 2: 5.5}),
+                float(predt1[1]),
+                float(predt2[1]),
+                float(predt3[1]),
+            ),
+        ],
+        [
+            "features",
+            "expected_prediction_with_weight",
+            "expected_prediction_with_eval",
+            "expected_prediction_with_weight_and_eval",
+        ],
+    )
+    yield RegWithWeight(
+        reg_params_with_eval,
+        reg_df_train_with_eval_weight,
+        reg_df_test_with_eval_weight,
+        best_score2,
+        best_score3,
+    )
+
+
+class TestPySparkLocal:
+    def test_regressor_with_weight_eval(self, reg_with_weight: RegWithWeight) -> None:
+        # with weight
+        regressor_with_weight = SparkXGBRegressor(weight_col="weight")
+        model_with_weight = regressor_with_weight.fit(
+            reg_with_weight.reg_df_train_with_eval_weight
+        )
+        pred_result_with_weight = model_with_weight.transform(
+            reg_with_weight.reg_df_test_with_eval_weight
+        ).collect()
+        for row in pred_result_with_weight:
+            assert np.isclose(
+                row.prediction, row.expected_prediction_with_weight, atol=1e-3
+            )
+
+        # with eval
+        regressor_with_eval = SparkXGBRegressor(**reg_with_weight.reg_params_with_eval)
+        model_with_eval = regressor_with_eval.fit(
+            reg_with_weight.reg_df_train_with_eval_weight
+        )
+        assert np.isclose(
+            model_with_eval._xgb_sklearn_model.best_score,
+            reg_with_weight.reg_with_eval_best_score,
+            atol=1e-3,
+        ), (
+            f"Expected best score: {reg_with_weight.reg_with_eval_best_score}, but ",
+            f"get {model_with_eval._xgb_sklearn_model.best_score}",
+        )
+
+        pred_result_with_eval = model_with_eval.transform(
+            reg_with_weight.reg_df_test_with_eval_weight
+        ).collect()
+        for row in pred_result_with_eval:
+            np.testing.assert_allclose(
+                row.prediction, row.expected_prediction_with_eval, atol=1e-3
+            )
+        # with weight and eval
+        regressor_with_weight_eval = SparkXGBRegressor(
+            weight_col="weight", **reg_with_weight.reg_params_with_eval
+        )
+        model_with_weight_eval = regressor_with_weight_eval.fit(
+            reg_with_weight.reg_df_train_with_eval_weight
+        )
+        pred_result_with_weight_eval = model_with_weight_eval.transform(
+            reg_with_weight.reg_df_test_with_eval_weight
+        ).collect()
+        np.testing.assert_allclose(
+            model_with_weight_eval._xgb_sklearn_model.best_score,
+            reg_with_weight.reg_with_eval_and_weight_best_score,
+            atol=1e-3,
+        )
+        for row in pred_result_with_weight_eval:
+            np.testing.assert_allclose(
+                row.prediction,
+                row.expected_prediction_with_weight_and_eval,
+                atol=1e-3,
+            )
 
 
 class XgboostLocalTest(SparkTestCase):
@@ -162,69 +346,11 @@ class XgboostLocalTest(SparkTestCase):
             multi_cls_df_train_data * 100, ["features", "label"]
         )
         self.multi_cls_df_test = self.session.createDataFrame(
-            [(Vectors.dense(1.0, 2.0, 3.0), [0.5374, 0.2312, 0.2312]),],
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), [0.5374, 0.2312, 0.2312]),
+            ],
             ["features", "expected_probability"],
         )
-
-        # Test regressor with weight and eval set
-        # >>> import numpy as np
-        # >>> import xgboost
-        # >>> X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-        # >>> w = np.array([1.0, 2.0, 1.0, 2.0])
-        # >>> y = np.array([0, 1, 2, 3])
-        # >>> reg1 = xgboost.XGBRegressor()
-        # >>> reg1.fit(X, y, sample_weight=w)
-        # >>> reg1.predict(X)
-        # >>> array([1.0679445e-03, 1.0000550e+00, ...
-        # >>> X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-        # >>> X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-        # >>> y_train = np.array([0, 1])
-        # >>> y_val = np.array([2, 3])
-        # >>> w_train = np.array([1.0, 2.0])
-        # >>> w_val = np.array([1.0, 2.0])
-        # >>> reg2 = xgboost.XGBRegressor()
-        # >>> reg2.fit(X_train, y_train, eval_set=[(X_val, y_val)],
-        # >>>          early_stopping_rounds=1, eval_metric='rmse')
-        # >>> reg2.predict(X)
-        # >>> array([8.8370638e-04, 9.9911624e-01, ...
-        # >>> reg2.best_score
-        # 2.0000002682208837
-        # >>> reg3 = xgboost.XGBRegressor()
-        # >>> reg3.fit(X_train, y_train, sample_weight=w_train, eval_set=[(X_val, y_val)],
-        # >>>          sample_weight_eval_set=[w_val],
-        # >>>          early_stopping_rounds=1, eval_metric='rmse')
-        # >>> reg3.predict(X)
-        # >>> array([0.03155671, 0.98874104,...
-        # >>> reg3.best_score
-        # 1.9970891552124017
-        self.reg_df_train_with_eval_weight = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-                (Vectors.dense(4.0, 5.0, 6.0), 2, True, 1.0),
-                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 3, True, 2.0),
-            ],
-            ["features", "label", "isVal", "weight"],
-        )
-        self.reg_params_with_eval = {
-            "validation_indicator_col": "isVal",
-            "early_stopping_rounds": 1,
-            "eval_metric": "rmse",
-        }
-        self.reg_df_test_with_eval_weight = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0.001068, 0.00088, 0.03155),
-                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1.000055, 0.9991, 0.9887),
-            ],
-            [
-                "features",
-                "expected_prediction_with_weight",
-                "expected_prediction_with_eval",
-                "expected_prediction_with_weight_and_eval",
-            ],
-        )
-        self.reg_with_eval_best_score = 2.0
-        self.reg_with_eval_and_weight_best_score = 1.997
 
         # Test classifier with weight and eval set
         # >>> import numpy as np
@@ -331,7 +457,9 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "weight"],
         )
         self.cls_df_test_without_base_margin = self.session.createDataFrame(
-            [(Vectors.dense(1.0, 2.0, 3.0), [0.3333, 0.6666], 1),],
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), [0.3333, 0.6666], 1),
+            ],
             [
                 "features",
                 "expected_prob_without_base_margin",
@@ -349,7 +477,9 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "weight", "base_margin"],
         )
         self.cls_df_test_with_same_base_margin = self.session.createDataFrame(
-            [(Vectors.dense(1.0, 2.0, 3.0), 0, [0.4415, 0.5585], 1),],
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 0, [0.4415, 0.5585], 1),
+            ],
             [
                 "features",
                 "base_margin",
@@ -368,7 +498,9 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "weight", "base_margin"],
         )
         self.cls_df_test_with_different_base_margin = self.session.createDataFrame(
-            [(Vectors.dense(1.0, 2.0, 3.0), 1, [0.2252, 0.7747], 1),],
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 1, [0.2252, 0.7747], 1),
+            ],
             [
                 "features",
                 "base_margin",
@@ -796,9 +928,11 @@ class XgboostLocalTest(SparkTestCase):
         model_with_different_base_margin = cls_with_different_base_margin.fit(
             self.cls_df_train_with_different_base_margin
         )
-        pred_result_with_different_base_margin = model_with_different_base_margin.transform(
-            self.cls_df_test_with_different_base_margin
-        ).collect()
+        pred_result_with_different_base_margin = (
+            model_with_different_base_margin.transform(
+                self.cls_df_test_with_different_base_margin
+            ).collect()
+        )
         for row in pred_result_with_different_base_margin:
             self.assertTrue(
                 np.isclose(
@@ -807,69 +941,6 @@ class XgboostLocalTest(SparkTestCase):
             )
             np.testing.assert_allclose(
                 row.probability, row.expected_prob_with_base_margin, atol=1e-3
-            )
-
-    def test_regressor_with_weight_eval(self):
-        # with weight
-        regressor_with_weight = SparkXGBRegressor(weight_col="weight")
-        model_with_weight = regressor_with_weight.fit(
-            self.reg_df_train_with_eval_weight
-        )
-        pred_result_with_weight = model_with_weight.transform(
-            self.reg_df_test_with_eval_weight
-        ).collect()
-        for row in pred_result_with_weight:
-            assert np.isclose(
-                row.prediction, row.expected_prediction_with_weight, atol=1e-3
-            )
-
-        # with eval
-        regressor_with_eval = SparkXGBRegressor(**self.reg_params_with_eval)
-        model_with_eval = regressor_with_eval.fit(self.reg_df_train_with_eval_weight)
-        assert np.isclose(
-            model_with_eval._xgb_sklearn_model.best_score,
-            self.reg_with_eval_best_score,
-            atol=1e-3,
-        ), (
-            f"Expected best score: {self.reg_with_eval_best_score}, but ",
-            f"get {model_with_eval._xgb_sklearn_model.best_score}",
-        )
-
-        pred_result_with_eval = model_with_eval.transform(
-            self.reg_df_test_with_eval_weight
-        ).collect()
-        for row in pred_result_with_eval:
-            self.assertTrue(
-                np.isclose(
-                    row.prediction, row.expected_prediction_with_eval, atol=1e-3
-                ),
-                f"Expect prediction is {row.expected_prediction_with_eval},"
-                f"but get {row.prediction}",
-            )
-        # with weight and eval
-        regressor_with_weight_eval = SparkXGBRegressor(
-            weight_col="weight", **self.reg_params_with_eval
-        )
-        model_with_weight_eval = regressor_with_weight_eval.fit(
-            self.reg_df_train_with_eval_weight
-        )
-        pred_result_with_weight_eval = model_with_weight_eval.transform(
-            self.reg_df_test_with_eval_weight
-        ).collect()
-        self.assertTrue(
-            np.isclose(
-                model_with_weight_eval._xgb_sklearn_model.best_score,
-                self.reg_with_eval_and_weight_best_score,
-                atol=1e-3,
-            )
-        )
-        for row in pred_result_with_weight_eval:
-            self.assertTrue(
-                np.isclose(
-                    row.prediction,
-                    row.expected_prediction_with_weight_and_eval,
-                    atol=1e-3,
-                )
             )
 
     def test_classifier_with_weight_eval(self):
@@ -919,7 +990,7 @@ class XgboostLocalTest(SparkTestCase):
         )
 
         for row in pred_result_with_weight_eval:
-            np.testing.assert_allclose(
+            np.testing.assert_allclose(  # failed
                 row.probability, row.expected_prob_with_weight_and_eval, atol=1e-3
             )
 
@@ -1120,7 +1191,9 @@ class XgboostLocalTest(SparkTestCase):
         data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
         data_trans.show(100)
 
-        classifier = SparkXGBClassifier(num_workers=4,)
+        classifier = SparkXGBClassifier(
+            num_workers=4,
+        )
         classifier.fit(data_trans)
 
     def test_early_stop_param_validation(self):
