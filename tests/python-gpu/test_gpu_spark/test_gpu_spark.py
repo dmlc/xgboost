@@ -33,7 +33,7 @@ def get_devices():
 
 
 executor_gpu_amount = len(get_devices())
-executor_cores = len(get_devices())
+executor_cores = executor_gpu_amount
 num_workers = executor_gpu_amount
 
 
