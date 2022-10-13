@@ -724,7 +724,7 @@ def run_dask_classifier(
 def test_dask_classifier(model: str, client: "Client") -> None:
     X, y, w = generate_array(with_weights=True)
     y = (y * 10).astype(np.int32)
-    assert w
+    assert w is not None
     run_dask_classifier(X, y, w, model, None, client, 10)
 
     y_bin = y.copy()
