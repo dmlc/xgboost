@@ -1,19 +1,16 @@
 import glob
 import logging
 import random
-import sys
 import uuid
 
 import numpy as np
 import pytest
-import testing as tm
 
 import xgboost as xgb
+from xgboost import testing
 
-if tm.no_spark()["condition"]:
-    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
-    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
+if testing.skip_spark()["condition"]:
+    pytest.skip(msg=testing.skip_spark()["reason"], allow_module_level=True)
 
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import (
@@ -165,9 +162,7 @@ class XgboostLocalTest(SparkTestCase):
             multi_cls_df_train_data * 100, ["features", "label"]
         )
         self.multi_cls_df_test = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), [0.5374, 0.2312, 0.2312]),
-            ],
+            [(Vectors.dense(1.0, 2.0, 3.0), [0.5374, 0.2312, 0.2312]),],
             ["features", "expected_probability"],
         )
 
@@ -336,9 +331,7 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "weight"],
         )
         self.cls_df_test_without_base_margin = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), [0.3333, 0.6666], 1),
-            ],
+            [(Vectors.dense(1.0, 2.0, 3.0), [0.3333, 0.6666], 1),],
             [
                 "features",
                 "expected_prob_without_base_margin",
@@ -356,9 +349,7 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "weight", "base_margin"],
         )
         self.cls_df_test_with_same_base_margin = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 0, [0.4415, 0.5585], 1),
-            ],
+            [(Vectors.dense(1.0, 2.0, 3.0), 0, [0.4415, 0.5585], 1),],
             [
                 "features",
                 "base_margin",
@@ -377,9 +368,7 @@ class XgboostLocalTest(SparkTestCase):
             ["features", "label", "weight", "base_margin"],
         )
         self.cls_df_test_with_different_base_margin = self.session.createDataFrame(
-            [
-                (Vectors.dense(1.0, 2.0, 3.0), 1, [0.2252, 0.7747], 1),
-            ],
+            [(Vectors.dense(1.0, 2.0, 3.0), 1, [0.2252, 0.7747], 1),],
             [
                 "features",
                 "base_margin",
@@ -807,11 +796,9 @@ class XgboostLocalTest(SparkTestCase):
         model_with_different_base_margin = cls_with_different_base_margin.fit(
             self.cls_df_train_with_different_base_margin
         )
-        pred_result_with_different_base_margin = (
-            model_with_different_base_margin.transform(
-                self.cls_df_test_with_different_base_margin
-            ).collect()
-        )
+        pred_result_with_different_base_margin = model_with_different_base_margin.transform(
+            self.cls_df_test_with_different_base_margin
+        ).collect()
         for row in pred_result_with_different_base_margin:
             self.assertTrue(
                 np.isclose(
@@ -1133,9 +1120,7 @@ class XgboostLocalTest(SparkTestCase):
         data_trans = vector_assembler.setHandleInvalid("keep").transform(raw_df)
         data_trans.show(100)
 
-        classifier = SparkXGBClassifier(
-            num_workers=4,
-        )
+        classifier = SparkXGBClassifier(num_workers=4,)
         classifier.fit(data_trans)
 
     def test_early_stop_param_validation(self):

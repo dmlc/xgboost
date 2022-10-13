@@ -44,3 +44,16 @@ def has_ipv6() -> bool:
 def skip_ipv6() -> PytestSkip:
     """PyTest skip mark for IPv6."""
     return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}
+
+
+def skip_spark() -> PytestSkip:
+    """Pytest skip mark for PySpark tests."""
+    if system() != "Linux":
+        return {"condition": True, "reason": "Unsupported platform."}
+
+    try:
+        import pyspark          # noqa
+        SPARK_INSTALLED = True
+    except ImportError:
+        SPARK_INSTALLED = False
+    return {"condition": not SPARK_INSTALLED, "reason": "Spark is not installed"}

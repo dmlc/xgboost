@@ -2,20 +2,14 @@ import json
 import logging
 import os
 import subprocess
-import sys
 
 import pytest
 import sklearn
 
 from xgboost import testing
 
-sys.path.append("tests/python")
-import testing as tm
-
-if tm.no_spark()["condition"]:
-    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win"):
-    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
+if testing.skip_spark()["condition"]:
+    pytest.skip(msg=testing.skip_spark()["reason"], allow_module_level=True)
 
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
