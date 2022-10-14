@@ -63,6 +63,15 @@ DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace xgboost {
 Learner::~Learner() = default;
+namespace {
+StringView ModelNotFitted() { return "Model is not yet initialized (not fitted)."; }
+
+template <typename T>
+T& UsePtr(T& ptr) {  // NOLINT
+  CHECK(ptr);
+  return ptr;
+}
+}  // anonymous namespace
 
 /*! \brief training parameter for regression
  *
@@ -74,20 +83,28 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /* \brief global bias */
   bst_float base_score;
   /* \brief number of features  */
-  uint32_t num_feature;
+  bst_feature_t num_feature;
   /* \brief number of classes, if it is multi-class classification  */
-  int32_t num_class;
+  std::int32_t num_class;
   /*! \brief Model contain additional properties */
   int32_t contain_extra_attrs;
   /*! \brief Model contain eval metrics */
   int32_t contain_eval_metrics;
   /*! \brief the version of XGBoost. */
-  uint32_t major_version;
-  uint32_t minor_version;
+  std::uint32_t major_version;
+  std::uint32_t minor_version;
 
   uint32_t num_target{1};
-
-  std::int32_t base_score_estimated{0};
+  /**
+   * \brief Whether we should calculate the base score from training data.
+   *
+   *   This is a private parameter as we can't expose it as boolean due to binary model
+   *   format. Exposing it as integer creates inconsistency with other parameters.
+   *
+   *   Automatically disabled when base_score is specifed by user. int32 is used instead
+   *   of bool for the ease of serialization.
+   */
+  std::int32_t boost_from_average{true};
   /*! \brief reserved field */
   int reserved[25];
   /*! \brief constructor */
@@ -97,7 +114,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     num_target = 1;
     major_version = std::get<0>(Version::Self());
     minor_version = std::get<1>(Version::Self());
-    base_score_estimated = 0;
+    boost_from_average = true;
     static_assert(sizeof(LearnerModelParamLegacy) == 136,
                   "Do not change the size of this struct, as it will break binary IO.");
   }
@@ -127,8 +144,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
 
     ret = to_chars(integers, integers + NumericLimits<std::int64_t>::kToCharsSize,
-                   static_cast<std::int64_t>(base_score_estimated));
-    obj["base_score_estimated"] =
+                   static_cast<std::int64_t>(boost_from_average));
+    obj["boost_from_average"] =
         std::string{integers, static_cast<std::size_t>(std::distance(integers, ret.ptr))};
 
     return obj;
@@ -142,9 +159,9 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     if (n_targets_it != j_param.cend()) {
       m["num_target"] = get<String const>(n_targets_it->second);
     }
-    auto bse_it = j_param.find("base_score_estimated");
+    auto bse_it = j_param.find("boost_from_average");
     if (bse_it != j_param.cend()) {
-      m["base_score_estimated"] = get<String const>(bse_it->second);
+      m["boost_from_average"] = get<String const>(bse_it->second);
     }
 
     this->Init(m);
@@ -163,7 +180,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
     dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
     dmlc::ByteSwap(&x.num_target, sizeof(x.num_target), 1);
-    dmlc::ByteSwap(&x.base_score_estimated, sizeof(x.base_score_estimated), 1);
+    dmlc::ByteSwap(&x.boost_from_average, sizeof(x.boost_from_average), 1);
     dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
@@ -171,16 +188,42 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   template <typename Container>
   Args UpdateAllowUnknown(Container const& kwargs) {
     // Detect whether user has made their own base score.
-    if (std::find_if(kwargs.cbegin(), kwargs.cend(),
-                     [](auto const& kv) { return kv.first == "base_score"; }) != kwargs.cend()) {
-      base_score_estimated = true;
-    }
-    if (std::find_if(kwargs.cbegin(), kwargs.cend(), [](auto const& kv) {
-          return kv.first == "base_score_estimated";
-        }) != kwargs.cend()) {
-      LOG(FATAL) << "`base_score_estimated` cannot be specified as hyper-parameter.";
+    auto find_key = [&kwargs](char const* key) {
+      return std::find_if(kwargs.cbegin(), kwargs.cend(),
+                          [key](auto const& kv) { return kv.first == key; });
+    };
+    auto it = find_key("base_score");
+    if (it != kwargs.cend()) {
+      boost_from_average = false;
     }
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
+  }
+  // sanity check
+  void Validate() {
+    if (!collective::IsDistributed()) {
+      return;
+    }
+
+    std::array<std::int32_t, 6> data;
+    std::size_t pos{0};
+    std::memcpy(data.data() + pos, &base_score, sizeof(base_score));
+    pos += 1;
+    std::memcpy(data.data() + pos, &num_feature, sizeof(num_feature));
+    pos += 1;
+    std::memcpy(data.data() + pos, &num_class, sizeof(num_class));
+    pos += 1;
+    std::memcpy(data.data() + pos, &num_target, sizeof(num_target));
+    pos += 1;
+    std::memcpy(data.data() + pos, &major_version, sizeof(major_version));
+    pos += 1;
+    std::memcpy(data.data() + pos, &minor_version, sizeof(minor_version));
+    pos += 1;
+
+    std::array<std::int32_t, 6> sync;
+    std::copy(data.cbegin(), data.cend(), sync.begin());
+    collective::Broadcast(sync.data(), sync.size(), 0);
+    CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
+        << "Different model parameter across workers.";
   }
 
   // declare parameters
@@ -200,7 +243,9 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
         .set_default(1)
         .set_lower_bound(1)
         .describe("Number of target for multi-target regression.");
-    DMLC_DECLARE_FIELD(base_score_estimated).set_default(0);
+    DMLC_DECLARE_FIELD(boost_from_average)
+        .set_default(true)
+        .describe("Whether we should calculate the base score from training data.");
   }
 };
 
@@ -229,7 +274,7 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
 
 linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(int32_t device) const {
   // multi-class is not yet supported.
-  CHECK_EQ(base_score_.Size(), 1);
+  CHECK_EQ(base_score_.Size(), 1) << ModelNotFitted();
   if (device == Context::kCpuId) {
     // Make sure that we won't run into race condition.
     CHECK(base_score_.Data()->HostCanRead());
@@ -375,6 +420,8 @@ class LearnerConfiguration : public Learner {
 
  protected:
   std::atomic<bool> need_configuration_;
+  // std::atomic<bool> need_init_model_;
+
   std::map<std::string, std::string> cfg_;
   // Stores information like best-iteration for early stopping.
   std::map<std::string, std::string> attributes_;
@@ -390,6 +437,21 @@ class LearnerConfiguration : public Learner {
   // Initial prediction.
   std::vector<std::string> metric_names_;
 
+  void ConfigureModelParamWithoutBaseScore() {
+    // Convert mparam to learner_model_param
+    this->ConfigureTargets();
+
+    auto task = UsePtr(obj_)->Task();
+    linalg::Tensor<float, 1> base_score({1}, Ctx()->gpu_id);
+    auto h_base_score = base_score.HostView();
+
+    // transform to margin
+    h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
+    // move it to model param, which is shared with all other components.
+    learner_model_param_ = LearnerModelParam(Ctx(), mparam_, std::move(base_score), task);
+    CHECK(learner_model_param_.Initialized());
+    CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
+  }
   /**
    * \brief Calculate the `base_score` based on input data.
    *
@@ -408,46 +470,38 @@ class LearnerConfiguration : public Learner {
     // - model loaded from new binary or JSON.
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
-    CHECK(obj_);
-    if (!mparam_.base_score_estimated) {
-      std::lock_guard<std::mutex> guard(config_lock_);
-      if (p_fmat) {
-        auto const& info = p_fmat->Info();
-        info.Validate(Ctx()->gpu_id);
-        // We estimate it from input data.
-        linalg::Tensor<float, 1> base_score;
-        obj_->InitEstimation(info, &base_score);
-        mparam_.base_score = base_score(0);
-        CHECK(!std::isnan(mparam_.base_score));
-      } else {
-        mparam_.base_score = ObjFunction::DefaultBaseScore();
-      }
-      mparam_.base_score_estimated = true;
-      // Update the shared model parameter
-      this->ConfigureModelParam();
-      auto sync_score = mparam_.base_score;
-      rabit::Broadcast(&sync_score, sizeof(sync_score), 0);
-      CHECK_EQ(sync_score, mparam_.base_score);
+
+    // if (!need_init_model_) {
+    //   return;
+    // }
+    // std::lock_guard<std::mutex> guard(config_lock_);
+    // if (!need_init_model_) {
+    //   return;
+    // }
+
+    if (!learner_model_param_.Initialized()) {
+      // CHECK(!p_fmat);  // only using custom objective can reach here.
+      // First call to have some basic model info for boosted rounds to work.
+      this->ConfigureModelParamWithoutBaseScore();
     }
+
+    if (p_fmat) {
+      auto const& info = p_fmat->Info();
+      info.Validate(Ctx()->gpu_id);
+      // We estimate it from input data.
+      linalg::Tensor<float, 1> base_score;
+      UsePtr(obj_)->InitEstimation(info, &base_score);
+      mparam_.base_score = base_score(0);
+      CHECK(!std::isnan(mparam_.base_score));
+    } else {
+      mparam_.base_score = ObjFunction::DefaultBaseScore();
+    }
+    // Update the shared model parameter
+    this->ConfigureModelParamWithoutBaseScore();
+    mparam_.Validate();
+
     CHECK(!std::isnan(mparam_.base_score));
     CHECK(!std::isinf(mparam_.base_score));
-  }
-
-  // Convert mparam to learner_model_param
-  void ConfigureModelParam() {
-    this->ConfigureTargets();
-
-    CHECK(obj_);
-    auto task = obj_->Task();
-    linalg::Tensor<float, 1> base_score({1}, Ctx()->gpu_id);
-    auto h_base_score = base_score.HostView();
-
-    // transform to margin
-    h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
-    // move it to model param, which is shared with all other components.
-    learner_model_param_ = LearnerModelParam(Ctx(), mparam_, std::move(base_score), task);
-    CHECK(learner_model_param_.Initialized());
-    CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
   }
 
  public:
@@ -467,7 +521,7 @@ class LearnerConfiguration : public Learner {
   }
 
   // Configuration before data is known.
-  void Configure() override {
+  void Configure(DMatrix const* p_fmat = nullptr) override {
     // Varient of double checked lock
     if (!this->need_configuration_) {
       return;
@@ -509,11 +563,15 @@ class LearnerConfiguration : public Learner {
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
     ctx_.ConfigureGpuId(this->gbm_->UseGPU());
-    this->ConfigureModelParam();
+
+    // Configure model param without base score
+    this->InitBaseScore(p_fmat);
+    // this->ConfigureModelParamWithoutBaseScore();
 
     this->ConfigureMetrics(args);
 
-    this->need_configuration_ = false;
+    this->need_configuration_ =
+        UsePtr(this->gbm_)->BoostedRounds() == 0 && mparam_.boost_from_average;
     if (ctx_.validate_parameters) {
       this->ValidateParameters();
     }
@@ -523,8 +581,8 @@ class LearnerConfiguration : public Learner {
   }
 
   void CheckModelInitialized() const {
-    CHECK(learner_model_param_.Initialized()) << "Model not yet initialized.";
-    CHECK_NE(learner_model_param_.BaseScore(this->Ctx()).Size(), 0);
+    CHECK(learner_model_param_.Initialized()) << ModelNotFitted();
+    // CHECK_NE(learner_model_param_.BaseScore(this->Ctx()).Size(), 0) << ModelNotFitted();
   }
 
   virtual PredictionContainer* GetPredictionCache() const {
@@ -1300,8 +1358,8 @@ class LearnerImpl : public LearnerIO {
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
-    this->Configure();
-    this->InitBaseScore(train.get());
+    this->Configure(train.get());
+    // this->InitBaseScore(train.get());
 
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
@@ -1330,9 +1388,9 @@ class LearnerImpl : public LearnerIO {
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
-    this->Configure();
-    // Should have been set to default in the first prediction.
-    CHECK(mparam_.base_score_estimated);
+    this->Configure(nullptr);
+    // Custom objective, use default instead.
+    // this->InitBaseScore(nullptr);
 
     if (ctx_.seed_per_iteration) {
       common::GlobalRandom().seed(ctx_.seed * kRandSeedMagic + iter);
@@ -1352,7 +1410,8 @@ class LearnerImpl : public LearnerIO {
                           const std::vector<std::shared_ptr<DMatrix>>& data_sets,
                           const std::vector<std::string>& data_names) override {
     monitor_.Start("EvalOneIter");
-    this->Configure();
+    this->Configure(nullptr);
+    // this->InitBaseScore(nullptr);
     this->CheckModelInitialized();
 
     std::ostringstream os;
@@ -1392,8 +1451,8 @@ class LearnerImpl : public LearnerIO {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
-    this->Configure();
-    this->InitBaseScore(nullptr);
+    this->Configure(nullptr);
+    // this->InitBaseScore(nullptr);
     this->CheckModelInitialized();
 
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
@@ -1418,13 +1477,13 @@ class LearnerImpl : public LearnerIO {
     }
   }
 
-  int32_t BoostedRounds() const override {
+  std::int32_t BoostedRounds() const override {
     if (!this->gbm_) { return 0; }  // haven't call train or LoadModel.
     CHECK(!this->need_configuration_);
     return this->gbm_->BoostedRounds();
   }
 
-  uint32_t Groups() const override {
+  bst_group_t Groups() const override {
     CHECK(!this->need_configuration_);
     this->CheckModelInitialized();
     return this->learner_model_param_.num_output_group;
@@ -1437,8 +1496,7 @@ class LearnerImpl : public LearnerIO {
   void InplacePredict(std::shared_ptr<DMatrix> p_m, PredictionType type, float missing,
                       HostDeviceVector<bst_float>** out_preds, uint32_t iteration_begin,
                       uint32_t iteration_end) override {
-    this->Configure();
-    this->InitBaseScore(nullptr);
+    this->Configure(nullptr);
     this->CheckModelInitialized();
 
     auto& out_predictions = this->GetThreadLocal().prediction_entry;

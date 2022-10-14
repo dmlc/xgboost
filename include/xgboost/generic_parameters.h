@@ -36,6 +36,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   int gpu_id{kCpuId};
   // fail when gpu_id is invalid
   bool fail_on_invalid_gpu_id {false};
+  // FIXME(jiamingy): Move this to model training parameter instead.
   bool validate_parameters {false};
 
   /*!
