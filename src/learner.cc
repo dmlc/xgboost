@@ -12,6 +12,7 @@
 #include <dmlc/thread_local.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <iomanip>
 #include <limits>  // std::numeric_limits
