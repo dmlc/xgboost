@@ -82,10 +82,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   ~Learner() override;
   /*!
    * \brief Configure Learner based on set parameters.
-   *
-   * \param p_fmat The optional training DMatrix.
    */
-  virtual void Configure(DMatrix const* p_fmat = nullptr) = 0;
+  virtual void Configure() = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.
@@ -163,7 +161,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Get number of boosted rounds from gradient booster.
    */
   virtual int32_t BoostedRounds() const = 0;
-  virtual bst_group_t Groups() const = 0;
+  virtual uint32_t Groups() const = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
@@ -330,7 +328,7 @@ struct LearnerModelParam {
   void Copy(LearnerModelParam const& that);
 
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
-  bool Initialized() const { return num_feature != 0 && num_output_group != 0; }
+  bool Initialized() const { return num_feature != 0; }
 };
 
 }  // namespace xgboost

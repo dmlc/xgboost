@@ -493,6 +493,13 @@ TEST(Learner, InitEstimation) {
     auto base_score =
         std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
     ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+
+    ASSERT_THROW(
+        {
+          learner->SetParam("base_score_estimated", "1");
+          learner->Configure();
+        },
+        dmlc::Error);
   }
 
   {
@@ -515,89 +522,4 @@ TEST(Learner, InitEstimation) {
     ASSERT_FLOAT_EQ(base_score, 1.3);
   }
 }
-
-class InitBaseScore : public ::testing::Test {
- protected:
-  std::size_t static constexpr Cols() { return 10; }
-  std::shared_ptr<DMatrix> Xy_;
-
-  void SetUp() override { Xy_ = RandomDataGenerator{10, Cols(), 0}.GenerateDMatrix(true); }
-
- public:
-  void TestBoostFromAvg() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
-    learner->SetParam("base_score", "1.3");
-    Json config(Object{});
-    learner->Configure();
-    learner->SaveConfig(&config);
-
-    auto base_score =
-        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-    // no change
-    ASSERT_FLOAT_EQ(base_score, 1.3);
-    auto from_avg = std::stoi(
-        get<String const>(config["learner"]["learner_model_param"]["boost_from_average"]));
-    // from_avg is disabled when base score is set
-    ASSERT_EQ(from_avg, 0);
-    // in the future when we can deprecate the binary model, user can set the parameter directly.
-    learner->SetParam("boost_from_average", "1");
-    learner->Configure();
-    learner->SaveConfig(&config);
-    from_avg = std::stoi(
-        get<String const>(config["learner"]["learner_model_param"]["boost_from_average"]));
-    ASSERT_EQ(from_avg, 1);
-  }
-
-  void TestInitAfterLoad() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
-    learner->Configure();
-
-    Json model{Object{}};
-    learner->SaveModel(&model);
-    auto base_score =
-        std::stof(get<String const>(model["learner"]["learner_model_param"]["base_score"]));
-    ASSERT_FLOAT_EQ(base_score, ObjFunction::DefaultBaseScore());
-
-    learner.reset(Learner::Create({Xy_}));
-    learner->LoadModel(model);
-    Json config(Object{});
-    learner->Configure();
-    learner->SaveConfig(&config);
-    base_score =
-        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-    ASSERT_FLOAT_EQ(base_score, ObjFunction::DefaultBaseScore());
-
-    learner->UpdateOneIter(0, Xy_);
-    learner->SaveConfig(&config);
-    base_score =
-        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
-  }
-
-  void TestInitWithPredt() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
-    learner->SetParam("objective", "reg:absoluteerror");
-    HostDeviceVector<float> predt;
-    learner->Predict(Xy_, false, &predt, 0, 0);
-    Json config(Object{});
-    learner->SaveConfig(&config);
-    auto base_score =
-        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-    ASSERT_FLOAT_EQ(base_score, ObjFunction::DefaultBaseScore());
-
-    learner->UpdateOneIter(0, Xy_);
-    learner->SaveConfig(&config);
-    base_score =
-        std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
-    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
-  }
-};
-
-TEST_F(InitBaseScore, FromAvgParam) { this->TestBoostFromAvg(); }
-
-TEST_F(InitBaseScore, InitAfterLoad) { this->TestInitAfterLoad(); }
-
-TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 }  // namespace xgboost
