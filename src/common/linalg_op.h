@@ -8,7 +8,6 @@
 
 #include "common.h"
 #include "threading_utils.h"
-#include "transform_iterator.h"  // MakeIndexTransformIter
 #include "xgboost/generic_parameters.h"
 #include "xgboost/linalg.h"
 
