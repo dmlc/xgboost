@@ -472,7 +472,7 @@ class LearnerConfiguration : public Learner {
     if (!learner_model_param_.Initialized()) {
       this->ConfigureModelParamWithoutBaseScore();
     }
-    if (mparam_.boost_from_average && UsePtr(gbm_)->BoostedRounds() == 0) {
+    if (mparam_.boost_from_average && !UsePtr(gbm_)->ModelFitted()) {
       if (p_fmat) {
         auto const& info = p_fmat->Info();
         info.Validate(Ctx()->gpu_id);
