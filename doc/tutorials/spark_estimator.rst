@@ -83,10 +83,11 @@ generate result dataset with 3 new columns:
 XGBoost PySpark GPU support
 ***************************
 
-XGBoost PySpark supports GPU training and prediction. To enable GPU support, you first need
-to install the xgboost and cudf packages. Then you can set `use_gpu` parameter to `True`.
+XGBoost PySpark supports GPU training and prediction. To enable GPU support, first you
+need to install the XGBoost and the `cuDF <https://docs.rapids.ai/api/cudf/stable/>`_
+package. Then you can set `use_gpu` parameter to `True`.
 
-Below tutorial will show you how to train a model with XGBoost PySpark GPU on Spark
+Below tutorial demonstrates how to train a model with XGBoost PySpark GPU on Spark
 standalone cluster.
 
 
@@ -220,3 +221,6 @@ Below is a simple example submit command for enabling GPU acceleration:
     --conf spark.sql.execution.arrow.maxRecordsPerBatch=1000000 \
     --archives xgboost-env.tar.gz#environment \
     xgboost_app.py
+
+When rapids plugin is enabled, both of the JVM rapids plugin and the cuDF Python are
+required for the acceleration.
