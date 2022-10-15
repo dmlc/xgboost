@@ -139,7 +139,7 @@ in PySpark. Please refer to
   conda create -y -n xgboost-env -c conda-forge conda-pack python=3.9
   conda activate xgboost-env
   pip install xgboost
-  pip install cudf
+  conda install cudf -c rapids -c nvidia -c conda-forge
   conda pack -f -o xgboost-env.tar.gz
 
 
