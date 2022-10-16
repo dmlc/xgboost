@@ -346,7 +346,7 @@ def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.n
     if not isinstance(cptr, ctypes.POINTER(ctype)):  # type: ignore
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
-    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type: ignore
+    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError("memmove failed")
     return res
 
