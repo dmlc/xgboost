@@ -568,7 +568,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 #          Nicolas Tresegnie
 #          Sylvain Marie
 # License: BSD 3 clause
-def require_keyword_args(error: bool) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+def require_keyword_args(
+    error: bool,
+) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
@@ -583,7 +585,7 @@ def require_keyword_args(error: bool) -> Callable[[Callable[..., _T]], Callable[
     """
 
     def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
-        """Throw error/warning if there are positional arguments after the asterisk.
+        """Throw an error/warning if there are positional arguments after the asterisk.
 
         Parameters
         ----------
