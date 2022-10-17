@@ -1,14 +1,16 @@
 import os
-import tempfile
 import subprocess
+import tempfile
 
-import xgboost as xgb
 import numpy as np
 import pytest
-
 import testing as tm
 
-pytestmark = pytest.mark.timeout(10)
+import xgboost as xgb
+from xgboost import testing
+
+pytestmark = testing.timeout(10)
+
 
 class TestOMP:
     def test_omp(self):

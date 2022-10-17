@@ -346,7 +346,7 @@ def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.n
     if not isinstance(cptr, ctypes.POINTER(ctype)):  # type: ignore
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
-    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type: ignore
+    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError("memmove failed")
     return res
 
@@ -507,7 +507,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         pointer.
 
         """
-        @require_pos_args(True)
+        @require_keyword_args(True)
         def input_data(
             data: Any,
             *,
@@ -559,7 +559,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         raise NotImplementedError()
 
 
-# Notice for `require_pos_args`
+# Notice for `require_keyword_args`
 # Authors: Olivier Grisel
 #          Gael Varoquaux
 #          Andreas Mueller
@@ -568,7 +568,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 #          Nicolas Tresegnie
 #          Sylvain Marie
 # License: BSD 3 clause
-def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+def require_keyword_args(
+    error: bool,
+) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
@@ -583,7 +585,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     """
 
     def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
-        """Throw error/warning if there are positional arguments after the asterisk.
+        """Throw an error/warning if there are positional arguments after the asterisk.
 
         Parameters
         ----------
@@ -624,7 +626,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     return throw_if
 
 
-_deprecate_positional_args = require_pos_args(False)
+_deprecate_positional_args = require_keyword_args(False)
 
 
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
