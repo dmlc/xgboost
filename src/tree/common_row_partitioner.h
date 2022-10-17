@@ -88,7 +88,7 @@ class CommonRowPartitioner {
     }
   }
 
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
+  void UpdatePosition(Context const* ctx, GHistIndexMatrix const& gmat,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     auto const& column_matrix = gmat.Transpose();
     if (column_matrix.IsInitialized()) {
@@ -103,12 +103,12 @@ class CommonRowPartitioner {
        * any_missing and any_cat don't metter in this case.
        * Jump directly to the main method.
        */
-      this->template UpdatePosition<uint8_t, false, false>(ctx, gmat, column_matrix, nodes, p_tree);
+      this->template UpdatePosition<uint8_t, true, true>(ctx, gmat, column_matrix, nodes, p_tree);
     }
   }
 
   template <bool any_cat>
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
+  void UpdatePosition(Context const* ctx, GHistIndexMatrix const& gmat,
                       const common::ColumnMatrix& column_matrix,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     if (column_matrix.AnyMissing()) {
@@ -119,7 +119,7 @@ class CommonRowPartitioner {
   }
 
   template <bool any_missing, bool any_cat>
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
+  void UpdatePosition(Context const* ctx, GHistIndexMatrix const& gmat,
                       const common::ColumnMatrix& column_matrix,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     switch (column_matrix.GetTypeSize()) {
@@ -142,7 +142,7 @@ class CommonRowPartitioner {
   }
 
   template <typename BinIdxType, bool any_missing, bool any_cat>
-  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
+  void UpdatePosition(Context const* ctx, GHistIndexMatrix const& gmat,
                       const common::ColumnMatrix& column_matrix,
                       std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     // 1. Find split condition for each split
