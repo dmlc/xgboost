@@ -32,16 +32,16 @@ class CommonRowPartitioner {
   bst_row_t base_rowid = 0;
 
   CommonRowPartitioner() = default;
-  CommonRowPartitioner(bst_row_t num_row, bst_row_t _base_rowid, int n_threads) :
-                                                              base_rowid{_base_rowid} {
+  CommonRowPartitioner(bst_row_t num_row, bst_row_t _base_rowid, int n_threads)
+      : base_rowid{_base_rowid} {
     row_set_collection_.Clear();
     const size_t block_size = num_row / n_threads + !!(num_row % n_threads);
     dmlc::OMPException exc;
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
     size_t* p_row_indices = row_indices.data();
-    // parallel initialization o f row indices. (std::iota)
-    #pragma omp parallel num_threads(n_threads)
+// parallel initialization o f row indices. (std::iota)
+#pragma omp parallel num_threads(n_threads)
     {
       exc.Run([&]() {
         const size_t tid = omp_get_thread_num();
@@ -55,9 +55,8 @@ class CommonRowPartitioner {
     row_set_collection_.Init();
   }
 
-  void FindSplitConditions(const std::vector<CPUExpandEntry> &nodes,
-                           const RegTree &tree, const GHistIndexMatrix &gmat,
-                           std::vector<int32_t> *split_conditions) {
+  void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
+                           const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions) {
     for (size_t i = 0; i < nodes.size(); ++i) {
       const int32_t nid = nodes[i].nid;
       const bst_uint fid = tree[nid].SplitIndex();
@@ -77,8 +76,7 @@ class CommonRowPartitioner {
     }
   }
 
-  void AddSplitsToRowSet(const std::vector<CPUExpandEntry> &nodes,
-                                            RegTree const *p_tree) {
+  void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree const* p_tree) {
     const size_t n_nodes = nodes.size();
     for (unsigned int i = 0; i < n_nodes; ++i) {
       const int32_t nid = nodes[i].nid;
@@ -86,7 +84,7 @@ class CommonRowPartitioner {
       const size_t n_right = partition_builder_.GetNRightElems(i);
       CHECK_EQ((*p_tree)[nid].LeftChild() + 1, (*p_tree)[nid].RightChild());
       row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild(),
-                                  n_left, n_right);
+                                   n_left, n_right);
     }
   }
 
@@ -121,21 +119,21 @@ class CommonRowPartitioner {
   }
 
   template <bool any_missing, bool any_cat>
-  void UpdatePosition(GenericParameter const *ctx, GHistIndexMatrix const& gmat,
+  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
                       const common::ColumnMatrix& column_matrix,
-                      std::vector<CPUExpandEntry> const &nodes, RegTree const *p_tree) {
+                      std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     switch (column_matrix.GetTypeSize()) {
       case common::kUint8BinsTypeSize:
-        this->template UpdatePosition<uint8_t, any_missing, any_cat>
-                                     (ctx, gmat, column_matrix, nodes, p_tree);
+        this->template UpdatePosition<uint8_t, any_missing, any_cat>(ctx, gmat, column_matrix,
+                                                                     nodes, p_tree);
         break;
       case common::kUint16BinsTypeSize:
-        this->template UpdatePosition<uint16_t, any_missing, any_cat>
-                                     (ctx, gmat, column_matrix, nodes, p_tree);
+        this->template UpdatePosition<uint16_t, any_missing, any_cat>(ctx, gmat, column_matrix,
+                                                                      nodes, p_tree);
         break;
       case common::kUint32BinsTypeSize:
-        this->template UpdatePosition<uint32_t, any_missing, any_cat>
-                                     (ctx, gmat, column_matrix, nodes, p_tree);
+        this->template UpdatePosition<uint32_t, any_missing, any_cat>(ctx, gmat, column_matrix,
+                                                                      nodes, p_tree);
         break;
       default:
         // no default behavior
@@ -144,9 +142,9 @@ class CommonRowPartitioner {
   }
 
   template <typename BinIdxType, bool any_missing, bool any_cat>
-  void UpdatePosition(GenericParameter const *ctx, GHistIndexMatrix const& gmat,
+  void UpdatePosition(GenericParameter const* ctx, GHistIndexMatrix const& gmat,
                       const common::ColumnMatrix& column_matrix,
-                      std::vector<CPUExpandEntry> const &nodes, RegTree const *p_tree) {
+                      std::vector<CPUExpandEntry> const& nodes, RegTree const* p_tree) {
     // 1. Find split condition for each split
     size_t n_nodes = nodes.size();
 
@@ -184,8 +182,8 @@ class CommonRowPartitioner {
       partition_builder_.AllocateForTask(task_id);
       bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
       partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
-              node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
-              row_set_collection_[nid].begin);
+          node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
+          row_set_collection_[nid].begin);
     });
 
     // 3. Compute offsets to copy blocks of row-indexes
@@ -204,17 +202,17 @@ class CommonRowPartitioner {
     AddSplitsToRowSet(nodes, p_tree);
   }
 
-  auto const &Partitions() const { return row_set_collection_; }
+  auto const& Partitions() const { return row_set_collection_; }
 
   size_t Size() const {
     return std::distance(row_set_collection_.begin(), row_set_collection_.end());
   }
 
   auto& operator[](bst_node_t nidx) { return row_set_collection_[nidx]; }
-  auto const &operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
+  auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
 
-  void LeafPartition(Context const *ctx, RegTree const &tree, common::Span<float const> hess,
-                     std::vector<bst_node_t> *p_out_position) const {
+  void LeafPartition(Context const* ctx, RegTree const& tree, common::Span<float const> hess,
+                     std::vector<bst_node_t>* p_out_position) const {
     partition_builder_.LeafPartition(ctx, tree, this->Partitions(), p_out_position,
                                      [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
   }

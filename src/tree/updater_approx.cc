@@ -7,9 +7,9 @@
 #include <memory>
 #include <vector>
 
-#include "common_row_partitioner.h"
 #include "../common/random.h"
 #include "../data/gradient_index.h"
+#include "common_row_partitioner.h"
 #include "constraints.h"
 #include "driver.h"
 #include "hist/evaluate_splits.h"
