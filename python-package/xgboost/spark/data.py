@@ -209,16 +209,25 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     def append_m(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         nonlocal n_features
         if name == alias.data or name in part.columns:
-            if name == alias.data and feature_cols is not None:
-                array = part[feature_cols]
-            else:
+            if (
+                name == alias.data
+                and feature_cols is not None
+                and part[feature_cols].shape[0] > 0  # guard against empty partition
+            ):
+                array: Optional[np.ndarray] = part[feature_cols]
+            elif part[name].shape[0] > 0:
                 array = part[name]
                 array = stack_series(array)
+            else:
+                array = None
 
-            if name == alias.data:
+            if name == alias.data and array is not None:
                 if n_features == 0:
                     n_features = array.shape[1]
                 assert n_features == array.shape[1]
+
+            if array is None:
+                return
 
             if is_valid:
                 valid_data[name].append(array)
