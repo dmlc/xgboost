@@ -162,6 +162,10 @@ class HostDeviceVectorImpl {
     if (device_ >= 0) {
       LazySyncHost(GPUAccess::kNone);
     }
+
+    if (device_ >= 0 && device >= 0) {
+      CHECK_EQ(device_, device) << "New device ordinal is different from previous one.";
+    }
     device_ = device;
     if (device_ >= 0) {
       LazyResizeDevice(data_h_.size());

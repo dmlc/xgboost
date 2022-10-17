@@ -75,6 +75,11 @@ class GradientBooster : public Model, public Configurable {
   /*! \brief Return number of boosted rounds.
    */
   virtual int32_t BoostedRounds() const = 0;
+  /**
+   * \brief Whether the model has already been trained. When tree booster is chosen, then
+   *        returns true when there are existing trees.
+   */
+  virtual bool ModelFitted() const = 0;
   /*!
    * \brief perform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
