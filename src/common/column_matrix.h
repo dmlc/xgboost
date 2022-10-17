@@ -162,7 +162,6 @@ class ColumnMatrix {
 
   ColumnMatrix() = default;
   ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold) {
-    is_initialized_ = true;
     this->InitStorage(gmat, sparse_threshold);
   }
 
@@ -172,7 +171,6 @@ class ColumnMatrix {
    */
   void InitFromSparse(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
                       int32_t n_threads) {
-    is_initialized_ = true;
     auto batch = data::SparsePageAdapterBatch{page.GetView()};
     this->InitStorage(gmat, sparse_threshold);
     // ignore base row id here as we always has one column matrix for each sparse page.
@@ -187,7 +185,6 @@ class ColumnMatrix {
    *    for those bins.
    */
   void InitFromGHist(Context const* ctx, GHistIndexMatrix const& gmat) {
-    is_initialized_ = true;
     auto n_threads = ctx->Threads();
     if (!any_missing_) {
       // row index is compressed, we need to dispatch it.
@@ -202,9 +199,7 @@ class ColumnMatrix {
     }
   }
 
-  bool IsInitialized() const {
-    return is_initialized_;
-  }
+  bool IsInitialized() const { return !type_.empty(); }
 
   /**
    * \brief Push batch of data for Quantile DMatrix support.
@@ -374,7 +369,6 @@ class ColumnMatrix {
 #endif
 
     fi->Read(&any_missing_);
-    fi->Read(&is_initialized_);
     return true;
   }
 
@@ -410,8 +404,6 @@ class ColumnMatrix {
     bytes += sizeof(bins_type_size_);
     fo->Write(any_missing_);
     bytes += sizeof(any_missing_);
-    fo->Write(is_initialized_);
-    bytes += sizeof(is_initialized_);
 
     return bytes;
   }
@@ -432,7 +424,6 @@ class ColumnMatrix {
   std::vector<ByteType> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;
-  bool is_initialized_ = false;
 };
 }  // namespace common
 }  // namespace xgboost
