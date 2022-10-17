@@ -167,24 +167,24 @@ class PartitionBuilder {
 
     std::pair<size_t, size_t> child_nodes_sizes;
     if (!column_matrix.IsInitialized()) {
-        child_nodes_sizes = PartitionRangeKernel(rid_span, left, right, pred_approx);
+      child_nodes_sizes = PartitionRangeKernel(rid_span, left, right, pred_approx);
     } else {
       if (column_matrix.GetColumnType(fid) == xgboost::common::kDenseColumn) {
         auto column = column_matrix.DenseColumn<BinIdxType, any_missing>(fid);
         if (default_left) {
           child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
-                                                                gmat.base_rowid, pred_hist);
+                                                                 gmat.base_rowid, pred_hist);
         } else {
           child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
                                                                   gmat.base_rowid, pred_hist);
         }
       } else {
         CHECK_EQ(any_missing, true);
-        auto column = column_matrix.SparseColumn<BinIdxType>(fid,
-                                                             rid_span.front() - gmat.base_rowid);
+        auto column =
+            column_matrix.SparseColumn<BinIdxType>(fid, rid_span.front() - gmat.base_rowid);
         if (default_left) {
           child_nodes_sizes = PartitionKernel<true, any_missing>(&column, rid_span, left, right,
-                                                                gmat.base_rowid, pred_hist);
+                                                                 gmat.base_rowid, pred_hist);
         } else {
           child_nodes_sizes = PartitionKernel<false, any_missing>(&column, rid_span, left, right,
                                                                   gmat.base_rowid, pred_hist);

@@ -104,7 +104,7 @@ class SparseColumnIter : public Column<BinIdxT> {
 template <typename BinIdxT, bool any_missing>
 class DenseColumnIter : public Column<BinIdxT> {
  public:
-  using ByteType = uint8_t;
+  using ByteType = bool;
 
  private:
   using Base = Column<BinIdxT>;
@@ -156,7 +156,7 @@ class ColumnMatrix {
   }
 
  public:
-  using ByteType = uint8_t;
+  using ByteType = bool;
   // get number of features
   bst_feature_t GetNumFeature() const { return static_cast<bst_feature_t>(type_.size()); }
 
