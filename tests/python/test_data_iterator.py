@@ -1,12 +1,15 @@
-import xgboost as xgb
-from xgboost.data import SingleBatchInternalIter as SingleBatch
 import numpy as np
-from testing import IteratorForTest, non_increasing, make_batches
 import pytest
-from hypothesis import given, strategies, settings
+from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix
+from testing import IteratorForTest, make_batches, non_increasing
+from xgboost.data import SingleBatchInternalIter as SingleBatch
 
-pytestmark = pytest.mark.timeout(30)
+import xgboost as xgb
+from xgboost import testing
+
+pytestmark = testing.timeout(30)
+
 
 def test_single_batch(tree_method: str = "approx") -> None:
     from sklearn.datasets import load_breast_cancer

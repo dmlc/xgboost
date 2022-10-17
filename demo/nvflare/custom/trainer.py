@@ -53,6 +53,7 @@ class XGBoostTrainer(Executor):
         client_name = fl_ctx.get_prop(FLContextKey.CLIENT_NAME)
         rank = int(client_name.split('-')[1]) - 1
         communicator_env = {
+            'xgboost_communicator': 'federated',
             'federated_server_address': self._server_address,
             'federated_world_size': self._world_size,
             'federated_rank': rank,
