@@ -39,7 +39,7 @@ ENV GOSU_VERSION 1.10
 RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
       --recurse-submodules --depth 1 && \
     pushd grpc && \
-    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
     cmake --build build --target install && \
     popd && \
     rm -rf grpc
