@@ -55,11 +55,10 @@ def timeout(sec: int, *args: Any, enable: bool = False, **kwargs: Any) -> Any:
     -------
     pytest.mark.timeout
     """
-    import pytest
+    import pytest  # pylint: disable=import-error
 
     # This is disabled for now due to regression caused by conflicts between federated
     # learning build and the CI container environment.
     if enable:
         return pytest.mark.timeout(sec, *args, **kwargs)
-    else:
-        return pytest.mark.timeout(None, *args, **kwargs)
+    return pytest.mark.timeout(None, *args, **kwargs)
