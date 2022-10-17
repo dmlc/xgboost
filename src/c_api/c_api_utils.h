@@ -249,20 +249,31 @@ inline void GenerateFeatureMap(Learner const *learner,
 void XGBBuildInfoDevice(Json* p_info);
 
 template <typename JT>
-auto const &RequiredArg(Json const &in, std::string const &key, StringView func) {
+void TypeCheck(Json const &value, StringView name) {
+  using T = std::remove_const_t<JT> const;
+  if (!IsA<T>(value)) {
+    LOG(FATAL) << "Incorrect type for: `" << name << "`, expecting: `" << T{}.TypeStr()
+               << "`, got: `" << value.GetValue().TypeStr() << "`.";
+  }
+}
+
+template <typename JT>
+auto const &RequiredArg(Json const &in, StringView key, StringView func) {
   auto const &obj = get<Object const>(in);
   auto it = obj.find(key);
   if (it == obj.cend() || IsA<Null>(it->second)) {
-    LOG(FATAL) << "Argument `" << key << "` is required for `" << func << "`";
+    LOG(FATAL) << "Argument `" << key << "` is required for `" << func << "`.";
   }
+  TypeCheck<JT>(it->second, StringView{key});
   return get<std::remove_const_t<JT> const>(it->second);
 }
 
 template <typename JT, typename T>
-auto const &OptionalArg(Json const &in, std::string const &key, T const &dft) {
+auto const &OptionalArg(Json const &in, StringView key, T const &dft) {
   auto const &obj = get<Object const>(in);
   auto it = obj.find(key);
-  if (it != obj.cend()) {
+  if (it != obj.cend() && !IsA<Null>(it->second)) {
+    TypeCheck<JT>(it->second, key);
     return get<std::remove_const_t<JT> const>(it->second);
   }
   return dft;

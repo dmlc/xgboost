@@ -4,6 +4,7 @@
 #pragma once
 #include <xgboost/json.h>
 
+#include "../../src/c_api/c_api_utils.h"
 #include "../../src/collective/communicator.h"
 #include "../../src/common/io.h"
 #include "federated_client.h"
@@ -89,31 +90,14 @@ class FederatedCommunicator : public Communicator {
       client_cert = value;
     }
 
-    // Runtime configuration overrides.
-    auto const &j_server_address = config["federated_server_address"];
-    if (IsA<String const>(j_server_address)) {
-      server_address = get<String const>(j_server_address);
-    }
-    auto const &j_world_size = config["federated_world_size"];
-    if (IsA<Integer const>(j_world_size)) {
-      world_size = static_cast<int>(get<Integer const>(j_world_size));
-    }
-    auto const &j_rank = config["federated_rank"];
-    if (IsA<Integer const>(j_rank)) {
-      rank = static_cast<int>(get<Integer const>(j_rank));
-    }
-    auto const &j_server_cert = config["federated_server_cert"];
-    if (IsA<String const>(j_server_cert)) {
-      server_cert = get<String const>(j_server_cert);
-    }
-    auto const &j_client_key = config["federated_client_key"];
-    if (IsA<String const>(j_client_key)) {
-      client_key = get<String const>(j_client_key);
-    }
-    auto const &j_client_cert = config["federated_client_cert"];
-    if (IsA<String const>(j_client_cert)) {
-      client_cert = get<String const>(j_client_cert);
-    }
+    // Runtime configuration overrides, optional as users can specify them as env vars.
+    server_address = OptionalArg<String>(config, "federated_server_address", server_address);
+    world_size =
+        OptionalArg<Integer>(config, "federated_world_size", static_cast<Integer::Int>(world_size));
+    rank = OptionalArg<Integer>(config, "federated_rank", static_cast<Integer::Int>(rank));
+    server_cert = OptionalArg<String>(config, "federated_server_cert", server_cert);
+    client_key = OptionalArg<String>(config, "federated_client_key", client_key);
+    client_cert = OptionalArg<String>(config, "federated_client_cert", client_cert);
 
     if (server_address.empty()) {
       LOG(FATAL) << "Federated server address must be set.";

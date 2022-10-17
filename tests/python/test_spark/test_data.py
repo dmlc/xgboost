@@ -37,7 +37,7 @@ def test_stack() -> None:
     assert b.shape == (2, 1)
 
 
-def run_dmatrix_ctor(is_dqm: bool) -> None:
+def run_dmatrix_ctor(is_dqm: bool, on_gpu: bool) -> None:
     rng = np.random.default_rng(0)
     dfs: List[pd.DataFrame] = []
     n_features = 16
@@ -57,7 +57,7 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
         df = pd.DataFrame(
             {alias.label: y, alias.margin: m, alias.weight: w, alias.valid: valid}
         )
-        if is_dqm:
+        if on_gpu:
             for j in range(X.shape[1]):
                 df[f"feat-{j}"] = pd.Series(X[:, j])
         else:
@@ -65,14 +65,18 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
         dfs.append(df)
 
     kwargs = {"feature_types": feature_types}
-    if is_dqm:
+    if on_gpu:
         cols = [f"feat-{i}" for i in range(n_features)]
         train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), cols, 0, kwargs, False, True
+            iter(dfs), cols, 0, is_dqm, kwargs, False, True
+        )
+    elif is_dqm:
+        train_Xy, valid_Xy = create_dmatrix_from_partitions(
+            iter(dfs), None, None, True, kwargs, False, True
         )
     else:
         train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), None, None, kwargs, False, True
+            iter(dfs), None, None, False, kwargs, False, True
         )
 
     assert valid_Xy is not None
@@ -106,7 +110,8 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
 
 
 def test_dmatrix_ctor() -> None:
-    run_dmatrix_ctor(False)
+    run_dmatrix_ctor(is_dqm=False, on_gpu=False)
+    run_dmatrix_ctor(is_dqm=True, on_gpu=False)
 
 
 def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:

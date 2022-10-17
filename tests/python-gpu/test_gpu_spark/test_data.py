@@ -20,4 +20,6 @@ from test_spark.test_data import run_dmatrix_ctor
 
 @pytest.mark.skipif(**tm.no_cudf())
 def test_qdm_ctor() -> None:
-    run_dmatrix_ctor(True)
+    run_dmatrix_ctor(is_dqm=True, on_gpu=True)
+    with pytest.raises(AssertionError):
+        run_dmatrix_ctor(is_dqm=False, on_gpu=True)

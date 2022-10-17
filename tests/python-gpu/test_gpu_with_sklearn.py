@@ -61,7 +61,7 @@ def test_boost_from_prediction_gpu_hist():
 
 
 def test_num_parallel_tree():
-    twskl.run_calif_housing_rf_regression("gpu_hist")
+    twskl.run_housing_rf_regression("gpu_hist")
 
 
 @pytest.mark.skipif(**tm.no_pandas())

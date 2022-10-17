@@ -5,14 +5,7 @@ This folder contains the plugin for federated learning. Follow these steps to bu
 
 Install gRPC
 ------------
-```shell
-sudo apt-get install build-essential autoconf libtool pkg-config cmake ninja-build
-git clone -b v1.47.0 https://github.com/grpc/grpc
-cd grpc
-git submodule update --init
-cmake -S . -B build -GNinja -DABSL_PROPAGATE_CXX_STD=ON
-cmake --build build --target install
-```
+Refer to the [installation guide from the gRPC website](https://grpc.io/docs/languages/cpp/quickstart/).
 
 Build the Plugin
 ----------------
@@ -20,16 +13,16 @@ Build the Plugin
 # Under xgboost source tree.
 mkdir build
 cd build
-# For now NCCL needs to be turned off.
-cmake .. -GNinja\
- -DPLUGIN_FEDERATED=ON\
+cmake .. -GNinja \
+ -DPLUGIN_FEDERATED=ON \
+ -DBUILD_WITH_CUDA_CUB=ON \
  -DUSE_CUDA=ON\
- -DBUILD_WITH_CUDA_CUB=ON\
- -DUSE_NCCL=OFF
+ -DUSE_NCCL=ON
 ninja
 cd ../python-package
 pip install -e .  # or equivalently python setup.py develop
 ```
+If CMake fails to locate gRPC, you may need to pass `-DCMAKE_PREFIX_PATH=<grpc path>` to CMake.
 
 Test Federated XGBoost
 ----------------------
