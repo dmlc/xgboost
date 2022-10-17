@@ -113,7 +113,6 @@ template <typename It>
 void Iota(Context const* ctx, It first, It last,
           typename std::iterator_traits<It>::value_type const& value) {
   auto n = std::distance(first, last);
-  CHECK(ctx->IsCPU());
   std::int32_t n_threads = ctx->Threads();
   const size_t block_size = n / n_threads + !!(n % n_threads);
   dmlc::OMPException exc;
