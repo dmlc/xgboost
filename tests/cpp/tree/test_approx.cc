@@ -13,7 +13,7 @@ namespace tree {
 TEST(Approx, Partitioner) {
   size_t n_samples = 1024, n_features = 1, base_rowid = 0;
   GenericParameter ctx;
-  CommonRowPartitioner partitioner{n_samples, base_rowid,  ctx.Threads()};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
@@ -32,7 +32,7 @@ TEST(Approx, Partitioner) {
     {
       auto min_value = page.cut.MinValues()[split_ind];
       RegTree tree;
-      CommonRowPartitioner partitioner{n_samples, base_rowid,  ctx.Threads()};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
@@ -40,7 +40,7 @@ TEST(Approx, Partitioner) {
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
-      CommonRowPartitioner partitioner{n_samples, base_rowid,  ctx.Threads()};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       auto ptr = page.cut.Ptrs()[split_ind + 1];
       float split_value = page.cut.Values().at(ptr / 2);
       RegTree tree;
@@ -65,12 +65,13 @@ TEST(Approx, Partitioner) {
     }
   }
 }
+
 namespace {
 void TestLeafPartition(size_t n_samples) {
   size_t const n_features = 2, base_rowid = 0;
   GenericParameter ctx;
   common::RowSetCollection row_set;
-  CommonRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   std::vector<CPUExpandEntry> candidates{{0, 0, 0.4}};
@@ -81,11 +82,9 @@ void TestLeafPartition(size_t n_samples) {
     size_t const kSampleFactor{3};
     return i % kSampleFactor != 0;
   };
-  size_t n{0};
   for (size_t i = 0; i < hess.size(); ++i) {
     if (not_sampled(i)) {
       hess[i] = 1.0f;
-      ++n;
     }
   }
 

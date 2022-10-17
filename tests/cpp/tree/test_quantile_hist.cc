@@ -23,7 +23,7 @@ TEST(QuantileHist, Partitioner) {
   GenericParameter ctx;
   ctx.InitAllowUnknown(Args{});
 
-  CommonRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+  CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
   ASSERT_EQ(partitioner.base_rowid, base_rowid);
   ASSERT_EQ(partitioner.Size(), 1);
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
@@ -41,7 +41,7 @@ TEST(QuantileHist, Partitioner) {
     {
       auto min_value = gmat.cut.MinValues()[split_ind];
       RegTree tree;
-      CommonRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       GetSplit(&tree, min_value, &candidates);
       partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
       ASSERT_EQ(partitioner.Size(), 3);
@@ -49,7 +49,7 @@ TEST(QuantileHist, Partitioner) {
       ASSERT_EQ(partitioner[2].Size(), n_samples);
     }
     {
-      CommonRowPartitioner partitioner{n_samples, base_rowid, ctx.Threads()};
+      CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree;

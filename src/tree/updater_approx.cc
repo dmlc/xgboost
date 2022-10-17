@@ -68,7 +68,7 @@ class GloablApproxBuilder {
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(page.Size(), page.base_rowid, this->ctx_->Threads());
+      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid);
       n_batches_++;
     }
 

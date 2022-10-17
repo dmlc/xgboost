@@ -358,7 +358,13 @@ class ColumnMatrix {
 
     fi->Read(&row_ind_);
     fi->Read(&feature_offsets_);
-    fi->Read(&missing_flags_);
+
+    std::vector<std::uint8_t> missing;
+    fi->Read(&missing);
+    missing_flags_.resize(missing.size());
+    std::transform(missing.cbegin(), missing.cend(), missing_flags_.begin(),
+                   [](std::uint8_t flag) { return !!flag; });
+
     index_base_ = index_base;
 #if !DMLC_LITTLE_ENDIAN
     std::underlying_type<BinTypeSize>::type v;
@@ -393,7 +399,11 @@ class ColumnMatrix {
 #endif  // !DMLC_LITTLE_ENDIAN
     write_vec(row_ind_);
     write_vec(feature_offsets_);
-    write_vec(missing_flags_);
+    // dmlc can not handle bool vector
+    std::vector<std::uint8_t> missing(missing_flags_.size());
+    std::transform(missing_flags_.cbegin(), missing_flags_.cend(), missing.begin(),
+                   [](bool flag) { return static_cast<std::uint8_t>(flag); });
+    write_vec(missing);
 
 #if !DMLC_LITTLE_ENDIAN
     auto v = static_cast<std::underlying_type<BinTypeSize>::type>(bins_type_size_);
