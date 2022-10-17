@@ -6,20 +6,13 @@
 #ifndef XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 #define XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 
-#include <algorithm>
-#include <limits>
+#include <limits>  // std::numeric_limits
 #include <vector>
 
-#include "../common/partition_builder.h"
 #include "../common/numeric.h"  // Iota
-#include "constraints.h"
-#include "driver.h"
-#include "hist/evaluate_splits.h"
-#include "hist/expand_entry.h"
-#include "param.h"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/json.h"
-#include "xgboost/tree_updater.h"
+#include "../common/partition_builder.h"
+#include "hist/expand_entry.h"           // CPUExpandEntry
+#include "xgboost/generic_parameters.h"  // Context
 
 namespace xgboost {
 namespace tree {
