@@ -249,8 +249,20 @@ __model_doc = f"""
         A threshold for deciding whether XGBoost should use one-hot encoding based split
         for categorical data.  When number of categories is lesser than the threshold
         then one-hot encoding is chosen, otherwise the categories will be partitioned
-        into children nodes.  Only relevant for regression and binary classification.
-        See :doc:`Categorical Data </tutorials/categorical>` for details.
+        into children nodes. Also, `enable_categorical` needs to be set to have
+        categorical feature support. See :doc:`Categorical Data
+        </tutorials/categorical>` and :ref:`cat-param` for details.
+
+    max_cat_threshold : Optional[int]
+
+        .. versionadded:: 1.7.0
+
+        .. note:: This parameter is experimental
+
+        Maximum number of categories considered for each split. Used only by
+        partition-based splits for preventing over-fitting. Also, `enable_categorical`
+        needs to be set to have categorical feature support. See :doc:`Categorical Data
+        </tutorials/categorical>` and :ref:`cat-param` for details.
 
     eval_metric : Optional[Union[str, List[str], Callable]]
 
@@ -562,6 +574,7 @@ class XGBModel(XGBModelBase):
         enable_categorical: bool = False,
         feature_types: FeatureTypes = None,
         max_cat_to_onehot: Optional[int] = None,
+        max_cat_threshold: Optional[int] = None,
         eval_metric: Optional[Union[str, List[str], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
@@ -607,6 +620,7 @@ class XGBModel(XGBModelBase):
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types
         self.max_cat_to_onehot = max_cat_to_onehot
+        self.max_cat_threshold = max_cat_threshold
         self.eval_metric = eval_metric
         self.early_stopping_rounds = early_stopping_rounds
         self.callbacks = callbacks
@@ -1769,6 +1783,10 @@ class XGBRFRegressor(XGBRegressor):
     "Implementation of the Scikit-Learn API for XGBoost Ranking.",
     ["estimators", "model"],
     end_note="""
+        .. note::
+
+            The default objectivefor XGBRanker is "rank:pairwise"
+
         .. note::
 
             A custom objective function is currently not supported by XGBRanker.

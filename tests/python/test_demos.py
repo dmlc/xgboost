@@ -1,9 +1,13 @@
 import os
 import subprocess
-import pytest
-import testing as tm
 import sys
 
+import pytest
+import testing as tm
+
+from xgboost import testing
+
+pytestmark = testing.timeout(30)
 
 ROOT_DIR = tm.PROJECT_ROOT
 DEMO_DIR = os.path.join(ROOT_DIR, 'demo')

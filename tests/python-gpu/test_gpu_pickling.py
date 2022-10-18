@@ -1,18 +1,22 @@
 '''Test model IO with pickle.'''
-import pickle
-import numpy as np
-import subprocess
-import os
-import sys
 import json
+import os
+import pickle
+import subprocess
+import sys
+
+import numpy as np
 import pytest
+
 import xgboost as xgb
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, testing
 
 sys.path.append("tests/python")
 import testing as tm
 
 model_path = './model.pkl'
+
+pytestmark = testing.timeout(30)
 
 
 def build_dataset():
@@ -65,6 +69,7 @@ class TestPickling:
         assert status == 0
         os.remove(model_path)
 
+    # TODO: This test is too slow
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_pickling(self):
         x, y = build_dataset()

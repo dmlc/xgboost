@@ -29,6 +29,7 @@ from test_with_sklearn import run_data_initialization, run_feature_weights
 from xgboost.data import _is_cudf_df
 
 import xgboost as xgb
+from xgboost import testing
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -43,6 +44,8 @@ from toolz import sliding_window  # dependency of dask
 from xgboost.dask import DaskDMatrix
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
+
+pytestmark = testing.timeout(30)
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
@@ -381,7 +384,7 @@ def test_categorical(client: "Client") -> None:
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
-    X, y = make_classification(n_samples=1000, n_informative=5, n_classes=3)
+    X, y = make_classification(n_samples=kRows, n_informative=5, n_classes=3)
     X_ = dd.from_array(X, chunksize=100)
     y_ = dd.from_array(y, chunksize=100)
     dtrain = xgb.dask.DaskDMatrix(client, data=X_, label=y_)
@@ -522,8 +525,8 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
 
 
 def test_inplace_predict(client: "Client") -> None:
-    from sklearn.datasets import fetch_california_housing
-    X_, y_ = fetch_california_housing(return_X_y=True)
+    from sklearn.datasets import load_diabetes
+    X_, y_ = load_diabetes(return_X_y=True)
     X, y = dd.from_array(X_, chunksize=32), dd.from_array(y_, chunksize=32)
     reg = xgb.dask.DaskXGBRegressor(n_estimators=4).fit(X, y)
     booster = reg.get_booster()
@@ -841,7 +844,7 @@ def run_empty_dmatrix_cls(client: "Client", parameters: dict) -> None:
 def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) -> None:
     from sklearn import datasets
     n_samples = 100
-    n_features = 97
+    n_features = 7
     rng = np.random.RandomState(1994)
 
     make_classification = partial(
@@ -894,9 +897,9 @@ def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) ->
 
 
 def test_empty_dmatrix_auc() -> None:
-    with LocalCluster(n_workers=8, dashboard_address=":0") as cluster:
+    with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            run_empty_dmatrix_auc(client, "hist", 8)
+            run_empty_dmatrix_auc(client, "hist", 4)
 
 
 def run_auc(client: "Client", tree_method: str) -> None:
@@ -1033,7 +1036,7 @@ async def run_dask_classifier_asyncio(scheduler_address: str) -> None:
 
 
 def test_with_asyncio() -> None:
-    with LocalCluster(dashboard_address=":0") as cluster:
+    with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
             address = client.scheduler.address
             output = asyncio.run(run_from_dask_array_asyncio(address))
@@ -1420,11 +1423,11 @@ class TestWithDask:
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
+    @settings(deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True)
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
-        num_rounds = 30
+        num_rounds = 10
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
     def test_quantile_dmatrix(self, client: Client) -> None:
@@ -1465,11 +1468,11 @@ class TestWithDask:
 
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=suppress, print_blob=True)
+    @settings(deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True)
     def test_approx(
         self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
-        num_rounds = 30
+        num_rounds = 10
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
     def run_quantile(self, name: str) -> None:
@@ -1773,16 +1776,16 @@ class TestWithDask:
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
     def test_shap(self, client: "Client") -> None:
-        from sklearn.datasets import fetch_california_housing, load_digits
-        X, y = fetch_california_housing(return_X_y=True)
+        from sklearn.datasets import load_diabetes, load_iris
+        X, y = load_diabetes(return_X_y=True)
         params: Dict[str, Any] = {'objective': 'reg:squarederror'}
         self.run_shap(X, y, params, client)
 
-        X, y = load_digits(return_X_y=True)
-        params = {'objective': 'multi:softmax', 'num_class': 10}
+        X, y = load_iris(return_X_y=True)
+        params = {'objective': 'multi:softmax', 'num_class': 3}
         self.run_shap(X, y, params, client)
 
-        params = {'objective': 'multi:softprob', 'num_class': 10}
+        params = {'objective': 'multi:softprob', 'num_class': 3}
         self.run_shap(X, y, params, client)
 
         self.run_shap_cls_sklearn(X, y, client)
@@ -1818,8 +1821,8 @@ class TestWithDask:
                            1e-5, 1e-5)
 
     def test_shap_interactions(self, client: "Client") -> None:
-        from sklearn.datasets import fetch_california_housing
-        X, y = fetch_california_housing(return_X_y=True)
+        from sklearn.datasets import load_diabetes
+        X, y = load_diabetes(return_X_y=True)
         params = {'objective': 'reg:squarederror'}
         self.run_shap_interactions(X, y, params, client)
 

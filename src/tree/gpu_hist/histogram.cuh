@@ -31,15 +31,20 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
   atomicAdd(y_high, sig);
 }
 
-class GradientQuantizer {
+class GradientQuantiser {
 private:
   /* Convert gradient to fixed point representation. */
   GradientPairPrecise to_fixed_point_;
   /* Convert fixed point representation back to floating point. */
   GradientPairPrecise to_floating_point_;
 public:
-  explicit GradientQuantizer(common::Span<GradientPair const> gpair);
+  explicit GradientQuantiser(common::Span<GradientPair const> gpair);
   XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPair const& gpair) const {
+    auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
+                               gpair.GetHess() * to_fixed_point_.GetHess());
+    return adjusted;
+  }
+  XGBOOST_DEVICE GradientPairInt64 ToFixedPoint(GradientPairPrecise const& gpair) const {
     auto adjusted = GradientPairInt64(gpair.GetGrad() * to_fixed_point_.GetGrad(),
                                gpair.GetHess() * to_fixed_point_.GetHess());
     return adjusted;
@@ -56,7 +61,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
                             common::Span<GradientPairInt64> histogram,
-                            GradientQuantizer rounding,
+                            GradientQuantiser rounding,
                             bool force_global_memory = false);
 }  // namespace tree
 }  // namespace xgboost

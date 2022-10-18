@@ -1,4 +1,6 @@
+import json
 import logging
+import subprocess
 import sys
 
 import pytest
@@ -7,7 +9,7 @@ import sklearn
 sys.path.append("tests/python")
 import testing as tm
 
-if tm.no_dask()["condition"]:
+if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
 if sys.platform.startswith("win"):
     pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
@@ -18,8 +20,20 @@ from pyspark.sql import SparkSession
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
 gpu_discovery_script_path = "tests/python-gpu/test_gpu_spark/discover_gpu.sh"
-executor_gpu_amount = 4
-executor_cores = 4
+
+
+def get_devices():
+    """This works only if driver is the same machine of worker."""
+    completed = subprocess.run(gpu_discovery_script_path, stdout=subprocess.PIPE)
+    assert completed.returncode == 0, "Failed to execute discovery script."
+    msg = completed.stdout.decode("utf-8")
+    result = json.loads(msg)
+    addresses = result["addresses"]
+    return addresses
+
+
+executor_gpu_amount = len(get_devices())
+executor_cores = executor_gpu_amount
 num_workers = executor_gpu_amount
 
 

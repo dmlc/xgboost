@@ -5,10 +5,9 @@ import pytest
 import sys
 
 sys.path.append("tests/python")
-from test_data_iterator import SingleBatch, make_batches
 from test_data_iterator import test_single_batch as cpu_single_batch
 from test_data_iterator import run_data_iterator
-from testing import IteratorForTest, no_cupy
+from testing import no_cupy
 
 
 def test_gpu_single_batch() -> None:
@@ -21,16 +20,14 @@ def test_gpu_single_batch() -> None:
     strategies.integers(1, 7),
     strategies.integers(0, 8),
     strategies.booleans(),
+    strategies.booleans(),
 )
-@settings(deadline=None, print_blob=True)
+@settings(deadline=None, max_examples=10, print_blob=True)
 def test_gpu_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool
+    n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool, use_cupy: bool
 ) -> None:
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, True
-    )
-    run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, False
+        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, use_cupy
     )
 
 

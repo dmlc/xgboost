@@ -1,15 +1,18 @@
-from typing import Dict, Any
-import numpy as np
 import sys
-import gc
+from typing import Any, Dict
+
+import numpy as np
 import pytest
+from hypothesis import assume, given, note, settings, strategies
+
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings, note
+from xgboost import testing
 
 sys.path.append("tests/python")
-import testing as tm
 import test_updaters as test_up
+import testing as tm
 
+pytestmark = testing.timeout(30)
 
 parameter_strategy = strategies.fixed_dictionaries({
     'max_depth': strategies.integers(0, 11),
@@ -46,7 +49,7 @@ class TestGPUUpdaters:
     cputest = test_up.TestTreeMethod()
 
     @given(parameter_strategy, strategies.integers(1, 20), tm.dataset_strategy)
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=50, print_blob=True)
     def test_gpu_hist(self, param, num_rounds, dataset):
         param["tree_method"] = "gpu_hist"
         param = dataset.set_params(param)
@@ -73,7 +76,7 @@ class TestGPUUpdaters:
 
     @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 2), strategies.integers(4, 7))
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(self, rows, cols, rounds, cats):
         self.cputest.run_categorical_ohe(rows, cols, rounds, cats, "gpu_hist")
@@ -85,7 +88,7 @@ class TestGPUUpdaters:
         test_up.cat_parameter_strategy,
         strategies.integers(4, 32),
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(
         self,
@@ -106,7 +109,7 @@ class TestGPUUpdaters:
         test_up.hist_parameter_strategy,
         test_up.cat_parameter_strategy,
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=10, print_blob=True)
     def test_categorical_ames_housing(
         self,
         hist_parameters: Dict[str, Any],
@@ -125,7 +128,7 @@ class TestGPUUpdaters:
         strategies.integers(3, 8),
         strategies.integers(4, 7)
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_missing(self, rows, cols, cats):
         self.cputest.run_categorical_missing(rows, cols, cats, "gpu_hist")
@@ -149,7 +152,7 @@ class TestGPUUpdaters:
     @pytest.mark.skipif(**tm.no_cupy())
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_hist_device_dmatrix(self, param, num_rounds, dataset):
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
@@ -159,9 +162,9 @@ class TestGPUUpdaters:
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric], tolerance=1e-3)
 
-    @given(parameter_strategy, strategies.integers(1, 20),
+    @given(parameter_strategy, strategies.integers(1, 3),
            tm.dataset_strategy)
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=10, print_blob=True)
     def test_external_memory(self, param, num_rounds, dataset):
         if dataset.name.endswith("-l1"):
             return
@@ -172,7 +175,6 @@ class TestGPUUpdaters:
         m = dataset.get_external_dmat()
         external_result = train_result(param, m, num_rounds)
         del m
-        gc.collect()
         assert tm.non_increasing(external_result['train'][dataset.metric])
 
     def test_empty_dmatrix_prediction(self):

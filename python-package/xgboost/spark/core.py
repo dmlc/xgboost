@@ -747,6 +747,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             k: v for k, v in train_call_kwargs_params.items() if v is not None
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
+        use_qdm = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
@@ -759,20 +760,17 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             gpu_id = None
+
+            if use_qdm and (booster_params.get("max_bin", None) is not None):
+                dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
+
             if use_gpu:
                 gpu_id = context.partitionId() if is_local else _get_gpu_id(context)
                 booster_params["gpu_id"] = gpu_id
 
-                # max_bin is needed for qdm
-                if (
-                    features_cols_names is not None
-                    and booster_params.get("max_bin", None) is not None
-                ):
-                    dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
-
             _rabit_args = {}
             if context.partitionId() == 0:
-                get_logger("XGBoostPySpark").info(
+                get_logger("XGBoostPySpark").debug(
                     "booster params: %s\n"
                     "train_call_kwargs_params: %s\n"
                     "dmatrix_kwargs: %s",
@@ -791,6 +789,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     pandas_df_iter,
                     features_cols_names,
                     gpu_id,
+                    use_qdm,
                     dmatrix_kwargs,
                     enable_sparse_data_optim=enable_sparse_data_optim,
                     has_validation_col=has_validation_col,

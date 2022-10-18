@@ -13,8 +13,8 @@ TEST(GpuHist, DriverDepthWise) {
   EXPECT_TRUE(driver.Pop().empty());
   DeviceSplitCandidate split;
   split.loss_chg = 1.0f;
-  split.left_sum = {0.0f, 1.0f};
-  split.right_sum = {0.0f, 1.0f};
+  split.left_sum = {0, 1};
+  split.right_sum = {0, 1};
   GPUExpandEntry root(0, 0, split, 2.0f, 1.0f, 1.0f);
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nid, 0);
@@ -42,8 +42,8 @@ TEST(GpuHist, DriverDepthWise) {
 
 TEST(GpuHist, DriverLossGuided) {
   DeviceSplitCandidate high_gain;
-  high_gain.left_sum = {0.0f, 1.0f};
-  high_gain.right_sum = {0.0f, 1.0f};
+  high_gain.left_sum = {0, 1};
+  high_gain.right_sum = {0, 1};
   high_gain.loss_chg = 5.0f;
   DeviceSplitCandidate low_gain = high_gain;
   low_gain.loss_chg = 1.0f;

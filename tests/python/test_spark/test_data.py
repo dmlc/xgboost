@@ -18,6 +18,8 @@ from xgboost.spark.data import (
     stack_series,
 )
 
+from xgboost import DMatrix, QuantileDMatrix
+
 
 def test_stack() -> None:
     a = pd.DataFrame({"a": [[1, 2], [3, 4]]})
@@ -37,7 +39,7 @@ def test_stack() -> None:
     assert b.shape == (2, 1)
 
 
-def run_dmatrix_ctor(is_dqm: bool) -> None:
+def run_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool, on_gpu: bool) -> None:
     rng = np.random.default_rng(0)
     dfs: List[pd.DataFrame] = []
     n_features = 16
@@ -57,7 +59,7 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
         df = pd.DataFrame(
             {alias.label: y, alias.margin: m, alias.weight: w, alias.valid: valid}
         )
-        if is_dqm:
+        if is_feature_cols:
             for j in range(X.shape[1]):
                 df[f"feat-{j}"] = pd.Series(X[:, j])
         else:
@@ -65,15 +67,27 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
         dfs.append(df)
 
     kwargs = {"feature_types": feature_types}
-    if is_dqm:
-        cols = [f"feat-{i}" for i in range(n_features)]
-        train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), cols, 0, kwargs, False, True
-        )
+    device_id = 0 if on_gpu else None
+    cols = [f"feat-{i}" for i in range(n_features)]
+    feature_cols = cols if is_feature_cols else None
+    train_Xy, valid_Xy = create_dmatrix_from_partitions(
+        iter(dfs),
+        feature_cols,
+        gpu_id=device_id,
+        use_qdm=is_qdm,
+        kwargs=kwargs,
+        enable_sparse_data_optim=False,
+        has_validation_col=True,
+    )
+
+    if is_qdm:
+        assert isinstance(train_Xy, QuantileDMatrix)
+        assert isinstance(valid_Xy, QuantileDMatrix)
     else:
-        train_Xy, valid_Xy = create_dmatrix_from_partitions(
-            iter(dfs), None, None, kwargs, False, True
-        )
+        assert not isinstance(train_Xy, QuantileDMatrix)
+        assert isinstance(train_Xy, DMatrix)
+        assert not isinstance(valid_Xy, QuantileDMatrix)
+        assert isinstance(valid_Xy, DMatrix)
 
     assert valid_Xy is not None
     assert valid_Xy.num_row() + train_Xy.num_row() == n_samples_per_batch * n_batches
@@ -105,8 +119,12 @@ def run_dmatrix_ctor(is_dqm: bool) -> None:
     np.testing.assert_equal(valid_Xy.feature_types, feature_types)
 
 
-def test_dmatrix_ctor() -> None:
-    run_dmatrix_ctor(False)
+@pytest.mark.parametrize(
+    "is_feature_cols,is_qdm",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool) -> None:
+    run_dmatrix_ctor(is_feature_cols, is_qdm, on_gpu=False)
 
 
 def test_read_csr_matrix_from_unwrapped_spark_vec() -> None:

@@ -35,6 +35,15 @@ ENV CPP=/opt/rh/devtoolset-8/root/usr/bin/cpp
 
 ENV GOSU_VERSION 1.10
 
+# Install gRPC
+RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
+      --recurse-submodules --depth 1 && \
+    pushd grpc && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
+    cmake --build build --target install && \
+    popd && \
+    rm -rf grpc
+
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
     wget -nv -nc -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \

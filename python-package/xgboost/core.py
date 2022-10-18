@@ -105,6 +105,11 @@ def from_cstr_to_pystr(data: CStrPptr, length: c_bst_ulong) -> List[str]:
     return res
 
 
+def make_jcargs(**kwargs: Any) -> bytes:
+    "Make JSON-based arguments for C functions."
+    return from_pystr_to_cstr(json.dumps(kwargs))
+
+
 IterRange = TypeVar("IterRange", Optional[Tuple[int, int]], Tuple[int, int])
 
 
@@ -341,7 +346,7 @@ def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.n
     if not isinstance(cptr, ctypes.POINTER(ctype)):  # type: ignore
         raise RuntimeError(f"expected {ctype} pointer")
     res = np.zeros(length, dtype=dtype)
-    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):  # type: ignore
+    if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError("memmove failed")
     return res
 
@@ -502,7 +507,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         pointer.
 
         """
-        @require_pos_args(True)
+        @require_keyword_args(True)
         def input_data(
             data: Any,
             *,
@@ -554,7 +559,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         raise NotImplementedError()
 
 
-# Notice for `require_pos_args`
+# Notice for `require_keyword_args`
 # Authors: Olivier Grisel
 #          Gael Varoquaux
 #          Andreas Mueller
@@ -563,7 +568,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 #          Nicolas Tresegnie
 #          Sylvain Marie
 # License: BSD 3 clause
-def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+def require_keyword_args(
+    error: bool,
+) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
     """Decorator for methods that issues warnings for positional arguments
 
     Using the keyword-only argument syntax in pep 3102, arguments after the
@@ -578,7 +585,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     """
 
     def throw_if(func: Callable[..., _T]) -> Callable[..., _T]:
-        """Throw error/warning if there are positional arguments after the asterisk.
+        """Throw an error/warning if there are positional arguments after the asterisk.
 
         Parameters
         ----------
@@ -619,7 +626,7 @@ def require_pos_args(error: bool) -> Callable[[Callable[..., _T]], Callable[...,
     return throw_if
 
 
-_deprecate_positional_args = require_pos_args(False)
+_deprecate_positional_args = require_keyword_args(False)
 
 
 class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -1256,7 +1263,7 @@ class _ProxyDMatrix(DMatrix):
     def _set_data_from_cuda_interface(self, data: DataType) -> None:
         """Set data from CUDA array interface."""
         interface = data.__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+        interface_str = bytes(json.dumps(interface), "utf-8")
         _check_call(
             _LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, interface_str)
         )
@@ -1357,6 +1364,26 @@ class QuantileDMatrix(DMatrix):
                 "Only one of the eval_qid or eval_group for each evaluation "
                 "dataset should be provided."
             )
+        if isinstance(data, DataIter):
+            if any(
+                info is not None
+                for info in (
+                    label,
+                    weight,
+                    base_margin,
+                    feature_names,
+                    feature_types,
+                    group,
+                    qid,
+                    label_lower_bound,
+                    label_upper_bound,
+                    feature_weights,
+                )
+            ):
+                raise ValueError(
+                    "If data iterator is used as input, data like label should be "
+                    "specified as batch argument."
+                )
 
         self._init(
             data,
@@ -1405,12 +1432,9 @@ class QuantileDMatrix(DMatrix):
                 "in iterator to fix this error."
             )
 
-        args = {
-            "nthread": self.nthread,
-            "missing": self.missing,
-            "max_bin": self.max_bin,
-        }
-        config = from_pystr_to_cstr(json.dumps(args))
+        config = make_jcargs(
+            nthread=self.nthread, missing=self.missing, max_bin=self.max_bin
+        )
         ret = _LIB.XGQuantileDMatrixCreateFromCallback(
             None,
             it.proxy.handle,
@@ -2375,7 +2399,7 @@ class Booster:
         """
         length = c_bst_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
-        config = from_pystr_to_cstr(json.dumps({"format": raw_format}))
+        config = make_jcargs(format=raw_format)
         _check_call(
             _LIB.XGBoosterSaveModelToBuffer(
                 self.handle, config, ctypes.byref(length), ctypes.byref(cptr)
@@ -2570,9 +2594,6 @@ class Booster:
         `n_classes`, otherwise they're scalars.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
-        args = from_pystr_to_cstr(
-            json.dumps({"importance_type": importance_type, "feature_map": fmap})
-        )
         features = ctypes.POINTER(ctypes.c_char_p)()
         scores = ctypes.POINTER(ctypes.c_float)()
         n_out_features = c_bst_ulong()
@@ -2582,7 +2603,7 @@ class Booster:
         _check_call(
             _LIB.XGBoosterFeatureScore(
                 self.handle,
-                args,
+                make_jcargs(importance_type=importance_type, feature_map=fmap),
                 ctypes.byref(n_out_features),
                 ctypes.byref(features),
                 ctypes.byref(out_dim),

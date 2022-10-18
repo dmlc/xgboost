@@ -1,20 +1,20 @@
-from typing import Callable, Optional
 import collections
 import importlib.util
-import numpy as np
-import xgboost as xgb
-import testing as tm
-import tempfile
-import os
-import shutil
-import pytest
 import json
+import os
+import tempfile
+from typing import Callable, Optional
+
+import numpy as np
+import pytest
+import testing as tm
+from sklearn.utils.estimator_checks import parametrize_with_checks
+
+import xgboost as xgb
+from xgboost import testing
 
 rng = np.random.RandomState(1994)
-
-pytestmark = pytest.mark.skipif(**tm.no_sklearn())
-
-from sklearn.utils.estimator_checks import parametrize_with_checks
+pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), testing.timeout(30)]
 
 
 def test_binary_classification():
@@ -328,10 +328,10 @@ def test_select_feature():
 
 
 def test_num_parallel_tree():
-    from sklearn.datasets import fetch_california_housing
+    from sklearn.datasets import load_diabetes
 
     reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4, tree_method="hist")
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     bst = reg.fit(X=X, y=y)
     dump = bst.get_booster().get_dump(dump_format="json")
     assert len(dump) == 16
@@ -352,7 +352,7 @@ def test_num_parallel_tree():
     )
 
 
-def test_calif_housing_regression():
+def test_regression():
     from sklearn.metrics import mean_squared_error
     from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
@@ -381,7 +381,7 @@ def test_calif_housing_regression():
             xgb_model.feature_names_in_
 
 
-def run_calif_housing_rf_regression(tree_method):
+def run_housing_rf_regression(tree_method):
     from sklearn.metrics import mean_squared_error
     from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import KFold
@@ -401,8 +401,8 @@ def run_calif_housing_rf_regression(tree_method):
         rfreg.fit(X, y, early_stopping_rounds=10)
 
 
-def test_calif_housing_rf_regression():
-    run_calif_housing_rf_regression("hist")
+def test_rf_regression():
+    run_housing_rf_regression("hist")
 
 
 def test_parameter_tuning():
@@ -411,9 +411,9 @@ def test_parameter_tuning():
 
     X, y = fetch_california_housing(return_X_y=True)
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
-    clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
-                                   'n_estimators': [50, 100, 200]},
-                       cv=3, verbose=1)
+    clf = GridSearchCV(xgb_model, {'max_depth': [2, 4],
+                                   'n_estimators': [50, 200]},
+                       cv=2, verbose=1)
     clf.fit(X, y)
     assert clf.best_score_ < 0.7
     assert clf.best_params_ == {'n_estimators': 200, 'max_depth': 4}
@@ -840,13 +840,13 @@ def test_save_load_model():
 
 
 def test_RFECV():
-    from sklearn.datasets import fetch_california_housing
+    from sklearn.datasets import load_diabetes
     from sklearn.datasets import load_breast_cancer
     from sklearn.datasets import load_iris
     from sklearn.feature_selection import RFECV
 
     # Regression
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = load_diabetes(return_X_y=True)
     bst = xgb.XGBRegressor(booster='gblinear', learning_rate=0.1,
                            n_estimators=10,
                            objective='reg:squarederror',
@@ -861,7 +861,7 @@ def test_RFECV():
                             n_estimators=10,
                             objective='binary:logistic',
                             random_state=0, verbosity=0)
-    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
+    rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring='roc_auc')
     rfecv.fit(X, y)
 
     # Multi-class classification
@@ -872,7 +872,7 @@ def test_RFECV():
                             objective='multi:softprob',
                             random_state=0, reg_alpha=0.001, reg_lambda=0.01,
                             scale_pos_weight=0.5, verbosity=0)
-    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
+    rfecv = RFECV(estimator=bst, step=0.5, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
     X[0:4, :] = np.nan          # verify scikit_learn doesn't throw with nan
@@ -881,7 +881,7 @@ def test_RFECV():
     rfecv.fit(X, y)
 
     cls = xgb.XGBClassifier()
-    rfecv = RFECV(estimator=cls, step=1, cv=3,
+    rfecv = RFECV(estimator=cls, step=0.5, cv=3,
                   scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
 
@@ -1155,7 +1155,7 @@ def run_boost_from_prediction_multi_clasas(
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
 def test_boost_from_prediction(tree_method):
-    from sklearn.datasets import load_breast_cancer, load_digits, make_regression
+    from sklearn.datasets import load_breast_cancer, load_iris, make_regression
     import pandas as pd
 
     X, y = load_breast_cancer(return_X_y=True)
@@ -1163,7 +1163,7 @@ def test_boost_from_prediction(tree_method):
     run_boost_from_prediction_binary(tree_method, X, y, None)
     run_boost_from_prediction_binary(tree_method, X, y, pd.DataFrame)
 
-    X, y = load_digits(return_X_y=True)
+    X, y = load_iris(return_X_y=True)
 
     run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, X, y, None)
     run_boost_from_prediction_multi_clasas(

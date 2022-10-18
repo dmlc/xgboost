@@ -19,5 +19,9 @@ from test_spark.test_data import run_dmatrix_ctor
 
 
 @pytest.mark.skipif(**tm.no_cudf())
-def test_qdm_ctor() -> None:
-    run_dmatrix_ctor(True)
+@pytest.mark.parametrize(
+    "is_feature_cols,is_qdm",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool) -> None:
+    run_dmatrix_ctor(is_feature_cols, is_qdm, on_gpu=True)

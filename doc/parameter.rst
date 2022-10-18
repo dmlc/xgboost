@@ -235,7 +235,7 @@ These parameters are only used for training with categorical data. See
 
 * ``max_cat_to_onehot``
 
-  .. versionadded:: 1.6
+  .. versionadded:: 1.6.0
 
   .. note:: This parameter is experimental. ``exact`` tree method is not yet supported.
 
@@ -349,7 +349,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
   - ``reg:logistic``: logistic regression.
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction.
+  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -370,9 +370,11 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications>`_.
   - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications>`_.
 
-* ``base_score`` [default=0.5]
+* ``base_score``
 
   - The initial prediction score of all instances, global bias
+  - The parameter is automatically estimated for selected objectives before training. To
+    disable the estimation, specify a real number argument.
   - For sufficient number of iterations, changing this value will not have too much effect.
 
 * ``eval_metric`` [default according to objective]

@@ -1,14 +1,20 @@
-import numpy as np
-import xgboost
-import os
 import itertools
+import os
 import shutil
+import sys
 import urllib.request
 import zipfile
-import sys
+
+import numpy as np
+
+import xgboost
+from xgboost import testing
+
 sys.path.append("tests/python")
 
-import testing as tm            # noqa
+import testing as tm  # noqa
+
+pytestmark = testing.timeout(10)
 
 
 class TestRanking:
@@ -96,7 +102,7 @@ class TestRanking:
         # specify validations set to watch performance
         watchlist = [(cls.dtest, 'eval'), (cls.dtrain, 'train')]
 
-        num_trees = 2500
+        num_trees = 100
         check_metric_improvement_rounds = 10
 
         evals_result = {}

@@ -2,7 +2,7 @@
 
 import socket
 from platform import system
-from typing import TypedDict
+from typing import Any, TypedDict
 
 PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
@@ -39,3 +39,26 @@ def has_ipv6() -> bool:
 def skip_ipv6() -> PytestSkip:
     """PyTest skip mark for IPv6."""
     return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}
+
+
+def timeout(sec: int, *args: Any, enable: bool = True, **kwargs: Any) -> Any:
+    """Make a pytest mark for the `pytest-timeout` package.
+
+    Parameters
+    ----------
+    sec :
+        Timeout seconds.
+    enable :
+        Control whether timeout should be applied, used for debugging.
+
+    Returns
+    -------
+    pytest.mark.timeout
+    """
+    import pytest  # pylint: disable=import-error
+
+    # This is disabled for now due to regression caused by conflicts between federated
+    # learning build and the CI container environment.
+    if enable:
+        return pytest.mark.timeout(sec, *args, **kwargs)
+    return pytest.mark.timeout(None, *args, **kwargs)

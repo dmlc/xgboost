@@ -26,9 +26,20 @@ ENV CPP=cpp-8
 ENV GOSU_VERSION 1.10
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 
+# Install gRPC
+RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
+      --recurse-submodules --depth 1 --shallow-submodules && \
+    pushd grpc && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
+    cmake --build build --target install && \
+    popd && \
+    rm -rf grpc
+
 # Create new Conda environment
 COPY conda_env/cpu_test.yml /scripts/
-RUN mamba env create -n cpu_test --file=/scripts/cpu_test.yml
+RUN mamba env create -n cpu_test --file=/scripts/cpu_test.yml && \
+    mamba clean --all && \
+    conda run --no-capture-output -n cpu_test pip install buildkite-test-collector
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

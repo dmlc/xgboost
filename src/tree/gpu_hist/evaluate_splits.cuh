@@ -23,7 +23,7 @@ namespace tree {
 struct EvaluateSplitInputs {
   int nidx;
   int depth;
-  GradientPairPrecise parent_sum;
+  GradientPairInt64 parent_sum;
   common::Span<const bst_feature_t> feature_set;
   common::Span<const GradientPairInt64> gradient_histogram;
 };
@@ -31,11 +31,12 @@ struct EvaluateSplitInputs {
 // Inputs necessary for all nodes
 struct EvaluateSplitSharedInputs {
   GPUTrainingParam param;
-  GradientQuantizer rounding;
+  GradientQuantiser rounding;
   common::Span<FeatureType const> feature_types;
   common::Span<const uint32_t> feature_segments;
   common::Span<const float> feature_values;
   common::Span<const float> min_fvalue;
+  bool is_dense;
   XGBOOST_DEVICE auto Features() const { return feature_segments.size() - 1; }
   __device__ auto FeatureBins(bst_feature_t fidx) const {
     return feature_segments[fidx + 1] - feature_segments[fidx];

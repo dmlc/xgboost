@@ -1,13 +1,13 @@
 """Utilities for processing spark partitions."""
 from collections import defaultdict, namedtuple
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
 from xgboost.compat import concat
 
-from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
+from xgboost import DataIter, DMatrix, QuantileDMatrix
 
 from .utils import get_logger  # type: ignore
 
@@ -67,10 +67,13 @@ def cache_partitions(
 class PartIter(DataIter):
     """Iterator for creating Quantile DMatrix from partitions."""
 
-    def __init__(self, data: Dict[str, List], device_id: Optional[int]) -> None:
+    def __init__(
+        self, data: Dict[str, List], device_id: Optional[int], **kwargs: Any
+    ) -> None:
         self._iter = 0
         self._device_id = device_id
         self._data = data
+        self._kwargs = kwargs
 
         super().__init__()
 
@@ -98,6 +101,7 @@ class PartIter(DataIter):
             weight=self._fetch(self._data.get(alias.weight, None)),
             base_margin=self._fetch(self._data.get(alias.margin, None)),
             qid=self._fetch(self._data.get(alias.qid, None)),
+            **self._kwargs,
         )
         self._iter += 1
         return 1
@@ -149,24 +153,52 @@ def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame) -> csr_matrix:
     )
 
 
+def make_qdm(
+    data: Dict[str, List[np.ndarray]],
+    gpu_id: Optional[int],
+    meta: Dict[str, Any],
+    ref: Optional[DMatrix],
+    params: Dict[str, Any],
+) -> DMatrix:
+    """Handle empty partition for QuantileDMatrix."""
+    if not data:
+        return QuantileDMatrix(np.empty((0, 0)), ref=ref)
+    it = PartIter(data, gpu_id, **meta)
+    m = QuantileDMatrix(it, **params, ref=ref)
+    return m
+
+
 def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
     gpu_id: Optional[int],
+    use_qdm: bool,
     kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
     enable_sparse_data_optim: bool,
     has_validation_col: bool,
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
-    """Create DMatrix from spark data partitions. This is not particularly efficient as
-    we need to convert the pandas series format to numpy then concatenate all the data.
+    """Create DMatrix from spark data partitions.
 
     Parameters
     ----------
     iterator :
         Pyspark partition iterator.
+    feature_cols:
+        A sequence of feature names, used only when rapids plugin is enabled.
+    gpu_id:
+        Device ordinal, used when GPU is enabled.
+    use_qdm :
+        Whether QuantileDMatrix should be used instead of DMatrix.
     kwargs :
         Metainfo for DMatrix.
+    enable_sparse_data_optim :
+        Whether sparse data should be unwrapped
+    has_validation:
+        Whether there's validation data.
 
+    Returns
+    -------
+    Training DMatrix and an optional validation DMatrix.
     """
     # pylint: disable=too-many-locals, too-many-statements
     train_data: Dict[str, List[np.ndarray]] = defaultdict(list)
@@ -176,13 +208,26 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
 
     def append_m(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         nonlocal n_features
-        if name in part.columns and part[name].shape[0] > 0:
-            array = part[name]
-            if name == alias.data:
+        if name == alias.data or name in part.columns:
+            if (
+                name == alias.data
+                and feature_cols is not None
+                and part[feature_cols].shape[0] > 0  # guard against empty partition
+            ):
+                array: Optional[np.ndarray] = part[feature_cols]
+            elif part[name].shape[0] > 0:
+                array = part[name]
                 array = stack_series(array)
+            else:
+                array = None
+
+            if name == alias.data and array is not None:
                 if n_features == 0:
                     n_features = array.shape[1]
                 assert n_features == array.shape[1]
+
+            if array is None:
+                return
 
             if is_valid:
                 valid_data[name].append(array)
@@ -206,28 +251,12 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
             else:
                 train_data[name].append(array)
 
-    def append_dqm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
-        """Preprocessing for DeviceQuantileDMatrix"""
-        nonlocal n_features
-        if name == alias.data or name in part.columns:
-            if name == alias.data:
-                cname = feature_cols
-            else:
-                cname = name
-
-            array = part[cname]
-            if name == alias.data:
-                if n_features == 0:
-                    n_features = array.shape[1]
-                assert n_features == array.shape[1]
-
-            if is_valid:
-                valid_data[name].append(array)
-            else:
-                train_data[name].append(array)
-
     def make(values: Dict[str, List[np.ndarray]], kwargs: Dict[str, Any]) -> DMatrix:
         if len(values) == 0:
+            get_logger("XGBoostPySpark").warning(
+                "Detected an empty partition in the training data. Consider to enable"
+                " repartition_random_shuffle"
+            )
             # We must construct an empty DMatrix to bypass the AllReduce
             return DMatrix(data=np.empty((0, 0)), **kwargs)
 
@@ -240,32 +269,63 @@ def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
             data=data, label=label, weight=weight, base_margin=margin, qid=qid, **kwargs
         )
 
-    is_dmatrix = feature_cols is None
-    if is_dmatrix:
-        if enable_sparse_data_optim:
-            append_fn = append_m_sparse
-            assert "missing" in kwargs and kwargs["missing"] == 0.0
-        else:
-            append_fn = append_m
-        cache_partitions(iterator, append_fn)
-        if len(train_data) == 0:
-            get_logger("XGBoostPySpark").warning(
-                "Detected an empty partition in the training data. "
-                "Consider to enable repartition_random_shuffle"
-            )
-        dtrain = make(train_data, kwargs)
+    if enable_sparse_data_optim:
+        append_fn = append_m_sparse
+        assert "missing" in kwargs and kwargs["missing"] == 0.0
     else:
-        cache_partitions(iterator, append_dqm)
-        it = PartIter(train_data, gpu_id)
-        dtrain = DeviceQuantileDMatrix(it, **kwargs)
+        append_fn = append_m
+
+    def split_params() -> Tuple[Dict[str, Any], Dict[str, Union[int, float, bool]]]:
+        # FIXME(jiamingy): we really need a better way to bridge distributed frameworks
+        # to XGBoost native interface and prevent scattering parameters like this.
+
+        # parameters that are not related to data.
+        non_data_keys = (
+            "max_bin",
+            "missing",
+            "silent",
+            "nthread",
+            "enable_categorical",
+        )
+        non_data_params = {}
+        meta = {}
+        for k, v in kwargs.items():
+            if k in non_data_keys:
+                non_data_params[k] = v
+            else:
+                meta[k] = v
+        return meta, non_data_params
+
+    meta, params = split_params()
+
+    if feature_cols is not None and use_qdm:
+        cache_partitions(iterator, append_fn)
+        dtrain: DMatrix = make_qdm(train_data, gpu_id, meta, None, params)
+    elif feature_cols is not None and not use_qdm:
+        cache_partitions(iterator, append_fn)
+        dtrain = make(train_data, kwargs)
+    elif feature_cols is None and use_qdm:
+        cache_partitions(iterator, append_fn)
+        dtrain = make_qdm(train_data, gpu_id, meta, None, params)
+    else:
+        cache_partitions(iterator, append_fn)
+        dtrain = make(train_data, kwargs)
 
     # Using has_validation_col here to indicate if there is validation col
     # instead of getting it from iterator, since the iterator may be empty
     # in some special case. That is to say, we must ensure every worker
-    # construct DMatrix even there is no any data since we need to ensure every
+    # construct DMatrix even there is no data since we need to ensure every
     # worker do the AllReduce when constructing DMatrix, or else it may hang
     # forever.
-    dvalid = make(valid_data, kwargs) if has_validation_col else None
+    if has_validation_col:
+        if use_qdm:
+            dvalid: Optional[DMatrix] = make_qdm(
+                valid_data, gpu_id, meta, dtrain, params
+            )
+        else:
+            dvalid = make(valid_data, kwargs) if has_validation_col else None
+    else:
+        dvalid = None
 
     if dvalid is not None:
         assert dvalid.num_col() == dtrain.num_col()

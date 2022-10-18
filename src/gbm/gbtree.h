@@ -252,6 +252,10 @@ class GBTree : public GradientBooster {
     return model_.trees.size() / this->LayerTrees();
   }
 
+  bool ModelFitted() const override {
+    return !model_.trees.empty() || !model_.trees_to_update.empty();
+  }
+
   void PredictBatch(DMatrix *p_fmat, PredictionCacheEntry *out_preds,
                     bool training, unsigned layer_begin, unsigned layer_end) override;
 
