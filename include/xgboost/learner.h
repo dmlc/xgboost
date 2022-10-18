@@ -328,7 +328,7 @@ struct LearnerModelParam {
   void Copy(LearnerModelParam const& that);
 
   /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
-  bool Initialized() const { return num_feature != 0; }
+  bool Initialized() const { return num_feature != 0 && num_output_group != 0; }
 };
 
 }  // namespace xgboost

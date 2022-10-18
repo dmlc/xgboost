@@ -1,21 +1,23 @@
 '''Test model IO with pickle.'''
-import pickle
-import numpy as np
-import subprocess
-import os
-import sys
 import json
+import os
+import pickle
+import subprocess
+import sys
+
+import numpy as np
 import pytest
+
 import xgboost as xgb
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, testing
 
 sys.path.append("tests/python")
 import testing as tm
 
 model_path = './model.pkl'
 
+pytestmark = testing.timeout(30)
 
-pytestmark = pytest.mark.timeout(30)
 
 def build_dataset():
     N = 10

@@ -1,11 +1,12 @@
 import sys
-import pytest
 
 import numpy as np
-import xgboost as xgb
+import pytest
+from hypothesis import assume, given, settings, strategies
 from xgboost.compat import PANDAS_INSTALLED
 
-from hypothesis import given, strategies, assume, settings
+import xgboost as xgb
+from xgboost import testing
 
 if PANDAS_INSTALLED:
     from hypothesis.extra.pandas import column, data_frames, range_indexes
@@ -16,8 +17,8 @@ else:
 
 sys.path.append("tests/python")
 import testing as tm
+from test_predict import run_predict_leaf  # noqa
 from test_predict import run_threaded_predict  # noqa
-from test_predict import run_predict_leaf      # noqa
 
 rng = np.random.RandomState(1994)
 
@@ -32,7 +33,8 @@ predict_parameter_strategy = strategies.fixed_dictionaries({
     'num_parallel_tree': strategies.sampled_from([1, 4]),
 })
 
-pytestmark = pytest.mark.timeout(20)
+pytestmark = testing.timeout(20)
+
 
 class TestGPUPredict:
     def test_predict(self):

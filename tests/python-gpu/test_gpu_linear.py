@@ -1,12 +1,15 @@
 import sys
-from hypothesis import strategies, given, settings, assume, note
+
 import pytest
+from hypothesis import assume, given, note, settings, strategies
+
 import xgboost as xgb
+from xgboost import testing
+
 sys.path.append("tests/python")
 import testing as tm
 
-
-pytestmark = pytest.mark.timeout(10)
+pytestmark = testing.timeout(10)
 
 parameter_strategy = strategies.fixed_dictionaries({
     'booster': strategies.just('gblinear'),
