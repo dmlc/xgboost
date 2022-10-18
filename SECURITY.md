@@ -19,4 +19,4 @@ To report a security issue, please email
 with a description of the issue, the steps you took to create the issue,
 affected versions, and, if known, mitigations for the issue.
 
-We will respond and solve it as soon as possible.
+All support will be made on the best effort base, so please indicate the "urgency level" of the vulnerability as Critical, High, Medium or Low.
