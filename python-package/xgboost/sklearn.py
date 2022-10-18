@@ -1785,7 +1785,7 @@ class XGBRFRegressor(XGBRegressor):
     end_note="""
         .. note::
 
-            The default objectivefor XGBRanker is "rank:pairwise"
+            The default objective for XGBRanker is "rank:pairwise"
 
         .. note::
 
@@ -1795,11 +1795,16 @@ class XGBRFRegressor(XGBRegressor):
         .. note::
 
             Query group information is required for ranking tasks by either using the
-            `group` parameter or `qid` parameter in `fit` method.
+            `group` parameter or `qid` parameter in `fit` method. This information is
+            not required in 'predict' method and multiple groups can be predicted on
+            a single call to `predict`.
 
-        Before fitting the model, your data need to be sorted by query group. When fitting
-        the model, you need to provide an additional array that contains the size of each
+        When fitting the model with the `group` parameter, your data need to be sorted
+        by query group first. `group` must be an array that contains the size of each
         query group.
+        When fitting the model with the `qid` parameter, your data does not need
+        sorting. `qid` must be an array that contains the group of each training
+        sample.
 
         For example, if your original data look like:
 
@@ -1821,8 +1826,8 @@ class XGBRFRegressor(XGBRegressor):
         |   2   |   1       |   x_7         |
         +-------+-----------+---------------+
 
-        then your group array should be ``[3, 4]``.  Sometimes using query id (`qid`)
-        instead of group can be more convenient.
+        then `fit` method can be called with either `group` array as ``[3, 4]``
+        or with `qid` as ``[`1, 1, 1, 2, 2, 2, 2]``, that is the qid column.
 """,
 )
 class XGBRanker(XGBModel, XGBRankerMixIn):
