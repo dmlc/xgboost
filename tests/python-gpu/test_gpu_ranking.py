@@ -1,17 +1,21 @@
-import numpy as np
-import xgboost
-import os
 import itertools
+import os
 import shutil
+import sys
 import urllib.request
 import zipfile
-import sys
-import pytest
+
+import numpy as np
+
+import xgboost
+from xgboost import testing
+
 sys.path.append("tests/python")
 
-import testing as tm            # noqa
+import testing as tm  # noqa
 
-pytestmark = pytest.mark.timeout(10)
+pytestmark = testing.timeout(10)
+
 
 class TestRanking:
     @classmethod

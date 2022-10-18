@@ -95,6 +95,8 @@ class GBLinear : public GradientBooster {
     return model_.num_boosted_rounds;
   }
 
+  bool ModelFitted() const override { return BoostedRounds() != 0; }
+
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
   }

@@ -723,10 +723,15 @@ class MeanAbsoluteError : public ObjFunction {
       out(0) = common::Median(ctx_, info.labels, info.weights_) * w;
     }
 
-    // Weighted average base score across all workers
     collective::Allreduce<collective::Operation::kSum>(out.Values().data(), out.Values().size());
     collective::Allreduce<collective::Operation::kSum>(&w, 1);
 
+    if (common::CloseTo(w, 0.0)) {
+      // Mostly for handling empty dataset test.
+      LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
+      out(0) = ObjFunction::DefaultBaseScore();
+      return;
+    }
     std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
                    [w](float v) { return v / w; });
   }

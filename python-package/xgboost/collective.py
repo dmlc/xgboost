@@ -114,7 +114,7 @@ def communicator_print(msg: Any) -> None:
         msg = str(msg)
     is_dist = _LIB.XGCommunicatorIsDistributed()
     if is_dist != 0:
-        _check_call(_LIB.XGCommunicatorPrint(c_str(msg)))
+        _check_call(_LIB.XGCommunicatorPrint(c_str(msg.strip())))
     else:
         print(msg.strip(), flush=True)
 
