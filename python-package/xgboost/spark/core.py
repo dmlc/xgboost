@@ -747,7 +747,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             k: v for k, v in train_call_kwargs_params.items() if v is not None
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
-        use_qdm = booster_params.get("tree_method") in ("hist", "gpu_hist")
+        use_qdm = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
