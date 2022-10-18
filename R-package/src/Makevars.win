@@ -1,19 +1,7 @@
 # package root
-PKGROOT=./
+PKGROOT=.
 ENABLE_STD_THREAD=0
 # _*_ mode: Makefile; _*_
-
-# This file is only used for Windows compilation from GitHub
-# It will be replaced with Makevars.in for the CRAN version
-.PHONY: all xgblib
-all: $(SHLIB)
-$(SHLIB): xgblib
-xgblib:
-	cp -r ../../src .
-	cp -r ../../rabit .
-	cp -r ../../dmlc-core .
-	cp -r ../../include .
-	cp -r ../../amalgamation .
 
 CXX_STD = CXX14
 
@@ -29,11 +17,9 @@ endif
 $(foreach v, $(XGB_RFLAGS), $(warning $(v)))
 
 PKG_CPPFLAGS=  -I$(PKGROOT)/include -I$(PKGROOT)/dmlc-core/include -I$(PKGROOT)/rabit/include -I$(PKGROOT) $(XGB_RFLAGS)
-PKG_CXXFLAGS= $(SHLIB_OPENMP_CXXFLAGS) $(SHLIB_PTHREAD_FLAGS)
-PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS) $(SHLIB_PTHREAD_FLAGS) -lwsock32 -lws2_32
+PKG_CXXFLAGS= $(SHLIB_OPENMP_CXXFLAGS) -DDMLC_CMAKE_LITTLE_ENDIAN=1 $(SHLIB_PTHREAD_FLAGS) $(CXX_VISIBILITY)
+PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)  -DDMLC_CMAKE_LITTLE_ENDIAN=1  $(SHLIB_PTHREAD_FLAGS) -lwsock32 -lws2_32
 OBJECTS= ./xgboost_R.o ./xgboost_custom.o ./xgboost_assert.o ./init.o \
          $(PKGROOT)/amalgamation/xgboost-all0.o $(PKGROOT)/amalgamation/dmlc-minimum0.o \
          $(PKGROOT)/rabit/src/engine.o $(PKGROOT)/rabit/src/rabit_c_api.o \
          $(PKGROOT)/rabit/src/allreduce_base.o
-
-$(OBJECTS) : xgblib
