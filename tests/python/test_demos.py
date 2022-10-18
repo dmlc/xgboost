@@ -45,12 +45,13 @@ def test_feature_weights_demo():
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+@testing.timeout(60)
 def test_sklearn_demo():
-    script = os.path.join(PYTHON_DEMO_DIR, 'sklearn_examples.py')
-    cmd = ['python', script]
+    script = os.path.join(PYTHON_DEMO_DIR, "sklearn_examples.py")
+    cmd = ["python", script]
     subprocess.check_call(cmd)
-    assert os.path.exists('best_calif.pkl')
-    os.remove('best_calif.pkl')
+    assert os.path.exists("best_calif.pkl")
+    os.remove("best_calif.pkl")
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
