@@ -4,11 +4,7 @@
 
 <!-- Use this section to tell people about which versions of your project are
 currently being supported with security updates. -->
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.6.x   | :white_check_mark: |
-| < 1.0.0 | :x:                |
+Security updates are applied only to the most recent release.
 
 ## Reporting a Vulnerability
 
