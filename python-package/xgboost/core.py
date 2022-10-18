@@ -406,10 +406,7 @@ def c_array(
 
 
 def _prediction_output(
-    shape: CNumericPtr,
-    dims: c_bst_ulong,
-    predts: CFloatPtr,
-    is_cuda: bool
+    shape: CNumericPtr, dims: c_bst_ulong, predts: CFloatPtr, is_cuda: bool
 ) -> NumpyOrCupy:
     arr_shape = ctypes2numpy(shape, dims.value, np.uint64)
     length = int(np.prod(arr_shape))
@@ -2282,12 +2279,13 @@ class Booster:
 
         enable_categorical = _has_categorical(self, data)
         if _is_pandas_df(data):
-            data, fns, fts = _transform_pandas_df(data, enable_categorical)
+            data, fns, _ = _transform_pandas_df(data, enable_categorical)
             if validate_features:
-                self._validate_features(fns, fts)
+                self._validate_features(fns)
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
+
             data, _ = _ensure_np_dtype(data, data.dtype)
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
@@ -2337,12 +2335,13 @@ class Booster:
             return _prediction_output(shape, dims, preds, True)
         if _is_cudf_df(data):
             from .data import _cudf_array_interfaces, _transform_cudf_df
-            data, cat_codes, fns, fts = _transform_cudf_df(
+
+            data, cat_codes, fns, _ = _transform_cudf_df(
                 data, None, None, enable_categorical
             )
             interfaces_str = _cudf_array_interfaces(data, cat_codes)
             if validate_features:
-                self._validate_features(fns, fts)
+                self._validate_features(fns)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
@@ -2741,13 +2740,9 @@ class Booster:
         if self.feature_types is None:
             self.feature_types = ft
 
-        self._validate_features(fn, ft)
+        self._validate_features(fn)
 
-    def _validate_features(
-        self,
-        feature_names: Optional[FeatureNames],
-        feature_types: Optional[FeatureTypes],
-    ) -> None:
+    def _validate_features(self, feature_names: Optional[FeatureNames]) -> None:
         if self.feature_names is None:
             return
 
