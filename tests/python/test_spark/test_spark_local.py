@@ -37,7 +37,7 @@ from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
 
-pytestmark = pytest.mark.timeout(60)
+pytestmark = testing.timeout(60)
 
 
 @pytest.fixture

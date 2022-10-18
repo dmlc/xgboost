@@ -575,6 +575,31 @@ class InitBaseScore : public ::testing::Test {
     base_score = GetBaseScore(config);
     ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
   }
+
+  void TestUpdateProcess() {
+    // Check that when training continuation is performed with update, the base score is
+    // not re-evaluated.
+    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    learner->SetParam("objective", "reg:absoluteerror");
+    learner->Configure();
+
+    learner->UpdateOneIter(0, Xy_);
+    Json model{Object{}};
+    learner->SaveModel(&model);
+    auto base_score = GetBaseScore(model);
+
+    auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
+    learner.reset(Learner::Create({Xy1}));
+    learner->LoadModel(model);
+    learner->SetParam("process_type", "update");
+    learner->SetParam("updater", "refresh");
+    learner->UpdateOneIter(1, Xy1);
+
+    Json config(Object{});
+    learner->SaveConfig(&config);
+    auto base_score1 = GetBaseScore(config);
+    ASSERT_EQ(base_score, base_score1);
+  }
 };
 
 TEST_F(InitBaseScore, TestUpdateConfig) { this->TestUpdateConfig(); }
@@ -584,4 +609,6 @@ TEST_F(InitBaseScore, FromAvgParam) { this->TestBoostFromAvgParam(); }
 TEST_F(InitBaseScore, InitAfterLoad) { this->TestInitAfterLoad(); }
 
 TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
+
+TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 }  // namespace xgboost

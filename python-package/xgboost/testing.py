@@ -3,7 +3,7 @@
 import os
 import socket
 from platform import system
-from typing import TypedDict
+from typing import Any, TypedDict
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
@@ -61,3 +61,26 @@ def skip_spark() -> PytestSkip:
     except ImportError:
         spark_installed = False
     return {"condition": not spark_installed, "reason": "Spark is not installed"}
+
+
+def timeout(sec: int, *args: Any, enable: bool = True, **kwargs: Any) -> Any:
+    """Make a pytest mark for the `pytest-timeout` package.
+
+    Parameters
+    ----------
+    sec :
+        Timeout seconds.
+    enable :
+        Control whether timeout should be applied, used for debugging.
+
+    Returns
+    -------
+    pytest.mark.timeout
+    """
+    import pytest  # pylint: disable=import-error
+
+    # This is disabled for now due to regression caused by conflicts between federated
+    # learning build and the CI container environment.
+    if enable:
+        return pytest.mark.timeout(sec, *args, **kwargs)
+    return pytest.mark.timeout(None, *args, **kwargs)

@@ -1,20 +1,20 @@
-from typing import Callable, Optional
 import collections
 import importlib.util
-import numpy as np
-import xgboost as xgb
-import testing as tm
-import tempfile
-import os
-import shutil
-import pytest
 import json
+import os
+import tempfile
+from typing import Callable, Optional
+
+import numpy as np
+import pytest
+import testing as tm
+from sklearn.utils.estimator_checks import parametrize_with_checks
+
+import xgboost as xgb
+from xgboost import testing
 
 rng = np.random.RandomState(1994)
-
-pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), pytest.mark.timeout(30)]
-
-from sklearn.utils.estimator_checks import parametrize_with_checks
+pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), testing.timeout(30)]
 
 
 def test_binary_classification():
