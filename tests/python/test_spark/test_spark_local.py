@@ -40,7 +40,30 @@ logging.getLogger("py4j").setLevel(logging.INFO)
 pytestmark = testing.timeout(60)
 
 
-@pytest.fixture
+RegWithWeight = namedtuple(
+    "RegWithWeight",
+    (
+        "reg_params_with_eval",
+        "reg_df_train_with_eval_weight",
+        "reg_df_test_with_eval_weight",
+        "reg_with_eval_best_score",
+        "reg_with_eval_and_weight_best_score",
+    ),
+)
+
+ClfWithWeight = namedtuple(
+    "ClfWithWeight",
+    (
+        "cls_params_with_eval",
+        "cls_df_train_with_eval_weight",
+        "cls_df_test_with_eval_weight",
+        "cls_with_eval_best_score",
+        "cls_with_eval_and_weight_best_score",
+    ),
+)
+
+
+@pytest.fixture(scope="class")
 def spark() -> Generator[SparkSession, None, None]:
     config = {
         "spark.master": "local[4]",
@@ -56,200 +79,183 @@ def spark() -> Generator[SparkSession, None, None]:
         builder.config(k, v)
     logging.getLogger("pyspark").setLevel(logging.INFO)
     sess = builder.getOrCreate()
+
     yield sess
 
-
-RegWithWeight = namedtuple(
-    "RegWithWeight",
-    (
-        "reg_params_with_eval",
-        "reg_df_train_with_eval_weight",
-        "reg_df_test_with_eval_weight",
-        "reg_with_eval_best_score",
-        "reg_with_eval_and_weight_best_score",
-    ),
-)
-
-
-@pytest.fixture
-def reg_with_weight(
-    spark: SparkSession,
-) -> Generator[RegWithWeight, SparkSession, None]:
-    reg_params_with_eval = {
-        "validation_indicator_col": "isVal",
-        "early_stopping_rounds": 1,
-        "eval_metric": "rmse",
-    }
-
-    X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-    w = np.array([1.0, 2.0, 1.0, 2.0])
-    y = np.array([0, 1, 2, 3])
-
-    reg1 = XGBRegressor()
-    reg1.fit(X, y, sample_weight=w)
-    predt1 = reg1.predict(X)
-
-    X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-    X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-    y_train = np.array([0, 1])
-    y_val = np.array([2, 3])
-    w_train = np.array([1.0, 2.0])
-    w_val = np.array([1.0, 2.0])
-
-    reg2 = XGBRegressor(early_stopping_rounds=1, eval_metric="rmse")
-    reg2.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_val, y_val)],
-    )
-    predt2 = reg2.predict(X)
-    best_score2 = reg2.best_score
-
-    reg3 = XGBRegressor(early_stopping_rounds=1, eval_metric="rmse")
-    reg3.fit(
-        X_train,
-        y_train,
-        sample_weight=w_train,
-        eval_set=[(X_val, y_val)],
-        sample_weight_eval_set=[w_val],
-    )
-    predt3 = reg3.predict(X)
-    best_score3 = reg3.best_score
-
-    reg_df_train_with_eval_weight = spark.createDataFrame(
-        [
-            (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-            (Vectors.dense(4.0, 5.0, 6.0), 2, True, 1.0),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 3, True, 2.0),
-        ],
-        ["features", "label", "isVal", "weight"],
-    )
-
-    reg_df_test_with_eval_weight = spark.createDataFrame(
-        [
-            (
-                Vectors.dense(1.0, 2.0, 3.0),
-                float(predt1[0]),
-                float(predt2[0]),
-                float(predt3[0]),
-            ),
-            (
-                Vectors.sparse(3, {1: 1.0, 2: 5.5}),
-                float(predt1[1]),
-                float(predt2[1]),
-                float(predt3[1]),
-            ),
-        ],
-        [
-            "features",
-            "expected_prediction_with_weight",
-            "expected_prediction_with_eval",
-            "expected_prediction_with_weight_and_eval",
-        ],
-    )
-    yield RegWithWeight(
-        reg_params_with_eval,
-        reg_df_train_with_eval_weight,
-        reg_df_test_with_eval_weight,
-        best_score2,
-        best_score3,
-    )
-
-
-ClfWithWeight = namedtuple(
-    "ClfWithWeight",
-    (
-        "cls_params_with_eval",
-        "cls_df_train_with_eval_weight",
-        "cls_df_test_with_eval_weight",
-        "cls_with_eval_best_score",
-        "cls_with_eval_and_weight_best_score",
-    ),
-)
-
-
-@pytest.fixture
-def clf_with_weight(
-    spark: SparkSession,
-) -> Generator[ClfWithWeight, SparkSession, None]:
-    """Test classifier with weight and eval set."""
-
-    X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-    w = np.array([1.0, 2.0, 1.0, 2.0])
-    y = np.array([0, 1, 0, 1])
-    cls1 = XGBClassifier()
-    cls1.fit(X, y, sample_weight=w)
-
-    X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
-    X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
-    y_train = np.array([0, 1])
-    y_val = np.array([0, 1])
-    w_train = np.array([1.0, 2.0])
-    w_val = np.array([1.0, 2.0])
-    cls2 = XGBClassifier()
-    cls2.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_val, y_val)],
-        early_stopping_rounds=1,
-        eval_metric="logloss",
-    )
-
-    cls3 = XGBClassifier()
-    cls3.fit(
-        X_train,
-        y_train,
-        sample_weight=w_train,
-        eval_set=[(X_val, y_val)],
-        sample_weight_eval_set=[w_val],
-        early_stopping_rounds=1,
-        eval_metric="logloss",
-    )
-
-    cls_df_train_with_eval_weight = spark.createDataFrame(
-        [
-            (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
-            (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
-            (Vectors.dense(4.0, 5.0, 6.0), 0, True, 1.0),
-            (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, True, 2.0),
-        ],
-        ["features", "label", "isVal", "weight"],
-    )
-    cls_params_with_eval = {
-        "validation_indicator_col": "isVal",
-        "early_stopping_rounds": 1,
-        "eval_metric": "logloss",
-    }
-    print("cls1.predict_proba(X)", cls1.predict_proba(X).shape, cls1.predict_proba(X))
-    cls_df_test_with_eval_weight = spark.createDataFrame(
-        [
-            (
-                Vectors.dense(1.0, 2.0, 3.0),
-                [float(p) for p in cls1.predict_proba(X)[0, :]],
-                [float(p) for p in cls2.predict_proba(X)[0, :]],
-                [float(p) for p in cls3.predict_proba(X)[0, :]],
-            ),
-        ],
-        [
-            "features",
-            "expected_prob_with_weight",
-            "expected_prob_with_eval",
-            "expected_prob_with_weight_and_eval",
-        ],
-    )
-    cls_with_eval_best_score = cls2.best_score
-    cls_with_eval_and_weight_best_score = cls3.best_score
-    yield ClfWithWeight(
-        cls_params_with_eval,
-        cls_df_train_with_eval_weight,
-        cls_df_test_with_eval_weight,
-        cls_with_eval_best_score,
-        cls_with_eval_and_weight_best_score,
-    )
+    sess.stop()
+    sess.sparkContext.stop()
 
 
 class TestPySparkLocal:
+    @pytest.fixture(scope="class")
+    def reg_with_weight(
+        self,
+        spark: SparkSession,
+    ) -> Generator[RegWithWeight, SparkSession, None]:
+        reg_params_with_eval = {
+            "validation_indicator_col": "isVal",
+            "early_stopping_rounds": 1,
+            "eval_metric": "rmse",
+        }
+
+        X = np.array(
+            [[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]]
+        )
+        w = np.array([1.0, 2.0, 1.0, 2.0])
+        y = np.array([0, 1, 2, 3])
+
+        reg1 = XGBRegressor()
+        reg1.fit(X, y, sample_weight=w)
+        predt1 = reg1.predict(X)
+
+        X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
+        y_train = np.array([0, 1])
+        y_val = np.array([2, 3])
+        w_train = np.array([1.0, 2.0])
+        w_val = np.array([1.0, 2.0])
+
+        reg2 = XGBRegressor(early_stopping_rounds=1, eval_metric="rmse")
+        reg2.fit(
+            X_train,
+            y_train,
+            eval_set=[(X_val, y_val)],
+        )
+        predt2 = reg2.predict(X)
+        best_score2 = reg2.best_score
+
+        reg3 = XGBRegressor(early_stopping_rounds=1, eval_metric="rmse")
+        reg3.fit(
+            X_train,
+            y_train,
+            sample_weight=w_train,
+            eval_set=[(X_val, y_val)],
+            sample_weight_eval_set=[w_val],
+        )
+        predt3 = reg3.predict(X)
+        best_score3 = reg3.best_score
+
+        reg_df_train_with_eval_weight = spark.createDataFrame(
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
+                (Vectors.dense(4.0, 5.0, 6.0), 2, True, 1.0),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 3, True, 2.0),
+            ],
+            ["features", "label", "isVal", "weight"],
+        )
+
+        reg_df_test_with_eval_weight = spark.createDataFrame(
+            [
+                (
+                    Vectors.dense(1.0, 2.0, 3.0),
+                    float(predt1[0]),
+                    float(predt2[0]),
+                    float(predt3[0]),
+                ),
+                (
+                    Vectors.sparse(3, {1: 1.0, 2: 5.5}),
+                    float(predt1[1]),
+                    float(predt2[1]),
+                    float(predt3[1]),
+                ),
+            ],
+            [
+                "features",
+                "expected_prediction_with_weight",
+                "expected_prediction_with_eval",
+                "expected_prediction_with_weight_and_eval",
+            ],
+        )
+        yield RegWithWeight(
+            reg_params_with_eval,
+            reg_df_train_with_eval_weight,
+            reg_df_test_with_eval_weight,
+            best_score2,
+            best_score3,
+        )
+
+    @pytest.fixture(scope="class")
+    def clf_with_weight(
+        self,
+        spark: SparkSession,
+    ) -> Generator[ClfWithWeight, SparkSession, None]:
+        """Test classifier with weight and eval set."""
+
+        X = np.array(
+            [[1.0, 2.0, 3.0], [0.0, 1.0, 5.5], [4.0, 5.0, 6.0], [0.0, 6.0, 7.5]]
+        )
+        w = np.array([1.0, 2.0, 1.0, 2.0])
+        y = np.array([0, 1, 0, 1])
+        cls1 = XGBClassifier()
+        cls1.fit(X, y, sample_weight=w)
+
+        X_train = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        X_val = np.array([[4.0, 5.0, 6.0], [0.0, 6.0, 7.5]])
+        y_train = np.array([0, 1])
+        y_val = np.array([0, 1])
+        w_train = np.array([1.0, 2.0])
+        w_val = np.array([1.0, 2.0])
+        cls2 = XGBClassifier()
+        cls2.fit(
+            X_train,
+            y_train,
+            eval_set=[(X_val, y_val)],
+            early_stopping_rounds=1,
+            eval_metric="logloss",
+        )
+
+        cls3 = XGBClassifier()
+        cls3.fit(
+            X_train,
+            y_train,
+            sample_weight=w_train,
+            eval_set=[(X_val, y_val)],
+            sample_weight_eval_set=[w_val],
+            early_stopping_rounds=1,
+            eval_metric="logloss",
+        )
+
+        cls_df_train_with_eval_weight = spark.createDataFrame(
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 0, False, 1.0),
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, False, 2.0),
+                (Vectors.dense(4.0, 5.0, 6.0), 0, True, 1.0),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, True, 2.0),
+            ],
+            ["features", "label", "isVal", "weight"],
+        )
+        cls_params_with_eval = {
+            "validation_indicator_col": "isVal",
+            "early_stopping_rounds": 1,
+            "eval_metric": "logloss",
+        }
+        cls_df_test_with_eval_weight = spark.createDataFrame(
+            [
+                (
+                    Vectors.dense(1.0, 2.0, 3.0),
+                    [float(p) for p in cls1.predict_proba(X)[0, :]],
+                    [float(p) for p in cls2.predict_proba(X)[0, :]],
+                    [float(p) for p in cls3.predict_proba(X)[0, :]],
+                ),
+            ],
+            [
+                "features",
+                "expected_prob_with_weight",
+                "expected_prob_with_eval",
+                "expected_prob_with_weight_and_eval",
+            ],
+        )
+        cls_with_eval_best_score = cls2.best_score
+        cls_with_eval_and_weight_best_score = cls3.best_score
+        yield ClfWithWeight(
+            cls_params_with_eval,
+            cls_df_train_with_eval_weight,
+            cls_df_test_with_eval_weight,
+            cls_with_eval_best_score,
+            cls_with_eval_and_weight_best_score,
+        )
+
     def test_regressor_with_weight_eval(self, reg_with_weight: RegWithWeight) -> None:
         # with weight
         regressor_with_weight = SparkXGBRegressor(weight_col="weight")

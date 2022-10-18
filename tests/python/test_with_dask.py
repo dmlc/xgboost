@@ -66,7 +66,7 @@ def cluster():
         yield dask_cluster
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def client(cluster):
     with Client(cluster) as dask_client:
         yield dask_client
