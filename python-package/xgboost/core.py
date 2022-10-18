@@ -2732,7 +2732,16 @@ class Booster:
         if data.num_row() == 0:
             return
 
-        self._validate_features(data.feature_names, data.feature_types)
+        fn = data.feature_names
+        ft = data.feature_types
+        # Be consistent with versions before 1.7, "validate" actually modifies the
+        # booster.
+        if self.feature_names is None:
+            self.feature_names = fn
+        if self.feature_types is None:
+            self.feature_types = ft
+
+        self._validate_features(fn, ft)
 
     def _validate_features(
         self,
@@ -2740,8 +2749,7 @@ class Booster:
         feature_types: Optional[FeatureTypes],
     ) -> None:
         if self.feature_names is None:
-            self.feature_names = feature_names
-            self.feature_types = feature_types
+            return
 
         if feature_names is None and self.feature_names is not None:
             raise ValueError(
