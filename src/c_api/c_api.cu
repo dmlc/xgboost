@@ -42,19 +42,15 @@ void XGBBuildInfoDevice(Json *p_info) {
 }
 
 void XGBoostAPIGuard::SetGPUAttribute() {
-  try {
-    device_id_ = dh::CurrentDevice();
-  } catch (dmlc::Error const&) {
-    // do nothing, running on CPU only machine
-  }
+  // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
+  // If errors, do nothing, assuming running on CPU only machine.
+  cudaGetDevice(&device_id_);
 }
 
 void XGBoostAPIGuard::RestoreGPUAttribute() {
-  try {
-    dh::safe_cuda(cudaSetDevice(device_id_));
-  } catch (dmlc::Error const&) {
-    // do nothing, running on CPU only machine
-  }
+  // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
+  // If errors, do nothing, assuming running on CPU only machine.
+  cudaSetDevice(device_id_);
 }
 }                        // namespace xgboost
 

@@ -41,7 +41,7 @@ def skip_ipv6() -> PytestSkip:
     return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}
 
 
-def timeout(sec: int, *args: Any, enable: bool = False, **kwargs: Any) -> Any:
+def timeout(sec: int, *args: Any, enable: bool = True, **kwargs: Any) -> Any:
     """Make a pytest mark for the `pytest-timeout` package.
 
     Parameters

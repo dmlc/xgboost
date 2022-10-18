@@ -1785,6 +1785,10 @@ class XGBRFRegressor(XGBRegressor):
     end_note="""
         .. note::
 
+            The default objectivefor XGBRanker is "rank:pairwise"
+
+        .. note::
+
             A custom objective function is currently not supported by XGBRanker.
             Likewise, a custom metric function is not supported either.
 
