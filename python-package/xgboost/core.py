@@ -237,6 +237,7 @@ Error message(s): {os_error_list}
         """Avoid dependency on packaging (PEP 440)."""
         # 2.0.0-dev or 2.0.0
         major, minor, patch = ver.split("-")[0].split(".")
+        patch = patch.split("rc")[0]  # 2.0.0rc1
         return int(major), int(minor), int(patch)
 
     libver = _lib_version(lib)
