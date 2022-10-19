@@ -15,7 +15,7 @@ reported vulnerability, what to expect if the vulnerability is accepted or
 declined, etc. -->
 
 To report a security issue, please email
-[email@example.com](mailto:email@example.com)
+[security@xgboost-ci.net](mailto:security@xgboost-ci.net)
 with a description of the issue, the steps you took to create the issue,
 affected versions, and, if known, mitigations for the issue.
 
