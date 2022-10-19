@@ -4,6 +4,8 @@
 #ifndef XGBOOST_COMMON_NUMERIC_H_
 #define XGBOOST_COMMON_NUMERIC_H_
 
+#include <dmlc/common.h>  // OMPException
+
 #include <algorithm>  // std::max
 #include <iterator>   // std::iterator_traits
 #include <vector>
@@ -106,6 +108,26 @@ inline double Reduce(Context const*, HostDeviceVector<float> const&) {
  * \brief Reduction with summation.
  */
 double Reduce(Context const* ctx, HostDeviceVector<float> const& values);
+
+template <typename It>
+void Iota(Context const* ctx, It first, It last,
+          typename std::iterator_traits<It>::value_type const& value) {
+  auto n = std::distance(first, last);
+  std::int32_t n_threads = ctx->Threads();
+  const size_t block_size = n / n_threads + !!(n % n_threads);
+  dmlc::OMPException exc;
+#pragma omp parallel num_threads(n_threads)
+  {
+    exc.Run([&]() {
+      const size_t tid = omp_get_thread_num();
+      const size_t ibegin = tid * block_size;
+      const size_t iend = std::min(ibegin + block_size, static_cast<size_t>(n));
+      for (size_t i = ibegin; i < iend; ++i) {
+        first[i] = i + value;
+      }
+    });
+  }
+}
 }  // namespace common
 }  // namespace xgboost
 
