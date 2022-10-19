@@ -1126,3 +1126,7 @@ class XgboostLocalTest(SparkTestCase):
         classifier = SparkXGBClassifier(early_stopping_rounds=1)
         with pytest.raises(ValueError, match="early_stopping_rounds"):
             classifier.fit(self.cls_df_train)
+
+    def test_unsupported_params(self):
+        with pytest.raises(ValueError, match="evals_result"):
+            SparkXGBClassifier(evals_result={})
