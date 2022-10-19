@@ -17,11 +17,11 @@ Making a Release
 -----------------
 
 1. Create an issue for the release, noting the estimated date and expected features or major fixes, pin that issue.
-2. Bump release version.
+2. Create a release branch if this is a major release. Bump release version.
 
    1. Modify ``CMakeLists.txt`` in source tree and ``cmake/Python_version.in`` if needed, run CMake.
 
-   2. Modify ``DESCRIPTION`` in R-package.
+   2. Modify ``DESCRIPTION`` and ``configure.ac`` in R-package. Run ``autoreconf``.
 
    3. Run ``change_version.sh`` in ``jvm-packages/dev``
 
