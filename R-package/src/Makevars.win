@@ -1,5 +1,5 @@
 # package root
-PKGROOT=.
+PKGROOT=../../
 ENABLE_STD_THREAD=0
 # _*_ mode: Makefile; _*_
 

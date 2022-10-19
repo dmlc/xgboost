@@ -40,6 +40,7 @@ jobs:
     - name: Install dependencies
       shell: Rscript {0}
       run: |
+        options(Ncpus = parallel::detechCores())
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
@@ -90,6 +91,7 @@ jobs:
       shell: Rscript {0}
       if: matrix.config.os != 'windows-latest'
       run: |
+        options(Ncpus = parallel::detechCores())
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
@@ -146,6 +148,7 @@ jobs:
     - name: Install dependencies
       shell: Rscript {0}
       run: |
+        options(Ncpus = parallel::detechCores())
         install.packages(${{ env.R_PACKAGES }},
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
