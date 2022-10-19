@@ -21,9 +21,13 @@ Making a Release
 
    1. Modify ``CMakeLists.txt`` in source tree and ``cmake/Python_version.in`` if needed, run CMake.
 
+      If this is a RC release, the Python version has the form <major>.<minor>.<patch>rc1
+
    2. Modify ``DESCRIPTION`` and ``configure.ac`` in R-package. Run ``autoreconf``.
 
    3. Run ``change_version.sh`` in ``jvm-packages/dev``
+
+      If this is a RC release, the version for JVM packages has the form <major>.<minor>.<patch>-RC1
 
 3. Commit the change, create a PR on GitHub on release branch.  Port the bumped version to default branch, optionally with the postfix ``SNAPSHOT``.
 4. Create a tag on release branch, either on GitHub or locally.
