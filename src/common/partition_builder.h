@@ -116,9 +116,9 @@ class PartitionBuilder {
     common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
     common::Span<size_t> left = GetLeftBuffer(node_in_set, range.begin(), range.end());
     common::Span<size_t> right = GetRightBuffer(node_in_set, range.begin(), range.end());
-    const size_t nid = nodes[node_in_set].nid;
-    const bst_uint fid = tree[nid].SplitIndex();
-    const bool default_left = tree[nid].DefaultLeft();
+    std::size_t nid = nodes[node_in_set].nid;
+    bst_feature_t fid = tree[nid].SplitIndex();
+    bool default_left = tree[nid].DefaultLeft();
     bool is_cat = tree.GetSplitTypes()[nid] == FeatureType::kCategorical;
     auto node_cats = tree.NodeCats(nid);
 
