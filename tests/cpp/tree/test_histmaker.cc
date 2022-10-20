@@ -12,8 +12,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
   size_t constexpr kRows = 32;
   size_t constexpr kCols = 16;
 
-  GenericParameter param;
-  param.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  Context ctx;
 
   auto p_dmat = RandomDataGenerator{kRows, kCols, 0.6f}.Seed(3).GenerateDMatrix();
 
@@ -35,7 +34,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
     tree.param.num_feature = kCols;
 
     std::unique_ptr<TreeUpdater> updater{
-        TreeUpdater::Create("grow_histmaker", &param, ObjInfo{ObjInfo::kRegression})};
+        TreeUpdater::Create("grow_histmaker", &ctx, ObjInfo{ObjInfo::kRegression})};
     updater->Configure(Args{
         {"interaction_constraints", "[[0, 1]]"},
         {"num_feature", std::to_string(kCols)}});
@@ -54,7 +53,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
     tree.param.num_feature = kCols;
 
     std::unique_ptr<TreeUpdater> updater{
-        TreeUpdater::Create("grow_histmaker", &param, ObjInfo{ObjInfo::kRegression})};
+        TreeUpdater::Create("grow_histmaker", &ctx, ObjInfo{ObjInfo::kRegression})};
     updater->Configure(Args{{"num_feature", std::to_string(kCols)}});
     std::vector<HostDeviceVector<bst_node_t>> position(1);
     updater->Update(&gradients, p_dmat.get(), position, {&tree});
