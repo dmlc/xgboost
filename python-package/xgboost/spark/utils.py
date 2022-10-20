@@ -15,9 +15,7 @@ from xgboost import collective
 
 
 def get_class_name(cls: Type) -> str:
-    """Return the class name.
-
-    """
+    """Return the class name."""
     return f"{cls.__module__}.{cls.__name__}"
 
 
@@ -59,9 +57,7 @@ class CommunicatorContext:
 
 
 def _start_tracker(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
-    """Start Rabit tracker with n_workers
-
-    """
+    """Start Rabit tracker with n_workers"""
     env: Dict[str, Any] = {"DMLC_NUM_WORKER": n_workers}
     host = _get_host_ip(context)
     rabit_context = RabitTracker(host_ip=host, n_workers=n_workers)
@@ -74,25 +70,19 @@ def _start_tracker(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any
 
 
 def _get_rabit_args(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
-    """Get rabit context arguments to send to each worker.
-
-    """
+    """Get rabit context arguments to send to each worker."""
     env = _start_tracker(context, n_workers)
     return env
 
 
 def _get_host_ip(context: BarrierTaskContext) -> str:
-    """Gets the hostIP for Spark. This essentially gets the IP of the first worker.
-
-    """
+    """Gets the hostIP for Spark. This essentially gets the IP of the first worker."""
     task_ip_list = [info.address.split(":")[0] for info in context.getTaskInfos()]
     return task_ip_list[0]
 
 
 def _get_args_from_message_list(messages: List[str]) -> Dict[str, Any]:
-    """A function to send/recieve messages in barrier context mode
-
-    """
+    """A function to send/recieve messages in barrier context mode"""
     output = ""
     for message in messages:
         if message != "":
