@@ -4,35 +4,20 @@ XGBoost GPU Support
 
 This page contains information about GPU algorithms supported in XGBoost.
 
-.. note:: CUDA 10.1, Compute Capability 3.5 required
-
-  The GPU algorithms in XGBoost require a graphics card with compute capability 3.5 or higher, with
-  CUDA toolkits 10.1 or later.
-  (See `this list <https://en.wikipedia.org/wiki/CUDA#GPUs_supported>`_ to look up compute capability of your GPU card.)
+.. note:: CUDA 11.0, Compute Capability 5.0 required (See `this list <https://en.wikipedia.org/wiki/CUDA#GPUs_supported>`_ to look up compute capability of your GPU card.)
 
 *********************************************
 CUDA Accelerated Tree Construction Algorithms
 *********************************************
-Tree construction (training) and prediction can be accelerated with CUDA-capable GPUs.
+
+Most of the algorithms in XGBoost including training, prediction and evaluation can be accelerated with CUDA-capable GPUs.
 
 Usage
 =====
-Specify the ``tree_method`` parameter as one of the following algorithms.
-
-Algorithms
-----------
-
-+-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| tree_method           | Description                                                                                                                                                           |
-+=======================+=======================================================================================================================================================================+
-| gpu_hist              | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: May run very slowly on GPUs older than Pascal architecture.  |
-+-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+Specify the ``tree_method`` parameter as ``gpu_hist``. For details around the ``tree_method`` parameter, see :doc:`tree method </treemethod>`.
 
 Supported parameters
 --------------------
-
-.. |tick| unicode:: U+2714
-.. |cross| unicode:: U+2718
 
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
 
@@ -69,128 +54,9 @@ See examples `here
 
 Multi-node Multi-GPU Training
 =============================
-XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_. For
-getting started see our tutorial :doc:`/tutorials/dask` and worked examples `here
-<https://github.com/dmlc/xgboost/tree/master/demo/dask>`__, also Python documentation
-:ref:`dask_api` for complete reference.
 
+XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_, ``Spark`` and ``PySpark``. For getting started with Dask see our tutorial :doc:`/tutorials/dask` and worked examples `here <https://github.com/dmlc/xgboost/tree/master/demo/dask>`__, also Python documentation :ref:`dask_api` for complete reference. For usage with ``Spark`` using Scala see :doc:`/jvm/xgboost4j_saprk_gpu_tutorial`. Lastly for distributed GPU training with ``PySpark``, see :doc:`/tutorials/spark_estimator`.
 
-Objective functions
-===================
-Most of the objective functions implemented in XGBoost can be run on GPU.  Following table shows current support status.
-
-+----------------------+-------------+
-| Objectives           | GPU support |
-+----------------------+-------------+
-| reg:squarederror     | |tick|      |
-+----------------------+-------------+
-| reg:squaredlogerror  | |tick|      |
-+----------------------+-------------+
-| reg:logistic         | |tick|      |
-+----------------------+-------------+
-| reg:pseudohubererror | |tick|      |
-+----------------------+-------------+
-| binary:logistic      | |tick|      |
-+----------------------+-------------+
-| binary:logitraw      | |tick|      |
-+----------------------+-------------+
-| binary:hinge         | |tick|      |
-+----------------------+-------------+
-| count:poisson        | |tick|      |
-+----------------------+-------------+
-| reg:gamma            | |tick|      |
-+----------------------+-------------+
-| reg:tweedie          | |tick|      |
-+----------------------+-------------+
-| multi:softmax        | |tick|      |
-+----------------------+-------------+
-| multi:softprob       | |tick|      |
-+----------------------+-------------+
-| survival:cox         | |cross|     |
-+----------------------+-------------+
-| survival:aft         | |tick|      |
-+----------------------+-------------+
-| rank:pairwise        | |tick|      |
-+----------------------+-------------+
-| rank:ndcg            | |tick|      |
-+----------------------+-------------+
-| rank:map             | |tick|      |
-+----------------------+-------------+
-
-Objective will run on GPU if GPU updater (``gpu_hist``), otherwise they will run on CPU by
-default.  For unsupported objectives XGBoost will fall back to using CPU implementation by
-default.  Note that when using GPU ranking objective, the result is not deterministic due
-to the non-associative aspect of floating point summation.
-
-Metric functions
-===================
-Following table shows current support status for evaluation metrics on the GPU.
-
-+------------------------------+-------------+
-| Metric                       | GPU Support |
-+==============================+=============+
-| rmse                         | |tick|      |
-+------------------------------+-------------+
-| rmsle                        | |tick|      |
-+------------------------------+-------------+
-| mae                          | |tick|      |
-+------------------------------+-------------+
-| mape                         | |tick|      |
-+------------------------------+-------------+
-| mphe                         | |tick|      |
-+------------------------------+-------------+
-| logloss                      | |tick|      |
-+------------------------------+-------------+
-| error                        | |tick|      |
-+------------------------------+-------------+
-| merror                       | |tick|      |
-+------------------------------+-------------+
-| mlogloss                     | |tick|      |
-+------------------------------+-------------+
-| auc                          | |tick|      |
-+------------------------------+-------------+
-| aucpr                        | |tick|      |
-+------------------------------+-------------+
-| ndcg                         | |tick|      |
-+------------------------------+-------------+
-| map                          | |tick|      |
-+------------------------------+-------------+
-| poisson-nloglik              | |tick|      |
-+------------------------------+-------------+
-| gamma-nloglik                | |tick|      |
-+------------------------------+-------------+
-| cox-nloglik                  | |cross|     |
-+------------------------------+-------------+
-| aft-nloglik                  | |tick|      |
-+------------------------------+-------------+
-| interval-regression-accuracy | |tick|      |
-+------------------------------+-------------+
-| gamma-deviance               | |tick|      |
-+------------------------------+-------------+
-| tweedie-nloglik              | |tick|      |
-+------------------------------+-------------+
-
-Similar to objective functions, default device for metrics is selected based on tree
-updater and predictor (which is selected based on tree updater).
-
-Benchmarks
-==========
-You can run benchmarks on synthetic data for binary classification:
-
-.. code-block:: bash
-
-  python tests/benchmark/benchmark_tree.py --tree_method=gpu_hist
-  python tests/benchmark/benchmark_tree.py --tree_method=hist
-
-Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and NVIDIA 1080ti yields the following results:
-
-+--------------+----------+
-| tree_method  | Time (s) |
-+==============+==========+
-| gpu_hist     | 12.57    |
-+--------------+----------+
-| hist         | 36.01    |
-+--------------+----------+
 
 Memory usage
 ============
@@ -202,7 +68,7 @@ The dataset itself is stored on device in a compressed ELLPACK format. The ELLPA
 
 Working memory is allocated inside the algorithm proportional to the number of rows to keep track of gradients, tree positions and other per row statistics. Memory is allocated for histogram bins proportional to the number of bins, number of features and nodes in the tree. For performance reasons we keep histograms in memory from previous nodes in the tree, when a certain threshold of memory usage is passed we stop doing this to conserve memory at some performance loss.
 
-If you are getting out-of-memory errors on a big dataset, try the or :py:class:`xgboost.DeviceQuantileDMatrix` or :doc:`external memory version </tutorials/external_memory>`.
+If you are getting out-of-memory errors on a big dataset, try the or :py:class:`xgboost.QuantileDMatrix` or :doc:`external memory version </tutorials/external_memory>`. Note that when ``external memory`` is used for GPU hist, it's best to employ gradient based sampling as well. Last but not least, ``inplace_predict`` can be preferred over ``predict`` when data is already on GPU. Both ``QuantileDMatrix`` and ``inplace_predict`` are automatically enabled if you are using the scikit-learn interface.
 
 Developer notes
 ===============
