@@ -3,6 +3,160 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.7.0 (2022 Oct 20)
+
+We are excited to announce the feature packed XGBoost 1.7 release. The release note will walk through some of the major new features first, then make a summary for other improvements and language-binding-specific changes.
+
+### PySpark
+
+XGBoost 1.7 features initial support for PySpark integration. The new interface is integrated the existing PySpark XGBoost interface developed by databricks with added support for features like `QuantileDMatrix` and rapidsai plugin (GPU pipeline). The added Python estimators can be used with PySpark ml facilities for powerful distributed computing while enjoying the rest of the Python ecosystem. Users can define a custom objective, callbacks, and metrics in Python and use them with this interface. The support is marked as experimental with more features to come in future releases. For a quick introduction please visit the tutorial on XGBoost's [document page](https://xgboost.readthedocs.io/en/latest/tutorials/spark_estimator.html). (#8355, #8344, #8335, #8284, #8271, #8283, #8250, #8231, #8219, #8245, #8217, #8200, #8173, #8172, #8145, #8117, #8131, #8088, #8082, #8085, #8066, #8068, #8067, #8020)
+
+Due to its initial support status, the new interface has some limitations including categorical features and multi-output models are not yet supported.
+
+### Development of categorical data support
+We continue to work on the experimental support for categorical features for XGBoost. In 1.7, XGBoost can handle missing values in categorical features and has an additional parameter `max_cat_threshold`, which limits the number of categories that can be used in the split evaluation. The parameter helps prevent over-fitting and increase performance. Also, the sklearn interface can now accept the `feature_types` parameter to use data types other than dataframe for categorical features. (#8280, #7821, #8285, #8080, #7948, #7858, #7853, #8212, #7957, #7937, #7934)
+
+
+###  Experimental support for federated learning and new communication collective
+
+An exciting addition to XGBoost is the experimental federated learning support. The federated learning is implemented with a gRPC federated server that aggregates allreduce calls, and federated clients that train on local data and use existing tree methods (approx, hist, gpu_hist). Currently, this only supports horizontal federated learning (samples are split across participants, and each participant has all the features and labels). Future plans include vertical federated learning (features split across participants), and stronger privacy guarantees with homomorphic encryption and differential privacy. See [Demo with NVFlare integration](demo/nvflare/README.md) for example usage with nvflare.
+
+As part of the work, XGBoost 1.7 has replaced the old rabit module with the new collective module as the network communication interface with added support for runtime backend selection. In previous versions, the backend is defined at compile time and can not be changed once built. In this new release, users can choose between `rabit` and `federated.` (#8029, #8351, #8350, #8342, #8340, #8325, #8279, #8181, #8027, #7958, #7831, #7879, #8257, #8316, #8242, #8057, #8203, #8038, #7965, #7930, #7911)
+
+The feature is available in the public PyPI binary package for testing.
+
+### Quantile DMatrix
+Before 1.7, XGBoost has an internal data structure called `DeviceQuantileDMatrix` (and its distributed version). We now extend its support to CPU and renamed it to `QuantileDMatrix`. This data structure is used for optimizing memory usage for the `hist` and `gpu_hist` tree methods. The new feature helps reduce CPU memory usage significantly, especially for dense data. The new `QuantileDMatrix` can be initialized from both CPU and GPU data, and regardless of where the data input comes from, the constructed instance can be used by both the CPU algorithm and GPU algorithm including training and prediction (with some overhead of conversion if the device of data and training algorithm doesn't match). Also, a new parameter `ref` is added to `QuantileDMatrix`, which can be used to construct validation/test datasets. Most importantly, it is set as default in the scikit-learn interface when a supported tree method is specified. (#7889, #7923, #8136, #8215, #8284, #8268, #8220, #8346, #8327, #8130, #8116, #8103, #8094, #8086, #7898, #8060, #8019, #8045, #7901, #7912, #7922)
+
+### Mean absolute error
+The mean absolute error is a new member of the collection of objectives in XGBoost. It's noteworthy since MAE has zero hessian value, which is unusual to XGBoost as XGBoost relies on Newton optimization, without valid Hessian, the convergence speed can be slow. As part of the support for MAE, we added line searches into the XGBoost training algorithm to overcome the difficulty of training without valid Hessian values. In the future, we will extend the line search to other objectives as well for faster convergence speed. Lastly, the `base_score` will be automatically estimated by fitting an intercept for the model. (#8343, #8107, #7812)
+
+### XGBoost on Browser
+With the help of the [pyodide](https://github.com/pyodide/pyodide) project, you can now run XGBoost on browsers. (#7954)
+
+### Experimental IPv6 Support for Dask
+
+With the growing adaption of the new internet protocol, XGBoost joined the club. In the latest release, the Dask interface can be used on IPv6 clusters, see XGBoost's Dask tutorial for details. (#8225, #8234)
+
+### Optimizations
+We have new optimizations for both the `hist` and `gpu_hist` tree methods to make XGBoost's training even more efficient.
+
+* Hist
+Hist now supports optional by-column histogram build, which is automatically configured based on various conditions of input data. This helps the XGBoost CPU hist algorithm to scale better with different shapes of training datasets. (#8233, #8259). Also, the build histogram kernel now can better utilize CPU registers (#8218)
+
+* GPU Hist
+GPU hist now supports batched node build, which reduces kernel latency and increases throughput. The improvement is particularly significant when growing deep trees with the default ``depthwise`` policy. (#7919, #8073, #8051, #8118, #7867, #7964, #8026)
+
+### General new features and improvements
+Before going into package-specific changes, some general new features other than those listed at the beginning are summarized here.
+* Users of `DMatrix` and `QuantileDMatrix` can get the data from XGBoost. In previous versions, only getters for meta info like labels are available. The new method is available in Python (`DMatrix::get_data`) and C. (#8269, #8323)
+* In previous versions, the GPU histogram tree method may generate phantom gradient for missing values due to floating point error. We fixed such an error in this release and XGBoost is much better equated to handle floating point errors when training on GPU. (#8274, #8246)
+* Parameter validation is no longer experimental. (#8206)
+* C pointer parameters and JSON parameters are vigorously checked. (#8254, #8254)
+* Improved handling of JSON model input. (#7953, #7918)
+* Support IBM i OS (#7920, #8178)
+
+### Python
+* Python 3.8 is now the minimum required Python version. (#8071)
+* More progress on type hint support. Except for the new PySpark interface, the XGBoost module is fully typed. (#7742, #7945, #8302, #7914, #8052)
+* XGBoost now validates the feature names in `inplace_predict`, which also affects the predict function in scikit-learn estimators as it uses `inplace_predict` internally. (#8359)
+* Users can now get the data from `DMatrix`.
+* Show libxgboost.so path in build info. (#7893)
+* Raise import error when using the sklearn module while scikit-learn is missing. (#8049)
+* Use config_context in the sklearn interface. (#8141)
+* Validate features for inplace prediction. (#8359)
+* Pandas dataframe handling is refactored to avoid data fragmentation. (#7843)
+* Support more pandas nullable types (#8262)
+* Remove pyarrow workaround. (#7884)
+
+* Binary wheel size
+We aim to enable as many features as possible in XGBoost's default binary distribution on PyPI (package installed with pip), but there's a limit on the size of the binary wheel. In 1.7, XGBoost reduces the size of the wheel by pruning unused CUDA architectures. (#8179, #8152, #8150)
+
+* Fixes
+Some noteworthy fixes are listed here:
+- Fix the Dask interface with the latest cupy. (#8210)
+
+* Maintenance work
+- Linter script is moved from dmlc-core to XGBoost with added support for formatting, mypy, and parallel run, along with some fixes (#7967, #8101, #8216)
+- We now require the use of `isort` and `black` for selected files. (#8137, #8096)
+- Code cleanups. (#7827)
+- Deprecate `use_label_encoder` in XGBClassifier. The label encoder has already been deprecated and removed in the previous version. These changes only affect the indicator parameter (#7822)
+- Remove the use of distutils. (#7770)
+- Refactor and fixes for tests (#8077, #8064, #8078, #8076, #8013, #8010, #8244, #7833)
+
+* Documents
+- [dask] Fix potential error in demo. (#8079)
+- Improved documentation for the ranker. (#8356, #8347)
+- Indicate lack of py-xgboost-gpu on Windows (#8127)
+- Clarification for feature importance. (#8151)
+- Simplify Python getting started example (#8153)
+
+### R
+We briefly summarize improvements for the R package here:
+* Feature info including names and types added to DMatrix in preparation for categorical feature support. (#804)8
+* XGBoost 1.7 can now gracefully load old R models from RDS for better compatibility with 3-party tuning libraries (#7864)
+* The R package now can be built with parallel compilation, along with fixes for warnings in CRAN tests. (#8330)
+* Emit error early if DiagrammeR is missing (#8037)
+* Fix R package Windows build. (#8065)
+
+### JVM
+The consistency between JVM packages and other language bindings is greatly improved in 1.7, the improvement ranges from model serialization format to the default value of hyper-parameters.
+
+* Java package now supports feature names and feature types for DMatrix in preparation for categorical feature support. (#7966)
+* Models trained by the JVM packages can now be safely used with other language bindings. (#7896, #7907)
+* Users can specify the model format when saving models with a stream. (#7940, #7955)
+* The default value for training parameters is now sourced from XGBoost directly, which helps JVM packages be consistent with other packages. (#7938)
+* Set the correct objective if the user doesn't explicitly set it (#7781)
+* Auto-detection of MUSL is replaced by system properties (#7921)
+* Improved error message for launching tracker. (#7952, #7968)
+* Fix a race condition in parameter configuration. (#8025)
+* [Breaking] ` timeoutRequestWorkers` is not removed. With the support for barrier mode, this parameter is no longer needed. (#7839)
+* Dependencies updates. (#7791, #8157, #7801, #8240)
+
+### Fixes
+Some noteworthy bug fixes are listed in this section.
+
+* Rename misspelled config parameter for pseudo-Huber (#7904)
+* Fix feature weights with nested column sampling. (#8100)
+* Fix loading DMatrix binary in distributed env. (#8149)
+* Check cuDF lazily to avoid potential errors with cuda-python. (#8084)
+* Force auc.cc to be statically linked for unusual compiler platforms. (#8039)
+
+### Breaking
+* Some breaking changes are made in the 1.7 release.
+- The  `grow_local_histmaker`  updater is removed. This updater is rarely used in practice and has no test. We decided to remove it and focus have XGBoot focus on other more efficient algorithms. (#7992, #8091)
+- Single precision histogram is removed due to its lack of accuracy caused by significant floating point error. Sometimes the error can be difficult to detect due to log-scale operations, which makes the parameter dangerous to use. (#7892, #7828)
+- Deprecated CUDA architectures are no longer supported in the release binaries. (#7774)
+- As part of the federated learning development, the `rabit` module is replaced with the new `collective` module. It's a drop-in replacement with added runtime backend selection, see the federated learning section for more details (#8257)
+
+
+### Documents
+- Document for the C interface is greatly improved and is now displayed at the [sphinx document page](https://xgboost.readthedocs.io/en/latest/c.html). Thanks to the breathe project, you can view the C API just like the Python API. (#8300)
+- We now avoid having XGBoost internal text parser in demos and recommend users use dedicated libraries for loading data. (#7753)
+- Python survival training demos are now displayed at [sphinx gallery](https://xgboost.readthedocs.io/en/latest/python/survival-examples/index.html). (#8328)
+- Some typos, links, format, and grammar fixes. (#7800, #7832, #7861, #8099, #8163, #8166, #8229, #8028, #8214, #7777, #7905, #8270, #8309, d70e59fef, #7806)
+- Updated winning solution under readme.md (#7862)
+- New security policy. (#8360)
+
+### Maintenance
+* Code refactoring and cleanups. (#7850, #7826, #7910, #8332, #8204)
+* Reduce compiler warnings. (#7768, #7916, #8046, #8059, #7974, #8031, #8022)
+* Compiler workarounds. (#8211, #8314, #8226, #8093)
+* Dependencies update. (#8001, #7876, #7973, #8298, #7816)
+* Remove warnings emitted in previous versions. (#7815)
+* Small fixes occurred during development. (#8008)
+
+
+### CI and Tests
+
+* We overhauled the CI infrastructure to reduce the CI cost and lift the maintenance burdens. Jenkins is replaced with buildkite for better automation, with which, finer control of test runs is implemented to reduce overall cost. Also, we refactored some of the tests to reduce their runtime, drooped the size of docker images, and removed multi-GPU C++ tests. Lastly, `pytest-timeout` is added as an optional dependency for running Python tests. (#7772, #8291, #8286, #8276, #8306, #8287, #8243, #8313, #8235, #8288, #8303, #8142, #8092, #8333, #8312, #8348)
+* New documents for how to reproduce the CI environment (#7971, #8297)
+* Improved automation for JVM release. (#7882)
+* GitHub Action security-related updates. (#8263, #8267, #8360)
+* Other fixes and maintenance work. (#8154, #7848, #8069, #7943)
+* Small updates and fixes to GitHub action pipelines. (#8364, #8321, #8241, #7950, #8011)
+
+
 ## v1.6.1 (2022 May 9)
 This is a patch release for bug fixes and Spark barrier mode support. The R package is unchanged.
 
