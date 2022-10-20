@@ -1,10 +1,13 @@
 import os
 import subprocess
 import sys
+
 import pytest
+
+from xgboost import testing as tm
+
 sys.path.append("tests/python")
-import testing as tm
-import test_demos as td         # noqa
+import test_demos as td  # noqa
 
 
 @pytest.mark.skipif(**tm.no_cupy())

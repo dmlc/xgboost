@@ -1,11 +1,13 @@
-import numpy as np
-import xgboost as xgb
-import os
 import json
-import testing as tm
-import pytest
 import locale
+import os
 import tempfile
+
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 dpath = os.path.join(tm.PROJECT_ROOT, 'demo/data/')
 

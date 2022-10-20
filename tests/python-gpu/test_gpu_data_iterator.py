@@ -1,13 +1,12 @@
-import numpy as np
-import xgboost as xgb
-from hypothesis import given, strategies, settings
-import pytest
 import sys
 
+import pytest
+from hypothesis import given, settings, strategies
+from xgboost.testing import no_cupy
+
 sys.path.append("tests/python")
-from test_data_iterator import test_single_batch as cpu_single_batch
 from test_data_iterator import run_data_iterator
-from testing import no_cupy
+from test_data_iterator import test_single_batch as cpu_single_batch
 
 
 def test_gpu_single_batch() -> None:
@@ -24,7 +23,11 @@ def test_gpu_single_batch() -> None:
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
 def test_gpu_data_iterator(
-    n_samples_per_batch: int, n_features: int, n_batches: int, subsample: bool, use_cupy: bool
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    subsample: bool,
+    use_cupy: bool,
 ) -> None:
     run_data_iterator(
         n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, use_cupy

@@ -1,11 +1,13 @@
-import os
-import tempfile
-import platform
-import xgboost
-import subprocess
-import numpy
 import json
-import testing as tm
+import os
+import platform
+import subprocess
+import tempfile
+
+import numpy
+
+import xgboost
+from xgboost import testing as tm
 
 
 class TestCLI:

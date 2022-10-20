@@ -1,14 +1,16 @@
-import unittest
-import pytest
-import numpy as np
-import testing as tm
-import xgboost as xgb
 import os
+import unittest
+
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 try:
+    import pandas as pd
     import pyarrow as pa
     import pyarrow.csv as pc
-    import pandas as pd
 except ImportError:
     pass
 

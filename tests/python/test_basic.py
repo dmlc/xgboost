@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
-import numpy as np
-import os
-import xgboost as xgb
-import pytest
 import json
-from pathlib import Path
+import os
 import tempfile
-import testing as tm
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)

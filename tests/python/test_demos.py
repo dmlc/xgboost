@@ -3,9 +3,9 @@ import subprocess
 import sys
 
 import pytest
-import testing as tm
 
 from xgboost import testing
+from xgboost import testing as tm
 
 pytestmark = testing.timeout(30)
 

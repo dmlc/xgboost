@@ -1,12 +1,13 @@
 '''Tests for running inplace prediction.'''
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-from scipy import sparse
-import pytest
-import pandas as pd
 
-import testing as tm
+import numpy as np
+import pandas as pd
+import pytest
+from scipy import sparse
+
 import xgboost as xgb
+from xgboost import testing as tm
 
 
 def run_threaded_predict(X, rows, predict_func):

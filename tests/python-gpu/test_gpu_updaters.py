@@ -6,13 +6,12 @@ import pytest
 from hypothesis import assume, given, note, settings, strategies
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
 sys.path.append("tests/python")
 import test_updaters as test_up
-import testing as tm
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
 parameter_strategy = strategies.fixed_dictionaries({
     'max_depth': strategies.integers(0, 11),

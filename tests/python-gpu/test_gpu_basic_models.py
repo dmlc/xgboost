@@ -1,13 +1,18 @@
-import sys
 import os
+import sys
+
 import numpy as np
-import xgboost as xgb
 import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
+
 sys.path.append("tests/python")
+import test_basic_models as test_bm
+
 # Don't import the test class, otherwise they will run twice.
 import test_callback as test_cb  # noqa
-import test_basic_models as test_bm
-import testing as tm
+
 rng = np.random.RandomState(1994)
 
 

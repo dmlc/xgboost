@@ -20,7 +20,6 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-import testing as tm
 from hypothesis import HealthCheck, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 from test_predict import verify_leaf_output
@@ -30,6 +29,7 @@ from xgboost.data import _is_cudf_df
 
 import xgboost as xgb
 from xgboost import testing
+from xgboost import testing as tm
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)

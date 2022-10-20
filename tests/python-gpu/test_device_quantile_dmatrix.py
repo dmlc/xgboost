@@ -5,10 +5,10 @@ import pytest
 from hypothesis import given, settings, strategies
 
 import xgboost as xgb
+from xgboost import testing as tm
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
-import testing as tm
 
 
 class TestDeviceQuantileDMatrix:

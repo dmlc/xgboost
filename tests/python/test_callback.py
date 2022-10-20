@@ -1,9 +1,12 @@
-from typing import Union
-import xgboost as xgb
-import pytest
 import os
-import testing as tm
 import tempfile
+from contextlib import nullcontext
+from typing import Union
+
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 # We use the dataset for tests.
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
@@ -277,7 +280,7 @@ class TestCallbacks:
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
 
-        warning_check = tm.noop_context()
+        warning_check = nullcontext()
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work

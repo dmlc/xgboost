@@ -1,15 +1,16 @@
 import json
-import numpy as np
-import xgboost as xgb
-import testing as tm
 
+import numpy as np
 import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 try:
     import matplotlib
     matplotlib.use('Agg')
-    from matplotlib.axes import Axes
     from graphviz import Source
+    from matplotlib.axes import Axes
 except ImportError:
     pass
 

@@ -65,7 +65,7 @@ def _check_rf_callback(
         )
 
 
-_SklObjective = Optional[
+SklObjective = Optional[
     Union[str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]]
 ]
 
@@ -144,7 +144,7 @@ __model_doc = f"""
         Boosting learning rate (xgb's "eta")
     verbosity : Optional[int]
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
-    objective : {_SklObjective}
+    objective : {SklObjective}
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
     booster: Optional[str]
@@ -546,7 +546,7 @@ class XGBModel(XGBModelBase):
         learning_rate: Optional[float] = None,
         n_estimators: int = 100,
         verbosity: Optional[int] = None,
-        objective: _SklObjective = None,
+        objective: SklObjective = None,
         booster: Optional[str] = None,
         tree_method: Optional[str] = None,
         n_jobs: Optional[int] = None,
@@ -1409,7 +1409,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def __init__(
         self,
         *,
-        objective: _SklObjective = "binary:logistic",
+        objective: SklObjective = "binary:logistic",
         use_label_encoder: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
@@ -1712,7 +1712,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
-        self, *, objective: _SklObjective = "reg:squarederror", **kwargs: Any
+        self, *, objective: SklObjective = "reg:squarederror", **kwargs: Any
     ) -> None:
         super().__init__(objective=objective, **kwargs)
 

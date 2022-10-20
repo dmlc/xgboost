@@ -7,6 +7,7 @@ from xgboost.compat import PANDAS_INSTALLED
 
 import xgboost as xgb
 from xgboost import testing
+from xgboost import testing as tm
 
 if PANDAS_INSTALLED:
     from hypothesis.extra.pandas import column, data_frames, range_indexes
@@ -16,7 +17,6 @@ else:
     column, data_frames, range_indexes = noop, noop, noop
 
 sys.path.append("tests/python")
-import testing as tm
 from test_predict import run_predict_leaf  # noqa
 from test_predict import run_threaded_predict  # noqa
 
@@ -227,8 +227,8 @@ class TestGPUPredict:
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_cudf(self):
-        import cupy as cp
         import cudf
+        import cupy as cp
         import pandas as pd
         rows = 1000
         cols = 10
@@ -379,8 +379,8 @@ class TestGPUPredict:
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
     def test_predict_dart(self, n_classes):
-        from sklearn.datasets import make_classification
         import cupy as cp
+        from sklearn.datasets import make_classification
         n_samples = 1000
         X_, y_ = make_classification(
             n_samples=n_samples, n_informative=5, n_classes=n_classes

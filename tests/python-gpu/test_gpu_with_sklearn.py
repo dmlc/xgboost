@@ -1,13 +1,15 @@
 import json
-import xgboost as xgb
-import pytest
-import tempfile
-import sys
-import numpy as np
 import os
+import sys
+import tempfile
+
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 sys.path.append("tests/python")
-import testing as tm               # noqa
 import test_with_sklearn as twskl  # noqa
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
@@ -38,9 +40,9 @@ def test_gpu_binary_classification():
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction_gpu_hist():
-    from sklearn.datasets import load_breast_cancer, load_digits
-    import cupy as cp
     import cudf
+    import cupy as cp
+    from sklearn.datasets import load_breast_cancer, load_digits
 
     tree_method = "gpu_hist"
     X, y = load_breast_cancer(return_X_y=True)
@@ -68,9 +70,9 @@ def test_num_parallel_tree():
 @pytest.mark.skipif(**tm.no_cudf())
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_categorical():
-    import pandas as pd
     import cudf
     import cupy as cp
+    import pandas as pd
     from sklearn.datasets import load_svmlight_file
 
     data_dir = os.path.join(tm.PROJECT_ROOT, "demo", "data")
@@ -123,9 +125,9 @@ def test_categorical():
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_cudf())
 def test_classififer():
-    from sklearn.datasets import load_digits
-    import cupy as cp
     import cudf
+    import cupy as cp
+    from sklearn.datasets import load_digits
 
     X, y = load_digits(return_X_y=True)
     y *= 10

@@ -1,10 +1,11 @@
 import sys
+
 import pytest
 
-sys.path.append("tests/python")
-import testing as tm
-import test_plotting as tp
+from xgboost import testing as tm
 
+sys.path.append("tests/python")
+import test_plotting as tp
 
 pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(), tm.no_graphviz()))
 

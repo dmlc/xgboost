@@ -3,10 +3,10 @@ import sys
 
 import numpy as np
 import pytest
-import testing as tm
 
 import xgboost as xgb
-from xgboost import RabitTracker, testing
+from xgboost import RabitTracker
+from xgboost import testing as tm
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -61,7 +61,7 @@ def test_rabit_ops():
             run_rabit_ops(client, n_workers)
 
 
-@pytest.mark.skipif(**testing.skip_ipv6())
+@pytest.mark.skipif(**tm.no_ipv6())
 @pytest.mark.skipif(**tm.no_dask())
 def test_rabit_ops_ipv6():
     import dask

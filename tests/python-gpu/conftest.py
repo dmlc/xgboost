@@ -1,9 +1,7 @@
-import sys
 import pytest
-import logging
 
-sys.path.append("tests/python")
-import testing as tm                          # noqa
+from xgboost import testing as tm  # noqa
+
 
 def has_rmm():
     try:
@@ -34,8 +32,8 @@ def local_cuda_client(request, pytestconfig):
         kwargs['rmm_pool_size'] = '2GB'
     if tm.no_dask_cuda()['condition']:
         raise ImportError('The local_cuda_cluster fixture requires dask_cuda package')
-    from dask_cuda import LocalCUDACluster
     from dask.distributed import Client
+    from dask_cuda import LocalCUDACluster
     yield Client(LocalCUDACluster(**kwargs))
 
 def pytest_addoption(parser):

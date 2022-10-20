@@ -1,20 +1,15 @@
 import itertools
 import os
 import shutil
-import sys
 import urllib.request
 import zipfile
 
 import numpy as np
 
 import xgboost
-from xgboost import testing
+from xgboost import testing as tm
 
-sys.path.append("tests/python")
-
-import testing as tm  # noqa
-
-pytestmark = testing.timeout(10)
+pytestmark = tm.timeout(10)
 
 
 class TestRanking:
@@ -24,6 +19,7 @@ class TestRanking:
         Download and setup the test fixtures
         """
         from sklearn.datasets import load_svmlight_files
+
         # download the test data
         cls.dpath = os.path.join(tm.PROJECT_ROOT, "demo/rank/")
         src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'

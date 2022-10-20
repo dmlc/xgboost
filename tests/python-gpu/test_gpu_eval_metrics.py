@@ -1,6 +1,8 @@
 import sys
-import xgboost
+
 import pytest
+
+import xgboost
 
 sys.path.append("tests/python")
 import test_eval_metrics as test_em  # noqa

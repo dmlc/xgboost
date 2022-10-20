@@ -1,13 +1,9 @@
-import sys
-
 import pytest
 from hypothesis import assume, given, note, settings, strategies
 
 import xgboost as xgb
 from xgboost import testing
-
-sys.path.append("tests/python")
-import testing as tm
+from xgboost import testing as tm
 
 pytestmark = testing.timeout(10)
 

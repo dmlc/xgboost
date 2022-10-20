@@ -1,9 +1,11 @@
+from typing import Dict, List
+
 import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix
-from testing import IteratorForTest, make_batches, non_increasing
 from xgboost.data import SingleBatchInternalIter as SingleBatch
+from xgboost.testing import IteratorForTest, make_batches, non_increasing
 
 import xgboost as xgb
 from xgboost import testing
@@ -83,7 +85,7 @@ def run_data_iterator(
     if tree_method == "gpu_hist":
         parameters["sampling_method"] = "gradient_based"
 
-    results_from_it: xgb.callback.EvaluationMonitor.EvalsLog = {}
+    results_from_it: Dict[str, Dict[str, List[float]]] = {}
     from_it = xgb.train(
         parameters,
         Xy,
@@ -106,7 +108,7 @@ def run_data_iterator(
     assert Xy.num_row() == n_samples_per_batch * n_batches
     assert Xy.num_col() == n_features
 
-    results_from_arrays: xgb.callback.EvaluationMonitor.EvalsLog = {}
+    results_from_arrays: Dict[str, Dict[str, List[float]]] = {}
     from_arrays = xgb.train(
         parameters,
         Xy,

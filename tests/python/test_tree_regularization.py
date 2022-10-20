@@ -1,7 +1,7 @@
 import numpy as np
-import xgboost as xgb
-
 from numpy.testing import assert_approx_equal
+
+import xgboost as xgb
 
 train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 

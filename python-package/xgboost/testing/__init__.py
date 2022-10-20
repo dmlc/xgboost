@@ -1,192 +1,190 @@
-from concurrent.futures import ThreadPoolExecutor
-import os
+"""Utilities for defining Python tests. The module is private and subject to frequent
+change without notice.
+
+"""
+# pylint: disable=invalid-name,missing-function-docstring,import-error
+import gc
+import importlib.util
 import multiprocessing
-from typing import Tuple, Union, List, Sequence, Callable
+import os
+import platform
+import socket
+import sys
 import urllib
 import zipfile
-import sys
-from typing import Optional, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import StringIO
-from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
-import pytest
-import gc
-import xgboost as xgb
-from xgboost.core import ArrayLike
-import numpy as np
-from scipy import sparse
-import platform
+from platform import system
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
-hypothesis = pytest.importorskip('hypothesis')
-sklearn = pytest.importorskip('sklearn')
+import numpy as np
+import pytest
+from scipy import sparse
+from xgboost.core import ArrayLike
+from xgboost.sklearn import SklObjective
+
+import xgboost as xgb
+
+hypothesis = pytest.importorskip("hypothesis")
+
+# pylint:disable=wrong-import-position,wrong-import-order
 from hypothesis import strategies
 from hypothesis.extra.numpy import arrays
-from joblib import Memory
-from sklearn import datasets
 
-try:
-    import cupy as cp
-except ImportError:
-    cp = None
+joblib = pytest.importorskip("joblib")
+datasets = pytest.importorskip("sklearn.datasets")
 
-memory = Memory('./cachedir', verbose=0)
+Memory = joblib.Memory
 
+memory = Memory("./cachedir", verbose=0)
 
-def no_ubjson():
-    reason = "ubjson is not intsalled."
-    try:
-        import ubjson           # noqa
-        return {"condition": False, "reason": reason}
-    except ImportError:
-        return {"condition": True, "reason": reason}
+PytestSkip = TypedDict("PytestSkip", {"condition": bool, "reason": str})
 
 
-def no_sklearn():
-    return {'condition': not SKLEARN_INSTALLED,
-            'reason': 'Scikit-Learn is not installed'}
+def has_ipv6() -> bool:
+    """Check whether IPv6 is enabled on this host."""
+    # connection error in macos, still need some fixes.
+    if system() not in ("Linux", "Windows"):
+        return False
+
+    if socket.has_ipv6:
+        try:
+            with socket.socket(
+                socket.AF_INET6, socket.SOCK_STREAM
+            ) as server, socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as client:
+                server.bind(("::1", 0))
+                port = server.getsockname()[1]
+                server.listen()
+
+                client.connect(("::1", port))
+                conn, _ = server.accept()
+
+                client.sendall("abc".encode())
+                msg = conn.recv(3).decode()
+                # if the code can be executed to this point, the message should be
+                # correct.
+                assert msg == "abc"
+            return True
+        except OSError:
+            pass
+    return False
 
 
-def no_dask():
-    try:
-        import pkg_resources
-
-        pkg_resources.get_distribution("dask")
-        DASK_INSTALLED = True
-    except pkg_resources.DistributionNotFound:
-        DASK_INSTALLED = False
-    return {"condition": not DASK_INSTALLED, "reason": "Dask is not installed"}
+def no_mod(name: str) -> PytestSkip:
+    spec = importlib.util.find_spec(name)
+    return {"condition": spec is None, "reason": f"{name} is not installed."}
 
 
-def no_spark():
-    try:
-        import pyspark          # noqa
-        SPARK_INSTALLED = True
-    except ImportError:
-        SPARK_INSTALLED = False
-    return {"condition": not SPARK_INSTALLED, "reason": "Spark is not installed"}
+def no_ipv6() -> PytestSkip:
+    """PyTest skip mark for IPv6."""
+    return {"condition": not has_ipv6(), "reason": "IPv6 is required to be enabled."}
 
 
-def no_pandas():
-    return {'condition': not PANDAS_INSTALLED,
-            'reason': 'Pandas is not installed.'}
+def no_ubjson() -> PytestSkip:
+    return no_mod("ubjson")
 
 
-def no_arrow():
-    reason = "pyarrow is not installed"
-    try:
-        import pyarrow  # noqa
-        return {"condition": False, "reason": reason}
-    except ImportError:
-        return {"condition": True, "reason": reason}
+def no_sklearn() -> PytestSkip:
+    return no_mod("sklearn")
 
 
-def no_modin():
-    reason = 'Modin is not installed.'
-    try:
-        import modin.pandas as _  # noqa
-        return {'condition': False, 'reason': reason}
-    except ImportError:
-        return {'condition': True, 'reason': reason}
+def no_dask() -> PytestSkip:
+    return no_mod("dask")
 
 
-def no_dt():
-    import importlib.util
-    spec = importlib.util.find_spec('datatable')
-    return {'condition': spec is None,
-            'reason': 'Datatable is not installed.'}
+def no_spark() -> PytestSkip:
+    return no_mod("pyspark")
 
 
-def no_matplotlib():
-    reason = 'Matplotlib is not installed.'
+def no_pandas() -> PytestSkip:
+    return no_mod("pandas")
+
+
+def no_arrow() -> PytestSkip:
+    return no_mod("pyarrow")
+
+
+def no_modin() -> PytestSkip:
+    return no_mod("modin")
+
+
+def no_dt() -> PytestSkip:
+    return no_mod("datatable")
+
+
+def no_matplotlib() -> PytestSkip:
+    reason = "Matplotlib is not installed."
     try:
         import matplotlib.pyplot as _  # noqa
-        return {'condition': False,
-                'reason': reason}
+
+        return {"condition": False, "reason": reason}
     except ImportError:
-        return {'condition': True,
-                'reason': reason}
+        return {"condition": True, "reason": reason}
 
 
-def no_dask_cuda():
-    reason = 'dask_cuda is not installed.'
-    try:
-        import dask_cuda as _  # noqa
-        return {'condition': False, 'reason': reason}
-    except ImportError:
-        return {'condition': True, 'reason': reason}
+def no_dask_cuda() -> PytestSkip:
+    return no_mod("dask_cuda")
 
 
-def no_cudf():
-    try:
-        import cudf  # noqa
-        CUDF_INSTALLED = True
-    except ImportError:
-        CUDF_INSTALLED = False
-
-    return {'condition': not CUDF_INSTALLED,
-            'reason': 'CUDF is not installed'}
+def no_cudf() -> PytestSkip:
+    return no_mod("cudf")
 
 
-def no_cupy():
-    reason = 'cupy is not installed.'
-    try:
-        import cupy as _  # noqa
-        return {'condition': False, 'reason': reason}
-    except ImportError:
-        return {'condition': True, 'reason': reason}
+def no_cupy() -> PytestSkip:
+    return no_mod("cupy")
 
 
-def no_dask_cudf():
-    reason = 'dask_cudf is not installed.'
-    try:
-        import dask_cudf as _  # noqa
-        return {'condition': False, 'reason': reason}
-    except ImportError:
-        return {'condition': True, 'reason': reason}
+def no_dask_cudf() -> PytestSkip:
+    return no_mod("dask_cudf")
 
 
-def no_json_schema():
-    reason = 'jsonschema is not installed'
-    try:
-        import jsonschema  # noqa
-        return {'condition': False, 'reason': reason}
-    except ImportError:
-        return {'condition': True, 'reason': reason}
+def no_json_schema() -> PytestSkip:
+    return no_mod("jsonschema")
 
 
-def no_graphviz():
-    reason = 'graphviz is not installed'
-    try:
-        import graphviz  # noqa
-        return {'condition': False, 'reason': reason}
-    except ImportError:
-        return {'condition': True, 'reason': reason}
+def no_graphviz() -> PytestSkip:
+    return no_mod("graphviz")
 
 
-def no_multiple(*args):
+def no_multiple(*args: Any) -> PytestSkip:
     condition = False
-    reason = ''
+    reason = ""
     for arg in args:
-        condition = (condition or arg['condition'])
-        if arg['condition']:
-            reason = arg['reason']
+        condition = condition or arg["condition"]
+        if arg["condition"]:
+            reason = arg["reason"]
             break
-    return {'condition': condition, 'reason': reason}
+    return {"condition": condition, "reason": reason}
 
 
-def skip_s390x():
+def skip_s390x() -> PytestSkip:
     condition = platform.machine() == "s390x"
     reason = "Known to fail on s390x"
     return {"condition": condition, "reason": reason}
 
 
 class IteratorForTest(xgb.core.DataIter):
+    """Iterator for testing streaming DMatrix. (external memory, quantile)"""
+
     def __init__(
         self,
         X: Sequence,
         y: Sequence,
         w: Optional[Sequence],
-        cache: Optional[str] = "./"
+        cache: Optional[str] = "./",
     ) -> None:
         assert len(X) == len(y)
         self.X = X
@@ -242,7 +240,7 @@ def make_batches(
         rng = cupy.random.RandomState(1994)
     else:
         rng = np.random.RandomState(1994)
-    for i in range(n_batches):
+    for _ in range(n_batches):
         _X = rng.randn(n_samples_per_batch, n_features)
         _y = rng.randn(n_samples_per_batch)
         _w = rng.uniform(low=0, high=1, size=n_samples_per_batch)
@@ -259,7 +257,7 @@ def make_batches_sparse(
     y = []
     w = []
     rng = np.random.RandomState(1994)
-    for i in range(n_batches):
+    for _ in range(n_batches):
         _X = sparse.random(
             n_samples_per_batch,
             n_features,
@@ -276,8 +274,9 @@ def make_batches_sparse(
     return X, y, w
 
 
-# Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
+    """Contains a dataset in numpy format as well as the relevant objective and metric."""
+
     def __init__(
         self, name: str, get_dataset: Callable, objective: str, metric: str
     ) -> None:
@@ -289,18 +288,24 @@ class TestDataset:
         self.margin: Optional[np.ndarray] = None
 
     def set_params(self, params_in: Dict[str, Any]) -> Dict[str, Any]:
-        params_in['objective'] = self.objective
-        params_in['eval_metric'] = self.metric
+        params_in["objective"] = self.objective
+        params_in["eval_metric"] = self.metric
         if self.objective == "multi:softmax":
             params_in["num_class"] = int(np.max(self.y) + 1)
         return params_in
 
     def get_dmat(self) -> xgb.DMatrix:
         return xgb.DMatrix(
-            self.X, self.y, self.w, base_margin=self.margin, enable_categorical=True
+            self.X,
+            self.y,
+            weight=self.w,
+            base_margin=self.margin,
+            enable_categorical=True,
         )
 
     def get_device_dmat(self) -> xgb.DeviceQuantileDMatrix:
+        import cupy as cp
+
         w = None if self.w is None else cp.array(self.w)
         X = cp.array(self.X, dtype=np.float32)
         y = cp.array(self.y, dtype=np.float32)
@@ -318,9 +323,9 @@ class TestDataset:
             beg = i * per_batch
             end = min((i + 1) * per_batch, n_samples)
             assert end != beg
-            X = self.X[beg: end, ...]
-            y = self.y[beg: end]
-            w = self.w[beg: end] if self.w is not None else None
+            X = self.X[beg:end, ...]
+            y = self.y[beg:end]
+            w = self.w[beg:end] if self.w is not None else None
             predictor.append(X)
             response.append(y)
             if w is not None:
@@ -334,25 +339,24 @@ class TestDataset:
 
 
 @memory.cache
-def get_california_housing():
+def get_california_housing() -> Tuple[np.ndarray, np.ndarray]:
     data = datasets.fetch_california_housing()
     return data.data, data.target
 
 
 @memory.cache
-def get_digits():
+def get_digits() -> Tuple[np.ndarray, np.ndarray]:
     data = datasets.load_digits()
     return data.data, data.target
 
 
 @memory.cache
-def get_cancer():
-    data = datasets.load_breast_cancer()
-    return data.data, data.target
+def get_cancer() -> Tuple[np.ndarray, np.ndarray]:
+    return datasets.load_breast_cancer(return_X_y=True)
 
 
 @memory.cache
-def get_sparse():
+def get_sparse() -> Tuple[np.ndarray, np.ndarray]:
     rng = np.random.RandomState(199)
     n = 2000
     sparsity = 0.75
@@ -366,7 +370,7 @@ def get_sparse():
 
 
 @memory.cache
-def get_ames_housing():
+def get_ames_housing() -> Tuple[np.ndarray, np.ndarray]:
     """
     Number of samples: 1460
     Number of features: 20
@@ -374,22 +378,23 @@ def get_ames_housing():
     Number of numerical features: 10
     """
     from sklearn.datasets import fetch_openml
+
     X, y = fetch_openml(data_id=42165, as_frame=True, return_X_y=True)
 
-    categorical_columns_subset: list[str] = [
-        "BldgType",             # 5 cats, no nan
-        "GarageFinish",         # 3 cats, nan
-        "LotConfig",            # 5 cats, no nan
-        "Functional",           # 7 cats, no nan
-        "MasVnrType",           # 4 cats, nan
-        "HouseStyle",           # 8 cats, no nan
-        "FireplaceQu",          # 5 cats, nan
-        "ExterCond",            # 5 cats, no nan
-        "ExterQual",            # 4 cats, no nan
-        "PoolQC",               # 3 cats, nan
+    categorical_columns_subset: List[str] = [
+        "BldgType",  # 5 cats, no nan
+        "GarageFinish",  # 3 cats, nan
+        "LotConfig",  # 5 cats, no nan
+        "Functional",  # 7 cats, no nan
+        "MasVnrType",  # 4 cats, nan
+        "HouseStyle",  # 8 cats, no nan
+        "FireplaceQu",  # 5 cats, nan
+        "ExterCond",  # 5 cats, no nan
+        "ExterQual",  # 4 cats, no nan
+        "PoolQC",  # 3 cats, nan
     ]
 
-    numerical_columns_subset: list[str] = [
+    numerical_columns_subset: List[str] = [
         "3SsnPorch",
         "Fireplaces",
         "BsmtHalfBath",
@@ -408,32 +413,70 @@ def get_ames_housing():
 
 
 @memory.cache
-def get_mq2008(dpath):
+def get_mq2008(
+    dpath: str,
+) -> Tuple[
+    sparse.csr_matrix,
+    np.ndarray,
+    np.ndarray,
+    sparse.csr_matrix,
+    np.ndarray,
+    np.ndarray,
+    sparse.csr_matrix,
+    np.ndarray,
+    np.ndarray,
+]:
     from sklearn.datasets import load_svmlight_files
 
-    src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
-    target = dpath + '/MQ2008.zip'
+    src = "https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip"
+    target = dpath + "/MQ2008.zip"
     if not os.path.exists(target):
         urllib.request.urlretrieve(url=src, filename=target)
 
-    with zipfile.ZipFile(target, 'r') as f:
+    with zipfile.ZipFile(target, "r") as f:
         f.extractall(path=dpath)
 
-    (x_train, y_train, qid_train, x_test, y_test, qid_test,
-     x_valid, y_valid, qid_valid) = load_svmlight_files(
-         (dpath + "MQ2008/Fold1/train.txt",
-          dpath + "MQ2008/Fold1/test.txt",
-          dpath + "MQ2008/Fold1/vali.txt"),
-         query_id=True, zero_based=False)
+    (
+        x_train,
+        y_train,
+        qid_train,
+        x_test,
+        y_test,
+        qid_test,
+        x_valid,
+        y_valid,
+        qid_valid,
+    ) = load_svmlight_files(
+        (
+            dpath + "MQ2008/Fold1/train.txt",
+            dpath + "MQ2008/Fold1/test.txt",
+            dpath + "MQ2008/Fold1/vali.txt",
+        ),
+        query_id=True,
+        zero_based=False,
+    )
 
-    return (x_train, y_train, qid_train, x_test, y_test, qid_test,
-            x_valid, y_valid, qid_valid)
+    return (
+        x_train,
+        y_train,
+        qid_train,
+        x_test,
+        y_test,
+        qid_test,
+        x_valid,
+        y_valid,
+        qid_valid,
+    )
 
 
 @memory.cache
 def make_categorical(
-    n_samples: int, n_features: int, n_categories: int, onehot: bool, sparsity=0.0,
-):
+    n_samples: int,
+    n_features: int,
+    n_categories: int,
+    onehot: bool,
+    sparsity: float = 0.0,
+) -> Tuple[ArrayLike, np.ndarray]:
     import pandas as pd
 
     rng = np.random.RandomState(1994)
@@ -457,7 +500,9 @@ def make_categorical(
 
     if sparsity > 0.0:
         for i in range(n_features):
-            index = rng.randint(low=0, high=n_samples-1, size=int(n_samples * sparsity))
+            index = rng.randint(
+                low=0, high=n_samples - 1, size=int(n_samples * sparsity)
+            )
             df.iloc[index, i] = np.NaN
             assert n_categories == np.unique(df.dtypes[i].categories).size
 
@@ -466,9 +511,9 @@ def make_categorical(
     return df, label
 
 
-def _cat_sampled_from():
+def _cat_sampled_from() -> strategies.SearchStrategy:
     @strategies.composite
-    def _make_cat(draw):
+    def _make_cat(draw: Callable) -> Tuple[int, int, int, float]:
         n_samples = draw(strategies.integers(2, 512))
         n_features = draw(strategies.integers(1, 4))
         n_cats = draw(strategies.integers(1, 128))
@@ -483,7 +528,7 @@ def _cat_sampled_from():
         )
         return n_samples, n_features, n_cats, sparsity
 
-    def _build(args):
+    def _build(args: Tuple[int, int, int, float]) -> TestDataset:
         n_samples = args[0]
         n_features = args[1]
         n_cats = args[2]
@@ -495,12 +540,13 @@ def _cat_sampled_from():
             "rmse",
         )
 
-    return _make_cat().map(_build)
+    return _make_cat().map(_build)  # pylint: disable=no-member
 
 
-categorical_dataset_strategy = _cat_sampled_from()
+categorical_dataset_strategy: strategies.SearchStrategy = _cat_sampled_from()
 
 
+# pylint: disable=too-many-locals
 @memory.cache
 def make_sparse_regression(
     n_samples: int, n_features: int, sparsity: float, as_dense: bool
@@ -530,8 +576,7 @@ def make_sparse_regression(
 
     # Use multi-thread to speed up the generation, convenient if you use this function
     # for benchmarking.
-    n_threads = multiprocessing.cpu_count()
-    n_threads = min(n_threads, n_features)
+    n_threads = min(multiprocessing.cpu_count(), n_features)
 
     def random_csc(t_id: int) -> sparse.csc_matrix:
         rng = np.random.default_rng(1994 * t_id)
@@ -653,7 +698,7 @@ _unweighted_datasets_strategy = strategies.sampled_from(
 
 
 @strategies.composite
-def _dataset_weight_margin(draw):
+def _dataset_weight_margin(draw: Callable) -> TestDataset:
     data: TestDataset = draw(_unweighted_datasets_strategy)
     if draw(strategies.booleans()):
         data.w = draw(
@@ -673,6 +718,7 @@ def _dataset_weight_margin(draw):
                 elements=strategies.floats(0.5, 1.0),
             )
         )
+        assert data.margin is not None
         if num_class != 1:
             data.margin = data.margin.reshape(data.y.shape[0], num_class)
 
@@ -684,11 +730,11 @@ def _dataset_weight_margin(draw):
 dataset_strategy = _dataset_weight_margin()
 
 
-def non_increasing(L, tolerance=1e-4):
+def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
-def eval_error_metric(predt, dtrain: xgb.DMatrix):
+def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
     """Evaluation metric for xgb.train"""
     label = dtrain.get_label()
     r = np.zeros(predt.shape)
@@ -698,7 +744,7 @@ def eval_error_metric(predt, dtrain: xgb.DMatrix):
     r[gt] = 1 - label[gt]
     le = predt <= 0.5
     r[le] = label[le]
-    return 'CustomErr', np.sum(r)
+    return "CustomErr", np.sum(r)
 
 
 def eval_error_metric_skl(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -717,13 +763,15 @@ def root_mean_square(y_true: np.ndarray, y_score: np.ndarray) -> float:
     return rmse
 
 
-def softmax(x):
+def softmax(x: np.ndarray) -> np.ndarray:
     e = np.exp(x)
     return e / np.sum(e)
 
 
-def softprob_obj(classes):
-    def objective(labels, predt):
+def softprob_obj(classes: int) -> SklObjective:
+    def objective(
+        labels: np.ndarray, predt: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         rows = labels.shape[0]
         grad = np.zeros((rows, classes), dtype=float)
         hess = np.zeros((rows, classes), dtype=float)
@@ -746,29 +794,33 @@ def softprob_obj(classes):
 
 
 class DirectoryExcursion:
-    def __init__(self, path: os.PathLike, cleanup=False):
-        '''Change directory.  Change back and optionally cleaning up the directory when exit.
+    """Change directory.  Change back and optionally cleaning up the directory when
+    exit.
 
-        '''
+    """
+
+    def __init__(self, path: os.PathLike, cleanup: bool = False):
         self.path = path
         self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
         self.cleanup = cleanup
-        self.files = {}
+        self.files: Set[str] = set()
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         os.chdir(self.path)
         if self.cleanup:
             self.files = {
                 os.path.join(root, f)
-                for root, subdir, files in os.walk(self.path) for f in files
+                for root, subdir, files in os.walk(os.path.expanduser(self.path))
+                for f in files
             }
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         os.chdir(self.curdir)
         if self.cleanup:
             files = {
                 os.path.join(root, f)
-                for root, subdir, files in os.walk(self.path) for f in files
+                for root, subdir, files in os.walk(os.path.expanduser(self.path))
+                for f in files
             }
             diff = files.difference(self.files)
             for f in diff:
@@ -776,7 +828,7 @@ class DirectoryExcursion:
 
 
 @contextmanager
-def captured_output():
+def captured_output() -> Generator[Tuple[StringIO, StringIO], None, None]:
     """Reassign stdout temporarily in order to test printed statements
     Taken from:
     https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
@@ -793,14 +845,29 @@ def captured_output():
         sys.stdout, sys.stderr = old_out, old_err
 
 
-try:
-    # Python 3.7+
-    from contextlib import nullcontext as noop_context
-except ImportError:
-    # Python 3.6
-    from contextlib import suppress as noop_context
+def timeout(sec: int, *args: Any, enable: bool = True, **kwargs: Any) -> Any:
+    """Make a pytest mark for the `pytest-timeout` package.
+
+    Parameters
+    ----------
+    sec :
+        Timeout seconds.
+    enable :
+        Control whether timeout should be applied, used for debugging.
+
+    Returns
+    -------
+    pytest.mark.timeout
+    """
+
+    # This is disabled for now due to regression caused by conflicts between federated
+    # learning build and the CI container environment.
+    if enable:
+        return pytest.mark.timeout(sec, *args, **kwargs)
+    return pytest.mark.timeout(None, *args, **kwargs)
 
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(
-    os.path.join(CURDIR, os.path.pardir, os.path.pardir))
+    os.path.join(CURDIR, os.path.pardir, os.path.pardir, os.path.pardir)
+)
