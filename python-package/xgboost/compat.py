@@ -10,7 +10,7 @@ import numpy as np
 
 from ._typing import _T
 
-assert sys.version_info[0] == 3, "Python 2 is no longer supported."
+assert sys.version_info >= (3, 8), "Python < v3.8 is no longer supported."
 
 
 def py_str(x: bytes) -> str:
