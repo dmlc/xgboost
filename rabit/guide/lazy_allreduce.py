@@ -20,7 +20,7 @@ a = np.zeros(n)
 def prepare(a):
     print('@node[%d] run prepare function' % rank)
     # must take in reference and modify the reference
-    for i in xrange(n):
+    for i in range(n):
         a[i] = rank + i
 
 print('@node[%d] before-allreduce: a=%s' % (rank, str(a)))
