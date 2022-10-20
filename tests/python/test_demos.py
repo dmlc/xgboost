@@ -1,9 +1,11 @@
 import os
 import subprocess
+import tempfile
 import sys
 
 import pytest
 
+import xgboost
 from xgboost import testing as tm
 
 pytestmark = tm.timeout(30)
@@ -136,6 +138,37 @@ def test_multioutput_reg() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "multioutput_regression.py")
     cmd = ['python', script, "--plot=0"]
     subprocess.check_call(cmd)
+
+
+@pytest.mark.skipif(**tm.no_ubjson())
+def test_json_model() -> None:
+    script = os.path.join(DEMO_DIR, "json-model", "json_parser.py")
+
+    def run_test(reg: xgboost.XGBRegressor) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "reg.json")
+            reg.save_model(path)
+            cmd = ["python", script, f"--model={path}"]
+            subprocess.check_call(cmd)
+
+            path = os.path.join(tmpdir, "reg.ubj")
+            reg.save_model(path)
+            cmd = ["python", script, f"--model={path}"]
+            subprocess.check_call(cmd)
+
+    # X, y = tm.make_sparse_regression(100, 10, 0.5, False)
+    # reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
+    # reg.fit(X, y)
+    # run_test(reg)
+
+    X, y = tm.make_categorical(
+        n_samples=1000, n_features=10, n_categories=6, onehot=False, sparsity=0.5
+    )
+    reg = xgboost.XGBRegressor(
+        n_estimators=2, tree_method="hist", enable_categorical=True
+    )
+    reg.fit(X, y)
+    run_test(reg)
 
 
 # gpu_acceleration is not tested due to covertype dataset is being too huge.
