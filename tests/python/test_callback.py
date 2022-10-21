@@ -275,8 +275,9 @@ class TestCallbacks:
         scheduler = xgb.callback.LearningRateScheduler
 
         dpath = tm.data_dir(__file__)
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        dtrain = xgb.DMatrix(os.path.join(dpath, "agaricus.txt.train"))
+        dtest = xgb.DMatrix(os.path.join(dpath, "agaricus.txt.test"))
+
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
 
