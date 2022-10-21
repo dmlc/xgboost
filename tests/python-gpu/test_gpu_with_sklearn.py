@@ -75,7 +75,7 @@ def test_categorical():
     import pandas as pd
     from sklearn.datasets import load_svmlight_file
 
-    data_dir = os.path.join(tm.PROJECT_ROOT, "demo", "data")
+    data_dir = tm.data_dir(__file__)
     X, y = load_svmlight_file(os.path.join(data_dir, "agaricus.txt.train"))
     clf = xgb.XGBClassifier(
         tree_method="gpu_hist",

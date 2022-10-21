@@ -85,7 +85,7 @@ class TestOMP:
     def test_with_omp_thread_limit(self):
         args = [
             "python", os.path.join(
-                tm.PROJECT_ROOT, "tests", "python", "with_omp_limit.py"
+                os.path.dirname(tm.normpath(__file__)), "with_omp_limit.py"
             )
         ]
         results = []

@@ -8,8 +8,7 @@ from xgboost import testing as tm
 
 pytestmark = tm.timeout(30)
 
-ROOT_DIR = tm.PROJECT_ROOT
-DEMO_DIR = os.path.join(ROOT_DIR, 'demo')
+DEMO_DIR = tm.demo_dir(__file__)
 PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, 'guide-python')
 CLI_DEMO_DIR = os.path.join(DEMO_DIR, 'CLI')
 
@@ -155,7 +154,7 @@ def test_cli_regression_demo():
     cmd = ['python', script, 'machine.txt', '1']
     subprocess.check_call(cmd, cwd=reg_dir)
 
-    exe = os.path.join(tm.PROJECT_ROOT, 'xgboost')
+    exe = os.path.join(DEMO_DIR, os.path.pardir, 'xgboost')
     conf = os.path.join(reg_dir, 'machine.conf')
     subprocess.check_call([exe, conf], cwd=reg_dir)
 

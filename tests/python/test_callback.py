@@ -274,7 +274,7 @@ class TestCallbacks:
         """Test learning rate scheduler, used by both CPU and GPU tests."""
         scheduler = xgb.callback.LearningRateScheduler
 
-        dpath = os.path.join(tm.PROJECT_ROOT, 'demo/data/')
+        dpath = tm.data_dir(__file__)
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]

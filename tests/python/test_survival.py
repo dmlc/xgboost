@@ -7,7 +7,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 
-dpath = os.path.join(tm.PROJECT_ROOT, 'demo', 'data')
+dpath = tm.data_dir(__file__)
 
 
 def test_aft_survival_toy_data():

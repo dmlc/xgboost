@@ -21,7 +21,7 @@ class TestRanking:
         from sklearn.datasets import load_svmlight_files
 
         # download the test data
-        cls.dpath = os.path.join(tm.PROJECT_ROOT, "demo/rank/")
+        cls.dpath = os.path.join(tm.demo_dir(__file__), "rank/")
         src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
         target = os.path.join(cls.dpath, "MQ2008.zip")
 

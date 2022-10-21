@@ -860,14 +860,31 @@ def timeout(sec: int, *args: Any, enable: bool = True, **kwargs: Any) -> Any:
     pytest.mark.timeout
     """
 
-    # This is disabled for now due to regression caused by conflicts between federated
-    # learning build and the CI container environment.
     if enable:
         return pytest.mark.timeout(sec, *args, **kwargs)
     return pytest.mark.timeout(None, *args, **kwargs)
 
 
-CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-PROJECT_ROOT = os.path.normpath(
-    os.path.join(CURDIR, os.path.pardir, os.path.pardir, os.path.pardir)
-)
+def demo_dir(path: str) -> str:
+    """Look for the demo directory based on the test file name."""
+    path = normpath(os.path.dirname(path))
+    while True:
+        subdirs = [f.path for f in os.scandir(path) if f.is_dir()]
+        subdirs = [os.path.basename(d) for d in subdirs]
+        if "demo" in subdirs:
+            return os.path.join(path, "demo")
+        new_path = normpath(os.path.join(path, os.path.pardir))
+        assert new_path != path
+        path = new_path
+
+
+def normpath(path: str) -> str:
+    return os.path.normpath(os.path.abspath(path))
+
+
+def data_dir(path: str) -> str:
+    return os.path.join(demo_dir(path), "data")
+
+
+def project_root(path: str) -> str:
+    return normpath(os.path.join(demo_dir(path), os.path.pardir))

@@ -1115,8 +1115,9 @@ def test_predict_with_meta(client: "Client") -> None:
 
 
 def run_aft_survival(client: "Client", dmatrix_t: Type) -> None:
-    df = dd.read_csv(os.path.join(tm.PROJECT_ROOT, 'demo', 'data',
-                                  'veterans_lung_cancer.csv'))
+    df = dd.read_csv(
+        os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
+    )
     y_lower_bound = df['Survival_label_lower_bound']
     y_upper_bound = df['Survival_label_upper_bound']
     X = df.drop(['Survival_label_lower_bound',

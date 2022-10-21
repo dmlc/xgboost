@@ -1042,8 +1042,9 @@ def run_feature_weights(X, y, fw, tree_method, model=xgb.XGBRegressor):
         with open(model_path) as fd:
             model = json.load(fd)
 
-        parser_path = os.path.join(tm.PROJECT_ROOT, 'demo', 'json-model',
-                                   'json_parser.py')
+        parser_path = os.path.join(
+            tm.demo_dir(__file__), "json-model", "json_parser.py"
+        )
         spec = importlib.util.spec_from_file_location("JsonParser",
                                                       parser_path)
         foo = importlib.util.module_from_spec(spec)

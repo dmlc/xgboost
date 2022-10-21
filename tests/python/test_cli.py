@@ -31,7 +31,7 @@ data = {data_path}
 eval[test] = {data_path}
 '''
 
-    PROJECT_ROOT = tm.PROJECT_ROOT
+    PROJECT_ROOT = tm.project_root(__file__)
 
     def get_exe(self):
         if platform.system() == 'Windows':

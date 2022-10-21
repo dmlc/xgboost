@@ -34,6 +34,6 @@ def test_categorical_demo():
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.mgpu
 def test_dask_training():
-    script = os.path.join(tm.PROJECT_ROOT, 'demo', 'dask', 'gpu_training.py')
+    script = os.path.join(tm.demo_dir(__file__), 'dask', 'gpu_training.py')
     cmd = ['python', script]
     subprocess.check_call(cmd)
