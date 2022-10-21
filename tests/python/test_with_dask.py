@@ -28,7 +28,6 @@ from test_with_sklearn import run_data_initialization, run_feature_weights
 from xgboost.data import _is_cudf_df
 
 import xgboost as xgb
-from xgboost import testing
 from xgboost import testing as tm
 
 if sys.platform.startswith("win"):
@@ -45,7 +44,7 @@ from xgboost.dask import DaskDMatrix
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]

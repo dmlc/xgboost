@@ -6,10 +6,9 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
-from xgboost import testing
 from xgboost import testing as tm
 
-pytestmark = testing.timeout(10)
+pytestmark = tm.timeout(10)
 
 
 class TestOMP:

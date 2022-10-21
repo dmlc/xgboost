@@ -6,7 +6,6 @@ from hypothesis import assume, given, settings, strategies
 from xgboost.compat import PANDAS_INSTALLED
 
 import xgboost as xgb
-from xgboost import testing
 from xgboost import testing as tm
 
 if PANDAS_INSTALLED:
@@ -33,7 +32,7 @@ predict_parameter_strategy = strategies.fixed_dictionaries({
     'num_parallel_tree': strategies.sampled_from([1, 4]),
 })
 
-pytestmark = testing.timeout(20)
+pytestmark = tm.timeout(20)
 
 
 class TestGPUPredict:

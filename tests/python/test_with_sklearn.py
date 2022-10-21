@@ -11,11 +11,10 @@ import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
 import xgboost as xgb
-from xgboost import testing
 from xgboost import testing as tm
 
 rng = np.random.RandomState(1994)
-pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), testing.timeout(30)]
+pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]
 
 
 def test_binary_classification():

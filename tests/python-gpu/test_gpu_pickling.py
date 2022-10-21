@@ -9,12 +9,11 @@ import pytest
 
 import xgboost as xgb
 from xgboost import XGBClassifier
-from xgboost import testing
 from xgboost import testing as tm
 
 model_path = './model.pkl'
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
 
 def build_dataset():

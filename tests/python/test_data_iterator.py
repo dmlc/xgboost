@@ -8,9 +8,9 @@ from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
 
 def test_single_batch(tree_method: str = "approx") -> None:
