@@ -7,7 +7,7 @@ from threading import Thread
 from typing import Any, Callable, Dict, List, Set, Type
 
 import pyspark
-from pyspark import SparkContext, TaskContext
+from pyspark import BarrierTaskContext, SparkContext
 from pyspark.sql.session import SparkSession
 from xgboost.tracker import RabitTracker
 
@@ -45,7 +45,7 @@ class CommunicatorContext:
 
     """
 
-    def __init__(self, context: TaskContext, **args: Any) -> None:
+    def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
         self.args = args
         self.args["DMLC_TASK_ID"] = str(context.partitionId())
 
@@ -56,7 +56,7 @@ class CommunicatorContext:
         collective.finalize()
 
 
-def _start_tracker(context: TaskContext, n_workers: int) -> Dict[str, Any]:
+def _start_tracker(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
     """Start Rabit tracker with n_workers"""
     env: Dict[str, Any] = {"DMLC_NUM_WORKER": n_workers}
     host = _get_host_ip(context)
@@ -69,13 +69,13 @@ def _start_tracker(context: TaskContext, n_workers: int) -> Dict[str, Any]:
     return env
 
 
-def _get_rabit_args(context: TaskContext, n_workers: int) -> Dict[str, Any]:
+def _get_rabit_args(context: BarrierTaskContext, n_workers: int) -> Dict[str, Any]:
     """Get rabit context arguments to send to each worker."""
     env = _start_tracker(context, n_workers)
     return env
 
 
-def _get_host_ip(context: TaskContext) -> str:
+def _get_host_ip(context: BarrierTaskContext) -> str:
     """Gets the hostIP for Spark. This essentially gets the IP of the first worker."""
     task_ip_list = [info.address.split(":")[0] for info in context.getTaskInfos()]
     return task_ip_list[0]
@@ -132,7 +132,7 @@ def _is_local(spark_context: SparkContext) -> bool:
     return spark_context._jsc.sc().isLocal()
 
 
-def _get_gpu_id(task_context: TaskContext) -> int:
+def _get_gpu_id(task_context: BarrierTaskContext) -> int:
     """Get the gpu id from the task resources"""
     if task_context is None:
         # This is a safety check.
