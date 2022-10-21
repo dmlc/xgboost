@@ -734,20 +734,20 @@ def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
-def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
+def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
     """Evaluation metric for xgb.train"""
     label = dtrain.get_label()
     r = np.zeros(predt.shape)
     gt = predt > 0.5
     if predt.size == 0:
-        return "CustomErr", 0
+        return "CustomErr", np.float64(0.0)
     r[gt] = 1 - label[gt]
     le = predt <= 0.5
     r[le] = label[le]
     return "CustomErr", np.sum(r)
 
 
-def eval_error_metric_skl(y_true: np.ndarray, y_score: np.ndarray) -> float:
+def eval_error_metric_skl(y_true: np.ndarray, y_score: np.ndarray) -> np.float64:
     """Evaluation metric that looks like metrics provided by sklearn."""
     r = np.zeros(y_score.shape)
     gt = y_score > 0.5
