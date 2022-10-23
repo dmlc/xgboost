@@ -1,7 +1,6 @@
 <img src=https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png width=135/>  eXtreme Gradient Boosting
 ===========
 [![Build Status](https://xgboost-ci.net/job/xgboost/job/master/badge/icon)](https://xgboost-ci.net/blue/organizations/jenkins/xgboost/activity)
-[![Build Status](https://img.shields.io/travis/dmlc/xgboost.svg?label=build&logo=travis&branch=master)](https://travis-ci.org/dmlc/xgboost)
 [![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost-CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
