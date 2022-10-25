@@ -29,6 +29,7 @@ fi
 if test `uname -s` = "Darwin"
 then
   if command -v brew &> /dev/null
+  then
     HOMEBREW_LIBOMP_PREFIX=`brew --prefix libomp`
   else
     # Homebrew not found
