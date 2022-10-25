@@ -102,7 +102,7 @@ for more details on PySpark dependency management.
 In short, to create a Python environment that can be sent to a remote cluster using
 virtualenv and pip:
 
-.. coda-black:: bash
+.. code-block:: bash
 
   python -m venv xgboost_env
   source xgboost_env/bin/activate
@@ -124,7 +124,7 @@ with conda:
 Write your PySpark application
 ==============================
 
-Below snippet is a toy example for training xgboost model with PySpark. Notice that we are
+Below snippet is a small example for training xgboost model with PySpark. Notice that we are
 using a list of feature names and the additional parameter ``use_gpu``:
 
 .. code-block:: python
