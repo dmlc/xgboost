@@ -28,8 +28,9 @@ fi
 
 if test `uname -s` = "Darwin"
 then
-  OPENMP_CXXFLAGS='-Xclang -fopenmp'
-  OPENMP_LIB='-I/opt/homebrew/opt/libomp/include -lomp -L/opt/homebrew/opt/libomp/lib'
+  HOMEBREW_LIBOMP_PREFIX=`brew --prefix libomp`
+  OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include"
+  OPENMP_LIB="-lomp -L${HOMEBREW_LIBOMP_PREFIX}/lib"
   ac_pkg_openmp=no
   AC_MSG_CHECKING([whether OpenMP will work in a package])
   AC_LANG_CONFTEST([AC_LANG_PROGRAM([[#include <omp.h>]], [[ return (omp_get_max_threads() <= 1); ]])])
