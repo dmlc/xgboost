@@ -1,11 +1,12 @@
-# type: ignore
 """Xgboost pyspark integration submodule for estimator API."""
 # pylint: disable=too-many-ancestors
+from typing import Any, Type
+
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
 
-from .core import (
+from .core import (  # type: ignore
     SparkXGBClassifierModel,
     SparkXGBRankerModel,
     SparkXGBRegressorModel,
@@ -95,19 +96,19 @@ class SparkXGBRegressor(_SparkXGBEstimator):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__()
         self.setParams(**kwargs)
 
     @classmethod
-    def _xgb_cls(cls):
+    def _xgb_cls(cls) -> Type[XGBRegressor]:
         return XGBRegressor
 
     @classmethod
-    def _pyspark_model_cls(cls):
+    def _pyspark_model_cls(cls) -> Type[SparkXGBRegressorModel]:
         return SparkXGBRegressorModel
 
-    def _validate_params(self):
+    def _validate_params(self) -> None:
         super()._validate_params()
         if self.isDefined(self.qid_col):
             raise ValueError(
@@ -209,7 +210,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__()
         # The default 'objective' param value comes from sklearn `XGBClassifier` ctor,
         # but in pyspark we will automatically set objective param depending on
@@ -219,14 +220,14 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         self.setParams(**kwargs)
 
     @classmethod
-    def _xgb_cls(cls):
+    def _xgb_cls(cls) -> Type[XGBClassifier]:
         return XGBClassifier
 
     @classmethod
-    def _pyspark_model_cls(cls):
+    def _pyspark_model_cls(cls) -> Type[SparkXGBClassifierModel]:
         return SparkXGBClassifierModel
 
-    def _validate_params(self):
+    def _validate_params(self) -> None:
         super()._validate_params()
         if self.isDefined(self.qid_col):
             raise ValueError(
@@ -342,19 +343,19 @@ class SparkXGBRanker(_SparkXGBEstimator):
     >>> model.transform(df_test).show()
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__()
         self.setParams(**kwargs)
 
     @classmethod
-    def _xgb_cls(cls):
+    def _xgb_cls(cls) -> Type[XGBRanker]:
         return XGBRanker
 
     @classmethod
-    def _pyspark_model_cls(cls):
+    def _pyspark_model_cls(cls) -> Type[SparkXGBRankerModel]:
         return SparkXGBRankerModel
 
-    def _validate_params(self):
+    def _validate_params(self) -> None:
         super()._validate_params()
         if not self.isDefined(self.qid_col):
             raise ValueError(
