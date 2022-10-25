@@ -106,7 +106,9 @@ virtualenv and pip:
 
   python -m venv xgboost_env
   source xgboost_env/bin/activate
-  pip install pyarrow pandas venv-pack cudf xgboost
+  pip install pyarrow pandas venv-pack xgboost
+  # https://rapids.ai/pip.html#install
+  pip install cudf-cu11 dask-cudf-cu11 --extra-index-url=https://pypi.ngc.nvidia.com
   venv-pack -o xgboost_env.tar.gz
 
 with conda:
