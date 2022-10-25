@@ -171,6 +171,10 @@ if (USE_OPENMP)
     # Require CMake 3.16+ on Mac OSX, as previous versions of CMake had trouble locating
     # OpenMP on Mac. See https://github.com/dmlc/xgboost/pull/5146#issuecomment-568312706
     cmake_minimum_required(VERSION 3.16)
+    set(OpenMP_CXX_FLAGS
+      "-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include")
+    set(OpenMP_CXX_LIB_NAMES omp)
+    set(OpenMP_omp_LIBRARY /opt/homebrew/opt/libomp/lib/libomp.dylib)
   endif (APPLE)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
