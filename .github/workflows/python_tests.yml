@@ -178,3 +178,5 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v ./tests/python
+        pytest -s -v ./tests/test_distributed/test_with_dask
+        pytest -s -v ./tests/test_distributed/test_with_spark

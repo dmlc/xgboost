@@ -10,8 +10,7 @@ facilities.
     dependencies for tests, see conda files in `ci_build`.
   * python-gpu: Similar to python tests, but for GPU.
   * travis: CI facilities for Travis.
-  * distributed: Legacy tests for distributed system.  Most of the distributed tests are
-    in Python tests using `dask` and jvm package using `spark`.
+  * distributed: Test for distributed system.
   * benchmark: Legacy benchmark code.  There are a number of benchmark projects for
     XGBoost with much better configurations.
 

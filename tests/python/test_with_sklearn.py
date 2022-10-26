@@ -1031,45 +1031,6 @@ def test_pandas_input():
     np.testing.assert_allclose(np.array(clf_isotonic.classes_), np.array([0, 1]))
 
 
-def run_feature_weights(X, y, fw, tree_method, model=xgb.XGBRegressor):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        colsample_bynode = 0.5
-        reg = model(tree_method=tree_method, colsample_bynode=colsample_bynode)
-
-        reg.fit(X, y, feature_weights=fw)
-        model_path = os.path.join(tmpdir, 'model.json')
-        reg.save_model(model_path)
-        with open(model_path) as fd:
-            model = json.load(fd)
-
-        parser_path = os.path.join(
-            tm.demo_dir(__file__), "json-model", "json_parser.py"
-        )
-        spec = importlib.util.spec_from_file_location("JsonParser",
-                                                      parser_path)
-        foo = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(foo)
-        model = foo.Model(model)
-        splits = {}
-        total_nodes = 0
-        for tree in model.trees:
-            n_nodes = len(tree.nodes)
-            total_nodes += n_nodes
-            for n in range(n_nodes):
-                if tree.is_leaf(n):
-                    continue
-                if splits.get(tree.split_index(n), None) is None:
-                    splits[tree.split_index(n)] = 1
-                else:
-                    splits[tree.split_index(n)] += 1
-
-        od = collections.OrderedDict(sorted(splits.items()))
-        tuples = [(k, v) for k, v in od.items()]
-        k, v = list(zip(*tuples))
-        w = np.polyfit(k, v, deg=1)
-        return w
-
-
 @pytest.mark.parametrize("tree_method", ["approx", "hist"])
 def test_feature_weights(tree_method):
     kRows = 512
@@ -1080,12 +1041,12 @@ def test_feature_weights(tree_method):
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(i)
-    poly_increasing = run_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
+    poly_increasing = tm.get_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(kCols - i)
-    poly_decreasing = run_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
+    poly_decreasing = tm.get_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
 
     # Approxmated test, this is dependent on the implementation of random
     # number generator in std library.
@@ -1219,33 +1180,10 @@ def test_multilabel_classification() -> None:
     assert predt.dtype == np.int64
 
 
-def run_data_initialization(DMatrix, model, X, y):
-    """Assert that we don't create duplicated DMatrix."""
-
-    old_init = DMatrix.__init__
-    count = [0]
-
-    def new_init(self, **kwargs):
-        count[0] += 1
-        return old_init(self, **kwargs)
-
-    DMatrix.__init__ = new_init
-    model(n_estimators=1).fit(X, y, eval_set=[(X, y)])
-
-    assert count[0] == 1
-    count[0] = 0                # only 1 DMatrix is created.
-
-    y_copy = y.copy()
-    model(n_estimators=1).fit(X, y, eval_set=[(X, y_copy)])
-    assert count[0] == 2        # a different Python object is considered different
-
-    DMatrix.__init__ = old_init
-
-
 def test_data_initialization():
     from sklearn.datasets import load_digits
     X, y = load_digits(return_X_y=True)
-    run_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
+    tm.validate_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
 
 
 @parametrize_with_checks([xgb.XGBRegressor()])

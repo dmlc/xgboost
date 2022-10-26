@@ -22,10 +22,8 @@ import scipy
 import sklearn
 from hypothesis import HealthCheck, given, note, settings
 from sklearn.datasets import make_classification, make_regression
-from test_predict import verify_leaf_output
-from test_updaters import exact_parameter_strategy, hist_parameter_strategy
-from test_with_sklearn import run_data_initialization, run_feature_weights
 from xgboost.data import _is_cudf_df
+from xgboost.testing.params import hist_parameter_strategy
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -1232,7 +1230,7 @@ def test_dask_predict_leaf(booster: str, client: "Client") -> None:
     leaf_from_apply = cls.apply(X).reshape(leaf.shape).compute()
     np.testing.assert_allclose(leaf_from_apply, leaf)
 
-    verify_leaf_output(leaf, num_parallel_tree)
+    tm.validate_leaf_output(leaf, num_parallel_tree)
 
 
 def test_dask_iteration_range(client: "Client"):
@@ -1466,9 +1464,10 @@ class TestWithDask:
             quantile_hist["Valid"]["rmse"], dmatrix_hist["Valid"]["rmse"]
         )
 
-    @given(params=exact_parameter_strategy,
-           dataset=tm.dataset_strategy)
-    @settings(deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True)
+    @given(params=hist_parameter_strategy, dataset=tm.dataset_strategy)
+    @settings(
+        deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
+    )
     def test_approx(
         self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
@@ -1609,7 +1608,7 @@ class TestWithDask:
         for i in range(kCols):
             fw[i] *= float(i)
         fw = da.from_array(fw)
-        poly_increasing = run_feature_weights(
+        poly_increasing = tm.get_feature_weights(
             X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
         )
 
@@ -1617,7 +1616,7 @@ class TestWithDask:
         for i in range(kCols):
             fw[i] *= float(kCols - i)
         fw = da.from_array(fw)
-        poly_decreasing = run_feature_weights(
+        poly_decreasing = tm.get_feature_weights(
             X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
         )
 
@@ -1717,7 +1716,9 @@ class TestWithDask:
         from sklearn.datasets import load_digits
         X, y = load_digits(return_X_y=True)
         X, y = dd.from_array(X, chunksize=32), dd.from_array(y, chunksize=32)
-        run_data_initialization(xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y)
+        tm.validate_data_initialization(
+            xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y
+        )
 
     def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
         rows = X.shape[0]

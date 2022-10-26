@@ -26,16 +26,6 @@ def run_threaded_predict(X, rows, predict_func):
         assert f.result()
 
 
-def verify_leaf_output(leaf: np.ndarray, num_parallel_tree: int):
-    for i in range(leaf.shape[0]):     # n_samples
-        for j in range(leaf.shape[1]):  # n_rounds
-            for k in range(leaf.shape[2]):    # n_classes
-                tree_group = leaf[i, j, k, :]
-                assert tree_group.shape[0] == num_parallel_tree
-                # No sampling, all trees within forest are the same
-                assert np.all(tree_group == tree_group[0])
-
-
 def run_predict_leaf(predictor):
     rows = 100
     cols = 4
@@ -67,7 +57,7 @@ def run_predict_leaf(predictor):
     assert leaf.shape[2] == classes
     assert leaf.shape[3] == num_parallel_tree
 
-    verify_leaf_output(leaf, num_parallel_tree)
+    tm.validate_leaf_output(leaf, num_parallel_tree)
 
     ntree_limit = 2
     sliced = booster.predict(
