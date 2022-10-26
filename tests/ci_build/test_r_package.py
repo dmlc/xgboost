@@ -1,6 +1,8 @@
 import argparse
 import os
 import subprocess
+from time import time
+
 from test_utils import DirectoryExcursion
 
 ROOT = os.path.normpath(
@@ -20,7 +22,7 @@ def test_with_autotools(args):
         CC = os.path.join(mingw_bin, 'gcc.exe')
         cmd = ['R.exe', 'CMD', 'INSTALL', str(os.path.curdir)]
         env = os.environ.copy()
-        env.update({'CC': CC, 'CXX': CXX})
+        env.update({'CC': CC, 'CXX': CXX, "MAKE": "make -j$(nproc)"})
         subprocess.check_call(cmd, env=env)
         subprocess.check_call([
             'R.exe', '-q', '-e',
@@ -69,11 +71,13 @@ def test_with_cmake(args):
         ])
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
+    start = time()
     if args.build_tool == 'autotools':
         test_with_autotools(args)
     else:
         test_with_cmake(args)
+    print("Duration:", time() - start)
 
 
 if __name__ == '__main__':
