@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 import numpy as np
-import xgboost as xgb
-import testing as tm
 import pytest
 from test_dmatrix import set_base_margin_info
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 try:
     import modin.pandas as md

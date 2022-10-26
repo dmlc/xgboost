@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import numpy as np
-import xgboost
-import testing as tm
 import pytest
+
+import xgboost
+from xgboost import testing as tm
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)

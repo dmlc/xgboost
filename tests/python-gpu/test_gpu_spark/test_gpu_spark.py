@@ -6,8 +6,7 @@ import sys
 import pytest
 import sklearn
 
-sys.path.append("tests/python")
-import testing as tm
+from xgboost import testing as tm
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)

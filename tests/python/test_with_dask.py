@@ -20,7 +20,6 @@ import numpy as np
 import pytest
 import scipy
 import sklearn
-import testing as tm
 from hypothesis import HealthCheck, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 from test_predict import verify_leaf_output
@@ -29,7 +28,7 @@ from test_with_sklearn import run_data_initialization, run_feature_weights
 from xgboost.data import _is_cudf_df
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -45,7 +44,7 @@ from xgboost.dask import DaskDMatrix
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
-pytestmark = testing.timeout(30)
+pytestmark = tm.timeout(30)
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
@@ -1116,8 +1115,9 @@ def test_predict_with_meta(client: "Client") -> None:
 
 
 def run_aft_survival(client: "Client", dmatrix_t: Type) -> None:
-    df = dd.read_csv(os.path.join(tm.PROJECT_ROOT, 'demo', 'data',
-                                  'veterans_lung_cancer.csv'))
+    df = dd.read_csv(
+        os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
+    )
     y_lower_bound = df['Survival_label_lower_bound']
     y_upper_bound = df['Survival_label_upper_bound']
     X = df.drop(['Survival_label_lower_bound',

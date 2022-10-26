@@ -4,11 +4,11 @@ import tempfile
 import numpy as np
 import pytest
 import scipy.sparse
-import testing as tm
 from hypothesis import given, settings, strategies
 from scipy.sparse import csr_matrix, rand
 
 import xgboost as xgb
+from xgboost import testing as tm
 
 rng = np.random.RandomState(1)
 

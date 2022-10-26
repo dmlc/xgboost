@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
 from scipy import sparse
-from testing import (
+from xgboost.testing import (
     IteratorForTest,
     make_batches,
     make_batches_sparse,

@@ -4,12 +4,11 @@ import tempfile
 
 import numpy as np
 import pytest
-import testing as tm
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
-pytestmark = testing.timeout(10)
+pytestmark = tm.timeout(10)
 
 
 class TestOMP:
@@ -86,7 +85,7 @@ class TestOMP:
     def test_with_omp_thread_limit(self):
         args = [
             "python", os.path.join(
-                tm.PROJECT_ROOT, "tests", "python", "with_omp_limit.py"
+                os.path.dirname(tm.normpath(__file__)), "with_omp_limit.py"
             )
         ]
         results = []

@@ -8,14 +8,13 @@ from typing import Callable, Optional
 
 import numpy as np
 import pytest
-import testing as tm
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
 rng = np.random.RandomState(1994)
-pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), testing.timeout(30)]
+pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]
 
 
 def test_binary_classification():
@@ -155,11 +154,10 @@ def test_ranking():
 
 
 def test_stacking_regression():
-    from sklearn.model_selection import train_test_split
     from sklearn.datasets import load_diabetes
+    from sklearn.ensemble import RandomForestRegressor, StackingRegressor
     from sklearn.linear_model import RidgeCV
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.ensemble import StackingRegressor
+    from sklearn.model_selection import train_test_split
 
     X, y = load_diabetes(return_X_y=True)
     estimators = [
@@ -177,13 +175,13 @@ def test_stacking_regression():
 
 
 def test_stacking_classification():
-    from sklearn.model_selection import train_test_split
     from sklearn.datasets import load_iris
-    from sklearn.svm import LinearSVC
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.pipeline import make_pipeline
     from sklearn.ensemble import StackingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import train_test_split
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.svm import LinearSVC
 
     X, y = load_iris(return_X_y=True)
     estimators = [
@@ -354,8 +352,8 @@ def test_num_parallel_tree():
 
 
 def test_regression():
-    from sklearn.metrics import mean_squared_error
     from sklearn.datasets import fetch_california_housing
+    from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
     X, y = fetch_california_housing(return_X_y=True)
@@ -383,8 +381,8 @@ def test_regression():
 
 
 def run_housing_rf_regression(tree_method):
-    from sklearn.metrics import mean_squared_error
     from sklearn.datasets import fetch_california_housing
+    from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
     X, y = fetch_california_housing(return_X_y=True)
@@ -407,8 +405,8 @@ def test_rf_regression():
 
 
 def test_parameter_tuning():
-    from sklearn.model_selection import GridSearchCV
     from sklearn.datasets import fetch_california_housing
+    from sklearn.model_selection import GridSearchCV
 
     X, y = fetch_california_housing(return_X_y=True)
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
@@ -421,8 +419,8 @@ def test_parameter_tuning():
 
 
 def test_regression_with_custom_objective():
-    from sklearn.metrics import mean_squared_error
     from sklearn.datasets import fetch_california_housing
+    from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
     def objective_ls(y_true, y_pred):
@@ -539,8 +537,8 @@ def test_sklearn_plotting():
     import matplotlib
     matplotlib.use('Agg')
 
-    from matplotlib.axes import Axes
     from graphviz import Source
+    from matplotlib.axes import Axes
 
     ax = xgb.plot_importance(classifier)
     assert isinstance(ax, Axes)
@@ -666,8 +664,8 @@ def test_kwargs_error():
 
 
 def test_kwargs_grid_search():
-    from sklearn.model_selection import GridSearchCV
     from sklearn import datasets
+    from sklearn.model_selection import GridSearchCV
 
     params = {'tree_method': 'hist'}
     clf = xgb.XGBClassifier(n_estimators=1, learning_rate=1.0, **params)
@@ -841,9 +839,7 @@ def test_save_load_model():
 
 
 def test_RFECV():
-    from sklearn.datasets import load_diabetes
-    from sklearn.datasets import load_breast_cancer
-    from sklearn.datasets import load_iris
+    from sklearn.datasets import load_breast_cancer, load_diabetes, load_iris
     from sklearn.feature_selection import RFECV
 
     # Regression
@@ -1046,8 +1042,9 @@ def run_feature_weights(X, y, fw, tree_method, model=xgb.XGBRegressor):
         with open(model_path) as fd:
             model = json.load(fd)
 
-        parser_path = os.path.join(tm.PROJECT_ROOT, 'demo', 'json-model',
-                                   'json_parser.py')
+        parser_path = os.path.join(
+            tm.demo_dir(__file__), "json-model", "json_parser.py"
+        )
         spec = importlib.util.spec_from_file_location("JsonParser",
                                                       parser_path)
         foo = importlib.util.module_from_spec(spec)
@@ -1162,8 +1159,8 @@ def run_boost_from_prediction_multi_clasas(
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
 def test_boost_from_prediction(tree_method):
-    from sklearn.datasets import load_breast_cancer, load_iris, make_regression
     import pandas as pd
+    from sklearn.datasets import load_breast_cancer, load_iris, make_regression
 
     X, y = load_breast_cancer(return_X_y=True)
 

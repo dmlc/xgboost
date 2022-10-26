@@ -1,7 +1,8 @@
-import xgboost as xgb
-import testing as tm
 import numpy as np
 import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 rng = np.random.RandomState(1337)
 
@@ -254,8 +255,8 @@ class TestEvalMetrics:
         self.run_roc_auc_multi("hist", n_samples, weighted)
 
     def run_pr_auc_binary(self, tree_method):
-        from sklearn.metrics import precision_recall_curve, auc
         from sklearn.datasets import make_classification
+        from sklearn.metrics import auc, precision_recall_curve
         X, y = make_classification(128, 4, n_classes=2, random_state=1994)
         clf = xgb.XGBClassifier(tree_method=tree_method, n_estimators=1)
         clf.fit(X, y, eval_metric="aucpr", eval_set=[(X, y)])

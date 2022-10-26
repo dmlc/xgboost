@@ -1,12 +1,14 @@
-import xgboost
-import os
-import generate_models as gm
-import testing as tm
-import json
-import zipfile
-import pytest
 import copy
+import json
+import os
 import urllib.request
+import zipfile
+
+import generate_models as gm
+import pytest
+
+import xgboost
+from xgboost import testing as tm
 
 
 def run_model_param_check(config):

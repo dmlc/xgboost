@@ -1,11 +1,14 @@
-import numpy as np
-import xgboost as xgb
 import sys
+
+import numpy as np
 import pytest
 
+import xgboost as xgb
+
 sys.path.append("tests/python")
-import testing as tm
 from test_dmatrix import set_base_margin_info
+
+from xgboost import testing as tm
 
 
 def dmatrix_from_cupy(input_type, DMatrixT, missing=np.NAN):

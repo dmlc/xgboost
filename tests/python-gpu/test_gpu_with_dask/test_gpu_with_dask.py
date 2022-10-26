@@ -1,52 +1,54 @@
 """Copyright 2019-2022 XGBoost contributors"""
-import sys
-import os
-from typing import Type, TypeVar, Any, Dict, List, Union
-import pytest
-import numpy as np
 import asyncio
-import xgboost
+import os
 import subprocess
+import sys
 from collections import OrderedDict
 from inspect import signature
-from hypothesis import given, strategies, settings, note
+from typing import Any, Dict, Type, TypeVar, Union
+
+import numpy as np
+import pytest
+from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
 from test_gpu_updaters import parameter_strategy
+
+import xgboost
+from xgboost import testing as tm
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 sys.path.append("tests/python")
-import testing as tm  # noqa
 
 if tm.no_dask_cuda()["condition"]:
     pytest.skip(tm.no_dask_cuda()["reason"], allow_module_level=True)
 
 
-from test_with_dask import run_empty_dmatrix_reg  # noqa
-from test_with_dask import run_empty_dmatrix_auc  # noqa
+from test_with_dask import _get_client_workers  # noqa
+from test_with_dask import generate_array  # noqa
+from test_with_dask import make_categorical  # noqa
 from test_with_dask import run_auc  # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
 from test_with_dask import run_boost_from_prediction_multi_class  # noqa
-from test_with_dask import run_dask_classifier  # noqa
-from test_with_dask import run_empty_dmatrix_cls  # noqa
-from test_with_dask import _get_client_workers  # noqa
-from test_with_dask import generate_array  # noqa
-from test_with_dask import kCols as random_cols  # noqa
-from test_with_dask import suppress  # noqa
-from test_with_dask import run_tree_stats  # noqa
 from test_with_dask import run_categorical  # noqa
-from test_with_dask import make_categorical  # noqa
-
+from test_with_dask import run_dask_classifier  # noqa
+from test_with_dask import run_empty_dmatrix_auc  # noqa
+from test_with_dask import run_empty_dmatrix_cls  # noqa
+from test_with_dask import run_empty_dmatrix_reg  # noqa
+from test_with_dask import run_tree_stats  # noqa
+from test_with_dask import suppress  # noqa
+from test_with_dask import kCols as random_cols  # noqa
 
 try:
-    import dask.dataframe as dd
-    from xgboost import dask as dxgb
-    import xgboost as xgb
-    from dask.distributed import Client
-    from dask import array as da
-    from dask_cuda import LocalCUDACluster, utils
     import cudf
+    import dask.dataframe as dd
+    from dask import array as da
+    from dask.distributed import Client
+    from dask_cuda import LocalCUDACluster, utils
+
+    import xgboost as xgb
+    from xgboost import dask as dxgb
 except ImportError:
     pass
 
@@ -334,9 +336,9 @@ class TestDistributedGPU:
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_empty_partition(self, local_cuda_client: Client) -> None:
-        import dask_cudf
         import cudf
         import cupy
+        import dask_cudf
 
         mult = 100
         df = cudf.DataFrame(

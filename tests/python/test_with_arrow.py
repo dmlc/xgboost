@@ -1,14 +1,16 @@
-import unittest
-import pytest
-import numpy as np
-import testing as tm
-import xgboost as xgb
 import os
+import unittest
+
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 try:
+    import pandas as pd
     import pyarrow as pa
     import pyarrow.csv as pc
-    import pandas as pd
 except ImportError:
     pass
 
@@ -73,7 +75,7 @@ class TestArrowTable(unittest.TestCase):
         np.testing.assert_allclose(preds1, preds2)
 
     def test_arrow_survival(self):
-        data = os.path.join(tm.PROJECT_ROOT, "demo", "data", "veterans_lung_cancer.csv")
+        data = os.path.join(tm.data_dir(__file__), "veterans_lung_cancer.csv")
         table = pc.read_csv(data)
         y_lower_bound = table["Survival_label_lower_bound"]
         y_upper_bound = table["Survival_label_upper_bound"]

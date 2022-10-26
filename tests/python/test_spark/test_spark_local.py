@@ -6,10 +6,9 @@ import uuid
 
 import numpy as np
 import pytest
-import testing as tm
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
@@ -38,7 +37,7 @@ from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
 
-pytestmark = testing.timeout(60)
+pytestmark = tm.timeout(60)
 
 
 class XgboostLocalTest(SparkTestCase):

@@ -4,7 +4,8 @@ from typing import List
 import numpy as np
 import pandas as pd
 import pytest
-import testing as tm
+
+from xgboost import testing as tm
 
 if tm.no_spark()["condition"]:
     pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)

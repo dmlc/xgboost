@@ -1,10 +1,11 @@
-import xgboost as xgb
-import testing as tm
-import numpy as np
-import pytest
 import os
 import tempfile
 
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 rng = np.random.RandomState(1337)
 

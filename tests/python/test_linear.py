@@ -1,10 +1,9 @@
-import testing as tm
 from hypothesis import given, note, settings, strategies
 
 import xgboost as xgb
-from xgboost import testing
+from xgboost import testing as tm
 
-pytestmark = testing.timeout(10)
+pytestmark = tm.timeout(10)
 
 
 parameter_strategy = strategies.fixed_dictionaries({

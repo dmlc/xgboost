@@ -1,11 +1,13 @@
 import json
 from string import ascii_lowercase
-from typing import Dict, Any
-import testing as tm
-import pytest
-import xgboost as xgb
+from typing import Any, Dict
+
 import numpy as np
-from hypothesis import given, strategies, settings, note
+import pytest
+from hypothesis import given, note, settings, strategies
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(1, 4),

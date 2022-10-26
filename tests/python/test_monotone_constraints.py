@@ -1,7 +1,8 @@
 import numpy as np
-import xgboost as xgb
-import testing as tm
 import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
 
 dpath = 'demo/data/'
 

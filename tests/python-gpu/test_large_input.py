@@ -1,8 +1,8 @@
-import numpy as np
-import xgboost as xgb
 import cupy as cp
-import time
+import numpy as np
 import pytest
+
+import xgboost as xgb
 
 
 # Test for integer overflow or out of memory exceptions

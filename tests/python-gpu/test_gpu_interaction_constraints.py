@@ -1,8 +1,11 @@
-import numpy as np
 import sys
+
+import numpy as np
+
 sys.path.append("tests/python")
 # Don't import the test class, otherwise they will run twice.
 import test_interaction_constraints as test_ic  # noqa
+
 rng = np.random.RandomState(1994)
 
 

@@ -1,6 +1,8 @@
-import xgboost
-import numpy as np
 import os
+
+import numpy as np
+
+import xgboost
 
 kRounds = 2
 kRows = 1000

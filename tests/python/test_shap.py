@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
-import numpy as np
-import xgboost as xgb
 import itertools
 import re
+
+import numpy as np
 import scipy
 import scipy.special
+
+import xgboost as xgb
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
