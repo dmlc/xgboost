@@ -83,7 +83,7 @@ generate result dataset with 3 new columns:
 XGBoost PySpark GPU support
 ***************************
 
-XGBoost PySpark fully supports GPU acceleration, users are not only able to enable
+XGBoost PySpark fully supports GPU acceleration. Users are not only able to enable
 efficient training but also utilize their GPUs for the whole PySpark pipeline including
 ETL and inference. In below sections, we will walk through an example of training on a
 PySpark standalone GPU cluster. To get started, first we need to install some additional
@@ -111,7 +111,7 @@ virtualenv and pip:
   pip install cudf-cu11 --extra-index-url=https://pypi.ngc.nvidia.com
   venv-pack -o xgboost_env.tar.gz
 
-with conda:
+With Conda:
 
 .. code-block:: bash
 
