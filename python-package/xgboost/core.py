@@ -2308,7 +2308,7 @@ class Booster:
                     _array_interface(csr.indptr),
                     _array_interface(csr.indices),
                     _array_interface(csr.data),
-                    ctypes.c_size_t(csr.shape[1]),
+                    c_bst_ulong(csr.shape[1]),
                     from_pystr_to_cstr(json.dumps(args)),
                     p_handle,
                     ctypes.byref(shape),
