@@ -9,7 +9,7 @@ We are excited to announce the feature packed XGBoost 1.7 release. The release n
 
 ### PySpark
 
-XGBoost 1.7 features initial support for PySpark integration. The new interface is adopted from the existing PySpark XGBoost interface developed by databricks with additional features like `QuantileDMatrix` and rapidsai plugin (GPU pipeline) support. The new Spark XGBoost Python estimators not only benefits from PySpark ml facilities for powerful distributed computing but also enjoys the rest of the Python ecosystem. Users can define a custom objective, callbacks, and metrics in Python and use them with this interface on distributed clusters. The support is labeled as experimental with more features to come in future releases. For a brief introduction please visit the tutorial on XGBoost's [document page](https://xgboost.readthedocs.io/en/latest/tutorials/spark_estimator.html). (#8355, #8344, #8335, #8284, #8271, #8283, #8250, #8231, #8219, #8245, #8217, #8200, #8173, #8172, #8145, #8117, #8131, #8088, #8082, #8085, #8066, #8068, #8067, #8020)
+XGBoost 1.7 features initial support for PySpark integration. The new interface is adopted from the existing PySpark XGBoost interface developed by databricks with additional features like `QuantileDMatrix` and rapidsai plugin (GPU pipeline) support. The new Spark XGBoost Python estimators not only benefits from PySpark ml facilities for powerful distributed computing but also enjoys the rest of the Python ecosystem. Users can define a custom objective, callbacks, and metrics in Python and use them with this interface on distributed clusters. The support is labeled as experimental with more features to come in future releases. For a brief introduction please visit the tutorial on XGBoost's [document page](https://xgboost.readthedocs.io/en/latest/tutorials/spark_estimator.html). (#8355, #8344, #8335, #8284, #8271, #8283, #8250, #8231, #8219, #8245, #8217, #8200, #8173, #8172, #8145, #8117, #8131, #8088, #8082, #8085, #8066, #8068, #8067, #8020, #8385)
 
 Due to its initial support status, the new interface has some limitations including categorical features and multi-output models are not yet supported.
 
@@ -29,10 +29,10 @@ The feature is available in the public PyPI binary package for testing.
 Before 1.7, XGBoost has an internal data structure called `DeviceQuantileDMatrix` (and its distributed version). We now extend its support to CPU and renamed it to `QuantileDMatrix`. This data structure is used for optimizing memory usage for the `hist` and `gpu_hist` tree methods. The new feature helps reduce CPU memory usage significantly, especially for dense data. The new `QuantileDMatrix` can be initialized from both CPU and GPU data, and regardless of where the data comes from, the constructed instance can be used by both the CPU algorithm and GPU algorithm including training and prediction (with some overhead of conversion if the device of data and training algorithm doesn't match). Also, a new parameter `ref` is added to `QuantileDMatrix`, which can be used to construct validation/test datasets. Lastly, it's set as default in the scikit-learn interface when a supported tree method is specified by users. (#7889, #7923, #8136, #8215, #8284, #8268, #8220, #8346, #8327, #8130, #8116, #8103, #8094, #8086, #7898, #8060, #8019, #8045, #7901, #7912, #7922)
 
 ### Mean absolute error
-The mean absolute error is a new member of the collection of objectives in XGBoost. It's noteworthy since MAE has zero hessian value, which is unusual to XGBoost as XGBoost relies on Newton optimization. Without valid Hessian values, the convergence speed can be slow. As part of the support for MAE, we added line searches into the XGBoost training algorithm to overcome the difficulty of training without valid Hessian values. In the future, we will extend the line search to other objectives where it's appropriate for faster convergence speed. (#8343, #8107, #7812)
+The mean absolute error is a new member of the collection of objectives in XGBoost. It's noteworthy since MAE has zero hessian value, which is unusual to XGBoost as XGBoost relies on Newton optimization. Without valid Hessian values, the convergence speed can be slow. As part of the support for MAE, we added line searches into the XGBoost training algorithm to overcome the difficulty of training without valid Hessian values. In the future, we will extend the line search to other objectives where it's appropriate for faster convergence speed. (#8343, #8107, #7812, #8380)
 
 ### XGBoost on Browser
-With the help of the [pyodide](https://github.com/pyodide/pyodide) project, you can now run XGBoost on browsers. (#7954)
+With the help of the [pyodide](https://github.com/pyodide/pyodide) project, you can now run XGBoost on browsers. (#7954, #8369)
 
 ### Experimental IPv6 Support for Dask
 
@@ -69,6 +69,7 @@ Some noteworthy bug fixes that are not related to specific language binding are 
 * Fix feature weights with nested column sampling. (#8100)
 * Fix loading DMatrix binary in distributed env. (#8149)
 * Force auc.cc to be statically linked for unusual compiler platforms. (#8039)
+* New logic for detecting libomp on macos (#8384).
 
 ### Python Package
 * Python 3.8 is now the minimum required Python version. (#8071)
@@ -90,6 +91,7 @@ We aim to enable as many features as possible in XGBoost's default binary distri
 Some noteworthy fixes are listed here:
 - Fix the Dask interface with the latest cupy. (#8210)
 - Check cuDF lazily to avoid potential errors with cuda-python. (#8084)
+* Fix potential error in DMatrix constructor on 32-bit platform. (#8369)
 
 * Maintenance work
 - Linter script is moved from dmlc-core to XGBoost with added support for formatting, mypy, and parallel run, along with some fixes (#7967, #8101, #8216)
@@ -135,6 +137,7 @@ The consistency between JVM packages and other language bindings is greatly impr
 - Some typos, links, format, and grammar fixes. (#7800, #7832, #7861, #8099, #8163, #8166, #8229, #8028, #8214, #7777, #7905, #8270, #8309, d70e59fef, #7806)
 - Updated winning solution under readme.md (#7862)
 - New security policy. (#8360)
+- GPU document is overhauled as we consider CUDA support to be feature-complete. (#8378)
 
 ### Maintenance
 * Code refactoring and cleanups. (#7850, #7826, #7910, #8332, #8204)
