@@ -103,7 +103,7 @@ def _from_scipy_csr(
             _array_interface(data.indptr),
             _array_interface(data.indices),
             _array_interface(data.data),
-            ctypes.c_size_t(data.shape[1]),
+            c_bst_ulong(data.shape[1]),
             config,
             ctypes.byref(handle),
         )
