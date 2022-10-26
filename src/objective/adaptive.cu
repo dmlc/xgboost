@@ -67,6 +67,10 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
   dh::CUDAStream copy_stream;
   size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
+
+  dh::CUDAEvent e;
+  e.Record(dh::DefaultStream());
+  copy_stream.View().Wait(e);
   // flag for whether there's ignored position
   bst_node_t* h_first_unique =
       reinterpret_cast<bst_node_t*>(pinned.subspan(sizeof(size_t), sizeof(bst_node_t)).data());

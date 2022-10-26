@@ -151,7 +151,7 @@ Also for inplace prediction:
 
 When input is ``da.Array`` object, output is always ``da.Array``.  However, if the input
 type is ``dd.DataFrame``, output can be ``dd.Series``, ``dd.DataFrame`` or ``da.Array``,
-depending on output shape.  For example, when shap based prediction is used, the return
+depending on output shape.  For example, when SHAP-based prediction is used, the return
 value can have 3 or 4 dimensions , in such cases an ``Array`` is always returned.
 
 The performance of running prediction, either using ``predict`` or ``inplace_predict``, is
