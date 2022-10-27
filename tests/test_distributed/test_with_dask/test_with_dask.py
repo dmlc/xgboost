@@ -69,11 +69,6 @@ kCols = 10
 kWorkers = 5
 
 
-def _get_client_workers(client: "Client") -> List[str]:
-    workers = client.scheduler_info()['workers']
-    return list(workers.keys())
-
-
 def make_categorical(
     client: Client,
     n_samples: int,
@@ -81,7 +76,7 @@ def make_categorical(
     n_categories: int,
     onehot: bool = False,
 ) -> Tuple[dd.DataFrame, dd.Series]:
-    workers = _get_client_workers(client)
+    workers = tm.get_client_workers(client)
     n_workers = len(workers)
     dfs = []
 
@@ -1285,7 +1280,7 @@ class TestWithDask:
                 assert Xy.num_col() == 4
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            workers = _get_client_workers(client)
+            workers = tm.get_client_workers(client)
             rabit_args = client.sync(
                 xgb.dask._get_rabit_args, len(workers), None, client
             )
@@ -1501,7 +1496,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), None, client
                 )
@@ -1564,7 +1559,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), None, client
                 )
@@ -1579,7 +1574,7 @@ class TestWithDask:
     def test_n_workers(self) -> None:
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
 
                 X, y = load_breast_cancer(return_X_y=True)
@@ -1674,7 +1669,7 @@ class TestWithDask:
                 X, y, _ = generate_array()
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), None, client
                 )
@@ -1885,7 +1880,7 @@ def test_parallel_submits(client: "Client") -> None:
     from sklearn.datasets import load_digits
 
     futures = []
-    workers = _get_client_workers(client)
+    workers = tm.get_client_workers(client)
     n_submits = len(workers)
     for i in range(n_submits):
         X_, y_ = load_digits(return_X_y=True)
@@ -1971,7 +1966,7 @@ def test_parallel_submit_multi_clients() -> None:
 
     with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            workers = _get_client_workers(client)
+            workers = tm.get_client_workers(client)
 
         n_submits = len(workers)
         assert n_submits == 4

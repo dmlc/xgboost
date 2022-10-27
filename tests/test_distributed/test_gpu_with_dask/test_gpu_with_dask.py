@@ -23,7 +23,7 @@ if tm.no_dask_cuda()["condition"]:
     pytest.skip(tm.no_dask_cuda()["reason"], allow_module_level=True)
 
 
-from ..test_with_dask.test_with_dask import _get_client_workers, generate_array
+from ..test_with_dask.test_with_dask import generate_array
 from ..test_with_dask.test_with_dask import kCols as random_cols
 from ..test_with_dask.test_with_dask import (
     make_categorical,
@@ -403,7 +403,7 @@ class TestDistributedGPU:
         np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
-        n_workers = len(_get_client_workers(local_cuda_client))
+        n_workers = len(tm.get_client_workers(local_cuda_client))
         run_empty_dmatrix_auc(local_cuda_client, "gpu_hist", n_workers)
 
     def test_auc(self, local_cuda_client: Client) -> None:
@@ -416,7 +416,7 @@ class TestDistributedGPU:
         fw = fw - fw.min()
         m = dxgb.DaskDMatrix(local_cuda_client, X, y, feature_weights=fw)
 
-        workers = _get_client_workers(local_cuda_client)
+        workers = tm.get_client_workers(local_cuda_client)
         rabit_args = local_cuda_client.sync(
             dxgb._get_rabit_args, len(workers), None, local_cuda_client
         )
@@ -511,7 +511,7 @@ class TestDistributedGPU:
             env["DMLC_TRACKER_URI"] = str(rabit_args["DMLC_TRACKER_URI"])
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
-        workers = _get_client_workers(local_cuda_client)
+        workers = tm.get_client_workers(local_cuda_client)
         rabit_args = local_cuda_client.sync(
             dxgb._get_rabit_args, len(workers), None, local_cuda_client
         )

@@ -804,9 +804,9 @@ def softprob_obj(classes: int) -> SklObjective:
 
 
 def validate_leaf_output(leaf: np.ndarray, num_parallel_tree: int) -> None:
-    for i in range(leaf.shape[0]):     # n_samples
+    for i in range(leaf.shape[0]):  # n_samples
         for j in range(leaf.shape[1]):  # n_rounds
-            for k in range(leaf.shape[2]):    # n_classes
+            for k in range(leaf.shape[2]):  # n_classes
                 tree_group = leaf[i, j, k, :]
                 assert tree_group.shape[0] == num_parallel_tree
                 # No sampling, all trees within forest are the same
@@ -829,11 +829,11 @@ def validate_data_initialization(
     model(n_estimators=1).fit(X, y, eval_set=[(X, y)])
 
     assert count[0] == 1
-    count[0] = 0                # only 1 DMatrix is created.
+    count[0] = 0  # only 1 DMatrix is created.
 
     y_copy = y.copy()
     model(n_estimators=1).fit(X, y, eval_set=[(X, y_copy)])
-    assert count[0] == 2        # a different Python object is considered different
+    assert count[0] == 2  # a different Python object is considered different
 
     dmatrix.__init__ = old_init
 
@@ -970,6 +970,12 @@ def setup_rmm_pool(_: Any, pytestconfig: pytest.Config) -> None:
             initial_pool_size=1024 * 1024 * 1024,
             devices=list(range(get_n_gpus())),
         )
+
+
+def get_client_workers(client: Any) -> List[str]:
+    "Get workers from a dask client."
+    workers = client.scheduler_info()["workers"]
+    return list(workers.keys())
 
 
 def demo_dir(path: str) -> str:
