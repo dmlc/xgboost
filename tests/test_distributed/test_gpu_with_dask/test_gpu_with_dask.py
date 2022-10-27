@@ -55,10 +55,10 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
 
     cp.cuda.runtime.setDevice(0)
-    X, y, _ = generate_array()
+    _X, _y, _ = generate_array()
 
-    X = dd.from_dask_array(X)
-    y = dd.from_dask_array(y)
+    X = dd.from_dask_array(_X)
+    y = dd.from_dask_array(_y)
 
     X = X.map_partitions(cudf.from_pandas)
     y = y.map_partitions(cudf.from_pandas)

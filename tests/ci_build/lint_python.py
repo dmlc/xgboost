@@ -125,11 +125,11 @@ if __name__ == "__main__":
                 # tests
                 "tests/python/test_config.py",
                 "tests/python/test_data_iterator.py",
-                "tests/python/test_spark/",
                 "tests/python/test_quantile_dmatrix.py",
-                "tests/python-gpu/test_gpu_spark/",
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
+                "tests/test_distributed/test_with_spark/",
+                "tests/test_distributed/test_gpu_with_spark/",
                 # demo
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
@@ -146,11 +146,11 @@ if __name__ == "__main__":
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "tests/python/test_data_iterator.py",
-                "tests/python/test_spark/test_data.py",
-                "tests/python-gpu/test_gpu_with_dask/test_gpu_with_dask.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/python-gpu/test_gpu_spark/test_data.py",
                 "tests/ci_build/lint_python.py",
+                "tests/test_distributed/test_with_spark/test_data.py",
+                "tests/test_distributed/test_gpu_with_spark/test_data.py",
+                "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
             ]
         ):
             sys.exit(-1)

@@ -1,5 +1,7 @@
 """Strategies for updater tests."""
 
+from typing import cast
+
 import pytest
 
 hypothesis = pytest.importorskip("hypothesis")
@@ -35,10 +37,9 @@ hist_parameter_strategy = strategies.fixed_dictionaries(
         "colsample_bylevel": strategies.floats(0.5, 1.0),
     }
 ).filter(
-    lambda x: (x["max_depth"] > 0 or x["max_leaves"] > 0)
-    and (x["max_depth"] > 0 or x["grow_policy"] == "lossguide")
+    lambda x: (cast(int, x["max_depth"]) > 0 or cast(int, x["max_leaves"]) > 0)
+    and (cast(int, x["max_depth"]) > 0 or x["grow_policy"] == "lossguide")
 )
-
 
 cat_parameter_strategy = strategies.fixed_dictionaries(
     {
