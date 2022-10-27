@@ -842,6 +842,7 @@ def get_feature_weights(
     X: ArrayLike,
     y: ArrayLike,
     fw: np.ndarray,
+    parser_path: str,
     tree_method: str,
     model: Type[xgb.XGBModel] = xgb.XGBRegressor,
 ) -> np.ndarray:
@@ -855,7 +856,6 @@ def get_feature_weights(
         with open(model_path, "r") as fd:
             model = json.load(fd)
 
-        parser_path = os.path.join(demo_dir(__file__), "json-model", "json_parser.py")
         spec = importlib.util.spec_from_file_location("JsonParser", parser_path)
         assert spec is not None
         foo = importlib.util.module_from_spec(spec)

@@ -1603,8 +1603,9 @@ class TestWithDask:
         for i in range(kCols):
             fw[i] *= float(i)
         fw = da.from_array(fw)
+        parser = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
         poly_increasing = tm.get_feature_weights(
-            X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
+            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
         )
 
         fw = np.ones(shape=(kCols,))
@@ -1612,7 +1613,7 @@ class TestWithDask:
             fw[i] *= float(kCols - i)
         fw = da.from_array(fw)
         poly_decreasing = tm.get_feature_weights(
-            X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
+            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
         )
 
         # Approxmated test, this is dependent on the implementation of random

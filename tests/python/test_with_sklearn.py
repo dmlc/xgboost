@@ -1041,12 +1041,18 @@ def test_feature_weights(tree_method):
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(i)
-    poly_increasing = tm.get_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
+
+    parser_path = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
+    poly_increasing = tm.get_feature_weights(
+        X, y, fw, parser_path, tree_method, xgb.XGBRegressor
+    )
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(kCols - i)
-    poly_decreasing = tm.get_feature_weights(X, y, fw, tree_method, xgb.XGBRegressor)
+    poly_decreasing = tm.get_feature_weights(
+        X, y, fw, parser_path, tree_method, xgb.XGBRegressor
+    )
 
     # Approxmated test, this is dependent on the implementation of random
     # number generator in std library.
