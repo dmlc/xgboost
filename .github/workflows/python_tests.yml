@@ -25,8 +25,8 @@ jobs:
     - name: Display Conda env
       shell: bash -l {0}
       run: |
-        mamba info
-        mamba list
+        conda info
+        conda list
     - name: Run mypy
       shell: bash -l {0}
       run: |
@@ -151,8 +151,8 @@ jobs:
     - name: Display Conda env
       shell: bash -l {0}
       run: |
-        mamba info
-        mamba list
+        conda info
+        conda list
 
     - name: Build XGBoost on macos
       shell: bash -l {0}
