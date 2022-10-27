@@ -16,12 +16,10 @@ from xgboost.testing.params import hist_parameter_strategy
 import xgboost as xgb
 from xgboost import testing as tm
 
-if sys.platform.startswith("win"):
-    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
-
-if tm.no_dask_cuda()["condition"]:
-    pytest.skip(tm.no_dask_cuda()["reason"], allow_module_level=True)
-
+pytestmark = [
+    pytest.mark.skipif(**tm.no_spark()),
+    pytest.mark.skipif(**tm.no_dask_cuda()),
+]
 
 from ..test_with_dask.test_with_dask import generate_array
 from ..test_with_dask.test_with_dask import kCols as random_cols

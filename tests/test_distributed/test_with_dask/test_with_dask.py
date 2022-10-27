@@ -33,10 +33,7 @@ from xgboost.testing.shared import (
 import xgboost as xgb
 from xgboost import testing as tm
 
-if sys.platform.startswith("win"):
-    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
-if tm.no_dask()['condition']:
-    pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
+pytestmark = [tm.timeout(30), pytest.mark.skipif(**tm.no_dask())]
 
 import dask
 import dask.array as da
@@ -47,7 +44,6 @@ from xgboost.dask import DaskDMatrix
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
-pytestmark = tm.timeout(30)
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]

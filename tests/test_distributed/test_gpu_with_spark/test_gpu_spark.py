@@ -7,7 +7,7 @@ import sklearn
 
 from xgboost import testing as tm
 
-ytestmark = pytest.mark.skipif(**tm.no_spark())
+pytestmark = pytest.mark.skipif(**tm.no_spark())
 
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder

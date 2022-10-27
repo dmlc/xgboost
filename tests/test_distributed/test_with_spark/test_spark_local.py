@@ -10,10 +10,7 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 
-if tm.no_spark()["condition"]:
-    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
-    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
+pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
@@ -36,8 +33,6 @@ from xgboost import XGBClassifier, XGBModel, XGBRegressor
 from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
-
-pytestmark = tm.timeout(60)
 
 
 class XgboostLocalTest(SparkTestCase):

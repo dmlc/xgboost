@@ -102,6 +102,8 @@ def no_sklearn() -> PytestSkip:
 
 
 def no_dask() -> PytestSkip:
+    if sys.platform.startswith("win"):
+        return {"reason": "Unsupported platform.", "condition": True}
     return no_mod("dask")
 
 
