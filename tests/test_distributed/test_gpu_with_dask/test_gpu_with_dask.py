@@ -2,7 +2,6 @@
 import asyncio
 import os
 import subprocess
-import sys
 from collections import OrderedDict
 from inspect import signature
 from typing import Any, Dict, Type, TypeVar, Union
@@ -42,7 +41,7 @@ try:
     import dask.dataframe as dd
     from dask import array as da
     from dask.distributed import Client
-    from dask_cuda import LocalCUDACluster, utils
+    from dask_cuda import LocalCUDACluster
 
     from xgboost import dask as dxgb
 except ImportError:
@@ -484,9 +483,6 @@ class TestDistributedGPU:
             assert rn == drn
 
     def run_quantile(self, name: str, local_cuda_client: Client) -> None:
-        if sys.platform.startswith("win"):
-            pytest.skip("Skipping dask tests on Windows")
-
         exe = None
         for possible_path in {
             "./testxgboost",
@@ -502,7 +498,6 @@ class TestDistributedGPU:
         def runit(
             worker_addr: str, rabit_args: Dict[str, Union[int, str]]
         ) -> subprocess.CompletedProcess:
-            port_env = ""
             # setup environment for running the c++ part.
             env = os.environ.copy()
             env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])

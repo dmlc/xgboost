@@ -5,7 +5,6 @@ import os
 import pickle
 import socket
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -13,7 +12,7 @@ from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union, Generator
 
 import hypothesis
 import numpy as np
@@ -52,7 +51,7 @@ else:
 
 
 @pytest.fixture(scope="module")
-def cluster():
+def cluster() -> Generator:
     with LocalCluster(
         n_workers=2, threads_per_worker=2, dashboard_address=":0"
     ) as dask_cluster:
@@ -60,7 +59,7 @@ def cluster():
 
 
 @pytest.fixture
-def client(cluster):
+def client(cluster: "LocalCluster") -> Generator:
     with Client(cluster) as dask_client:
         yield dask_client
 
@@ -126,7 +125,7 @@ def generate_array(
     return X, y, None
 
 
-def deterministic_persist_per_worker(df, client):
+def deterministic_persist_per_worker(df: dd.DataFrame, client: "Client") -> dd.DataFrame:
     # Got this script from https://github.com/dmlc/xgboost/issues/7927
     # Query workers
     n_workers = len(client.cluster.workers)
@@ -1395,10 +1394,10 @@ class TestWithDask:
         note(history)
         history = history['train'][dataset.metric]
 
-        def is_stump():
+        def is_stump() -> bool:
             return params["max_depth"] == 1 or params["max_leaves"] == 1
 
-        def minimum_bin():
+        def minimum_bin() -> bool:
             return "max_bin" in params and params["max_bin"] == 2
 
         # See note on `ObjFunction::UpdateTreeLeaf`.
@@ -1469,9 +1468,6 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
     def run_quantile(self, name: str) -> None:
-        if sys.platform.startswith("win"):
-            pytest.skip("Skipping dask tests on Windows")
-
         exe: Optional[str] = None
         for possible_path in {'./testxgboost', './build/testxgboost',
                               '../build/cpubuild/testxgboost',
@@ -1486,7 +1482,6 @@ class TestWithDask:
         def runit(
             worker_addr: str, rabit_args: Dict[str, Union[int, str]]
         ) -> subprocess.CompletedProcess:
-            port_env = ''
             # setup environment for running the c++ part.
             env = os.environ.copy()
             env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])

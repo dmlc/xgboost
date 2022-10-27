@@ -1,7 +1,6 @@
 import glob
 import logging
 import random
-import sys
 import uuid
 
 import numpy as np
