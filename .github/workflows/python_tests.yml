@@ -122,22 +122,10 @@ jobs:
         python setup.py bdist_wheel --universal
         pip install ./dist/*.whl
 
-    - name: Test Python package for Single Host
+    - name: Test Python package
       shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/python
-
-    - name: Test Dask Interface
-      shell: bash -l {0}
-      run: |
-        # this is not run on Windows, just to make sure we have correct skip marks.
-        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
-
-    - name: Test PySpark Interface
-      shell: bash -l {0}
-      run: |
-        # this is not run on Windows, just to make sure we have correct skip marks.
-        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
 
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
@@ -195,9 +183,3 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
-
-    - name: Test PySpark Interface
-      shell: bash -l {0}
-      run: |
-        # this is not run on macos, just to make sure we have correct skip marks.
-        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
