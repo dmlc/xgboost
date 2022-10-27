@@ -1,5 +1,3 @@
-import collections
-import importlib.util
 import json
 import os
 import random
@@ -9,6 +7,7 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
+from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -1043,14 +1042,14 @@ def test_feature_weights(tree_method):
         fw[i] *= float(i)
 
     parser_path = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
-    poly_increasing = tm.get_feature_weights(
+    poly_increasing = get_feature_weights(
         X, y, fw, parser_path, tree_method, xgb.XGBRegressor
     )
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(kCols - i)
-    poly_decreasing = tm.get_feature_weights(
+    poly_decreasing = get_feature_weights(
         X, y, fw, parser_path, tree_method, xgb.XGBRegressor
     )
 
@@ -1189,7 +1188,7 @@ def test_multilabel_classification() -> None:
 def test_data_initialization():
     from sklearn.datasets import load_digits
     X, y = load_digits(return_X_y=True)
-    tm.validate_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
+    validate_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)
 
 
 @parametrize_with_checks([xgb.XGBRegressor()])

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
+from xgboost.testing.shared import validate_leaf_output
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -57,7 +58,7 @@ def run_predict_leaf(predictor):
     assert leaf.shape[2] == classes
     assert leaf.shape[3] == num_parallel_tree
 
-    tm.validate_leaf_output(leaf, num_parallel_tree)
+    validate_leaf_output(leaf, num_parallel_tree)
 
     ntree_limit = 2
     sliced = booster.predict(

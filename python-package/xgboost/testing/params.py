@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 
 hypothesis = pytest.importorskip("hypothesis")
-from hypothesis import strategies
+from hypothesis import strategies  # pylint:disable=wrong-import-position
 
 exact_parameter_strategy = strategies.fixed_dictionaries(
     {
