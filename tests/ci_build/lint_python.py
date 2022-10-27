@@ -103,7 +103,12 @@ class PyLint:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run static checkers for XGBoost, see `python_lint.yml' "
+            "conda env file for a list of dependencies."
+        )
+    )
     parser.add_argument("--format", type=int, choices=[0, 1], default=1)
     parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
     parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
