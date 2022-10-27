@@ -17,7 +17,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 
 pytestmark = [
-    pytest.mark.skipif(**tm.no_spark()),
+    pytest.mark.skipif(**tm.no_dask()),
     pytest.mark.skipif(**tm.no_dask_cuda()),
 ]
 
