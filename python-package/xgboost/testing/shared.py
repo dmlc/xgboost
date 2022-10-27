@@ -1,4 +1,5 @@
 """Testing code shared by other tests."""
+# pylint: disable=invalid-name
 import collections
 import importlib.util
 import json
@@ -13,6 +14,7 @@ import xgboost as xgb
 
 
 def validate_leaf_output(leaf: np.ndarray, num_parallel_tree: int) -> None:
+    """Validate output for predict leaf tests."""
     for i in range(leaf.shape[0]):  # n_samples
         for j in range(leaf.shape[1]):  # n_rounds
             for k in range(leaf.shape[2]):  # n_classes
@@ -47,6 +49,7 @@ def validate_data_initialization(
     dmatrix.__init__ = old_init
 
 
+# pylint: disable=too-many-arguments,too-many-locals
 def get_feature_weights(
     X: ArrayLike,
     y: ArrayLike,
@@ -55,6 +58,7 @@ def get_feature_weights(
     tree_method: str,
     model: Type[xgb.XGBModel] = xgb.XGBRegressor,
 ) -> np.ndarray:
+    """Get feature weights using the demo parser."""
     with tempfile.TemporaryDirectory() as tmpdir:
         colsample_bynode = 0.5
         reg = model(tree_method=tree_method, colsample_bynode=colsample_bynode)
@@ -62,15 +66,15 @@ def get_feature_weights(
         reg.fit(X, y, feature_weights=fw)
         model_path = os.path.join(tmpdir, "model.json")
         reg.save_model(model_path)
-        with open(model_path, "r") as fd:
+        with open(model_path, "r", encoding="utf-8") as fd:
             model = json.load(fd)
 
         spec = importlib.util.spec_from_file_location("JsonParser", parser_path)
         assert spec is not None
-        foo = importlib.util.module_from_spec(spec)
+        jsonm = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
-        spec.loader.exec_module(foo)
-        model = foo.Model(model)
+        spec.loader.exec_module(jsonm)
+        model = jsonm.Model(model)
         splits: Dict[int, int] = {}
         total_nodes = 0
         for tree in model.trees:
@@ -85,7 +89,7 @@ def get_feature_weights(
                     splits[tree.split_index(n)] += 1
 
         od = collections.OrderedDict(sorted(splits.items()))
-        tuples = [(k, v) for k, v in od.items()]
+        tuples = list(od.items())
         k, v = list(zip(*tuples))
         w = np.polyfit(k, v, deg=1)
         return w
