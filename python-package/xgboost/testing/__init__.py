@@ -3,6 +3,7 @@ change without notice.
 
 """
 # pylint: disable=invalid-name,missing-function-docstring,import-error
+import copy
 import gc
 import importlib.util
 import multiprocessing
@@ -476,8 +477,27 @@ def make_categorical(
     n_categories: int,
     onehot: bool,
     sparsity: float = 0.0,
+    cat_ratio: float = 1.0,
 ) -> Tuple[ArrayLike, np.ndarray]:
+    """Generate categorical features for test.
+
+    Parameters
+    ----------
+    n_categories:
+        Number of categories for categorical features.
+    onehot:
+        Should we apply one-hot encoding to the data?
+    sparsity:
+        The ratio of the amount of missing values over the number of all entries.
+    cat_ratio:
+        The ratio of features that are categorical.
+
+    Returns
+    -------
+    X, y
+    """
     import pandas as pd
+    from pandas.api.types import is_categorical_dtype
 
     rng = np.random.RandomState(1994)
 
@@ -493,10 +513,11 @@ def make_categorical(
         label += df.iloc[:, i]
     label += 1
 
-    df = df.astype("category")
     categories = np.arange(0, n_categories)
     for col in df.columns:
-        df[col] = df[col].cat.set_categories(categories)
+        if rng.binomial(1, cat_ratio, size=1)[0] == 1:
+            df[col] = df[col].astype("category")
+            df[col] = df[col].cat.set_categories(categories)
 
     if sparsity > 0.0:
         for i in range(n_features):
@@ -504,9 +525,14 @@ def make_categorical(
                 low=0, high=n_samples - 1, size=int(n_samples * sparsity)
             )
             df.iloc[index, i] = np.NaN
-            assert n_categories == np.unique(df.dtypes[i].categories).size
+            if is_categorical_dtype(df.dtypes[i]):
+                assert n_categories == np.unique(df.dtypes[i].categories).size
 
     if onehot:
+        df = pd.get_dummies(df)
+        columns = list(df.columns)
+        rng.shuffle(columns)
+        df = df[columns]
         return pd.get_dummies(df), label
     return df, label
 

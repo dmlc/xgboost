@@ -156,13 +156,20 @@ def test_json_model() -> None:
             cmd = ["python", script, f"--model={path}"]
             subprocess.check_call(cmd)
 
+    # numerical
     X, y = tm.make_sparse_regression(100, 10, 0.5, False)
     reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
     reg.fit(X, y)
     run_test(reg)
 
+    # categorical
     X, y = tm.make_categorical(
-        n_samples=1000, n_features=10, n_categories=6, onehot=False, sparsity=0.5
+        n_samples=1000,
+        n_features=10,
+        n_categories=6,
+        onehot=False,
+        sparsity=0.5,
+        cat_ratio=0.5,
     )
     reg = xgboost.XGBRegressor(
         n_estimators=2, tree_method="hist", enable_categorical=True
@@ -171,10 +178,10 @@ def test_json_model() -> None:
     run_test(reg)
 
 
-# gpu_acceleration is not tested due to covertype dataset is being too huge.
-# gamma regression is not tested as it requires running a R script first.
-# aft viz is not tested due to ploting is not controled
-# aft tunning is not tested due to extra dependency.
+# - gpu_acceleration is not tested due to covertype dataset is being too huge.
+# - gamma regression is not tested as it requires running a R script first.
+# - aft viz is not tested due to ploting is not controlled
+# - aft tunning is not tested due to extra dependency.
 
 
 def test_cli_regression_demo():

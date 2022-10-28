@@ -38,7 +38,7 @@ class Node:
     split_idx: int
     split_cond: float
     default_left: bool
-    split_type: int
+    split_type: SplitType
     categories: List[int]
     # statistic
     base_weight: float
@@ -139,11 +139,11 @@ class Model:
     """Gradient boosted tree model."""
 
     def __init__(self, model: dict) -> None:
-        """Construct the Model from JSON object.
+        """Construct the Model from a JSON object.
 
         parameters
         ----------
-         m: A dictionary loaded by json
+         model : A dictionary loaded by json representing a XGBoost boosted tree model.
         """
         # Basic properties of a model
         self.learner_model_shape: ParamT = model["learner"]["learner_model_param"]
@@ -215,6 +215,7 @@ class Model:
                         last_cat_node = -1  # continue to process the rest of the nodes
                     else:
                         last_cat_node = cat_nodes[cat_cnt]
+                    assert node_cats
                     node_categories.append(node_cats)
                 else:
                     # append an empty node, it's either a numerical node or a leaf.
@@ -225,24 +226,23 @@ class Model:
             loss_changes: List[float] = tree["loss_changes"]
             sum_hessian: List[float] = tree["sum_hessian"]
 
-            nodes: List[Node] = []
-            # We resemble the structure used inside XGBoost, which is similar
-            # to adjacency list.
-            for node_id in range(len(left_children)):
-                node = Node(
+            # Construct a list of nodes that have complete information
+            nodes: List[Node] = [
+                Node(
                     left_children[node_id],
                     right_children[node_id],
                     parents[node_id],
                     split_indices[node_id],
                     split_conditions[node_id],
                     default_left[node_id] == 1,  # to boolean
-                    split_types[node_id],
+                    SplitType(split_types[node_id]),
                     node_categories[node_id],
                     base_weights[node_id],
                     loss_changes[node_id],
                     sum_hessian[node_id],
                 )
-                nodes.append(node)
+                for node_id in range(len(left_children))
+            ]
 
             pytree = Tree(tree_id, nodes)
             trees.append(pytree)
