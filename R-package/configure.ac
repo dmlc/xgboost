@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.69)
 
-AC_INIT([xgboost],[1.7.0],[],[xgboost],[])
+AC_INIT([xgboost],[2.0.0],[],[xgboost],[])
 
 # Use this line to set CC variable to a C compiler
 AC_PROG_CC
