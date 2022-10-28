@@ -470,6 +470,7 @@ def get_mq2008(
     )
 
 
+# pylint: disable=too-many-arguments,too-many-locals
 @memory.cache
 def make_categorical(
     n_samples: int,
