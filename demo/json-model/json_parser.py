@@ -18,7 +18,7 @@ except ImportError:
 ParamT = Dict[str, str]
 
 
-def to_integers(data: bytes) -> List[int]:
+def to_integers(data: Union[bytes, List[int]]) -> List[int]:
     """Convert a sequence of bytes to a list of Python integer"""
     return [v for v in data]
 
@@ -185,10 +185,10 @@ class Model:
             split_types = to_integers(tree["split_type"])
             # categories for each node is stored in a CSR style storage with segment as
             # the begin ptr and the `categories' as values.
-            cat_segments = tree["categories_segments"]
-            cat_sizes = tree["categories_sizes"]
+            cat_segments: List[int] = tree["categories_segments"]
+            cat_sizes: List[int] = tree["categories_sizes"]
             # node index for categorical nodes
-            cat_nodes = tree["categories_nodes"]
+            cat_nodes: List[int] = tree["categories_nodes"]
             assert len(cat_segments) == len(cat_sizes) == len(cat_nodes)
             cats = tree["categories"]
             assert len(left_children) == len(split_types)
@@ -201,7 +201,7 @@ class Model:
                 last_cat_node = cat_nodes[cat_cnt]
             else:
                 last_cat_node = -1
-            node_categories = []
+            node_categories: List[List[int]] = []
             for node_id in range(len(left_children)):
                 if node_id == last_cat_node:
                     beg = cat_segments[cat_cnt]
