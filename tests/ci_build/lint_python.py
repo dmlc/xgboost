@@ -131,6 +131,7 @@ if __name__ == "__main__":
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
                 # demo
+                "demo/json-model/json_parser.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
                 "demo/guide-python/spark_estimator_examples.py",
@@ -142,9 +143,13 @@ if __name__ == "__main__":
         if not all(
             run_mypy(path)
             for path in [
+                # core
                 "python-package/xgboost/",
+                # demo
+                "demo/json-model/json_parser.py",
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
+                # tests
                 "tests/python/test_data_iterator.py",
                 "tests/python/test_spark/test_data.py",
                 "tests/python-gpu/test_gpu_with_dask/test_gpu_with_dask.py",
