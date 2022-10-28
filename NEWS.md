@@ -11,7 +11,7 @@ We are excited to announce the feature packed XGBoost 1.7 release. The release n
 
 XGBoost 1.7 features initial support for PySpark integration. The new interface is adapted from the existing PySpark XGBoost interface developed by databricks with additional features like `QuantileDMatrix` and the rapidsai plugin (GPU pipeline) support. The new Spark XGBoost Python estimators not only benefit from PySpark ml facilities for powerful distributed computing but also enjoy the rest of the Python ecosystem. Users can define a custom objective, callbacks, and metrics in Python and use them with this interface on distributed clusters. The support is labeled as experimental with more features to come in future releases. For a brief introduction please visit the tutorial on XGBoost's [document page](https://xgboost.readthedocs.io/en/latest/tutorials/spark_estimator.html). (#8355, #8344, #8335, #8284, #8271, #8283, #8250, #8231, #8219, #8245, #8217, #8200, #8173, #8172, #8145, #8117, #8131, #8088, #8082, #8085, #8066, #8068, #8067, #8020, #8385)
 
-Due to its initial support status, the new interface has some limitations including categorical features and multi-output models are not yet supported.
+Due to its initial support status, the new interface has some limitations; categorical features and multi-output models are not yet supported.
 
 ### Development of categorical data support
 More progress on the experimental support for categorical features. In 1.7, XGBoost can handle missing values in categorical features and features a new parameter `max_cat_threshold`, which limits the number of categories that can be used in the split evaluation. The parameter is enabled when the partitioning algorithm is used and helps prevent over-fitting. Also, the sklearn interface can now accept the `feature_types` parameter to use data types other than dataframe for categorical features. (#8280, #7821, #8285, #8080, #7948, #7858, #7853, #8212, #7957, #7937, #7934)
@@ -127,7 +127,7 @@ The consistency between JVM packages and other language bindings is greatly impr
 * Auto-detection of MUSL is replaced by system properties (#7921)
 * Improved error message for launching tracker. (#7952, #7968)
 * Fix a race condition in parameter configuration. (#8025)
-* [Breaking] ` timeoutRequestWorkers` is not removed. With the support for barrier mode, this parameter is no longer needed. (#7839)
+* [Breaking] ` timeoutRequestWorkers` is now removed. With the support for barrier mode, this parameter is no longer needed. (#7839)
 * Dependencies updates. (#7791, #8157, #7801, #8240)
 
 ### Documents
