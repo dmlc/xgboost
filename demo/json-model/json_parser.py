@@ -3,10 +3,12 @@
 
 import argparse
 import json
-from typing import Any, Dict, List, Literal, Sequence, Tuple, Union
-from collections import namedtuple
+from dataclasses import dataclass
+from enum import IntEnum, unique
+from typing import Any, Dict, List, Literal, Sequence, Union
 
 import numpy as np
+
 try:
     import ubjson
 except ImportError:
@@ -16,9 +18,31 @@ except ImportError:
 ParamT = Dict[str, str]
 
 
+def to_integers(data: bytes) -> List[int]:
+    """Convert a sequence of bytes to a list of Python integer"""
+    return [v for v in data]
+
+
+@dataclass
 class Node:
-    def __init__(self, left, right):
-        self.left = left
+    # properties
+    left: int
+    right: int
+    parent: int
+    split_idx: int
+    split_cond: float
+    default_left: bool
+    categories: List[int]
+    # statistic
+    base_weight: float
+    loss_chg: float
+    sum_hess: float
+
+
+@unique
+class SplitType(IntEnum):
+    numeric = 0
+    categorical = 1
 
 
 class Tree:
@@ -36,61 +60,58 @@ class Tree:
     _sum_hess = 1
     _base_weight = 2
 
-    def __init__(
-        self,
-        tree_id: int,
-        nodes: Sequence[Tuple[int, int, int, int, float, int]],
-        stats: Sequence[Tuple[float, float, float]],
-    ):
+    def __init__(self, tree_id: int, nodes: Sequence[Node]) -> None:
         self.tree_id = tree_id
         self.nodes = nodes
-        self.stats = stats
 
     def loss_change(self, node_id: int) -> float:
         """Loss gain of a node."""
-        return self.stats[node_id][self._loss_chg]
+        return self.nodes[node_id].loss_chg
 
     def sum_hessian(self, node_id: int) -> float:
         """Sum Hessian of a node."""
-        return self.stats[node_id][self._sum_hess]
+        return self.nodes[node_id].sum_hess
 
     def base_weight(self, node_id: int) -> float:
         """Base weight of a node."""
-        return self.stats[node_id][self._base_weight]
+        return self.nodes[node_id].base_weight
 
     def split_index(self, node_id: int) -> int:
         """Split feature index of node."""
-        return self.nodes[node_id][self._ind]
+        return self.nodes[node_id].split_idx
 
     def split_condition(self, node_id: int) -> float:
         """Split value of a node."""
-        return self.nodes[node_id][self._cond]
+        return self.nodes[node_id].split_cond
+
+    def split_categories(self, node_id: int) -> List[int]:
+        return self.nodes[node_id].categories
 
     def parent(self, node_id: int) -> int:
         """Parent ID of a node."""
-        return self.nodes[node_id][self._parent]
+        return self.nodes[node_id].parent
 
     def left_child(self, node_id: int) -> int:
         """Left child ID of a node."""
-        return self.nodes[node_id][self._left]
+        return self.nodes[node_id].left
 
     def right_child(self, node_id: int) -> int:
         """Right child ID of a node."""
-        return self.nodes[node_id][self._right]
+        return self.nodes[node_id].right
 
     def is_leaf(self, node_id: int) -> bool:
         """Whether a node is leaf."""
-        return self.nodes[node_id][self._left] == -1
+        return self.nodes[node_id].left == -1
 
     def is_deleted(self, node_id: int) -> bool:
         """Whether a node is deleted."""
-        return self.nodes[node_id][self._ind] == np.iinfo(np.uint32).max
+        return self.split_index(node_id) == np.iinfo(np.uint32).max
 
     def __str__(self) -> str:
         stacks = [0]
         nodes = []
         while stacks:
-            node: Dict[str, Union[float, int]] = {}
+            node: Dict[str, Union[float, int, List[int]]] = {}
             nid = stacks.pop()
 
             node["node id"] = nid
@@ -103,6 +124,9 @@ class Tree:
                 right = self.right_child(nid)
                 stacks.append(left)
                 stacks.append(right)
+            categories = self.split_categories(nid)
+            if categories:
+                node["categories"] = categories
 
         string = "\n".join(map(lambda x: "  " + str(x), nodes))
         return string
@@ -144,57 +168,73 @@ class Model:
             tree: Dict[str, Any] = j_trees[i]
             tree_id = int(tree["id"])
             assert tree_id == i, (tree_id, i)
-            # properties
+            # - properties
             left_children: List[int] = tree["left_children"]
             right_children: List[int] = tree["right_children"]
             parents: List[int] = tree["parents"]
             split_conditions: List[float] = tree["split_conditions"]
             split_indices: List[int] = tree["split_indices"]
             # when ubjson is used, this is a byte array with each element as uint8
-            default_left = [int(b) for b in tree["default_left"]]
-            # categorical features
-            split_types: List[int] = [int(b) for b in tree["split_type"]]
+            default_left = to_integers(tree["default_left"])
+
+            # - categorical features
+            # when ubjson is used, this is a byte array with each element as uint8
+            split_types = to_integers(tree["split_type"])
+            # categories for each node is stored in a CSR style storage with segment as
+            # the begin ptr and the `categories' as values.
             cat_segments = tree["categories_segments"]
-            cat_sizes = tree["categories_segments"]
+            cat_sizes = tree["categories_sizes"]
+            # node index for categorical nodes
             cat_nodes = tree["categories_nodes"]
+            assert len(cat_segments) == len(cat_sizes) == len(cat_nodes)
             cats = tree["categories"]
+            assert len(left_children) == len(split_types)
+
+            cat_cnt = 0
+            cat_node = cat_nodes[cat_cnt]
+            node_categories = []
             for node_id in range(len(left_children)):
-                print(split_types[i])
-                if split_types[i] == 1:
-                    print("is cat")
+                if node_id == cat_node:
+                    beg = cat_segments[cat_cnt]
+                    size = cat_sizes[cat_cnt]
+                    end = beg + size
+                    node_cats = cats[beg:end]
+                    # categories are unique for each node
+                    assert len(set(node_cats)) == len(node_cats)
+                    cat_cnt += 1
+                    if cat_cnt == len(cat_nodes):
+                        cat_node = -1
+                    else:
+                        cat_node = cat_nodes[cat_cnt]
+                    node_categories.append(node_cats)
+                else:
+                    # append an empty node, it's either a numerical node or a leaf.
+                    node_categories.append([])
 
-            for i in range(0, len(cat_segments)):
-                beg = cat_segments[i]
-                size = cat_sizes[i]
-                end = beg + size
-                node_cats = cats[beg: end]
-                # print(node_cats)
-
-            # stats
+            # - stats
             base_weights: List[float] = tree["base_weights"]
             loss_changes: List[float] = tree["loss_changes"]
             sum_hessian: List[float] = tree["sum_hessian"]
 
-            stats: List[Tuple[float, float, float]] = []
-            nodes: List[Tuple[int, int, int, int, float, int]] = []
+            nodes: List[Node] = []
             # We resemble the structure used inside XGBoost, which is similar
             # to adjacency list.
             for node_id in range(len(left_children)):
-                nodes.append(
-                    (
-                        left_children[node_id],
-                        right_children[node_id],
-                        parents[node_id],
-                        split_indices[node_id],
-                        split_conditions[node_id],
-                        default_left[node_id],
-                    )
+                node = Node(
+                    left_children[node_id],
+                    right_children[node_id],
+                    parents[node_id],
+                    split_indices[node_id],
+                    split_conditions[node_id],
+                    default_left[node_id] == 1,  # to boolean
+                    node_categories[node_id],
+                    base_weights[node_id],
+                    loss_changes[node_id],
+                    sum_hessian[node_id],
                 )
-                stats.append(
-                    (loss_changes[node_id], sum_hessian[node_id], base_weights[node_id])
-                )
+                nodes.append(node)
 
-            pytree = Tree(tree_id, nodes, stats)
+            pytree = Tree(tree_id, nodes)
             trees.append(pytree)
 
         self.trees = trees
@@ -228,4 +268,4 @@ if __name__ == "__main__":
             "Unexpected file extension. Supported file extension are json and ubj."
         )
     model = Model(model)
-    # model.print_model()
+    model.print_model()
