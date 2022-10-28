@@ -171,7 +171,7 @@ jobs:
       if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
     - name: Run Sphinx
       run: |
-        make -C doc html SPHINXOPTS="-W"
+        make -C doc html
       env:
         SPHINX_GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
         READTHEDOCS: "True"
