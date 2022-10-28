@@ -45,7 +45,7 @@ We have new optimizations for both the `hist` and `gpu_hist` tree methods to mak
 Hist now supports optional by-column histogram build, which is automatically configured based on various conditions of input data. This helps the XGBoost CPU hist algorithm to scale better with different shapes of training datasets. (#8233, #8259). Also, the build histogram kernel now can better utilize CPU registers (#8218)
 
 * GPU Hist
-GPU hist now supports batched node build, which reduces kernel latency and increases throughput. The improvement is particularly significant when growing deep trees with the default ``depthwise`` policy. (#7919, #8073, #8051, #8118, #7867, #7964, #8026)
+GPU hist performance is significantly improved for wide datasets. GPU hist now supports batched node build, which reduces kernel latency and increases throughput. The improvement is particularly significant when growing deep trees with the default ``depthwise`` policy. (#7919, #8073, #8051, #8118, #7867, #7964, #8026)
 
 ### Breaking Changes
 Breaking changes made in the 1.7 release are summarized below.
