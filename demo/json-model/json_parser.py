@@ -5,7 +5,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Any, Dict, List, Literal, Sequence, Union
+from typing import Any, Dict, List, Sequence, Union
 
 import numpy as np
 
@@ -23,6 +23,12 @@ def to_integers(data: bytes) -> List[int]:
     return [v for v in data]
 
 
+@unique
+class SplitType(IntEnum):
+    numerical = 0
+    categorical = 1
+
+
 @dataclass
 class Node:
     # properties
@@ -32,6 +38,7 @@ class Node:
     split_idx: int
     split_cond: float
     default_left: bool
+    split_type: int
     categories: List[int]
     # statistic
     base_weight: float
@@ -39,26 +46,8 @@ class Node:
     sum_hess: float
 
 
-@unique
-class SplitType(IntEnum):
-    numeric = 0
-    categorical = 1
-
-
 class Tree:
     """A tree built by XGBoost."""
-
-    # Index into node array
-    _left: Literal[0]
-    _right: Literal[1]
-    _parent: Literal[2]
-    _ind: Literal[3]
-    _cond: Literal[4]
-    _default_left: Literal[5]
-    # Index into stat array
-    _loss_chg = 0
-    _sum_hess = 1
-    _base_weight = 2
 
     def __init__(self, tree_id: int, nodes: Sequence[Node]) -> None:
         self.tree_id = tree_id
@@ -85,7 +74,15 @@ class Tree:
         return self.nodes[node_id].split_cond
 
     def split_categories(self, node_id: int) -> List[int]:
+        """Categories in a node."""
         return self.nodes[node_id].categories
+
+    def is_categorical(self, node_id: int) -> bool:
+        """Whether a node has categorical split."""
+        return self.nodes[node_id].split_type == SplitType.categorical
+
+    def is_numerical(self, node_id: int) -> bool:
+        return not self.is_categorical(node_id)
 
     def parent(self, node_id: int) -> int:
         """Parent ID of a node."""
@@ -108,11 +105,11 @@ class Tree:
         return self.split_index(node_id) == np.iinfo(np.uint32).max
 
     def __str__(self) -> str:
-        stacks = [0]
+        stack = [0]
         nodes = []
-        while stacks:
+        while stack:
             node: Dict[str, Union[float, int, List[int]]] = {}
-            nid = stacks.pop()
+            nid = stack.pop()
 
             node["node id"] = nid
             node["gain"] = self.loss_change(nid)
@@ -122,11 +119,17 @@ class Tree:
             if not self.is_leaf(nid) and not self.is_deleted(nid):
                 left = self.left_child(nid)
                 right = self.right_child(nid)
-                stacks.append(left)
-                stacks.append(right)
-            categories = self.split_categories(nid)
-            if categories:
-                node["categories"] = categories
+                stack.append(left)
+                stack.append(right)
+                categories = self.split_categories(nid)
+                if categories:
+                    assert self.is_categorical(nid)
+                    node["categories"] = categories
+                else:
+                    assert self.is_numerical(nid)
+                    node["condition"] = self.split_condition(nid)
+            if self.is_leaf(nid):
+                node["weight"] = self.split_condition(nid)
 
         string = "\n".join(map(lambda x: "  " + str(x), nodes))
         return string
@@ -135,14 +138,14 @@ class Tree:
 class Model:
     """Gradient boosted tree model."""
 
-    def __init__(self, model: dict):
+    def __init__(self, model: dict) -> None:
         """Construct the Model from JSON object.
 
         parameters
         ----------
          m: A dictionary loaded by json
         """
-        # Basic property of a model
+        # Basic properties of a model
         self.learner_model_shape: ParamT = model["learner"]["learner_model_param"]
         self.num_output_group = int(self.learner_model_shape["num_class"])
         self.num_feature = int(self.learner_model_shape["num_feature"])
@@ -163,7 +166,7 @@ class Model:
         # Right now XGBoost doesn't support vector leaf yet
         assert self.leaf_size == 0, str(self.leaf_size)
 
-        trees = []
+        trees: List[Tree] = []
         for i in range(self.num_trees):
             tree: Dict[str, Any] = j_trees[i]
             tree_id = int(tree["id"])
@@ -190,11 +193,17 @@ class Model:
             cats = tree["categories"]
             assert len(left_children) == len(split_types)
 
+            # The storage for categories is only defined for categorical nodes to
+            # prevent unnecessary overhead for numerical splits, we track the
+            # categorical node that are processed using a counter.
             cat_cnt = 0
-            cat_node = cat_nodes[cat_cnt]
+            if cat_nodes:
+                last_cat_node = cat_nodes[cat_cnt]
+            else:
+                last_cat_node = -1
             node_categories = []
             for node_id in range(len(left_children)):
-                if node_id == cat_node:
+                if node_id == last_cat_node:
                     beg = cat_segments[cat_cnt]
                     size = cat_sizes[cat_cnt]
                     end = beg + size
@@ -203,9 +212,9 @@ class Model:
                     assert len(set(node_cats)) == len(node_cats)
                     cat_cnt += 1
                     if cat_cnt == len(cat_nodes):
-                        cat_node = -1
+                        last_cat_node = -1  # continue to process the rest of the nodes
                     else:
-                        cat_node = cat_nodes[cat_cnt]
+                        last_cat_node = cat_nodes[cat_cnt]
                     node_categories.append(node_cats)
                 else:
                     # append an empty node, it's either a numerical node or a leaf.
@@ -227,6 +236,7 @@ class Model:
                     split_indices[node_id],
                     split_conditions[node_id],
                     default_left[node_id] == 1,  # to boolean
+                    split_types[node_id],
                     node_categories[node_id],
                     base_weights[node_id],
                     loss_changes[node_id],
@@ -241,7 +251,7 @@ class Model:
 
     def print_model(self) -> None:
         for i, tree in enumerate(self.trees):
-            print("tree_id:", i)
+            print("\ntree_id:", i)
             print(tree)
 
 

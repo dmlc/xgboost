@@ -146,20 +146,20 @@ def test_json_model() -> None:
 
     def run_test(reg: xgboost.XGBRegressor) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            # path = os.path.join(tmpdir, "reg.json")
-            # reg.save_model(path)
-            # cmd = ["python", script, f"--model={path}"]
-            # subprocess.check_call(cmd)
+            path = os.path.join(tmpdir, "reg.json")
+            reg.save_model(path)
+            cmd = ["python", script, f"--model={path}"]
+            subprocess.check_call(cmd)
 
             path = os.path.join(tmpdir, "reg.ubj")
             reg.save_model(path)
             cmd = ["python", script, f"--model={path}"]
             subprocess.check_call(cmd)
 
-    # X, y = tm.make_sparse_regression(100, 10, 0.5, False)
-    # reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
-    # reg.fit(X, y)
-    # run_test(reg)
+    X, y = tm.make_sparse_regression(100, 10, 0.5, False)
+    reg = xgboost.XGBRegressor(n_estimators=2, tree_method="hist")
+    reg.fit(X, y)
+    run_test(reg)
 
     X, y = tm.make_categorical(
         n_samples=1000, n_features=10, n_categories=6, onehot=False, sparsity=0.5
