@@ -5,7 +5,6 @@ import os
 import pickle
 import socket
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -13,7 +12,7 @@ from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union, Generator
 
 import hypothesis
 import numpy as np
@@ -22,18 +21,18 @@ import scipy
 import sklearn
 from hypothesis import HealthCheck, given, note, settings
 from sklearn.datasets import make_classification, make_regression
-from test_predict import verify_leaf_output
-from test_updaters import exact_parameter_strategy, hist_parameter_strategy
-from test_with_sklearn import run_data_initialization, run_feature_weights
 from xgboost.data import _is_cudf_df
+from xgboost.testing.params import hist_parameter_strategy
+from xgboost.testing.shared import (
+    get_feature_weights,
+    validate_data_initialization,
+    validate_leaf_output,
+)
 
 import xgboost as xgb
 from xgboost import testing as tm
 
-if sys.platform.startswith("win"):
-    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
-if tm.no_dask()['condition']:
-    pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
+pytestmark = [tm.timeout(30), pytest.mark.skipif(**tm.no_dask())]
 
 import dask
 import dask.array as da
@@ -44,7 +43,6 @@ from xgboost.dask import DaskDMatrix
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
-pytestmark = tm.timeout(30)
 
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
@@ -53,7 +51,7 @@ else:
 
 
 @pytest.fixture(scope="module")
-def cluster():
+def cluster() -> Generator:
     with LocalCluster(
         n_workers=2, threads_per_worker=2, dashboard_address=":0"
     ) as dask_cluster:
@@ -61,7 +59,7 @@ def cluster():
 
 
 @pytest.fixture
-def client(cluster):
+def client(cluster: "LocalCluster") -> Generator:
     with Client(cluster) as dask_client:
         yield dask_client
 
@@ -71,11 +69,6 @@ kCols = 10
 kWorkers = 5
 
 
-def _get_client_workers(client: "Client") -> List[str]:
-    workers = client.scheduler_info()['workers']
-    return list(workers.keys())
-
-
 def make_categorical(
     client: Client,
     n_samples: int,
@@ -83,7 +76,7 @@ def make_categorical(
     n_categories: int,
     onehot: bool = False,
 ) -> Tuple[dd.DataFrame, dd.Series]:
-    workers = _get_client_workers(client)
+    workers = tm.get_client_workers(client)
     n_workers = len(workers)
     dfs = []
 
@@ -121,9 +114,7 @@ def make_categorical(
 
 def generate_array(
     with_weights: bool = False,
-) -> Tuple[
-    xgb.dask._DataT, xgb.dask._DaskCollection, Optional[xgb.dask._DaskCollection]
-]:
+) -> Tuple[da.Array, da.Array, Optional[da.Array]]:
     chunk_size = 20
     rng = da.random.RandomState(1994)
     X = rng.random_sample((kRows, kCols), chunks=(chunk_size, -1))
@@ -134,7 +125,7 @@ def generate_array(
     return X, y, None
 
 
-def deterministic_persist_per_worker(df, client):
+def deterministic_persist_per_worker(df: dd.DataFrame, client: "Client") -> dd.DataFrame:
     # Got this script from https://github.com/dmlc/xgboost/issues/7927
     # Query workers
     n_workers = len(client.cluster.workers)
@@ -1232,7 +1223,7 @@ def test_dask_predict_leaf(booster: str, client: "Client") -> None:
     leaf_from_apply = cls.apply(X).reshape(leaf.shape).compute()
     np.testing.assert_allclose(leaf_from_apply, leaf)
 
-    verify_leaf_output(leaf, num_parallel_tree)
+    validate_leaf_output(leaf, num_parallel_tree)
 
 
 def test_dask_iteration_range(client: "Client"):
@@ -1287,7 +1278,7 @@ class TestWithDask:
                 assert Xy.num_col() == 4
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            workers = _get_client_workers(client)
+            workers = tm.get_client_workers(client)
             rabit_args = client.sync(
                 xgb.dask._get_rabit_args, len(workers), None, client
             )
@@ -1403,10 +1394,10 @@ class TestWithDask:
         note(history)
         history = history['train'][dataset.metric]
 
-        def is_stump():
+        def is_stump() -> bool:
             return params["max_depth"] == 1 or params["max_leaves"] == 1
 
-        def minimum_bin():
+        def minimum_bin() -> bool:
             return "max_bin" in params and params["max_bin"] == 2
 
         # See note on `ObjFunction::UpdateTreeLeaf`.
@@ -1466,9 +1457,10 @@ class TestWithDask:
             quantile_hist["Valid"]["rmse"], dmatrix_hist["Valid"]["rmse"]
         )
 
-    @given(params=exact_parameter_strategy,
-           dataset=tm.dataset_strategy)
-    @settings(deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True)
+    @given(params=hist_parameter_strategy, dataset=tm.dataset_strategy)
+    @settings(
+        deadline=None, max_examples=10, suppress_health_check=suppress, print_blob=True
+    )
     def test_approx(
         self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
@@ -1476,9 +1468,6 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
     def run_quantile(self, name: str) -> None:
-        if sys.platform.startswith("win"):
-            pytest.skip("Skipping dask tests on Windows")
-
         exe: Optional[str] = None
         for possible_path in {'./testxgboost', './build/testxgboost',
                               '../build/cpubuild/testxgboost',
@@ -1493,7 +1482,6 @@ class TestWithDask:
         def runit(
             worker_addr: str, rabit_args: Dict[str, Union[int, str]]
         ) -> subprocess.CompletedProcess:
-            port_env = ''
             # setup environment for running the c++ part.
             env = os.environ.copy()
             env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])
@@ -1502,7 +1490,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), None, client
                 )
@@ -1565,7 +1553,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), None, client
                 )
@@ -1580,7 +1568,7 @@ class TestWithDask:
     def test_n_workers(self) -> None:
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
 
                 X, y = load_breast_cancer(return_X_y=True)
@@ -1609,16 +1597,17 @@ class TestWithDask:
         for i in range(kCols):
             fw[i] *= float(i)
         fw = da.from_array(fw)
-        poly_increasing = run_feature_weights(
-            X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
+        parser = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
+        poly_increasing = get_feature_weights(
+            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
         )
 
         fw = np.ones(shape=(kCols,))
         for i in range(kCols):
             fw[i] *= float(kCols - i)
         fw = da.from_array(fw)
-        poly_decreasing = run_feature_weights(
-            X, y, fw, "approx", model=xgb.dask.DaskXGBRegressor
+        poly_decreasing = get_feature_weights(
+            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
         )
 
         # Approxmated test, this is dependent on the implementation of random
@@ -1675,7 +1664,7 @@ class TestWithDask:
                 X, y, _ = generate_array()
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
-                workers = _get_client_workers(client)
+                workers = tm.get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), None, client
                 )
@@ -1717,7 +1706,9 @@ class TestWithDask:
         from sklearn.datasets import load_digits
         X, y = load_digits(return_X_y=True)
         X, y = dd.from_array(X, chunksize=32), dd.from_array(y, chunksize=32)
-        run_data_initialization(xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y)
+        validate_data_initialization(
+            xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y
+        )
 
     def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
         rows = X.shape[0]
@@ -1884,7 +1875,7 @@ def test_parallel_submits(client: "Client") -> None:
     from sklearn.datasets import load_digits
 
     futures = []
-    workers = _get_client_workers(client)
+    workers = tm.get_client_workers(client)
     n_submits = len(workers)
     for i in range(n_submits):
         X_, y_ = load_digits(return_X_y=True)
@@ -1970,7 +1961,7 @@ def test_parallel_submit_multi_clients() -> None:
 
     with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            workers = _get_client_workers(client)
+            workers = tm.get_client_workers(client)
 
         n_submits = len(workers)
         assert n_submits == 4

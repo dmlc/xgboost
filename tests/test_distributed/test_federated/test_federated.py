@@ -3,8 +3,9 @@ import multiprocessing
 import sys
 import time
 
-import xgboost as xgb
 import xgboost.federated
+
+import xgboost as xgb
 
 SERVER_KEY = 'server-key.pem'
 SERVER_CERT = 'server-cert.pem'
@@ -58,7 +59,7 @@ def run_worker(port: int, world_size: int, rank: int, with_ssl: bool, with_gpu: 
             xgb.collective.communicator_print("Finished training\n")
 
 
-def run_test(with_ssl: bool = True, with_gpu: bool = False) -> None:
+def run_federated(with_ssl: bool = True, with_gpu: bool = False) -> None:
     port = 9091
     world_size = int(sys.argv[1])
 
@@ -80,7 +81,7 @@ def run_test(with_ssl: bool = True, with_gpu: bool = False) -> None:
 
 
 if __name__ == '__main__':
-    run_test(with_ssl=True, with_gpu=False)
-    run_test(with_ssl=False, with_gpu=False)
-    run_test(with_ssl=True, with_gpu=True)
-    run_test(with_ssl=False, with_gpu=True)
+    run_federated(with_ssl=True, with_gpu=False)
+    run_federated(with_ssl=False, with_gpu=False)
+    run_federated(with_ssl=True, with_gpu=True)
+    run_federated(with_ssl=False, with_gpu=True)

@@ -102,10 +102,14 @@ def no_sklearn() -> PytestSkip:
 
 
 def no_dask() -> PytestSkip:
+    if sys.platform.startswith("win"):
+        return {"reason": "Unsupported platform.", "condition": True}
     return no_mod("dask")
 
 
 def no_spark() -> PytestSkip:
+    if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
+        return {"reason": "Unsupported platform.", "condition": True}
     return no_mod("pyspark")
 
 
@@ -157,6 +161,10 @@ def no_json_schema() -> PytestSkip:
 
 def no_graphviz() -> PytestSkip:
     return no_mod("graphviz")
+
+
+def no_rmm() -> PytestSkip:
+    return no_mod("rmm")
 
 
 def no_multiple(*args: Any) -> PytestSkip:
@@ -863,6 +871,30 @@ def timeout(sec: int, *args: Any, enable: bool = True, **kwargs: Any) -> Any:
     if enable:
         return pytest.mark.timeout(sec, *args, **kwargs)
     return pytest.mark.timeout(None, *args, **kwargs)
+
+
+def setup_rmm_pool(_: Any, pytestconfig: pytest.Config) -> None:
+    if pytestconfig.getoption("--use-rmm-pool"):
+        if no_rmm()["condition"]:
+            raise ImportError("The --use-rmm-pool option requires the RMM package")
+        if no_dask_cuda()["condition"]:
+            raise ImportError(
+                "The --use-rmm-pool option requires the dask_cuda package"
+            )
+        import rmm
+        from dask_cuda.utils import get_n_gpus
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            initial_pool_size=1024 * 1024 * 1024,
+            devices=list(range(get_n_gpus())),
+        )
+
+
+def get_client_workers(client: Any) -> List[str]:
+    "Get workers from a dask client."
+    workers = client.scheduler_info()["workers"]
+    return list(workers.keys())
 
 
 def demo_dir(path: str) -> str:
