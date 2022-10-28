@@ -12,16 +12,15 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.8"]
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: mamba-org/provision-with-micromamba@main
       with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        activate-environment: python_lint
+        cache-downloads: true
+        cache-env: true
+        environment-name: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
     - name: Display Conda env
       shell: bash -l {0}
@@ -83,6 +82,7 @@ jobs:
   python-tests-on-win:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 60
     strategy:
       matrix:
         config:
@@ -130,22 +130,22 @@ jobs:
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       matrix:
         config:
-          - {os: macos-11, python-version "3.8" }
+          - {os: macos-11}
 
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: mamba-org/provision-with-micromamba@main
       with:
-        auto-update-conda: true
-        python-version: ${{ matrix.config.python-version }}
-        activate-environment: macos_test
+        cache-downloads: true
+        cache-env: true
+        environment-name: macos_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
 
     - name: Display Conda env
