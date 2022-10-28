@@ -2,7 +2,6 @@
 import asyncio
 import os
 import subprocess
-import sys
 from collections import OrderedDict
 from inspect import signature
 from typing import Any, Dict, Type, TypeVar, Union
@@ -11,43 +10,39 @@ import numpy as np
 import pytest
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
-from test_gpu_updaters import parameter_strategy
+from xgboost.testing.params import hist_parameter_strategy
 
-import xgboost
+import xgboost as xgb
 from xgboost import testing as tm
 
-if sys.platform.startswith("win"):
-    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+pytestmark = [
+    pytest.mark.skipif(**tm.no_dask()),
+    pytest.mark.skipif(**tm.no_dask_cuda()),
+]
 
-sys.path.append("tests/python")
-
-if tm.no_dask_cuda()["condition"]:
-    pytest.skip(tm.no_dask_cuda()["reason"], allow_module_level=True)
-
-
-from test_with_dask import _get_client_workers  # noqa
-from test_with_dask import generate_array  # noqa
-from test_with_dask import make_categorical  # noqa
-from test_with_dask import run_auc  # noqa
-from test_with_dask import run_boost_from_prediction  # noqa
-from test_with_dask import run_boost_from_prediction_multi_class  # noqa
-from test_with_dask import run_categorical  # noqa
-from test_with_dask import run_dask_classifier  # noqa
-from test_with_dask import run_empty_dmatrix_auc  # noqa
-from test_with_dask import run_empty_dmatrix_cls  # noqa
-from test_with_dask import run_empty_dmatrix_reg  # noqa
-from test_with_dask import run_tree_stats  # noqa
-from test_with_dask import suppress  # noqa
-from test_with_dask import kCols as random_cols  # noqa
+from ..test_with_dask.test_with_dask import generate_array
+from ..test_with_dask.test_with_dask import kCols as random_cols
+from ..test_with_dask.test_with_dask import (
+    make_categorical,
+    run_auc,
+    run_boost_from_prediction,
+    run_boost_from_prediction_multi_class,
+    run_categorical,
+    run_dask_classifier,
+    run_empty_dmatrix_auc,
+    run_empty_dmatrix_cls,
+    run_empty_dmatrix_reg,
+    run_tree_stats,
+    suppress,
+)
 
 try:
     import cudf
     import dask.dataframe as dd
     from dask import array as da
     from dask.distributed import Client
-    from dask_cuda import LocalCUDACluster, utils
+    from dask_cuda import LocalCUDACluster
 
-    import xgboost as xgb
     from xgboost import dask as dxgb
 except ImportError:
     pass
@@ -57,10 +52,10 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
 
     cp.cuda.runtime.setDevice(0)
-    X, y, _ = generate_array()
+    _X, _y, _ = generate_array()
 
-    X = dd.from_dask_array(X)
-    y = dd.from_dask_array(y)
+    X = dd.from_dask_array(_X)
+    y = dd.from_dask_array(_y)
 
     X = X.map_partitions(cudf.from_pandas)
     y = y.map_partitions(cudf.from_pandas)
@@ -83,7 +78,7 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     series_predictions = dxgb.inplace_predict(client, out, X)
     assert isinstance(series_predictions, dd.Series)
 
-    single_node = out["booster"].predict(xgboost.DMatrix(X.compute()))
+    single_node = out["booster"].predict(xgb.DMatrix(X.compute()))
 
     cp.testing.assert_allclose(single_node, predictions.compute())
     np.testing.assert_allclose(single_node, series_predictions.compute().to_numpy())
@@ -127,7 +122,7 @@ def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     )
     from_dmatrix = dxgb.predict(client, out, dtrain).compute()
     inplace_predictions = dxgb.inplace_predict(client, out, X).compute()
-    single_node = out["booster"].predict(xgboost.DMatrix(X.compute()))
+    single_node = out["booster"].predict(xgb.DMatrix(X.compute()))
     np.testing.assert_allclose(single_node, from_dmatrix)
     device = cp.cuda.runtime.getDevice()
     assert device == inplace_predictions.device.id
@@ -242,7 +237,7 @@ class TestDistributedGPU:
         run_categorical(local_cuda_client, "gpu_hist", X, X_onehot, y)
 
     @given(
-        params=parameter_strategy,
+        params=hist_parameter_strategy,
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
         dmatrix_type=strategies.sampled_from(
@@ -405,7 +400,7 @@ class TestDistributedGPU:
         np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
-        n_workers = len(_get_client_workers(local_cuda_client))
+        n_workers = len(tm.get_client_workers(local_cuda_client))
         run_empty_dmatrix_auc(local_cuda_client, "gpu_hist", n_workers)
 
     def test_auc(self, local_cuda_client: Client) -> None:
@@ -418,7 +413,7 @@ class TestDistributedGPU:
         fw = fw - fw.min()
         m = dxgb.DaskDMatrix(local_cuda_client, X, y, feature_weights=fw)
 
-        workers = _get_client_workers(local_cuda_client)
+        workers = tm.get_client_workers(local_cuda_client)
         rabit_args = local_cuda_client.sync(
             dxgb._get_rabit_args, len(workers), None, local_cuda_client
         )
@@ -488,9 +483,6 @@ class TestDistributedGPU:
             assert rn == drn
 
     def run_quantile(self, name: str, local_cuda_client: Client) -> None:
-        if sys.platform.startswith("win"):
-            pytest.skip("Skipping dask tests on Windows")
-
         exe = None
         for possible_path in {
             "./testxgboost",
@@ -506,14 +498,13 @@ class TestDistributedGPU:
         def runit(
             worker_addr: str, rabit_args: Dict[str, Union[int, str]]
         ) -> subprocess.CompletedProcess:
-            port_env = ""
             # setup environment for running the c++ part.
             env = os.environ.copy()
             env['DMLC_TRACKER_PORT'] = str(rabit_args['DMLC_TRACKER_PORT'])
             env["DMLC_TRACKER_URI"] = str(rabit_args["DMLC_TRACKER_URI"])
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
-        workers = _get_client_workers(local_cuda_client)
+        workers = tm.get_client_workers(local_cuda_client)
         rabit_args = local_cuda_client.sync(
             dxgb._get_rabit_args, len(workers), None, local_cuda_client
         )
@@ -539,7 +530,7 @@ class TestDistributedGPU:
 def test_with_asyncio(local_cuda_client: Client) -> None:
     address = local_cuda_client.scheduler.address
     output = asyncio.run(run_from_dask_array_asyncio(address))
-    assert isinstance(output["booster"], xgboost.Booster)
+    assert isinstance(output["booster"], xgb.Booster)
     assert isinstance(output["history"], dict)
 
 
@@ -551,12 +542,12 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         X = X.map_blocks(cp.array)
         y = y.map_blocks(cp.array)
 
-        m = await xgboost.dask.DaskDeviceQuantileDMatrix(client, X, y)
-        output = await xgboost.dask.train(client, {"tree_method": "gpu_hist"}, dtrain=m)
+        m = await xgb.dask.DaskDeviceQuantileDMatrix(client, X, y)
+        output = await xgb.dask.train(client, {"tree_method": "gpu_hist"}, dtrain=m)
 
-        with_m = await xgboost.dask.predict(client, output, m)
-        with_X = await xgboost.dask.predict(client, output, X)
-        inplace = await xgboost.dask.inplace_predict(client, output, X)
+        with_m = await xgb.dask.predict(client, output, m)
+        with_X = await xgb.dask.predict(client, output, X)
+        inplace = await xgb.dask.inplace_predict(client, output, X)
         assert isinstance(with_m, da.Array)
         assert isinstance(with_X, da.Array)
         assert isinstance(inplace, da.Array)

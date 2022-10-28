@@ -1,24 +1,20 @@
 import json
 import logging
 import subprocess
-import sys
 
 import pytest
 import sklearn
 
 from xgboost import testing as tm
 
-if tm.no_spark()["condition"]:
-    pytest.skip(msg=tm.no_spark()["reason"], allow_module_level=True)
-if sys.platform.startswith("win"):
-    pytest.skip("Skipping PySpark tests on Windows", allow_module_level=True)
+pytestmark = pytest.mark.skipif(**tm.no_spark())
 
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
-gpu_discovery_script_path = "tests/python-gpu/test_gpu_spark/discover_gpu.sh"
+gpu_discovery_script_path = "tests/test_distributed/test_gpu_with_spark/discover_gpu.sh"
 
 
 def get_devices():

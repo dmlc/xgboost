@@ -17,3 +17,5 @@ dependencies:
 - isort
 - pyspark
 - cloudpickle
+- pytest
+- hypothesis
