@@ -88,25 +88,25 @@ Some noteworthy bug fixes that are not related to specific language binding are 
 We aim to enable as many features as possible in XGBoost's default binary distribution on PyPI (package installed with pip), but there's a upper limit on the size of the binary wheel. In 1.7, XGBoost reduces the size of the wheel by pruning unused CUDA architectures. (#8179, #8152, #8150)
 
 * Fixes
-Some noteworthy fixes are listed here:
-- Fix the Dask interface with the latest cupy. (#8210)
-- Check cuDF lazily to avoid potential errors with cuda-python. (#8084)
+  Some noteworthy fixes are listed here:
+  - Fix the Dask interface with the latest cupy. (#8210)
+  - Check cuDF lazily to avoid potential errors with cuda-python. (#8084)
 * Fix potential error in DMatrix constructor on 32-bit platform. (#8369)
 
 * Maintenance work
-- Linter script is moved from dmlc-core to XGBoost with added support for formatting, mypy, and parallel run, along with some fixes (#7967, #8101, #8216)
-- We now require the use of `isort` and `black` for selected files. (#8137, #8096)
-- Code cleanups. (#7827)
-- Deprecate `use_label_encoder` in XGBClassifier. The label encoder has already been deprecated and removed in the previous version. These changes only affect the indicator parameter (#7822)
-- Remove the use of distutils. (#7770)
-- Refactor and fixes for tests (#8077, #8064, #8078, #8076, #8013, #8010, #8244, #7833)
+  - Linter script is moved from dmlc-core to XGBoost with added support for formatting, mypy, and parallel run, along with some fixes (#7967, #8101, #8216)
+  - We now require the use of `isort` and `black` for selected files. (#8137, #8096)
+  - Code cleanups. (#7827)
+  - Deprecate `use_label_encoder` in XGBClassifier. The label encoder has already been deprecated and removed in the previous version. These changes only affect the indicator parameter (#7822)
+  - Remove the use of distutils. (#7770)
+  - Refactor and fixes for tests (#8077, #8064, #8078, #8076, #8013, #8010, #8244, #7833)
 
 * Documents
-- [dask] Fix potential error in demo. (#8079)
-- Improved documentation for the ranker. (#8356, #8347)
-- Indicate lack of py-xgboost-gpu on Windows (#8127)
-- Clarification for feature importance. (#8151)
-- Simplify Python getting started example (#8153)
+  - [dask] Fix potential error in demo. (#8079)
+  - Improved documentation for the ranker. (#8356, #8347)
+  - Indicate lack of py-xgboost-gpu on Windows (#8127)
+  - Clarification for feature importance. (#8151)
+  - Simplify Python getting started example (#8153)
 
 ### R Package
 We summarize improvements for the R package briefly here:
@@ -147,16 +147,13 @@ The consistency between JVM packages and other language bindings is greatly impr
 * Remove warnings emitted in previous versions. (#7815)
 * Small fixes occurred during development. (#8008)
 
-
 ### CI and Tests
-
 * We overhauled the CI infrastructure to reduce the CI cost and lift the maintenance burdens. Jenkins is replaced with buildkite for better automation, with which, finer control of test runs is implemented to reduce overall cost. Also, we refactored some of the existing tests to reduce their runtime, drooped the size of docker images, and removed multi-GPU C++ tests. Lastly, `pytest-timeout` is added as an optional dependency for running Python tests to keep the test time in check. (#7772, #8291, #8286, #8276, #8306, #8287, #8243, #8313, #8235, #8288, #8303, #8142, #8092, #8333, #8312, #8348)
 * New documents for how to reproduce the CI environment (#7971, #8297)
 * Improved automation for JVM release. (#7882)
 * GitHub Action security-related updates. (#8263, #8267, #8360)
 * Other fixes and maintenance work. (#8154, #7848, #8069, #7943)
 * Small updates and fixes to GitHub action pipelines. (#8364, #8321, #8241, #7950, #8011)
-
 
 ## v1.6.1 (2022 May 9)
 This is a patch release for bug fixes and Spark barrier mode support. The R package is unchanged.
