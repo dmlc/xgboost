@@ -78,7 +78,7 @@ cat(bst_json)
 The tree JSON shown by the above code-chunk tells us that if the data is less than 20180132, the tree will output the value in the first leaf.  Otherwise it will output the value in the second leaf.  Let's try to reproduce this manually with the data we have and confirm that it matches the model predictions we've already calculated.
 
 ```{r}
-bst_preds_logodds <- predict(bst,as.matrix(data$dates), outputmargin = TRUE)
+bst_preds_logodds <- predict(bst,as.matrix(data$dates), type = "margin")
 
 # calculate the logodds values using the JSON representation
 bst_from_json_logodds <- ifelse(data$dates<node$split_condition,

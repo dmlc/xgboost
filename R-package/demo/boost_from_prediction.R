@@ -15,8 +15,8 @@ param <- list(max_depth = 2, eta = 1, nthread = 2, objective = 'binary:logistic'
 bst <- xgb.train(param, dtrain, 1, watchlist)
 # Note: we need the margin value instead of transformed prediction in set_base_margin
 # do predict with output_margin=TRUE, will always give you margin values before logistic transformation
-ptrain <- predict(bst, dtrain, outputmargin = TRUE)
-ptest  <- predict(bst, dtest, outputmargin = TRUE)
+ptrain <- predict(bst, dtrain, type = "margin")
+ptest  <- predict(bst, dtest, type = "margin")
 # set the base_margin property of dtrain and dtest
 # base margin is the base prediction we will boost from
 setinfo(dtrain, "base_margin", ptrain)

@@ -21,11 +21,11 @@ accuracy.before <- (sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.te
                     / length(agaricus.test$label))
 
 # by default, we predict using all the trees
-pred_with_leaf <- predict(bst, dtest, predleaf = TRUE)
+pred_with_leaf <- predict(bst, dtest, type = "leaf")
 head(pred_with_leaf)
 
 create.new.tree.features <- function(model, original.features){
-  pred_with_leaf <- predict(model, original.features, predleaf = TRUE)
+  pred_with_leaf <- predict(model, original.features, type = "leaf")
   cols <- list()
   for (i in 1:model$niter) {
     # max is not the real max but it s not important for the purpose of adding features

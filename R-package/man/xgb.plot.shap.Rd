@@ -129,7 +129,7 @@ bst <- xgboost(agaricus.train$data, agaricus.train$label, nrounds = 50,
                method = "hist", objective = "binary:logistic", nthread = 2, verbose = 0)
 
 xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
-contr <- predict(bst, agaricus.test$data, predcontrib = TRUE)
+contr <- predict(bst, agaricus.test$data, type = "contrib")
 xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
 xgb.ggplot.shap.summary(agaricus.test$data, contr, model = bst, top_n = 12)  # Summary plot
 

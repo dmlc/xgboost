@@ -79,7 +79,7 @@
 #'                method = "hist", objective = "binary:logistic", nthread = 2, verbose = 0)
 #'
 #' xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
-#' contr <- predict(bst, agaricus.test$data, predcontrib = TRUE)
+#' contr <- predict(bst, agaricus.test$data, type = "contrib")
 #' xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
 #' xgb.ggplot.shap.summary(agaricus.test$data, contr, model = bst, top_n = 12)  # Summary plot
 #'
@@ -259,7 +259,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       colnames(shap_contrib) <- paste0("X", seq_len(ncol(data)))
     }
   } else {
-    shap_contrib <- predict(model, newdata = data, predcontrib = TRUE, approxcontrib = approxcontrib)
+    shap_contrib <- predict(model, newdata = data, type = "contrib", approxcontrib = approxcontrib)
     if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
       shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
     }

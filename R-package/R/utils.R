@@ -151,7 +151,7 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
   if (is.null(obj)) {
     .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE,
+    pred <- predict(booster_handle, dtrain, type = "margin", training = TRUE,
                     ntreelimit = 0)
     gpair <- obj(pred, dtrain)
     .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
@@ -179,7 +179,7 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]
       ## predict using all trees
-      preds <- predict(booster_handle, w, outputmargin = TRUE, iterationrange = c(1, 1))
+      preds <- predict(booster_handle, w, type = "margin", iterationrange = c(1, 1))
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)
