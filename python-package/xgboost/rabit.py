@@ -22,10 +22,11 @@ def init(args: Optional[List[bytes]] = None) -> None:
     """Initialize the rabit library with arguments"""
     warnings.warn(_deprecation_warning())
     parsed = {}
-    for arg in args:
-        kv = arg.decode().split('=')
-        if len(kv) == 2:
-            parsed[kv[0]] = kv[1]
+    if args:
+        for arg in args:
+            kv = arg.decode().split('=')
+            if len(kv) == 2:
+                parsed[kv[0]] = kv[1]
     collective.init(**parsed)
 
 
@@ -133,7 +134,7 @@ def allreduce(  # pylint:disable=invalid-name
     This function is not thread-safe.
     """
     if prepare_fun is None:
-        return collective.allreduce(data, op)
+        return collective.allreduce(data, collective.Op(op))
     else:
         raise Exception("preprocessing function is no longer supported")
 
