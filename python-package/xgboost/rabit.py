@@ -13,7 +13,7 @@ from .core import _LIB, c_str, _check_call
 LOGGER = logging.getLogger("[xgboost.rabit]")
 
 
-def _deprecation_warning():
+def _deprecation_warning() -> str:
     return (
         "The xgboost.rabit submodule is marked as deprecated in 1.7 and will be removed "
         "in 2.0. Please use xgboost.collective instead."
