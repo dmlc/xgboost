@@ -137,5 +137,9 @@ credentials.csv
 .metals
 .bloop
 
-# hypothesis python tests
+# python tests
+demo/**/*.txt
+*.dmatrix
 .hypothesis
+__MACOSX/
+model*.json
