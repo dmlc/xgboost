@@ -135,8 +135,7 @@ def allreduce(  # pylint:disable=invalid-name
     """
     if prepare_fun is None:
         return collective.allreduce(data, collective.Op(op))
-    else:
-        raise Exception("preprocessing function is no longer supported")
+    raise Exception("preprocessing function is no longer supported")
 
 
 def version_number() -> int:
