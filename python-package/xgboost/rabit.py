@@ -20,7 +20,7 @@ def _deprecation_warning() -> str:
 
 def init(args: Optional[List[bytes]] = None) -> None:
     """Initialize the rabit library with arguments"""
-    warnings.warn(_deprecation_warning())
+    warnings.warn(_deprecation_warning(), FutureWarning)
     parsed = {}
     if args:
         for arg in args:
