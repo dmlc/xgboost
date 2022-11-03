@@ -3,7 +3,6 @@ change without notice.
 
 """
 # pylint: disable=invalid-name,missing-function-docstring,import-error
-import copy
 import gc
 import importlib.util
 import multiprocessing
