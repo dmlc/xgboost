@@ -141,6 +141,7 @@ if __name__ == "__main__":
                 "python-package/xgboost/sklearn.py",
                 "python-package/xgboost/spark",
                 "python-package/xgboost/federated.py",
+                "python-package/xgboost/collective.py",
                 "python-package/xgboost/testing",
                 # tests
                 "tests/python/test_config.py",
