@@ -1,9 +1,12 @@
 #!/usr/bin/python
 # this is the example script to use xgboost to train
-import numpy as np
-import xgboost as xgb
-from sklearn.ensemble import GradientBoostingClassifier
 import time
+
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier
+
+import xgboost as xgb
+
 test_size = 550000
 
 # path to where the data lies

@@ -10,10 +10,12 @@ See :doc:`/tutorials/custom_metric_obj` for detailed tutorial and notes.
 
 '''
 
-import numpy as np
-import xgboost as xgb
-from matplotlib import pyplot as plt
 import argparse
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+import xgboost as xgb
 
 np.random.seed(1994)
 

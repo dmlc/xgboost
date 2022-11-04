@@ -6,9 +6,11 @@ Demo for survival analysis (regression). using Accelerated Failure Time (AFT) mo
 """
 
 import os
-from sklearn.model_selection import ShuffleSplit
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+from sklearn.model_selection import ShuffleSplit
+
 import xgboost as xgb
 
 # The Veterans' Administration Lung Cancer Trial

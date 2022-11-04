@@ -2,10 +2,12 @@
 Demo for using xgboost with sklearn
 ===================================
 """
-from sklearn.model_selection import GridSearchCV
-from sklearn.datasets import fetch_california_housing
-import xgboost as xgb
 import multiprocessing
+
+from sklearn.datasets import fetch_california_housing
+from sklearn.model_selection import GridSearchCV
+
+import xgboost as xgb
 
 if __name__ == "__main__":
     print("Parallel Parameter optimization")

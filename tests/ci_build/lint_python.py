@@ -164,17 +164,17 @@ if __name__ == "__main__":
             run_isort(path)
             for path in [
                 # core
-                "python-package",
+                "python-package/",
                 # tests
-                "tests/test_distributed",
-                "tests/python",
-                "tests/python-gpu",
-                "tests/ci_build/lint_python.py",
+                "tests/test_distributed/",
+                "tests/python/",
+                "tests/python-gpu/",
+                "tests/ci_build/",
                 # demo
-                "demo/json-model/json_parser.py",
-                "demo/guide-python/cat_in_the_dat.py",
-                "demo/guide-python/categorical.py",
-                "demo/guide-python/spark_estimator_examples.py",
+                "demo/",
+                # misc
+                "dev/",
+                "doc/",
             ]
         ]
         if not all(black_results):

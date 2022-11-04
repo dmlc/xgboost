@@ -7,12 +7,13 @@ Created on 1 Apr 2015
 @author: Jamie Hall
 '''
 import pickle
-import xgboost as xgb
 
 import numpy as np
-from sklearn.model_selection import KFold, train_test_split, GridSearchCV
+from sklearn.datasets import fetch_california_housing, load_digits, load_iris
 from sklearn.metrics import confusion_matrix, mean_squared_error
-from sklearn.datasets import load_iris, load_digits, fetch_california_housing
+from sklearn.model_selection import GridSearchCV, KFold, train_test_split
+
+import xgboost as xgb
 
 rng = np.random.RandomState(31337)
 

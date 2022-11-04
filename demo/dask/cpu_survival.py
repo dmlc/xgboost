@@ -4,12 +4,14 @@ Example of training survival model with Dask on CPU
 
 """
 
-import xgboost as xgb
 import os
-from xgboost.dask import DaskDMatrix
+
 import dask.dataframe as dd
-from dask.distributed import Client
-from dask.distributed import LocalCluster
+from dask.distributed import Client, LocalCluster
+from xgboost.dask import DaskDMatrix
+
+import xgboost as xgb
+
 
 def main(client):
     # Load an example survival data from CSV into a Dask data frame.

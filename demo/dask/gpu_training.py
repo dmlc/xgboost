@@ -2,14 +2,15 @@
 Example of training with Dask on GPU
 ====================================
 """
-from dask_cuda import LocalCUDACluster
 import dask_cudf
-from dask.distributed import Client
 from dask import array as da
 from dask import dataframe as dd
+from dask.distributed import Client
+from dask_cuda import LocalCUDACluster
+from xgboost.dask import DaskDMatrix
+
 import xgboost as xgb
 from xgboost import dask as dxgb
-from xgboost.dask import DaskDMatrix
 
 
 def using_dask_matrix(client: Client, X, y):

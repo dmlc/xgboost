@@ -3,7 +3,9 @@ Demo for GLM
 ============
 """
 import os
+
 import xgboost as xgb
+
 ##
 #  this script demonstrate how to fit generalized linear model in xgboost
 #  basically, we are using linear model, instead of tree for our boosters
