@@ -10,7 +10,6 @@ import os
 import platform
 import socket
 import sys
-import urllib
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -29,6 +28,7 @@ from typing import (
     TypedDict,
     Union,
 )
+from urllib import request
 
 import numpy as np
 import pytest
@@ -439,7 +439,7 @@ def get_mq2008(
     src = "https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip"
     target = dpath + "/MQ2008.zip"
     if not os.path.exists(target):
-        urllib.request.urlretrieve(url=src, filename=target)
+        request.urlretrieve(url=src, filename=target)
 
     with zipfile.ZipFile(target, "r") as f:
         f.extractall(path=dpath)

@@ -5,15 +5,26 @@
 import copy
 import os
 import warnings
-from typing import Optional, Dict, Any, Union, Tuple, Sequence, List, cast, Iterable
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 
-from .callback import TrainingCallback, CallbackContainer, EvaluationMonitor, EarlyStopping
-from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
-from .core import Metric, Objective
-from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold, DataFrame
-from ._typing import Callable, FPreProcCallable, BoosterParam
+from ._typing import BoosterParam, Callable, FPreProcCallable
+from .callback import (
+    CallbackContainer,
+    EarlyStopping,
+    EvaluationMonitor,
+    TrainingCallback,
+)
+from .compat import SKLEARN_INSTALLED, DataFrame, XGBStratifiedKFold
+from .core import (
+    Booster,
+    DMatrix,
+    Metric,
+    Objective,
+    XGBoostError,
+    _deprecate_positional_args,
+)
 
 _CVFolds = Sequence["CVPack"]
 

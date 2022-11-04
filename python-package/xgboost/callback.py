@@ -6,16 +6,27 @@
 
 """
 
-from abc import ABC
 import collections
 import os
 import pickle
-from typing import Callable, List, Optional, Union, Dict, Tuple, TypeVar, cast, Sequence, Any
+from abc import ABC
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
+
 import numpy
 
 from . import collective
 from .core import Booster, DMatrix, XGBoostError, _get_booster_layer_trees
-
 
 __all__ = [
     "TrainingCallback",

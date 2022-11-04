@@ -2,9 +2,9 @@
 # pylint: disable=too-many-branches
 # coding: utf-8
 """Plotting Library."""
-from io import BytesIO
 import json
-from typing import Optional, Any
+from io import BytesIO
+from typing import Any, Optional
 
 import numpy as np
 
@@ -269,8 +269,8 @@ def plot_tree(
 
     """
     try:
-        from matplotlib import pyplot as plt
         from matplotlib import image
+        from matplotlib import pyplot as plt
     except ImportError as e:
         raise ImportError('You must install matplotlib to plot tree') from e
 
