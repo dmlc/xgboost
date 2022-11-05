@@ -4,7 +4,7 @@ XGBoost Release Policy
 =======================
 
 Versioning Policy
----------------------------
+-----------------
 
 Starting from XGBoost 1.0.0, each XGBoost release will be versioned as [MAJOR].[FEATURE].[MAINTENANCE]
 
@@ -34,6 +34,20 @@ Making a Release
 
    + The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
-     Before submitting a release, one should test the package on `R-hub <https://builder.r-hub.io/>`__ and `win-builder <https://win-builder.r-project.org/>`__ first.  Please note that the R-hub Windows instance doesn't have the exact same environment as the one hosted on win-builder.
-
    + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_ and `Hyunsu Cho <https://github.com/hcho3>`_.
+
+
+R CRAN Package
+--------------
+Before submitting a release, one should test the package on `R-hub <https://builder.r-hub.io/>`__ and `win-builder <https://win-builder.r-project.org/>`__ first.  Please note that the R-hub Windows instance doesn't have the exact same environment as the one hosted on win-builder.
+
+According to the `CRAN policy <https://cran.r-project.org/web/packages/policies.html>`__:
+
+    If running a package uses multiple threads/cores it must never use more than two simultaneously: the check farm is a shared resource and will typically be running many checks simultaneously.
+
+We need to check the number of CPUs used in examples. Export ``_R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_=2.5`` before running ``R CMD check --as-cran`` `[1] <#references>`__ and make sure the machine you are using has enough CPU cores to reveal any potential policy violation.
+
+References
+----------
+
+[1] https://stat.ethz.ch/pipermail/r-package-devel/2022q4/008610.html
