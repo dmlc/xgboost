@@ -77,10 +77,10 @@ new.features.test <- xgb.create.features(model = bst, agaricus.test$data)
 
 # learning with new features
 new.dtrain <- xgb.DMatrix(
-    data = new.features.train, label = agaricus.train$label, nthread = 2
+  data = new.features.train, label = agaricus.train$label, nthread = 2
 )
 new.dtest <- xgb.DMatrix(
-    data = new.features.test, label = agaricus.test$label, nthread = 2
+  data = new.features.test, label = agaricus.test$label, nthread = 2
 )
 watchlist <- list(train = new.dtrain)
 bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
