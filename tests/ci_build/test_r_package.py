@@ -153,6 +153,29 @@ def check_rpackage(path: str) -> None:
     # fixme(jiamingy): More checks for NOTE.
 
 
+@cd(r_package)
+def test_with_autotools(args):
+    """Windows only test. No `--as-cran` check, only unittests. We don't want to manage
+    the dependencies on Windows machine.
+
+    """
+    mingw_bin = get_mingw_bin()
+    CXX = os.path.join(mingw_bin, 'g++.exe')
+    CC = os.path.join(mingw_bin, 'gcc.exe')
+    cmd = ['R.exe', 'CMD', 'INSTALL', str(os.path.curdir)]
+    env = os.environ.copy()
+    env.update({'CC': CC, 'CXX': CXX, "MAKEFLAGS": f"-j{os.cpu_count()}"})
+    subprocess.check_call(cmd, env=env)
+    subprocess.check_call([
+        'R.exe', '-q', '-e',
+        "library(testthat); setwd('tests'); source('testthat.R')"
+    ])
+    subprocess.check_call([
+        'R.exe', '-q', '-e',
+        "demo(runall, package = 'xgboost')"
+    ])
+
+
 @record_time
 def test_with_cmake(args: argparse.Namespace) -> None:
     os.mkdir("build")
@@ -220,10 +243,12 @@ def main(args: argparse.Namespace) -> None:
         build_rpackage(src_dir)
         return
     elif args.task == "check":
-        if args.build_tool == "autotools":
+        if args.build_tool == "autotools" and system() != "Windows":
             src_dir = pack_rpackage()
             tarball = build_rpackage(src_dir)
             check_rpackage(tarball)
+        elif args.build_tool == "autotools":
+            test_with_autotools()
         else:
             test_with_cmake(args)
     else:
