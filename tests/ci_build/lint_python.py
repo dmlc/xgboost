@@ -6,12 +6,13 @@ from multiprocessing import Pool, cpu_count
 from typing import Dict, Tuple
 
 from pylint import epylint
-from test_utils import DirectoryExcursion
+from test_utils import DirectoryExcursion, print_time, record_time
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
 
 
+@record_time
 def run_formatter(rel_path: str) -> bool:
     path = os.path.join(PROJECT_ROOT, rel_path)
     isort_ret = subprocess.run(["isort", "--check", "--profile=black", path]).returncode
@@ -26,6 +27,7 @@ def run_formatter(rel_path: str) -> bool:
     return True
 
 
+@record_time
 def run_mypy(rel_path: str) -> bool:
     with DirectoryExcursion(os.path.join(PROJECT_ROOT, "python-package")):
         path = os.path.join(PROJECT_ROOT, rel_path)
@@ -102,17 +104,13 @@ class PyLint:
         return nerr == 0
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=(
-            "Run static checkers for XGBoost, see `python_lint.yml' "
-            "conda env file for a list of dependencies."
-        )
-    )
-    parser.add_argument("--format", type=int, choices=[0, 1], default=1)
-    parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
-    parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
-    args = parser.parse_args()
+@record_time
+def run_pylint() -> bool:
+    return PyLint()()
+
+
+@record_time
+def main(args: argparse.Namespace) -> None:
     if args.format == 1:
         if not all(
             run_formatter(path)
@@ -170,5 +168,22 @@ if __name__ == "__main__":
             sys.exit(-1)
 
     if args.pylint == 1:
-        if not PyLint()():
+        if not run_pylint():
             sys.exit(-1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run static checkers for XGBoost, see `python_lint.yml' "
+            "conda env file for a list of dependencies."
+        )
+    )
+    parser.add_argument("--format", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
+    args = parser.parse_args()
+    try:
+        main(args)
+    finally:
+        print_time()

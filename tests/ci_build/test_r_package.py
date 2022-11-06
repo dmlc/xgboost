@@ -6,7 +6,7 @@ from pathlib import Path
 from platform import system
 
 from sh.contrib import git
-from test_utils import DirectoryExcursion, cd, print_time, record_time, timer
+from test_utils import DirectoryExcursion, cd, print_time, record_time
 
 ROOT = os.path.normpath(
     os.path.join(
