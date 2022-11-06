@@ -35,9 +35,7 @@ def pack_rpackage() -> Path:
 
     output = git.clean("-xdf", "--dry-run")
     would_remove = output.stdout.decode("utf-8").strip().split("\n")
-    print(would_remove)
-    for f in would_remove:
-        print(f.find("tests/ci_build"))
+
     if would_remove and not all(f.find("tests/ci_build") != -1 for f in would_remove):
         raise ValueError(
             "\n".join(would_remove) + "\nPlease cleanup the working git repository."
