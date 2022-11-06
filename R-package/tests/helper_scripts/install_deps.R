@@ -2,22 +2,27 @@
 ## up-to-date, check DESCRIPTION for the latest list and update this one if
 ## inconsistent is found.
 pkgs <- c(
+  ## CI
+  "devtools",
   "XML",
-  "igraph",
-  "data.table",
+  ## suggests
+  "knitr",
+  "rmarkdown",
   "ggplot2",
   "DiagrammeR",
   "Ckmeans.1d.dp",
   "vcd",
   "testthat",
   "lintr",
-  "knitr",
-  "rmarkdown",
-  "e1071",
-  "cplm",
-  "devtools",
+  "igraph",
   "float",
+  "crayon",
   "titanic",
+  ## imports
+  "Matrix",
+  "methods",
+  "data.table",
+  "jsonlite"
 )
 
 ncpus <- parallel::detectCores()
