@@ -1,13 +1,12 @@
 import argparse
 import os
-import re
 import shutil
 import subprocess
 from pathlib import Path
 from platform import system
 
 from sh.contrib import git
-from test_utils import DirectoryExcursion, cd, record_time, timer
+from test_utils import DirectoryExcursion, cd, print_time, record_time, timer
 
 ROOT = os.path.normpath(
     os.path.join(
@@ -257,12 +256,4 @@ if __name__ == "__main__":
     try:
         main(args)
     finally:
-        for k, v in timer.items():
-            print(
-                "Name:",
-                k,
-                "Called:",
-                v["count"],
-                "Elapsed:",
-                f"{v['total'].seconds} secs",
-            )
+        print_time()

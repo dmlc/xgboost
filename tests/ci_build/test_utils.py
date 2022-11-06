@@ -1,3 +1,4 @@
+"""Utilities for the CI."""
 import os
 from datetime import datetime, timedelta
 from functools import wraps
@@ -20,6 +21,7 @@ R = TypeVar("R")
 
 
 def cd(path: Union[os.PathLike, str]) -> Callable:
+    """Decorator for changing directory temporarily."""
     def chdir(func: Callable[..., R]) -> Callable[..., R]:
         @wraps(func)
         def inner(*args: Any, **kwargs: Any) -> R:
@@ -36,6 +38,7 @@ timer: Dict[str, Record] = {}
 
 
 def record_time(func: Callable[..., R]) -> Callable[..., R]:
+    """Decorator for recording function runtime."""
     global timer
 
     @wraps(func)
@@ -52,3 +55,17 @@ def record_time(func: Callable[..., R]) -> Callable[..., R]:
         return r
 
     return inner
+
+
+def print_time() -> None:
+    """Print all recorded items by :py:func:`record_time`."""
+    global timer
+    for k, v in timer.items():
+        print(
+            "Name:",
+            k,
+            "Called:",
+            v["count"],
+            "Elapsed:",
+            f"{v['total'].seconds} secs",
+        )
