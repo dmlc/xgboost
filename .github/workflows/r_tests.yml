@@ -93,6 +93,8 @@ jobs:
       run: |
         sudo apt update && sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
 
+    - uses: r-lib/actions/setup-tinytex@v2
+
     - name: Install dependencies
       shell: Rscript {0}
       run: |

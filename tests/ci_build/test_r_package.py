@@ -152,9 +152,15 @@ def check_rpackage(path: str) -> None:
         print(msg)
         raise ValueError("Suspicious NOTE.")
 
-    with DirectoryExcursion("./R-package"):
-        subprocess.check_call(["Rscript", "-e", "devtools::document()"])
-        subprocess.check_call(["git", "status"])
+    output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
+    diff = output.stdout.decode("utf-8").strip().split("\n")
+    if any(f.find("R-package") != -1 for f in diff):
+        print("Checking R document.")
+        with DirectoryExcursion(r_package):
+            subprocess.check_call(["Rscript", "-e", "devtools::document()"], env=env)
+            output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
+            if len(output.stdout.decode("utf-8").strip()) != 0:
+                raise ValueError("Please upgrade compiled rmarkdown.")
 
 
 @cd(r_package)
