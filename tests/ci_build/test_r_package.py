@@ -168,26 +168,22 @@ def check_rmarkdown():
 
 
 @cd(r_package)
-def test_with_autotools(args):
+def test_with_autotools() -> None:
     """Windows only test. No `--as-cran` check, only unittests. We don't want to manage
     the dependencies on Windows machine.
 
     """
     mingw_bin = get_mingw_bin()
-    CXX = os.path.join(mingw_bin, 'g++.exe')
-    CC = os.path.join(mingw_bin, 'gcc.exe')
-    cmd = ['R.exe', 'CMD', 'INSTALL', str(os.path.curdir)]
+    CXX = os.path.join(mingw_bin, "g++.exe")
+    CC = os.path.join(mingw_bin, "gcc.exe")
+    cmd = [R, "CMD", "INSTALL", str(os.path.curdir)]
     env = os.environ.copy()
-    env.update({'CC': CC, 'CXX': CXX, "MAKEFLAGS": f"-j{os.cpu_count()}"})
+    env.update({"CC": CC, "CXX": CXX, "MAKEFLAGS": f"-j{os.cpu_count()}"})
     subprocess.check_call(cmd, env=env)
-    subprocess.check_call([
-        'R.exe', '-q', '-e',
-        "library(testthat); setwd('tests'); source('testthat.R')"
-    ])
-    subprocess.check_call([
-        'R.exe', '-q', '-e',
-        "demo(runall, package = 'xgboost')"
-    ])
+    subprocess.check_call(
+        ["R.exe", "-q", "-e", "library(testthat); setwd('tests'); source('testthat.R')"]
+    )
+    subprocess.check_call(["R.exe", "-q", "-e", "demo(runall, package = 'xgboost')"])
 
 
 @record_time
