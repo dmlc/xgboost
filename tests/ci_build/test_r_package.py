@@ -14,6 +14,7 @@ ROOT = os.path.normpath(
     )
 )
 r_package = os.path.join(ROOT, "R-package")
+R = "R" if system() != "Windows" else "R.exe"
 
 
 def get_mingw_bin() -> str:
@@ -68,9 +69,11 @@ def pack_rpackage() -> Path:
     pkgroot("Makevars.win")
     # misc
     rwsp = Path("R-package") / "remove_warning_suppression_pragma.sh"
-    subprocess.check_call(rwsp)
+    if system() != "Windows":
+        subprocess.check_call(rwsp)
     rwsp = dest / "remove_warning_suppression_pragma.sh"
-    subprocess.check_call(rwsp)
+    if system() != "Windows":
+        subprocess.check_call(rwsp)
     os.remove(rwsp)
     os.remove(dest / "CMakeLists.txt")
     shutil.rmtree(dest / "tests" / "helper_scripts")
@@ -81,16 +84,21 @@ def pack_rpackage() -> Path:
 @record_time
 def build_rpackage(path: str) -> str:
     def find_tarbal() -> str:
+        found = []
         for root, subdir, files in os.walk("."):
             for f in files:
                 if f.endswith(".tar.gz") and f.startswith("xgboost"):
-                    return os.path.join(root, f)
-        raise ValueError("Failed to find output tar ball.")
+                    found.append(os.path.join(root, f))
+        if not found:
+            raise ValueError("Failed to find output tar ball.")
+        if len(found) > 1:
+            raise ValueError("Found more than one packages:", found)
+        return found[0]
 
     env = os.environ.copy()
     print("Ncpus:", f"{os.cpu_count()}")
     env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
-    subprocess.check_call(["R", "CMD", "build", path], env=env)
+    subprocess.check_call([R, "CMD", "build", path], env=env)
 
     tarball = find_tarbal()
     return tarball
@@ -116,7 +124,7 @@ def check_rpackage(path: str) -> None:
         CC = os.path.join(mingw_bin, "gcc.exe")
         env.update({"CC": CC, "CXX": CXX})
 
-    status = subprocess.run(["R", "CMD", "check", "--as-cran", path], env=env)
+    status = subprocess.run([R, "CMD", "check", "--as-cran", path], env=env)
     with open(Path("xgboost.Rcheck") / "00check.log", "r") as fd:
         check_log = fd.read()
 
@@ -127,8 +135,9 @@ def check_rpackage(path: str) -> None:
 ----------------------- Install ----------------------
 {install_log}
 
------------------------  Check- ----------------------
+-----------------------  Check -----------------------
 {check_log}
+
     """
 
     if status.returncode != 0:
@@ -196,15 +205,13 @@ def test_with_cmake(args: argparse.Namespace) -> None:
     with DirectoryExcursion(r_package):
         subprocess.check_call(
             [
-                "R.exe",
+                R,
                 "-q",
                 "-e",
                 "library(testthat); setwd('tests'); source('testthat.R')",
             ]
         )
-        subprocess.check_call(
-            ["R.exe", "-q", "-e", "demo(runall, package = 'xgboost')"]
-        )
+        subprocess.check_call([R, "-q", "-e", "demo(runall, package = 'xgboost')"])
 
 
 @record_time

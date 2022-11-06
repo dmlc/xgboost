@@ -29,7 +29,7 @@ ncpus <- parallel::detectCores()
 print(paste0("Using ", ncpus, " cores to install dependencies."))
 
 if (.Platform$OS.type == "unix") {
-  print("Installing source package on unix.")
+  print("Installing source packages on unix.")
   install.packages(
     pkgs,
     repo = "http://cloud.r-project.org",
@@ -37,7 +37,7 @@ if (.Platform$OS.type == "unix") {
     Ncpus = parallel::detectCores()
   )
 } else {
-  print("Installing binary package on Windows.")
+  print("Installing binary packages on Windows.")
   install.packages(
     pkgs,
     repo = "http://cloud.r-project.org",
