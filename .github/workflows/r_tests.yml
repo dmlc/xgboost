@@ -33,8 +33,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-5-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-5-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - uses: actions/setup-python@v2
       with:
@@ -80,8 +80,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-5-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-5-${{ hashFiles('R-package/DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - uses: actions/setup-python@v2
       with:
