@@ -15,7 +15,9 @@ jobs:
     if: github.event.comment.body == '/gha run rhub-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
     timeout-minutes: 120
     runs-on: ubuntu-latest
-    container: rhub/debian-gcc-devel-nold
+    container:
+      image: rhub/debian-gcc-devel-nold
+      options: --user root
     steps:
     - name: Install git and system packages
       shell: bash
@@ -43,7 +45,9 @@ jobs:
     if: github.event.comment.body == '/gha run rhub-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
     timeout-minutes: 120
     runs-on: ubuntu-latest
-    container: rhub/debian-gcc-devel
+    container:
+      image: rhub/debian-gcc-devel
+      options: --user root
 
     steps:
     - uses: actions/checkout@v2
