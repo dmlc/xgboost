@@ -103,3 +103,16 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
+
+
+    - uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          r_package:
+            - 'R-package/**'
+
+    - name: Run document check
+      if: steps.changes.outputs.r_package == 'true' && matrix.config.os != 'windows-latest'
+      run: |
+        python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=doc

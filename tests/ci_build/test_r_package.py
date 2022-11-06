@@ -152,10 +152,14 @@ def check_rpackage(path: str) -> None:
         print(msg)
         raise ValueError("Suspicious NOTE.")
 
+
+@cd(ROOT)
+def check_rmarkdown():
+    env = os.environ.copy()
     output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
     diff = output.stdout.decode("utf-8").strip().split("\n")
     if any(f.find("R-package") != -1 for f in diff):
-        print("Checking R document.")
+        print("Checking R document with devtools.")
         with DirectoryExcursion(r_package):
             subprocess.check_call(["Rscript", "-e", "devtools::document()"], env=env)
             output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
@@ -252,6 +256,8 @@ def main(args: argparse.Namespace) -> None:
         src_dir = pack_rpackage()
         build_rpackage(src_dir)
         return
+    elif args.task == "doc":
+        check_rmarkdown()
     elif args.task == "check":
         if args.build_tool == "autotools" and system() != "Windows":
             src_dir = pack_rpackage()
@@ -276,7 +282,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task",
         type=str,
-        choices=["build", "check"],
+        choices=["build", "check", "doc"],
         default="check",
         required=False,
     )
