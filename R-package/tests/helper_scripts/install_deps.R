@@ -5,6 +5,8 @@ pkgs <- c(
   ## CI
   "devtools",
   "XML",
+  "cplm",
+  "e1071",
   ## suggests
   "knitr",
   "rmarkdown",
