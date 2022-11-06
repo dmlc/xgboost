@@ -22,6 +22,7 @@ R = TypeVar("R")
 
 def cd(path: Union[os.PathLike, str]) -> Callable:
     """Decorator for changing directory temporarily."""
+
     def chdir(func: Callable[..., R]) -> Callable[..., R]:
         @wraps(func)
         def inner(*args: Any, **kwargs: Any) -> R:
