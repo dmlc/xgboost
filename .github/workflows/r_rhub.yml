@@ -54,7 +54,6 @@ jobs:
       with:
         r-version: ${{ matrix.config.r }}
 
-    steps:
     - name: Install system dependencies
       run: |
         sudo apt update && sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y

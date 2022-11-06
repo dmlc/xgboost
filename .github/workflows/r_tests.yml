@@ -49,7 +49,7 @@ jobs:
     - name: Run lintr
       run: |
         cd R-package
-        MAKEFLAGS=-j$(nproc)" R CMD INSTALL .
+        MAKEFLAGS="-j$(nproc)" R CMD INSTALL .
         # Disable lintr errors for now: https://github.com/dmlc/xgboost/issues/8012
         Rscript tests/helper_scripts/run_lint.R || true
 

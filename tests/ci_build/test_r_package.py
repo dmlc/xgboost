@@ -154,7 +154,9 @@ def check_rpackage(path: str) -> None:
 
 
 @cd(ROOT)
-def check_rmarkdown():
+@record_time
+def check_rmarkdown() -> None:
+    assert system() != "Windows", "Document build should not be tested on win."
     env = os.environ.copy()
     output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
     diff = output.stdout.decode("utf-8").strip().split("\n")
@@ -168,11 +170,13 @@ def check_rmarkdown():
 
 
 @cd(r_package)
+@record_time
 def test_with_autotools() -> None:
     """Windows only test. No `--as-cran` check, only unittests. We don't want to manage
     the dependencies on Windows machine.
 
     """
+    assert system() == "Windows"
     mingw_bin = get_mingw_bin()
     CXX = os.path.join(mingw_bin, "g++.exe")
     CC = os.path.join(mingw_bin, "gcc.exe")
@@ -251,7 +255,6 @@ def main(args: argparse.Namespace) -> None:
     if args.task == "build":
         src_dir = pack_rpackage()
         build_rpackage(src_dir)
-        return
     elif args.task == "doc":
         check_rmarkdown()
     elif args.task == "check":
