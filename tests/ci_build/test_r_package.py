@@ -1,3 +1,4 @@
+"""Utilities for packaging R code and running tests."""
 import argparse
 import os
 import shutil
@@ -5,7 +6,6 @@ import subprocess
 from pathlib import Path
 from platform import system
 
-from sh.contrib import git
 from test_utils import DirectoryExcursion, cd, print_time, record_time
 
 ROOT = os.path.normpath(
@@ -33,7 +33,9 @@ def pack_rpackage() -> Path:
         with open(dest / "src" / path, "w") as fd:
             fd.write(makefile)
 
-    output = git.clean("-xdf", "--dry-run")
+    output = subprocess.run(["git", "clean", "-xdf", "--dry-run"], capture_output=True)
+    if output.returncode != 0:
+        raise ValueError("Failed to check git repository status.", output)
     would_remove = output.stdout.decode("utf-8").strip().split("\n")
 
     if would_remove and not all(f.find("tests/ci_build") != -1 for f in would_remove):
