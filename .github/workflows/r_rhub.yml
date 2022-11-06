@@ -40,7 +40,7 @@ jobs:
         /tmp/R-devel/bin/R -q -e "library(testthat); setwd('tests'); source('testthat.R')"
 
   test-Rhub-debian:
-    if: github.event.comment.body == '/gha run rhub-test'
+    if: github.event.comment.body == '/gha run rhub-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
     timeout-minutes: 120
     runs-on: ubuntu-latest
     container: rhub/debian-gcc-devel
