@@ -27,9 +27,10 @@ jobs:
         submodules: 'true'
 
     - name: Install dependencies
-      shell: Rscript {0}
+      shell: bash -l {0}
       run: |
-        source("./R-package/tests/helper_scripts/install_deps.R")
+        /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
+
 
     - name: Run R tests
       shell: bash
@@ -39,7 +40,6 @@ jobs:
         /tmp/R-devel/bin/R -q -e "library(testthat); setwd('tests'); source('testthat.R')"
 
   test-Rhub-debian:
-    # We use rhub to launch container here
     if: github.event.comment.body == '/gha run rhub-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
     timeout-minutes: 120
     runs-on: ubuntu-latest
@@ -60,9 +60,9 @@ jobs:
         sudo apt update && sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
 
     - name: Install dependencies
-      shell: Rscript {0}
+      shell: bash -l {0}
       run: |
-        source("./R-package/tests/helper_scripts/install_deps.R")
+        /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
 
     - uses: actions/setup-python@v2
       with:
@@ -72,4 +72,4 @@ jobs:
     - name: Build R
       shell: bash -l {0}
       run: |
-        python tests/ci_build/test_r_package.py --compiler=mingw --build-tool=autotools --task=check
+        python tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --compiler=mingw --build-tool=autotools --task=check

@@ -14,7 +14,6 @@ ROOT = os.path.normpath(
     )
 )
 r_package = os.path.join(ROOT, "R-package")
-R = "R" if system() != "Windows" else "R.exe"
 
 
 def get_mingw_bin() -> str:
@@ -258,7 +257,14 @@ if __name__ == "__main__":
         choices=["cmake", "autotools"],
         help="Build tool for compiling CXX code and install R package.",
     )
+    parser.add_argument(
+        "--r",
+        type=str,
+        default="R" if system() != "Windows" else "R.exe",
+        help="Path to the R executable.",
+    )
     args = parser.parse_args()
+    R = args.r
 
     try:
         main(args)
