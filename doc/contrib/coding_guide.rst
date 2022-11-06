@@ -89,8 +89,6 @@ Generating the Package and Running Tests
 
 The source layout of XGBoost is a bit unusual to normal R packages as XGBoost is primarily written in C++ with multiple language bindings in mind, some special cares need to taken to generate a standard R tar ball. Most of the tests are being run on CI, and as a result, the best way to see how things work is looking at the CI configuration files (GitHub action, at the time of writing). There are helper scripts in ``tests/ci_build`` and ``R-package/tests/helper_scripts`` for running various checks including linter and making the standard tarball.
 
-Lastly, we have a special command for GitHub action to run extra R tests using rhub: ``/gha run rhub-test``.
-
 *********************************
 Running Formatting Checks Locally
 *********************************
