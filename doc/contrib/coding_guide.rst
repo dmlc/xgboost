@@ -39,12 +39,6 @@ Code Style
   - This is mainly to be consistent with the rest of the project.
   - Another reason is we will be able to check style automatically with a linter.
 
-- You can check the style of the code by typing the following command at root folder.
-
-  .. code-block:: bash
-
-    make rcpplint
-
 - When needed, you can disable the linter warning of certain line with ``// NOLINT(*)`` comments.
 - We use `roxygen <https://cran.r-project.org/web/packages/roxygen2/vignettes/roxygen2.html>`_ for documenting the R package.
 
@@ -79,6 +73,7 @@ The following steps are followed to add a new Rmarkdown vignettes:
 
 The reason we do this is to avoid exploded repo size due to generated images.
 
+
 R package versioning
 ====================
 See :ref:`release`.
@@ -88,6 +83,11 @@ Registering native routines in R
 According to `R extension manual <https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Registering-native-routines>`_,
 it is good practice to register native routines and to disable symbol search. When any changes or additions are made to the
 C++ interface of the R package, please make corresponding changes in ``src/init.c`` as well.
+
+Generating the Package and Running Tests
+========================================
+
+The source layout of XGBoost is a bit unusual to normal R packages as XGBoost is primarily written in C++ with multiple language bindings in mind, some special cares need to taken to generate a standard R tar ball. Most of the tests are being run on CI, and as a result, the best way to see how things work is looking at the CI configuration files (GitHub action, at the time of writing). There are helper scripts in ``tests/ci_build`` and ``R-package/tests/helper_scripts`` for running various checks including linter and making the standard tarball.
 
 *********************************
 Running Formatting Checks Locally

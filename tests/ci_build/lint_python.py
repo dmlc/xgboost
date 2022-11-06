@@ -133,6 +133,8 @@ if __name__ == "__main__":
                 "tests/python/test_quantile_dmatrix.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
                 "tests/test_distributed/test_with_spark/",
                 "tests/test_distributed/test_gpu_with_spark/",
                 # demo
@@ -158,6 +160,8 @@ if __name__ == "__main__":
                 "tests/python/test_data_iterator.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
                 "tests/test_distributed/test_with_spark/test_data.py",
                 "tests/test_distributed/test_gpu_with_spark/test_data.py",
                 "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
