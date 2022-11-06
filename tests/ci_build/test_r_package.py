@@ -27,6 +27,7 @@ def pack_rpackage() -> Path:
     dest = Path("xgboost")
 
     def pkgroot(path: str) -> None:
+        """Change makefiles according to the package layout."""
         with open(Path("R-package") / "src" / path, "r") as fd:
             makefile = fd.read()
             makefile = makefile.replace("PKGROOT=../../", "PKGROOT=.", 1)
@@ -116,6 +117,7 @@ def check_rpackage(path: str) -> None:
         }
     )
 
+    # Actually we don't run this check on windows due to dependency issue.
     if system() == "Windows":
         # make sure compiler from rtools is used.
         mingw_bin = get_mingw_bin()
@@ -150,7 +152,9 @@ def check_rpackage(path: str) -> None:
         print(msg)
         raise ValueError("Suspicious NOTE.")
 
-    # fixme(jiamingy): More checks for NOTE.
+    with DirectoryExcursion("./R-package"):
+        subprocess.check_call(["Rscript", "-e", "devtools::document()"])
+        subprocess.check_call(["git", "status"])
 
 
 @cd(r_package)
