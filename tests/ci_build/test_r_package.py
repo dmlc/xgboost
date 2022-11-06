@@ -143,7 +143,7 @@ def check_rpackage(path: str) -> None:
         print(msg)
         raise ValueError("Suspicious NOTE.")
 
-    # fixme(jiamingy): More checks NOTE.
+    # fixme(jiamingy): More checks for NOTE.
 
 
 @record_time
