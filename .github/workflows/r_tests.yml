@@ -94,16 +94,18 @@ jobs:
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
 
   test-R-on-Debian:
+    name: Test R package on debian
     runs-on: ubuntu-latest
     container:
       image: rhub/debian-gcc-devel
 
+    steps:
     - name: Install system dependencies
       run: |
-        # no need to add pandoc, the container has it figured out.
+        # Must run before checkout to have the latest git installed.
+        # No need to add pandoc, the container has it figured out.
         apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
 
-    steps:
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
