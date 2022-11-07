@@ -207,16 +207,16 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
 
 XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
   API_BEGIN();
-  bool load_row_split = false;
+  auto data_split_mode = DataSplitMode::kNone;
   if (collective::IsFederated()) {
     LOG(CONSOLE) << "XGBoost federated mode detected, not splitting data among workers";
   } else if (collective::IsDistributed()) {
     LOG(CONSOLE) << "XGBoost distributed mode detected, will split data among workers";
-    load_row_split = true;
+    data_split_mode = DataSplitMode::kRow;
   }
   xgboost_CHECK_C_ARG_PTR(fname);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, load_row_split));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, data_split_mode));
   API_END();
 }
 

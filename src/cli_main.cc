@@ -115,6 +115,7 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
         .add_enum("auto", 0)
         .add_enum("col", 1)
         .add_enum("row", 2)
+        .add_enum("none", 3)
         .describe("Data split mode.");
     DMLC_DECLARE_FIELD(ntree_limit).set_default(0).set_lower_bound(0)
         .describe("(Deprecated) Use iteration_begin/iteration_end instead.");
@@ -157,8 +158,14 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
     if (name_pred == "stdout") {
       save_period = 0;
     }
-    if (dsplit == 0 && collective::IsDistributed()) {
-      dsplit = 2;
+    if (dsplit == 0) {
+      if (collective::IsFederated()) {
+        dsplit = 3;
+      } else if (collective::IsDistributed()) {
+        dsplit = 2;
+      } else {
+        dsplit = 3;
+      }
     }
   }
 };
@@ -206,18 +213,17 @@ class CLI {
     }
     // load in data.
     std::shared_ptr<DMatrix> dtrain(DMatrix::Load(
-        param_.train_path,
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
-        param_.dsplit == 2));
+        param_.train_path, ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
+        static_cast<DataSplitMode>(param_.dsplit)));
     std::vector<std::shared_ptr<DMatrix>> deval;
     std::vector<std::shared_ptr<DMatrix>> cache_mats;
     std::vector<std::shared_ptr<DMatrix>> eval_datasets;
     cache_mats.push_back(dtrain);
     for (size_t i = 0; i < param_.eval_data_names.size(); ++i) {
-      deval.emplace_back(std::shared_ptr<DMatrix>(DMatrix::Load(
-          param_.eval_data_paths[i],
-          ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
-          param_.dsplit == 2)));
+      deval.emplace_back(std::shared_ptr<DMatrix>(
+          DMatrix::Load(param_.eval_data_paths[i],
+                        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
+                        static_cast<DataSplitMode>(param_.dsplit))));
       eval_datasets.push_back(deval.back());
       cache_mats.push_back(deval.back());
     }
@@ -324,7 +330,7 @@ class CLI {
     std::shared_ptr<DMatrix> dtest(DMatrix::Load(
         param_.test_path,
         ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
-        param_.dsplit == 2));
+        static_cast<DataSplitMode>(param_.dsplit)));
     // load model
     CHECK_NE(param_.model_in, CLIParam::kNull) << "Must specify model_in for predict";
     this->ResetLearner({});

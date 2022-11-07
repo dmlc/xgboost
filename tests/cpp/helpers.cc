@@ -528,7 +528,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     uri += "#" + tmp_file + ".cache";
   }
   std::unique_ptr<DMatrix> dmat(
-      DMatrix::Load(uri, true, false, "auto"));
+      DMatrix::Load(uri, true, DataSplitMode::kNone, "auto"));
   return dmat;
 }
 

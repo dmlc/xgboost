@@ -12,7 +12,7 @@ TEST(SparsePageDMatrix, EllpackPage) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  DMatrix* dmat = DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, false);
+  DMatrix* dmat = DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, DataSplitMode::kNone);
 
   // Loop over the batches and assert the data is as expected
   size_t n = 0;
