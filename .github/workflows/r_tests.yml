@@ -115,15 +115,10 @@ jobs:
       run: |
         /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
 
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-
-    - name: Build R
+    - name: Test R
       shell: bash -l {0}
       run: |
-        python tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --build-tool=autotools --task=check
+        python3 tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --build-tool=autotools --task=check
 
     - uses: dorny/paths-filter@v2
       id: changes
@@ -135,4 +130,4 @@ jobs:
     - name: Run document check
       if: steps.changes.outputs.r_package == 'true'
       run: |
-        python tests/ci_build/test_r_package.py --task=doc
+        python3 tests/ci_build/test_r_package.py --task=doc
