@@ -82,11 +82,6 @@ jobs:
         python-version: "3.8"
         architecture: 'x64'
 
-    - name: Install system dependencies
-      if: matrix.config.os != 'windows-latest'
-      run: |
-        sudo apt update && sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
-
     - uses: r-lib/actions/setup-tinytex@v2
 
     - name: Install dependencies
@@ -98,7 +93,7 @@ jobs:
       run: |
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
 
-  test-R-on-debian:
+  test-R-on-Debian:
     runs-on: ubuntu-latest
     container:
       image: rhub/debian-gcc-devel
@@ -140,6 +135,6 @@ jobs:
             - 'R-package/**'
 
     - name: Run document check
-      if: steps.changes.outputs.r_package == 'true' && matrix.config.os != 'windows-latest'
+      if: steps.changes.outputs.r_package == 'true'
       run: |
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=doc
