@@ -1,7 +1,7 @@
 # Run expensive R tests with the help of rhub. Only triggered by a pull request review
 # See discussion at https://github.com/dmlc/xgboost/pull/6378
 
-name: XGBoost-R-Rhub
+name: XGBoost-R-noLD
 
 on:
   pull_request_review_comment:
@@ -11,8 +11,8 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  test-Rhub-noLD:
-    if: github.event.comment.body == '/gha run rnold-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
+  test-R-noLD:
+    if: github.event.comment.body == '/gha run r-nold-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
     timeout-minutes: 120
     runs-on: ubuntu-latest
     container:
