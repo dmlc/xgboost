@@ -51,15 +51,15 @@ def pack_rpackage() -> Path:
     shutil.copytree("include", dest / "src" / "include")
     shutil.copytree("amalgamation", dest / "src" / "amalgamation")
     # rabit
-    os.mkdir(dest / "src" / "rabit")
-    shutil.copytree(Path("rabit") / "src", dest / "src" / "rabit" / "src")
-    shutil.copytree(Path("rabit") / "include", dest / "src" / "rabit" / "include")
+    rabit = Path("rabit")
+    os.mkdir(dest / "src" / rabit)
+    shutil.copytree(rabit / "src", dest / "src" / "rabit" / "src")
+    shutil.copytree(rabit / "include", dest / "src" / "rabit" / "include")
     # dmlc-core
-    os.mkdir(dest / "src" / "dmlc-core")
-    shutil.copytree(
-        Path("dmlc-core") / "include", dest / "src" / "dmlc-core" / "include"
-    )
-    shutil.copytree(Path("dmlc-core") / "src", dest / "src" / "dmlc-core" / "src")
+    dmlc_core = Path("dmlc-core")
+    os.mkdir(dest / "src" / dmlc_core)
+    shutil.copytree(dmlc_core / "include", dest / "src" / "dmlc-core" / "include")
+    shutil.copytree(dmlc_core / "src", dest / "src" / "dmlc-core" / "src")
     # makefile & license
     shutil.copyfile("LICENSE", dest / "LICENSE")
     osxmakef = dest / "src" / "Makevars.win-e"
@@ -153,20 +153,16 @@ def check_rpackage(path: str) -> None:
         raise ValueError("Suspicious NOTE.")
 
 
-@cd(ROOT)
+@cd(r_package)
 @record_time
 def check_rmarkdown() -> None:
-    assert system() != "Windows", "Document build should not be tested on win."
+    assert system() != "Windows", "Document test doesn't support Windows."
     env = os.environ.copy()
+    print("Checking R document with devtools.")
+    subprocess.check_call(["Rscript", "-e", "devtools::document()"], env=env)
     output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
-    diff = output.stdout.decode("utf-8").strip().split("\n")
-    if any(f.find("R-package") != -1 for f in diff):
-        print("Checking R document with devtools.")
-        with DirectoryExcursion(r_package):
-            subprocess.check_call(["Rscript", "-e", "devtools::document()"], env=env)
-            output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
-            if len(output.stdout.decode("utf-8").strip()) != 0:
-                raise ValueError("Please upgrade compiled rmarkdown.")
+    if len(output.stdout.decode("utf-8").strip()) != 0:
+        raise ValueError("Please run `devtools::document()`.")
 
 
 @cd(r_package)
