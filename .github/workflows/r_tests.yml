@@ -49,7 +49,6 @@ jobs:
         Rscript tests/helper_scripts/run_lint.R || true
 
   test-R-on-Windows:
-    name: Test R package on Windows
     runs-on: ${{ matrix.config.os }}
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
     strategy:
