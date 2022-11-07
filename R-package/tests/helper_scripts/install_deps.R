@@ -1,7 +1,6 @@
 ## Install dependencies of R package for testing. The list might not be
 ## up-to-date, check DESCRIPTION for the latest list and update this one if
 ## inconsistent is found.
-start <- Sys.time()
 pkgs <- c(
   ## CI
   "devtools",
@@ -49,5 +48,3 @@ if (.Platform$OS.type == "unix") {
     type = "binary"
   )
 }
-end <- Sys.time()
-print(paste("Duration:", end - start, " secs"))
