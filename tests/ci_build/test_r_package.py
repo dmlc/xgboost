@@ -158,8 +158,11 @@ def check_rpackage(path: str) -> None:
 def check_rmarkdown() -> None:
     assert system() != "Windows", "Document test doesn't support Windows."
     env = os.environ.copy()
+    env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
     print("Checking R document with devtools.")
-    subprocess.check_call(["Rscript", "-e", "devtools::document()"], env=env)
+    bin_dir = os.path.dirname(R)
+    rscript = os.path.join(bin_dir, "Rscript")
+    subprocess.check_call([rscript, "-e", "devtools::document()"], env=env)
     output = subprocess.run(["git", "diff", "--name-only"], capture_output=True)
     if len(output.stdout.decode("utf-8").strip()) != 0:
         raise ValueError("Please run `devtools::document()`.")
