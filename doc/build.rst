@@ -503,10 +503,3 @@ XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation
   Checkout the ``requirements.txt`` file under ``doc/``
 
 Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the format you want.  For a list of supported formats, run ``make help`` under the same directory.
-
-*********
-Makefiles
-*********
-
-It's only used for creating shorthands for running linters, performing packaging tasks
-etc.  So the remaining makefiles are legacy.
