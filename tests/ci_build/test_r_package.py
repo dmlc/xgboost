@@ -289,13 +289,17 @@ if __name__ == "__main__":
         "--compiler",
         type=str,
         choices=["mingw", "msvc"],
-        help="Compiler used for compiling CXX code.",
+        help="Compiler used for compiling CXX code. Only relevant for windows build",
+        default="mingw",
+        required=False,
     )
     parser.add_argument(
         "--build-tool",
         type=str,
         choices=["cmake", "autotools"],
         help="Build tool for compiling CXX code and install R package.",
+        default="autotools",
+        required=False,
     )
     parser.add_argument(
         "--r",

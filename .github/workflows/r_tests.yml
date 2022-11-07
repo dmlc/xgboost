@@ -49,6 +49,7 @@ jobs:
         Rscript tests/helper_scripts/run_lint.R || true
 
   test-R-on-Windows:
+    name: Test R package on Windows
     runs-on: ${{ matrix.config.os }}
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
     strategy:
@@ -94,7 +95,7 @@ jobs:
         python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
 
   test-R-on-Debian:
-    name: Test R package on debian
+    name: Test R package on Debian
     runs-on: ubuntu-latest
     container:
       image: rhub/debian-gcc-devel
@@ -127,7 +128,7 @@ jobs:
     - name: Build R
       shell: bash -l {0}
       run: |
-        python tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --compiler=mingw --build-tool=autotools --task=check
+        python tests/ci_build/test_r_package.py --r=/tmp/R-devel/bin/R --build-tool=autotools --task=check
 
     - uses: dorny/paths-filter@v2
       id: changes
@@ -139,4 +140,4 @@ jobs:
     - name: Run document check
       if: steps.changes.outputs.r_package == 'true'
       run: |
-        python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=doc
+        python tests/ci_build/test_r_package.py --task=doc
