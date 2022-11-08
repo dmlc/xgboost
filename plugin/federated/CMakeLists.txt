@@ -6,7 +6,7 @@ find_package(gRPC CONFIG REQUIRED)
 message(STATUS "Found gRPC: ${gRPC_CONFIG}")
 
 # Generated code from the protobuf definition.
-add_library(federated_proto federated.proto)
+add_library(federated_proto STATIC federated.proto)
 target_link_libraries(federated_proto PUBLIC protobuf::libprotobuf gRPC::grpc gRPC::grpc++)
 target_include_directories(federated_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 xgboost_target_properties(federated_proto)
