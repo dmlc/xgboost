@@ -33,6 +33,7 @@ def run_isort(rel_path: str) -> bool:
     cmd = ["isort", "--check", "--profile=black", rel_path]
     ret = subprocess.run(cmd).returncode
     if ret != 0:
+        subprocess.run(["isort", "--version"])
         msg = """
 Please run the following command on your machine to address the formatting error:
 
