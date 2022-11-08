@@ -281,22 +281,14 @@ Sample examples along with Code snippet to use C API functions
     /* Pointer to a thread local contigious array, assigned in prediction function. */
     float const* out_result = NULL;
     safe_xgboost(
-        XGBoosterPredictFromDMatrix(booster, dtest, config, &out_shape, &out_dim, &out_result));
+        XGBoosterPredictFromDMatrix(booster, dmatrix, config, &out_shape, &out_dim, &out_result));
 
     for (unsigned int i = 0; i < output_length; i++){
       printf("prediction[%i] = %f \n", i, output_result[i]);
     }
 
 
-8. Free all the internal structure used in your code using :cpp:func:`XGDMatrixFree` and :cpp:func:`XGBoosterFree`. This step is important to prevent memory leak.
-
-.. code-block:: c
-
-  safe_xgboost(XGDMatrixFree(dmatrix));
-  safe_xgboost(XGBoosterFree(booster));
-
-
-9. Get the number of features in your dataset using :cpp:func:`XGBoosterGetNumFeature`.
+8. Get the number of features in your dataset using :cpp:func:`XGBoosterGetNumFeature`.
 
 .. code-block:: c
 
@@ -309,6 +301,16 @@ Sample examples along with Code snippet to use C API functions
 
     // Printing number of features by type conversion of num_of_features variable from bst_ulong to unsigned long
     printf("num_feature: %lu\n", (unsigned long)(num_of_features));
+
+
+
+9. Save the model using :cpp:func:`XGBoosterSaveModel`
+
+.. code-block:: c
+
+    BoosterHandle booster;
+    const char *model_path = "/path/of/model.json";
+    safe_xgboost(XGBoosterSaveModel(booster, model_path));
 
 
 10. Load the model using :cpp:func:`XGBoosterLoadModel`
@@ -327,3 +329,11 @@ Sample examples along with Code snippet to use C API functions
     safe_xgboost(XGBoosterLoadModel(booster, model_path));
 
     // predict the model here
+
+
+11. Free all the internal structure used in your code using :cpp:func:`XGDMatrixFree` and :cpp:func:`XGBoosterFree`. This step is important to prevent memory leak.
+
+.. code-block:: c
+
+  safe_xgboost(XGDMatrixFree(dmatrix));
+  safe_xgboost(XGBoosterFree(booster));
