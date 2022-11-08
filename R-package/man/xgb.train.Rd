@@ -241,8 +241,8 @@ The following callbacks are automatically created when certain parameters are se
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 
-dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
-dtest <- with(agaricus.test, xgb.DMatrix(data, label = label))
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
+dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
 watchlist <- list(train = dtrain, eval = dtest)
 
 ## A simple xgb.train example:

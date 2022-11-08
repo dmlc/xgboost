@@ -26,7 +26,7 @@ Since row names are irrelevant, it is recommended to use \code{colnames} directl
 \examples{
 data(agaricus.train, package='xgboost')
 train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- xgb.DMatrix(train$data, label=train$label, nthread = 2)
 dimnames(dtrain)
 colnames(dtrain)
 colnames(dtrain) <- make.names(1:ncol(train$data))
