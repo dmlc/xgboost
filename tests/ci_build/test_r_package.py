@@ -83,7 +83,7 @@ def pack_rpackage() -> Path:
 @cd(ROOT)
 @record_time
 def build_rpackage(path: str) -> str:
-    def find_tarbal() -> str:
+    def find_tarball() -> str:
         found = []
         for root, subdir, files in os.walk("."):
             for f in files:
@@ -100,7 +100,7 @@ def build_rpackage(path: str) -> str:
     env.update({"MAKEFLAGS": f"-j{os.cpu_count()}"})
     subprocess.check_call([R, "CMD", "build", path], env=env)
 
-    tarball = find_tarbal()
+    tarball = find_tarball()
     return tarball
 
 
