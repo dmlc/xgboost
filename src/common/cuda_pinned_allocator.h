@@ -66,8 +66,7 @@ class pinned_allocator {
   XGBOOST_DEVICE inline pointer address(reference r) { return &r; }
   XGBOOST_DEVICE inline const_pointer address(const_reference r) { return &r; }
 
-  inline pointer allocate(size_type cnt, const_pointer = 0)
-  {
+  inline pointer allocate(size_type cnt, const_pointer = 0) {
     if (cnt > this->max_size()) { throw std::bad_alloc(); }  // end if
 
     pointer result(0);
@@ -81,11 +80,10 @@ class pinned_allocator {
 
   XGBOOST_DEVICE inline bool operator==(pinned_allocator const& x) const { return true; }
 
-  XGBOOST_DEVICE inline bool operator!=(pinned_allocator const& x) const
-  {
+  XGBOOST_DEVICE inline bool operator!=(pinned_allocator const& x) const {
     return !operator==(x);
   }
 };
-}
-}
-}
+}  // namespace cuda
+}  // namespace common
+}  // namespace xgboost
