@@ -7,7 +7,7 @@
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
