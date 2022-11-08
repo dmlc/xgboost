@@ -1,7 +1,7 @@
 #include <jni.h>
 
 #include "../../../../src/common/device_helpers.cuh"
-#include "../../../../src/common/cuda_pinned_allocator.cuh"
+#include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/data/array_interface.h"
 #include "jvm_utils.h"
 #include <xgboost/c_api.h>
