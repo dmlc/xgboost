@@ -5,6 +5,7 @@ on: [push, pull_request]
 env:
   R_PACKAGES: c('XML', 'data.table', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+  _R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_: 2.5
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -68,6 +69,7 @@ jobs:
           - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      _R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_: 2.5
       RSPM: ${{ matrix.config.rspm }}
 
     steps:
@@ -120,6 +122,10 @@ jobs:
       matrix:
         config:
           - {r: 'release'}
+
+    env:
+      _R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_: 2.5
+      MAKE: "make -j$(nproc)"
 
     steps:
     - uses: actions/checkout@v2

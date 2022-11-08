@@ -564,7 +564,7 @@ Here are some pratices on reducing memory usage with dask and xgboost.
   nice summary.
 
 - When using GPU input, like dataframe loaded by ``dask_cudf``, you can try
-  :py:class:`xgboost.dask.DaskDeviceQuantileDMatrix` as a drop in replacement for ``DaskDMatrix``
+  :py:class:`xgboost.dask.DaskQuantileDMatrix` as a drop in replacement for ``DaskDMatrix``
   to reduce overall memory usage.  See
   :ref:`sphx_glr_python_dask-examples_gpu_training.py` for an example.
 

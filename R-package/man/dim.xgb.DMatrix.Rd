@@ -19,7 +19,7 @@ be directly used with an \code{xgb.DMatrix} object.
 \examples{
 data(agaricus.train, package='xgboost')
 train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- xgb.DMatrix(train$data, label=train$label, nthread = 2)
 
 stopifnot(nrow(dtrain) == nrow(train$data))
 stopifnot(ncol(dtrain) == ncol(train$data))
