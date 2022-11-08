@@ -34,7 +34,7 @@ if (.Platform$OS.type == "unix") {
   print("Installing source packages on unix.")
   install.packages(
     pkgs,
-    repo = "http://cloud.r-project.org",
+    repo = "https://cloud.r-project.org",
     dependencies = c("Depends", "Imports", "LinkingTo"),
     Ncpus = parallel::detectCores()
   )
@@ -42,7 +42,7 @@ if (.Platform$OS.type == "unix") {
   print("Installing binary packages on Windows.")
   install.packages(
     pkgs,
-    repo = "http://cloud.r-project.org",
+    repo = "https://cloud.r-project.org",
     dependencies = c("Depends", "Imports", "LinkingTo"),
     Ncpus = parallel::detectCores(),
     type = "binary"
