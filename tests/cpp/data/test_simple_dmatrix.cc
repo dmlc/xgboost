@@ -15,7 +15,7 @@ TEST(SimpleDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, xgboost::DataSplitMode::kNone);
 
   // Test the metadata that was parsed
   EXPECT_EQ(dmat->Info().num_row_, 2);
@@ -30,7 +30,7 @@ TEST(SimpleDMatrix, RowAccess) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, false, false);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, false, xgboost::DataSplitMode::kNone);
 
   // Loop over the batches and count the records
   int64_t row_count = 0;
@@ -53,7 +53,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
+  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, xgboost::DataSplitMode::kNone);
 
   ASSERT_TRUE(dmat->SingleColBlock());
 
@@ -304,12 +304,12 @@ TEST(SimpleDMatrix, SaveLoadBinary) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
+  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, xgboost::DataSplitMode::kNone);
   data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
 
   const std::string tmp_binfile = tempdir.path + "/csr_source.binary";
   simple_dmat->SaveToLocalFile(tmp_binfile);
-  xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile, true, false);
+  xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile, true, xgboost::DataSplitMode::kNone);
 
   EXPECT_EQ(dmat->Info().num_col_, dmat_read->Info().num_col_);
   EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);

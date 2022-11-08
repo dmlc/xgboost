@@ -777,8 +777,10 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
   return nullptr;
 }
 
-DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
+DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode,
                        const std::string& file_format) {
+  CHECK(data_split_mode == DataSplitMode::kRow || data_split_mode == DataSplitMode::kNone)
+      << "Precondition violated; data split mode can only be 'row' or 'none'";
   std::string fname, cache_file;
   size_t dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
@@ -786,7 +788,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
     fname = uri.substr(0, dlm_pos);
     CHECK_EQ(cache_file.find('#'), std::string::npos)
         << "Only one `#` is allowed in file path for cache file specification.";
-    if (load_row_split) {
+    if (data_split_mode == DataSplitMode::kRow) {
       std::ostringstream os;
       std::vector<std::string> cache_shards = common::Split(cache_file, ':');
       for (size_t i = 0; i < cache_shards.size(); ++i) {
@@ -820,7 +822,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
   }
 
   int partid = 0, npart = 1;
-  if (load_row_split) {
+  if (data_split_mode == DataSplitMode::kRow) {
     partid = collective::GetRank();
     npart = collective::GetWorldSize();
   } else {

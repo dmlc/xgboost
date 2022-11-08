@@ -40,6 +40,10 @@ enum class DataType : uint8_t {
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
+enum class DataSplitMode : int {
+  kAuto = 0, kCol = 1, kRow = 2, kNone = 3
+};
+
 /*!
  * \brief Meta information about dataset, always sit in memory.
  */
@@ -537,7 +541,7 @@ class DMatrix {
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.
    * \param silent Whether print information during loading.
-   * \param load_row_split Flag to read in part of rows, divided among the workers in distributed mode.
+   * \param data_split_mode Mode to read in part of the data, divided among the workers in distributed mode.
    * \param file_format The format type of the file, used for dmlc::Parser::Create.
    *   By default "auto" will be able to load in both local binary file.
    * \param page_size Page size for external memory.
@@ -545,7 +549,7 @@ class DMatrix {
    */
   static DMatrix* Load(const std::string& uri,
                        bool silent,
-                       bool load_row_split,
+                       DataSplitMode data_split_mode,
                        const std::string& file_format = "auto");
 
   /**
@@ -677,6 +681,8 @@ inline BatchSet<ExtSparsePage> DMatrix::GetBatches() {
   return GetExtBatches(BatchParam{});
 }
 }  // namespace xgboost
+
+DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);
