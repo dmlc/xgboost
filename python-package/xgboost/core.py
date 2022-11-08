@@ -282,7 +282,7 @@ def _has_categorical(booster: "Booster", data: DataType) -> bool:
     """Check whether the booster and input data for prediction contain categorical data.
 
     """
-    from .data import _is_pandas_df, _is_cudf_df
+    from .data import _is_cudf_df, _is_pandas_df
     if _is_pandas_df(data) or _is_cudf_df(data):
         ft = booster.feature_types
         if ft is None:
@@ -355,8 +355,7 @@ def ctypes2cupy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> CupyT
     """Convert a ctypes pointer array to a cupy array."""
     # pylint: disable=import-error
     import cupy
-    from cupy.cuda.memory import MemoryPointer
-    from cupy.cuda.memory import UnownedMemory
+    from cupy.cuda.memory import MemoryPointer, UnownedMemory
 
     CUPY_TO_CTYPES_MAPPING: Dict[Type[np.number], Type[CNumeric]] = {
         cupy.float32: ctypes.c_float,
@@ -512,8 +511,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             feature_types: Optional[FeatureTypes] = None,
             **kwargs: Any,
         ) -> None:
-            from .data import dispatch_proxy_set_data
-            from .data import _proxy_transform
+            from .data import _proxy_transform, dispatch_proxy_set_data
 
             new, cat_codes, feature_names, feature_types = _proxy_transform(
                 data,
@@ -732,7 +730,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             self.handle: Optional[ctypes.c_void_p] = None
             return
 
-        from .data import dispatch_data_backend, _is_iter
+        from .data import _is_iter, dispatch_data_backend
 
         if _is_iter(data):
             self._init_from_iter(data, enable_categorical)
@@ -1406,10 +1404,10 @@ class QuantileDMatrix(DMatrix):
         **meta: Any,
     ) -> None:
         from .data import (
-            _is_dlpack,
-            _transform_dlpack,
-            _is_iter,
             SingleBatchInternalIter,
+            _is_dlpack,
+            _is_iter,
+            _transform_dlpack,
         )
 
         if _is_dlpack(data):

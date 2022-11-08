@@ -4,14 +4,16 @@ Demo for using and defining callback functions
 
     .. versionadded:: 1.3.0
 '''
-import xgboost as xgb
-import tempfile
+import argparse
 import os
+import tempfile
+
 import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
-from matplotlib import pyplot as plt
-import argparse
+
+import xgboost as xgb
 
 
 class Plotting(xgb.callback.TrainingCallback):

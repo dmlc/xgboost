@@ -6,11 +6,12 @@ Demo for survival analysis (regression) using Accelerated Failure Time (AFT) mod
 using Optuna to tune hyperparameters
 
 """
-from sklearn.model_selection import ShuffleSplit
-import pandas as pd
 import numpy as np
-import xgboost as xgb
 import optuna
+import pandas as pd
+from sklearn.model_selection import ShuffleSplit
+
+import xgboost as xgb
 
 # The Veterans' Administration Lung Cancer Trial
 # The Statistical Analysis of Failure Time Data by Kalbfleisch J. and Prentice R (1980)

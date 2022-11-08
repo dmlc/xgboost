@@ -1,8 +1,9 @@
-import xgboost as xgb
-from sklearn.datasets import make_classification
 import dask
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
+from sklearn.datasets import make_classification
+
+import xgboost as xgb
 
 
 def main(client):

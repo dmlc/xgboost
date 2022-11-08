@@ -5,9 +5,8 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
-from xgboost import RabitTracker
+from xgboost import RabitTracker, collective
 from xgboost import testing as tm
-from xgboost import collective
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)

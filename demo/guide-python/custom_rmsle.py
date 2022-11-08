@@ -14,13 +14,15 @@ The `SLE` objective reduces impact of outliers in training dataset, hence here w
 compare its performance with standard squared error.
 
 """
-import numpy as np
-import xgboost as xgb
-from typing import Tuple, Dict, List
-from time import time
 import argparse
+from time import time
+from typing import Dict, List, Tuple
+
 import matplotlib
+import numpy as np
 from matplotlib import pyplot as plt
+
+import xgboost as xgb
 
 # shape of generated data.
 kRows = 4096

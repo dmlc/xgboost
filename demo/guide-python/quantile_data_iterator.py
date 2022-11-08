@@ -17,9 +17,10 @@ using `itertools.tee` might incur significant memory usage according to:
 
 '''
 
-import xgboost
 import cupy
 import numpy
+
+import xgboost
 
 COLS = 64
 ROWS_PER_BATCH = 1000            # data is splited by rows

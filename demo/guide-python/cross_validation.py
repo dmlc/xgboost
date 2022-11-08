@@ -3,7 +3,9 @@ Demo for using cross validation
 ===============================
 """
 import os
+
 import numpy as np
+
 import xgboost as xgb
 
 # load data in do training

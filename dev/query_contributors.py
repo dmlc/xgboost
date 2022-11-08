@@ -1,10 +1,11 @@
 """Query list of all contributors and reviewers in a release"""
 
-from sh.contrib import git
-import sys
-import re
-import requests
 import json
+import re
+import sys
+
+import requests
+from sh.contrib import git
 
 if len(sys.argv) != 5:
     print(f'Usage: {sys.argv[0]} [starting commit/tag] [ending commit/tag] [GitHub username] ' +

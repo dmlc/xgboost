@@ -3,11 +3,13 @@ Demo for training continuation
 ==============================
 """
 
-from sklearn.datasets import load_breast_cancer
-import xgboost
+import os
 import pickle
 import tempfile
-import os
+
+from sklearn.datasets import load_breast_cancer
+
+import xgboost
 
 
 def training_continuation(tmpdir: str, use_pickle: bool) -> None:

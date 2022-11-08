@@ -5,10 +5,12 @@ Demo for using feature weight to change column sampling
     .. versionadded:: 1.3.0
 '''
 
-import numpy as np
-import xgboost
-from matplotlib import pyplot as plt
 import argparse
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+import xgboost
 
 
 def main(args):

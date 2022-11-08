@@ -10,10 +10,11 @@ See :doc:`/tutorials/multioutput` for more information.
 """
 
 import argparse
-from typing import Dict, Tuple, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt
+
 import xgboost as xgb
 
 
