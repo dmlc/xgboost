@@ -158,13 +158,13 @@ struct CLIParam : public XGBoostParameter<CLIParam> {
     if (name_pred == "stdout") {
       save_period = 0;
     }
-    if (dsplit == 0) {
+    if (dsplit == static_cast<int>(DataSplitMode::kAuto)) {
       if (collective::IsFederated()) {
-        dsplit = 3;
+        dsplit = static_cast<int>(DataSplitMode::kNone);
       } else if (collective::IsDistributed()) {
-        dsplit = 2;
+        dsplit = static_cast<int>(DataSplitMode::kRow);
       } else {
-        dsplit = 3;
+        dsplit = static_cast<int>(DataSplitMode::kNone);
       }
     }
   }
