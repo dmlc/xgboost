@@ -278,10 +278,7 @@ def _pandas_feature_info(
     enable_categorical: bool,
 ) -> Tuple[Optional[FeatureNames], Optional[FeatureTypes]]:
     import pandas as pd
-    from pandas.api.types import (
-        is_sparse,
-        is_categorical_dtype,
-    )
+    from pandas.api.types import is_categorical_dtype, is_sparse
 
     # handle feature names
     if feature_names is None and meta is None:
@@ -308,10 +305,10 @@ def _pandas_feature_info(
 def is_nullable_dtype(dtype: PandasDType) -> bool:
     """Wether dtype is a pandas nullable type."""
     from pandas.api.types import (
-        is_integer_dtype,
         is_bool_dtype,
-        is_float_dtype,
         is_categorical_dtype,
+        is_float_dtype,
+        is_integer_dtype,
     )
 
     # dtype: pd.core.arrays.numeric.NumericDtype
@@ -325,6 +322,7 @@ def is_nullable_dtype(dtype: PandasDType) -> bool:
 
 def _pandas_cat_null(data: DataFrame) -> DataFrame:
     from pandas.api.types import is_categorical_dtype
+
     # handle category codes and nullable.
     cat_columns = [
         col
@@ -363,10 +361,7 @@ def _transform_pandas_df(
     meta: Optional[str] = None,
     meta_type: Optional[NumpyDType] = None,
 ) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
-    from pandas.api.types import (
-        is_sparse,
-        is_categorical_dtype,
-    )
+    from pandas.api.types import is_categorical_dtype, is_sparse
 
     if not all(
         dtype.name in _pandas_dtype_mapper
@@ -533,8 +528,9 @@ def _from_dt_df(
             ptrs[icol] = ctypes.c_void_p(ptr)
     else:
         # datatable<=0.8.0
-        from datatable.internal import \
-            frame_column_data_r  # pylint: disable=no-name-in-module
+        from datatable.internal import (
+            frame_column_data_r,  # pylint: disable=no-name-in-module
+        )
         for icol in range(data.ncols):
             ptrs[icol] = frame_column_data_r(data, icol)
 

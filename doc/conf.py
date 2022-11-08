@@ -11,14 +11,15 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-from subprocess import call
-from sh.contrib import git
-import urllib.request
-from urllib.error import HTTPError
-import sys
-import re
 import os
+import re
 import subprocess
+import sys
+import urllib.request
+from subprocess import call
+from urllib.error import HTTPError
+
+from sh.contrib import git
 
 git_branch = os.getenv('SPHINX_GIT_BRANCH', default=None)
 if not git_branch:

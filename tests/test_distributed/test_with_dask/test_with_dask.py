@@ -12,7 +12,7 @@ from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Type, Union, Generator
+from typing import Any, Dict, Generator, Optional, Tuple, Type, Union
 
 import hypothesis
 import numpy as np

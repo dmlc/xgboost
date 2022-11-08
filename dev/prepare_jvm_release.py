@@ -1,16 +1,17 @@
-import re
-import os
-import sys
-import platform
-import errno
 import argparse
-import subprocess
+import errno
 import glob
+import os
+import platform
+import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import zipfile
-from urllib.request import urlretrieve
 from contextlib import contextmanager
+from urllib.request import urlretrieve
+
 
 def normpath(path):
     """Normalize UNIX path to a native path."""

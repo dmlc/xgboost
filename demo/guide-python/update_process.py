@@ -7,9 +7,10 @@ experiment.
 
 """
 
-import xgboost as xgb
-from sklearn.datasets import fetch_california_housing
 import numpy as np
+from sklearn.datasets import fetch_california_housing
+
+import xgboost as xgb
 
 
 def main():

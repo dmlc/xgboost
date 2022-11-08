@@ -3,8 +3,8 @@ Demo for boosting from prediction
 =================================
 """
 import os
-import xgboost as xgb
 
+import xgboost as xgb
 
 CURRENT_DIR = os.path.dirname(__file__)
 dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train'))

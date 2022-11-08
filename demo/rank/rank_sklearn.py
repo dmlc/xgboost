@@ -1,6 +1,7 @@
 #!/usr/bin/python
-import xgboost as xgb
 from sklearn.datasets import load_svmlight_file
+
+import xgboost as xgb
 
 #  This script demonstrate how to do ranking with XGBRanker
 x_train, y_train = load_svmlight_file("mq2008.train")

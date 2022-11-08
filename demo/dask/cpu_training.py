@@ -3,11 +3,11 @@ Example of training with Dask on CPU
 ====================================
 
 """
-import xgboost as xgb
-from xgboost.dask import DaskDMatrix
-from dask.distributed import Client
-from dask.distributed import LocalCluster
 from dask import array as da
+from dask.distributed import Client, LocalCluster
+from xgboost.dask import DaskDMatrix
+
+import xgboost as xgb
 
 
 def main(client):

@@ -3,8 +3,8 @@
 
 import os
 import platform
-from typing import List
 import sys
+from typing import List
 
 
 class XGBoostLibraryNotFound(Exception):

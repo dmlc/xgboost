@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-import subprocess
-import yaml
-import json
-from multiprocessing import Pool, cpu_count
-import shutil
-import os
-import sys
-import re
 import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from multiprocessing import Pool, cpu_count
 from time import time
+
+import yaml
 
 
 def call(args):

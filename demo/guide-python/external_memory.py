@@ -12,11 +12,13 @@ See :doc:`the tutorial </tutorials/external_memory>` for more details.
 
 """
 import os
-import xgboost
-from typing import Callable, List, Tuple
-from sklearn.datasets import make_regression
 import tempfile
+from typing import Callable, List, Tuple
+
 import numpy as np
+from sklearn.datasets import make_regression
+
+import xgboost
 
 
 def make_batches(

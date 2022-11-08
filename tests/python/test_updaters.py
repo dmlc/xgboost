@@ -5,14 +5,14 @@ from typing import Any, Dict
 import numpy as np
 import pytest
 from hypothesis import given, note, settings, strategies
+from xgboost.testing.params import (
+    cat_parameter_strategy,
+    exact_parameter_strategy,
+    hist_parameter_strategy,
+)
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.params import (
-    exact_parameter_strategy,
-    hist_parameter_strategy,
-    cat_parameter_strategy,
-)
 
 
 def train_result(param, dmat, num_rounds):

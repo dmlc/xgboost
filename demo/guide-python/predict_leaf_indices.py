@@ -3,6 +3,7 @@ Demo for obtaining leaf index
 =============================
 """
 import os
+
 import xgboost as xgb
 
 # load data in do training

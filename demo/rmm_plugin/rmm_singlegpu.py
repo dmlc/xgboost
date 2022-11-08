@@ -1,6 +1,7 @@
-import xgboost as xgb
 import rmm
 from sklearn.datasets import make_classification
+
+import xgboost as xgb
 
 # Initialize RMM pool allocator
 rmm.reinitialize(pool_allocator=True)

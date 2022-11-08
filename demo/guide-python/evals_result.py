@@ -3,6 +3,7 @@ This script demonstrate how to access the eval metrics
 ======================================================
 """
 import os
+
 import xgboost as xgb
 
 CURRENT_DIR = os.path.dirname(__file__)
