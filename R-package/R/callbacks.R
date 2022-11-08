@@ -544,9 +544,11 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' @return
 #' Results are stored in the \code{coefs} element of the closure.
-#' The \code{\link{xgb.gblinear.history}} convenience function provides an easy way to access it.
+#' The \code{\link{xgb.gblinear.history}} convenience function provides an easy
+#' way to access it.
 #' With \code{xgb.train}, it is either a dense of a sparse matrix.
-#' While with \code{xgb.cv}, it is a list (an element per each fold) of such matrices.
+#' While with \code{xgb.cv}, it is a list (an element per each fold) of such
+#' matrices.
 #'
 #' @seealso
 #' \code{\link{callbacks}}, \code{\link{xgb.gblinear.history}}.
@@ -558,7 +560,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' # without considering the 2nd order interactions:
 #' x <- model.matrix(Species ~ .^2, iris)[,-1]
 #' colnames(x)
-#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"))
+#' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"), nthread = 2)
 #' param <- list(booster = "gblinear", objective = "reg:logistic", eval_metric = "auc",
 #'               lambda = 0.0003, alpha = 0.0003, nthread = 2)
 #' # For 'shotgun', which is a default linear updater, using high eta values may result in
@@ -583,14 +585,14 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' # For xgb.cv:
 #' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 100, eta = 0.8,
-#'              callbacks = list(cb.gblinear.history()))
+#'               callbacks = list(cb.gblinear.history()))
 #' # coefficients in the CV fold #3
 #' matplot(xgb.gblinear.history(bst)[[3]], type = 'l')
 #'
 #'
 #' #### Multiclass classification:
 #' #
-#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1)
+#' dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = 2)
 #' param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
 #'               lambda = 0.0003, alpha = 0.0003, nthread = 2)
 #' # For the default linear updater 'shotgun' it sometimes is helpful
