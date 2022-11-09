@@ -10,7 +10,7 @@ fi
 
 commit_hash="$1"
 
-conda activate
+source activate
 python tests/ci_build/test_r_package.py --task=pack
 mv xgboost/ xgboost_rpack/
 
