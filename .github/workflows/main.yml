@@ -146,7 +146,7 @@ jobs:
         python -m pip install wheel setuptools cpplint pylint
     - name: Run lint
       run: |
-        LINT_LANG=cpp make lint
+        python dmlc-core/scripts/lint.py xgboost cpp R-package/src
 
   sphinx:
     runs-on: ubuntu-latest

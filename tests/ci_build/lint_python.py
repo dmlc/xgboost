@@ -6,12 +6,13 @@ from multiprocessing import Pool, cpu_count
 from typing import Dict, Tuple
 
 from pylint import epylint
-from test_utils import DirectoryExcursion
+from test_utils import DirectoryExcursion, print_time, record_time
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
 
 
+@record_time
 def run_black(rel_path: str) -> bool:
     cmd = ["black", "-q", "--check", rel_path]
     ret = subprocess.run(cmd).returncode
@@ -27,10 +28,12 @@ Please run the following command on your machine to address the formatting error
     return True
 
 
+@record_time
 def run_isort(rel_path: str) -> bool:
     cmd = ["isort", "--check", "--profile=black", rel_path]
     ret = subprocess.run(cmd).returncode
     if ret != 0:
+        subprocess.run(["isort", "--version"])
         msg = """
 Please run the following command on your machine to address the formatting error:
 
@@ -41,6 +44,7 @@ Please run the following command on your machine to address the formatting error
     return True
 
 
+@record_time
 def run_mypy(rel_path: str) -> bool:
     with DirectoryExcursion(os.path.join(PROJECT_ROOT, "python-package")):
         path = os.path.join(PROJECT_ROOT, rel_path)
@@ -117,17 +121,13 @@ class PyLint:
         return nerr == 0
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=(
-            "Run static checkers for XGBoost, see `python_lint.yml' "
-            "conda env file for a list of dependencies."
-        )
-    )
-    parser.add_argument("--format", type=int, choices=[0, 1], default=1)
-    parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
-    parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
-    args = parser.parse_args()
+@record_time
+def run_pylint() -> bool:
+    return PyLint()()
+
+
+@record_time
+def main(args: argparse.Namespace) -> None:
     if args.format == 1:
         black_results = [
             run_black(path)
@@ -148,6 +148,8 @@ if __name__ == "__main__":
                 "tests/python/test_quantile_dmatrix.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
                 "tests/test_distributed/test_with_spark/",
                 "tests/test_distributed/test_gpu_with_spark/",
                 # demo
@@ -177,7 +179,7 @@ if __name__ == "__main__":
                 "doc/",
             ]
         ]
-        if not all(black_results):
+        if not all(isort_results):
             sys.exit(-1)
 
     if args.type_check == 1:
@@ -194,6 +196,8 @@ if __name__ == "__main__":
                 "tests/python/test_data_iterator.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
                 "tests/test_distributed/test_with_spark/test_data.py",
                 "tests/test_distributed/test_gpu_with_spark/test_data.py",
                 "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
@@ -202,5 +206,22 @@ if __name__ == "__main__":
             sys.exit(-1)
 
     if args.pylint == 1:
-        if not PyLint()():
+        if not run_pylint():
             sys.exit(-1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run static checkers for XGBoost, see `python_lint.yml' "
+            "conda env file for a list of dependencies."
+        )
+    )
+    parser.add_argument("--format", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--type-check", type=int, choices=[0, 1], default=1)
+    parser.add_argument("--pylint", type=int, choices=[0, 1], default=1)
+    args = parser.parse_args()
+    try:
+        main(args)
+    finally:
+        print_time()
