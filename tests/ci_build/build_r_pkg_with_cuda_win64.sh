@@ -9,6 +9,8 @@ then
 fi
 
 commit_hash="$1"
+# Clear all positional args
+set --
 
 source activate
 python tests/ci_build/test_r_package.py --task=pack
