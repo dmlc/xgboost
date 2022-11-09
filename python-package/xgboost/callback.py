@@ -135,7 +135,7 @@ class CallbackContainer:
     def __init__(
         self,
         callbacks: Sequence[TrainingCallback],
-        metric: Callable = None,
+        metric: Optional[Callable] = None,
         output_margin: bool = True,
         is_cv: bool = False
     ) -> None:
@@ -390,8 +390,6 @@ class EarlyStopping(TrainingCallback):
             improve_op = maximize
         else:
             improve_op = minimize
-
-        assert improve_op
 
         if not self.stopping_history:  # First round
             self.current_rounds = 0

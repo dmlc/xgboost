@@ -288,10 +288,10 @@ class DaskDMatrix:
         *,
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
-        missing: float = None,
+        missing: Optional[float] = None,
         silent: bool = False,  # pylint: disable=unused-argument
         feature_names: Optional[FeatureNames] = None,
-        feature_types: FeatureTypes = None,
+        feature_types: Optional[FeatureTypes] = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
@@ -304,7 +304,7 @@ class DaskDMatrix:
 
         self.feature_names = feature_names
         self.feature_types = feature_types
-        self.missing = missing
+        self.missing = missing if missing is not None else numpy.nan
         self.enable_categorical = enable_categorical
 
         if qid is not None and weight is not None:
@@ -651,7 +651,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
         *,
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
-        missing: float = None,
+        missing: Optional[float] = None,
         silent: bool = False,  # disable=unused-argument
         feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
@@ -2129,7 +2129,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         eval_group: Optional[Sequence[_DaskCollection]] = None,
         eval_qid: Optional[Sequence[_DaskCollection]] = None,
         eval_metric: Optional[Union[str, Sequence[str], Callable]] = None,
-        early_stopping_rounds: int = None,
+        early_stopping_rounds: Optional[int] = None,
         verbose: Union[int, bool] = False,
         xgb_model: Optional[Union[XGBModel, Booster]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
