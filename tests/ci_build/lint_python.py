@@ -6,10 +6,9 @@ from multiprocessing import Pool, cpu_count
 from typing import Dict, Tuple
 
 from pylint import epylint
-from test_utils import DirectoryExcursion, print_time, record_time
+from test_utils import PY_PACKAGE, cd, print_time, record_time, ROOT
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
 
 
 @record_time
@@ -45,20 +44,20 @@ Please run the following command on your machine to address the formatting error
 
 
 @record_time
+@cd(PY_PACKAGE)
 def run_mypy(rel_path: str) -> bool:
-    with DirectoryExcursion(os.path.join(PROJECT_ROOT, "python-package")):
-        path = os.path.join(PROJECT_ROOT, rel_path)
-        ret = subprocess.run(["mypy", path])
-        if ret.returncode != 0:
-            return False
-        return True
+    path = os.path.join(ROOT, rel_path)
+    ret = subprocess.run(["mypy", path])
+    if ret.returncode != 0:
+        return False
+    return True
 
 
 class PyLint:
     """A helper for running pylint, mostly copied from dmlc-core/scripts."""
 
     def __init__(self) -> None:
-        self.pypackage_root = os.path.join(PROJECT_ROOT, "python-package/")
+        self.pypackage_root = os.path.join(ROOT, "python-package/")
         self.pylint_cats = set(["error", "warning", "convention", "refactor"])
         self.pylint_opts = [
             "--extension-pkg-whitelist=numpy",
@@ -207,6 +206,7 @@ def main(args: argparse.Namespace) -> None:
                 "tests/ci_build/change_version.py",
             ]
         ):
+            subprocess.check_call(["mypy", "--version"])
             sys.exit(-1)
 
     if args.pylint == 1:
