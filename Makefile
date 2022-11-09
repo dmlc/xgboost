@@ -126,7 +126,6 @@ Rpack: clean_all
 	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.in
 	cat R-package/src/Makevars.win|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.win
 	rm -f xgboost/src/Makevars.win-e   # OSX sed create this extra file; remove it
-	rm -f xgboost/cleanup
 	bash R-package/remove_warning_suppression_pragma.sh
 	bash xgboost/remove_warning_suppression_pragma.sh
 	rm xgboost/remove_warning_suppression_pragma.sh
