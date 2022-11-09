@@ -486,6 +486,7 @@ def make_categorical(
     onehot: bool,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
+    shuffle: bool = False
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
@@ -499,6 +500,8 @@ def make_categorical(
         The ratio of the amount of missing values over the number of all entries.
     cat_ratio:
         The ratio of features that are categorical.
+    shuffle:
+        Whether we should shuffle the columns.
 
     Returns
     -------
@@ -538,10 +541,12 @@ def make_categorical(
 
     if onehot:
         df = pd.get_dummies(df)
+
+    if shuffle:
         columns = list(df.columns)
         rng.shuffle(columns)
         df = df[columns]
-        return pd.get_dummies(df), label
+
     return df, label
 
 
