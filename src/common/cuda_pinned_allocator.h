@@ -35,7 +35,7 @@ class pinned_allocator<void> {
   using difference_type = std::ptrdiff_t;  // NOLINT: The type of the distance between two pointers
 
   template <typename U>
-  struct rebind {
+  struct rebind {                       // NOLINT
     using other = pinned_allocator<U>;  // NOLINT: The rebound type
   };
 };
@@ -53,7 +53,7 @@ class pinned_allocator {
   using difference_type = std::ptrdiff_t;  // NOLINT: The type of the distance between two pointers
 
   template <typename U>
-  struct rebind {
+  struct rebind {                       // NOLINT
     using other = pinned_allocator<U>;  // NOLINT: The rebound type
   };
 
