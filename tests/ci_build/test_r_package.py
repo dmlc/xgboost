@@ -251,7 +251,9 @@ def test_with_cmake(args: argparse.Namespace) -> None:
 
 @record_time
 def main(args: argparse.Namespace) -> None:
-    if args.task == "build":
+    if args.task == "pack":
+        pack_rpackage()
+    elif args.task == "build":
         src_dir = pack_rpackage()
         build_rpackage(src_dir)
     elif args.task == "doc":
@@ -280,7 +282,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task",
         type=str,
-        choices=["build", "check", "doc"],
+        choices=["pack", "build", "check", "doc"],
         default="check",
         required=False,
     )

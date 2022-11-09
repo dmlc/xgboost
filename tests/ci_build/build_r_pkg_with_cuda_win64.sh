@@ -10,7 +10,7 @@ fi
 
 commit_hash="$1"
 
-MAKE="/c/Rtools/bin/make" /c/Rtools/bin/make Rpack
+python3 tests/ci_build/test_r_package.py --task=pack
 mv xgboost/ xgboost_rpack/
 
 mkdir build
