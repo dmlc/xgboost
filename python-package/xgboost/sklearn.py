@@ -233,7 +233,7 @@ __model_doc = f"""
         should be used to specify categorical data type.  Also, JSON/UBJSON
         serialization format is required.
 
-    feature_types : FeatureTypes
+    feature_types : Optional[FeatureTypes]
 
         .. versionadded:: 1.7.0
 
@@ -572,7 +572,7 @@ class XGBModel(XGBModelBase):
         validate_parameters: Optional[bool] = None,
         predictor: Optional[str] = None,
         enable_categorical: bool = False,
-        feature_types: FeatureTypes = None,
+        feature_types: Optional[FeatureTypes] = None,
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
         eval_metric: Optional[Union[str, List[str], Callable]] = None,

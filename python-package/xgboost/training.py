@@ -1,4 +1,3 @@
-# coding: utf-8
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
@@ -71,7 +70,7 @@ def train(
     feval: Optional[Metric] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
-    evals_result: TrainingCallback.EvalsLog = None,
+    evals_result: Optional[TrainingCallback.EvalsLog] = None,
     verbose_eval: Optional[Union[bool, int]] = True,
     xgb_model: Optional[Union[str, os.PathLike, Booster, bytearray]] = None,
     callbacks: Optional[Sequence[TrainingCallback]] = None,
@@ -285,15 +284,20 @@ def groups_to_rows(groups: List[np.ndarray], boundaries: np.ndarray) -> np.ndarr
     return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
 
 
-def mkgroupfold(dall: DMatrix, nfold: int, param: BoosterParam,
-                evals: Sequence[str] = (), fpreproc: FPreProcCallable = None,
-                shuffle: bool = True) -> List[CVPack]:
+def mkgroupfold(
+    dall: DMatrix,
+    nfold: int,
+    param: BoosterParam,
+    evals: Sequence[str] = (),
+    fpreproc: Optional[FPreProcCallable] = None,
+    shuffle: bool = True,
+) -> List[CVPack]:
     """
     Make n folds for cross-validation maintaining groups
     :return: cross-validation folds
     """
     # we have groups for pairwise ranking... get a list of the group indexes
-    group_boundaries = dall.get_uint_info('group_ptr')
+    group_boundaries = dall.get_uint_info("group_ptr")
     group_sizes = np.diff(group_boundaries)
 
     if shuffle is True:
@@ -327,10 +331,17 @@ def mkgroupfold(dall: DMatrix, nfold: int, param: BoosterParam,
     return ret
 
 
-def mknfold(dall: DMatrix, nfold: int, param: BoosterParam, seed: int,
-            evals: Sequence[str] = (), fpreproc: FPreProcCallable = None,
-            stratified: bool = False, folds: XGBStratifiedKFold = None, shuffle: bool = True
-            ) -> List[CVPack]:
+def mknfold(
+    dall: DMatrix,
+    nfold: int,
+    param: BoosterParam,
+    seed: int,
+    evals: Sequence[str] = (),
+    fpreproc: Optional[FPreProcCallable] = None,
+    stratified: Optional[bool] = False,
+    folds: Optional[XGBStratifiedKFold] = None,
+    shuffle: bool = True,
+) -> List[CVPack]:
     """
     Make an n-fold list of CVPack from random indices.
     """
@@ -393,14 +404,14 @@ def cv(
     metrics: Sequence[str] = (),
     obj: Optional[Objective] = None,
     feval: Optional[Metric] = None,
-    maximize: bool = None,
-    early_stopping_rounds: int = None,
-    fpreproc: FPreProcCallable = None,
+    maximize: Optional[bool] = None,
+    early_stopping_rounds: Optional[int] = None,
+    fpreproc: Optional[FPreProcCallable] = None,
     as_pandas: bool = True,
     verbose_eval: Optional[Union[int, bool]] = None,
     show_stdv: bool = True,
     seed: int = 0,
-    callbacks: Sequence[TrainingCallback] = None,
+    callbacks: Optional[Sequence[TrainingCallback]] = None,
     shuffle: bool = True,
     custom_metric: Optional[Metric] = None,
 ) -> Union[Dict[str, float], DataFrame]:

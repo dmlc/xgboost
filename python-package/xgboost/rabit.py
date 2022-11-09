@@ -152,7 +152,7 @@ def version_number() -> int:
 class RabitContext:
     """A context controlling rabit initialization and finalization."""
 
-    def __init__(self, args: List[bytes] = None) -> None:
+    def __init__(self, args: Optional[List[bytes]] = None) -> None:
         if args is None:
             args = []
         self.args = args
