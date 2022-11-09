@@ -9,8 +9,11 @@ then
 fi
 
 commit_hash="$1"
+# Clear all positional args
+set --
 
-MAKE="/c/Rtools/bin/make" /c/Rtools/bin/make Rpack
+source activate
+python tests/ci_build/test_r_package.py --task=pack
 mv xgboost/ xgboost_rpack/
 
 mkdir build
