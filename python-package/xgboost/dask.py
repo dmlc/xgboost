@@ -1898,6 +1898,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierMixIn, XGBClassifierBa
             self.classes_ = await self.client.compute(da.unique(y))
         else:
             self.classes_ = await self.client.compute(y.drop_duplicates())
+        self.classes_ = numpy.array(self.classes_)
         self.n_classes_ = len(self.classes_)
 
         if self.n_classes_ > 2:
