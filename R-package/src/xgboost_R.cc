@@ -172,27 +172,28 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   const int *p_indices = INTEGER(indices);
   const double *p_data = REAL(data);
 
-  std::size_t nindptr = static_cast<size_t>(length(indptr));
-  std::size_t ndata = static_cast<size_t>(length(data));
-  std::size_t ncol = static_cast<size_t>(INTEGER(num_col)[0]);
+  auto nindptr = static_cast<std::size_t>(length(indptr));
+  auto ndata = static_cast<std::size_t>(length(data));
+  auto ncol = static_cast<std::size_t>(INTEGER(num_col)[0]);
 
   char jtemplate[] = R"({"data": [%lu, true], "shape": [%lu], "typestr": "%s", "version": 3})";
-  char jindptr[256];
-  char jindices[256];
-  char jdata[256];
+  std::size_t constexpr kN {256};
+  char jindptr[kN];
+  char jindices[kN];
+  char jdata[kN];
   if (DMLC_LITTLE_ENDIAN) {
-    sprintf(jindptr, jtemplate, size_t(p_indptr), nindptr, "<i4");
-    sprintf(jindices, jtemplate, size_t(p_indices), ndata, "<i4");
-    sprintf(jdata, jtemplate, size_t(p_data), ndata, "<f8");
+    snprintf(jindptr, kN, jtemplate, std::size_t(p_indptr), nindptr, "<i4");
+    snprintf(jindices, kN, jtemplate, std::size_t(p_indices), ndata, "<i4");
+    snprintf(jdata, kN, jtemplate, std::size_t(p_data), ndata, "<f8");
   } else {
-    sprintf(jindptr, jtemplate, size_t(p_indptr), nindptr, ">i4");
-    sprintf(jindices, jtemplate, size_t(p_indices), ndata, ">i4");
-    sprintf(jdata, jtemplate, size_t(p_data), ndata, ">f8");
+    snprintf(jindptr, kN, jtemplate, std::size_t(p_indptr), nindptr, ">i4");
+    snprintf(jindices, kN, jtemplate, std::size_t(p_indices), ndata, ">i4");
+    snprintf(jdata, kN, jtemplate, std::size_t(p_data), ndata, ">f8");
   }
   DMatrixHandle handle;
-  char jconfig[256];
+  char jconfig[kN];
   std::int32_t threads = asInteger(n_threads);
-  sprintf(jconfig, R"({"nthread": %d, "missing": NaN})", threads);
+  snprintf(jconfig, kN, R"({"nthread": %d, "missing": NaN})", threads);
 
   CHECK_CALL(XGDMatrixCreateFromCSR(jindptr, jindices, jdata, ncol, jconfig, &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
