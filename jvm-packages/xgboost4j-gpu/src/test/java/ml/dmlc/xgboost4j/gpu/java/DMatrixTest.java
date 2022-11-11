@@ -29,7 +29,7 @@ import org.junit.Test;
 
 import ai.rapids.cudf.Table;
 import ml.dmlc.xgboost4j.java.DMatrix;
-import ml.dmlc.xgboost4j.java.DeviceQuantileDMatrix;
+import ml.dmlc.xgboost4j.java.QuantileDMatrix;
 import ml.dmlc.xgboost4j.java.ColumnBatch;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
@@ -117,7 +117,7 @@ public class DMatrixTest {
       tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0));
       tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1));
 
-      DMatrix dmat = new DeviceQuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
+      DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
 
       float[] anchorLabel = convertFloatTofloat((Float[]) ArrayUtils.addAll(label1, label2));
       float[] anchorWeight = convertFloatTofloat((Float[]) ArrayUtils.addAll(weight1, weight2));
