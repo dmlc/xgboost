@@ -175,27 +175,55 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   auto nindptr = static_cast<std::size_t>(length(indptr));
   auto ndata = static_cast<std::size_t>(length(data));
   auto ncol = static_cast<std::size_t>(INTEGER(num_col)[0]);
-
-  char jtemplate[] = R"({"data": [%lu, true], "shape": [%lu], "typestr": "%s", "version": 3})";
-  std::size_t constexpr kN {256};
-  char jindptr[kN];
-  char jindices[kN];
-  char jdata[kN];
-  if (DMLC_LITTLE_ENDIAN) {
-    snprintf(jindptr, kN, jtemplate, std::size_t(p_indptr), nindptr, "<i4");
-    snprintf(jindices, kN, jtemplate, std::size_t(p_indices), ndata, "<i4");
-    snprintf(jdata, kN, jtemplate, std::size_t(p_data), ndata, "<f8");
-  } else {
-    snprintf(jindptr, kN, jtemplate, std::size_t(p_indptr), nindptr, ">i4");
-    snprintf(jindices, kN, jtemplate, std::size_t(p_indices), ndata, ">i4");
-    snprintf(jdata, kN, jtemplate, std::size_t(p_data), ndata, ">f8");
-  }
-  DMatrixHandle handle;
-  char jconfig[kN];
   std::int32_t threads = asInteger(n_threads);
-  snprintf(jconfig, kN, R"({"nthread": %d, "missing": NaN})", threads);
 
-  CHECK_CALL(XGDMatrixCreateFromCSR(jindptr, jindices, jdata, ncol, jconfig, &handle));
+  using xgboost::Array;
+  using xgboost::Integer;
+  using xgboost::Json;
+  using xgboost::Object;
+  using xgboost::String;
+  // Construct array interfaces
+  Json jindptr{Object{}};
+  Json jindices{Object{}};
+  Json jdata{Object{}};
+  jindptr["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_indptr)}, Json{true}}};
+  jindptr["shape"] = std::vector<Json>{Json{nindptr}};
+  jindptr["version"] = Integer{3};
+
+  jindices["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_indices)}, Json{true}}};
+  jindices["shape"] = std::vector<Json>{Json{ndata}};
+  jindices["version"] = Integer{3};
+
+  jindices["data"] =
+      Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_data)}, Json{true}}};
+  jindices["shape"] = std::vector<Json>{Json{ndata}};
+  jindices["version"] = Integer{3};
+
+  if (DMLC_LITTLE_ENDIAN) {
+    jindptr["typestr"] = String{"<i4"};
+    jindices["typestr"] = String{"<i4"};
+    jdata["typestr"] = String{"<i8"};
+  } else {
+    jindptr["typestr"] = String{">i4"};
+    jindices["typestr"] = String{">i4"};
+    jdata["typestr"] = String{">i8"};
+  }
+  std::string indptr, indices, data;
+  Json::Dump(jindptr, &indptr);
+  Json::Dump(jindices, &indices);
+  Json::Dump(jdata, &data);
+
+  DMatrixHandle handle;
+  Json jconfig{Object{}};
+  // Construct configuration
+  jconfig["nthread"] = Integer{threads};
+  jconfig["missing"] = xgboost::Number{std::numeric_limits<float>::quiet_NaN()};
+  std::string config;
+  Json::Dump(jconfig, &config);
+  CHECK_CALL(XGDMatrixCreateFromCSR(indptr.c_str(), indices.c_str(), data.c_str(), ncol,
+                                    config.c_str(), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
 
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
