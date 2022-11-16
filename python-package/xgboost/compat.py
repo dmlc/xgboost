@@ -43,6 +43,11 @@ except ImportError:
     pandas_concat = None
     PANDAS_INSTALLED = False
 
+
+# cuDF
+CUDF_INSTALLED = importlib.util.find_spec("cudf") is not None
+
+
 # sklearn
 try:
     from sklearn.base import BaseEstimator as XGBModelBase

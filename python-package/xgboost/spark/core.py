@@ -37,6 +37,7 @@ from xgboost.training import train as worker_train
 
 import xgboost
 from xgboost import XGBClassifier, XGBRanker, XGBRegressor
+from xgboost.compat import CUDF_INSTALLED
 
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
@@ -56,6 +57,7 @@ from .params import (
     HasEnableSparseDataOptim,
     HasFeaturesCols,
     HasQueryIdCol,
+    UseQuantileDMatrix,
 )
 from .utils import (
     CommunicatorContext,
@@ -150,6 +152,7 @@ class _SparkXGBParams(
     HasFeaturesCols,
     HasEnableSparseDataOptim,
     HasQueryIdCol,
+    UseQuantileDMatrix,
 ):
     num_workers = Param(
         Params._dummy(),
@@ -755,7 +758,12 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             k: v for k, v in train_call_kwargs_params.items() if v is not None
         }
         dmatrix_kwargs = {k: v for k, v in dmatrix_kwargs.items() if v is not None}
-        use_qdm = booster_params.get("tree_method", None) in ("hist", "gpu_hist")
+
+        if self.isDefined(self.use_quantile_dmatrix):
+            use_qdm = self.getOrDefault(self.use_quantile_dmatrix)
+        else:
+            use_qdm = CUDF_INSTALLED and \
+                      booster_params.get("tree_method", None) in ("hist", "gpu_hist")
 
         def _train_booster(pandas_df_iter):
             """Takes in an RDD partition and outputs a booster for that partition after
