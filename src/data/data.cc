@@ -920,9 +920,10 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   collective::Allreduce<collective::Operation::kMax>(&dmat->Info().num_col_, 1);
 
   if (data_split_mode == DataSplitMode::kCol) {
-    auto slice_cols = dmat->Info().num_col_ / npart;
+    auto slice_cols = (dmat->Info().num_col_ + 1) / npart;
     auto slice_start = slice_cols * partid;
-    auto* sliced = dmat->SliceCol(slice_start, slice_cols);
+    auto size = std::min(slice_cols, dmat->Info().num_col_ - slice_start);
+    auto* sliced = dmat->SliceCol(slice_start, size);
     delete dmat;
     return sliced;
   } else {
