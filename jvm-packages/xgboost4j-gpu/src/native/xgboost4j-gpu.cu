@@ -1,7 +1,7 @@
 #include <jni.h>
-#include <thrust/system/cuda/experimental/pinned_allocator.h>
 
 #include "../../../../src/common/device_helpers.cuh"
+#include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/data/array_interface.h"
 #include "jvm_utils.h"
 #include <xgboost/c_api.h>
@@ -131,7 +131,7 @@ class DataIteratorProxy {
   bool cache_on_host_{true}; // TODO(Bobby): Make this optional.
 
   template <typename T>
-  using Alloc = thrust::system::cuda::experimental::pinned_allocator<T>;
+  using Alloc = xgboost::common::cuda::pinned_allocator<T>;
   template <typename U>
   using HostVector = std::vector<U, Alloc<U>>;
 
