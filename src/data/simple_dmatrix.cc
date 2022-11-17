@@ -60,7 +60,6 @@ DMatrix* SimpleDMatrix::SliceCol(std::size_t start, std::size_t size) {
         return e.index >= start and e.index < start + size;
       });
       rptr += h_data.size() - prev_size;
-      // What about empty rows?
       h_offset.emplace_back(rptr);
     }
     out->Info() = this->Info().Copy();
