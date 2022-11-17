@@ -196,10 +196,10 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   jindices["shape"] = std::vector<Json>{Json{ndata}};
   jindices["version"] = Integer{3};
 
-  jindices["data"] =
+  jdata["data"] =
       Array{std::vector<Json>{Json{reinterpret_cast<Integer::Int>(p_data)}, Json{true}}};
-  jindices["shape"] = std::vector<Json>{Json{ndata}};
-  jindices["version"] = Integer{3};
+  jdata["shape"] = std::vector<Json>{Json{ndata}};
+  jdata["version"] = Integer{3};
 
   if (DMLC_LITTLE_ENDIAN) {
     jindptr["typestr"] = String{"<i4"};
