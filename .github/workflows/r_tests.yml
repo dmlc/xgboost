@@ -21,16 +21,16 @@ jobs:
       RSPM: ${{ matrix.config.rspm }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: r-lib/actions/setup-r@v2
+    - uses: r-lib/actions/setup-r@50d1eae9b8da0bb3f8582c59a5b82225fa2fe7f2 # v2.3.1
       with:
         r-version: ${{ matrix.config.r }}
 
     - name: Cache R packages
-      uses: actions/cache@v2
+      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
       with:
         path: ${{ env.R_LIBS_USER }}
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
@@ -62,22 +62,22 @@ jobs:
       RSPM: ${{ matrix.config.rspm }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 
-    - uses: r-lib/actions/setup-r@v2
+    - uses: r-lib/actions/setup-r@50d1eae9b8da0bb3f8582c59a5b82225fa2fe7f2 # v2.3.1
       with:
         r-version: ${{ matrix.config.r }}
 
     - name: Cache R packages
-      uses: actions/cache@v2
+      uses: actions/cache@937d24475381cd9c75ae6db12cb4e79714b926ed # v3.0.11
       with:
         path: ${{ env.R_LIBS_USER }}
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
         restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-6-${{ hashFiles('R-package/DESCRIPTION') }}
 
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
       with:
         python-version: "3.8"
         architecture: 'x64'
@@ -106,7 +106,7 @@ jobs:
         # No need to add pandoc, the container has it figured out.
         apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
 

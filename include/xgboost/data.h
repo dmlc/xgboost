@@ -632,10 +632,6 @@ class DMatrix {
    */
   virtual DMatrix *SliceCol(std::size_t start, std::size_t size) = 0;
 
-  /*! \brief Number of rows per page in external memory.  Approximately 100MB per page for
-   *  dataset with 100 features. */
-  static const size_t kPageSize = 32UL << 12UL;
-
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;

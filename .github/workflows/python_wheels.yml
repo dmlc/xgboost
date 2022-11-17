@@ -17,11 +17,11 @@ jobs:
         - os: macos-latest
           platform_id: macosx_arm64
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
     - name: Setup Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@7f80679172b057fc5e90d70d197929d454754a5a # v4.3.0
       with:
         python-version: "3.8"
     - name: Build wheels
