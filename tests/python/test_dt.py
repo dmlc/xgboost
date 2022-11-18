@@ -3,7 +3,6 @@ import pytest
 
 import xgboost as xgb
 
-
 dt = pytest.importorskip("datatable")
 pd = pytest.importorskip("pandas")
 

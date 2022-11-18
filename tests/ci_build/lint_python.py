@@ -193,6 +193,7 @@ def main(args: argparse.Namespace) -> None:
                 "demo/guide-python/external_memory.py",
                 "demo/guide-python/cat_in_the_dat.py",
                 # tests
+                "tests/python/test_dt.py",
                 "tests/python/test_data_iterator.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
                 "tests/ci_build/lint_python.py",
