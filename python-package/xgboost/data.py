@@ -44,8 +44,9 @@ _matrix_meta = {"base_margin", "label"}
 def _warn_unused_missing(data: DataType, missing: Optional[FloatCompatible]) -> None:
     if (missing is not None) and (not np.isnan(missing)):
         warnings.warn(
-            '`missing` is not used for current input data type:' +
-            str(type(data)), UserWarning)
+            "`missing` is not used for current input data type:" + str(type(data)),
+            UserWarning,
+        )
 
 
 def _check_complex(data: DataType) -> None:
