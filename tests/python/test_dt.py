@@ -2,16 +2,10 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
-from xgboost import testing as tm
-
-pytestmark = pytest.mark.skipif(
-    tm.no_dt()["condition"] or tm.no_pandas()["condition"],
-    reason=tm.no_dt()["reason"] + " or " + tm.no_pandas()["reason"],
-)
 
 
-import datatable as dt
-import pandas as pd
+dt = pytest.importorskip("datatable")
+pd = pytest.importorskip("pandas")
 
 
 class TestDataTable:
