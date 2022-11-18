@@ -388,31 +388,22 @@ MetaInfo MetaInfo::Copy() const {
   out.num_col_ = this->num_col_;
   out.num_nonzero_ = this->num_nonzero_;
 
-  out.labels.Data()->Resize(this->labels.Size());
-  out.labels.Data()->Copy(*this->labels.Data());
+  out.labels.Data()->Extend(*this->labels.Data());
   out.labels.Reshape(this->labels.Shape());
 
-  out.weights_.Resize(this->weights_.Size());
-  out.weights_.Copy(this->weights_);
+  out.weights_.Extend(this->weights_);
 
-  out.base_margin_.Data()->Resize(this->base_margin_.Size());
-  out.base_margin_.Data()->Copy(*this->base_margin_.Data());
+  out.base_margin_.Data()->Extend(*this->base_margin_.Data());
   out.base_margin_.Reshape(this->base_margin_.Shape());
 
-  out.labels_upper_bound_.Resize(this->labels_upper_bound_.Size());
-  out.labels_upper_bound_.Copy(this->labels_upper_bound_);
-
-  out.labels_lower_bound_.Resize(this->labels_lower_bound_.Size());
-  out.labels_lower_bound_.Copy(this->labels_lower_bound_);
+  out.labels_upper_bound_.Extend(this->labels_upper_bound_);
+  out.labels_lower_bound_.Extend(this->labels_lower_bound_);
 
   out.feature_type_names = this->feature_type_names;
   out.feature_names = this->feature_names;
 
-  out.feature_types.Resize(this->feature_types.Size());
-  out.feature_types.Copy(this->feature_types);
-
-  out.feature_weights.Resize(this->feature_weights.Size());
-  out.feature_weights.Copy(this->feature_weights);
+  out.feature_types.Extend(this->feature_types);
+  out.feature_weights.Extend(this->feature_weights);
 
   return out;
 }
