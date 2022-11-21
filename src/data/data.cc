@@ -383,28 +383,7 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
 
 MetaInfo MetaInfo::Copy() const {
   MetaInfo out;
-
-  out.num_row_ = this->num_row_;
-  out.num_col_ = this->num_col_;
-  out.num_nonzero_ = this->num_nonzero_;
-
-  out.labels.Data()->Extend(*this->labels.Data());
-  out.labels.Reshape(this->labels.Shape());
-
-  out.weights_.Extend(this->weights_);
-
-  out.base_margin_.Data()->Extend(*this->base_margin_.Data());
-  out.base_margin_.Reshape(this->base_margin_.Shape());
-
-  out.labels_upper_bound_.Extend(this->labels_upper_bound_);
-  out.labels_lower_bound_.Extend(this->labels_lower_bound_);
-
-  out.feature_type_names = this->feature_type_names;
-  out.feature_names = this->feature_names;
-
-  out.feature_types.Extend(this->feature_types);
-  out.feature_weights.Extend(this->feature_weights);
-
+  out.Extend(*this, /*accumulate_rows=*/true, /*check_column=*/false);
   return out;
 }
 
