@@ -8,7 +8,7 @@ pd = pytest.importorskip("pandas")
 
 
 class TestDataTable:
-    def test_dt(self):
+    def test_dt(self) -> None:
         df = pd.DataFrame([[1, 2.0, True], [2, 3.0, False]], columns=["a", "b", "c"])
         dtable = dt.Frame(df)
         labels = dt.Frame([1, 2])
