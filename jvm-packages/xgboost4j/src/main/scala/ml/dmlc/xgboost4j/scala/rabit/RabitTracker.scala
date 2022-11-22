@@ -60,8 +60,9 @@ import scala.util.{Failure, Success, Try}
   * @param maxPortTrials The maximum number of trials of socket binding, by sequentially
   *                      increasing the port number.
   */
-private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
-                                  maxPortTrials: Int = 1000)
+private[scala] class RabitTracker(
+     numWorkers: Int, port: Option[Int] = None, maxPortTrials: Int = 1000,
+     rabitParams: Map[String, String] = Map.empty)
   extends IRabitTracker {
 
   import scala.collection.JavaConverters._
@@ -73,7 +74,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
   implicit val askTimeout: akka.util.Timeout = akka.util.Timeout(30 seconds)
   private[this] val tcpBindingTimeout: Duration = 1 minute
 
-  var workerEnvs: Map[String, String] = Map.empty
+  private var workerEnvs: Map[String, String] = Map.empty
 
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
     handler ? RabitTrackerHandler.InterruptTracker(e)
@@ -140,10 +141,13 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     * @return HashMap containing tracker information.
     */
   def getWorkerEnvs: java.util.Map[String, String] = {
-    new java.util.HashMap((workerEnvs ++ Map(
-        "DMLC_NUM_WORKER" -> numWorkers.toString,
-        "DMLC_NUM_SERVER" -> "0"
-    )).asJava)
+    new java.util.HashMap((
+        workerEnvs ++
+        Map(
+          "DMLC_NUM_WORKER" -> numWorkers.toString,
+          "DMLC_NUM_SERVER" -> "0") ++
+        (if (rabitParams == null) Map.empty else rabitParams)).asJava
+    )
   }
 
   /**
