@@ -6,7 +6,7 @@ from multiprocessing import Pool, cpu_count
 from typing import Dict, Tuple
 
 from pylint import epylint
-from test_utils import PY_PACKAGE, cd, print_time, record_time, ROOT
+from test_utils import PY_PACKAGE, ROOT, cd, print_time, record_time
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 

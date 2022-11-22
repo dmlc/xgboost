@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from platform import system
 
-from test_utils import DirectoryExcursion, cd, print_time, record_time, ROOT, R_PACKAGE
+from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
 
 def get_mingw_bin() -> str:
