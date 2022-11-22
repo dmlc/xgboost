@@ -20,6 +20,13 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass j
   common::AssertGPUSupport();
   API_END();
 }
+XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
+                                                    jobject jdata_iter, jobject jref_iter,
+                                                    char const *config, jlongArray jout) {
+  API_BEGIN();
+  common::AssertGPUSupport();
+  API_END();
+}
 } // namespace jni
 } // namespace xgboost
 #endif  // XGBOOST_USE_CUDA
