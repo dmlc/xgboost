@@ -16,6 +16,7 @@ from ._typing import (
     FeatureTypes,
     FloatCompatible,
     NumpyDType,
+    PandasDType,
     c_bst_ulong,
 )
 from .compat import DataFrame, lazy_isinstance
@@ -229,7 +230,10 @@ _pandas_dtype_mapper = {
     "float32": "float",
     "float64": "float",
     "bool": "i",
-    # nullable types
+}
+
+# nullable types
+pandas_nullable_mapper = {
     "Int8": "int",
     "Int16": "int",
     "Int32": "int",
@@ -243,6 +247,7 @@ _pandas_dtype_mapper = {
     "boolean": "i",
 }
 
+_pandas_dtype_mapper.update(pandas_nullable_mapper)
 
 _ENABLE_CAT_ERR = (
     "When categorical type is supplied, The experimental DMatrix parameter"
@@ -300,17 +305,37 @@ def _pandas_feature_info(
     return feature_names, feature_types
 
 
+def is_nullable_dtype(dtype: PandasDType) -> bool:
+    """Wether dtype is a pandas nullable type."""
+    from pandas.api.types import (
+        is_bool_dtype,
+        is_categorical_dtype,
+        is_float_dtype,
+        is_integer_dtype,
+    )
+
+    is_int = is_integer_dtype(dtype) and dtype.name in pandas_nullable_mapper
+    # np.bool has alias `bool`, while pd.BooleanDtype has `bzoolean`.
+    is_bool = is_bool_dtype(dtype) and dtype.name == "boolean"
+    is_float = is_float_dtype(dtype) and dtype.name in pandas_nullable_mapper
+    return is_int or is_bool or is_float or is_categorical_dtype(dtype)
+
+
 def pandas_cat_null(data: DataFrame) -> DataFrame:
     """Handle categorical dtype and nullable extension types from pandas."""
     from pandas.api.types import is_categorical_dtype
 
     # handle category codes and nullable.
-    cat_columns = [
-        col
-        for col, dtype in zip(data.columns, data.dtypes)
-        if is_categorical_dtype(dtype)
-    ]
-    if cat_columns:
+    cat_columns = []
+    nul_columns = []
+    for col, dtype in zip(data.columns, data.dtypes):
+        if is_categorical_dtype(dtype):
+            cat_columns.append(col)
+        # avoid an unnecessary conversion if possible
+        elif is_nullable_dtype(dtype):
+            nul_columns.append(col)
+
+    if cat_columns or nul_columns:
         # Avoid transformation due to: PerformanceWarning: DataFrame is highly
         # fragmented
         transformed = data.copy()
@@ -325,14 +350,13 @@ def pandas_cat_null(data: DataFrame) -> DataFrame:
             .astype(np.float32)
             .replace(-1.0, np.NaN)
         )
-
-    # Convert all types including nullable extension types to float32
+    if nul_columns:
+        transformed[nul_columns] = transformed[nul_columns].astype(np.float32)
 
     # TODO(jiamingy): Investigate the possibility of using dataframe protocol or arrow
     # IPC format for pandas so that we can apply the data transformation inside XGBoost
     # for better memory efficiency.
 
-    transformed = transformed.astype(np.float32)
     return transformed
 
 
