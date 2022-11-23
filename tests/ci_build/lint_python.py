@@ -6,10 +6,9 @@ from multiprocessing import Pool, cpu_count
 from typing import Dict, Tuple
 
 from pylint import epylint
-from test_utils import DirectoryExcursion, print_time, record_time
+from test_utils import PY_PACKAGE, ROOT, cd, print_time, record_time
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-PROJECT_ROOT = os.path.normpath(os.path.join(CURDIR, os.path.pardir, os.path.pardir))
 
 
 @record_time
@@ -45,20 +44,20 @@ Please run the following command on your machine to address the formatting error
 
 
 @record_time
+@cd(PY_PACKAGE)
 def run_mypy(rel_path: str) -> bool:
-    with DirectoryExcursion(os.path.join(PROJECT_ROOT, "python-package")):
-        path = os.path.join(PROJECT_ROOT, rel_path)
-        ret = subprocess.run(["mypy", path])
-        if ret.returncode != 0:
-            return False
-        return True
+    path = os.path.join(ROOT, rel_path)
+    ret = subprocess.run(["mypy", path])
+    if ret.returncode != 0:
+        return False
+    return True
 
 
 class PyLint:
     """A helper for running pylint, mostly copied from dmlc-core/scripts."""
 
     def __init__(self) -> None:
-        self.pypackage_root = os.path.join(PROJECT_ROOT, "python-package/")
+        self.pypackage_root = os.path.join(ROOT, "python-package/")
         self.pylint_cats = set(["error", "warning", "convention", "refactor"])
         self.pylint_opts = [
             "--extension-pkg-whitelist=numpy",
@@ -147,9 +146,6 @@ def main(args: argparse.Namespace) -> None:
                 "tests/python/test_data_iterator.py",
                 "tests/python/test_quantile_dmatrix.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/ci_build/lint_python.py",
-                "tests/ci_build/test_r_package.py",
-                "tests/ci_build/test_utils.py",
                 "tests/test_distributed/test_with_spark/",
                 "tests/test_distributed/test_gpu_with_spark/",
                 # demo
@@ -157,6 +153,11 @@ def main(args: argparse.Namespace) -> None:
                 "demo/guide-python/cat_in_the_dat.py",
                 "demo/guide-python/categorical.py",
                 "demo/guide-python/spark_estimator_examples.py",
+                # CI
+                "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
+                "tests/ci_build/change_version.py",
             ]
         ]
         if not all(black_results):
@@ -195,14 +196,17 @@ def main(args: argparse.Namespace) -> None:
                 # tests
                 "tests/python/test_data_iterator.py",
                 "tests/python-gpu/test_gpu_data_iterator.py",
-                "tests/ci_build/lint_python.py",
-                "tests/ci_build/test_r_package.py",
-                "tests/ci_build/test_utils.py",
                 "tests/test_distributed/test_with_spark/test_data.py",
                 "tests/test_distributed/test_gpu_with_spark/test_data.py",
                 "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
+                # CI
+                "tests/ci_build/lint_python.py",
+                "tests/ci_build/test_r_package.py",
+                "tests/ci_build/test_utils.py",
+                "tests/ci_build/change_version.py",
             ]
         ):
+            subprocess.check_call(["mypy", "--version"])
             sys.exit(-1)
 
     if args.pylint == 1:

@@ -6,14 +6,7 @@ import subprocess
 from pathlib import Path
 from platform import system
 
-from test_utils import DirectoryExcursion, cd, print_time, record_time
-
-ROOT = os.path.normpath(
-    os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), os.path.pardir, os.path.pardir
-    )
-)
-r_package = os.path.join(ROOT, "R-package")
+from test_utils import R_PACKAGE, ROOT, DirectoryExcursion, cd, print_time, record_time
 
 
 def get_mingw_bin() -> str:
@@ -153,7 +146,7 @@ def check_rpackage(path: str) -> None:
         raise ValueError("Suspicious NOTE.")
 
 
-@cd(r_package)
+@cd(R_PACKAGE)
 @record_time
 def check_rmarkdown() -> None:
     assert system() != "Windows", "Document test doesn't support Windows."
@@ -171,7 +164,7 @@ def check_rmarkdown() -> None:
         )
 
 
-@cd(r_package)
+@cd(R_PACKAGE)
 @record_time
 def test_with_autotools() -> None:
     """Windows only test. No `--as-cran` check, only unittests. We don't want to manage
@@ -240,7 +233,7 @@ def test_with_cmake(args: argparse.Namespace) -> None:
             )
         else:
             raise ValueError("Wrong compiler")
-    with DirectoryExcursion(r_package):
+    with DirectoryExcursion(R_PACKAGE):
         subprocess.check_call(
             [
                 R,

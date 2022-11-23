@@ -70,3 +70,13 @@ def print_time() -> None:
             "Elapsed:",
             f"{v['total'].seconds} secs",
         )
+
+
+ROOT = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), os.path.pardir, os.path.pardir
+    )
+)
+R_PACKAGE = os.path.join(ROOT, "R-package")
+JVM_PACKAGES = os.path.join(ROOT, "jvm-packages")
+PY_PACKAGE = os.path.join(ROOT, "python-package")
